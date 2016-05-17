@@ -81,12 +81,8 @@ type createEndpointRequest struct {
 // Represents a libnetwork endpoint interface.
 type endpointInterface struct {
 	Address     string
-	AddressIPV6 string
+	AddressIPv6 string
 	MacAddress  string
-	ID          int
-	SrcName     string
-	DstPrefix   string
-	GatewayIPv4 string
 }
 
 // Response sent by plugin when an endpoint is created.
