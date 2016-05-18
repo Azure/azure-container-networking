@@ -65,7 +65,7 @@ func CreateNetwork(networkId string, ipv4Pool string, ipv6Pool string) (*Network
 	extIf := externalInterfaces[extIfName]
 	if extIf == nil {
 		var err error
-		extIf, err = acquireExternalInterface(extIfName)
+		extIf, err = connectExternalInterface(extIfName)
 		if err != nil {
 			return nil, err
 		}
@@ -83,11 +83,11 @@ func CreateNetwork(networkId string, ipv4Pool string, ipv6Pool string) (*Network
 
 // Deletes a container network.
 func DeleteNetwork(nw *Network) error {
-	return releaseExternalInterface(nw.extIf.name)
+	return disconnectExternalInterface(nw.extIf.name)
 }
 
-// Enslaves an interface and connects it to a bridge.
-func acquireExternalInterface(ifName string) (*externalInterface, error) {
+// Connects a host interface to a bridge.
+func connectExternalInterface(ifName string) (*externalInterface, error) {
 	// Find the external interface.
 	hostIf, err := net.InterfaceByName(ifName)
 	if err != nil {
@@ -171,8 +171,8 @@ func acquireExternalInterface(ifName string) (*externalInterface, error) {
 	return &extIf, nil
 }
 
-// Releases an enslaved interface and disconnects it from its bridge.
-func releaseExternalInterface(ifName string) error {
+// Disconnects a host interface from its bridge.
+func disconnectExternalInterface(ifName string) error {
 	//
 	extIf := externalInterfaces[ifName]
 
@@ -220,6 +220,8 @@ func releaseExternalInterface(ifName string) error {
 			return err
 		}
 	}
+
+	delete(externalInterfaces, ifName)
 
 	return nil
 }
