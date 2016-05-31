@@ -4,7 +4,6 @@
 package core
 
 import (
-	"crypto/rand"
 	"fmt"
 	"net"
 
@@ -16,7 +15,7 @@ const (
 	// Prefix for bridge names.
 	bridgePrefix = "aqua"
 
-	// Prefix for host network interface names.
+	// Prefix for host virtual network interface names.
 	hostInterfacePrefix = "veth"
 
 	// Prefix for container network interface names.
@@ -44,14 +43,10 @@ type Endpoint struct {
 type externalInterface struct {
 	name       string
 	bridgeName string
+	macAddress net.HardwareAddr
 
 	// Number of networks using this external interface.
 	networkCount int
-
-	originalHwAddress net.HardwareAddr
-	assignedHwAddress net.HardwareAddr
-
-	addresses map[string]string
 }
 
 var externalInterfaces map[string]*externalInterface = make(map[string]*externalInterface)
@@ -94,7 +89,7 @@ func connectExternalInterface(ifName string) (*externalInterface, error) {
 		return nil, err
 	}
 
-	// Create bridge.
+	// Create the bridge.
 	bridgeName := bridgePrefix + "0"
 	_, err = net.InterfaceByName(bridgeName)
 	if err != nil {
@@ -103,13 +98,22 @@ func connectExternalInterface(ifName string) (*externalInterface, error) {
 		}
 	}
 
-	// Bridge up.
-	err = netlink.SetLinkState(bridgeName, true)
-	if err != nil {
-		return nil, err
+	// Assign external interface's IP addresses to the bridge for host traffic.
+	addrs, _ := hostIf.Addrs()
+	for _, addr := range addrs {
+		ipAddr, ipNet, err := net.ParseCIDR(addr.String())
+		ipNet.IP = ipAddr
+		if err != nil {
+			return nil, err
+		}
+
+		err = netlink.AddIpAddress(bridgeName, ipAddr, ipNet)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Setup MAC address translation rules.
+	// Setup MAC address translation rules for external interface.
 	err = ebtables.SetupSnatForOutgoingPackets(hostIf.Name, hostIf.HardwareAddr.String())
 	if err != nil {
 		return nil, err
@@ -120,50 +124,23 @@ func connectExternalInterface(ifName string) (*externalInterface, error) {
 		return nil, err
 	}
 
-	// External interface down.
-	err = netlink.SetLinkState(hostIf.Name, false)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get a new link address for the external interface.
-	macAddress, err := generateMacAddress()
-	if err != nil {
-		return nil, err
-	}
-
-	// Save state.
-	extIf := externalInterface{
-		name:              hostIf.Name,
-		bridgeName:        bridgeName,
-		originalHwAddress: hostIf.HardwareAddr,
-		assignedHwAddress: macAddress,
-		addresses:         make(map[string]string),
-	}
-
-	// Save IP addresses on the host interface, to be
-	// restored when the interface is released.
-	addrs, _ := hostIf.Addrs()
-	for _, addr := range addrs {
-		extIf.addresses[addr.String()] = addr.String()
-	}
-
-	// Set the new link address on external interface.
-	err = netlink.SetLinkAddress(hostIf.Name, macAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	// External interface up.
-	err = netlink.SetLinkState(hostIf.Name, true)
-	if err != nil {
-		return nil, err
-	}
-
 	// Connect the external interface to the bridge.
 	err = netlink.SetLinkMaster(hostIf.Name, bridgeName)
 	if err != nil {
 		return nil, err
+	}
+
+	// Bridge up.
+	err = netlink.SetLinkState(bridgeName, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save external interface's state.
+	extIf := externalInterface{
+		name:       hostIf.Name,
+		bridgeName: bridgeName,
+		macAddress: hostIf.HardwareAddr,
 	}
 
 	externalInterfaces[hostIf.Name] = &extIf
@@ -173,8 +150,11 @@ func connectExternalInterface(ifName string) (*externalInterface, error) {
 
 // Disconnects a host interface from its bridge.
 func disconnectExternalInterface(ifName string) error {
-	//
+	// Find the external interface.
 	extIf := externalInterfaces[ifName]
+	if extIf == nil {
+		return nil
+	}
 
 	// Disconnect external interface from its bridge.
 	err := netlink.SetLinkMaster(ifName, "")
@@ -182,19 +162,12 @@ func disconnectExternalInterface(ifName string) error {
 		return err
 	}
 
-	// External interface down.
+	// Restart external interface to reset subnet routes.
 	err = netlink.SetLinkState(ifName, false)
 	if err != nil {
 		return err
 	}
 
-	// Restore the original link address.
-	err = netlink.SetLinkAddress(ifName, extIf.originalHwAddress)
-	if err != nil {
-		return err
-	}
-
-	// External interface up.
 	err = netlink.SetLinkState(ifName, true)
 	if err != nil {
 		return err
@@ -202,15 +175,7 @@ func disconnectExternalInterface(ifName string) error {
 
 	// Cleanup MAC address translation rules.
 	ebtables.CleanupDnatForArpReplies(ifName)
-	ebtables.CleanupSnatForOutgoingPackets(ifName, extIf.originalHwAddress.String())
-
-	// Restore IP addresses.
-	for _, addr := range extIf.addresses {
-		ip, ipNet, err := net.ParseCIDR(addr)
-		if err != nil {
-			netlink.AddIpAddress(ifName, ip, ipNet)
-		}
-	}
+	ebtables.CleanupSnatForOutgoingPackets(ifName, extIf.macAddress.String())
 
 	// Delete the bridge if this was the last network using it.
 	extIf.networkCount--
@@ -224,29 +189,6 @@ func disconnectExternalInterface(ifName string) error {
 	delete(externalInterfaces, ifName)
 
 	return nil
-}
-
-// Generates a random MAC address.
-func generateMacAddress() (net.HardwareAddr, error) {
-	buf := make([]byte, 6)
-	_, err := rand.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-
-	// Clear the multicast bit.
-	buf[0] &= 0xFE
-
-	// Set the locally administered bit.
-	buf[0] |= 2
-
-	macAddr := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
-	hwAddr, err := net.ParseMAC(macAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	return hwAddr, nil
 }
 
 // Creates a new endpoint.
