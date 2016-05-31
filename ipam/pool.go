@@ -40,6 +40,7 @@ type addressSpace struct {
 type addressPool struct {
 	id        *addressPoolId
 	as        *addressSpace
+	ifName    string
 	subnet    net.IPNet
 	addresses map[string]*addressRecord
 	v6        bool
@@ -172,7 +173,7 @@ func (as *addressSpace) merge(newas *addressSpace) {
 }
 
 // Creates a new addressPool object.
-func (as *addressSpace) newAddressPool(subnet *net.IPNet) (*addressPool, error) {
+func (as *addressSpace) newAddressPool(ifName string, subnet *net.IPNet) (*addressPool, error) {
 	id := newAddressPoolId(as.id, subnet.String(), "")
 
 	as.Lock()
@@ -186,6 +187,7 @@ func (as *addressSpace) newAddressPool(subnet *net.IPNet) (*addressPool, error) 
 	pool = &addressPool{
 		id:        id,
 		as:        as,
+		ifName:    ifName,
 		subnet:    *subnet,
 		addresses: make(map[string]*addressRecord),
 		v6:        subnet.IP.To16() != nil,

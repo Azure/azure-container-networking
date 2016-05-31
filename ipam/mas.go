@@ -96,7 +96,7 @@ func (s *masSource) refresh() error {
 			Mask: net.IPMask(net.ParseIP(v.Mask)),
 		}
 
-		ap, err := local.newAddressPool(&subnet)
+		ap, err := local.newAddressPool("eth0", &subnet)
 		if err != nil && err != errAddressExists {
 			return err
 		}
