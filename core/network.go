@@ -6,6 +6,7 @@ package core
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/Azure/Aqua/netfilter"
 	"github.com/Azure/Aqua/netlink"
@@ -107,6 +108,11 @@ func connectExternalInterface(ifName string) (*externalInterface, error) {
 			return nil, err
 		}
 
+		err = netlink.DeleteIpAddress(ifName, ipAddr, ipNet)
+		if err != nil {
+			return nil, err
+		}
+
 		err = netlink.AddIpAddress(bridgeName, ipAddr, ipNet)
 		if err != nil {
 			return nil, err
@@ -124,8 +130,20 @@ func connectExternalInterface(ifName string) (*externalInterface, error) {
 		return nil, err
 	}
 
+	// External interface down.
+	err = netlink.SetLinkState(hostIf.Name, false)
+	if err != nil {
+		return nil, err
+	}
+
 	// Connect the external interface to the bridge.
 	err = netlink.SetLinkMaster(hostIf.Name, bridgeName)
+	if err != nil {
+		return nil, err
+	}
+
+	// External interface up.
+	err = netlink.SetLinkState(hostIf.Name, true)
 	if err != nil {
 		return nil, err
 	}
@@ -156,39 +174,48 @@ func disconnectExternalInterface(ifName string) error {
 		return nil
 	}
 
-	// Disconnect external interface from its bridge.
-	err := netlink.SetLinkMaster(ifName, "")
-	if err != nil {
-		return err
-	}
-
-	// Restart external interface to reset subnet routes.
-	err = netlink.SetLinkState(ifName, false)
-	if err != nil {
-		return err
-	}
-
-	err = netlink.SetLinkState(ifName, true)
-	if err != nil {
-		return err
+	// Disconnect the interface if this was the last network using it.
+	extIf.networkCount--
+	if extIf.networkCount > 0 {
+		return nil
 	}
 
 	// Cleanup MAC address translation rules.
 	ebtables.CleanupDnatForArpReplies(ifName)
 	ebtables.CleanupSnatForOutgoingPackets(ifName, extIf.macAddress.String())
 
-	// Delete the bridge if this was the last network using it.
-	extIf.networkCount--
-	if extIf.networkCount == 0 {
-		err := netlink.DeleteLink(extIf.bridgeName)
-		if err != nil {
-			return err
-		}
+	// Disconnect external interface from its bridge.
+	err := netlink.SetLinkMaster(ifName, "")
+	if err != nil {
+		return err
 	}
+
+	// Delete the bridge.
+	err = netlink.DeleteLink(extIf.bridgeName)
+	if err != nil {
+		return err
+	}
+
+	// Restart external interface to trigger DHCP/SLAAC and reset its configuration.
+	restartInterface(ifName)
 
 	delete(externalInterfaces, ifName)
 
 	return nil
+}
+
+// Restarts an interface by setting its operational state down and back up.
+func restartInterface(ifName string) error {
+	err := netlink.SetLinkState(ifName, false)
+	if err != nil {
+		return err
+	}
+
+	// Delay for the state to settle.
+	time.Sleep(2 * time.Second)
+
+	err = netlink.SetLinkState(ifName, true)
+	return err
 }
 
 // Creates a new endpoint.
