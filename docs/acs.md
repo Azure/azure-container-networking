@@ -29,9 +29,16 @@ To deploy an ACS Kubernetes cluster with Azure VNET plugins, follow the ACS [Kub
 
 You can also look at acs-engine [network policy examples](https://github.com/Azure/acs-engine/tree/master/examples/networkpolicy) for sample deployment templates.
 
-`acs-engine` will allocate 128 IP addresses on each agent node by default. Depending on the size of your subnets, you can specify a custom value per agent pool by setting the `ipAddressCount` property in `agentPoolProfile`. The custom value must be in range 1-256.
+`acs-engine` will allocate 128 IP addresses on each node by default. Depending on the size of your subnets, you can specify a custom value per agent pool or the master profile by setting the `ipAddressCount` property in `agentPoolProfile` and the `masterProfile`. The custom value must be in range 1-256.
 
 ```bash
+  "masterProfile": {
+    "count": 1,
+    "dnsPrefix": "cnitestmaster",
+    ...
+    "ipAddressCount": 64,
+    ...
+    },
   "agentPoolProfiles": [
       {
         "name": "agentpool1",
