@@ -14,10 +14,14 @@ This page describes how to setup the CNI plugins manually on Azure IaaS VMs. If 
 ## Install
 Copy the plugin package from the [release](https://github.com/Azure/azure-container-networking/releases) share to your Azure VM and extract the contents to the CNI directories.
 
-You can also install by running the `install-cni-plugin.sh` script provided in the `build` directory of this repository. Update the parameters at the top of the script with your preferences.
+You can also install by running the `install-cni-plugin.sh` (Linux) or `install-cni-plugin.ps1` (Windows) scripts provided in the scripts directory of this repository.
 
 ```bash
-$ build/install-cni-plugin.sh
+$ scripts/install-cni-plugin.sh [version]
+```
+
+```PowerShell
+PS> scripts\install-cni-plugin.ps1 [version]
 ```
 
 The plugin package comes with a simple network configuration file that works out of the box. See the [network configuration](https://github.com/Azure/azure-container-networking/blob/master/docs/cni.md#network-configuration) section below for customization options.
