@@ -34,8 +34,6 @@ You can also look at acs-engine [network policy examples](https://github.com/Azu
 ```bash
   "masterProfile": {
     "count": 1,
-    "dnsPrefix": "cnitestmaster",
-    ...
     "ipAddressCount": 64,
     ...
     },
