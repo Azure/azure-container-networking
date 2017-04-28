@@ -86,7 +86,13 @@ func (plugin *netPlugin) Stop() {
 
 // GetEndpointID returns a unique endpoint ID based on the CNI args.
 func (plugin *netPlugin) getEndpointID(args *cniSkel.CmdArgs) string {
-	return args.ContainerID[:8] + "-" + args.IfName
+	var containerID string
+	if len(args.ContainerID) >= 8 {
+		containerID = args.ContainerID[:8] + "-" + args.IfName
+	} else {
+		containerID = args.ContainerID + "-" + args.IfName
+	}
+	return containerID
 }
 
 // FindMasterInterface returns the name of the master interface.
