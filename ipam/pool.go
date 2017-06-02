@@ -345,10 +345,6 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 		}
 	}
 
-	if ap != nil {
-		ap.RefCount++
-	}
-
 	log.Printf("[ipam] Pool request completed with pool:%+v err:%v.", ap, err)
 
 	return ap, err
