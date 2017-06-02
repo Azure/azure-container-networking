@@ -8,12 +8,14 @@ const (
 	EndpointType = "IpamDriver"
 
 	// Libnetwork IPAM plugin remote API paths
-	getCapabilitiesPath  = "/IpamDriver.GetCapabilities"
-	getAddressSpacesPath = "/IpamDriver.GetDefaultAddressSpaces"
-	requestPoolPath      = "/IpamDriver.RequestPool"
-	releasePoolPath      = "/IpamDriver.ReleasePool"
-	requestAddressPath   = "/IpamDriver.RequestAddress"
-	releaseAddressPath   = "/IpamDriver.ReleaseAddress"
+	getCapabilitiesPath    = "/IpamDriver.GetCapabilities"
+	getAddressSpacesPath   = "/IpamDriver.GetDefaultAddressSpaces"
+	requestPoolPath        = "/IpamDriver.RequestPool"
+	releasePoolPath        = "/IpamDriver.ReleasePool"
+	requestAddressPath     = "/IpamDriver.RequestAddress"
+	releaseAddressPath     = "/IpamDriver.ReleaseAddress"
+	reserveAddressPath     = "/IpamDriver.ReserveAddress"
+	releaseReservationPath = "/IpamDriver.ReleaseReservation"
 
 	// Libnetwork IPAM plugin options
 	OptAddressType        = "RequestAddressType"
@@ -61,6 +63,14 @@ type releasePoolRequest struct {
 	PoolID string
 }
 
+type reserveAddressRequest struct {
+	ReservationID string
+}
+
+type releaseReservationRequest struct {
+	ReservationID string
+}
+
 // Response sent by plugin when an address pool is successfully released.
 type releasePoolResponse struct {
 }
@@ -86,4 +96,12 @@ type releaseAddressRequest struct {
 
 // Response sent by plugin when an address is successfully released.
 type releaseAddressResponse struct {
+}
+
+type reserveAddressResponse struct {
+	Address string
+}
+
+type releaseReservationResponse struct {
+	returnCode int
 }

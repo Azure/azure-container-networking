@@ -51,16 +51,17 @@ type addressSpace struct {
 
 // Represents a subnet and the set of addresses in it.
 type addressPool struct {
-	as        *addressSpace
-	Id        string
-	IfName    string
-	Subnet    net.IPNet
-	Gateway   net.IP
-	Addresses map[string]*addressRecord
-	IsIPv6    bool
-	Priority  int
-	RefCount  int
-	epoch     int
+	as                *addressSpace
+	Id                string
+	IfName            string
+	Subnet            net.IPNet
+	Gateway           net.IP
+	Addresses         map[string]*addressRecord
+	ReservationRecord map[string]*addressRecord
+	IsIPv6            bool
+	Priority          int
+	RefCount          int
+	epoch             int
 }
 
 // AddressPoolInfo contains information about an address pool.
@@ -73,9 +74,10 @@ type AddressPoolInfo struct {
 
 // Represents an IP address in a pool.
 type addressRecord struct {
-	Addr  net.IP
-	InUse bool
-	epoch int
+	Addr          net.IP
+	InUse         bool
+	ReservationId string
+	epoch         int
 }
 
 //
@@ -246,15 +248,16 @@ func (as *addressSpace) newAddressPool(ifName string, priority int, subnet *net.
 	v6 := (subnet.IP.To4() == nil)
 
 	pool = &addressPool{
-		as:        as,
-		Id:        id,
-		IfName:    ifName,
-		Subnet:    *subnet,
-		Gateway:   platform.GenerateAddress(subnet, defaultGatewayHostId),
-		Addresses: make(map[string]*addressRecord),
-		IsIPv6:    v6,
-		Priority:  priority,
-		epoch:     as.epoch,
+		as:                as,
+		Id:                id,
+		IfName:            ifName,
+		Subnet:            *subnet,
+		Gateway:           platform.GenerateAddress(subnet, defaultGatewayHostId),
+		Addresses:         make(map[string]*addressRecord),
+		ReservationRecord: make(map[string]*addressRecord),
+		IsIPv6:            v6,
+		Priority:          priority,
+		epoch:             as.epoch,
 	}
 
 	as.Pools[id] = pool
@@ -289,14 +292,93 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 	} else {
 		// Return any available address pool.
 		ifName := options[OptInterfaceName]
+		reservationId := options[OptReservationId]
 
 		for _, pool := range as.Pools {
 			log.Printf("[ipam] Checking pool %v.", pool.Id)
-
+			ok := pool.isReservationIdExists(reservationId)
+			if ok {
+				ap = pool
+				err = errReservationIdExist
+				break
+			}
 			// Skip if pool is already in use.
 			if pool.isInUse() {
 				log.Printf("[ipam] Pool is in use.")
 				continue
+			}
+
+			// Pick a pool from the same address family.
+			if pool.IsIPv6 != v6 {
+				log.Printf("[ipam] Pool is of a different address family.")
+				continue
+			}
+
+			// Skip if pool is not on the requested interface.
+			if ifName != "" && ifName != pool.IfName {
+				log.Printf("[ipam] Pool is not on the requested interface.")
+				continue
+			}
+
+			log.Printf("[ipam] Pool %v matches requirements.", pool.Id)
+
+			if ap == nil {
+				ap = pool
+				continue
+			}
+
+			// Prefer the pool with the highest priority.
+			if pool.Priority > ap.Priority {
+				log.Printf("[ipam] Pool is preferred because of priority.")
+				ap = pool
+			}
+
+			// Prefer the pool with the highest number of addresses.
+			if len(pool.Addresses) > len(ap.Addresses) {
+				log.Printf("[ipam] Pool is preferred because of capacity.")
+				ap = pool
+			}
+		}
+
+		if ap == nil {
+			err = errNoAvailableAddressPools
+		}
+	}
+
+	if ap != nil {
+		ap.RefCount++
+	}
+
+	log.Printf("[ipam] Pool request completed with pool:%+v err:%v.", ap, err)
+
+	return ap, err
+}
+
+func (as *addressSpace) requestPoolIgnoreInuse(poolId string, subPoolId string, options map[string]string, v6 bool) (*addressPool, error) {
+	var ap *addressPool
+	var err error
+
+	log.Printf("[ipam] Requesting pool with poolId:%v options:%+v v6:%v.", poolId, options, v6)
+
+	if poolId != "" {
+		// Return the specific address pool requested.
+		// Note sharing of pools is allowed when specifically requested.
+		ap = as.Pools[poolId]
+		if ap == nil {
+			err = errAddressPoolNotFound
+		}
+	} else {
+		// Return any available address pool.
+		ifName := options[OptInterfaceName]
+		reservationId := options[OptReservationId]
+
+		for _, pool := range as.Pools {
+			log.Printf("[ipam] Checking pool %v.", pool.Id)
+			ok := pool.isReservationIdExists(reservationId)
+			if ok {
+				ap = pool
+				err = errReservationIdExist
+				break
 			}
 
 			// Pick a pool from the same address family.
@@ -397,6 +479,11 @@ func (ap *addressPool) isInUse() bool {
 	return ap.RefCount > 0
 }
 
+func (ap *addressPool) isReservationIdExists(reservationId string) bool {
+	_, ok := ap.ReservationRecord[reservationId]
+	return ok
+}
+
 // Creates a new addressRecord object.
 func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 	id := addr.String()
@@ -411,8 +498,9 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 	}
 
 	ar = &addressRecord{
-		Addr:  *addr,
-		epoch: ap.epoch,
+		Addr:          *addr,
+		epoch:         ap.epoch,
+		ReservationId: "",
 	}
 
 	ap.Addresses[id] = ar
@@ -433,6 +521,9 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		if ar.InUse {
 			return "", errAddressInUse
 		}
+		if ar.ReservationId != "" {
+			return "", errAddressReserved
+		}
 	} else if options[OptAddressType] == OptAddressTypeGateway {
 		// Return the pre-assigned gateway address.
 		ar = &addressRecord{
@@ -441,7 +532,7 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 	} else {
 		// Return any available address.
 		for _, ar = range ap.Addresses {
-			if !ar.InUse {
+			if !ar.InUse && ar.ReservationId == "" {
 				break
 			}
 			ar = nil
@@ -481,9 +572,55 @@ func (ap *addressPool) releaseAddress(address string) error {
 	ar.InUse = false
 
 	// Delete address record if it is no longer available.
-	if ar.epoch < ap.as.epoch {
+	if ar.epoch < ap.as.epoch && ar.ReservationId == "" {
 		delete(ap.Addresses, address)
 	}
+
+	return nil
+}
+
+func (ap *addressPool) reserveAddress(reservationId string, address string) error {
+
+	netaddr, _, _ := net.ParseCIDR(address)
+	addr := netaddr.String()
+
+	ar := ap.Addresses[addr]
+	if ar == nil {
+		return errAddressNotFound
+	}
+
+	ar.ReservationId = reservationId
+	ap.ReservationRecord[reservationId] = ar
+	return nil
+}
+
+func (ap *addressPool) requestReservedAddress(reservationId string) (string, error) {
+
+	ar := ap.ReservationRecord[reservationId]
+	if ar == nil {
+		return "", errAddressNotFound
+	}
+
+	ar.InUse = true
+
+	addr := net.IPNet{
+		IP:   ar.Addr,
+		Mask: ap.Subnet.Mask,
+	}
+	return addr.String(), nil
+}
+
+func (ap *addressPool) releaseReservation(reservationId string) error {
+	if reservationId == "" {
+		return errReservationIdNull
+	}
+	ar := ap.ReservationRecord[reservationId]
+	if ar == nil {
+		return errAddressNotFound
+	}
+
+	ar.ReservationId = ""
+	delete(ap.ReservationRecord, reservationId)
 
 	return nil
 }
