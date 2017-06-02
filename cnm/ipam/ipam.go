@@ -78,6 +78,8 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	listener.AddHandler(releasePoolPath, plugin.releasePool)
 	listener.AddHandler(requestAddressPath, plugin.requestAddress)
 	listener.AddHandler(releaseAddressPath, plugin.releaseAddress)
+	listener.AddHandler(reserveAddressPath, plugin.reserveAddress)
+	listener.AddHandler(releaseReservationPath, plugin.releaseReservation)
 
 	// Plugin is ready to be discovered.
 	err = plugin.EnableDiscovery()
@@ -262,6 +264,54 @@ func (plugin *ipamPlugin) releaseAddress(w http.ResponseWriter, r *http.Request)
 
 	// Encode response.
 	resp := releaseAddressResponse{}
+
+	err = plugin.Listener.Encode(w, &resp)
+
+	log.Response(plugin.Name, &resp, err)
+}
+
+// Handles ReserveAddress requests.
+func (plugin *ipamPlugin) reserveAddress(w http.ResponseWriter, r *http.Request) {
+	var req reserveAddressRequest
+
+	// Decode request.
+	err := plugin.Listener.Decode(w, r, &req)
+	log.Request(plugin.Name, &req, err)
+	if err != nil {
+		return
+	}
+
+	localAddrSpaceID, _ := plugin.am.GetDefaultAddressSpaces()
+
+	addr, err := plugin.am.ReserveAddress(localAddrSpaceID, req.ReservationID)
+	if err != nil {
+		plugin.SendErrorResponse(w, err)
+		return
+	}
+
+	// Encode response.
+	resp := reserveAddressResponse{Address: addr}
+
+	err = plugin.Listener.Encode(w, &resp)
+
+	log.Response(plugin.Name, &resp, err)
+}
+
+func (plugin *ipamPlugin) releaseReservation(w http.ResponseWriter, r *http.Request) {
+	var req releaseReservationRequest
+
+	err := plugin.Listener.Decode(w, r, &req)
+	log.Request(plugin.Name, &req, err)
+	if err != nil {
+		return
+	}
+
+	localAddrSpaceID, _ := plugin.am.GetDefaultAddressSpaces()
+
+	status := plugin.am.ReleaseReservation(localAddrSpaceID, req.ReservationID)
+
+	// Encode response.
+	resp := releaseReservationResponse{returnCode: status}
 
 	err = plugin.Listener.Encode(w, &resp)
 

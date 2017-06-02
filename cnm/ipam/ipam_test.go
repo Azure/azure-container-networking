@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -28,6 +29,10 @@ var ipamQueryResponse = "" +
 	"			<IPAddress Address=\"10.0.0.4\" IsPrimary=\"true\"/>" +
 	"			<IPAddress Address=\"10.0.0.5\" IsPrimary=\"false\"/>" +
 	"			<IPAddress Address=\"10.0.0.6\" IsPrimary=\"false\"/>" +
+	"			<IPAddress Address=\"10.0.0.7\" IsPrimary=\"false\"/>" +
+	"			<IPAddress Address=\"10.0.0.8\" IsPrimary=\"false\"/>" +
+	"			<IPAddress Address=\"10.0.0.9\" IsPrimary=\"false\"/>" +
+	"			<IPAddress Address=\"10.0.0.10\" IsPrimary=\"false\"/>" +
 	"		</IPSubnet>" +
 	"	</Interface>" +
 	"</Interfaces>"
@@ -35,6 +40,7 @@ var ipamQueryResponse = "" +
 var localAsId string
 var poolId1 string
 var address1 string
+var reserveCount int = 7
 
 // Wraps the test run with plugin setup and teardown.
 func TestMain(m *testing.M) {
@@ -283,4 +289,171 @@ func TestReleasePool(t *testing.T) {
 	if err != nil {
 		t.Errorf("ReleasePool response is invalid %+v", resp)
 	}
+}
+func TestReserveAddress(t *testing.T) {
+	var body bytes.Buffer
+	var resp reserveAddressResponse
+
+	for i := 0; i < reserveCount; i++ {
+
+		payload := &reserveAddressRequest{
+			ReservationID: "reserve" + strconv.Itoa(i),
+		}
+
+		json.NewEncoder(&body).Encode(payload)
+
+		req, err := http.NewRequest(http.MethodGet, reserveAddressPath, &body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		err = decodeResponse(w, &resp)
+
+		if err != nil {
+			t.Errorf("RequestAddress response is invalid %+v", resp)
+		}
+
+		address, _, _ := net.ParseCIDR(resp.Address)
+		address1 = address.String()
+	}
+}
+
+func TestReserveAddressSameId(t *testing.T) {
+	var body bytes.Buffer
+	var resp reserveAddressResponse
+
+	for i := 0; i < 2; i++ {
+
+		payload := &reserveAddressRequest{
+			ReservationID: "reserve" + strconv.Itoa(i),
+		}
+
+		json.NewEncoder(&body).Encode(payload)
+
+		req, err := http.NewRequest(http.MethodGet, reserveAddressPath, &body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		err = decodeResponse(w, &resp)
+
+		if err != nil {
+			t.Errorf("RequestAddress response is invalid %+v", resp)
+		}
+	}
+}
+
+func TestReleaseReservation(t *testing.T) {
+	var body bytes.Buffer
+	var resp releaseReservationResponse
+
+	for i := 0; i < reserveCount-2; i++ {
+		payload := &releaseReservationRequest{
+			ReservationID: "reserve" + strconv.Itoa(i),
+		}
+
+		json.NewEncoder(&body).Encode(payload)
+
+		req, err := http.NewRequest(http.MethodGet, releaseReservationPath, &body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		err = decodeResponse(w, &resp)
+
+		if err != nil {
+			t.Errorf("RequestAddress response is invalid %+v", resp)
+		}
+	}
+}
+
+func TestReleaseFakeId(t *testing.T) {
+	var body bytes.Buffer
+	var resp releaseReservationResponse
+
+	payload := &releaseReservationRequest{
+		ReservationID: "fakeid",
+	}
+
+	json.NewEncoder(&body).Encode(payload)
+
+	req, err := http.NewRequest(http.MethodGet, releaseReservationPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+
+	if err != nil {
+		t.Errorf("RequestAddress response is invalid %+v", resp)
+	}
+
+}
+
+func TestReleaseReservedAddress(t *testing.T) {
+	var body bytes.Buffer
+	var resp releaseAddressResponse
+
+	payload := &releaseAddressRequest{
+		PoolID:  poolId1,
+		Address: address1,
+	}
+
+	json.NewEncoder(&body).Encode(payload)
+
+	req, err := http.NewRequest(http.MethodGet, releaseAddressPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+
+	if err != nil {
+		t.Errorf("ReleaseAddress response is invalid %+v", resp)
+	}
+}
+
+func TestRequestReservedAddress(t *testing.T) {
+	var body bytes.Buffer
+	var resp requestAddressResponse
+
+	payload := &requestAddressRequest{
+		PoolID:  poolId1,
+		Address: address1,
+		Options: nil,
+	}
+
+	json.NewEncoder(&body).Encode(payload)
+
+	req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+
+	if err != nil {
+		t.Errorf("RequestAddress response is invalid %+v", resp)
+	}
+
+	address, _, _ := net.ParseCIDR(resp.Address)
+	address1 = address.String()
 }
