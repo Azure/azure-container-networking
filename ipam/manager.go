@@ -4,7 +4,6 @@
 package ipam
 
 import (
-	"net"
 	"sync"
 	"time"
 
@@ -46,8 +45,8 @@ type AddressManager interface {
 
 	RequestAddress(asId, poolId, address string, options map[string]string) (string, error)
 	ReleaseAddress(asId, poolId, address string) error
-	ReserveAddress(asId, reservationId string) (string, error)
-	ReleaseReservation(asId, reservationId string) int
+	GetReservedAddress(asId, poolId, reservationId string) (string, error)
+	GetAllAddresses(asId, poolId string) (map[string]AddressRecord, error)
 }
 
 // AddressConfigSource configures the address pools managed by AddressManager.
@@ -366,13 +365,11 @@ func (am *addressManager) ReleaseAddress(asId string, poolId string, address str
 
 	return nil
 }
-func (am *addressManager) ReserveAddress(asId string, reservationId string) (string, error) {
+
+// GetReservedAddress will return ip address corresponding to reservation id
+func (am *addressManager) GetReservedAddress(asId string, poolId string, reservationId string) (string, error) {
 	am.Lock()
 	defer am.Unlock()
-
-	if reservationId == "" {
-		return "", errReservationIdNull
-	}
 
 	am.refreshSource()
 
@@ -381,27 +378,12 @@ func (am *addressManager) ReserveAddress(asId string, reservationId string) (str
 		return "", err
 	}
 
-	options := make(map[string]string)
-	options[OptReservationId] = reservationId
-	pool, err := as.requestPoolIgnoreInuse("", "", options, false)
-	if err != nil {
-		if err == errReservationIdExist {
-			log.Printf("Reservation Id %v already exists\n", reservationId)
-			addr, err := pool.requestReservedAddress(reservationId)
-			if err != nil {
-				return "", err
-			}
-			return addr, nil
-		}
-		return "", err
-	}
-
-	addr, err := pool.requestAddress("", options)
+	ap, err := as.getAddressPool(poolId)
 	if err != nil {
 		return "", err
 	}
 
-	err = pool.reserveAddress(reservationId, addr)
+	addr, err := ap.getReservedAddress(reservationId)
 	if err != nil {
 		return "", err
 	}
@@ -414,49 +396,29 @@ func (am *addressManager) ReserveAddress(asId string, reservationId string) (str
 	return addr, nil
 }
 
-func (am *addressManager) ReleaseReservation(asId string, reservationId string) int {
+// GetAllAddresses returns all address records in the pool
+func (am *addressManager) GetAllAddresses(asId string, poolId string) (map[string]AddressRecord, error) {
 	am.Lock()
 	defer am.Unlock()
-	if reservationId == "" {
-		return 2
-	}
 
 	am.refreshSource()
 
 	as, err := am.getAddressSpace(asId)
 	if err != nil {
-		log.Printf("getAddressSpace failed:%v\n", err)
-		return 3
+		return nil, err
 	}
 
-	options := make(map[string]string)
-	options[OptReservationId] = reservationId
-	pool, err := as.requestPoolIgnoreInuse("", "", options, false)
-	if err != errReservationIdExist {
-		log.Printf("Reservation id not exist:%v\n", err)
-		return 1
-	}
-
-	addr, err := pool.requestReservedAddress(reservationId)
+	ap, err := as.getAddressPool(poolId)
 	if err != nil {
-		log.Printf("request reserved address failed:%v\n", err)
-		return 4
+		return nil, err
 	}
 
-	err = pool.releaseReservation(reservationId)
+	addrMap := ap.getAllAddresses()
+
+	err = am.save()
 	if err != nil {
-		log.Printf("release reservation failed:%v\n", err)
-		return 5
+		return nil, err
 	}
 
-	netaddr, _, _ := net.ParseCIDR(addr)
-	address := netaddr.String()
-
-	err = pool.releaseAddress(address)
-	if err != nil {
-		log.Printf("release addr failed:%v\n", err)
-		return 6
-	}
-
-	return 0
+	return addrMap, nil
 }

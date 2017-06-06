@@ -25,12 +25,12 @@ var (
 	errAddressNotInUse         = fmt.Errorf("Address not in use")
 	errNoAvailableAddresses    = fmt.Errorf("No available addresses")
 	errAddressReserved         = fmt.Errorf("Address already reserved")
-	errReservationIdNull       = fmt.Errorf("Reservation Id is empty")
+	errReservationIdEmpty      = fmt.Errorf("Reservation Id is empty")
 	errReservationIdExist      = fmt.Errorf("Reservation Id Exists")
 	errReservationIdNotFound   = fmt.Errorf("Reservation Id not found")
 	// Options used by AddressManager.
 	OptInterfaceName      = "azure.interface.name"
 	OptAddressType        = "azure.address.type"
 	OptAddressTypeGateway = "gateway"
-	OptReservationId      = "reservationID"
+	OptReservationId      = "ReservationId"
 )

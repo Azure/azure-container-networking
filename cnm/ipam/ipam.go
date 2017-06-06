@@ -78,8 +78,8 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	listener.AddHandler(releasePoolPath, plugin.releasePool)
 	listener.AddHandler(requestAddressPath, plugin.requestAddress)
 	listener.AddHandler(releaseAddressPath, plugin.releaseAddress)
-	listener.AddHandler(reserveAddressPath, plugin.reserveAddress)
-	listener.AddHandler(releaseReservationPath, plugin.releaseReservation)
+	listener.AddHandler(getReservedAddressPath, plugin.getReservedAddress)
+	listener.AddHandler(getAllAddressesPath, plugin.getAllAddresses)
 
 	// Plugin is ready to be discovered.
 	err = plugin.EnableDiscovery()
@@ -223,6 +223,10 @@ func (plugin *ipamPlugin) requestAddress(w http.ResponseWriter, r *http.Request)
 		options[ipam.OptAddressType] = ipam.OptAddressTypeGateway
 	}
 
+	if reservationId, ok := req.Options[OptReservationId]; ok {
+		options[OptReservationId] = reservationId
+	}
+
 	addr, err := plugin.am.RequestAddress(poolId.AsId, poolId.Subnet, req.Address, options)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
@@ -270,9 +274,9 @@ func (plugin *ipamPlugin) releaseAddress(w http.ResponseWriter, r *http.Request)
 	log.Response(plugin.Name, &resp, err)
 }
 
-// Handles ReserveAddress requests.
-func (plugin *ipamPlugin) reserveAddress(w http.ResponseWriter, r *http.Request) {
-	var req reserveAddressRequest
+//	Handles retreiving ip address given reservation id
+func (plugin *ipamPlugin) getReservedAddress(w http.ResponseWriter, r *http.Request) {
+	var req getReservedAddressRequest
 
 	// Decode request.
 	err := plugin.Listener.Decode(w, r, &req)
@@ -281,37 +285,53 @@ func (plugin *ipamPlugin) reserveAddress(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	localAddrSpaceID, _ := plugin.am.GetDefaultAddressSpaces()
+	// Process request.
+	poolId, err := ipam.NewAddressPoolIdFromString(req.PoolID)
+	if err != nil {
+		plugin.SendErrorResponse(w, err)
+		return
+	}
 
-	addr, err := plugin.am.ReserveAddress(localAddrSpaceID, req.ReservationID)
+	addr, err := plugin.am.GetReservedAddress(poolId.AsId, poolId.Subnet, req.ReservationID)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
 		return
 	}
 
 	// Encode response.
-	resp := reserveAddressResponse{Address: addr}
+	resp := getReservedAddressResponse{Address: addr}
 
 	err = plugin.Listener.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, err)
 }
 
-func (plugin *ipamPlugin) releaseReservation(w http.ResponseWriter, r *http.Request) {
-	var req releaseReservationRequest
+// Handles retrieving all ip addresses of a pool
+func (plugin *ipamPlugin) getAllAddresses(w http.ResponseWriter, r *http.Request) {
+	var req getAllAddressesRequest
 
+	// Decode request.
 	err := plugin.Listener.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
 	}
 
-	localAddrSpaceID, _ := plugin.am.GetDefaultAddressSpaces()
+	// Process request.
+	poolId, err := ipam.NewAddressPoolIdFromString(req.PoolID)
+	if err != nil {
+		plugin.SendErrorResponse(w, err)
+		return
+	}
 
-	status := plugin.am.ReleaseReservation(localAddrSpaceID, req.ReservationID)
+	addrMap, err := plugin.am.GetAllAddresses(poolId.AsId, poolId.Subnet)
+	if err != nil {
+		plugin.SendErrorResponse(w, err)
+		return
+	}
 
 	// Encode response.
-	resp := releaseReservationResponse{returnCode: status}
+	resp := getAllAddressesResponse{Address: addrMap}
 
 	err = plugin.Listener.Encode(w, &resp)
 

@@ -290,19 +290,25 @@ func TestReleasePool(t *testing.T) {
 		t.Errorf("ReleasePool response is invalid %+v", resp)
 	}
 }
+
+// Tests IpamDriver.RequestAddress with reservation id functionality.
 func TestReserveAddress(t *testing.T) {
 	var body bytes.Buffer
-	var resp reserveAddressResponse
+	var resp requestAddressResponse
 
 	for i := 0; i < reserveCount; i++ {
 
-		payload := &reserveAddressRequest{
-			ReservationID: "reserve" + strconv.Itoa(i),
+		payload := &requestAddressRequest{
+			PoolID:  poolId1,
+			Address: "",
+			Options: make(map[string]string),
 		}
+
+		payload.Options[OptReservationId] = "reserve" + strconv.Itoa(i)
 
 		json.NewEncoder(&body).Encode(payload)
 
-		req, err := http.NewRequest(http.MethodGet, reserveAddressPath, &body)
+		req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -321,126 +327,52 @@ func TestReserveAddress(t *testing.T) {
 	}
 }
 
+// Tests IpamDriver.RequestAddress with reservation id functionality.
 func TestReserveAddressSameId(t *testing.T) {
-	var body bytes.Buffer
-	var resp reserveAddressResponse
-
-	for i := 0; i < 2; i++ {
-
-		payload := &reserveAddressRequest{
-			ReservationID: "reserve" + strconv.Itoa(i),
-		}
-
-		json.NewEncoder(&body).Encode(payload)
-
-		req, err := http.NewRequest(http.MethodGet, reserveAddressPath, &body)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		err = decodeResponse(w, &resp)
-
-		if err != nil {
-			t.Errorf("RequestAddress response is invalid %+v", resp)
-		}
-	}
-}
-
-func TestReleaseReservation(t *testing.T) {
-	var body bytes.Buffer
-	var resp releaseReservationResponse
-
-	for i := 0; i < reserveCount-2; i++ {
-		payload := &releaseReservationRequest{
-			ReservationID: "reserve" + strconv.Itoa(i),
-		}
-
-		json.NewEncoder(&body).Encode(payload)
-
-		req, err := http.NewRequest(http.MethodGet, releaseReservationPath, &body)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		err = decodeResponse(w, &resp)
-
-		if err != nil {
-			t.Errorf("RequestAddress response is invalid %+v", resp)
-		}
-	}
-}
-
-func TestReleaseFakeId(t *testing.T) {
-	var body bytes.Buffer
-	var resp releaseReservationResponse
-
-	payload := &releaseReservationRequest{
-		ReservationID: "fakeid",
-	}
-
-	json.NewEncoder(&body).Encode(payload)
-
-	req, err := http.NewRequest(http.MethodGet, releaseReservationPath, &body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	err = decodeResponse(w, &resp)
-
-	if err != nil {
-		t.Errorf("RequestAddress response is invalid %+v", resp)
-	}
-
-}
-
-func TestReleaseReservedAddress(t *testing.T) {
-	var body bytes.Buffer
-	var resp releaseAddressResponse
-
-	payload := &releaseAddressRequest{
-		PoolID:  poolId1,
-		Address: address1,
-	}
-
-	json.NewEncoder(&body).Encode(payload)
-
-	req, err := http.NewRequest(http.MethodGet, releaseAddressPath, &body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	err = decodeResponse(w, &resp)
-
-	if err != nil {
-		t.Errorf("ReleaseAddress response is invalid %+v", resp)
-	}
-}
-
-func TestRequestReservedAddress(t *testing.T) {
 	var body bytes.Buffer
 	var resp requestAddressResponse
 
-	payload := &requestAddressRequest{
-		PoolID:  poolId1,
-		Address: address1,
-		Options: nil,
+	for i := 0; i < 2; i++ {
+
+		payload := &requestAddressRequest{
+			PoolID:  poolId1,
+			Address: "",
+			Options: make(map[string]string),
+		}
+
+		payload.Options[OptReservationId] = "reserve" + strconv.Itoa(i)
+
+		json.NewEncoder(&body).Encode(payload)
+
+		req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		err = decodeResponse(w, &resp)
+
+		if err != nil {
+			t.Errorf("RequestAddress response is invalid %+v", resp)
+		}
+	}
+}
+
+// Tests IpamDriver.GetRservedAddress functionality.
+func TestGetReservedAddress(t *testing.T) {
+	var body bytes.Buffer
+	var resp getReservedAddressResponse
+
+	payload := &getReservedAddressRequest{
+		PoolID:        poolId1,
+		ReservationID: "reserve0",
 	}
 
 	json.NewEncoder(&body).Encode(payload)
 
-	req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+	req, err := http.NewRequest(http.MethodGet, getReservedAddressPath, &body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,9 +383,43 @@ func TestRequestReservedAddress(t *testing.T) {
 	err = decodeResponse(w, &resp)
 
 	if err != nil {
-		t.Errorf("RequestAddress response is invalid %+v", resp)
+		t.Errorf("GetIpAddressFromReservationId response is invalid %+v", resp)
 	}
-
 	address, _, _ := net.ParseCIDR(resp.Address)
 	address1 = address.String()
+
+}
+
+// Tests IpamDriver.GetRservedAddress functionality for a fake reservation id
+func TestFakeReservationId(t *testing.T) {
+
+	TestReleaseAddress(t)
+	TestGetReservedAddress(t)
+}
+
+// Tests IpamDriver.GetAllAddresses functionality.
+func TestGetAllAddresses(t *testing.T) {
+
+	var body bytes.Buffer
+	var resp getAllAddressesResponse
+
+	payload := &getAllAddressesRequest{
+		PoolID: poolId1,
+	}
+
+	json.NewEncoder(&body).Encode(payload)
+
+	req, err := http.NewRequest(http.MethodGet, getAllAddressesPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+
+	if err != nil {
+		t.Errorf("GetAllAddresses response is invalid %+v", resp)
+	}
 }

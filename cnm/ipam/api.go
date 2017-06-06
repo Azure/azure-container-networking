@@ -3,6 +3,10 @@
 
 package ipam
 
+import (
+	"github.com/Azure/azure-container-networking/ipam"
+)
+
 const (
 	// Libnetwork IPAM plugin endpoint type
 	EndpointType = "IpamDriver"
@@ -14,12 +18,13 @@ const (
 	releasePoolPath        = "/IpamDriver.ReleasePool"
 	requestAddressPath     = "/IpamDriver.RequestAddress"
 	releaseAddressPath     = "/IpamDriver.ReleaseAddress"
-	reserveAddressPath     = "/IpamDriver.ReserveAddress"
-	releaseReservationPath = "/IpamDriver.ReleaseReservation"
+	getReservedAddressPath = "/IpamDriver.GetReservedAddress"
+	getAllAddressesPath    = "/IpamDriver.GetAllAddresses"
 
 	// Libnetwork IPAM plugin options
 	OptAddressType        = "RequestAddressType"
 	OptAddressTypeGateway = "com.docker.network.gateway"
+	OptReservationId      = "ReservationId"
 )
 
 // Request sent by libnetwork when querying plugin capabilities.
@@ -63,14 +68,6 @@ type releasePoolRequest struct {
 	PoolID string
 }
 
-type reserveAddressRequest struct {
-	ReservationID string
-}
-
-type releaseReservationRequest struct {
-	ReservationID string
-}
-
 // Response sent by plugin when an address pool is successfully released.
 type releasePoolResponse struct {
 }
@@ -98,10 +95,19 @@ type releaseAddressRequest struct {
 type releaseAddressResponse struct {
 }
 
-type reserveAddressResponse struct {
+type getReservedAddressRequest struct {
+	PoolID        string
+	ReservationID string
+}
+
+type getReservedAddressResponse struct {
 	Address string
 }
 
-type releaseReservationResponse struct {
-	returnCode int
+type getAllAddressesRequest struct {
+	PoolID string
+}
+
+type getAllAddressesResponse struct {
+	Address map[string]ipam.AddressRecord
 }
