@@ -76,11 +76,10 @@ type AddressPoolInfo struct {
 
 // Represents an IP address in a pool.
 type addressRecord struct {
-	Addr          net.IP
-	InUse         bool
-	ReservationId string
-	epoch         int
-	Unhealthy     bool
+	Addr      net.IP
+	InUse     bool
+	epoch     int
+	Unhealthy bool
 }
 
 //
@@ -297,9 +296,11 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 	} else {
 		// Return any available address pool.
 		ifName := options[OptInterfaceName]
+
 		for _, pool := range as.Pools {
 			log.Printf("[ipam] Checking pool %v.", pool.Id)
 
+			// Skip if pool is already in use.
 			if pool.isInUse() {
 				log.Printf("[ipam] Pool is in use.")
 				continue
@@ -385,7 +386,6 @@ func (as *addressSpace) releasePool(poolId string) error {
 //
 // AddressPool
 //
-
 // Returns AddressPoolInfo with Ip address statistics
 func (ap *addressPool) getInfo() *AddressPoolInfo {
 
@@ -424,17 +424,6 @@ func (ap *addressPool) isInUse() bool {
 	return ap.RefCount > 0
 }
 
-// Returns address record and true if reservationId exists in the pool
-func (ap *addressPool) isReservationIdExists(reservationId string) (*addressRecord, bool) {
-
-	for _, ar := range ap.Addresses {
-		if ar.ReservationId == reservationId {
-			return ar, true
-		}
-	}
-	return nil, false
-}
-
 // Creates a new addressRecord object.
 func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 	id := addr.String()
@@ -449,10 +438,9 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 	}
 
 	ar = &addressRecord{
-		Addr:          *addr,
-		epoch:         ap.epoch,
-		ReservationId: "",
-		Unhealthy:     false,
+		Addr:      *addr,
+		epoch:     ap.epoch,
+		Unhealthy: false,
 	}
 
 	ap.Addresses[id] = ar
@@ -464,19 +452,6 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 func (ap *addressPool) requestAddress(address string, options map[string]string) (string, error) {
 	var ar *addressRecord
 
-	reservationId, reservationFlag := options[OptReservationId]
-
-	if reservationFlag {
-		if addrRecord, ok := ap.isReservationIdExists(reservationId); ok {
-			address := net.IPNet{
-				IP:   addrRecord.Addr,
-				Mask: ap.Subnet.Mask,
-			}
-			log.Printf("Reservation Id exists for this %v reservation\n", reservationId)
-			return address.String(), nil
-		}
-	}
-
 	if address != "" {
 		// Return the specific address requested.
 		ar = ap.Addresses[address]
@@ -486,9 +461,6 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		if ar.InUse {
 			return "", errAddressInUse
 		}
-		if ar.ReservationId != "" {
-			return "", errAddressReserved
-		}
 	} else if options[OptAddressType] == OptAddressTypeGateway {
 		// Return the pre-assigned gateway address.
 		ar = &addressRecord{
@@ -497,7 +469,7 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 	} else {
 		// Return any available address.
 		for _, ar = range ap.Addresses {
-			if !ar.InUse && ar.ReservationId == "" {
+			if !ar.InUse {
 				break
 			}
 			ar = nil
@@ -506,13 +478,6 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		if ar == nil {
 			return "", errNoAvailableAddresses
 		}
-	}
-
-	if reservationFlag {
-		if reservationId == "" {
-			return "", errReservationIdEmpty
-		}
-		ar.ReservationId = reservationId
 	}
 
 	ar.InUse = true
@@ -542,7 +507,6 @@ func (ap *addressPool) releaseAddress(address string) error {
 	}
 
 	ar.InUse = false
-	ar.ReservationId = ""
 
 	// Delete address record if it is no longer available.
 	if ar.epoch < ap.as.epoch {

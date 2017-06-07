@@ -18,7 +18,6 @@ const (
 	// Libnetwork IPAM plugin options
 	OptAddressType        = "RequestAddressType"
 	OptAddressTypeGateway = "com.docker.network.gateway"
-	OptReservationId      = "ReservationId"
 )
 
 // Request sent by libnetwork when querying plugin capabilities.

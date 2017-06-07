@@ -222,10 +222,6 @@ func (plugin *ipamPlugin) requestAddress(w http.ResponseWriter, r *http.Request)
 		options[ipam.OptAddressType] = ipam.OptAddressTypeGateway
 	}
 
-	if reservationId, ok := req.Options[OptReservationId]; ok {
-		options[OptReservationId] = reservationId
-	}
-
 	addr, err := plugin.am.RequestAddress(poolId.AsId, poolId.Subnet, req.Address, options)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
