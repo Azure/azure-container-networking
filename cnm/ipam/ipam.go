@@ -78,8 +78,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	listener.AddHandler(releasePoolPath, plugin.releasePool)
 	listener.AddHandler(requestAddressPath, plugin.requestAddress)
 	listener.AddHandler(releaseAddressPath, plugin.releaseAddress)
-	listener.AddHandler(getReservedAddressPath, plugin.getReservedAddress)
-	listener.AddHandler(getAllAddressesPath, plugin.getAllAddresses)
+	listener.AddHandler(getPoolInfoPath, plugin.getPoolInfo)
 
 	// Plugin is ready to be discovered.
 	err = plugin.EnableDiscovery()
@@ -274,9 +273,9 @@ func (plugin *ipamPlugin) releaseAddress(w http.ResponseWriter, r *http.Request)
 	log.Response(plugin.Name, &resp, err)
 }
 
-//	Handles retreiving ip address given reservation id
-func (plugin *ipamPlugin) getReservedAddress(w http.ResponseWriter, r *http.Request) {
-	var req getReservedAddressRequest
+// Handles retrieving info about ipaddress statistics
+func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
+	var req getPoolInfoRequest
 
 	// Decode request.
 	err := plugin.Listener.Decode(w, r, &req)
@@ -292,46 +291,14 @@ func (plugin *ipamPlugin) getReservedAddress(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	addr, err := plugin.am.GetReservedAddress(poolId.AsId, poolId.Subnet, req.ReservationID)
+	addrPoolInfo, err := plugin.am.GetPoolInfo(poolId.AsId, poolId.Subnet)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
 		return
 	}
 
 	// Encode response.
-	resp := getReservedAddressResponse{Address: addr}
-
-	err = plugin.Listener.Encode(w, &resp)
-
-	log.Response(plugin.Name, &resp, err)
-}
-
-// Handles retrieving all ip addresses of a pool
-func (plugin *ipamPlugin) getAllAddresses(w http.ResponseWriter, r *http.Request) {
-	var req getAllAddressesRequest
-
-	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
-	log.Request(plugin.Name, &req, err)
-	if err != nil {
-		return
-	}
-
-	// Process request.
-	poolId, err := ipam.NewAddressPoolIdFromString(req.PoolID)
-	if err != nil {
-		plugin.SendErrorResponse(w, err)
-		return
-	}
-
-	addrMap, err := plugin.am.GetAllAddresses(poolId.AsId, poolId.Subnet)
-	if err != nil {
-		plugin.SendErrorResponse(w, err)
-		return
-	}
-
-	// Encode response.
-	resp := getAllAddressesResponse{Address: addrMap}
+	resp := getPoolInfoResponse{Capacity: addrPoolInfo.Capacity, Available: addrPoolInfo.Available, UnhealthyAddresses: addrPoolInfo.UnhealthyAddr}
 
 	err = plugin.Listener.Encode(w, &resp)
 

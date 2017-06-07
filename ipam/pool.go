@@ -56,7 +56,7 @@ type addressPool struct {
 	IfName    string
 	Subnet    net.IPNet
 	Gateway   net.IP
-	Addresses map[string]*AddressRecord
+	Addresses map[string]*addressRecord
 	IsIPv6    bool
 	Priority  int
 	RefCount  int
@@ -65,18 +65,22 @@ type addressPool struct {
 
 // AddressPoolInfo contains information about an address pool.
 type AddressPoolInfo struct {
-	Subnet     net.IPNet
-	Gateway    net.IP
-	DnsServers []net.IP
-	IsIPv6     bool
+	Subnet        net.IPNet
+	Gateway       net.IP
+	DnsServers    []net.IP
+	IsIPv6        bool
+	Capacity      int
+	Available     int
+	UnhealthyAddr []string
 }
 
 // Represents an IP address in a pool.
-type AddressRecord struct {
+type addressRecord struct {
 	Addr          net.IP
 	InUse         bool
 	ReservationId string
 	epoch         int
+	Unhealthy     bool
 }
 
 //
@@ -217,6 +221,9 @@ func (as *addressSpace) merge(newas *addressSpace) {
 			for ak, av := range pv.Addresses {
 				if av.epoch == as.epoch || av.InUse {
 					// Pool has at least one valid or in-use address.
+					if av.epoch != as.epoch {
+						av.Unhealthy = true
+					}
 					pv.epoch = as.epoch
 				} else {
 					// This address is no longer available.
@@ -252,7 +259,7 @@ func (as *addressSpace) newAddressPool(ifName string, priority int, subnet *net.
 		IfName:    ifName,
 		Subnet:    *subnet,
 		Gateway:   platform.GenerateAddress(subnet, defaultGatewayHostId),
-		Addresses: make(map[string]*AddressRecord),
+		Addresses: make(map[string]*addressRecord),
 		IsIPv6:    v6,
 		Priority:  priority,
 		epoch:     as.epoch,
@@ -379,13 +386,34 @@ func (as *addressSpace) releasePool(poolId string) error {
 // AddressPool
 //
 
-// Returns if an address pool is currently in use.
+// Returns AddressPoolInfo with Ip address statistics
 func (ap *addressPool) getInfo() *AddressPoolInfo {
+
+	var available, capacity int = 0, 0
+	var unhealthyAddr []string
+
+	for _, ar := range ap.Addresses {
+		if !ar.InUse {
+			available += 1
+		}
+		if ar.Unhealthy {
+			addr := net.IPNet{
+				IP:   ar.Addr,
+				Mask: ap.Subnet.Mask,
+			}
+			unhealthyAddr = append(unhealthyAddr, addr.String())
+		}
+		capacity += 1
+	}
+
 	info := &AddressPoolInfo{
-		Subnet:     ap.Subnet,
-		Gateway:    ap.Gateway,
-		DnsServers: []net.IP{dnsHostProxyAddress},
-		IsIPv6:     ap.IsIPv6,
+		Subnet:        ap.Subnet,
+		Gateway:       ap.Gateway,
+		DnsServers:    []net.IP{dnsHostProxyAddress},
+		IsIPv6:        ap.IsIPv6,
+		Capacity:      capacity,
+		Available:     available,
+		UnhealthyAddr: unhealthyAddr,
 	}
 
 	return info
@@ -397,7 +425,7 @@ func (ap *addressPool) isInUse() bool {
 }
 
 // Returns address record and true if reservationId exists in the pool
-func (ap *addressPool) isReservationIdExists(reservationId string) (*AddressRecord, bool) {
+func (ap *addressPool) isReservationIdExists(reservationId string) (*addressRecord, bool) {
 
 	for _, ar := range ap.Addresses {
 		if ar.ReservationId == reservationId {
@@ -408,7 +436,7 @@ func (ap *addressPool) isReservationIdExists(reservationId string) (*AddressReco
 }
 
 // Creates a new addressRecord object.
-func (ap *addressPool) newAddressRecord(addr *net.IP) (*AddressRecord, error) {
+func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 	id := addr.String()
 
 	if !ap.Subnet.Contains(*addr) {
@@ -420,10 +448,11 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*AddressRecord, error) {
 		return ar, errAddressExists
 	}
 
-	ar = &AddressRecord{
+	ar = &addressRecord{
 		Addr:          *addr,
 		epoch:         ap.epoch,
 		ReservationId: "",
+		Unhealthy:     false,
 	}
 
 	ap.Addresses[id] = ar
@@ -433,7 +462,7 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*AddressRecord, error) {
 
 // Requests a new address from the address pool.
 func (ap *addressPool) requestAddress(address string, options map[string]string) (string, error) {
-	var ar *AddressRecord
+	var ar *addressRecord
 
 	reservationId, reservationFlag := options[OptReservationId]
 
@@ -462,7 +491,7 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		}
 	} else if options[OptAddressType] == OptAddressTypeGateway {
 		// Return the pre-assigned gateway address.
-		ar = &AddressRecord{
+		ar = &addressRecord{
 			Addr: ap.Gateway,
 		}
 	} else {
@@ -484,7 +513,6 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 			return "", errReservationIdEmpty
 		}
 		ar.ReservationId = reservationId
-		log.Printf("Reservation id is set\n")
 	}
 
 	ar.InUse = true
@@ -522,27 +550,4 @@ func (ap *addressPool) releaseAddress(address string) error {
 	}
 
 	return nil
-}
-
-// Returns Ip Address for the reservation Id
-func (ap *addressPool) getReservedAddress(reservationId string) (string, error) {
-
-	if ar, ok := ap.isReservationIdExists(reservationId); ok {
-		address := net.IPNet{
-			IP:   ar.Addr,
-			Mask: ap.Subnet.Mask,
-		}
-		return address.String(), nil
-	}
-	return "", errReservationIdNotFound
-}
-
-// Returns all ip addresses of a pool
-func (ap *addressPool) getAllAddresses() map[string]AddressRecord {
-
-	addrMap := make(map[string]AddressRecord)
-	for addr, ar := range ap.Addresses {
-		addrMap[addr] = *ar
-	}
-	return addrMap
 }

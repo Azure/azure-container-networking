@@ -45,8 +45,6 @@ type AddressManager interface {
 
 	RequestAddress(asId, poolId, address string, options map[string]string) (string, error)
 	ReleaseAddress(asId, poolId, address string) error
-	GetReservedAddress(asId, poolId, reservationId string) (string, error)
-	GetAllAddresses(asId, poolId string) (map[string]AddressRecord, error)
 }
 
 // AddressConfigSource configures the address pools managed by AddressManager.
@@ -364,61 +362,4 @@ func (am *addressManager) ReleaseAddress(asId string, poolId string, address str
 	}
 
 	return nil
-}
-
-// GetReservedAddress will return ip address corresponding to reservation id
-func (am *addressManager) GetReservedAddress(asId string, poolId string, reservationId string) (string, error) {
-	am.Lock()
-	defer am.Unlock()
-
-	am.refreshSource()
-
-	as, err := am.getAddressSpace(asId)
-	if err != nil {
-		return "", err
-	}
-
-	ap, err := as.getAddressPool(poolId)
-	if err != nil {
-		return "", err
-	}
-
-	addr, err := ap.getReservedAddress(reservationId)
-	if err != nil {
-		return "", err
-	}
-
-	err = am.save()
-	if err != nil {
-		return "", err
-	}
-
-	return addr, nil
-}
-
-// GetAllAddresses returns all address records in the pool
-func (am *addressManager) GetAllAddresses(asId string, poolId string) (map[string]AddressRecord, error) {
-	am.Lock()
-	defer am.Unlock()
-
-	am.refreshSource()
-
-	as, err := am.getAddressSpace(asId)
-	if err != nil {
-		return nil, err
-	}
-
-	ap, err := as.getAddressPool(poolId)
-	if err != nil {
-		return nil, err
-	}
-
-	addrMap := ap.getAllAddresses()
-
-	err = am.save()
-	if err != nil {
-		return nil, err
-	}
-
-	return addrMap, nil
 }
