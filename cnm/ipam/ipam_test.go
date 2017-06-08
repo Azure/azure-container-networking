@@ -12,9 +12,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/ipam"
 )
 
 var plugin IpamPlugin
@@ -39,6 +41,7 @@ var ipamQueryResponse = "" +
 var localAsId string
 var poolId1 string
 var address1 string
+var reserveCount int = 7
 
 // Wraps the test run with plugin setup and teardown.
 func TestMain(m *testing.M) {
@@ -313,4 +316,72 @@ func TestGetPoolInfo(t *testing.T) {
 	if err != nil {
 		t.Errorf("GetPoolInfo response is invalid %+v", resp)
 	}
+}
+
+// Tests IpamDriver.RequestAddress with reservation id.
+func TestReserveAddress(t *testing.T) {
+	var body bytes.Buffer
+	var resp requestAddressResponse
+
+	for i := 0; i < reserveCount; i++ {
+
+		payload := &requestAddressRequest{
+			PoolID:  poolId1,
+			Address: "",
+			Options: make(map[string]string),
+		}
+
+		payload.Options[ipam.OptAddressID] = "reserve" + strconv.Itoa(i)
+
+		json.NewEncoder(&body).Encode(payload)
+
+		req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		err = decodeResponse(w, &resp)
+
+		if err != nil {
+			t.Errorf("RequestAddress response is invalid %+v", resp)
+		}
+
+		address, _, _ := net.ParseCIDR(resp.Address)
+		address1 = address.String()
+	}
+}
+
+// Tests IpamDriver.RequestAddress with reservation id.
+func TestGetReservedAddress(t *testing.T) {
+	var body bytes.Buffer
+	var resp requestAddressResponse
+
+	payload := &requestAddressRequest{
+		PoolID:  poolId1,
+		Address: "",
+		Options: make(map[string]string),
+	}
+
+	payload.Options[ipam.OptAddressID] = "reserve0"
+
+	json.NewEncoder(&body).Encode(payload)
+
+	req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+
+	if err != nil {
+		t.Errorf("RequestAddress response is invalid %+v", resp)
+	}
+	address, _, _ := net.ParseCIDR(resp.Address)
+	address1 = address.String()
 }

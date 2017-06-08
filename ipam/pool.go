@@ -439,6 +439,7 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 	ar = &addressRecord{
 		Addr:  *addr,
 		epoch: ap.epoch,
+		ID:    "",
 	}
 
 	ap.Addresses[id] = ar
@@ -451,12 +452,14 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 	var ar *addressRecord
 	var addr *net.IPNet
 	var err error
+
 	id := options[OptAddressID]
 
-	log.Printf("[ipam] Requesting address with address:%v options:%+v.", address, options)
-	defer func() { log.Printf("[ipam] Address request completed with address:%v err:%v.", addr, err) }()
+	if id != "" {
+		// Id exists already. Fetch the address associated with id.
+		ar = ap.addrsByID[id]
 
-	if address != "" {
+	} else if address != "" {
 		// Return the specific address requested.
 		ar = ap.Addresses[address]
 		if ar == nil {
@@ -476,13 +479,11 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 			Addr: ap.Gateway,
 		}
 		id = ""
-	} else if id != "" {
-		// Return the address with the matching identifier.
-		ar = ap.addrsByID[id]
 	}
 
-	// If no address was found, return any available address.
+	// Find available address from pool.
 	if ar == nil {
+
 		for _, ar = range ap.Addresses {
 			if !ar.InUse {
 				break
@@ -533,6 +534,7 @@ func (ap *addressPool) releaseAddress(address string) error {
 		return err
 	}
 
+	// Delete id to address record map.
 	if ar.ID != "" {
 		delete(ap.addrsByID, ar.ID)
 	}
