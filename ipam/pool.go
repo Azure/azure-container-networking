@@ -456,9 +456,8 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 	id := options[OptAddressID]
 
 	if id != "" {
-		// Id exists already. Fetch the address associated with id.
+		// Return the address with the matching identifier.
 		ar = ap.addrsByID[id]
-
 	} else if address != "" {
 		// Return the specific address requested.
 		ar = ap.Addresses[address]
@@ -467,11 +466,8 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 			return "", err
 		}
 		if ar.InUse {
-			// Return the same address if IDs match.
-			if id == "" || id != ar.ID {
-				err = errAddressInUse
-				return "", err
-			}
+			err = errAddressInUse
+			return "", err
 		}
 	} else if options[OptAddressType] == OptAddressTypeGateway {
 		// Return the pre-assigned gateway address.
