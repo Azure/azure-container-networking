@@ -41,7 +41,6 @@ var ipamQueryResponse = "" +
 var localAsId string
 var poolId1 string
 var address1 string
-var reserveCount int = 7
 
 // Wraps the test run with plugin setup and teardown.
 func TestMain(m *testing.M) {
@@ -319,11 +318,13 @@ func TestGetPoolInfo(t *testing.T) {
 }
 
 // Tests IpamDriver.RequestAddress with reservation id.
-func TestReserveAddress(t *testing.T) {
+func TestRequestAddressWithID(t *testing.T) {
 	var body bytes.Buffer
 	var resp requestAddressResponse
+	var addr1, addr2 string
+	var ipList [2]string
 
-	for i := 0; i < reserveCount; i++ {
+	for i := 0; i < 2; i++ {
 
 		payload := &requestAddressRequest{
 			PoolID:  poolId1,
@@ -349,39 +350,35 @@ func TestReserveAddress(t *testing.T) {
 			t.Errorf("RequestAddress response is invalid %+v", resp)
 		}
 
-		address, _, _ := net.ParseCIDR(resp.Address)
-		address1 = address.String()
+		addr1 = resp.Address
+
+		json.NewEncoder(&body).Encode(payload)
+
+		req, err = http.NewRequest(http.MethodGet, requestAddressPath, &body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		w = httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+
+		err = decodeResponse(w, &resp)
+
+		if err != nil {
+			t.Errorf("RequestAddress response is invalid %+v", resp)
+		}
+		addr2 = resp.Address
+
+		if addr1 != addr2 {
+			t.Errorf("RequestAddress with id %+v doesn't match with retrieved addr %+v ", addr1, addr2)
+		}
+
+		address, _, _ := net.ParseCIDR(addr1)
+		ipList[i] = address.String()
 	}
-}
 
-// Tests IpamDriver.RequestAddress with reservation id.
-func TestGetReservedAddress(t *testing.T) {
-	var body bytes.Buffer
-	var resp requestAddressResponse
-
-	payload := &requestAddressRequest{
-		PoolID:  poolId1,
-		Address: "",
-		Options: make(map[string]string),
-	}
-
-	payload.Options[ipam.OptAddressID] = "reserve0"
-
-	json.NewEncoder(&body).Encode(payload)
-
-	req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	err = decodeResponse(w, &resp)
-
-	if err != nil {
-		t.Errorf("RequestAddress response is invalid %+v", resp)
-	}
-	address, _, _ := net.ParseCIDR(resp.Address)
-	address1 = address.String()
+	address1 = ipList[0]
+	TestReleaseAddress(t)
+	address1 = ipList[1]
+	TestReleaseAddress(t)
 }
