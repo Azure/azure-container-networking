@@ -216,7 +216,7 @@ func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	addrPoolInfo, err := plugin.am.GetPoolInfo(poolId.AsId, poolId.Subnet)
+	apInfo, err := plugin.am.GetPoolInfo(poolId.AsId, poolId.Subnet)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
 		return
@@ -224,9 +224,9 @@ func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
 
 	// Encode response.
 	resp := getPoolInfoResponse{
-		Capacity:           addrPoolInfo.Capacity,
-		Available:          addrPoolInfo.Available,
-		UnhealthyAddresses: addrPoolInfo.UnhealthyAddrs,
+		Capacity:           apInfo.Capacity,
+		Available:          apInfo.Available,
+		UnhealthyAddresses: apInfo.UnhealthyAddrs,
 	}
 
 	err = plugin.Listener.Encode(w, &resp)

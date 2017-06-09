@@ -223,7 +223,7 @@ func (as *addressSpace) merge(newas *addressSpace) {
 					// Pool has at least one valid or in-use address.
 					pv.epoch = as.epoch
 				} else if av.InUse {
-					// Mark this address as unhealthy
+					// Address is no longer valid, but still in use. Mark it as unhealthy
 					pv.epoch = as.epoch
 					av.unhealthy = true
 				} else {
