@@ -44,7 +44,7 @@ type AddressManager interface {
 	GetPoolInfo(asId, poolId string) (*AddressPoolInfo, error)
 
 	RequestAddress(asId, poolId, address string, options map[string]string) (string, error)
-	ReleaseAddress(asId, poolId, address string) error
+	ReleaseAddress(asId, poolId, address string, options map[string]string) error
 }
 
 // AddressConfigSource configures the address pools managed by AddressManager.
@@ -342,7 +342,7 @@ func (am *addressManager) RequestAddress(asId, poolId, address string, options m
 }
 
 // ReleaseAddress releases a previously reserved address.
-func (am *addressManager) ReleaseAddress(asId string, poolId string, address string) error {
+func (am *addressManager) ReleaseAddress(asId string, poolId string, address string, options map[string]string) error {
 	am.Lock()
 	defer am.Unlock()
 
@@ -358,7 +358,7 @@ func (am *addressManager) ReleaseAddress(asId string, poolId string, address str
 		return err
 	}
 
-	err = ap.releaseAddress(address)
+	err = ap.releaseAddress(address, options)
 	if err != nil {
 		return err
 	}

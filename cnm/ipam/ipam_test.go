@@ -405,3 +405,32 @@ func TestRequestAddressWithID(t *testing.T) {
 		}
 	}
 }
+
+// Tests IpamDriver.ReleaseAddress with reservation id.
+func TestReleaseAddressWithID(t *testing.T) {
+
+	reqPayload := &requestAddressRequest{
+		PoolID:  poolId1,
+		Address: "",
+		Options: make(map[string]string),
+	}
+	reqPayload.Options[ipam.OptAddressID] = "reserve0"
+
+	_, err := reqAddrInternal(reqPayload)
+	if err != nil {
+		t.Errorf("RequestAddress with id  response is invalid %+v", err)
+	}
+
+	releasePayload := &releaseAddressRequest{
+		PoolID:  poolId1,
+		Address: "",
+		Options: make(map[string]string),
+	}
+	releasePayload.Options[ipam.OptAddressID] = "reserve0"
+
+	err = releaseAddrInternal(releasePayload)
+
+	if err != nil {
+		t.Errorf("ReleaseAddress with id  response is invalid %+v", err)
+	}
+}

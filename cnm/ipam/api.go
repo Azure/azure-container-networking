@@ -95,6 +95,7 @@ type requestAddressResponse struct {
 type releaseAddressRequest struct {
 	PoolID  string
 	Address string
+	Options map[string]string
 }
 
 // Response sent by plugin when an address is successfully released.
