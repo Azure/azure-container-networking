@@ -27,6 +27,7 @@ var (
 
 	// Options used by AddressManager.
 	OptInterfaceName      = "azure.interface.name"
+	OptAddressID          = "azure.address.id"
 	OptAddressType        = "azure.address.type"
 	OptAddressTypeGateway = "gateway"
 )

@@ -139,6 +139,16 @@ func (plugin *Plugin) DelegateDel(pluginName string, nwCfg *NetworkConfig) error
 	return nil
 }
 
+// GetEndpointID returns a unique endpoint ID based on the CNI args.
+func (plugin *Plugin) GetEndpointID(args *cniSkel.CmdArgs) string {
+	containerID := args.ContainerID
+	if len(containerID) > 8 {
+		containerID = containerID[:8]
+	}
+
+	return containerID + "-" + args.IfName
+}
+
 // Error creates and logs a structured CNI error.
 func (plugin *Plugin) Error(err error) *cniTypes.Error {
 	var cniErr *cniTypes.Error

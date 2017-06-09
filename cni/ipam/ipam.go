@@ -178,8 +178,12 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 		log.Printf("[cni-ipam] Allocated address poolID %v with subnet %v.", poolID, subnet)
 	}
 
+	// Store the endpoint ID in address request.
+	options := make(map[string]string)
+	options[ipam.OptAddressID] = plugin.GetEndpointID(args)
+
 	// Allocate an address for the endpoint.
-	address, err := plugin.am.RequestAddress(nwCfg.Ipam.AddrSpace, nwCfg.Ipam.Subnet, nwCfg.Ipam.Address, nil)
+	address, err := plugin.am.RequestAddress(nwCfg.Ipam.AddrSpace, nwCfg.Ipam.Subnet, nwCfg.Ipam.Address, options)
 	if err != nil {
 		err = plugin.Errorf("Failed to allocate address: %v", err)
 		return err

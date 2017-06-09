@@ -127,6 +127,13 @@ func (am *addressManager) restore() error {
 	for _, as := range am.AddrSpaces {
 		for _, ap := range as.Pools {
 			ap.as = as
+			ap.addrsByID = make(map[string]*addressRecord)
+
+			for _, ar := range ap.Addresses {
+				if ar.ID != "" {
+					ap.addrsByID[ar.ID] = ar
+				}
+			}
 		}
 	}
 

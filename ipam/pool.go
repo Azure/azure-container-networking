@@ -57,6 +57,7 @@ type addressPool struct {
 	Subnet    net.IPNet
 	Gateway   net.IP
 	Addresses map[string]*addressRecord
+	addrsByID map[string]*addressRecord
 	IsIPv6    bool
 	Priority  int
 	RefCount  int
@@ -76,6 +77,7 @@ type AddressPoolInfo struct {
 
 // Represents an IP address in a pool.
 type addressRecord struct {
+	ID        string
 	Addr      net.IP
 	InUse     bool
 	unhealthy bool
@@ -261,6 +263,7 @@ func (as *addressSpace) newAddressPool(ifName string, priority int, subnet *net.
 		Subnet:    *subnet,
 		Gateway:   platform.GenerateAddress(subnet, defaultGatewayHostId),
 		Addresses: make(map[string]*addressRecord),
+		addrsByID: make(map[string]*addressRecord),
 		IsIPv6:    v6,
 		Priority:  priority,
 		epoch:     as.epoch,
@@ -446,23 +449,40 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 // Requests a new address from the address pool.
 func (ap *addressPool) requestAddress(address string, options map[string]string) (string, error) {
 	var ar *addressRecord
+	var addr *net.IPNet
+	var err error
+	id := options[OptAddressID]
+
+	log.Printf("[ipam] Requesting address with address:%v options:%+v.", address, options)
+	defer func() { log.Printf("[ipam] Address request completed with address:%v err:%v.", addr, err) }()
 
 	if address != "" {
 		// Return the specific address requested.
 		ar = ap.Addresses[address]
 		if ar == nil {
-			return "", errAddressNotFound
+			err = errAddressNotFound
+			return "", err
 		}
 		if ar.InUse {
-			return "", errAddressInUse
+			// Return the same address if IDs match.
+			if id == "" || id != ar.ID {
+				err = errAddressInUse
+				return "", err
+			}
 		}
 	} else if options[OptAddressType] == OptAddressTypeGateway {
 		// Return the pre-assigned gateway address.
 		ar = &addressRecord{
 			Addr: ap.Gateway,
 		}
-	} else {
-		// Return any available address.
+		id = ""
+	} else if id != "" {
+		// Return the address with the matching identifier.
+		ar = ap.addrsByID[id]
+	}
+
+	// If no address was found, return any available address.
+	if ar == nil {
 		for _, ar = range ap.Addresses {
 			if !ar.InUse {
 				break
@@ -475,10 +495,15 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		}
 	}
 
+	if id != "" {
+		ap.addrsByID[id] = ar
+	}
+
+	ar.ID = id
 	ar.InUse = true
 
 	// Return address in CIDR notation.
-	addr := net.IPNet{
+	addr = &net.IPNet{
 		IP:   ar.Addr,
 		Mask: ap.Subnet.Mask,
 	}
@@ -488,19 +513,31 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 
 // Releases a previously requested address back to its address pool.
 func (ap *addressPool) releaseAddress(address string) error {
+	var err error
+
+	log.Printf("[ipam] Releasing address %v.", address)
+	defer func() { log.Printf("[ipam] Address release completed with err:%v.", err) }()
+
 	ar := ap.Addresses[address]
 	if ar == nil {
 		// Handle pre-assigned addresses.
 		if address == ap.Gateway.String() {
 			return nil
 		}
-		return errAddressNotFound
+		err = errAddressNotFound
+		return err
 	}
 
 	if !ar.InUse {
-		return errAddressNotInUse
+		err = errAddressNotInUse
+		return err
 	}
 
+	if ar.ID != "" {
+		delete(ap.addrsByID, ar.ID)
+	}
+
+	ar.ID = ""
 	ar.InUse = false
 
 	// Delete address record if it is no longer available.

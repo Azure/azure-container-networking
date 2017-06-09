@@ -82,16 +82,6 @@ func (plugin *netPlugin) Stop() {
 	log.Printf("[cni-net] Plugin stopped.")
 }
 
-// GetEndpointID returns a unique endpoint ID based on the CNI args.
-func (plugin *netPlugin) getEndpointID(args *cniSkel.CmdArgs) string {
-	containerID := args.ContainerID
-	if len(containerID) > 8 {
-		containerID = containerID[:8]
-	}
-
-	return containerID + "-" + args.IfName
-}
-
 // FindMasterInterface returns the name of the master interface.
 func (plugin *netPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPrefix *net.IPNet) string {
 	// An explicit master configuration wins. Explicitly specifying a master is
@@ -146,7 +136,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// Initialize values from network config.
 	networkId := nwCfg.Name
-	endpointId := plugin.getEndpointID(args)
+	endpointId := plugin.GetEndpointID(args)
 
 	// Check whether the network already exists.
 	nwInfo, err := plugin.nm.GetNetworkInfo(networkId)
@@ -307,7 +297,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	// Initialize values from network config.
 	networkId := nwCfg.Name
-	endpointId := plugin.getEndpointID(args)
+	endpointId := plugin.GetEndpointID(args)
 
 	// Query the network.
 	nwInfo, err := plugin.nm.GetNetworkInfo(networkId)
