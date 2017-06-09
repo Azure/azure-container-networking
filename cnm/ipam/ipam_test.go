@@ -291,7 +291,6 @@ func TestReleasePool(t *testing.T) {
 
 // Tests IpamDriver.GetPoolInfo functionality.
 func TestGetPoolInfo(t *testing.T) {
-
 	var body bytes.Buffer
 	var resp getPoolInfoResponse
 

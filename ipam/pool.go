@@ -65,21 +65,21 @@ type addressPool struct {
 
 // AddressPoolInfo contains information about an address pool.
 type AddressPoolInfo struct {
-	Subnet        net.IPNet
-	Gateway       net.IP
-	DnsServers    []net.IP
-	IsIPv6        bool
-	Capacity      int
-	Available     int
-	UnhealthyAddr []string
+	Subnet         net.IPNet
+	Gateway        net.IP
+	DnsServers     []net.IP
+	UnhealthyAddrs []net.IP
+	IsIPv6         bool
+	Available      int
+	Capacity       int
 }
 
 // Represents an IP address in a pool.
 type addressRecord struct {
 	Addr      net.IP
 	InUse     bool
+	unhealthy bool
 	epoch     int
-	Unhealthy bool
 }
 
 //
@@ -201,6 +201,7 @@ func (as *addressSpace) merge(newas *addressSpace) {
 				} else {
 					// This address record already exists.
 					ar.epoch = as.epoch
+					ar.unhealthy = false
 				}
 
 				delete(pv.Addresses, ak)
@@ -218,12 +219,13 @@ func (as *addressSpace) merge(newas *addressSpace) {
 		if pv.epoch < as.epoch {
 			// This pool may have stale addresses.
 			for ak, av := range pv.Addresses {
-				if av.epoch == as.epoch || av.InUse {
+				if av.epoch == as.epoch {
 					// Pool has at least one valid or in-use address.
-					if av.epoch != as.epoch {
-						av.Unhealthy = true
-					}
 					pv.epoch = as.epoch
+				} else if av.InUse {
+					// Mark this address as unhealthy
+					pv.epoch = as.epoch
+					av.unhealthy = true
 				} else {
 					// This address is no longer available.
 					delete(pv.Addresses, ak)
@@ -386,34 +388,28 @@ func (as *addressSpace) releasePool(poolId string) error {
 //
 // AddressPool
 //
-// Returns AddressPoolInfo with Ip address statistics
+// Returns address pool information.
 func (ap *addressPool) getInfo() *AddressPoolInfo {
-
-	var available, capacity int = 0, 0
-	var unhealthyAddr []string
+	var available int
+	var unhealthyAddrs []net.IP
 
 	for _, ar := range ap.Addresses {
 		if !ar.InUse {
-			available += 1
+			available++
 		}
-		if ar.Unhealthy {
-			addr := net.IPNet{
-				IP:   ar.Addr,
-				Mask: ap.Subnet.Mask,
-			}
-			unhealthyAddr = append(unhealthyAddr, addr.String())
+		if ar.unhealthy {
+			unhealthyAddrs = append(unhealthyAddrs, ar.Addr)
 		}
-		capacity += 1
 	}
 
 	info := &AddressPoolInfo{
-		Subnet:        ap.Subnet,
-		Gateway:       ap.Gateway,
-		DnsServers:    []net.IP{dnsHostProxyAddress},
-		IsIPv6:        ap.IsIPv6,
-		Capacity:      capacity,
-		Available:     available,
-		UnhealthyAddr: unhealthyAddr,
+		Subnet:         ap.Subnet,
+		Gateway:        ap.Gateway,
+		DnsServers:     []net.IP{dnsHostProxyAddress},
+		UnhealthyAddrs: unhealthyAddrs,
+		IsIPv6:         ap.IsIPv6,
+		Available:      available,
+		Capacity:       len(ap.Addresses),
 	}
 
 	return info
@@ -438,9 +434,8 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 	}
 
 	ar = &addressRecord{
-		Addr:      *addr,
-		epoch:     ap.epoch,
-		Unhealthy: false,
+		Addr:  *addr,
+		epoch: ap.epoch,
 	}
 
 	ap.Addresses[id] = ar

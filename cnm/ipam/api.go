@@ -3,6 +3,8 @@
 
 package ipam
 
+import "net"
+
 const (
 	// Libnetwork IPAM plugin endpoint type
 	EndpointType = "IpamDriver"
@@ -12,9 +14,9 @@ const (
 	getAddressSpacesPath = "/IpamDriver.GetDefaultAddressSpaces"
 	requestPoolPath      = "/IpamDriver.RequestPool"
 	releasePoolPath      = "/IpamDriver.ReleasePool"
+	getPoolInfoPath      = "/IpamDriver.GetPoolInfo"
 	requestAddressPath   = "/IpamDriver.RequestAddress"
 	releaseAddressPath   = "/IpamDriver.ReleaseAddress"
-	getPoolInfoPath      = "/IpamDriver.GetPoolInfo"
 	// Libnetwork IPAM plugin options
 	OptAddressType        = "RequestAddressType"
 	OptAddressTypeGateway = "com.docker.network.gateway"
@@ -65,6 +67,18 @@ type releasePoolRequest struct {
 type releasePoolResponse struct {
 }
 
+// Request sent when querying address pool information.
+type getPoolInfoRequest struct {
+	PoolID string
+}
+
+// Response sent by plugin when returning address pool information.
+type getPoolInfoResponse struct {
+	Capacity           int
+	Available          int
+	UnhealthyAddresses []net.IP
+}
+
 // Request sent by libnetwork when reserving an address from a pool.
 type requestAddressRequest struct {
 	PoolID  string
@@ -86,16 +100,4 @@ type releaseAddressRequest struct {
 
 // Response sent by plugin when an address is successfully released.
 type releaseAddressResponse struct {
-}
-
-//Request sent to retrieve pool information
-type getPoolInfoRequest struct {
-	PoolID string
-}
-
-// Response sent by plugin when pool info is retrieved successfully
-type getPoolInfoResponse struct {
-	Capacity           int
-	Available          int
-	UnhealthyAddresses []string
 }
