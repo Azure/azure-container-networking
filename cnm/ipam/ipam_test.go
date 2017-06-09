@@ -317,6 +317,7 @@ func TestGetPoolInfo(t *testing.T) {
 	}
 }
 
+// Utility function to request address from IPAM.
 func reqAddrInternal(payload *requestAddressRequest) (string, error) {
 	var body bytes.Buffer
 	var resp requestAddressResponse
@@ -338,6 +339,7 @@ func reqAddrInternal(payload *requestAddressRequest) (string, error) {
 	return resp.Address, nil
 }
 
+// Utility function to release address from IPAM.
 func releaseAddrInternal(payload *releaseAddressRequest) error {
 	var body bytes.Buffer
 	var resp releaseAddressResponse
