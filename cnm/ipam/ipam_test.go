@@ -317,11 +317,51 @@ func TestGetPoolInfo(t *testing.T) {
 	}
 }
 
-// Tests IpamDriver.RequestAddress with reservation id.
-func TestRequestAddressWithID(t *testing.T) {
+func reqAddrInternal(payload *requestAddressRequest) (string, error) {
 	var body bytes.Buffer
 	var resp requestAddressResponse
-	var addr1, addr2 string
+	json.NewEncoder(&body).Encode(payload)
+
+	req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+	if err != nil {
+		return "", err
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+
+	if err != nil {
+		return "", err
+	}
+	return resp.Address, nil
+}
+
+func releaseAddrInternal(payload *releaseAddressRequest) error {
+	var body bytes.Buffer
+	var resp releaseAddressResponse
+
+	json.NewEncoder(&body).Encode(payload)
+
+	req, err := http.NewRequest(http.MethodGet, releaseAddressPath, &body)
+	if err != nil {
+		return err
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Tests IpamDriver.RequestAddress with reservation id.
+func TestRequestAddressWithID(t *testing.T) {
 	var ipList [2]string
 
 	for i := 0; i < 2; i++ {
@@ -334,40 +374,15 @@ func TestRequestAddressWithID(t *testing.T) {
 
 		payload.Options[ipam.OptAddressID] = "reserve" + strconv.Itoa(i)
 
-		json.NewEncoder(&body).Encode(payload)
-
-		req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+		addr1, err := reqAddrInternal(payload)
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("RequestAddress with id  response is invalid %+v", err)
 		}
 
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		err = decodeResponse(w, &resp)
-
+		addr2, err := reqAddrInternal(payload)
 		if err != nil {
-			t.Errorf("RequestAddress response is invalid %+v", resp)
+			t.Errorf("RequestAddress with id  response is invalid %+v", err)
 		}
-
-		addr1 = resp.Address
-
-		json.NewEncoder(&body).Encode(payload)
-
-		req, err = http.NewRequest(http.MethodGet, requestAddressPath, &body)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		w = httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		err = decodeResponse(w, &resp)
-
-		if err != nil {
-			t.Errorf("RequestAddress response is invalid %+v", resp)
-		}
-		addr2 = resp.Address
 
 		if addr1 != addr2 {
 			t.Errorf("RequestAddress with id %+v doesn't match with retrieved addr %+v ", addr1, addr2)
@@ -377,8 +392,14 @@ func TestRequestAddressWithID(t *testing.T) {
 		ipList[i] = address.String()
 	}
 
-	address1 = ipList[0]
-	TestReleaseAddress(t)
-	address1 = ipList[1]
-	TestReleaseAddress(t)
+	for i := 0; i < 2; i++ {
+		payload := &releaseAddressRequest{
+			PoolID:  poolId1,
+			Address: ipList[i],
+		}
+		err := releaseAddrInternal(payload)
+		if err != nil {
+			t.Errorf("ReleaseAddress response is invalid %+v", err)
+		}
+	}
 }
