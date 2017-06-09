@@ -224,9 +224,12 @@ func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
 
 	// Encode response.
 	resp := getPoolInfoResponse{
-		Capacity:           apInfo.Capacity,
-		Available:          apInfo.Available,
-		UnhealthyAddresses: apInfo.UnhealthyAddrs,
+		Capacity:  apInfo.Capacity,
+		Available: apInfo.Available,
+	}
+
+	for _, addr := range apInfo.UnhealthyAddrs {
+		resp.UnhealthyAddresses = append(resp.UnhealthyAddresses, addr.String())
 	}
 
 	err = plugin.Listener.Encode(w, &resp)

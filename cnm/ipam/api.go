@@ -3,8 +3,6 @@
 
 package ipam
 
-import "net"
-
 const (
 	// Libnetwork IPAM plugin endpoint type
 	EndpointType = "IpamDriver"
@@ -77,7 +75,7 @@ type getPoolInfoRequest struct {
 type getPoolInfoResponse struct {
 	Capacity           int
 	Available          int
-	UnhealthyAddresses []net.IP
+	UnhealthyAddresses []string
 }
 
 // Request sent by libnetwork when reserving an address from a pool.
