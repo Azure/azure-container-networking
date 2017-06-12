@@ -362,7 +362,7 @@ func releaseAddrInternal(payload *releaseAddressRequest) error {
 	return nil
 }
 
-// Tests IpamDriver.RequestAddress with reservation id.
+// Tests IpamDriver.RequestAddress with id.
 func TestRequestAddressWithID(t *testing.T) {
 	var ipList [2]string
 
@@ -374,16 +374,16 @@ func TestRequestAddressWithID(t *testing.T) {
 			Options: make(map[string]string),
 		}
 
-		payload.Options[ipam.OptAddressID] = "reserve" + strconv.Itoa(i)
+		payload.Options[ipam.OptAddressID] = "id" + strconv.Itoa(i)
 
 		addr1, err := reqAddrInternal(payload)
 		if err != nil {
-			t.Errorf("RequestAddress with id  response is invalid %+v", err)
+			t.Errorf("RequestAddress response is invalid %+v", err)
 		}
 
 		addr2, err := reqAddrInternal(payload)
 		if err != nil {
-			t.Errorf("RequestAddress with id  response is invalid %+v", err)
+			t.Errorf("RequestAddress response is invalid %+v", err)
 		}
 
 		if addr1 != addr2 {
@@ -406,19 +406,18 @@ func TestRequestAddressWithID(t *testing.T) {
 	}
 }
 
-// Tests IpamDriver.ReleaseAddress with reservation id.
+// Tests IpamDriver.ReleaseAddress with id.
 func TestReleaseAddressWithID(t *testing.T) {
-
 	reqPayload := &requestAddressRequest{
 		PoolID:  poolId1,
 		Address: "",
 		Options: make(map[string]string),
 	}
-	reqPayload.Options[ipam.OptAddressID] = "reserve0"
+	reqPayload.Options[ipam.OptAddressID] = "id1"
 
 	_, err := reqAddrInternal(reqPayload)
 	if err != nil {
-		t.Errorf("RequestAddress with id  response is invalid %+v", err)
+		t.Errorf("RequestAddress response is invalid %+v", err)
 	}
 
 	releasePayload := &releaseAddressRequest{
@@ -426,11 +425,11 @@ func TestReleaseAddressWithID(t *testing.T) {
 		Address: "",
 		Options: make(map[string]string),
 	}
-	releasePayload.Options[ipam.OptAddressID] = "reserve0"
+	releasePayload.Options[ipam.OptAddressID] = "id1"
 
 	err = releaseAddrInternal(releasePayload)
 
 	if err != nil {
-		t.Errorf("ReleaseAddress with id  response is invalid %+v", err)
+		t.Errorf("ReleaseAddress response is invalid %+v", err)
 	}
 }

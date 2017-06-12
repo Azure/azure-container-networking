@@ -513,30 +513,34 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 
 // Releases a previously requested address back to its address pool.
 func (ap *addressPool) releaseAddress(address string, options map[string]string) error {
+	var ar *addressRecord
+	var id string
 	var err error
 
-	log.Printf("[ipam] Releasing address %v.", address)
+	log.Printf("[ipam] Releasing address %v options:%+v.", address, options)
 	defer func() { log.Printf("[ipam] Address release completed with err:%v.", err) }()
 
-	ar := ap.Addresses[address]
-	if ar == nil {
-		id := options[OptAddressID]
-		// Handle pre-assigned addresses.
-		if address == ap.Gateway.String() {
+	if options != nil {
+		id = options[OptAddressID]
+	}
+
+	if address != "" {
+		// Release the specific address.
+		ar = ap.Addresses[address]
+
+		// Release the pre-assigned gateway address.
+		if ar == nil && address == ap.Gateway.String() {
 			return nil
-		} else if id != "" {
-			// Get address associated with id.
-			ar = ap.addrsByID[id]
-			if ar == nil {
-				err = errAddressNotFound
-				return err
-			}
-			address = ar.Addr.String()
-			log.Printf("[ipam] Releasing the address %v associated with id %v", address, id)
-		} else {
-			err = errAddressNotFound
-			return err
 		}
+	} else if id != "" {
+		// Release the address with the matching ID.
+		ar = ap.addrsByID[id]
+		log.Printf("[ipam] Releasing address %v.", ar.Addr.String())
+	}
+
+	if ar == nil {
+		err = errAddressNotFound
+		return err
 	}
 
 	if !ar.InUse {
