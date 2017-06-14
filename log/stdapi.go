@@ -23,6 +23,14 @@ func SetLevel(level int) {
 	stdLog.SetLevel(level)
 }
 
+func SetLogFileLimits(maxFileSize int, maxFileCount int) {
+	stdLog.SetLogFileLimits(maxFileSize, maxFileCount)
+}
+
+func Close() {
+	stdLog.Close()
+}
+
 func Request(tag string, request interface{}, err error) {
 	stdLog.Request(tag, request, err)
 }

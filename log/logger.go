@@ -4,7 +4,12 @@
 package log
 
 import (
+	"fmt"
+	"io"
 	"log"
+	"os"
+
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 // Log level
@@ -24,15 +29,27 @@ const (
 )
 
 const (
+	// Log file properties.
 	logPrefix        = ""
 	logFileExtension = ".log"
+	logFilePerm      = os.FileMode(0664)
+
+	// Log file rotation default limits, in bytes.
+	maxLogFileSize   = 5 * 1024 * 1024
+	maxLogFileCount  = 8
+	rotationCheckFrq = 8
 )
 
 // Logger object
 type Logger struct {
-	l     *log.Logger
-	name  string
-	level int
+	l            *log.Logger
+	out          io.WriteCloser
+	name         string
+	level        int
+	target       int
+	maxFileSize  int
+	maxFileCount int
+	callCount    int
 }
 
 // NewLogger creates a new Logger.
@@ -43,6 +60,8 @@ func NewLogger(name string, level int, target int) *Logger {
 	logger.name = name
 	logger.level = level
 	logger.SetTarget(target)
+	logger.maxFileSize = maxLogFileSize
+	logger.maxFileCount = maxLogFileCount
 
 	return &logger
 }
@@ -55,6 +74,61 @@ func (logger *Logger) SetName(name string) {
 // SetLevel sets the log chattiness.
 func (logger *Logger) SetLevel(level int) {
 	logger.level = level
+}
+
+// SetLogFileLimits sets the log file limits.
+func (logger *Logger) SetLogFileLimits(maxFileSize int, maxFileCount int) {
+	logger.maxFileSize = maxFileSize
+	logger.maxFileCount = maxFileCount
+}
+
+// Close closes the log stream.
+func (logger *Logger) Close() {
+	if logger.out != nil {
+		logger.out.Close()
+	}
+}
+
+// GetLogFileName returns the full log file name.
+func (logger *Logger) getLogFileName() string {
+	return platform.LogPath + logger.name + logFileExtension
+}
+
+// Rotate checks the active log file size and rotates log files if necessary.
+func (logger *Logger) rotate() {
+	// Return if target is not a log file.
+	if logger.target != TargetLogfile || logger.out == nil {
+		return
+	}
+
+	fileName := logger.getLogFileName()
+	fileInfo, err := os.Stat(fileName)
+	if err != nil {
+		logger.Printf("[log] Failed to query log file info %+v.", err)
+		return
+	}
+
+	// Rotate if size limit is reached.
+	if fileInfo.Size() >= int64(logger.maxFileSize) {
+		logger.out.Close()
+		var fn1, fn2 string
+
+		// Rotate log files, keeping the last maxFileCount files.
+		for n := logger.maxFileCount - 1; n >= 0; n-- {
+			fn2 = fn1
+			if n == 0 {
+				fn1 = fileName
+			} else {
+				fn1 = fmt.Sprintf("%v.%v", fileName, n)
+			}
+			if fn2 != "" {
+				os.Rename(fn1, fn2)
+			}
+		}
+
+		// Create a new log file.
+		logger.SetTarget(TargetLogfile)
+	}
 }
 
 // Request logs a structured request.
@@ -75,16 +149,26 @@ func (logger *Logger) Response(tag string, response interface{}, err error) {
 	}
 }
 
+// Logf logs a formatted string.
+func (logger *Logger) logf(format string, args ...interface{}) {
+	if logger.callCount%rotationCheckFrq == 0 {
+		logger.rotate()
+	}
+	logger.callCount++
+
+	logger.l.Printf(format, args...)
+}
+
 // Printf logs a formatted string at info level.
 func (logger *Logger) Printf(format string, args ...interface{}) {
 	if logger.level >= LevelInfo {
-		logger.l.Printf(format, args...)
+		logger.logf(format, args...)
 	}
 }
 
 // Debugf logs a formatted string at debug level.
 func (logger *Logger) Debugf(format string, args ...interface{}) {
 	if logger.level >= LevelDebug {
-		logger.l.Printf(format, args...)
+		logger.logf(format, args...)
 	}
 }
