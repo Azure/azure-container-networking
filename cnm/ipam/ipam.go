@@ -72,13 +72,13 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	// Add protocol handlers.
 	listener := plugin.Listener
 	listener.AddEndpoint(plugin.EndpointType)
-	listener.AddHandler(getCapabilitiesPath, plugin.getCapabilities)
-	listener.AddHandler(getAddressSpacesPath, plugin.getDefaultAddressSpaces)
-	listener.AddHandler(requestPoolPath, plugin.requestPool)
-	listener.AddHandler(releasePoolPath, plugin.releasePool)
-	listener.AddHandler(getPoolInfoPath, plugin.getPoolInfo)
-	listener.AddHandler(requestAddressPath, plugin.requestAddress)
-	listener.AddHandler(releaseAddressPath, plugin.releaseAddress)
+	listener.AddHandler(GetCapabilitiesPath, plugin.getCapabilities)
+	listener.AddHandler(GetAddressSpacesPath, plugin.getDefaultAddressSpaces)
+	listener.AddHandler(RequestPoolPath, plugin.requestPool)
+	listener.AddHandler(ReleasePoolPath, plugin.releasePool)
+	listener.AddHandler(GetPoolInfoPath, plugin.getPoolInfo)
+	listener.AddHandler(RequestAddressPath, plugin.requestAddress)
+	listener.AddHandler(ReleaseAddressPath, plugin.releaseAddress)
 
 	// Plugin is ready to be discovered.
 	err = plugin.EnableDiscovery()
@@ -107,11 +107,11 @@ func (plugin *ipamPlugin) Stop() {
 
 // Handles GetCapabilities requests.
 func (plugin *ipamPlugin) getCapabilities(w http.ResponseWriter, r *http.Request) {
-	var req getCapabilitiesRequest
+	var req GetCapabilitiesRequest
 
 	log.Request(plugin.Name, &req, nil)
 
-	resp := getCapabilitiesResponse{
+	resp := GetCapabilitiesResponse{
 		RequiresMACAddress:    requiresMACAddress,
 		RequiresRequestReplay: requiresRequestReplay,
 	}
@@ -123,8 +123,8 @@ func (plugin *ipamPlugin) getCapabilities(w http.ResponseWriter, r *http.Request
 
 // Handles GetDefaultAddressSpaces requests.
 func (plugin *ipamPlugin) getDefaultAddressSpaces(w http.ResponseWriter, r *http.Request) {
-	var req getDefaultAddressSpacesRequest
-	var resp getDefaultAddressSpacesResponse
+	var req GetDefaultAddressSpacesRequest
+	var resp GetDefaultAddressSpacesResponse
 
 	log.Request(plugin.Name, &req, nil)
 
@@ -140,7 +140,7 @@ func (plugin *ipamPlugin) getDefaultAddressSpaces(w http.ResponseWriter, r *http
 
 // Handles RequestPool requests.
 func (plugin *ipamPlugin) requestPool(w http.ResponseWriter, r *http.Request) {
-	var req requestPoolRequest
+	var req RequestPoolRequest
 
 	// Decode request.
 	err := plugin.Listener.Decode(w, r, &req)
@@ -159,7 +159,7 @@ func (plugin *ipamPlugin) requestPool(w http.ResponseWriter, r *http.Request) {
 	// Encode response.
 	data := make(map[string]string)
 	poolId = ipam.NewAddressPoolId(req.AddressSpace, poolId, "").String()
-	resp := requestPoolResponse{PoolID: poolId, Pool: subnet, Data: data}
+	resp := RequestPoolResponse{PoolID: poolId, Pool: subnet, Data: data}
 
 	err = plugin.Listener.Encode(w, &resp)
 
@@ -168,7 +168,7 @@ func (plugin *ipamPlugin) requestPool(w http.ResponseWriter, r *http.Request) {
 
 // Handles ReleasePool requests.
 func (plugin *ipamPlugin) releasePool(w http.ResponseWriter, r *http.Request) {
-	var req releasePoolRequest
+	var req ReleasePoolRequest
 
 	// Decode request.
 	err := plugin.Listener.Decode(w, r, &req)
@@ -191,7 +191,7 @@ func (plugin *ipamPlugin) releasePool(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Encode response.
-	resp := releasePoolResponse{}
+	resp := ReleasePoolResponse{}
 
 	err = plugin.Listener.Encode(w, &resp)
 
@@ -200,7 +200,7 @@ func (plugin *ipamPlugin) releasePool(w http.ResponseWriter, r *http.Request) {
 
 // Handles GetPoolInfo requests.
 func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
-	var req getPoolInfoRequest
+	var req GetPoolInfoRequest
 
 	// Decode request.
 	err := plugin.Listener.Decode(w, r, &req)
@@ -223,7 +223,7 @@ func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Encode response.
-	resp := getPoolInfoResponse{
+	resp := GetPoolInfoResponse{
 		Capacity:  apInfo.Capacity,
 		Available: apInfo.Available,
 	}
@@ -239,7 +239,7 @@ func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
 
 // Handles RequestAddress requests.
 func (plugin *ipamPlugin) requestAddress(w http.ResponseWriter, r *http.Request) {
-	var req requestAddressRequest
+	var req RequestAddressRequest
 
 	// Decode request.
 	err := plugin.Listener.Decode(w, r, &req)
@@ -271,7 +271,7 @@ func (plugin *ipamPlugin) requestAddress(w http.ResponseWriter, r *http.Request)
 
 	// Encode response.
 	data := make(map[string]string)
-	resp := requestAddressResponse{Address: addr, Data: data}
+	resp := RequestAddressResponse{Address: addr, Data: data}
 
 	err = plugin.Listener.Encode(w, &resp)
 
@@ -280,7 +280,7 @@ func (plugin *ipamPlugin) requestAddress(w http.ResponseWriter, r *http.Request)
 
 // Handles ReleaseAddress requests.
 func (plugin *ipamPlugin) releaseAddress(w http.ResponseWriter, r *http.Request) {
-	var req releaseAddressRequest
+	var req ReleaseAddressRequest
 
 	// Decode request.
 	err := plugin.Listener.Decode(w, r, &req)
@@ -303,7 +303,7 @@ func (plugin *ipamPlugin) releaseAddress(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Encode response.
-	resp := releaseAddressResponse{}
+	resp := ReleaseAddressResponse{}
 
 	err = plugin.Listener.Encode(w, &resp)
 

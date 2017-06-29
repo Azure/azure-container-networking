@@ -137,9 +137,9 @@ func TestActivate(t *testing.T) {
 
 // Tests IpamDriver.GetCapabilities functionality.
 func TestGetCapabilities(t *testing.T) {
-	var resp getCapabilitiesResponse
+	var resp GetCapabilitiesResponse
 
-	req, err := http.NewRequest(http.MethodGet, getCapabilitiesPath, nil)
+	req, err := http.NewRequest(http.MethodGet, GetCapabilitiesPath, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,9 +156,9 @@ func TestGetCapabilities(t *testing.T) {
 
 // Tests IpamDriver.GetDefaultAddressSpaces functionality.
 func TestGetDefaultAddressSpaces(t *testing.T) {
-	var resp getDefaultAddressSpacesResponse
+	var resp GetDefaultAddressSpacesResponse
 
-	req, err := http.NewRequest(http.MethodGet, getAddressSpacesPath, nil)
+	req, err := http.NewRequest(http.MethodGet, GetAddressSpacesPath, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,15 +178,15 @@ func TestGetDefaultAddressSpaces(t *testing.T) {
 // Tests IpamDriver.RequestPool functionality.
 func TestRequestPool(t *testing.T) {
 	var body bytes.Buffer
-	var resp requestPoolResponse
+	var resp RequestPoolResponse
 
-	payload := &requestPoolRequest{
+	payload := &RequestPoolRequest{
 		AddressSpace: localAsId,
 	}
 
 	json.NewEncoder(&body).Encode(payload)
 
-	req, err := http.NewRequest(http.MethodGet, requestPoolPath, &body)
+	req, err := http.NewRequest(http.MethodGet, RequestPoolPath, &body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,9 +206,9 @@ func TestRequestPool(t *testing.T) {
 // Tests IpamDriver.RequestAddress functionality.
 func TestRequestAddress(t *testing.T) {
 	var body bytes.Buffer
-	var resp requestAddressResponse
+	var resp RequestAddressResponse
 
-	payload := &requestAddressRequest{
+	payload := &RequestAddressRequest{
 		PoolID:  poolId1,
 		Address: "",
 		Options: nil,
@@ -216,7 +216,7 @@ func TestRequestAddress(t *testing.T) {
 
 	json.NewEncoder(&body).Encode(payload)
 
-	req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+	req, err := http.NewRequest(http.MethodGet, RequestAddressPath, &body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,16 +237,16 @@ func TestRequestAddress(t *testing.T) {
 // Tests IpamDriver.ReleaseAddress functionality.
 func TestReleaseAddress(t *testing.T) {
 	var body bytes.Buffer
-	var resp releaseAddressResponse
+	var resp ReleaseAddressResponse
 
-	payload := &releaseAddressRequest{
+	payload := &ReleaseAddressRequest{
 		PoolID:  poolId1,
 		Address: address1,
 	}
 
 	json.NewEncoder(&body).Encode(payload)
 
-	req, err := http.NewRequest(http.MethodGet, releaseAddressPath, &body)
+	req, err := http.NewRequest(http.MethodGet, ReleaseAddressPath, &body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,15 +264,15 @@ func TestReleaseAddress(t *testing.T) {
 // Tests IpamDriver.ReleasePool functionality.
 func TestReleasePool(t *testing.T) {
 	var body bytes.Buffer
-	var resp releasePoolResponse
+	var resp ReleasePoolResponse
 
-	payload := &releasePoolRequest{
+	payload := &ReleasePoolRequest{
 		PoolID: poolId1,
 	}
 
 	json.NewEncoder(&body).Encode(payload)
 
-	req, err := http.NewRequest(http.MethodGet, releasePoolPath, &body)
+	req, err := http.NewRequest(http.MethodGet, ReleasePoolPath, &body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,15 +290,15 @@ func TestReleasePool(t *testing.T) {
 // Tests IpamDriver.GetPoolInfo functionality.
 func TestGetPoolInfo(t *testing.T) {
 	var body bytes.Buffer
-	var resp getPoolInfoResponse
+	var resp GetPoolInfoResponse
 
-	payload := &getPoolInfoRequest{
+	payload := &GetPoolInfoRequest{
 		PoolID: poolId1,
 	}
 
 	json.NewEncoder(&body).Encode(payload)
 
-	req, err := http.NewRequest(http.MethodGet, getPoolInfoPath, &body)
+	req, err := http.NewRequest(http.MethodGet, GetPoolInfoPath, &body)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,12 +314,12 @@ func TestGetPoolInfo(t *testing.T) {
 }
 
 // Utility function to request address from IPAM.
-func reqAddrInternal(payload *requestAddressRequest) (string, error) {
+func reqAddrInternal(payload *RequestAddressRequest) (string, error) {
 	var body bytes.Buffer
-	var resp requestAddressResponse
+	var resp RequestAddressResponse
 	json.NewEncoder(&body).Encode(payload)
 
-	req, err := http.NewRequest(http.MethodGet, requestAddressPath, &body)
+	req, err := http.NewRequest(http.MethodGet, RequestAddressPath, &body)
 	if err != nil {
 		return "", err
 	}
@@ -336,13 +336,13 @@ func reqAddrInternal(payload *requestAddressRequest) (string, error) {
 }
 
 // Utility function to release address from IPAM.
-func releaseAddrInternal(payload *releaseAddressRequest) error {
+func releaseAddrInternal(payload *ReleaseAddressRequest) error {
 	var body bytes.Buffer
-	var resp releaseAddressResponse
+	var resp ReleaseAddressResponse
 
 	json.NewEncoder(&body).Encode(payload)
 
-	req, err := http.NewRequest(http.MethodGet, releaseAddressPath, &body)
+	req, err := http.NewRequest(http.MethodGet, ReleaseAddressPath, &body)
 	if err != nil {
 		return err
 	}
@@ -363,7 +363,7 @@ func TestRequestAddressWithID(t *testing.T) {
 	var ipList [2]string
 
 	for i := 0; i < 2; i++ {
-		payload := &requestAddressRequest{
+		payload := &RequestAddressRequest{
 			PoolID:  poolId1,
 			Address: "",
 			Options: make(map[string]string),
@@ -390,7 +390,7 @@ func TestRequestAddressWithID(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		payload := &releaseAddressRequest{
+		payload := &ReleaseAddressRequest{
 			PoolID:  poolId1,
 			Address: ipList[i],
 		}
@@ -403,7 +403,7 @@ func TestRequestAddressWithID(t *testing.T) {
 
 // Tests IpamDriver.ReleaseAddress with id.
 func TestReleaseAddressWithID(t *testing.T) {
-	reqPayload := &requestAddressRequest{
+	reqPayload := &RequestAddressRequest{
 		PoolID:  poolId1,
 		Address: "",
 		Options: make(map[string]string),
@@ -415,7 +415,7 @@ func TestReleaseAddressWithID(t *testing.T) {
 		t.Errorf("RequestAddress response is invalid %+v", err)
 	}
 
-	releasePayload := &releaseAddressRequest{
+	releasePayload := &ReleaseAddressRequest{
 		PoolID:  poolId1,
 		Address: "",
 		Options: make(map[string]string),
