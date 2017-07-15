@@ -60,11 +60,22 @@ func SetDnatForArpReplies(interfaceName string, action string) error {
 	return executeShellCommand(command)
 }
 
-// SetVepaMode sets the VEPA mode for an interface.
-func SetVepaMode(upstreamIfName string, upstreamMacAddress string, action string) error {
+// SetVepaMode sets the VEPA mode for a bridge and its ports.
+func SetVepaMode(bridgeName string, downstreamIfNamePrefix string, upstreamMacAddress string, action string) error {
+	if !strings.HasPrefix(bridgeName, downstreamIfNamePrefix) {
+		command := fmt.Sprintf(
+			"ebtables -t nat %s PREROUTING -i %s -j dnat --to-dst %s --dnat-target ACCEPT",
+			action, bridgeName, upstreamMacAddress)
+
+		err := executeShellCommand(command)
+		if err != nil {
+			return err
+		}
+	}
+
 	command := fmt.Sprintf(
-		"ebtables -t nat %s PREROUTING -i ! %s -j dnat --to-dst %s --dnat-target ACCEPT",
-		action, upstreamIfName, upstreamMacAddress)
+		"ebtables -t nat %s PREROUTING -i %s+ -j dnat --to-dst %s --dnat-target ACCEPT",
+		action, downstreamIfNamePrefix, upstreamMacAddress)
 
 	return executeShellCommand(command)
 }

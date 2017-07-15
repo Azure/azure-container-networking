@@ -15,8 +15,11 @@ import (
 )
 
 const (
+	// Common prefix for all types of host network interface names.
+	commonInterfacePrefix = "az"
+
 	// Prefix for host virtual network interface names.
-	hostInterfacePrefix = "veth"
+	hostVEthInterfacePrefix = commonInterfacePrefix + "veth"
 
 	// Prefix for container network interface names.
 	containerInterfacePrefix = "eth"
@@ -30,8 +33,8 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	var err error
 
 	// Create a veth pair.
-	hostIfName := fmt.Sprintf("%s%s", hostInterfacePrefix, epInfo.Id[:7])
-	contIfName := fmt.Sprintf("%s%s-2", hostInterfacePrefix, epInfo.Id[:7])
+	hostIfName := fmt.Sprintf("%s%s", hostVEthInterfacePrefix, epInfo.Id[:7])
+	contIfName := fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, epInfo.Id[:7])
 
 	log.Printf("[net] Creating veth pair %v %v.", hostIfName, contIfName)
 

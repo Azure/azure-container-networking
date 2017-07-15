@@ -141,7 +141,7 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 }
 
 // AddBridgeRules adds bridge frame table rules for container traffic.
-func (nm *networkManager) addBridgeRules(extIf *externalInterface, hostIf *net.Interface, opMode string) error {
+func (nm *networkManager) addBridgeRules(extIf *externalInterface, hostIf *net.Interface, bridgeName string, opMode string) error {
 	// Add SNAT rule to translate container egress traffic.
 	log.Printf("[net] Adding SNAT rule for egress traffic on %v.", hostIf.Name)
 	err := ebtables.SetSnatForInterface(hostIf.Name, hostIf.HardwareAddr, ebtables.Append)
@@ -169,7 +169,7 @@ func (nm *networkManager) addBridgeRules(extIf *externalInterface, hostIf *net.I
 	// Enable VEPA for host policy enforcement if necessary.
 	if opMode == opModeTunnel {
 		log.Printf("[net] Enabling VEPA mode for %v.", hostIf.Name)
-		err = ebtables.SetVepaMode(hostIf.Name, virtualMacAddress, ebtables.Append)
+		err = ebtables.SetVepaMode(bridgeName, commonInterfacePrefix, virtualMacAddress, ebtables.Append)
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func (nm *networkManager) addBridgeRules(extIf *externalInterface, hostIf *net.I
 
 // DeleteBridgeRules deletes bridge rules for container traffic.
 func (nm *networkManager) deleteBridgeRules(extIf *externalInterface) {
-	ebtables.SetVepaMode(extIf.Name, virtualMacAddress, ebtables.Delete)
+	ebtables.SetVepaMode(extIf.BridgeName, commonInterfacePrefix, virtualMacAddress, ebtables.Delete)
 	ebtables.SetDnatForArpReplies(extIf.Name, ebtables.Delete)
 	ebtables.SetArpReply(extIf.IPAddresses[0].IP, extIf.MacAddress, ebtables.Delete)
 	ebtables.SetSnatForInterface(extIf.Name, extIf.MacAddress, ebtables.Delete)
@@ -242,7 +242,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	}
 
 	// Add the bridge rules.
-	err = nm.addBridgeRules(extIf, hostIf, nwInfo.Mode)
+	err = nm.addBridgeRules(extIf, hostIf, bridgeName, nwInfo.Mode)
 	if err != nil {
 		goto cleanup
 	}
