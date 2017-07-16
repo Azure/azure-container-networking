@@ -332,14 +332,14 @@ func (service *httpRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 
 		addr, err = ic.ReserveIPAddress(poolID, req.ReservationID)
 		if err != nil {
-			returnMessage = fmt.Sprintf("ReserveIpAddress failed with %+v", err.Error())
+			returnMessage = fmt.Sprintf("[Azure CNS] ReserveIpAddress failed with %+v", err.Error())
 			returnCode = AddressUnavailable
 			break
 		}
 
 		addressIP, _, err := net.ParseCIDR(addr)
 		if err != nil {
-			returnMessage = fmt.Sprintf("ParseCIDR failed with %+v", err.Error())
+			returnMessage = fmt.Sprintf("[Azure CNS] ParseCIDR failed with %+v", err.Error())
 			returnCode = UnexpectedError
 			break
 		}
@@ -408,7 +408,7 @@ func (service *httpRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 
 		err = ic.ReleaseIPAddress(poolID, req.ReservationID)
 		if err != nil {
-			returnMessage = fmt.Sprintf("ReleaseIpAddress failed with %+v", err.Error())
+			returnMessage = fmt.Sprintf("[Azure CNS] ReleaseIpAddress failed with %+v", err.Error())
 			returnCode = ReservationNotFound
 		}
 
@@ -521,7 +521,7 @@ func (service *httpRestService) getIPAddressUtilization(w http.ResponseWriter, r
 			returnCode = UnexpectedError
 			break
 		}
-		log.Printf("Capacity %v Available %v UnhealthyAddrs %v", capacity, available, unhealthyAddrs)
+		log.Printf("[Azure CNS] Capacity %v Available %v UnhealthyAddrs %v", capacity, available, unhealthyAddrs)
 
 	default:
 		returnMessage = "[Azure CNS] Error. GetIPUtilization did not receive a GET."
@@ -621,7 +621,7 @@ func (service *httpRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 			returnCode = UnexpectedError
 			break
 		}
-		log.Printf("Capacity %v Available %v UnhealthyAddrs %v", capacity, available, unhealthyAddrs)
+		log.Printf("[Azure CNS] Capacity %v Available %v UnhealthyAddrs %v", capacity, available, unhealthyAddrs)
 
 	default:
 		returnMessage = "[Azure CNS] Error. GetUnhealthyIP did not receive a POST."

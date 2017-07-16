@@ -5,16 +5,6 @@
 
 package routes
 
-import (
-	"fmt"
-	"net"
-	"os/exec"
-
-	"strings"
-
-	"github.com/Azure/azure-container-networking/log"
-)
-
 const ()
 
 func getRoutes() ([]Route, error) {
