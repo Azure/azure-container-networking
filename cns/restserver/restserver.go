@@ -5,10 +5,9 @@ package restserver
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"time"
-
-	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -187,7 +186,7 @@ func (service *httpRestService) createNetwork(w http.ResponseWriter, r *http.Req
 								log.Printf("[Azure CNS] Unable to get routing table from node, %+v.", err.Error())
 							}
 
-							err = dc.CreateNetwork(req.NetworkName)
+							err = dc.CreateNetwork(req.NetworkName, req.Options)
 							if err != nil {
 								returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateNetwork failed %v.", err.Error())
 								returnCode = UnexpectedError

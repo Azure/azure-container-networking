@@ -107,7 +107,7 @@ func (plugin *Plugin) DisableDiscovery() {
 
 // ParseOptions returns generic options from a libnetwork request.
 func (plugin *Plugin) ParseOptions(options OptionMap) OptionMap {
-	opt, _ := options[genericData].(OptionMap)
+	opt, _ := options[genericData].(map[string]interface{})
 	return opt
 }
 

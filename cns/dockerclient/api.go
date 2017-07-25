@@ -6,6 +6,8 @@ package dockerclient
 const (
 	createNetworkPath  = "/networks/create"
 	inspectNetworkPath = "/networks/"
+
+	OptDisableSnat = "DisableSNAT"
 )
 
 // Config describes subnet/gateway for ipam.
@@ -25,6 +27,7 @@ type NetworkConfiguration struct {
 	Driver   string
 	IPAM     IPAM
 	Internal bool
+	Options  map[string]interface{}
 }
 
 // DockerErrorResponse defines the error response retunred by docker.
