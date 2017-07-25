@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os/exec"
 
 	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	"github.com/Azure/azure-container-networking/log"
@@ -16,12 +17,24 @@ import (
 const (
 	defaultDockerConnectionURL = "http://127.0.0.1:2375"
 	defaultIpamPlugin          = "azure-vnet"
+	networkMode                = "com.microsoft.azure.network.mode"
+	bridgeMode                 = "bridge"
 )
 
 // DockerClient specifies a client to connect to docker.
 type DockerClient struct {
 	connectionURL string
 	imdsClient    *imdsclient.ImdsClient
+}
+
+func executeShellCommand(command string) error {
+	log.Debugf("[ebtables] %s", command)
+	cmd := exec.Command("sh", "-c", command)
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	return cmd.Wait()
 }
 
 // NewDockerClient create a new docker client.
@@ -68,8 +81,10 @@ func (dockerClient *DockerClient) NetworkExists(networkName string) error {
 }
 
 // CreateNetwork creates a network using docker network create.
-func (dockerClient *DockerClient) CreateNetwork(networkName string) error {
+func (dockerClient *DockerClient) CreateNetwork(networkName string, options map[string]interface{}) error {
 	log.Printf("[Azure CNS] CreateNetwork")
+
+	enableSnat := true
 
 	primaryNic, err := dockerClient.imdsClient.GetPrimaryInterfaceInfoFromHost()
 	if err != nil {
@@ -92,6 +107,17 @@ func (dockerClient *DockerClient) CreateNetwork(networkName string) error {
 		Driver:   defaultNetworkPlugin,
 		IPAM:     *ipamConfig,
 		Internal: true,
+	}
+
+	if options != nil {
+		if _, ok := options[OptDisableSnat]; ok {
+			enableSnat = false
+		}
+	}
+
+	if enableSnat {
+		netConfig.Options = make(map[string]interface{})
+		netConfig.Options[networkMode] = bridgeMode
 	}
 
 	log.Printf("[Azure CNS] Going to create network with config: %+v", netConfig)
@@ -123,6 +149,16 @@ func (dockerClient *DockerClient) CreateNetwork(networkName string) error {
 			res.StatusCode, createNetworkResponse.message, ermsg)
 	}
 
+	if enableSnat {
+		cmd := fmt.Sprintf("iptables -t nat -A POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",
+			primaryNic.Subnet)
+		err = executeShellCommand(cmd)
+		if err != nil {
+			log.Printf("SNAT Iptable rule was not set")
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -143,6 +179,14 @@ func (dockerClient *DockerClient) DeleteNetwork(networkName string) error {
 
 	// network successfully deleted.
 	if res.StatusCode == 204 {
+		primaryNic, err := dockerClient.imdsClient.GetPrimaryInterfaceInfoFromHost()
+		if err != nil {
+			return err
+		}
+
+		cmd := fmt.Sprintf("iptables -t nat -D POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",
+			primaryNic.Subnet)
+		executeShellCommand(cmd)
 		return nil
 	}
 

@@ -35,6 +35,7 @@ type OverlayConfiguration struct {
 type CreateNetworkRequest struct {
 	NetworkName          string
 	OverlayConfiguration OverlayConfiguration
+	Options              map[string]interface{}
 }
 
 // DeleteNetworkRequest describes request to delete the network.

@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Azure/azure-container-networking/cnm/ipam"
+	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -19,7 +21,8 @@ import (
 
 const (
 	// Service name.
-	name = "azure-cns"
+	name       = "azure-cns"
+	pluginName = "azure-vnet"
 )
 
 // Version is populated by make during build.
@@ -27,6 +30,18 @@ var version string
 
 // Command line arguments for CNM plugin.
 var args = acn.ArgumentList{
+	{
+		Name:         acn.OptEnvironment,
+		Shorthand:    acn.OptEnvironmentAlias,
+		Description:  "Set the operating environment",
+		Type:         "string",
+		DefaultValue: acn.OptEnvironmentAzure,
+		ValueMap: map[string]interface{}{
+			acn.OptEnvironmentAzure: 0,
+			acn.OptEnvironmentMAS:   0,
+		},
+	},
+
 	{
 		Name:         acn.OptAPIServerURL,
 		Shorthand:    acn.OptAPIServerURLAlias,
@@ -58,6 +73,13 @@ var args = acn.ArgumentList{
 		},
 	},
 	{
+		Name:         acn.OptIpamQueryInterval,
+		Shorthand:    acn.OptIpamQueryIntervalAlias,
+		Description:  "Set the IPAM plugin query interval",
+		Type:         "int",
+		DefaultValue: "",
+	},
+	{
 		Name:         acn.OptVersion,
 		Shorthand:    acn.OptVersionAlias,
 		Description:  "Print version information",
@@ -77,9 +99,11 @@ func main() {
 	// Initialize and parse command line arguments.
 	acn.ParseArgs(&args, printVersion)
 
+	environment := acn.GetArg(acn.OptEnvironment).(string)
 	url := acn.GetArg(acn.OptAPIServerURL).(string)
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
+	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 
 	if vers {
@@ -110,6 +134,33 @@ func main() {
 		return
 	}
 
+	var pluginConfig acn.PluginConfig
+	pluginConfig.Version = version
+
+	// Create a channel to receive unhandled errors from the plugins.
+	pluginConfig.ErrChan = make(chan error, 1)
+
+	// Create network plugin.
+	netPlugin, err := network.NewPlugin(&pluginConfig)
+	if err != nil {
+		fmt.Printf("Failed to create network plugin, err:%v.\n", err)
+		return
+	}
+
+	// Create IPAM plugin.
+	ipamPlugin, err := ipam.NewPlugin(&pluginConfig)
+	if err != nil {
+		fmt.Printf("Failed to create IPAM plugin, err:%v.\n", err)
+		return
+	}
+
+	// Create the key value store.
+	pluginConfig.Store, err = store.NewJsonFileStore(platform.RuntimePath + pluginName + ".json")
+	if err != nil {
+		fmt.Printf("Failed to create store: %v\n", err)
+		return
+	}
+
 	// Create logging provider.
 	log.SetName(name)
 	log.SetLevel(logLevel)
@@ -134,6 +185,30 @@ func main() {
 		}
 	}
 
+	// Set plugin options.
+	netPlugin.SetOption(acn.OptAPIServerURL, url)
+
+	ipamPlugin.SetOption(acn.OptEnvironment, environment)
+	ipamPlugin.SetOption(acn.OptAPIServerURL, url)
+	ipamPlugin.SetOption(acn.OptIpamQueryInterval, ipamQueryInterval)
+
+	if netPlugin != nil {
+		log.Printf("Start netplugin\n")
+		err = netPlugin.Start(&pluginConfig)
+		if err != nil {
+			fmt.Printf("Failed to start network plugin, err:%v.\n", err)
+			return
+		}
+	}
+
+	if ipamPlugin != nil {
+		err = ipamPlugin.Start(&pluginConfig)
+		if err != nil {
+			fmt.Printf("Failed to start IPAM plugin, err:%v.\n", err)
+			return
+		}
+	}
+
 	// Relay these incoming signals to OS signal channel.
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, os.Interrupt, os.Kill, syscall.SIGTERM)
@@ -149,5 +224,13 @@ func main() {
 	// Cleanup.
 	if httpRestService != nil {
 		httpRestService.Stop()
+	}
+
+	if netPlugin != nil {
+		netPlugin.Stop()
+	}
+
+	if ipamPlugin != nil {
+		ipamPlugin.Stop()
 	}
 }
