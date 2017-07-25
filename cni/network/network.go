@@ -302,14 +302,18 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// Query the network.
 	nwInfo, err := plugin.nm.GetNetworkInfo(networkId)
 	if err != nil {
-		err = plugin.Errorf("Failed to query network: %v", err)
+		// Log the error but return success if the endpoint being deleted is not found.
+		plugin.Errorf("Failed to query network: %v", err)
+		err = nil
 		return err
 	}
 
 	// Query the endpoint.
 	epInfo, err := plugin.nm.GetEndpointInfo(networkId, endpointId)
 	if err != nil {
-		err = plugin.Errorf("Failed to query endpoint: %v", err)
+		// Log the error but return success if the endpoint being deleted is not found.
+		plugin.Errorf("Failed to query endpoint: %v", err)
+		err = nil
 		return err
 	}
 
