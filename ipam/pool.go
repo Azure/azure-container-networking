@@ -283,6 +283,62 @@ func (as *addressSpace) getAddressPool(poolId string) (*addressPool, error) {
 
 	return ap, nil
 }
+func inc(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+}
+func (ap *addressPool) populateIPAddresses(ip net.IP, ipnet *net.IPNet) error {
+	var ipList []string
+	log.Printf("[CNS] Populate ips")
+
+	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
+		ipList = append(ipList, ip.String())
+	}
+
+	lastIndex := len(ipList) - 1
+
+	for index, ip := range ipList {
+		address := net.ParseIP(ip)
+		ar, err := ap.newAddressRecord(&address)
+		if err != nil {
+			return err
+		}
+		if index == 0 || index == 1 || index == lastIndex {
+			ar.InUse = true
+		}
+		ap.Addresses[ip] = ar
+	}
+	return nil
+}
+
+func (as *addressSpace) getPool(poolId string, options map[string]string) (*addressPool, error) {
+	var ap *addressPool
+	var err error
+	ap = as.Pools[poolId]
+	if ap == nil {
+		if options[OptOverlayNetwork] != "" {
+			ip, ipnet, err := net.ParseCIDR(poolId)
+			if err != nil {
+				err = errInvalidPoolId
+				return ap, err
+			}
+			log.Printf("Create ap")
+			ap, err = as.newAddressPool("", 0, ipnet)
+
+			if err == nil {
+				log.Printf("poulate ip")
+				ap.populateIPAddresses(ip, ipnet)
+			}
+		} else {
+			err = errAddressPoolNotFound
+		}
+	}
+	return ap, err
+}
 
 // Requests a new address pool from the address space.
 func (as *addressSpace) requestPool(poolId string, subPoolId string, options map[string]string, v6 bool) (*addressPool, error) {
@@ -294,9 +350,10 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 	if poolId != "" {
 		// Return the specific address pool requested.
 		// Note sharing of pools is allowed when specifically requested.
-		ap = as.Pools[poolId]
-		if ap == nil {
-			err = errAddressPoolNotFound
+		ap, err = as.getPool(poolId, options)
+		if err != nil {
+			log.Printf("Request Pool for poolid %v failed with %v", poolId, err.Error())
+			return nil, err
 		}
 	} else {
 		// Return any available address pool.
