@@ -2,7 +2,7 @@
 
 ## v0.9 (2017-08-17)
 - Limit port aggregation to owned interfaces for coexistence with other plugins.
-- Made CNI DEL commands omnipotent for soft failures, required for Kubernetes.
+- Made CNI DEL commands idempotent for soft failures, required for Kubernetes.
 - Changed CNI default networking mode to bridge.
 - Added ARP reply rules for bridge and tunnel modes to decouple from VNET behavior.
 - Fixed bug in libnetwork option parser.
