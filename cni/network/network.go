@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/telemetry"
 
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
@@ -24,7 +25,8 @@ const (
 // NetPlugin represents the CNI network plugin.
 type netPlugin struct {
 	*cni.Plugin
-	nm network.NetworkManager
+	nm            network.NetworkManager
+	reportManager *telemetry.ReportManager
 }
 
 // NewPlugin creates a new netPlugin object.
@@ -47,6 +49,10 @@ func NewPlugin(config *common.PluginConfig) (*netPlugin, error) {
 		Plugin: plugin,
 		nm:     nm,
 	}, nil
+}
+
+func (plugin *netPlugin) SetReportManager(reportManager *telemetry.ReportManager) {
+	plugin.reportManager = reportManager
 }
 
 // Starts the plugin.
