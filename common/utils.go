@@ -4,10 +4,32 @@
 package common
 
 import (
+	"encoding/xml"
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
 )
+
+// Azure host agent XML document format.
+type XmlDocument struct {
+	XMLName   xml.Name `xml:"Interfaces"`
+	Interface []struct {
+		XMLName    xml.Name `xml:"Interface"`
+		MacAddress string   `xml:"MacAddress,attr"`
+		IsPrimary  bool     `xml:"IsPrimary,attr"`
+
+		IPSubnet []struct {
+			XMLName xml.Name `xml:"IPSubnet"`
+			Prefix  string   `xml:"Prefix,attr"`
+
+			IPAddress []struct {
+				XMLName   xml.Name `xml:"IPAddress"`
+				Address   string   `xml:"Address,attr"`
+				IsPrimary bool     `xml:"IsPrimary,attr"`
+			}
+		}
+	}
+}
 
 // LogNetworkInterfaces logs the host's network interfaces in the default namespace.
 func LogNetworkInterfaces() {

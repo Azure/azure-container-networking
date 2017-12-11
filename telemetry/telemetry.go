@@ -6,32 +6,11 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 )
-
-type xmlDocument struct {
-	XMLName   xml.Name `xml:"Interfaces"`
-	Interface []struct {
-		XMLName    xml.Name `xml:"Interface"`
-		MacAddress string   `xml:"MacAddress,attr"`
-		IsPrimary  bool     `xml:"IsPrimary,attr"`
-
-		IPSubnet []struct {
-			XMLName xml.Name `xml:"IPSubnet"`
-			Prefix  string   `xml:"Prefix,attr"`
-
-			IPAddress []struct {
-				XMLName   xml.Name `xml:"IPAddress"`
-				Address   string   `xml:"Address,attr"`
-				IsPrimary bool     `xml:"IsPrimary,attr"`
-			}
-		}
-	}
-}
 
 // OS Details structure.
 type OSInfo struct {
@@ -68,6 +47,7 @@ type BridgeInfo struct {
 	BridgeName  string
 }
 
+// Orchestrator Details structure.
 type OrchsestratorInfo struct {
 	OrchestratorName    string
 	OrchestratorVersion string

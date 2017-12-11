@@ -13,6 +13,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/Azure/azure-container-networking/common"
 )
 
 type MemInfo struct {
@@ -107,7 +109,7 @@ func GetInterfaceDetails(queryUrl string) (*InterfaceInfo, error) {
 	defer resp.Body.Close()
 
 	// Decode XML document.
-	var doc xmlDocument
+	var doc common.XmlDocument
 	decoder := xml.NewDecoder(resp.Body)
 	err = decoder.Decode(&doc)
 	if err != nil {

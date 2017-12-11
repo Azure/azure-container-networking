@@ -31,27 +31,6 @@ type azureSource struct {
 	lastRefresh   time.Time
 }
 
-// Azure host agent XML document format.
-type xmlDocument struct {
-	XMLName   xml.Name `xml:"Interfaces"`
-	Interface []struct {
-		XMLName    xml.Name `xml:"Interface"`
-		MacAddress string   `xml:"MacAddress,attr"`
-		IsPrimary  bool     `xml:"IsPrimary,attr"`
-
-		IPSubnet []struct {
-			XMLName xml.Name `xml:"IPSubnet"`
-			Prefix  string   `xml:"Prefix,attr"`
-
-			IPAddress []struct {
-				XMLName   xml.Name `xml:"IPAddress"`
-				Address   string   `xml:"Address,attr"`
-				IsPrimary bool     `xml:"IsPrimary,attr"`
-			}
-		}
-	}
-}
-
 // Creates the Azure source.
 func newAzureSource(options map[string]interface{}) (*azureSource, error) {
 	queryUrl, _ := options[common.OptIpamQueryUrl].(string)
@@ -114,7 +93,7 @@ func (s *azureSource) refresh() error {
 	defer resp.Body.Close()
 
 	// Decode XML document.
-	var doc xmlDocument
+	var doc common.XmlDocument
 	decoder := xml.NewDecoder(resp.Body)
 	err = decoder.Decode(&doc)
 	if err != nil {
