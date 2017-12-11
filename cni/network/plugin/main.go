@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	hostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=cnireport"
+	//hostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=cnireport"
+	hostNetAgentURL = "http://localhost:3500/"
 	ipamQueryURL    = "http://169.254.169.254/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
 	pluginName      = "CNI"
 	reportType      = "application/json"
@@ -41,20 +42,20 @@ func main() {
 
 	if !report.GetReportState() {
 		log.Printf("GetReport state file didn't exist. Setting flag to true")
-	}
 
-	report.Context = "AzureCNI"
+		report.Context = "AzureCNI"
 
-	err = reportManager.SendReport()
-	if err != nil {
-		log.Printf("SendReport failed due to %v", err)
-	} else {
-		if err = report.SetReportState(); err != nil {
-			log.Printf("SetReportState failed due to %v", err)
+		err = reportManager.SendReport()
+		if err != nil {
+			log.Printf("SendReport failed due to %v", err)
+		} else {
+			if err = report.SetReportState(); err != nil {
+				log.Printf("SetReportState failed due to %v", err)
 
-			report.ErrorMessage = err.Error()
-			if reportManager.SendReport() != nil {
-				log.Printf("SendReport failed due to %v", err)
+				report.ErrorMessage = err.Error()
+				if reportManager.SendReport() != nil {
+					log.Printf("SendReport failed due to %v", err)
+				}
 			}
 		}
 	}
