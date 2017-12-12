@@ -99,24 +99,22 @@ func handleCNIReport(rw http.ResponseWriter, req *http.Request) {
 }
 
 func TestGetOSDetails(t *testing.T) {
-	var err error
-	report.OSDetails, err = GetOSDetails()
-	if err != nil {
-		t.Errorf("GetOSDetails failed due to %v", err)
+	report.GetOSDetails()
+	if report.ErrorMessage != "" {
+		t.Errorf("GetOSDetails failed due to %v", report.ErrorMessage)
 	}
 }
 func TestGetSystemDetails(t *testing.T) {
-	var err error
-	report.SystemDetails, err = GetSystemDetails()
-	if err != nil {
-		t.Errorf("GetOSDetails failed due to %v", err)
+
+	report.GetSystemDetails()
+	if report.ErrorMessage != "" {
+		t.Errorf("GetSystemDetails failed due to %v", report.ErrorMessage)
 	}
 }
 func TestGetInterfaceDetails(t *testing.T) {
-	var err error
-	report.InterfaceDetails, err = GetInterfaceDetails(reportManager.IpamQueryURL)
-	if err != nil {
-		t.Errorf("GetOSDetails failed due to %v", err)
+	report.GetSystemDetails()
+	if report.ErrorMessage != "" {
+		t.Errorf("GetInterfaceDetails failed due to %v", report.ErrorMessage)
 	}
 }
 
