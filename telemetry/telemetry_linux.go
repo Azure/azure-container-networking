@@ -93,7 +93,7 @@ func (report *Report) GetOSDetails() {
 	osType := "Linux"
 
 	linesArr, err := ReadFileByLines("/etc/issue")
-	if err != nil {
+	if err != nil || len(linesArr) <= 0 {
 		report.OSDetails = &OSInfo{OSType: "Linux"}
 		report.OSDetails.ErrorMessage = "reading /etc/issue failed with" + err.Error()
 		return
