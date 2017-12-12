@@ -159,6 +159,12 @@ func (reportMgr *ReportManager) SendReport() error {
 	}
 
 	if res.StatusCode != 200 {
+		if res.StatusCode == 400 {
+			return fmt.Errorf(`"[Azure CNI] HTTP Post returned statuscode %d. 
+				This error happens because telemetry service is not yet activated. 
+				The error can be ignored as it won't affect CNI functionality"`, res.StatusCode)
+		}
+
 		return fmt.Errorf("[Azure CNI] HTTP Post returned statuscode %d", res.StatusCode)
 	}
 
@@ -206,7 +212,6 @@ func (report *Report) GetReportState() bool {
 
 // This function  creates a report with interface details(ip, mac, name, secondaryca count).
 func (report *Report) GetInterfaceDetails(queryUrl string) {
-
 	var (
 		macAddress       string
 		secondaryCACount int
