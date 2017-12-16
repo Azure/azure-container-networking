@@ -14,8 +14,44 @@ import (
 	"github.com/Microsoft/hcsshim"
 )
 
+// Reconstruct container id from netNsPath.
+func ConstructEndpointID(netNsPath string, ifName string) (string, bool) {
+	endpointID := ""
+	isWorkLoad := false
+	if netNsPath != "" {
+		splits := strings.Split(netNsPath, ":")
+		if len(splits) == 2 {
+			endpointID = splits[1]
+			isWorkLoad = true
+		}
+		if len(endpointID) > 8 {
+			endpointID = endpointID[:8] + "-" + ifName
+			log.Printf("[net] constructed endpointID: %v", endpointID)
+		}
+	}
+	return endpointID, isWorkLoad
+}
+
 // newEndpointImpl creates a new endpoint in the network.
 func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
+	// Check if endpoint already exists.
+	log.Printf("[net] Entering newEndpointImpl.")
+	log.Printf("[net] epInfo.Id: %v, epInfo.ContainerID: %v, epInfo.NetNsPath: %v", epInfo.Id, epInfo.ContainerID, epInfo.NetNsPath)
+
+	// Ignore consecutive ADD calls for the same container.	
+	if nw.Endpoints[epInfo.Id] != nil {
+		log.Printf("[net] Found existing endpoint %v", epInfo.Id) 
+		return nw.Endpoints[epInfo.Id], nil
+	}
+	
+	// Get Infrastructure containerID. Ignore ADD calls for workload container.
+	infraEpID, isWorkLoad := ConstructEndpointID(epInfo.NetNsPath, epInfo.IfName)
+	log.Printf("[net] infraEpID: %v", infraEpID)
+	if isWorkLoad && nw.Endpoints[infraEpID] != nil {
+		log.Printf("[net] Found existing infrastructure endpoint %v", infraEpID)
+		return nw.Endpoints[infraEpID], nil		
+	}	
+
 	// Initialize HNS endpoint.
 	hnsEndpoint := &hcsshim.HNSEndpoint{
 		Name:           epInfo.Id,
@@ -23,6 +59,10 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		DNSSuffix:      epInfo.DNS.Suffix,
 		DNSServerList:  strings.Join(epInfo.DNS.Servers, ","),
 	}
+
+	//enable outbound NAT
+	var enableOutBoundNat = json.RawMessage(`{"Type":  "OutBoundNAT"}`)
+	hnsEndpoint.Policies = append(hnsEndpoint.Policies, enableOutBoundNat)
 
 	// HNS currently supports only one IP address per endpoint.
 	if epInfo.IPAddresses != nil {
