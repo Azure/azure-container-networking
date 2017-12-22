@@ -45,15 +45,24 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	}
 	
 	// Get Infrastructure containerID. Ignore ADD calls for workload container.
+
 	infraEpID, isWorkLoad := ConstructEndpointID(epInfo.NetNsPath, epInfo.IfName)
 	log.Printf("[net] infraEpID: %v", infraEpID)
+
 	if isWorkLoad && nw.Endpoints[infraEpID] != nil {
 		log.Printf("[net] Found existing infrastructure endpoint %v", infraEpID)
+		if hnsEndpoint != nil
+		//TODO: attach
 		return nw.Endpoints[infraEpID], nil		
 	}	
+	hnsEndpoint, err := hcsshim.GetHNSEndpointByName(infraEpID)
+	if hnsEndpoint != nil {
+		log.Printf("[net] Found existing endpoint %v", infraEpID)
+		//TODO: attach
+	}
 
 	// Initialize HNS endpoint.
-	hnsEndpoint := &hcsshim.HNSEndpoint{
+	hnsEndpoint = &hcsshim.HNSEndpoint{
 		Name:           epInfo.Id,
 		VirtualNetwork: nw.HnsId,
 		DNSSuffix:      epInfo.DNS.Suffix,
