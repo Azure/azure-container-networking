@@ -34,10 +34,6 @@ func ConstructEpName(containerID string, netNsPath string, ifName string) string
 
 // newEndpointImpl creates a new endpoint in the network.
 func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
-	// Check if endpoint already exists.
-	log.Printf("[net] Entering newEndpointImpl.")
-	log.Printf("[net] epInfo.Id: %v, epInfo.ContainerID: %v, epInfo.NetNsPath: %v", epInfo.Id, epInfo.ContainerID, epInfo.NetNsPath)
-
 	// Ignore consecutive ADD calls for the same container.
 	if nw.Endpoints[epInfo.Id] != nil {
 		log.Printf("[net] Found existing endpoint %v, return immediately.", epInfo.Id)
@@ -49,7 +45,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	log.Printf("[net] infraEpName: %v", epName)
 
 	hnsEndpoint, _ := hcsshim.GetHNSEndpointByName(epName)
-	if hnsEndpoint != nil /*&& hnsEndpoint.VirtualNetwork != nw.HnsId */ {
+	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim%v", epName)
 		log.Printf("[net] Attaching ep %v to container %v", hnsEndpoint.Id, epInfo.ContainerID)
 		if err := hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsEndpoint.Id); err != nil {
@@ -67,7 +63,6 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	}
 
 	//enable outbound NAT
-
 	var enableOutBoundNat = json.RawMessage(`{"Type":  "OutBoundNAT"}`)
 	hnsEndpoint.Policies = append(hnsEndpoint.Policies, enableOutBoundNat)
 
