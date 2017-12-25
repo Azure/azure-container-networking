@@ -14,22 +14,22 @@ import (
 	"github.com/Microsoft/hcsshim"
 )
 
-// Reconstruct container id from netNsPath.
-func ConstructEndpointID(netNsPath string, ifName string) (string, bool) {
-	endpointID := ""
-	isWorkLoad := false
+// Reconstruct endpoint name from netNsPath.
+func ConstructEpName(containerID string, netNsPath string, ifName string) string {
+	epName := ""
 	if netNsPath != "" {
 		splits := strings.Split(netNsPath, ":")
 		if len(splits) == 2 {
-			endpointID = splits[1]
-			isWorkLoad = true
+			epName = splits[1]
+		} else {
+			epName = containerID
 		}
-		if len(endpointID) > 8 {
-			endpointID = endpointID[:8] + "-" + ifName
-			log.Printf("[net] constructed endpointID: %v", endpointID)
+		if len(epName) > 8 {
+			epName = epName[:8] + "-" + ifName
+			log.Printf("[net] constructed epName: %v", epName)
 		}
 	}
-	return endpointID, isWorkLoad
+	return epName
 }
 
 // newEndpointImpl creates a new endpoint in the network.
@@ -38,32 +38,53 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	log.Printf("[net] Entering newEndpointImpl.")
 	log.Printf("[net] epInfo.Id: %v, epInfo.ContainerID: %v, epInfo.NetNsPath: %v", epInfo.Id, epInfo.ContainerID, epInfo.NetNsPath)
 
-	// Ignore consecutive ADD calls for the same container.	
+	// Ignore consecutive ADD calls for the same container.
 	if nw.Endpoints[epInfo.Id] != nil {
-		log.Printf("[net] Found existing endpoint %v", epInfo.Id) 
+		log.Printf("[net] Found existing endpoint %v, return immediately.", epInfo.Id)
 		return nw.Endpoints[epInfo.Id], nil
 	}
-	
-	// Get Infrastructure containerID. Ignore ADD calls for workload container.
+	// Get Infrastructure containerID. Handle ADD calls for workload container.
+	epName := ConstructEpName(epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName)
+	log.Printf("[net] infraEpName: %v", epName)
 
-	infraEpID, isWorkLoad := ConstructEndpointID(epInfo.NetNsPath, epInfo.IfName)
-	log.Printf("[net] infraEpID: %v", infraEpID)
+	hnsEndpoint, _ := hcsshim.GetHNSEndpointByName(epName)
+	if hnsEndpoint != nil /*&& hnsEndpoint.VirtualNetwork != nw.HnsId */ {
+		log.Printf("[net] Found existing endpoint %v", epName)
+		log.Printf("[net] hnsEndpoint.virtualNetwork %v", hnsEndpoint.VirtualNetwork)
+		log.Printf("[net] nw.id %v", nw.HnsId)
+		log.Printf("[net] HnsEndpoint %+v", hnsEndpoint)
+		//TODO: attach
 
-	if isWorkLoad && nw.Endpoints[infraEpID] != nil {
-		log.Printf("[net] Found existing infrastructure endpoint %v", infraEpID)
-		if hnsEndpoint != nil
-		//TODO: attach
-		return nw.Endpoints[infraEpID], nil		
-	}	
-	hnsEndpoint, err := hcsshim.GetHNSEndpointByName(infraEpID)
-	if hnsEndpoint != nil {
-		log.Printf("[net] Found existing endpoint %v", infraEpID)
-		//TODO: attach
+		//if hnsEndpoint.VirtualNetwork != nw.HnsId {
+		log.Printf("[net] Attaching ep %v to container %v", hnsEndpoint.Id, epInfo.ContainerID)
+		if err := hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsEndpoint.Id); err != nil {
+			return nil, err
+		}
+		return nw.Endpoints[epName], nil
+		//}
 	}
+
+	/*
+		if hnsEndpoint != nil {
+			_, err := hnsEndpoint.Delete()
+			if err != nil {
+				log.Printf("[net] Failed to delete stale endpoint %+v, err:%v", hnsEndpoint, err)
+			} else {
+				log.Printf("[net] Deleted stale endpoint %+v, err:%v", hnsEndpoint, err)
+			}
+		}
+		/*
+			if isWorkLoad && nw.Endpoints[infraEpID] != nil {
+				log.Printf("[net] Found existing infrastructure endpoint %v", infraEpID)
+				if hnsEndpoint != nil
+				//TODO: attach
+				return nw.Endpoints[infraEpID], nil
+			}
+	*/
 
 	// Initialize HNS endpoint.
 	hnsEndpoint = &hcsshim.HNSEndpoint{
-		Name:           epInfo.Id,
+		Name:           epName,
 		VirtualNetwork: nw.HnsId,
 		DNSSuffix:      epInfo.DNS.Suffix,
 		DNSServerList:  strings.Join(epInfo.DNS.Servers, ","),
@@ -104,7 +125,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 
 	// Create the endpoint object.
 	ep := &endpoint{
-		Id:          epInfo.Id,
+		Id:          epName,
 		HnsId:       hnsResponse.Id,
 		SandboxKey:  epInfo.ContainerID,
 		IfName:      epInfo.IfName,
