@@ -14,7 +14,7 @@ import (
 	"github.com/Microsoft/hcsshim"
 )
 
-// Reconstruct endpoint name from netNsPath.
+// ConstructEpname constructs endpoint name from netNsPath.
 func ConstructEpName(containerID string, netNsPath string, ifName string) string {
 	epName := ""
 	if netNsPath != "" {
@@ -49,38 +49,13 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 
 	hnsEndpoint, _ := hcsshim.GetHNSEndpointByName(epName)
 	if hnsEndpoint != nil /*&& hnsEndpoint.VirtualNetwork != nw.HnsId */ {
-		log.Printf("[net] Found existing endpoint %v", epName)
-		log.Printf("[net] hnsEndpoint.virtualNetwork %v", hnsEndpoint.VirtualNetwork)
-		log.Printf("[net] nw.id %v", nw.HnsId)
-		log.Printf("[net] HnsEndpoint %+v", hnsEndpoint)
-		//TODO: attach
-
-		//if hnsEndpoint.VirtualNetwork != nw.HnsId {
+		log.Printf("[net] Found existing endpoint through hcsshim%v", epName)
 		log.Printf("[net] Attaching ep %v to container %v", hnsEndpoint.Id, epInfo.ContainerID)
 		if err := hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsEndpoint.Id); err != nil {
 			return nil, err
 		}
 		return nw.Endpoints[epName], nil
-		//}
 	}
-
-	/*
-		if hnsEndpoint != nil {
-			_, err := hnsEndpoint.Delete()
-			if err != nil {
-				log.Printf("[net] Failed to delete stale endpoint %+v, err:%v", hnsEndpoint, err)
-			} else {
-				log.Printf("[net] Deleted stale endpoint %+v, err:%v", hnsEndpoint, err)
-			}
-		}
-		/*
-			if isWorkLoad && nw.Endpoints[infraEpID] != nil {
-				log.Printf("[net] Found existing infrastructure endpoint %v", infraEpID)
-				if hnsEndpoint != nil
-				//TODO: attach
-				return nw.Endpoints[infraEpID], nil
-			}
-	*/
 
 	// Initialize HNS endpoint.
 	hnsEndpoint = &hcsshim.HNSEndpoint{
@@ -91,6 +66,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	}
 
 	//enable outbound NAT
+
 	var enableOutBoundNat = json.RawMessage(`{"Type":  "OutBoundNAT"}`)
 	hnsEndpoint.Policies = append(hnsEndpoint.Policies, enableOutBoundNat)
 
