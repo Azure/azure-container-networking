@@ -14,7 +14,7 @@ import (
 	"github.com/Microsoft/hcsshim"
 )
 
-// ConstructEpname constructs endpoint name from netNsPath.
+// ConstructEpName constructs endpoint name from netNsPath.
 func ConstructEpName(containerID string, netNsPath string, ifName string) string {
 	epName := ""
 	if netNsPath != "" {
@@ -43,6 +43,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		log.Printf("[net] Found existing endpoint %v, return immediately.", epInfo.Id)
 		return nw.Endpoints[epInfo.Id], nil
 	}
+
 	// Get Infrastructure containerID. Handle ADD calls for workload container.
 	epName := ConstructEpName(epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName)
 	log.Printf("[net] infraEpName: %v", epName)
