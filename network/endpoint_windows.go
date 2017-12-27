@@ -41,15 +41,7 @@ func ConstructEpName(containerID string, netNsPath string, ifName string) (strin
 
 // newEndpointImpl creates a new endpoint in the network.
 func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
-	// Ignore consecutive ADD calls for the same container.
-	if nw.Endpoints[epInfo.Id] != nil {
-		log.Printf("[net] Found existing endpoint %v, return immediately.", epInfo.Id)
-		return nw.Endpoints[epInfo.Id], nil
-	}
-
 	// Get Infrastructure containerID. Handle ADD calls for workload container.
-	//epName := ConstructEpName(epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName)
-
 	infraEpName, workloadEpName := ConstructEpName(epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName)
 
 	// Handle consecutive ADD calls for infrastructure containers
@@ -72,16 +64,8 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		return nw.Endpoints[infraEpName], nil
 	}
 
-	// Initialize HNS endpoint.
-	epName := ""
-	if workloadEpName == "" {
-		epName = infraEpName
-	} else {
-		epName = workloadEpName
-	}
-
 	hnsEndpoint = &hcsshim.HNSEndpoint{
-		Name:           epName,
+		Name:           infraEpName,
 		VirtualNetwork: nw.HnsId,
 		DNSSuffix:      epInfo.DNS.Suffix,
 		DNSServerList:  strings.Join(epInfo.DNS.Servers, ","),
@@ -122,7 +106,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 
 	// Create the endpoint object.
 	ep := &endpoint{
-		Id:          epName,
+		Id:          infraEpName,
 		HnsId:       hnsResponse.Id,
 		SandboxKey:  epInfo.ContainerID,
 		IfName:      epInfo.IfName,
