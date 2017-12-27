@@ -19,9 +19,11 @@ func ConstructEpName(containerID string, netNsPath string, ifName string) string
 	epName := ""
 	if netNsPath != "" {
 		splits := strings.Split(netNsPath, ":")
+		// For workload containers, we extract its linking infrastructure container ID.
 		if len(splits) == 2 {
 			epName = splits[1]
 		} else {
+		// For infrastructure containers, we just use its container ID.
 			epName = containerID
 		}
 		if len(epName) > 8 {

@@ -58,11 +58,9 @@ func (nw *network) newEndpoint(epInfo *EndpointInfo) (*endpoint, error) {
 	}
 
 	nw.Endpoints[epInfo.Id] = ep
-
 	log.Printf("[net] Created endpoint %+v.", ep)
 
 	return ep, nil
-
 }
 
 // DeleteEndpoint deletes an existing endpoint from the network.
