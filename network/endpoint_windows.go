@@ -44,7 +44,11 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	// Get Infrastructure containerID. Handle ADD calls for workload container.
 	infraEpName, workloadEpName := ConstructEpName(epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName)
 
-	// Handle consecutive ADD calls for infrastructure containers
+	/* Handle consecutive ADD calls for infrastructure containers.
+	 * This is a temporary work around for issue #57253 of Kubernetes.
+	 * We can delete this if statement once they fix it.
+	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
+	 */
 	if workloadEpName == "" {
 		if nw.Endpoints[infraEpName] != nil {
 			log.Printf("[net] Found existing endpoint %v, return immediately.", infraEpName)
