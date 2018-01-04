@@ -3,6 +3,8 @@
 
 package telemetry
 
+import "runtime"
+
 type MemInfo struct {
 	MemTotal uint64
 	MemFree  uint64
@@ -12,10 +14,6 @@ type DiskInfo struct {
 	DiskTotal uint64
 	DiskFree  uint64
 }
-
-const (
-	TelemetryFile = "c:\\AzureCNITelemetry"
-)
 
 func getMemInfo() (*MemInfo, error) {
 
@@ -29,8 +27,9 @@ func getDiskInfo(path string) (*DiskInfo, error) {
 
 func (report *Report) GetSystemDetails() {
 
+	report.SystemDetails = &SystemInfo{}
 }
 
 func (report *Report) GetOSDetails() {
-
+	report.OSDetails = &OSInfo{OSType: runtime.GOOS}
 }

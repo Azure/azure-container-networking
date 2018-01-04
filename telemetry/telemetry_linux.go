@@ -24,9 +24,8 @@ type DiskInfo struct {
 }
 
 const (
-	TelemetryFile = "/var/run/AzureCNITelemetry.json"
-	MB            = 1048576
-	KB            = 1024
+	MB = 104857
+	KB = 1024
 )
 
 // This function retrieves VMs memory usage.
@@ -89,12 +88,9 @@ func (report *Report) GetSystemDetails() {
 
 // This function  creates a report with os details(ostype, version).
 func (report *Report) GetOSDetails() {
-
-	osType := "Linux"
-
 	linesArr, err := ReadFileByLines("/etc/issue")
 	if err != nil || len(linesArr) <= 0 {
-		report.OSDetails = &OSInfo{OSType: "Linux"}
+		report.OSDetails = &OSInfo{OSType: runtime.GOOS}
 		report.OSDetails.ErrorMessage = "reading /etc/issue failed with" + err.Error()
 		return
 	}
@@ -103,7 +99,7 @@ func (report *Report) GetOSDetails() {
 
 	out, err := exec.Command("uname", "-r").Output()
 	if err != nil {
-		report.OSDetails = &OSInfo{OSType: "Linux"}
+		report.OSDetails = &OSInfo{OSType: runtime.GOOS}
 		report.OSDetails.ErrorMessage = "uname -r failed with " + err.Error()
 		return
 	}
@@ -112,7 +108,7 @@ func (report *Report) GetOSDetails() {
 	kernelVersion = strings.TrimSuffix(kernelVersion, "\n")
 
 	report.OSDetails = &OSInfo{
-		OSType:         osType,
+		OSType:          runtime.GOOS,
 		OSVersion:      osInfoArr[1],
 		KernelVersion:  kernelVersion,
 		OSDistribution: osInfoArr[0],

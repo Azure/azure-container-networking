@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 // OS Details structure.
@@ -89,6 +90,11 @@ type ReportManager struct {
 	ReportType      string
 	Report          *Report
 }
+
+const (
+	// TelemetryFile Path.
+	TelemetryFile = platform.RuntimePath + "AzureCNITelemetry.json"
+)
 
 // Read file line by line and return array of lines.
 func ReadFileByLines(filename string) ([]string, error) {
