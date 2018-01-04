@@ -61,7 +61,7 @@ type BridgeInfo struct {
 }
 
 // Orchestrator Details structure.
-type OrchsestratorInfo struct {
+type OrchestratorInfo struct {
 	OrchestratorName    string
 	OrchestratorVersion string
 	ErrorMessage        string
@@ -76,7 +76,7 @@ type Report struct {
 	Context             string
 	SubContext          string
 	VnetAddressSpace    []string
-	OrchestratorDetails *OrchsestratorInfo
+	OrchestratorDetails *OrchestratorInfo
 	OSDetails           *OSInfo
 	SystemDetails       *SystemInfo
 	InterfaceDetails    *InterfaceInfo
@@ -301,14 +301,14 @@ func (report *Report) GetInterfaceDetails(queryUrl string) {
 func (report *Report) GetOrchestratorDetails() {
 	out, err := exec.Command("kubectl", "--version").Output()
 	if err != nil {
-		report.OrchestratorDetails = &OrchsestratorInfo{}
+		report.OrchestratorDetails = &OrchestratorInfo{}
 		report.OrchestratorDetails.ErrorMessage = "kubectl command failed due to " + err.Error()
 		return
 	}
 
 	outStr := string(out)
 	outStr = strings.TrimLeft(outStr, " ")
-	report.OrchestratorDetails = &OrchsestratorInfo{}
+	report.OrchestratorDetails = &OrchestratorInfo{}
 
 	resultArray := strings.Split(outStr, " ")
 	if len(resultArray) >= 2 {

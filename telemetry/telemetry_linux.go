@@ -24,7 +24,7 @@ type DiskInfo struct {
 }
 
 const (
-	MB = 104857
+	MB = 1048576
 	KB = 1024
 )
 
@@ -108,7 +108,7 @@ func (report *Report) GetOSDetails() {
 	kernelVersion = strings.TrimSuffix(kernelVersion, "\n")
 
 	report.OSDetails = &OSInfo{
-		OSType:          runtime.GOOS,
+		OSType:         runtime.GOOS,
 		OSVersion:      osInfoArr[1],
 		KernelVersion:  kernelVersion,
 		OSDistribution: osInfoArr[0],
