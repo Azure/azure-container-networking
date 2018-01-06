@@ -151,9 +151,9 @@ publish-azure-vnet-plugin-image:
 # Create a CNI archive for the target platform.
 .PHONY: cni-archive
 cni-archive:
-	cp cni/azure.conf $(CNI_BUILD_DIR)/10-azure.conf
+	cp cni/azure.conflist $(CNI_BUILD_DIR)/10-azure.conflist
 	chmod 0755 $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
-	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) 10-azure.conf
+	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) 10-azure.conflist
 	chown $(BUILD_USER):$(BUILD_USER) $(CNI_BUILD_DIR)/$(CNI_ARCHIVE_NAME)
 
 # Create a CNM archive for the target platform.
