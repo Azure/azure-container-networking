@@ -32,6 +32,12 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
+	if nw.Endpoints[epInfo.Id] != nil {
+		log.Printf("[net] Endpoint alreday exists.")		
+		err = errEndpointExists
+		return nil, err
+	}
+
 	// Create a veth pair.
 	hostIfName := fmt.Sprintf("%s%s", hostVEthInterfacePrefix, epInfo.Id[:7])
 	contIfName := fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, epInfo.Id[:7])

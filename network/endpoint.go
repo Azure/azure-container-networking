@@ -51,11 +51,6 @@ func (nw *network) newEndpoint(epInfo *EndpointInfo) (*endpoint, error) {
 		}
 	}()
 
-	if nw.Endpoints[epInfo.Id] != nil {
-		err = errEndpointExists
-		return nil, err
-	}
-
 	// Call the platform implementation.
 	ep, err = nw.newEndpointImpl(epInfo)
 	if err != nil {
@@ -63,7 +58,6 @@ func (nw *network) newEndpoint(epInfo *EndpointInfo) (*endpoint, error) {
 	}
 
 	nw.Endpoints[epInfo.Id] = ep
-
 	log.Printf("[net] Created endpoint %+v.", ep)
 
 	return ep, nil
