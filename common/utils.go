@@ -6,6 +6,7 @@ package common
 import (
 	"encoding/xml"
 	"net"
+	"os"
 
 	"github.com/Azure/azure-container-networking/log"
 )
@@ -43,4 +44,28 @@ func LogNetworkInterfaces() {
 		addrs, _ := iface.Addrs()
 		log.Printf("[net] Network interface: %+v with IP addresses: %+v", iface, addrs)
 	}
+}
+
+func CheckIfFileExists(filepath string) (bool, error) {
+	_, err := os.Stat(filepath)
+	if err == nil {
+		return true, nil
+	}
+
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+
+	return true, err
+}
+
+func CreateDirectory(dirPath string) error {
+	var err error
+
+	isExist, _ := CheckIfFileExists(dirPath)
+	if !isExist {
+		err = os.Mkdir(dirPath, os.ModePerm)
+	}
+
+	return err
 }

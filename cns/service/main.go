@@ -121,7 +121,7 @@ func main() {
 
 	// Create the key value store.
 	var err error
-	config.Store, err = store.NewJsonFileStore(platform.RuntimePath + name + ".json")
+	config.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + name + ".json")
 	if err != nil {
 		fmt.Printf("Failed to create store: %v\n", err)
 		return
@@ -155,7 +155,7 @@ func main() {
 	}
 
 	// Create the key value store.
-	pluginConfig.Store, err = store.NewJsonFileStore(platform.RuntimePath + pluginName + ".json")
+	pluginConfig.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + pluginName + ".json")
 	if err != nil {
 		fmt.Printf("Failed to create store: %v\n", err)
 		return
