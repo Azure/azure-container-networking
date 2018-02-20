@@ -484,7 +484,7 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 	// If no address was found, return any available address.
 	if ar == nil {
 		for _, ar = range ap.Addresses {
-			if !ar.InUse {
+			if !ar.InUse && ar.ID == "" {
 				break
 			}
 			ar = nil
@@ -497,10 +497,10 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 
 	if id != "" {
 		ap.addrsByID[id] = ar
+		ar.ID = id
+	} else {
+		ar.InUse = true
 	}
-
-	ar.ID = id
-	ar.InUse = true
 
 	// Return address in CIDR notation.
 	addr = &net.IPNet{
@@ -551,15 +551,16 @@ func (ap *addressPool) releaseAddress(address string, options map[string]string)
 		return nil
 	}
 
-	if ar.ID != "" {
-		delete(ap.addrsByID, ar.ID)
-	}
-
-	ar.ID = ""
 	ar.InUse = false
+
+	if id != "" && ar.ID == id {
+		delete(ap.addrsByID, ar.ID)
+		ar.ID = ""
+	}
 
 	// Delete address record if it is no longer available.
 	if ar.epoch < ap.as.epoch {
+		log.Printf("Deleting Address record from address pool as metadata doesn't have")
 		delete(ap.Addresses, address)
 	}
 
