@@ -8,6 +8,7 @@ package network
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
@@ -118,7 +119,7 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 		log.Printf("[net] Adding IP address %v to interface %v.", addr, targetIf.Name)
 
 		err := netlink.AddIpAddress(targetIf.Name, addr.IP, addr)
-		if err != nil {
+		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 			log.Printf("[net] Failed to add IP address %v: %v.", addr, err)
 			return err
 		}

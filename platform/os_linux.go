@@ -10,8 +10,12 @@ import (
 )
 
 const (
-	// RuntimePath is the path where runtime files are stored.
-	RuntimePath = "/var/run/"
+
+	// CNMRuntimePath is the path where CNM state files are stored.
+	CNMRuntimePath = "/var/lib/azure-network/"
+
+	// CNIRuntimePath is the path where CNM state files are stored.
+	CNIRuntimePath = "/var/run/"
 
 	// LogPath is the path where log files are stored.
 	LogPath = "/var/log/"

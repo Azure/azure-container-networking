@@ -8,8 +8,12 @@ import (
 )
 
 const (
-	// RuntimePath is the path where runtime files are stored.
-	RuntimePath = ""
+
+	// CNMRuntimePath is the path where CNM state files are stored.
+	CNMRuntimePath = ""
+
+	// CNIRuntimePath is the path where CNM state files are stored.
+	CNIRuntimePath = ""
 
 	// LogPath is the path where log files are stored.
 	LogPath = ""

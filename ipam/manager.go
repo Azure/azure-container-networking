@@ -99,6 +99,7 @@ func (am *addressManager) restore() error {
 		return nil
 	}
 
+	rebooted := false
 	// After a reboot, all address resources are implicitly released.
 	// Ignore the persisted state if it is older than the last reboot time.
 	modTime, err := am.store.GetModificationTime()
@@ -107,8 +108,8 @@ func (am *addressManager) restore() error {
 
 		rebootTime, err := platform.GetLastRebootTime()
 		if err == nil && rebootTime.After(modTime) {
-			log.Printf("[ipam] Ignoring stale state older than last reboot %v.", rebootTime)
-			return nil
+			log.Printf("[ipam] reboot time %v mod time %v", rebootTime, modTime)
+			rebooted = true
 		}
 	}
 
@@ -132,6 +133,18 @@ func (am *addressManager) restore() error {
 			for _, ar := range ap.Addresses {
 				if ar.ID != "" {
 					ap.addrsByID[ar.ID] = ar
+				}
+			}
+		}
+	}
+
+	if rebooted {
+		for _, as := range am.AddrSpaces {
+			for _, ap := range as.Pools {
+				ap.as = as
+
+				for _, ar := range ap.Addresses {
+					ar.InUse = false
 				}
 			}
 		}

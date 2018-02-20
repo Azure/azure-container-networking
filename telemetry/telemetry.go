@@ -93,7 +93,7 @@ type ReportManager struct {
 
 const (
 	// TelemetryFile Path.
-	TelemetryFile = platform.RuntimePath + "AzureCNITelemetry.json"
+	TelemetryFile = platform.CNIRuntimePath + "AzureCNITelemetry.json"
 )
 
 // Read file line by line and return array of lines.
