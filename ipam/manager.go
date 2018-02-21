@@ -100,8 +100,8 @@ func (am *addressManager) restore() error {
 	}
 
 	rebooted := false
-	// After a reboot, all address resources are implicitly released.
-	// Ignore the persisted state if it is older than the last reboot time.
+
+	// Check if the VM is rebooted.
 	modTime, err := am.store.GetModificationTime()
 	if err == nil {
 		log.Printf("[ipam] Store timestamp is %v.", modTime)
@@ -138,7 +138,9 @@ func (am *addressManager) restore() error {
 		}
 	}
 
+	// if rebooted mark the ip as not in use.
 	if rebooted {
+		log.Printf("[ipam] Rehydrating ipam state from persistent store")
 		for _, as := range am.AddrSpaces {
 			for _, ap := range as.Pools {
 				ap.as = as

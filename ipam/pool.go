@@ -560,7 +560,7 @@ func (ap *addressPool) releaseAddress(address string, options map[string]string)
 
 	// Delete address record if it is no longer available.
 	if ar.epoch < ap.as.epoch {
-		log.Printf("Deleting Address record from address pool as metadata doesn't have")
+		log.Printf("Deleting Address record from address pool as metadata doesn't have this address")
 		delete(ap.Addresses, address)
 	}
 

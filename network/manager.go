@@ -109,19 +109,23 @@ func (nm *networkManager) restore() error {
 		}
 	}
 
+	// if rebooted recreate the network that existed before reboot.
 	if rebooted {
+		log.Printf("[net] Rehydrating network state from persistent store")
 		for _, extIf := range nm.ExternalInterfaces {
 			for _, nw := range extIf.Networks {
 				nwInfo, err := nm.GetNetworkInfo(nw.Id)
 				if err != nil {
-					log.Printf("[net] Failed to fetch network info for network %v err %v", nw, err)
+					log.Printf("[net] Failed to fetch network info for network %v extif %v err %v. This should not happen", nw, extIf, err)
+					return err
 				}
 
 				extIf.BridgeName = ""
 
 				_, err = nm.newNetworkImpl(nwInfo, extIf)
 				if err != nil {
-					log.Printf("[net] Failed to restore network %v", err)
+					log.Printf("[net] Restoring network failed for nwInfo %v extif %v. This should not happen %v", nwInfo, extIf, err)
+					return err
 				}
 			}
 		}
