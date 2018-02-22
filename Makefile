@@ -26,6 +26,18 @@ CNIFILES = \
 	$(wildcard cni/network/plugin/*.go) \
 	$(COREFILES)
 
+CNSFILES = \
+	$(wildcard cns/*.go) \
+	$(wildcard cns/common/*.go) \
+	$(wildcard cni/dockerclient/*.go) \
+	$(wildcard cni/imdsclient/*.go) \
+	$(wildcard cni/ipamclient/*.go) \
+	$(wildcard cni/restserver/*.go) \
+	$(wildcard cni/routes/*.go) \
+	$(wildcard cni/service/*.go) \
+	$(COREFILES) \
+	$(CNMFILES)
+
 # Build defaults.
 GOOS ?= linux
 GOARCH ?= amd64
@@ -34,10 +46,12 @@ GOARCH ?= amd64
 CNM_DIR = cnm/plugin
 CNI_NET_DIR = cni/network/plugin
 CNI_IPAM_DIR = cni/ipam/plugin
+CNS_DIR = cns/service
 OUTPUT_DIR = output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
+CNS_BUILD_DIR = $(BUILD_DIR)/cns
 
 # Containerized build parameters.
 BUILD_CONTAINER_IMAGE = acn-build
@@ -60,6 +74,7 @@ endif
 # Archive file names.
 CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
@@ -74,7 +89,8 @@ azure-cnm-plugin: $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) cnm-archive
 azure-vnet: $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT)
 azure-vnet-ipam: $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
 azure-cni-plugin: azure-vnet azure-vnet-ipam cni-archive
-all-binaries: azure-cnm-plugin azure-cni-plugin
+azure-cns:	$(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) cns-archive 
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
 
 # Clean all build artifacts.
 .PHONY: clean
@@ -92,6 +108,11 @@ $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT): $(CNIFILES)
 # Build the Azure CNI IPAM plugin.
 $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT): $(CNIFILES)
 	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_IPAM_DIR)/*.go
+
+# Build the Azure CNS Service.
+$(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
+	go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNS_DIR)/*.go
+
 
 # Build all binaries in a container.
 .PHONY: all-binaries-containerized
@@ -162,3 +183,10 @@ cnm-archive:
 	chmod 0755 $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT)
 	cd $(CNM_BUILD_DIR) && $(ARCHIVE_CMD) $(CNM_ARCHIVE_NAME) azure-vnet-plugin$(EXE_EXT)
 	chown $(BUILD_USER):$(BUILD_USER) $(CNM_BUILD_DIR)/$(CNM_ARCHIVE_NAME)
+
+# Create a CNS archive for the target platform.
+.PHONY: cns-archive
+cns-archive:
+	chmod 0755 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT)
+	cd $(CNS_BUILD_DIR) && $(ARCHIVE_CMD) $(CNS_ARCHIVE_NAME) azure-cns$(EXE_EXT)
+	chown $(BUILD_USER):$(BUILD_USER) $(CNS_BUILD_DIR)/$(CNS_ARCHIVE_NAME)
