@@ -154,6 +154,12 @@ func main() {
 		return
 	}
 
+	err = acn.CreateDirectory(platform.CNMRuntimePath)
+	if err != nil {
+		fmt.Printf("Failed to create File Store directory Error:%v", err.Error())
+		return
+	}
+
 	// Create the key value store.
 	pluginConfig.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + pluginName + ".json")
 	if err != nil {
