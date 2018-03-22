@@ -301,12 +301,14 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 	} else {
 		// Return any available address pool.
 		ifName := options[OptInterfaceName]
-
+		allocType := options[OptSubnetAllocType]
 		for _, pool := range as.Pools {
 			log.Printf("[ipam] Checking pool %v.", pool.Id)
 
-			// Skip if pool is already in use.
-			if pool.isInUse() {
+			// Skip if pool is already in use or if the pool
+			// is avilable and request is to allocate from
+			// any available pool..
+			if pool.isInUse() && allocType != TypeAny {
 				log.Printf("[ipam] Pool is in use.")
 				continue
 			}

@@ -30,4 +30,8 @@ var (
 	OptAddressID          = "azure.address.id"
 	OptAddressType        = "azure.address.type"
 	OptAddressTypeGateway = "gateway"
+	OptSubnetAllocType    = "azure.subnet.alloc.type"
+
+	//Subnet alloc type.
+	TypeAny = "any"
 )

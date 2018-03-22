@@ -151,14 +151,16 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	// Check if an address pool is specified.
-	if nwCfg.Ipam.Subnet == "" {
+	if nwCfg.Ipam.Subnet == "" || isAnySubnet(nwCfg.Ipam.Subnet) {
 		var poolID string
 		var subnet string
 
 		// Select the requested interface.
 		options := make(map[string]string)
 		options[ipam.OptInterfaceName] = nwCfg.Master
-
+		if isAnySubnet(nwCfg.Ipam.Subnet) {
+			options[ipam.OptSubnetAllocType] = ipam.TypeAny
+		}
 		// Allocate an address pool.
 		poolID, subnet, err = plugin.am.RequestPool(nwCfg.Ipam.AddrSpace, "", "", options, false)
 		if err != nil {
@@ -284,4 +286,11 @@ func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	return nil
+}
+
+// isAnySubnet is used to check if the subnet allocation type is set to well known subnet
+// 0.0.0.0/24. If this subnet is set by external plugins then any avilable pool is used
+// to allocate an IP
+func isAnySubnet(subnet string) bool {
+	return subnet == "0.0.0.0/24"
 }
