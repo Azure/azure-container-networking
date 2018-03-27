@@ -21,7 +21,7 @@ func interfaceExists(iFaceName string) (bool, error) {
 	_, err := net.InterfaceByName(iFaceName)
 
 	if err != nil {
-		errMsg := fmt.Sprintf("[Azure CNS] Unable to get interface by name %v", iFaceName)
+		errMsg := fmt.Sprintf("[Azure CNS] Unable to get interface by name %v, %v", iFaceName, err)
 		log.Printf(errMsg)
 		return false, errors.New(errMsg)
 	}

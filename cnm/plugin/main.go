@@ -72,7 +72,7 @@ var args = common.ArgumentList{
 		Name:         common.OptLogLocation,
 		Shorthand:    common.OptLogLocationAlias,
 		Description:  "Set the logging directory",
-		Type:         "int",
+		Type:         "string",
 		DefaultValue: "",
 	},
 	{

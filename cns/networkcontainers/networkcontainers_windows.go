@@ -33,51 +33,56 @@ func setWeakHostOnInterface(ipAddress string) error {
 		return err
 	}
 
-	found := false
-	var targetIface net.Interface
+	var targetIface *net.Interface
 	for _, iface := range interfaces {
 		addrs, _ := iface.Addrs()
 		for _, addr := range addrs {
 			addrStr := addr.String()
-			add := strings.Split(addrStr, "/")[0]
+			ipv4Addr, _, err := net.ParseCIDR(addrStr)
+			if err != nil {
+				log.Printf("[Azure CNS] Unable to parse ip address on the interface %v.", err)
+				continue
+			}
+			add := ipv4Addr.String()
 			if strings.Compare(add, ipAddress) == 0 {
-				found = true
-				targetIface = iface
+				targetIface = &iface
 				break
 			}
 		}
 
-		if found == true {
+		if targetIface != nil {
 			break
 		}
 	}
 
+	if targetIface == nil {
+		errval := "[Azerrvalure CNS] Was not able to find the interface with ip " + ipAddress + " to enable weak host send/receive"
+		log.Printf(errval)
+		return errors.New(errval)
+	}
+
 	ethIndexString := strconv.Itoa(targetIface.Index)
 	log.Printf("[Azure CNS] Going to setup weak host routing for interface with index[%v, %v]\n", targetIface.Index, ethIndexString)
-	if found {
-		args := []string{"/C", "AzureNetworkContainer.exe", "/logpath", log.GetLogDirectory(),
-			"/index",
-			ethIndexString,
-			"/operation",
-			"WEAKHOSTROUTING",
-			"/weakhostsend",
-			"true",
-			"/weakhostreceive",
-			"true"}
 
-		log.Printf("[Azure CNS] Going to enable weak host send/receive on interface: %v", args)
-		c := exec.Command("cmd", args...)
-		bytes, err := c.Output()
+	args := []string{"/C", "AzureNetworkContainer.exe", "/logpath", log.GetLogDirectory(),
+		"/index",
+		ethIndexString,
+		"/operation",
+		"WEAKHOSTROUTING",
+		"/weakhostsend",
+		"true",
+		"/weakhostreceive",
+		"true"}
 
-		if err == nil {
-			log.Printf("[Azure CNS] Successfully updated weak host send/receive on interface %v.\n", string(bytes))
-		} else {
-			log.Printf("[Azure CNS] Received error while enable weak host send/receive on interface. %v - %v", err.Error(), string(bytes))
-			return err
-		}
+	log.Printf("[Azure CNS] Going to enable weak host send/receive on interface: %v", args)
+	c := exec.Command("cmd", args...)
+	bytes, err := c.Output()
+
+	if err == nil {
+		log.Printf("[Azure CNS] Successfully updated weak host send/receive on interface %v.\n", string(bytes))
 	} else {
-		errval := "[Azure CNS] Was not able to find the interface with ip " + ipAddress + " to enable weak host send/receive"
-		return errors.New(errval)
+		log.Printf("[Azure CNS] Received error while enable weak host send/receive on interface. %v - %v", err.Error(), string(bytes))
+		return err
 	}
 
 	return nil

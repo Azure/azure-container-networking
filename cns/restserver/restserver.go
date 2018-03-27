@@ -935,7 +935,6 @@ func (service *httpRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 	default:
 		returnMessage = "[Azure CNS] Error. DeleteNetworkContainer did not receive a POST."
 		returnCode = InvalidParameter
-
 	}
 
 	resp := cns.Response{
@@ -947,7 +946,6 @@ func (service *httpRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 	err = service.Listener.Encode(w, &reserveResp)
 
 	log.Response(service.Name, reserveResp, err)
-
 }
 
 func (service *httpRestService) getNetworkContainerStatus(w http.ResponseWriter, r *http.Request) {

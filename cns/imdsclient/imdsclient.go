@@ -16,7 +16,7 @@ import (
 // GetNetworkContainerInfoFromHost retrieves the programmed version of network container from Host.
 func (imdsClient *ImdsClient) GetNetworkContainerInfoFromHost(networkContainerID string, primaryAddress string, authToken string, apiVersion string) (*ContainerVersion, error) {
 	log.Printf("[Azure CNS] GetNetworkContainerInfoFromHost")
-	queryURL := fmt.Sprintf("http://169.254.169.254/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/%s",
+	queryURL := fmt.Sprintf(hostQueryURLForProgrammedVersion,
 		primaryAddress, networkContainerID, authToken, apiVersion)
 
 	log.Printf("[Azure CNS] Going to query Azure Host for container version @\n %v\n", queryURL)
