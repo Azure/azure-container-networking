@@ -202,7 +202,6 @@ func (report *Report) SetReportState() error {
 	}
 
 	report.StartFlag = false
-	report.CniSucceeded = false
 	log.Printf("SetReportState succeeded")
 	return nil
 }
