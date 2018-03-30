@@ -70,6 +70,7 @@ type OrchestratorInfo struct {
 // Azure CNI Telemetry Report structure.
 type Report struct {
 	StartFlag           bool
+	CniSucceeded        bool
 	Name                string
 	Version             string
 	ErrorMessage        string
@@ -148,8 +149,8 @@ func (reportMgr *ReportManager) SendReport() error {
 
 	log.Printf("Going to send Telemetry report to hostnetagent %v", reportMgr.HostNetAgentURL)
 
-	log.Printf(`"Start Flag %v Name %v Version %v ErrorMessage %v vnet %v 
-				Context %v SubContext %v"`, reportMgr.Report.StartFlag, reportMgr.Report.Name,
+	log.Printf(`"Start Flag %v CniSucceeded %t Name %v Version %v ErrorMessage %v vnet %v 
+				Context %v SubContext %v"`, reportMgr.Report.StartFlag, reportMgr.Report.CniSucceeded, reportMgr.Report.Name,
 		reportMgr.Report.Version, reportMgr.Report.ErrorMessage, reportMgr.Report.VnetAddressSpace,
 		reportMgr.Report.Context, reportMgr.Report.SubContext)
 
@@ -201,6 +202,7 @@ func (report *Report) SetReportState() error {
 	}
 
 	report.StartFlag = false
+	report.CniSucceeded = false
 	log.Printf("SetReportState succeeded")
 	return nil
 }
