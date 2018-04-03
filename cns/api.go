@@ -113,23 +113,28 @@ type errorResponse struct {
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
-	Version                          string
-	NetworkContainerType             string
-	NetworkContainerid               string // Mandatory input.
-	PrimaryInterfaceIdentifier       string // Primary CA.
-	AuthorizationToken               string
-	NetworkContainerOrchestratorInfo NetworkContainerOrchestratorInfo
-	IPConfiguration                  IPConfiguration
-	MultiTenancyInfo                 MultiTenancyInfo
-	VnetAddressSpace                 []IPSubnet // To setup SNAT (should include service endpoint vips).
-	Routes                           []Route
+	Version                    string
+	NetworkContainerType       string
+	NetworkContainerid         string // Mandatory input.
+	PrimaryInterfaceIdentifier string // Primary CA.
+	AuthorizationToken         string
+	OrchestratorInfo           OrchestratorInfo
+	IPConfiguration            IPConfiguration
+	MultiTenancyInfo           MultiTenancyInfo
+	VnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
+	Routes                     []Route
 }
 
-// NetworkContainerOrchestratorInfo contains orchestrator type, pod name and pod namespace.
-type NetworkContainerOrchestratorInfo struct {
-	OrchestratorType string
-	PodName          string
-	PodNamespace     string
+// OrchestratorInfo contains orchestrator type, and orchestrator context.
+type OrchestratorInfo struct {
+	OrchestratorType    string
+	OrchestratorContext interface{}
+}
+
+// AzureContainerInstanceInfo - Struct to hold pod name and pod namespace.
+type AzureContainerInstanceInfo struct {
+	PodName      string
+	PodNamespace string
 }
 
 // MultiTenancyInfo contains encap type and id.
