@@ -991,7 +991,7 @@ func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		routes = savedReq.Routes
 		encapInfo = savedReq.MultiTenancyInfo
 	} else {
-		getNetworkContainerResponse.Response.ReturnCode = NetworkContainerNotExist
+		getNetworkContainerResponse.Response.ReturnCode = UnknownContainerID
 		getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
 		return getNetworkContainerResponse
 	}
