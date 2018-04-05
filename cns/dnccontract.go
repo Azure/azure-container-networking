@@ -4,11 +4,12 @@ import "encoding/json"
 
 // Container Network Service DNC Contract
 const (
-	SetOrchestratorType            = "/network/setorchestratortype"
-	CreateOrUpdateNetworkContainer = "/network/createorupdatenetworkcontainer"
-	DeleteNetworkContainer         = "/network/deletenetworkcontainer"
-	GetNetworkContainerStatus      = "/network/getnetworkcontainerstatus"
-	GetInterfaceForContainer       = "/network/getinterfaceforcontainer"
+	SetOrchestratorType                      = "/network/setorchestratortype"
+	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
+	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
+	GetNetworkContainerStatus                = "/network/getnetworkcontainerstatus"
+	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
+	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
 )
 
 // NetworkContainer Types
@@ -92,11 +93,16 @@ type GetNetworkContainerStatusResponse struct {
 
 // GetNetworkContainerRequest specifies the details about the request to retrieve a specifc network container.
 type GetNetworkContainerRequest struct {
+	NetworkContainerid  string
+	OrchestratorContext json.RawMessage
 }
 
 // GetNetworkContainerResponse describes the response to retrieve a specifc network container.
 type GetNetworkContainerResponse struct {
-	Response Response
+	IPConfiguration  IPConfiguration
+	Routes           []Route
+	MultiTenancyInfo MultiTenancyInfo
+	Response         Response
 }
 
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
