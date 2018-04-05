@@ -410,6 +410,7 @@ func getNonExistNetworkCotnainerByContext(t *testing.T, name string) error {
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
+
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != UnknownContainerID {
 		t.Errorf("GetNetworkContainerByContext unexpected response %+v Err:%+v", resp, err)
