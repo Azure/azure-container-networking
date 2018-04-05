@@ -978,7 +978,7 @@ func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		break
 
 	default:
-		getNetworkContainerResponse.Response.ReturnCode = UnexpectedError
+		getNetworkContainerResponse.Response.ReturnCode = UnsupportedOrchestratorType
 		getNetworkContainerResponse.Response.Message = fmt.Sprintf("Invalid orchestrator type %v", service.state.OrchestratorType)
 		return getNetworkContainerResponse
 	}
@@ -991,8 +991,8 @@ func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		routes = savedReq.Routes
 		encapInfo = savedReq.MultiTenancyInfo
 	} else {
-		getNetworkContainerResponse.Response.ReturnCode = UnexpectedError
-		getNetworkContainerResponse.Response.Message = "Never received call to create this container."
+		getNetworkContainerResponse.Response.ReturnCode = NetworkContainerNotExist
+		getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
 		return getNetworkContainerResponse
 	}
 

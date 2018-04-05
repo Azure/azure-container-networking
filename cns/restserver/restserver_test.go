@@ -393,6 +393,32 @@ func getNetworkCotnainerByContext(t *testing.T, name string) error {
 	return nil
 }
 
+func getNonExistNetworkCotnainerByContext(t *testing.T, name string) error {
+	var body bytes.Buffer
+	var resp cns.GetNetworkContainerResponse
+
+	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
+	podInfoBytes, err := json.Marshal(podInfo)
+	getReq := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}
+
+	json.NewEncoder(&body).Encode(getReq)
+	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	err = decodeResponse(w, &resp)
+	if err != nil || resp.Response.ReturnCode != NetworkContainerNotExist {
+		t.Errorf("GetNetworkContainerByContext unexpected response %+v Err:%+v", resp, err)
+		t.Fatal(err)
+	}
+
+	fmt.Printf("**GetNonExistNetworkContainerByContext succeded with response %+v, raw:%+v\n", resp, w.Body)
+	return nil
+}
+
 func getNetworkCotnainerStatus(t *testing.T, name string) error {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerStatusResponse
@@ -506,6 +532,12 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 	err = deleteNetworkAdapterWithName(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	err = getNonExistNetworkCotnainerByContext(t, "ethWebApp")
+	if err != nil {
+		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
 		t.Fatal(err)
 	}
 }
