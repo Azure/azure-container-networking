@@ -4,6 +4,7 @@
 package restserver
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -51,13 +52,14 @@ type containerstatus struct {
 
 // httpRestServiceState contains the state we would like to persist.
 type httpRestServiceState struct {
-	Location         string
-	NetworkType      string
-	OrchestratorType string
-	Initialized      bool
-	ContainerStatus  map[string]containerstatus
-	Networks         map[string]*networkInfo
-	TimeStamp        time.Time
+	Location                         string
+	NetworkType                      string
+	OrchestratorType                 string
+	Initialized                      bool
+	ContainerIDByOrchestratorContext map[string]string          // OrchestratorContext is key and value is NetworkContainerID.
+	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
+	Networks                         map[string]*networkInfo
+	TimeStamp                        time.Time
 }
 
 type networkInfo struct {
@@ -832,6 +834,51 @@ func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	log.Response(service.Name, resp, err)
 }
 
+func (service *httpRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (int, string) {
+	// we don't want to overwrite what other calls may have written
+	service.lock.Lock()
+	defer service.lock.Unlock()
+
+	existing, ok := service.state.ContainerStatus[req.NetworkContainerid]
+	var hostVersion string
+	if ok {
+		hostVersion = existing.HostVersion
+	}
+
+	if service.state.ContainerStatus == nil {
+		service.state.ContainerStatus = make(map[string]containerstatus)
+	}
+
+	service.state.ContainerStatus[req.NetworkContainerid] =
+		containerstatus{
+			ID:                            req.NetworkContainerid,
+			VMVersion:                     req.Version,
+			CreateNetworkContainerRequest: req,
+			HostVersion:                   hostVersion}
+
+	if req.NetworkContainerType == cns.AzureContainerInstance {
+		switch service.state.OrchestratorType {
+		case cns.Kubernetes:
+			var podInfo cns.KubernetesPodInfo
+			err := json.Unmarshal(req.OrchestratorContext, &podInfo)
+			if err != nil {
+				errBuf := fmt.Sprintf("Unmarshalling AzureContainerInstanceInfo failed with error %v", err)
+				return UnexpectedError, errBuf
+			}
+
+			log.Printf("Azure container instance info %v", podInfo)
+			service.state.ContainerIDByOrchestratorContext[podInfo.PodName+podInfo.PodNamespace] = req.NetworkContainerid
+			break
+
+		default:
+			log.Printf("Invalid orchestrator type %v", service.state.OrchestratorType)
+		}
+	}
+
+	service.saveState()
+	return 0, ""
+}
+
 func (service *httpRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] createOrUpdateNetworkContainer")
 
@@ -854,39 +901,17 @@ func (service *httpRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 	case "POST":
 		nc := service.networkContainer
 		err := nc.Create(req)
-
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
 			returnCode = UnexpectedError
 			break
 		}
 
-		// we don't want to overwrite what other calls may have written
-		service.lock.Lock()
-		defer service.lock.Unlock()
-
-		existing, ok := service.state.ContainerStatus[req.NetworkContainerid]
-		var hostVersion string
-		if ok {
-			hostVersion = existing.HostVersion
-		}
-
-		if service.state.ContainerStatus == nil {
-			service.state.ContainerStatus = make(map[string]containerstatus)
-		}
-
-		service.state.ContainerStatus[req.NetworkContainerid] =
-			containerstatus{
-				ID:                            req.NetworkContainerid,
-				VMVersion:                     req.Version,
-				CreateNetworkContainerRequest: req,
-				HostVersion:                   hostVersion}
-		service.saveState()
+		returnCode, returnMessage = service.saveNetworkContainerGoalState(req)
 
 	default:
 		returnMessage = "[Azure CNS] Error. CreateOrUpdateNetworkContainer did not receive a POST."
 		returnCode = InvalidParameter
-
 	}
 
 	resp := cns.Response{
