@@ -277,12 +277,13 @@ func setOrchestratorType(t *testing.T, orchestratorType string) error {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
+
 	var resp cns.Response
 	err = decodeResponse(w, &resp)
 	fmt.Printf("Raw response: %+v", w.Body)
-
 	if err != nil || resp.ReturnCode != 0 {
 		t.Errorf("setOrchestratorType failed with response %+v Err:%+v", resp, err)
 		t.Fatal(err)
@@ -475,6 +476,7 @@ func getInterfaceForContainer(t *testing.T, name string) error {
 
 func TestSetOrchestratorType(t *testing.T) {
 	fmt.Println("Test: TestSetOrchestratorType")
+
 	setEnv(t)
 
 	err := setOrchestratorType(t, cns.Kubernetes)
@@ -487,7 +489,9 @@ func TestSetOrchestratorType(t *testing.T) {
 func TestCreateNetworkContainer(t *testing.T) {
 	// requires more than 30 seconds to run
 	fmt.Println("Test: TestCreateNetworkContainer")
+
 	setEnv(t)
+
 	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
@@ -512,8 +516,10 @@ func TestCreateNetworkContainer(t *testing.T) {
 func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 	// requires more than 30 seconds to run
 	fmt.Println("Test: TestGetNetworkContainerByOrchestratorContext")
+
 	setEnv(t)
 	setOrchestratorType(t, cns.Kubernetes)
+
 	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "AzureContainerInstance")
 	if err != nil {
 		t.Errorf("creatOrUpdateNetworkContainerWithName failed Err:%+v", err)
@@ -545,7 +551,9 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 func TestGetNetworkContainerStatus(t *testing.T) {
 	// requires more than 30 seconds to run
 	fmt.Println("Test: TestCreateNetworkContainer")
+
 	setEnv(t)
+
 	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
@@ -571,7 +579,9 @@ func TestGetNetworkContainerStatus(t *testing.T) {
 func TestGetInterfaceForNetworkContainer(t *testing.T) {
 	// requires more than 30 seconds to run
 	fmt.Println("Test: TestCreateNetworkContainer")
+
 	setEnv(t)
+
 	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)

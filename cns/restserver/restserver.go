@@ -869,6 +869,7 @@ func (service *httpRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			}
 
 			log.Printf("Azure container instance info %v", podInfo)
+
 			if service.state.ContainerIDByOrchestratorContext == nil {
 				service.state.ContainerIDByOrchestratorContext = make(map[string]string)
 			}
@@ -951,14 +952,10 @@ func (service *httpRestService) getNetworkContainerByID(w http.ResponseWriter, r
 
 	reserveResp := &cns.GetNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-
 	log.Response(service.Name, reserveResp, err)
 }
 
 func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkContainerRequest) cns.GetNetworkContainerResponse {
-	var ipconfig cns.IPConfiguration
-	var routes []cns.Route
-	var encapInfo cns.MultiTenancyInfo
 	var containerID string
 	var getNetworkContainerResponse cns.GetNetworkContainerResponse
 
@@ -983,23 +980,19 @@ func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		return getNetworkContainerResponse
 	}
 
-	containerInfo := service.state.ContainerStatus
-	containerDetails, ok := containerInfo[containerID]
-	if ok {
-		savedReq := containerDetails.CreateNetworkContainerRequest
-		ipconfig = savedReq.IPConfiguration
-		routes = savedReq.Routes
-		encapInfo = savedReq.MultiTenancyInfo
-	} else {
+	containerStatus := service.state.ContainerStatus
+	containerDetails, ok := containerStatus[containerID]
+	if !ok {
 		getNetworkContainerResponse.Response.ReturnCode = UnknownContainerID
 		getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
 		return getNetworkContainerResponse
 	}
 
+	savedReq := containerDetails.CreateNetworkContainerRequest
 	getNetworkContainerResponse = cns.GetNetworkContainerResponse{
-		IPConfiguration:  ipconfig,
-		Routes:           routes,
-		MultiTenancyInfo: encapInfo,
+		IPConfiguration:  savedReq.IPConfiguration,
+		Routes:           savedReq.Routes,
+		MultiTenancyInfo: savedReq.MultiTenancyInfo,
 	}
 
 	return getNetworkContainerResponse
@@ -1056,21 +1049,14 @@ func (service *httpRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 			}
 
 			if service.state.ContainerIDByOrchestratorContext != nil {
-				var networkContainerID string
-				var orchestratorContext string
-				ncFound := false
-
-				for orchestratorContext, networkContainerID = range service.state.ContainerIDByOrchestratorContext {
+				for orchestratorContext, networkContainerID := range service.state.ContainerIDByOrchestratorContext {
 					if networkContainerID == req.NetworkContainerid {
-						ncFound = true
+						delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
 						break
 					}
 				}
-
-				if ncFound {
-					delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
-				}
 			}
+
 			service.saveState()
 			service.lock.Unlock()
 		}
