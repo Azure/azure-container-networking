@@ -24,6 +24,7 @@ func NewCnsClient(url string) (*CNSClient, error) {
 	if url == "" {
 		url = defaultCnsURL
 	}
+
 	return &CNSClient{
 		connectionURL: url,
 	}, nil

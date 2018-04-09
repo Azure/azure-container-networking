@@ -228,24 +228,20 @@ func main() {
 
 		// Set plugin options.
 		netPlugin.SetOption(acn.OptAPIServerURL, url)
-		if netPlugin != nil {
-			log.Printf("Start netplugin\n")
-			err = netPlugin.Start(&pluginConfig)
-			if err != nil {
-				fmt.Printf("Failed to start network plugin, err:%v.\n", err)
-				return
-			}
+		log.Printf("Start netplugin\n")
+		err = netPlugin.Start(&pluginConfig)
+		if err != nil {
+			fmt.Printf("Failed to start network plugin, err:%v.\n", err)
+			return
 		}
 
 		ipamPlugin.SetOption(acn.OptEnvironment, environment)
 		ipamPlugin.SetOption(acn.OptAPIServerURL, url)
 		ipamPlugin.SetOption(acn.OptIpamQueryInterval, ipamQueryInterval)
-		if ipamPlugin != nil {
-			err = ipamPlugin.Start(&pluginConfig)
-			if err != nil {
-				fmt.Printf("Failed to start IPAM plugin, err:%v.\n", err)
-				return
-			}
+		err = ipamPlugin.Start(&pluginConfig)
+		if err != nil {
+			fmt.Printf("Failed to start IPAM plugin, err:%v.\n", err)
+			return
 		}
 	}
 

@@ -23,8 +23,8 @@ import (
 const (
 	// Plugin name.
 	name         = "azure-vnet"
-	namespacekey = "K8S_POD_NAMESPACE"
-	podnamekey   = "K8S_POD_NAME"
+	namespaceKey = "K8S_POD_NAMESPACE"
+	podNameKey   = "K8S_POD_NAME"
 )
 
 // NetPlugin represents the CNI network plugin.
@@ -209,7 +209,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		log.Printf("Argsmap %v", argsMap)
 	}
 
-	result, vlanid, err = getContainerNetworkConfiguration(argsMap[namespacekey].(string), argsMap[podnamekey].(string))
+	result, vlanid, err = getContainerNetworkConfiguration(argsMap[namespaceKey].(string), argsMap[podNameKey].(string))
 	if err != nil {
 		log.Printf("SetContainerNetworkConfiguration failed with %v", err)
 	}
