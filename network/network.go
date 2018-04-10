@@ -35,6 +35,7 @@ type network struct {
 	Id        string
 	HnsId     string `json:",omitempty"`
 	Mode      string
+	VlanId    int
 	Subnets   []SubnetInfo
 	Endpoints map[string]*endpoint
 	extIf     *externalInterface

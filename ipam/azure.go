@@ -17,6 +17,7 @@ import (
 const (
 	// Host URL to query.
 	azureQueryUrl = "http://169.254.169.254/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
+	//azureQueryUrl = "http://localhost:42424/"
 
 	// Minimum time interval between consecutive queries.
 	azureQueryInterval = 10 * time.Second
