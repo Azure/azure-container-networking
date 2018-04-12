@@ -42,6 +42,9 @@ const (
 	OptIpamQueryInterval      = "ipam-query-interval"
 	OptIpamQueryIntervalAlias = "i"
 
+	OptStopAzureVnet      = "stop-azure-cnm"
+	OptStopAzureVnetAlias = "stopcnm"
+
 	// Version.
 	OptVersion      = "version"
 	OptVersionAlias = "v"

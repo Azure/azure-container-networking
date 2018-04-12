@@ -266,7 +266,36 @@ func TestGetUnhealthyIPAddresses(t *testing.T) {
 	}
 }
 
-func creatOrUpdateWebAppContainerWithName(t *testing.T, name string, ip string) error {
+func setOrchestratorType(t *testing.T, orchestratorType string) error {
+	var body bytes.Buffer
+
+	info := &cns.SetOrchestratorTypeRequest{OrchestratorType: orchestratorType}
+
+	json.NewEncoder(&body).Encode(info)
+
+	req, err := http.NewRequest(http.MethodPost, cns.SetOrchestratorType, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var resp cns.Response
+	err = decodeResponse(w, &resp)
+	fmt.Printf("Raw response: %+v", w.Body)
+	if err != nil || resp.ReturnCode != 0 {
+		t.Errorf("setOrchestratorType failed with response %+v Err:%+v", resp, err)
+		t.Fatal(err)
+	} else {
+		fmt.Printf("setOrchestratorType passed with response %+v Err:%+v", resp, err)
+	}
+
+	fmt.Printf("setOrchestratorType succeeded with response %+v\n", resp)
+	return nil
+}
+
+func creatOrUpdateNetworkContainerWithName(t *testing.T, name string, ip string, containerType string) error {
 	var body bytes.Buffer
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = []string{"8.8.8.8", "8.8.4.4"}
@@ -275,11 +304,14 @@ func creatOrUpdateWebAppContainerWithName(t *testing.T, name string, ip string) 
 	ipSubnet.IPAddress = ip
 	ipSubnet.PrefixLength = 24
 	ipConfig.IPSubnet = ipSubnet
+	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
+	context, _ := json.Marshal(podInfo)
 
 	info := &cns.CreateNetworkContainerRequest{
 		Version:                    "0.1",
-		NetworkContainerType:       "WebApps",
+		NetworkContainerType:       containerType,
 		NetworkContainerid:         name,
+		OrchestratorContext:        context,
 		IPConfiguration:            ipConfig,
 		PrimaryInterfaceIdentifier: "11.0.0.7",
 	}
@@ -332,6 +364,60 @@ func deleteNetworkAdapterWithName(t *testing.T, name string) error {
 	}
 
 	fmt.Printf("DeleteNetworkContainer succeded with response %+v\n", resp)
+	return nil
+}
+
+func getNetworkCotnainerByContext(t *testing.T, name string) error {
+	var body bytes.Buffer
+	var resp cns.GetNetworkContainerResponse
+
+	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
+	podInfoBytes, err := json.Marshal(podInfo)
+	getReq := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}
+
+	json.NewEncoder(&body).Encode(getReq)
+	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+	if err != nil || resp.Response.ReturnCode != 0 {
+		t.Errorf("GetNetworkContainerByContext failed with response %+v Err:%+v", resp, err)
+		t.Fatal(err)
+	}
+
+	fmt.Printf("**GetNetworkContainerByContext succeded with response %+v, raw:%+v\n", resp, w.Body)
+	return nil
+}
+
+func getNonExistNetworkCotnainerByContext(t *testing.T, name string) error {
+	var body bytes.Buffer
+	var resp cns.GetNetworkContainerResponse
+
+	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
+	podInfoBytes, err := json.Marshal(podInfo)
+	getReq := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}
+
+	json.NewEncoder(&body).Encode(getReq)
+	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+	if err != nil || resp.Response.ReturnCode != UnknownContainerID {
+		t.Errorf("GetNetworkContainerByContext unexpected response %+v Err:%+v", resp, err)
+		t.Fatal(err)
+	}
+
+	fmt.Printf("**GetNonExistNetworkContainerByContext succeded with response %+v, raw:%+v\n", resp, w.Body)
 	return nil
 }
 
@@ -389,17 +475,31 @@ func getInterfaceForContainer(t *testing.T, name string) error {
 	return nil
 }
 
+func TestSetOrchestratorType(t *testing.T) {
+	fmt.Println("Test: TestSetOrchestratorType")
+
+	setEnv(t)
+
+	err := setOrchestratorType(t, cns.Kubernetes)
+	if err != nil {
+		t.Errorf("setOrchestratorType failed Err:%+v", err)
+		t.Fatal(err)
+	}
+}
+
 func TestCreateNetworkContainer(t *testing.T) {
 	// requires more than 30 seconds to run
 	fmt.Println("Test: TestCreateNetworkContainer")
+
 	setEnv(t)
-	err := creatOrUpdateWebAppContainerWithName(t, "ethWebApp", "11.0.0.5")
+
+	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
-	err = creatOrUpdateWebAppContainerWithName(t, "ethWebApp", "11.0.0.6")
+	err = creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.6", "WebApps")
 	if err != nil {
 		t.Errorf("Updating interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -414,11 +514,48 @@ func TestCreateNetworkContainer(t *testing.T) {
 	}
 }
 
+func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
+	// requires more than 30 seconds to run
+	fmt.Println("Test: TestGetNetworkContainerByOrchestratorContext")
+
+	setEnv(t)
+	setOrchestratorType(t, cns.Kubernetes)
+
+	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "AzureContainerInstance")
+	if err != nil {
+		t.Errorf("creatOrUpdateNetworkContainerWithName failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	fmt.Println("Now calling getNetworkCotnainerStatus")
+	err = getNetworkCotnainerByContext(t, "ethWebApp")
+	if err != nil {
+		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	fmt.Println("Now calling DeleteNetworkContainer")
+
+	err = deleteNetworkAdapterWithName(t, "ethWebApp")
+	if err != nil {
+		t.Errorf("Deleting interface failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	err = getNonExistNetworkCotnainerByContext(t, "ethWebApp")
+	if err != nil {
+		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
+		t.Fatal(err)
+	}
+}
+
 func TestGetNetworkContainerStatus(t *testing.T) {
 	// requires more than 30 seconds to run
 	fmt.Println("Test: TestCreateNetworkContainer")
+
 	setEnv(t)
-	err := creatOrUpdateWebAppContainerWithName(t, "ethWebApp", "11.0.0.5")
+
+	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
 		t.Fatal(err)
@@ -443,8 +580,10 @@ func TestGetNetworkContainerStatus(t *testing.T) {
 func TestGetInterfaceForNetworkContainer(t *testing.T) {
 	// requires more than 30 seconds to run
 	fmt.Println("Test: TestCreateNetworkContainer")
+
 	setEnv(t)
-	err := creatOrUpdateWebAppContainerWithName(t, "ethWebApp", "11.0.0.5")
+
+	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
 		t.Fatal(err)

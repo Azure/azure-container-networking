@@ -4,15 +4,18 @@ import "encoding/json"
 
 // Container Network Service DNC Contract
 const (
-	CreateOrUpdateNetworkContainer = "/network/createorupdatenetworkcontainer"
-	DeleteNetworkContainer         = "/network/deletenetworkcontainer"
-	GetNetworkContainerStatus      = "/network/getnetworkcontainerstatus"
-	GetInterfaceForContainer       = "/network/getinterfaceforcontainer"
+	SetOrchestratorType                      = "/network/setorchestratortype"
+	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
+	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
+	GetNetworkContainerStatus                = "/network/getnetworkcontainerstatus"
+	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
+	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
 )
 
 // NetworkContainer Types
 const (
 	AzureContainerInstance = "AzureContainerInstance"
+	WebApps                = "WebApps"
 )
 
 // Orchestrator Types
@@ -27,17 +30,11 @@ type CreateNetworkContainerRequest struct {
 	NetworkContainerid         string // Mandatory input.
 	PrimaryInterfaceIdentifier string // Primary CA.
 	AuthorizationToken         string
-	OrchestratorInfo           OrchestratorInfo
+	OrchestratorContext        json.RawMessage
 	IPConfiguration            IPConfiguration
 	MultiTenancyInfo           MultiTenancyInfo
 	VnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
 	Routes                     []Route
-}
-
-// OrchestratorInfo contains orchestrator type which is used to cast OrchestratorContext.
-type OrchestratorInfo struct {
-	OrchestratorType    string
-	OrchestratorContext json.RawMessage
 }
 
 // KubernetesPodInfo is an OrchestratorContext that holds PodName and PodNamespace.
@@ -72,6 +69,11 @@ type Route struct {
 	InterfaceToUse   string
 }
 
+// SetOrchestratorTypeRequest specifies the orchestrator type for the node.
+type SetOrchestratorTypeRequest struct {
+	OrchestratorType string
+}
+
 // CreateNetworkContainerResponse specifies response of creating a network container.
 type CreateNetworkContainerResponse struct {
 	Response Response
@@ -92,11 +94,16 @@ type GetNetworkContainerStatusResponse struct {
 
 // GetNetworkContainerRequest specifies the details about the request to retrieve a specifc network container.
 type GetNetworkContainerRequest struct {
+	NetworkContainerid  string
+	OrchestratorContext json.RawMessage
 }
 
 // GetNetworkContainerResponse describes the response to retrieve a specifc network container.
 type GetNetworkContainerResponse struct {
-	Response Response
+	IPConfiguration  IPConfiguration
+	Routes           []Route
+	MultiTenancyInfo MultiTenancyInfo
+	Response         Response
 }
 
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.

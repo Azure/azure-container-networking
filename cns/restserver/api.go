@@ -19,5 +19,6 @@ const (
 	NetworkContainerNotSpecified = 16
 	CallToHostFailed             = 17
 	UnknownContainerID           = 18
+	UnsupportedOrchestratorType  = 19
 	UnexpectedError              = 99
 )

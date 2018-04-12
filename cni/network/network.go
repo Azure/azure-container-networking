@@ -6,7 +6,9 @@ package network
 import (
 	"net"
 
+	"github.com/Azure/azure-container-networking/client/cnsclient"
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -14,12 +16,15 @@ import (
 	"github.com/Azure/azure-container-networking/telemetry"
 
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	"github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
 const (
 	// Plugin name.
-	name = "azure-vnet"
+	name         = "azure-vnet"
+	namespaceKey = "K8S_POD_NAMESPACE"
+	podNameKey   = "K8S_POD_NAME"
 )
 
 // NetPlugin represents the CNI network plugin.
@@ -116,6 +121,59 @@ func (plugin *netPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPre
 	return ""
 }
 
+func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse) *cniTypesCurr.Result {
+	result := &cniTypesCurr.Result{}
+	resultIpconfig := &cniTypesCurr.IPConfig{}
+
+	ipconfig := networkConfig.IPConfiguration
+	ipAddr := net.ParseIP(ipconfig.IPSubnet.IPAddress)
+
+	if ipAddr.To4() != nil {
+		resultIpconfig.Version = "4"
+		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 32)}
+	} else {
+		resultIpconfig.Version = "6"
+		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 128)}
+	}
+
+	resultIpconfig.Gateway = net.ParseIP(ipconfig.GatewayIPAddress)
+	result.IPs = append(result.IPs, resultIpconfig)
+
+	result.DNS.Nameservers = ipconfig.DNSServers
+
+	if networkConfig.Routes == nil && len(networkConfig.Routes) > 0 {
+		for _, route := range networkConfig.Routes {
+			_, routeIPnet, _ := net.ParseCIDR(route.IPAddress)
+			gwIP := net.ParseIP(route.GatewayIPAddress)
+			result.Routes = append(result.Routes, &types.Route{Dst: *routeIPnet, GW: gwIP})
+		}
+	} else {
+		gwIP := net.ParseIP(networkConfig.IPConfiguration.GatewayIPAddress)
+		dstIP := net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: resultIpconfig.Address.Mask}
+		result.Routes = append(result.Routes, &types.Route{Dst: dstIP, GW: gwIP})
+	}
+
+	return result
+}
+
+func getContainerNetworkConfiguration(namespace string, podName string) (*cniTypesCurr.Result, int, error) {
+	cnsClient, err := cnsclient.NewCnsClient("")
+	if err != nil {
+		log.Printf("Initializing CNS client error %v", err)
+		return nil, 0, err
+	}
+
+	networkConfig, err := cnsClient.GetNetworkConfiguration(podName, namespace)
+	if err != nil {
+		log.Printf("GetNetworkConfiguration failed with %v", err)
+		return nil, 0, err
+	}
+
+	log.Printf("Network config received from cns %v", networkConfig)
+
+	return convertToCniResult(networkConfig), networkConfig.MultiTenancyInfo.ID, nil
+}
+
 //
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
@@ -125,6 +183,8 @@ func (plugin *netPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPre
 func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	var result *cniTypesCurr.Result
 	var err error
+	var epInfo *network.EndpointInfo
+	var vlanid int
 
 	log.Printf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path)
@@ -144,19 +204,42 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	networkId := nwCfg.Name
 	endpointId := plugin.GetEndpointID(args)
 
+	argsMap := plugin.GetCNIArgs(args.Args)
+	if argsMap != nil {
+		log.Printf("Argsmap %v", argsMap)
+	}
+
+	result, vlanid, err = getContainerNetworkConfiguration(argsMap[namespaceKey].(string), argsMap[podNameKey].(string))
+	if err != nil {
+		log.Printf("SetContainerNetworkConfiguration failed with %v", err)
+	}
+
+	epInfo = &network.EndpointInfo{
+		Id:          endpointId,
+		ContainerID: args.ContainerID,
+		NetNsPath:   args.Netns,
+		IfName:      args.IfName,
+	}
+	epInfo.Data = make(map[string]interface{})
+
+	if vlanid != 0 {
+		epInfo.Data["vlanid"] = vlanid
+	}
+
 	// Check whether the network already exists.
 	nwInfo, err := plugin.nm.GetNetworkInfo(networkId)
 	if err != nil {
 		// Network does not exist.
 		log.Printf("[cni-net] Creating network %v.", networkId)
 
-		// Call into IPAM plugin to allocate an address pool for the network.
-		result, err = plugin.DelegateAdd(nwCfg.Ipam.Type, nwCfg)
-		if err != nil {
-			err = plugin.Errorf("Failed to allocate pool: %v", err)
-			return err
+		if result == nil {
+			// Call into IPAM plugin to allocate an address pool for the network.
+			result, err = plugin.DelegateAdd(nwCfg.Ipam.Type, nwCfg)
+			if err != nil {
+				err = plugin.Errorf("Failed to allocate pool: %v", err)
+				return err
+			}
 		}
-
 		// Derive the subnet prefix from allocated IP address.
 		ipconfig := result.IPs[0]
 		subnetPrefix := ipconfig.Address
@@ -211,35 +294,29 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		log.Printf("[cni-net] Created network %v with subnet %v.", networkId, subnetPrefix.String())
 	} else {
-		// Network already exists.
-		subnetPrefix := nwInfo.Subnets[0].Prefix.String()
-		log.Printf("[cni-net] Found network %v with subnet %v.", networkId, subnetPrefix)
+		if result == nil {
+			// Network already exists.
+			subnetPrefix := nwInfo.Subnets[0].Prefix.String()
+			log.Printf("[cni-net] Found network %v with subnet %v.", networkId, subnetPrefix)
 
-		// Call into IPAM plugin to allocate an address for the endpoint.
-		nwCfg.Ipam.Subnet = subnetPrefix
-		result, err = plugin.DelegateAdd(nwCfg.Ipam.Type, nwCfg)
-		if err != nil {
-			err = plugin.Errorf("Failed to allocate address: %v", err)
-			return err
-		}
-
-		ipconfig := result.IPs[0]
-
-		// On failure, call into IPAM plugin to release the address.
-		defer func() {
+			// Call into IPAM plugin to allocate an address for the endpoint.
+			nwCfg.Ipam.Subnet = subnetPrefix
+			result, err = plugin.DelegateAdd(nwCfg.Ipam.Type, nwCfg)
 			if err != nil {
-				nwCfg.Ipam.Address = ipconfig.Address.IP.String()
-				plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg)
+				err = plugin.Errorf("Failed to allocate address: %v", err)
+				return err
 			}
-		}()
-	}
 
-	// Initialize endpoint info.
-	epInfo := &network.EndpointInfo{
-		Id:          endpointId,
-		ContainerID: args.ContainerID,
-		NetNsPath:   args.Netns,
-		IfName:      args.IfName,
+			ipconfig := result.IPs[0]
+
+			// On failure, call into IPAM plugin to release the address.
+			defer func() {
+				if err != nil {
+					nwCfg.Ipam.Address = ipconfig.Address.IP.String()
+					plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg)
+				}
+			}()
+		}
 	}
 
 	// Populate addresses.
