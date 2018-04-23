@@ -149,7 +149,7 @@ func (reportMgr *ReportManager) SendReport() error {
 
 	log.Printf("Going to send Telemetry report to hostnetagent %v", reportMgr.HostNetAgentURL)
 
-	log.Printf(`"Start Flag %v CniSucceeded %t Name %v Version %v ErrorMessage %v vnet %v 
+	log.Printf(`"Start Flag %t CniSucceeded %t Name %v Version %v ErrorMessage %v vnet %v 
 				Context %v SubContext %v"`, reportMgr.Report.StartFlag, reportMgr.Report.CniSucceeded, reportMgr.Report.Name,
 		reportMgr.Report.Version, reportMgr.Report.ErrorMessage, reportMgr.Report.VnetAddressSpace,
 		reportMgr.Report.Context, reportMgr.Report.SubContext)

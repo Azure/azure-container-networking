@@ -6,6 +6,8 @@ package main
 import (
 	"os"
 
+	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/telemetry"
@@ -71,31 +73,30 @@ func main() {
 		}
 	}
 
-	/*	netPlugin, err := network.NewPlugin(&config)
-		if err != nil {
-			log.Printf("Failed to create network plugin, err:%v.\n", err)
-			reportPluginError(reportManager, err)
-			os.Exit(1)
-		}
+	netPlugin, err := network.NewPlugin(&config)
+	if err != nil {
+		log.Printf("Failed to create network plugin, err:%v.\n", err)
+		reportPluginError(reportManager, err)
+		os.Exit(1)
+	}
 
-		netPlugin.SetReportManager(reportManager)
+	netPlugin.SetReportManager(reportManager)
 
-		err = netPlugin.Start(&config)
-		if err != nil {
-			log.Printf("Failed to start network plugin, err:%v.\n", err)
-			reportPluginError(reportManager, err)
-			os.Exit(1)
-		}
+	err = netPlugin.Start(&config)
+	if err != nil {
+		log.Printf("Failed to start network plugin, err:%v.\n", err)
+		reportPluginError(reportManager, err)
+		os.Exit(1)
+	}
 
-		err = netPlugin.Execute(cni.PluginApi(netPlugin))
-		if err != nil {
-			log.Printf("Failed to execute network plugin, err:%v.\n", err)
-			reportPluginError(reportManager, err)
-		}
+	err = netPlugin.Execute(cni.PluginApi(netPlugin))
+	if err != nil {
+		log.Printf("Failed to execute network plugin, err:%v.\n", err)
+		reportPluginError(reportManager, err)
+	}
 
-		netPlugin.Stop()
-	*/
-	err = nil
+	netPlugin.Stop()
+
 	if err != nil {
 		os.Exit(1)
 	} else {
