@@ -45,7 +45,6 @@ Network configuration for CNI plugins is described in JSON format. The default l
   "cniVersion": "0.2.0",
   "name": "azure",
   "type": "azure-vnet",
-  "master": "eth0",
   "bridge": "azure0",
   "logLevel": "info",
   "ipam": {
@@ -62,7 +61,6 @@ Network plugin
 * `name`: Name of the network. This property can be set to any unique value.
 * `type`: Name of the network plugin. This property should always be set to `azure-vnet`.
 * `mode`: Operational mode. This field is optional. See the [operational modes](https://github.com/Azure/azure-container-networking/blob/master/docs/network.md) for more details.
-* `master`: Name of the host network interface that will be used to connect containers to a VNET. This field is optional. If omitted, the plugin will automatically pick a suitable host network interface. Typically, the primary host interface name is `"Ethernet"` on Windows and `"eth0"` on Linux.
 * `bridge`: Name of the bridge that will be used to connect containers to a VNET. This field is optional. If omitted, the plugin will automatically pick a unique name based on the master interface index.
 * `logLevel`: Log verbosity. Valid values are `info` and `debug`. This field is optional. If omitted, the plugin will log at `info` level.
 
