@@ -822,6 +822,10 @@ func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 		service.state.OrchestratorType = cns.Kubernetes
 		service.saveState()
 		break
+	case cns.WebApps:
+		service.state.OrchestratorType = cns.WebApps
+		service.saveState()
+		break
 	default:
 		returnMessage = fmt.Sprintf("Invalid Orchestrator type %v", req.OrchestratorType)
 		returnCode = UnsupportedOrchestratorType
