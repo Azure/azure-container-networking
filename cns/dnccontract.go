@@ -23,6 +23,12 @@ const (
 	Kubernetes = "Kubernetes"
 )
 
+// Encap Types
+const (
+	VlanID  = "VlanID"
+	VxlanID = "VxlanID"
+)
+
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
 	Version                    string
