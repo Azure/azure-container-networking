@@ -25,8 +25,8 @@ const (
 
 // Encap Types
 const (
-	VlanID  = "VlanID"
-	VxlanID = "VxlanID"
+	Vlan  = "Vlan"
+	Vxlan = "Vxlan"
 )
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
