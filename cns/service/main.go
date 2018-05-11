@@ -163,7 +163,7 @@ func main() {
 
 	err = acn.CreateDirectory(platform.CNMRuntimePath)
 	if err != nil {
-		fmt.Printf("Failed to create File Store directory Error:%v", err.Error())
+		log.Printf("Failed to create File Store directory Error:%v", err.Error())
 		return
 	}
 
@@ -171,14 +171,14 @@ func main() {
 
 	config.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + name + ".json")
 	if err != nil {
-		fmt.Printf("Failed to create store: %v\n", err)
+		log.Printf("Failed to create store: %v\n", err)
 		return
 	}
 
 	// Create CNS object.
 	httpRestService, err := restserver.NewHTTPRestService(&config)
 	if err != nil {
-		fmt.Printf("Failed to create CNS object, err:%v.\n", err)
+		log.Printf("Failed to create CNS object, err:%v.\n", err)
 		return
 	}
 
@@ -189,12 +189,11 @@ func main() {
 	if httpRestService != nil {
 		err = httpRestService.Start(&config)
 		if err != nil {
-			fmt.Printf("Failed to start CNS, err:%v.\n", err)
+			log.Printf("Failed to start CNS, err:%v.\n", err)
 			return
 		}
 	}
 
-	log.Printf("stop cnm val %t", stopcnm)
 	var netPlugin network.NetPlugin
 	var ipamPlugin ipam.IpamPlugin
 
@@ -208,39 +207,37 @@ func main() {
 		// Create network plugin.
 		netPlugin, err = network.NewPlugin(&pluginConfig)
 		if err != nil {
-			fmt.Printf("Failed to create network plugin, err:%v.\n", err)
+			log.Printf("Failed to create network plugin, err:%v.\n", err)
 			return
 		}
 
 		// Create IPAM plugin.
 		ipamPlugin, err = ipam.NewPlugin(&pluginConfig)
 		if err != nil {
-			fmt.Printf("Failed to create IPAM plugin, err:%v.\n", err)
+			log.Printf("Failed to create IPAM plugin, err:%v.\n", err)
 			return
 		}
 
 		// Create the key value store.
 		pluginConfig.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + pluginName + ".json")
 		if err != nil {
-			fmt.Printf("Failed to create store: %v\n", err)
+			log.Printf("Failed to create store: %v\n", err)
 			return
 		}
 
 		// Set plugin options.
 		netPlugin.SetOption(acn.OptAPIServerURL, url)
 		log.Printf("Start netplugin\n")
-		err = netPlugin.Start(&pluginConfig)
-		if err != nil {
-			fmt.Printf("Failed to start network plugin, err:%v.\n", err)
+		if err := netPlugin.Start(&pluginConfig); err != nil {
+			log.Printf("Failed to create network plugin, err:%v.\n", err)
 			return
 		}
 
 		ipamPlugin.SetOption(acn.OptEnvironment, environment)
 		ipamPlugin.SetOption(acn.OptAPIServerURL, url)
 		ipamPlugin.SetOption(acn.OptIpamQueryInterval, ipamQueryInterval)
-		err = ipamPlugin.Start(&pluginConfig)
-		if err != nil {
-			fmt.Printf("Failed to start IPAM plugin, err:%v.\n", err)
+		if err := ipamPlugin.Start(&pluginConfig); err != nil {
+			log.Printf("Failed to create IPAM plugin, err:%v.\n", err)
 			return
 		}
 	}

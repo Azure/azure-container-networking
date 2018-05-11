@@ -19,6 +19,7 @@ type endpoint struct {
 	MacAddress  net.HardwareAddr
 	IPAddresses []net.IPNet
 	Gateways    []net.IP
+	VlanID      int
 }
 
 // EndpointInfo contains read-only information about an endpoint.

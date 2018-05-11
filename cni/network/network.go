@@ -5,6 +5,7 @@ package network
 
 import (
 	"net"
+	"strconv"
 
 	"github.com/Azure/azure-container-networking/client/cnsclient"
 	"github.com/Azure/azure-container-networking/cni"
@@ -14,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/telemetry"
-
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
@@ -22,9 +22,11 @@ import (
 
 const (
 	// Plugin name.
-	name         = "azure-vnet"
-	namespaceKey = "K8S_POD_NAMESPACE"
-	podNameKey   = "K8S_POD_NAME"
+	name                = "azure-vnet"
+	namespaceKey        = "K8S_POD_NAMESPACE"
+	podNameKey          = "K8S_POD_NAME"
+	vlanIDKey           = "vlanid"
+	dockerNetworkOption = "com.docker.network.generic"
 )
 
 // NetPlugin represents the CNI network plugin.
@@ -203,7 +205,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	// Initialize values from network config.
 	networkId := nwCfg.Name
 	endpointId := plugin.GetEndpointID(args)
-
 	argsMap := plugin.GetCNIArgs(args.Args)
 	if argsMap != nil {
 		log.Printf("Argsmap %v", argsMap)
@@ -240,10 +241,11 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 				return err
 			}
 		}
+
 		// Derive the subnet prefix from allocated IP address.
 		ipconfig := result.IPs[0]
 		subnetPrefix := ipconfig.Address
-		subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
+		gateway := ipconfig.Gateway
 
 		// On failure, call into IPAM plugin to release the address and address pool.
 		defer func() {
@@ -257,6 +259,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 		}()
 
+		subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
 		// Find the master interface.
 		masterIfName := plugin.findMasterInterface(nwCfg, &subnetPrefix)
 		if masterIfName == "" {
@@ -280,10 +283,17 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 				network.SubnetInfo{
 					Family:  platform.AfINET,
 					Prefix:  subnetPrefix,
-					Gateway: ipconfig.Gateway,
+					Gateway: gateway,
 				},
 			},
 			BridgeName: nwCfg.Bridge,
+		}
+
+		nwInfo.Options = make(map[string]interface{})
+		if vlanid != 0 {
+			vlanMap := make(map[string]interface{})
+			vlanMap[vlanIDKey] = strconv.Itoa(vlanid)
+			nwInfo.Options[dockerNetworkOption] = vlanMap
 		}
 
 		err = plugin.nm.CreateNetwork(&nwInfo)
