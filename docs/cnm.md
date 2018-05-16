@@ -46,8 +46,11 @@ Usage: azure-cnm-plugin [OPTIONS]
 
 Options:
   -e, --environment=azure      Set the operating environment {azure,mas}
-  -l, --log-level=info         Set the logging level {debug,info}
-  -t, --log-target=logfile     Set the logging target {logfile,syslog,stderr}
+  -u, --api-url                Set the API server URL
+  -l, --log-level=info         Set the logging level {info,debug}
+  -t, --log-target=logfile     Set the logging target {syslog,stderr,logfile}
+  -o, --log-location           Set the logging directory
+  -q, --ipam-query-url         Set the IPAM query URL
   -i, --ipam-query-interval    Set the IPAM plugin query interval
   -v, --version                Print version information
   -h, --help                   Print usage information
