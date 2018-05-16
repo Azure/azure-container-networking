@@ -163,16 +163,23 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// Parse Pod arguments.
 	podCfg, err := cni.ParseCniArgs(args.Args)
+	if err != nil {
+		log.Printf("Error while parsing CNI Args %v", err)
+		return err
+	}
+
 	k8sNamespace := string(podCfg.K8S_POD_NAMESPACE)
 	if len(k8sNamespace) == 0 {
-		err = plugin.Errorf("No k8s pod namespace provided.")
-		return err
+		errMsg := "Pod Namespace not specified in CNI Args"
+		log.Printf(errMsg)
+		return plugin.Errorf(errMsg)
 	}
 
 	k8sPodName := string(podCfg.K8S_POD_NAME)
 	if len(k8sPodName) == 0 {
-		err = plugin.Errorf("No k8s pod namespace provided.")
-		return err
+		errMsg := "Pod Name not specified in CNI Args"
+		log.Printf(errMsg)
+		return plugin.Errorf(errMsg)
 	}
 
 	// Parse network configuration from stdin.
