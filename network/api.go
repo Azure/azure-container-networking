@@ -17,4 +17,6 @@ var (
 	errEndpointNotFound   = fmt.Errorf("Endpoint not found")
 	errEndpointInUse      = fmt.Errorf("Endpoint is already joined to a sandbox")
 	errEndpointNotInUse   = fmt.Errorf("Endpoint is not joined to a sandbox")
+
+	OptVethName = "vethname"
 )

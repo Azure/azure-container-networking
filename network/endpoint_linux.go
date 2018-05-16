@@ -6,6 +6,8 @@
 package network
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"net"
 
@@ -19,11 +21,17 @@ const (
 	commonInterfacePrefix = "az"
 
 	// Prefix for host virtual network interface names.
-	hostVEthInterfacePrefix = commonInterfacePrefix + "veth"
+	hostVEthInterfacePrefix = commonInterfacePrefix + "v"
 
 	// Prefix for container network interface names.
 	containerInterfacePrefix = "eth"
 )
+
+func generateVethName(key string) string {
+	h := sha1.New()
+	h.Write([]byte(key))
+	return hex.EncodeToString(h.Sum(nil))[:11]
+}
 
 // newEndpointImpl creates a new endpoint in the network.
 func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
@@ -31,16 +39,25 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	var ns *Namespace
 	var ep *endpoint
 	var err error
+	var hostIfName string
+	var contIfName string
 
 	if nw.Endpoints[epInfo.Id] != nil {
-		log.Printf("[net] Endpoint alreday exists.")		
+		log.Printf("[net] Endpoint alreday exists.")
 		err = errEndpointExists
 		return nil, err
 	}
 
-	// Create a veth pair.
-	hostIfName := fmt.Sprintf("%s%s", hostVEthInterfacePrefix, epInfo.Id[:7])
-	contIfName := fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, epInfo.Id[:7])
+	if _, ok := epInfo.Data[OptVethName]; ok {
+		key := epInfo.Data[OptVethName].(string)
+		vethname := generateVethName(key)
+		hostIfName = fmt.Sprintf("%s%s", hostVEthInterfacePrefix, vethname)
+		contIfName = fmt.Sprintf("%s%s2", hostVEthInterfacePrefix, vethname)
+	} else {
+		// Create a veth pair.
+		hostIfName = fmt.Sprintf("%s%s", hostVEthInterfacePrefix, epInfo.Id[:7])
+		contIfName = fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, epInfo.Id[:7])
+	}
 
 	log.Printf("[net] Creating veth pair %v %v.", hostIfName, contIfName)
 
