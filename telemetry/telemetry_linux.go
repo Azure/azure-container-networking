@@ -88,14 +88,19 @@ func (report *Report) GetSystemDetails() {
 
 // This function  creates a report with os details(ostype, version).
 func (report *Report) GetOSDetails() {
-	linesArr, err := ReadFileByLines("/etc/issue")
+	linesArr, err := ReadFileByLines("/etc/os-release")
 	if err != nil || len(linesArr) <= 0 {
 		report.OSDetails = &OSInfo{OSType: runtime.GOOS}
-		report.OSDetails.ErrorMessage = "reading /etc/issue failed with" + err.Error()
+		report.OSDetails.ErrorMessage = "reading /etc/os-release failed with" + err.Error()
 		return
 	}
 
-	osInfoArr := strings.Split(linesArr[0], " ")
+	osInfoArr := make(map[string]string)
+	
+	for i := range linesArr {
+        s := strings.Split(linesArr[i], "=")
+        osInfoArr[s[0]] = strings.TrimSuffix(s[1], "\n")
+    }
 
 	out, err := exec.Command("uname", "-r").Output()
 	if err != nil {
@@ -109,8 +114,8 @@ func (report *Report) GetOSDetails() {
 
 	report.OSDetails = &OSInfo{
 		OSType:         runtime.GOOS,
-		OSVersion:      osInfoArr[1],
+		OSVersion:      osInfoArr["VERSION"],
 		KernelVersion:  kernelVersion,
-		OSDistribution: osInfoArr[0],
+		OSDistribution: osInfoArr["ID"],
 	}
 }
