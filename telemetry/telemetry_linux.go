@@ -96,7 +96,7 @@ func (report *Report) GetOSDetails() {
 	}
 
 	osInfoArr := make(map[string]string)
-	
+
 	for i := range linesArr {
 		s := strings.Split(linesArr[i], "=")
 		osInfoArr[s[0]] = strings.TrimSuffix(s[1], "\n")

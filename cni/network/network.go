@@ -362,6 +362,11 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	return nil
 }
 
+// Get handles CNI get commands.
+func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
+	return nil
+}
+
 // Delete handles CNI delete commands.
 func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var err error

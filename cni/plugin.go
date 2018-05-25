@@ -109,7 +109,7 @@ func (plugin *Plugin) Execute(api PluginApi) (err error) {
 	pluginInfo := cniVers.PluginSupports(supportedVersions...)
 
 	// Parse args and call the appropriate cmd handler.
-	cniErr := cniSkel.PluginMainWithError(api.Add, api.Delete, pluginInfo)
+	cniErr := cniSkel.PluginMainWithError(api.Add, api.Add, api.Delete, pluginInfo)
 	if cniErr != nil {
 		cniErr.Print()
 		return cniErr
