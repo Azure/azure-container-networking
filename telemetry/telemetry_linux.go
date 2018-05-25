@@ -98,9 +98,9 @@ func (report *Report) GetOSDetails() {
 	osInfoArr := make(map[string]string)
 	
 	for i := range linesArr {
-                s := strings.Split(linesArr[i], "=")
-                osInfoArr[s[0]] = strings.TrimSuffix(s[1], "\n")
-        }
+		s := strings.Split(linesArr[i], "=")
+		osInfoArr[s[0]] = strings.TrimSuffix(s[1], "\n")
+	}
 
 	out, err := exec.Command("uname", "-r").Output()
 	if err != nil {
