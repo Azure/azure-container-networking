@@ -11,7 +11,7 @@ const (
 	// CNI commands.
 	Cmd    = "CNI_COMMAND"
 	CmdAdd = "ADD"
-	CmdAdd = "GET"
+	CmdGet = "GET"
 	CmdDel = "DEL"
 
 	// CNI errors.
