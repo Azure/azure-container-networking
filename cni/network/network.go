@@ -274,7 +274,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			BridgeName: nwCfg.Bridge,
 			DNS: network.DNSInfo{
 				Servers: nwCfg.DNS.Nameservers,
-				Suffix:  strings.Join(nwCfg.DNS.Search, ","),
+				Suffix:  k8sNamespace + "." + strings.Join(nwCfg.DNS.Search, ","),
 			},
 			Policies: policies,
 		}
@@ -320,7 +320,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	if len(nwCfg.DNS.Search) > 0 {
 		dns = network.DNSInfo{
 			Servers: nwCfg.DNS.Nameservers,
-			Suffix:  strings.Join(nwCfg.DNS.Search, ","),
+			Suffix:  k8sNamespace + "." + strings.Join(nwCfg.DNS.Search, ","),
 		}
 	} else {
 		dns = network.DNSInfo{
