@@ -12,7 +12,15 @@
 
 ---
 
-**Which componenet (CNI/IPAM/CNM/CNS)**:
+**Which component (CNI/IPAM/CNM/CNS)**:
+
+---
+
+**Which Operating System (Linux/Windows)**:
+
+For Linux: Include Distro and kernel version using "uname -a"
+
+For windows: provide output of "$(Get-ItemProperty -Path "C:\windows\system32\hal.dll").VersionInfo.FileVersion"
 
 ---
 

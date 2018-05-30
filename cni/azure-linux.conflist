@@ -1,18 +1,21 @@
 {
-  "cniVersion": "0.3.0",
-  "name": "azure",
-  "plugins": [{
-                "type": "azure-vnet",
-                "mode": "bridge",
-                "bridge": "azure0",
-                "ipam": {
-                  "type": "azure-vnet-ipam"
-                }
-            },
-            {
-                "type": "portmap",
-                "capabilities": {"portMappings": true},
-                "snat": true
-            }
-  ]
+   "cniVersion":"0.3.0",
+   "name":"azure",
+   "plugins":[
+      {
+         "type":"azure-vnet",
+         "mode":"bridge",
+         "bridge":"azure0",
+         "ipam":{
+            "type":"azure-vnet-ipam"
+         }
+      },
+      {
+         "type":"portmap",
+         "capabilities":{
+            "portMappings":true
+         },
+         "snat":true
+      }
+   ]
 }

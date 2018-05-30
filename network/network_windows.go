@@ -7,8 +7,10 @@ package network
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 )
 
@@ -27,6 +29,9 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 	hnsNetwork := &hcsshim.HNSNetwork{
 		Name:               nwInfo.Id,
 		NetworkAdapterName: extIf.Name,
+		DNSSuffix:          nwInfo.DNS.Suffix,
+		DNSServerList:      strings.Join(nwInfo.DNS.Servers, ","),
+		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.Policies),
 	}
 
 	// Set network mode.

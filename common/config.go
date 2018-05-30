@@ -29,6 +29,8 @@ const (
 	OptLogTargetSyslog = "syslog"
 	OptLogTargetStderr = "stderr"
 	OptLogTargetFile   = "logfile"
+	OptLogStdout       = "stdout"
+	OptLogMultiWrite   = "stdoutfile"
 
 	// Logging location
 	OptLogLocation      = "log-location"
@@ -42,6 +44,7 @@ const (
 	OptIpamQueryInterval      = "ipam-query-interval"
 	OptIpamQueryIntervalAlias = "i"
 
+	// Don't Start CNM
 	OptStopAzureVnet      = "stop-azure-cnm"
 	OptStopAzureVnetAlias = "stopcnm"
 

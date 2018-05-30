@@ -60,10 +60,11 @@ func main() {
 		Report:          &telemetry.Report{},
 	}
 
+	reportManager.GetReport(pluginName, config.Version)
+	reportManager.Report.Context = "AzureCNI"
+
 	if !reportManager.Report.GetReportState() {
 		log.Printf("GetReport state file didn't exist. Setting flag to true")
-		reportManager.GetReport(pluginName, config.Version)
-		reportManager.Report.Context = "AzureCNI"
 
 		err = reportManager.SendReport()
 		if err != nil {
@@ -99,5 +100,14 @@ func main() {
 
 	if err != nil {
 		os.Exit(1)
+	}
+
+	// Report CNI successfully finished execution.
+	reportManager.Report.CniSucceeded = true
+	err = reportManager.SendReport()
+	if err != nil {
+		log.Printf("SendReport failed due to %v", err)
+	} else {
+		markSendReport(reportManager)
 	}
 }

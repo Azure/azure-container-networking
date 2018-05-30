@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -157,30 +156,6 @@ func (plugin *Plugin) DelegateDel(pluginName string, nwCfg *NetworkConfig) error
 	}
 
 	return nil
-}
-
-// GetEndpointID returns a unique endpoint ID based on the CNI args.
-func (plugin *Plugin) GetEndpointID(args *cniSkel.CmdArgs) string {
-	containerID := args.ContainerID
-	if len(containerID) > 8 {
-		containerID = containerID[:8]
-	}
-
-	return containerID + "-" + args.IfName
-}
-
-func (plugin *Plugin) GetCNIArgs(args string) map[string]interface{} {
-	argsMap := make(map[string]interface{})
-
-	data := strings.Split(args, ";")
-	for _, pair := range data {
-		items := strings.Split(pair, "=")
-		if len(items) > 1 {
-			argsMap[items[0]] = items[1]
-		}
-	}
-
-	return argsMap
 }
 
 // Error creates and logs a structured CNI error.

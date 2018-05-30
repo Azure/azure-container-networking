@@ -18,6 +18,20 @@ const (
 	storeKey = "Network"
 )
 
+type NetworkClient interface {
+	CreateBridge() error
+	DeleteBridge() error
+	AddBridgeRules(extIf *externalInterface) error
+	DeleteBridgeRules(extIf *externalInterface)
+	SetBridgeMasterToHostInterface() error
+	SetHairpinOnHostInterface(bool) error
+}
+
+type EndpointClient interface {
+	AddEndpointRules(epInfo *EndpointInfo) error
+	DeleteEndpointRules(ep *endpoint)
+}
+
 // NetworkManager manages the set of container networking resources.
 type networkManager struct {
 	Version            string
@@ -245,6 +259,13 @@ func (nm *networkManager) CreateEndpoint(networkId string, epInfo *EndpointInfo)
 	nw, err := nm.getNetwork(networkId)
 	if err != nil {
 		return err
+	}
+
+	if nw.VlanId != 0 {
+		if epInfo.Data["vlanid"] == nil {
+			log.Printf("overriding endpoint vlanid with network vlanid")
+			epInfo.Data["vlanid"] = nw.VlanId
+		}
 	}
 
 	_, err = nw.newEndpoint(epInfo)

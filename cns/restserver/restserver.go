@@ -994,9 +994,10 @@ func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 
 	savedReq := containerDetails.CreateNetworkContainerRequest
 	getNetworkContainerResponse = cns.GetNetworkContainerResponse{
-		IPConfiguration:  savedReq.IPConfiguration,
-		Routes:           savedReq.Routes,
-		MultiTenancyInfo: savedReq.MultiTenancyInfo,
+		IPConfiguration:            savedReq.IPConfiguration,
+		Routes:                     savedReq.Routes,
+		MultiTenancyInfo:           savedReq.MultiTenancyInfo,
+		PrimaryInterfaceIdentifier: savedReq.PrimaryInterfaceIdentifier,
 	}
 
 	return getNetworkContainerResponse

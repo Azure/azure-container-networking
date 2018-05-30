@@ -106,10 +106,11 @@ type GetNetworkContainerRequest struct {
 
 // GetNetworkContainerResponse describes the response to retrieve a specifc network container.
 type GetNetworkContainerResponse struct {
-	IPConfiguration  IPConfiguration
-	Routes           []Route
-	MultiTenancyInfo MultiTenancyInfo
-	Response         Response
+	IPConfiguration            IPConfiguration
+	Routes                     []Route
+	MultiTenancyInfo           MultiTenancyInfo
+	PrimaryInterfaceIdentifier string
+	Response                   Response
 }
 
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.

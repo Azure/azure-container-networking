@@ -8,9 +8,9 @@ package network
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"golang.org/x/sys/unix"
@@ -22,6 +22,10 @@ const (
 
 	// Virtual MAC address used by Azure VNET.
 	virtualMacAddress = "12:34:56:78:9a:bc"
+
+	genericData = "com.docker.network.generic"
+
+	vlanIDKey = "vlanid"
 )
 
 // Linux implementation of route.
@@ -30,14 +34,23 @@ type route netlink.Route
 // NewNetworkImpl creates a new container network.
 func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
 	// Connect the external interface.
+	var vlanid int
+	opt, _ := nwInfo.Options[genericData].(map[string]interface{})
+	log.Printf("opt %v options %v", opt, nwInfo.Options)
+
 	switch nwInfo.Mode {
 	case opModeTunnel:
 		fallthrough
 	case opModeBridge:
-		err := nm.connectExternalInterface(extIf, nwInfo)
-		if err != nil {
+		log.Printf("create bridge")
+		if err := nm.connectExternalInterface(extIf, nwInfo); err != nil {
 			return nil, err
 		}
+
+		if opt != nil && opt[vlanIDKey] != nil {
+			vlanid, _ = strconv.Atoi(opt[vlanIDKey].(string))
+		}
+
 	default:
 		return nil, errNetworkModeInvalid
 	}
@@ -48,6 +61,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		Mode:      nwInfo.Mode,
 		Endpoints: make(map[string]*endpoint),
 		extIf:     extIf,
+		VlanId:    vlanid,
 	}
 
 	return nw, nil
@@ -55,9 +69,17 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 
 // DeleteNetworkImpl deletes an existing container network.
 func (nm *networkManager) deleteNetworkImpl(nw *network) error {
+	var networkClient NetworkClient
+
+	if nw.VlanId != 0 {
+		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name)
+	} else {
+		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, nw.Mode)
+	}
+
 	// Disconnect the interface if this was the last network using it.
 	if len(nw.extIf.Networks) == 1 {
-		nm.disconnectExternalInterface(nw.extIf)
+		nm.disconnectExternalInterface(nw.extIf, networkClient)
 	}
 
 	return nil
@@ -141,55 +163,10 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 	return nil
 }
 
-// AddBridgeRules adds bridge frame table rules for container traffic.
-func (nm *networkManager) addBridgeRules(extIf *externalInterface, hostIf *net.Interface, bridgeName string, opMode string) error {
-	// Add SNAT rule to translate container egress traffic.
-	log.Printf("[net] Adding SNAT rule for egress traffic on %v.", hostIf.Name)
-	err := ebtables.SetSnatForInterface(hostIf.Name, hostIf.HardwareAddr, ebtables.Append)
-	if err != nil {
-		return err
-	}
-
-	// Add ARP reply rule for host primary IP address.
-	// ARP requests for all IP addresses are forwarded to the SDN fabric, but fabric
-	// doesn't respond to ARP requests from the VM for its own primary IP address.
-	primary := extIf.IPAddresses[0].IP
-	log.Printf("[net] Adding ARP reply rule for primary IP address %v.", primary)
-	err = ebtables.SetArpReply(primary, hostIf.HardwareAddr, ebtables.Append)
-	if err != nil {
-		return err
-	}
-
-	// Add DNAT rule to forward ARP replies to container interfaces.
-	log.Printf("[net] Adding DNAT rule for ingress ARP traffic on interface %v.", hostIf.Name)
-	err = ebtables.SetDnatForArpReplies(hostIf.Name, ebtables.Append)
-	if err != nil {
-		return err
-	}
-
-	// Enable VEPA for host policy enforcement if necessary.
-	if opMode == opModeTunnel {
-		log.Printf("[net] Enabling VEPA mode for %v.", hostIf.Name)
-		err = ebtables.SetVepaMode(bridgeName, commonInterfacePrefix, virtualMacAddress, ebtables.Append)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// DeleteBridgeRules deletes bridge rules for container traffic.
-func (nm *networkManager) deleteBridgeRules(extIf *externalInterface) {
-	ebtables.SetVepaMode(extIf.BridgeName, commonInterfacePrefix, virtualMacAddress, ebtables.Delete)
-	ebtables.SetDnatForArpReplies(extIf.Name, ebtables.Delete)
-	ebtables.SetArpReply(extIf.IPAddresses[0].IP, extIf.MacAddress, ebtables.Delete)
-	ebtables.SetSnatForInterface(extIf.Name, extIf.MacAddress, ebtables.Delete)
-}
-
 // ConnectExternalInterface connects the given host interface to a bridge.
 func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwInfo *NetworkInfo) error {
 	var err error
+	var networkClient NetworkClient
 
 	log.Printf("[net] Connecting interface %v.", extIf.Name)
 	defer func() { log.Printf("[net] Connecting interface %v completed with err:%v.", extIf.Name, err) }()
@@ -212,28 +189,27 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		bridgeName = fmt.Sprintf("%s%d", bridgePrefix, hostIf.Index)
 	}
 
+	opt, _ := nwInfo.Options[genericData].(map[string]interface{})
+	if opt != nil && opt[vlanIDKey] != nil {
+		networkClient = NewOVSClient(bridgeName, extIf.Name)
+	} else {
+		networkClient = NewLinuxBridgeClient(bridgeName, extIf.Name, nwInfo.Mode)
+	}
+
 	// Check if the bridge already exists.
 	bridge, err := net.InterfaceByName(bridgeName)
 	if err != nil {
 		// Create the bridge.
-		log.Printf("[net] Creating bridge %v.", bridgeName)
 
-		link := netlink.BridgeLink{
-			LinkInfo: netlink.LinkInfo{
-				Type: netlink.LINK_TYPE_BRIDGE,
-				Name: bridgeName,
-			},
-		}
-
-		err = netlink.AddLink(&link)
-		if err != nil {
+		if err := networkClient.CreateBridge(); err != nil {
+			log.Printf("Error while creating bridge %+v", err)
 			return err
 		}
 
 		// On failure, delete the bridge.
 		defer func() {
 			if err != nil {
-				netlink.DeleteLink(bridgeName)
+				networkClient.DeleteBridge()
 			}
 		}()
 
@@ -252,12 +228,6 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		log.Printf("[net] Failed to save IP configuration for interface %v: %v.", hostIf.Name, err)
 	}
 
-	// Add the bridge rules.
-	err = nm.addBridgeRules(extIf, hostIf, bridgeName, nwInfo.Mode)
-	if err != nil {
-		return err
-	}
-
 	// External interface down.
 	log.Printf("[net] Setting link %v state down.", hostIf.Name)
 	err = netlink.SetLinkState(hostIf.Name, false)
@@ -267,8 +237,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 	// Connect the external interface to the bridge.
 	log.Printf("[net] Setting link %v master %v.", hostIf.Name, bridgeName)
-	err = netlink.SetLinkMaster(hostIf.Name, bridgeName)
-	if err != nil {
+	if err := networkClient.SetBridgeMasterToHostInterface(); err != nil {
 		return err
 	}
 
@@ -279,10 +248,15 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		return err
 	}
 
+	// Add the bridge rules.
+	err = networkClient.AddBridgeRules(extIf)
+	if err != nil {
+		return err
+	}
+
 	// External interface hairpin on.
 	log.Printf("[net] Setting link %v hairpin on.", hostIf.Name)
-	err = netlink.SetLinkHairpin(hostIf.Name, true)
-	if err != nil {
+	if err := networkClient.SetHairpinOnHostInterface(true); err != nil {
 		return err
 	}
 
@@ -308,29 +282,23 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 }
 
 // DisconnectExternalInterface disconnects a host interface from its bridge.
-func (nm *networkManager) disconnectExternalInterface(extIf *externalInterface) error {
+func (nm *networkManager) disconnectExternalInterface(extIf *externalInterface, networkClient NetworkClient) {
 	log.Printf("[net] Disconnecting interface %v.", extIf.Name)
 
+	log.Printf("[net] Deleting bridge rules")
 	// Delete bridge rules set on the external interface.
-	nm.deleteBridgeRules(extIf)
+	networkClient.DeleteBridgeRules(extIf)
 
-	// Disconnect external interface from its bridge.
-	err := netlink.SetLinkMaster(extIf.Name, "")
-	if err != nil {
-		log.Printf("[net] Failed to disconnect interface %v from bridge, err:%v.", extIf.Name, err)
-	}
-
-	// Delete the bridge.
-	err = netlink.DeleteLink(extIf.BridgeName)
-	if err != nil {
-		log.Printf("[net] Failed to delete bridge %v, err:%v.", extIf.BridgeName, err)
-	}
+	log.Printf("[net] Deleting bridge")
+	// Delete Bridge
+	networkClient.DeleteBridge()
 
 	extIf.BridgeName = ""
+	log.Printf("Restoring ipconfig with primary interface %v", extIf.Name)
 
 	// Restore IP configuration.
 	hostIf, _ := net.InterfaceByName(extIf.Name)
-	err = nm.applyIPConfig(extIf, hostIf)
+	err := nm.applyIPConfig(extIf, hostIf)
 	if err != nil {
 		log.Printf("[net] Failed to apply IP configuration: %v.", err)
 	}
@@ -339,6 +307,4 @@ func (nm *networkManager) disconnectExternalInterface(extIf *externalInterface) 
 	extIf.Routes = nil
 
 	log.Printf("[net] Disconnected interface %v.", extIf.Name)
-
-	return nil
 }

@@ -27,6 +27,8 @@ const (
 	TargetStderr = iota
 	TargetSyslog
 	TargetLogfile
+	TargetStdout
+	TargetMultiWrite
 )
 
 const (

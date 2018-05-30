@@ -205,4 +205,6 @@ func main() {
 	if ipamPlugin != nil {
 		ipamPlugin.Stop()
 	}
+
+	log.Close()
 }

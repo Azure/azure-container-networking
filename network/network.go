@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
 )
 
@@ -35,6 +36,7 @@ type network struct {
 	Id        string
 	HnsId     string `json:",omitempty"`
 	Mode      string
+	VlanId    int
 	Subnets   []SubnetInfo
 	Endpoints map[string]*endpoint
 	extIf     *externalInterface
@@ -46,6 +48,7 @@ type NetworkInfo struct {
 	Mode       string
 	Subnets    []SubnetInfo
 	DNS        DNSInfo
+	Policies   []policy.Policy
 	BridgeName string
 	Options    map[string]interface{}
 }
