@@ -25,6 +25,8 @@ func (imdsClient *ImdsClient) GetNetworkContainerInfoFromHost(networkContainerID
 		return nil, err
 	}
 
+	defer jsonResponse.Body.Close()
+
 	log.Printf("[Azure CNS] Response received from Azure Host for NetworkManagement/interfaces: %v", jsonResponse.Body)
 
 	var response containerVersionJsonResponse
@@ -50,6 +52,8 @@ func (imdsClient *ImdsClient) GetPrimaryInterfaceInfoFromHost() (*InterfaceInfo,
 	if err != nil {
 		return nil, err
 	}
+
+	defer resp.Body.Close()
 
 	log.Printf("[Azure CNS] Response received from NMAgent for get interface details: %v", resp.Body)
 

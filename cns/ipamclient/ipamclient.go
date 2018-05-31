@@ -45,6 +45,8 @@ func (ic *IpamClient) GetAddressSpace() (string, error) {
 		return "", err
 	}
 
+	defer res.Body.Close()
+
 	if res.StatusCode == 200 {
 		var resp cnmIpam.GetDefaultAddressSpacesResponse
 		err := json.NewDecoder(res.Body).Decode(&resp)
@@ -88,6 +90,8 @@ func (ic *IpamClient) GetPoolID(asID, subnet string) (string, error) {
 		log.Printf("[Azure CNS] HTTP Post returned error %v", err.Error())
 		return "", err
 	}
+
+	defer res.Body.Close()
 
 	if res.StatusCode == 200 {
 		var resp cnmIpam.RequestPoolResponse
@@ -134,6 +138,8 @@ func (ic *IpamClient) ReserveIPAddress(poolID string, reservationID string) (str
 		log.Printf("[Azure CNS] HTTP Post returned error %v", err.Error())
 		return "", err
 	}
+
+	defer res.Body.Close()
 
 	if res.StatusCode == 200 {
 		var reserveResp cnmIpam.RequestAddressResponse
@@ -184,6 +190,8 @@ func (ic *IpamClient) ReleaseIPAddress(poolID string, reservationID string) erro
 		return err
 	}
 
+	defer res.Body.Close()
+
 	if res.StatusCode == 200 {
 		var releaseResp cnmIpam.ReleaseAddressResponse
 		err := json.NewDecoder(res.Body).Decode(&releaseResp)
@@ -226,6 +234,8 @@ func (ic *IpamClient) GetIPAddressUtilization(poolID string) (int, int, []string
 		log.Printf("[Azure CNS] HTTP Post returned error %v", err.Error())
 		return 0, 0, nil, err
 	}
+
+	defer res.Body.Close()
 
 	if res.StatusCode == 200 {
 		var poolInfoResp cnmIpam.GetPoolInfoResponse

@@ -55,6 +55,8 @@ func (dockerClient *DockerClient) NetworkExists(networkName string) error {
 		return err
 	}
 
+	defer res.Body.Close()
+
 	// network exists
 	if res.StatusCode == 200 {
 		log.Debugf("[Azure CNS] Network with name %v already exists. Docker return code: %v", networkName, res.StatusCode)
@@ -122,6 +124,9 @@ func (dockerClient *DockerClient) CreateNetwork(networkName string, nicInfo *imd
 		log.Printf("[Azure CNS] Error received from http Post for docker network create %v", networkName)
 		return err
 	}
+
+	defer res.Body.Close()
+
 	if res.StatusCode != 201 {
 		var createNetworkResponse DockerErrorResponse
 		err = json.NewDecoder(res.Body).Decode(&createNetworkResponse)
@@ -158,6 +163,12 @@ func (dockerClient *DockerClient) DeleteNetwork(networkName string) error {
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	client := &http.Client{}
 	res, err := client.Do(req)
+	if err != nil {
+		log.Printf("[Azure CNS] HTTP Post returned error %v", err.Error())
+		return err
+	}
+
+	defer res.Body.Close()
 
 	// network successfully deleted.
 	if res.StatusCode == 204 {
