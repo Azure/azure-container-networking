@@ -98,3 +98,48 @@ func executeShellCommand(command string) error {
 	}
 	return cmd.Wait()
 }
+
+func CheckIfDnatForArpReplyRuleExists(rulesList string, interfaceName string) bool {
+	arpReplyMatch := fmt.Sprintf("-p ARP -i %s --arp-op Reply -j dnat --to-dst ff:ff:ff:ff:ff:ff --dnat-target ACCEPT", interfaceName)
+
+	for _, line := range strings.Split(rulesList, "\n") {
+		if strings.TrimSpace(line) == arpReplyMatch {
+			return true
+		}
+	}
+
+	return false
+}
+
+func CheckIfSnatRuleExists(rulesList string, interfaceName string, macAddress net.HardwareAddr) bool {
+	snatRuleMatch := fmt.Sprintf("-s Unicast -o %s -j snat --to-src %s --snat-arp --snat-target ACCEPT", interfaceName, macAddress.String())
+
+	for _, line := range strings.Split(rulesList, "\n") {
+		if strings.TrimSpace(line) == snatRuleMatch {
+			return true
+		}
+	}
+	return false
+}
+
+func CheckIfArpReplyRuleExists(rulesList string, ipAddress net.IP, macAddress net.HardwareAddr) bool {
+	arpReplyRuleMatch := fmt.Sprintf("-p ARP --arp-op Request --arp-ip-dst %s -j arpreply --arpreply-mac %s", ipAddress.String(), macAddress.String())
+
+	for _, line := range strings.Split(rulesList, "\n") {
+		if strings.TrimSpace(line) == arpReplyRuleMatch {
+			return true
+		}
+	}
+	return false
+}
+
+func CheckIfDnatForIPRuleExists(rulesList string, interfaceName string, ipAddress net.IP, macAddress net.HardwareAddr) bool {
+	dnatForIPRuleMatch := fmt.Sprintf("-p IPv4 -i %s --ip-dst %s -j dnat --to-dst %s --dnat-target ACCEPT", interfaceName, ipAddress.String(), macAddress.String())
+
+	for _, line := range strings.Split(rulesList, "\n") {
+		if strings.TrimSpace(line) == dnatForIPRuleMatch {
+			return true
+		}
+	}
+	return false
+}

@@ -4,9 +4,12 @@
 package common
 
 import (
+	"bytes"
 	"encoding/xml"
+	"fmt"
 	"net"
 	"os"
+	"os/exec"
 
 	"github.com/Azure/azure-container-networking/log"
 )
@@ -73,4 +76,21 @@ func CreateDirectory(dirPath string) error {
 	}
 
 	return err
+}
+
+func ExecuteShellCommand(command string) (string, error) {
+	log.Printf("[Azure-Utils] %s", command)
+
+	var stderr bytes.Buffer
+	var out bytes.Buffer
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Stderr = &stderr
+	cmd.Stdout = &out
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("%s:%s", err.Error(), stderr.String())
+	}
+
+	return out.String(), nil
 }

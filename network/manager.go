@@ -4,10 +4,12 @@
 package network
 
 import (
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -43,6 +45,7 @@ type NetworkManager interface {
 	GetEndpointInfo(networkId string, endpointId string) (*EndpointInfo, error)
 	AttachEndpoint(networkId string, endpointId string, sandboxKey string) (*endpoint, error)
 	DetachEndpoint(networkId string, endpointId string) error
+	SetupNetworkUsingState() error
 }
 
 // Creates a new network manager.
@@ -80,6 +83,9 @@ func (nm *networkManager) restore() error {
 	// Ignore the persisted state if it is older than the last reboot time.
 
 	// Read any persisted state.
+	nm.Lock()
+	defer nm.Unlock()
+
 	err := nm.store.Read(storeKey, nm)
 	if err != nil {
 		if err == store.ErrKeyNotFound {
@@ -355,4 +361,71 @@ func (nm *networkManager) DetachEndpoint(networkId string, endpointId string) er
 	}
 
 	return nil
+}
+
+func (nm *networkManager) SetupNetworkUsingState() error {
+	nm.createRequiredL2Rules()
+	return nil
+}
+
+func (nm *networkManager) createRequiredL2Rules() {
+
+	if nm.ExternalInterfaces == nil {
+		log.Printf("[Azure-CNIMonitor] Nothing to add")
+		return
+	}
+
+	preRulesList, err := common.ExecuteShellCommand("ebtables -t nat -L PREROUTING --Lmac2")
+	if err != nil {
+		log.Printf("Error while getting prerules list")
+	}
+
+	ruleSplit := strings.Split(preRulesList, "\n")
+	log.Printf("PreRouting rule count : %v", len(ruleSplit)-4)
+
+	postRulesList, err := common.ExecuteShellCommand("ebtables -t nat -L POSTROUTING --Lmac2")
+	if err != nil {
+		log.Printf("Error while getting postrules list")
+	}
+
+	ruleSplit = strings.Split(postRulesList, "\n")
+	log.Printf("PostRouting rule count : %v", len(ruleSplit)-4)
+
+	for _, extIf := range nm.ExternalInterfaces {
+		if !ebtables.CheckIfDnatForArpReplyRuleExists(preRulesList, extIf.Name) {
+			log.Printf("[Azure-CNIMonitor] Adding DNAT rule for ingress ARP traffic on interface %v.", extIf.Name)
+			if err := ebtables.SetDnatForArpReplies(extIf.Name, ebtables.Append); err != nil {
+				log.Printf("[Azure-CNIMonitor] SetDnatForArpReplies ebtable rule failed with %+v", err)
+			}
+		}
+
+		if !ebtables.CheckIfSnatRuleExists(postRulesList, extIf.Name, extIf.MacAddress) {
+			log.Printf("[Azure-CNIMonitor] Adding SNAT rule for egress traffic on interface %v and mac %v", extIf.Name, extIf.MacAddress.String())
+			if err := ebtables.SetSnatForInterface(extIf.Name, extIf.MacAddress, ebtables.Append); err != nil {
+				log.Printf("[Azure-CNIMonitor] SetSnatForInterface ebtable rule failed with %+v", err)
+			}
+		}
+
+		for _, nw := range extIf.Networks {
+			for _, ep := range nw.Endpoints {
+				for _, ipAddr := range ep.IPAddresses {
+					// Add ARP reply rule.
+					if !ebtables.CheckIfArpReplyRuleExists(preRulesList, ipAddr.IP, ep.MacAddress) {
+						log.Printf("[Azure-CNIMonitor] Adding ARP reply rule for IP address %v on %v.", ipAddr.String(), ep.MacAddress.String())
+						if err := ebtables.SetArpReply(ipAddr.IP, ep.MacAddress, ebtables.Append); err != nil {
+							log.Printf("[Azure-CNIMonitor] SetArpReply ebtable rule failed with %+v", err)
+						}
+					}
+
+					if !ebtables.CheckIfDnatForIPRuleExists(preRulesList, nw.extIf.Name, ipAddr.IP, ep.MacAddress) {
+						// Add MAC address translation rule.
+						log.Printf("[Azure-CNIMonitor] Adding MAC DNAT rule for IP address %v on %v.", ipAddr.String(), ep.MacAddress.String())
+						if err := ebtables.SetDnatForIPAddress(nw.extIf.Name, ipAddr.IP, ep.MacAddress, ebtables.Append); err != nil {
+							log.Printf("[Azure-CNIMonitor] SetDnatForIPAddress ebtable rule failed with %+v", err)
+						}
+					}
+				}
+			}
+		}
+	}
 }

@@ -42,6 +42,11 @@ const (
 	OptIpamQueryInterval      = "ipam-query-interval"
 	OptIpamQueryIntervalAlias = "i"
 
+	// Periodic Interval Time
+	OptIntervalTime        = "interval"
+	OptIntervalTimeAlias   = "it"
+	OptDefaultIntervalTime = "defaultinterval"
+
 	// Version.
 	OptVersion      = "version"
 	OptVersionAlias = "v"
