@@ -16,12 +16,19 @@ import (
 	"github.com/Azure/azure-container-networking/telemetry"
 
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
 const (
 	// Plugin name.
 	name = "azure-vnet"
+)
+
+const (
+	// Supported IP version
+	// Currently support only IPv4
+	ipVersion string = "4"
 )
 
 // NetPlugin represents the CNI network plugin.
@@ -358,6 +365,86 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
 		return err
 	}
+
+	return nil
+}
+
+// Get handles CNI Get commands.
+func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
+	var (
+		result cniTypesCurr.Result
+		err    error
+		nwCfg  *cni.NetworkConfig
+		epInfo *network.EndpointInfo
+		iface  *cniTypesCurr.Interface
+	)
+
+	log.Printf("[cni-net] Processing GET command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v}.",
+		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path)
+
+	defer func() {
+		// Add Interfaces to result.
+		iface = &cniTypesCurr.Interface{
+			Name: args.IfName,
+		}
+		result.Interfaces = append(result.Interfaces, iface)
+
+		if err == nil {
+			// Convert result to the requested CNI version.
+			res, err := result.GetAsVersion(nwCfg.CNIVersion)
+			if err != nil {
+				err = plugin.Error(err)
+			}
+			// Output the result to stdout.
+			res.Print()
+		}
+
+		log.Printf("[cni-net] GET command completed with result:%+v err:%v.", result, err)
+	}()
+
+	// Parse network configuration from stdin.
+	nwCfg, err = cni.ParseNetworkConfig(args.StdinData)
+	if err != nil {
+		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
+		return err
+	}
+
+	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
+
+	// Initialize values from network config.
+	networkId := nwCfg.Name
+	endpointId := GetEndpointID(args)
+
+	// Query the network.
+	_, err = plugin.nm.GetNetworkInfo(networkId)
+	if err != nil {
+		plugin.Errorf("Failed to query network: %v", err)
+		return err
+	}
+
+	// Query the endpoint.
+	epInfo, err = plugin.nm.GetEndpointInfo(networkId, endpointId)
+	if err != nil {
+		plugin.Errorf("Failed to query endpoint: %v", err)
+		return err
+	}
+
+	for _, ipAddresses := range epInfo.IPAddresses {
+		ipConfig := &cniTypesCurr.IPConfig{
+			Version:   ipVersion,
+			Interface: &epInfo.IfIndex,
+			Address:   ipAddresses,
+			Gateway:   epInfo.Gateways[0],
+		}
+		result.IPs = append(result.IPs, ipConfig)
+	}
+
+	for _, route := range epInfo.Routes {
+		result.Routes = append(result.Routes, &cniTypes.Route{Dst: route.Dst, GW: route.Gw})
+	}
+
+	result.DNS.Nameservers = epInfo.DNS.Servers
+	result.DNS.Domain = epInfo.DNS.Suffix
 
 	return nil
 }

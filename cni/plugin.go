@@ -51,37 +51,11 @@ func (plugin *Plugin) Initialize(config *common.PluginConfig) error {
 		log.Printf("[cni] Failed to configure logging, err:%v.\n", err)
 		return err
 	}
-
-	// Initialize store.
-	if plugin.Store == nil {
-		// Create the key value store.
-		var err error
-		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + plugin.Name + ".json")
-		if err != nil {
-			log.Printf("[cni] Failed to create store, err:%v.", err)
-			return err
-		}
-
-		// Acquire store lock.
-		err = plugin.Store.Lock(true)
-		if err != nil {
-			log.Printf("[cni] Timed out on locking store, err:%v.", err)
-			return err
-		}
-
-		config.Store = plugin.Store
-	}
-
 	return nil
 }
 
 // Uninitialize uninitializes the plugin.
 func (plugin *Plugin) Uninitialize() {
-	err := plugin.Store.Unlock()
-	if err != nil {
-		log.Printf("[cni] Failed to unlock store, err:%v.", err)
-	}
-
 	plugin.Plugin.Uninitialize()
 }
 
@@ -109,7 +83,7 @@ func (plugin *Plugin) Execute(api PluginApi) (err error) {
 	pluginInfo := cniVers.PluginSupports(supportedVersions...)
 
 	// Parse args and call the appropriate cmd handler.
-	cniErr := cniSkel.PluginMainWithError(api.Add, api.Delete, pluginInfo)
+	cniErr := cniSkel.PluginMainWithError(api.Add, api.Get, api.Delete, pluginInfo)
 	if cniErr != nil {
 		cniErr.Print()
 		return cniErr
@@ -176,4 +150,40 @@ func (plugin *Plugin) Error(err error) *cniTypes.Error {
 // Errorf creates and logs a custom CNI error according to a format specifier.
 func (plugin *Plugin) Errorf(format string, args ...interface{}) *cniTypes.Error {
 	return plugin.Error(fmt.Errorf(format, args...))
+}
+
+// Initialize key-value store
+func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error {
+	// Create the key value store.
+	if plugin.Store == nil {
+		var err error
+		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + plugin.Name + ".json")
+		if err != nil {
+			log.Printf("[cni] Failed to create store, err:%v.", err)
+			return err
+		}
+
+		// Acquire store lock.
+		err = plugin.Store.Lock(true)
+		if err != nil {
+			log.Printf("[cni] Timed out on locking store, err:%v.", err)
+			return err
+		}
+
+		config.Store = plugin.Store
+	}
+	return nil
+}
+
+// Uninitialize key-value store
+func (plugin *Plugin) UninitializeKeyValueStore() error {
+	if plugin.Store != nil {
+		err := plugin.Store.Unlock()
+		if err != nil {
+			log.Printf("[cni] Failed to unlock store, err:%v.", err)
+			return err
+		}
+	}
+	plugin.Store = nil
+	return nil
 }

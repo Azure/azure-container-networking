@@ -222,6 +222,11 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		MacAddress:  containerIf.HardwareAddr,
 		IPAddresses: epInfo.IPAddresses,
 		Gateways:    []net.IP{nw.extIf.IPv4Gateway},
+		DNS:         epInfo.DNS,
+	}
+
+	for _, route := range epInfo.Routes {
+		ep.Routes = append(ep.Routes, route)
 	}
 
 	return ep, nil
