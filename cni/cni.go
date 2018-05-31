@@ -11,6 +11,7 @@ const (
 	// CNI commands.
 	Cmd    = "CNI_COMMAND"
 	CmdAdd = "ADD"
+	CmdGet = "GET"
 	CmdDel = "DEL"
 
 	// CNI errors.
@@ -26,5 +27,6 @@ var supportedVersions = []string{"0.1.0", "0.2.0", "0.3.0", "0.3.1"}
 // CNI contract.
 type PluginApi interface {
 	Add(args *cniSkel.CmdArgs) error
+	Get(args *cniSkel.CmdArgs) error
 	Delete(args *cniSkel.CmdArgs) error
 }
