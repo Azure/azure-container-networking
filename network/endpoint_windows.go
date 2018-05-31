@@ -70,6 +70,11 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		IfName:      epInfo.IfName,
 		IPAddresses: epInfo.IPAddresses,
 		Gateways:    []net.IP{net.ParseIP(hnsResponse.GatewayAddress)},
+		DNS:         epInfo.DNS,
+	}
+
+	for _, route := range epInfo.Routes {
+		ep.Routes = append(ep.Routes, route)
 	}
 
 	ep.MacAddress, _ = net.ParseMAC(hnsResponse.MacAddress)
