@@ -162,16 +162,16 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 			log.Printf("[cni] Failed to create store, err:%v.", err)
 			return err
 		}
-
-		// Acquire store lock.
-		err = plugin.Store.Lock(true)
-		if err != nil {
-			log.Printf("[cni] Timed out on locking store, err:%v.", err)
-			return err
-		}
-
-		config.Store = plugin.Store
 	}
+
+	// Acquire store lock.
+	if err := plugin.Store.Lock(true); err != nil {
+		log.Printf("[cni] Timed out on locking store, err:%v.", err)
+		return err
+	}
+
+	config.Store = plugin.Store
+
 	return nil
 }
 
@@ -185,5 +185,6 @@ func (plugin *Plugin) UninitializeKeyValueStore() error {
 		}
 	}
 	plugin.Store = nil
+
 	return nil
 }

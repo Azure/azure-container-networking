@@ -23,12 +23,9 @@ import (
 const (
 	// Plugin name.
 	name = "azure-vnet"
-)
 
-const (
-	// Supported IP version
-	// Currently support only IPv4
-	ipVersion string = "4"
+	// Supported IP version. Currently support only IPv4
+	ipVersion = "4"
 )
 
 // NetPlugin represents the CNI network plugin.
@@ -434,8 +431,12 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 			Version:   ipVersion,
 			Interface: &epInfo.IfIndex,
 			Address:   ipAddresses,
-			Gateway:   epInfo.Gateways[0],
 		}
+
+		if epInfo.Gateways != nil {
+			ipConfig.Gateway = epInfo.Gateways[0]
+		}
+
 		result.IPs = append(result.IPs, ipConfig)
 	}
 

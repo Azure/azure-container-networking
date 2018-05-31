@@ -31,15 +31,15 @@ type EndpointInfo struct {
 	ContainerID string
 	NetNsPath   string
 	IfName      string
+	SandboxKey  string
+	IfIndex     int
+	MacAddress  net.HardwareAddr
+	DNS         DNSInfo
 	IPAddresses []net.IPNet
 	Routes      []RouteInfo
-	DNS         DNSInfo
 	Policies    []policy.Policy
-	Data        map[string]interface{}
-	MacAddress  net.HardwareAddr
-	SandboxKey  string
 	Gateways    []net.IP
-	IfIndex     int
+	Data        map[string]interface{}
 }
 
 // RouteInfo contains information about an IP route.

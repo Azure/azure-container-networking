@@ -84,8 +84,7 @@ func main() {
 	netPlugin.SetReportManager(reportManager)
 
 	defer func() {
-		errUninit := netPlugin.Plugin.UninitializeKeyValueStore()
-		if errUninit != nil {
+		if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
 			log.Printf("Failed to uninitialize key-value store of network plugin, err:%v.\n", err)
 		}
 
@@ -94,23 +93,19 @@ func main() {
 		}
 	}()
 
-	err = netPlugin.Plugin.InitializeKeyValueStore(&config)
-
-	if err != nil {
+	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 		log.Printf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, err)
 		panic("network plugin fatal error")
 	}
 
-	err = netPlugin.Start(&config)
-	if err != nil {
+	if err = netPlugin.Start(&config); err != nil {
 		log.Printf("Failed to start network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, err)
 		panic("network plugin fatal error")
 	}
 
-	err = netPlugin.Execute(cni.PluginApi(netPlugin))
-	if err != nil {
+	if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
 		log.Printf("Failed to execute network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, err)
 	}
@@ -123,8 +118,7 @@ func main() {
 
 	// Report CNI successfully finished execution.
 	reportManager.Report.CniSucceeded = true
-	err = reportManager.SendReport()
-	if err != nil {
+	if err = reportManager.SendReport(); err != nil {
 		log.Printf("SendReport failed due to %v", err)
 	} else {
 		markSendReport(reportManager)
