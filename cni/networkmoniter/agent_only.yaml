@@ -22,7 +22,7 @@ spec:
         operator: Exists
       containers:
         - name: azure-cnms
-          image: ewoutp/docker-nginx-curl
+          image: containernetworking/networkmonitor
           securityContext:
             privileged: true
           env:
