@@ -198,8 +198,8 @@ func (kvs *jsonFileStore) Unlock() error {
 func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
 	info, err := os.Stat(kvs.fileName)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}.UTC(), err
 	}
 
-	return info.ModTime(), nil
+	return info.ModTime().UTC(), nil
 }

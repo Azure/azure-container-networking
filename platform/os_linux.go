@@ -37,7 +37,7 @@ func GetLastRebootTime() (time.Time, error) {
 	out, err := exec.Command("uptime", "-s").Output()
 	if err != nil {
 		//log.Printf("Failed to query uptime, err:%v", err)
-		return time.Time{}, err
+		return time.Time{}.UTC(), err
 	}
 
 	// Parse the output.
@@ -45,10 +45,10 @@ func GetLastRebootTime() (time.Time, error) {
 	rebootTime, err := time.Parse(layout, string(out[:len(out)-1]))
 	if err != nil {
 		//log.Printf("Failed to parse uptime, err:%v", err)
-		return time.Time{}, err
+		return time.Time{}.UTC(), err
 	}
 
-	return rebootTime, nil
+	return rebootTime.UTC(), nil
 }
 
 // ExecuteShellCommand executes a shell command.
