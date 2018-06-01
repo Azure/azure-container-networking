@@ -42,7 +42,7 @@ func GetLastRebootTime() (time.Time, error) {
 
 	// Parse the output.
 	layout := "2006-01-02 15:04:05"
-	rebootTime, err := time.Parse(layout, string(out[:len(out)-1]))
+	rebootTime, err := time.ParseInLocation(layout, string(out[:len(out)-1]), time.Local)
 	if err != nil {
 		//log.Printf("Failed to parse uptime, err:%v", err)
 		return time.Time{}.UTC(), err

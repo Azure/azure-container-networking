@@ -93,11 +93,9 @@ func (nm *networkManager) restore() error {
 
 	modTime, err := nm.store.GetModificationTime()
 	if err == nil {
-		log.Printf("[net] Store timestamp is %v.", modTime)
-
 		rebootTime, err := platform.GetLastRebootTime()
+		log.Printf("[net] reboot time %v store mod time %v", rebootTime, modTime)
 		if err == nil && rebootTime.After(modTime) {
-			log.Printf("[net] reboot time %v mod time %v", rebootTime, modTime)
 			rebooted = true
 		}
 	}

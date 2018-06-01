@@ -104,11 +104,11 @@ func (am *addressManager) restore() error {
 	// Check if the VM is rebooted.
 	modTime, err := am.store.GetModificationTime()
 	if err == nil {
-		log.Printf("[ipam] Store timestamp is %v.", modTime)
 
 		rebootTime, err := platform.GetLastRebootTime()
+		log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
+
 		if err == nil && rebootTime.After(modTime) {
-			log.Printf("[ipam] reboot time %v mod time %v", rebootTime, modTime)
 			rebooted = true
 		}
 	}
