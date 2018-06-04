@@ -48,7 +48,7 @@ printf "done.\n"
 
 # Install azure-vnet CNI network configuration file.
 printf "Installing azure-vnet CNI network configuration file to $CNI_NETCONF_DIR..."
-mv $CNI_BIN_DIR/*.conf $CNI_NETCONF_DIR
+mv $CNI_BIN_DIR/*.conflist $CNI_NETCONF_DIR
 printf "done.\n"
 
 # Install loopback plugin.
