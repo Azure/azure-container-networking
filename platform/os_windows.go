@@ -14,9 +14,6 @@ const (
 
 	// CNIRuntimePath is the path where CNM state files are stored.
 	CNIRuntimePath = ""
-
-	// LogPath is the path where log files are stored.
-	LogPath = ""
 )
 
 // GetOSInfo returns OS version information.

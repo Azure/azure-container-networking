@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/Azure/azure-container-networking/log"
 )
 
 const (
@@ -198,6 +200,7 @@ func (kvs *jsonFileStore) Unlock() error {
 func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
 	info, err := os.Stat(kvs.fileName)
 	if err != nil {
+		log.Printf("os.stat() for file %v failed with error %v", kvs.fileName, err)
 		return time.Time{}.UTC(), err
 	}
 

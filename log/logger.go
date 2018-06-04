@@ -9,8 +9,6 @@ import (
 	"log"
 	"os"
 	"path"
-
-	"github.com/Azure/azure-container-networking/platform"
 )
 
 // Log level
@@ -103,7 +101,7 @@ func (logger *Logger) GetLogDirectory() string {
 		return logger.directory
 	}
 
-	return platform.LogPath
+	return LogPath
 }
 
 // GetLogFileName returns the full log file name.
@@ -113,7 +111,7 @@ func (logger *Logger) getLogFileName() string {
 	if logger.directory != "" {
 		logFileName = path.Join(logger.directory, logger.name+logFileExtension)
 	} else {
-		logFileName = platform.LogPath + logger.name + logFileExtension
+		logFileName = LogPath + logger.name + logFileExtension
 	}
 
 	return logFileName

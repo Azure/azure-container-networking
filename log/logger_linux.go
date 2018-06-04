@@ -10,6 +10,11 @@ import (
 	"os"
 )
 
+const (
+	// LogPath is the path where log files are stored.
+	LogPath = "/var/log/"
+)
+
 // SetTarget sets the log target.
 func (logger *Logger) SetTarget(target int) error {
 	var err error
