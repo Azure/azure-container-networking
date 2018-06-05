@@ -4,9 +4,9 @@
 package log
 
 // Standard logger is a pre-defined logger for convenience.
-var stdLog *Logger = NewLogger("azure-container-networking", LevelInfo, TargetStderr)
+var stdLog = NewLogger("azure-container-networking", LevelInfo, TargetStderr)
 
-// Helper functions for the standard logger.
+// GetStd - Helper functions for the standard logger.
 func GetStd() *Logger {
 	return stdLog
 }
