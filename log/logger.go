@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"sync"
 )
 
 // Log level
@@ -50,6 +51,7 @@ type Logger struct {
 	maxFileCount int
 	callCount    int
 	directory    string
+	mutex        *sync.Mutex
 }
 
 // NewLogger creates a new Logger.
@@ -63,6 +65,7 @@ func NewLogger(name string, level int, target int) *Logger {
 	logger.maxFileSize = maxLogFileSize
 	logger.maxFileCount = maxLogFileCount
 	logger.directory = ""
+	logger.mutex = &sync.Mutex{}
 
 	return &logger
 }
@@ -185,13 +188,17 @@ func (logger *Logger) logf(format string, args ...interface{}) {
 // Printf logs a formatted string at info level.
 func (logger *Logger) Printf(format string, args ...interface{}) {
 	if logger.level >= LevelInfo {
+		logger.mutex.Lock()
 		logger.logf(format, args...)
+		logger.mutex.Unlock()
 	}
 }
 
 // Debugf logs a formatted string at debug level.
 func (logger *Logger) Debugf(format string, args ...interface{}) {
 	if logger.level >= LevelDebug {
+		logger.mutex.Lock()
 		logger.logf(format, args...)
+		logger.mutex.Unlock()
 	}
 }
