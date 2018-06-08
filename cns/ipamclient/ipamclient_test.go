@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/cnm/ipam"
 )
 
 var mux *http.ServeMux
@@ -27,11 +28,11 @@ func TestMain(m *testing.M) {
 		fmt.Printf("Failed to create agent, err:%v.\n", err)
 		return
 	}
-	ipamAgent.AddHandler(getAddressSpacesPath, handleIpamAsIDQuery)
-	ipamAgent.AddHandler(requestPoolPath, handlePoolIDQuery)
-	ipamAgent.AddHandler(reserveAddrPath, handleReserveIPQuery)
-	ipamAgent.AddHandler(releaseAddrPath, handleReleaseIPQuery)
-	ipamAgent.AddHandler(getPoolInfoPath, handleIPUtilizationQuery)
+	ipamAgent.AddHandler(ipam.GetAddressSpacesPath, handleIpamAsIDQuery)
+	ipamAgent.AddHandler(ipam.RequestPoolPath, handlePoolIDQuery)
+	ipamAgent.AddHandler(ipam.RequestAddressPath, handleReserveIPQuery)
+	ipamAgent.AddHandler(ipam.ReleasePoolPath, handleReleaseIPQuery)
+	ipamAgent.AddHandler(ipam.GetPoolInfoPath, handleIPUtilizationQuery)
 
 	err = ipamAgent.Start(make(chan error, 1))
 	if err != nil {
