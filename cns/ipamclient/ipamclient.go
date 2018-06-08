@@ -207,7 +207,7 @@ func (ic *IpamClient) ReleaseIPAddress(poolID string, reservationID string) erro
 
 		return nil
 	}
-	log.Printf("[Azure CNS] ReleaseIP invalid http status code: %v err:%v", res.StatusCode, err.Error())
+	log.Printf("[Azure CNS] ReleaseIP invalid http status code: %v", res.StatusCode)
 	return err
 
 }
