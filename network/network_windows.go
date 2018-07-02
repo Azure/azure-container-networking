@@ -8,6 +8,7 @@ package network
 import (
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -76,6 +77,14 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		Mode:      nwInfo.Mode,
 		Endpoints: make(map[string]*endpoint),
 		extIf:     extIf,
+	}
+
+	globals, err := hcsshim.GetHNSGlobals()
+	if err != nil || globals.Version.Major <= hcsshim.HNSVersion1803.Major {
+		// err would be not nil for windows 1709 & below
+		// Sleep for 10 seconds as a workaround for windows 1803 & below
+		// This is done only when the network is created.
+		time.Sleep(time.Duration(10) * time.Second)
 	}
 
 	return nw, nil
