@@ -25,7 +25,7 @@ func handleConsecutiveAdd(containerId, endpointId string, nwInfo *network.Networ
 
 		err := hcsshim.HotAttachEndpoint(containerId, hnsEndpoint.Id)
 		if err != nil {
-			log.Printf("[cni-net] Failed to hot attach shared endpoint to container [%s], err:%v.", hnsEndpoint.Id, err)
+			log.Printf("[cni-net] Failed to hot attach shared endpoint[%v] to container [%v], err:%v.", hnsEndpoint.Id, containerId, err)
 			return nil, err
 		}
 
