@@ -25,10 +25,15 @@ type route interface{}
 
 // NewNetworkImpl creates a new container network.
 func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
+	networkAdapterName := extIf.Name
+	// FixMe: Find a better way to check if a nic that is selected is not part of a vSwitch
+	if strings.HasPrefix(networkAdapterName, "vEthernet") {
+		networkAdapterName = ""
+	}
 	// Initialize HNS network.
 	hnsNetwork := &hcsshim.HNSNetwork{
 		Name:               nwInfo.Id,
-		NetworkAdapterName: extIf.Name,
+		NetworkAdapterName: networkAdapterName,
 		DNSSuffix:          nwInfo.DNS.Suffix,
 		DNSServerList:      strings.Join(nwInfo.DNS.Servers, ","),
 		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.Policies),
