@@ -919,10 +919,10 @@ func (service *httpRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			service.lock.Lock()
 			existing, ok := service.state.ContainerStatus[req.NetworkContainerid]
 			service.lock.Unlock()
-			nc := service.networkContainer
 
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
 			if !ok || (ok && existing.VMVersion != req.Version) {
+				nc := service.networkContainer
 				if err = nc.Create(req); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
 					returnCode = UnexpectedError
@@ -975,6 +975,9 @@ func (service *httpRestService) getNetworkContainerByID(w http.ResponseWriter, r
 func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkContainerRequest) cns.GetNetworkContainerResponse {
 	var containerID string
 	var getNetworkContainerResponse cns.GetNetworkContainerResponse
+
+	service.lock.Lock()
+	defer service.lock.Unlock()
 
 	switch service.state.OrchestratorType {
 	case cns.Kubernetes:
@@ -1058,7 +1061,11 @@ func (service *httpRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		var containerStatus containerstatus
 		var ok bool
 
-		if containerStatus, ok = service.state.ContainerStatus[req.NetworkContainerid]; !ok {
+		service.lock.Lock()
+		containerStatus, ok = service.state.ContainerStatus[req.NetworkContainerid]
+		service.lock.Unlock()
+
+		if !ok {
 			log.Printf("Not able to retrieve network container details for this container id %v", req.NetworkContainerid)
 			break
 		}
