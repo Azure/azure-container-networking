@@ -24,7 +24,7 @@ const (
 	lockMaxRetries = 20
 
 	// Delay between lock retries.
-	lockRetryDelay = 100
+	lockRetryDelayInMilliseconds = 100
 )
 
 // jsonFileStore is an implementation of KeyValueStore using a local JSON file.
@@ -157,7 +157,7 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 			return ErrStoreLocked
 		}
 
-		time.Sleep(time.Duration(lockRetryDelay) * time.Millisecond)
+		time.Sleep(time.Duration(lockRetryDelayInMilliseconds) * time.Millisecond)
 	}
 
 	// Write the process ID for easy identification.
