@@ -2,7 +2,7 @@ version: 2
 jobs:
   setup-and-test:
     docker:
-    - image: golang:1.9 # need to change to 1.10
+    - image: golang:1.10
     steps:
       - checkout
       - run: 
