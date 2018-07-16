@@ -210,7 +210,6 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	bridge, err := net.InterfaceByName(bridgeName)
 	if err != nil {
 		// Create the bridge.
-
 		if err := networkClient.CreateBridge(); err != nil {
 			log.Printf("Error while creating bridge %+v", err)
 			return err

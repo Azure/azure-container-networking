@@ -23,8 +23,13 @@ import (
 var plugin NetPlugin
 var mux *http.ServeMux
 
-var anyInterface = "test0"
+var anyInterface = "dummy"
 var anySubnet = "192.168.1.0/24"
+var ipnet = net.IPNet{IP: net.ParseIP("192.168.1.0"), Mask: net.IPv4Mask(255, 255, 255, 0)}
+var networkID = "N1"
+
+// endpoint ID must contain 7 characters
+var endpointID = "E1-xxxx"
 
 // Wraps the test run with plugin setup and teardown.
 func TestMain(m *testing.M) {
@@ -52,7 +57,7 @@ func TestMain(m *testing.M) {
 	err = netlink.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{
 			Type: netlink.LINK_TYPE_DUMMY,
-			Name: "dummy",
+			Name: anyInterface,
 		},
 	})
 
@@ -65,6 +70,12 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		fmt.Printf("Failed to add test network interface, err:%v.\n", err)
 		os.Exit(4)
+	}
+
+	err = netlink.AddIpAddress(anyInterface, net.ParseIP("192.168.1.4"), &ipnet)
+	if err != nil {
+		fmt.Printf("Failed to add test IP address, err:%v.\n", err)
+		os.Exit(5)
 	}
 
 	// Get the internal http mux as test hook.
@@ -83,7 +94,7 @@ func TestMain(m *testing.M) {
 // Decodes plugin's responses to test requests.
 func decodeResponse(w *httptest.ResponseRecorder, response interface{}) error {
 	if w.Code != http.StatusOK {
-		return fmt.Errorf("Request failed with HTTP error %s", w.Code)
+		return fmt.Errorf("Request failed with HTTP error %d", w.Code)
 	}
 
 	if w.Body == nil {
@@ -144,7 +155,7 @@ func TestCreateNetwork(t *testing.T) {
 	_, pool, _ := net.ParseCIDR(anySubnet)
 
 	info := &remoteApi.CreateNetworkRequest{
-		NetworkID: "N1",
+		NetworkID: networkID,
 		IPv4Data: []driverApi.IPAMData{
 			{
 				Pool: pool,
@@ -164,8 +175,62 @@ func TestCreateNetwork(t *testing.T) {
 
 	err = decodeResponse(w, &resp)
 
-	if err != nil || resp.Err != "" {
+	if err != nil || resp.Response.Err != "" {
 		t.Errorf("CreateNetwork response is invalid %+v", resp)
+	}
+}
+
+// Tests NetworkDriver.CreateEndpoint functionality.
+func TestCreateEndpoint(t *testing.T) {
+	var body bytes.Buffer
+	var resp remoteApi.CreateEndpointResponse
+
+	info := &remoteApi.CreateEndpointRequest{
+		NetworkID:  networkID,
+		EndpointID: endpointID,
+		Interface:  &remoteApi.EndpointInterface{Address: anySubnet},
+	}
+
+	json.NewEncoder(&body).Encode(info)
+
+	req, err := http.NewRequest(http.MethodGet, createEndpointPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+
+	if err != nil || resp.Response.Err != "" {
+		t.Errorf("CreateEndpoint response is invalid %+v", resp)
+	}
+}
+
+// Tests NetworkDriver.EndpointOperInfo functionality.
+func TestEndpointOperInfo(t *testing.T) {
+	var body bytes.Buffer
+	var resp remoteApi.EndpointInfoResponse
+
+	info := &remoteApi.EndpointInfoRequest{
+		NetworkID:  networkID,
+		EndpointID: endpointID,
+	}
+
+	json.NewEncoder(&body).Encode(info)
+
+	req, err := http.NewRequest(http.MethodGet, endpointOperInfoPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+	if err != nil || resp.Err != "" {
+		t.Errorf("EndpointOperInfo response is invalid %+v", resp)
 	}
 }
 
@@ -175,7 +240,7 @@ func TestDeleteNetwork(t *testing.T) {
 	var resp remoteApi.DeleteNetworkResponse
 
 	info := &remoteApi.DeleteNetworkRequest{
-		NetworkID: "N1",
+		NetworkID: networkID,
 	}
 
 	json.NewEncoder(&body).Encode(info)
@@ -192,32 +257,5 @@ func TestDeleteNetwork(t *testing.T) {
 
 	if err != nil || resp.Err != "" {
 		t.Errorf("DeleteNetwork response is invalid %+v", resp)
-	}
-}
-
-// Tests NetworkDriver.EndpointOperInfo functionality.
-func TestEndpointOperInfo(t *testing.T) {
-	var body bytes.Buffer
-	var resp remoteApi.EndpointInfoResponse
-
-	info := &remoteApi.EndpointInfoRequest{
-		NetworkID:  "N1",
-		EndpointID: "E1",
-	}
-
-	json.NewEncoder(&body).Encode(info)
-
-	req, err := http.NewRequest(http.MethodGet, endpointOperInfoPath, &body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	err = decodeResponse(w, &resp)
-
-	if err != nil || resp.Err != "" {
-		t.Errorf("EndpointOperInfo response is invalid %+v", resp)
 	}
 }

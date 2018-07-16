@@ -71,7 +71,7 @@ func setEnv(t *testing.T) *httptest.ResponseRecorder {
 	envRequestJSON := new(bytes.Buffer)
 	json.NewEncoder(envRequestJSON).Encode(envRequest)
 
-	req, err := http.NewRequest(http.MethodPost, cns.V1Prefix+cns.SetEnvironmentPath, envRequestJSON)
+	req, err := http.NewRequest(http.MethodPost, cns.V2Prefix+cns.SetEnvironmentPath, envRequestJSON)
 	if err != nil {
 		t.Fatal(err)
 	}
