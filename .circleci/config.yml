@@ -1,0 +1,33 @@
+version: 2
+jobs:
+  setup-and-test:
+    docker:
+    - image: golang:1.9 # need to change to 1.10
+    steps:
+      - checkout
+      - run: 
+          name: Set 
+          command: |
+            echo 'export ACN=github.com/Azure/azure-container-networking' >> $BASH_ENV
+            echo 'export ACNGO=$GOPATH/src/$ACN' >> $BASH_ENV
+            source $BASH_ENV
+            echo ${ACN}
+            echo ${ACNGO}
+            mkdir --parents ${ACNGO} 
+            mv * ${ACNGO} 
+            cd ${ACNGO}
+            go get ./...
+            go test ./cni/ipam/
+            #go test ./cnm/network/
+            go test ./cns/ipamclient/
+            #go test ./cns/restserver/
+            go test ./ipam/
+            #go test ./log/
+            #go test ./netlink/
+            go test ./store/
+            go test ./telemetry/
+workflows:
+  version: 2
+  setup-and-test:
+    jobs:
+      - setup-and-test
