@@ -22,7 +22,7 @@ jobs:
             go test ./cns/ipamclient/
             #go test ./cns/restserver/
             go test ./ipam/
-            #go test ./log/
+            go test ./log/
             #go test ./netlink/
             go test ./store/
             go test ./telemetry/
