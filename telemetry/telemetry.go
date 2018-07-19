@@ -105,7 +105,7 @@ type NPMReport struct {
 	ClusterState      ClusterState
 }
 
-// ReportManager interface.
+// ReportManager structure.
 type ReportManager struct {
 	HostNetAgentURL string
 	ReportType      string

@@ -50,11 +50,14 @@ func reportPluginError(reportManager *telemetry.CNIReportManager, err error) {
 
 // Main is the entry point for CNI network plugin.
 func main() {
-	var config common.PluginConfig
-	var err error
+	var (
+		config common.PluginConfig
+		err    error
+	)
+
 	config.Version = version
 	reportManager := &telemetry.CNIReportManager{
-		ReportMangager: &telemetry.ReportManager{
+		ReportManager: &telemetry.ReportManager{
 			HostNetAgentURL: hostNetAgentURL,
 			ReportType:      reportType,
 		},

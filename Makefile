@@ -88,6 +88,7 @@ CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
@@ -107,7 +108,7 @@ azure-vnet: $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT)
 azure-vnet-ipam: $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
 azure-cni-plugin: azure-vnet azure-vnet-ipam cni-archive
 azure-cns: $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) cns-archive
-azure-npm: $(NPM_BUILD_DIR)/azure-npm
+azure-npm: $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) npm-archive
 
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 
@@ -233,3 +234,13 @@ cns-archive:
 	chmod 0755 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT)
 	cd $(CNS_BUILD_DIR) && $(ARCHIVE_CMD) $(CNS_ARCHIVE_NAME) azure-cns$(EXE_EXT)
 	chown $(BUILD_USER):$(BUILD_USER) $(CNS_BUILD_DIR)/$(CNS_ARCHIVE_NAME)
+
+# Create a NPM archive for the target platform.
+.PHONY: npm-archive
+npm-archive:
+ifeq ($(GOOS),linux)
+	# Azure-NPM only supports Linux for now.
+	chmod 0755 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT)
+	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
+	chown $(BUILD_USER):$(BUILD_USER) $(NPM_BUILD_DIR)/$(NPM_ARCHIVE_NAME)
+endif
