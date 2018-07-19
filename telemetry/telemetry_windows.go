@@ -25,11 +25,11 @@ func getDiskInfo(path string) (*DiskInfo, error) {
 	return nil, nil
 }
 
-func (report *Report) GetSystemDetails() {
+func (report *CNIReport) GetSystemDetails() {
 
 	report.SystemDetails = &SystemInfo{}
 }
 
-func (report *Report) GetOSDetails() {
+func (report *CNIReport) GetOSDetails() {
 	report.OSDetails = &OSInfo{OSType: runtime.GOOS}
 }

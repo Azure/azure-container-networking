@@ -60,7 +60,7 @@ func getDiskInfo(path string) (*DiskInfo, error) {
 }
 
 // This function  creates a report with system details(memory, disk, cpu).
-func (report *Report) GetSystemDetails() {
+func (report *CNIReport) GetSystemDetails() {
 	var errMsg string
 	var cpuCount int = 0
 
@@ -87,7 +87,7 @@ func (report *Report) GetSystemDetails() {
 }
 
 // This function  creates a report with os details(ostype, version).
-func (report *Report) GetOSDetails() {
+func (report *CNIReport) GetOSDetails() {
 	linesArr, err := ReadFileByLines("/etc/os-release")
 	if err != nil || len(linesArr) <= 0 {
 		report.OSDetails = &OSInfo{OSType: runtime.GOOS}

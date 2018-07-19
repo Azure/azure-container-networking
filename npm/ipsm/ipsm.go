@@ -69,11 +69,6 @@ func isNsSet(setName string) bool {
 	return !strings.Contains(setName, "-") && !strings.Contains(setName, ":")
 }
 
-// NotReferredByNwPolicy checks if a specific ipset is referred by any network policy.
-func (ipsMgr *IpsetManager) NotReferredByNwPolicy(setName string) bool {
-	return ipsMgr.setMap[setName].referCount == 0
-}
-
 // CreateList creates an ipset list. npm maintains one setlist per namespace label.
 func (ipsMgr *IpsetManager) CreateList(listName string) error {
 	if _, exists := ipsMgr.listMap[listName]; exists {

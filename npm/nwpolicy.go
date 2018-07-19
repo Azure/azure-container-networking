@@ -11,18 +11,26 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	npMgr.Lock()
 	defer npMgr.Unlock()
 
+	var err error
+
+	defer func() {
+		if err = npMgr.UpdateAndSendReport(err, util.AddNetworkPolicyEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+	}()
+
 	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY CREATED: %s/%s\n", npNs, npName)
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
 	if !npMgr.isAzureNpmChainCreated {
-		if err := allNs.ipsMgr.CreateSet(util.KubeSystemFlag); err != nil {
+		if err = allNs.ipsMgr.CreateSet(util.KubeSystemFlag); err != nil {
 			log.Printf("Error initialize kube-system ipset.\n")
 			return err
 		}
 
-		if err := allNs.iptMgr.InitNpmChains(); err != nil {
+		if err = allNs.iptMgr.InitNpmChains(); err != nil {
 			log.Printf("Error initialize azure-npm chains.\n")
 			return err
 		}
@@ -34,33 +42,35 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	ipsMgr := allNs.ipsMgr
 	for _, set := range podSets {
-		if err := ipsMgr.CreateSet(set); err != nil {
+		if err = ipsMgr.CreateSet(set); err != nil {
 			log.Printf("Error creating ipset %s-%s\n", npNs, set)
 			return err
 		}
 	}
 
 	for _, list := range nsLists {
-		if err := ipsMgr.CreateList(list); err != nil {
+		if err = ipsMgr.CreateList(list); err != nil {
 			log.Printf("Error creating ipset list %s-%s\n", npNs, list)
 			return err
 		}
 	}
 
-	if err := npMgr.InitAllNsList(); err != nil {
+	if err = npMgr.InitAllNsList(); err != nil {
 		log.Printf("Error initializing all-namespace ipset list.\n")
 		return err
 	}
 
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
-		if err := iptMgr.Add(iptEntry); err != nil {
+		if err = iptMgr.Add(iptEntry); err != nil {
 			log.Printf("Error applying iptables rule\n. Rule: %+v", iptEntry)
 			return err
 		}
 	}
 
 	allNs.npMap[npName] = npObj
+
+	npMgr.clusterState.NwPolicyCount++
 
 	ns, err := newNs(npNs)
 	if err != nil {
@@ -73,13 +83,27 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 // UpdateNetworkPolicy updates network policy.
 func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.NetworkPolicy, newNpObj *networkingv1.NetworkPolicy) error {
+	var err error
+
+	defer func() {
+		npMgr.Lock()
+		if err = npMgr.UpdateAndSendReport(err, util.UpdateNetworkPolicyEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+		npMgr.Unlock()
+	}()
+
 	oldNpNs, oldNpName := oldNpObj.ObjectMeta.Namespace, oldNpObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY UPDATED: %s/%s\n", oldNpNs, oldNpName)
 
-	npMgr.DeleteNetworkPolicy(oldNpObj)
+	if err = npMgr.DeleteNetworkPolicy(oldNpObj); err != nil {
+		return err
+	}
 
 	if newNpObj.ObjectMeta.DeletionTimestamp == nil && newNpObj.ObjectMeta.DeletionGracePeriodSeconds == nil {
-		npMgr.AddNetworkPolicy(newNpObj)
+		if err = npMgr.AddNetworkPolicy(newNpObj); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -90,6 +114,14 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	npMgr.Lock()
 	defer npMgr.Unlock()
 
+	var err error
+
+	defer func() {
+		if err = npMgr.UpdateAndSendReport(err, util.DeleteNetworkPolicyEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+	}()
+
 	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY DELETED: %s/%s\n", npNs, npName)
 
@@ -99,7 +131,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
-		if err := iptMgr.Delete(iptEntry); err != nil {
+		if err = iptMgr.Delete(iptEntry); err != nil {
 			log.Printf("Error applying iptables rule.\n Rule: %+v", iptEntry)
 			return err
 		}
@@ -107,8 +139,10 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 
 	delete(allNs.npMap, npName)
 
+	npMgr.clusterState.NwPolicyCount--
+
 	if len(allNs.npMap) == 0 {
-		if err := iptMgr.UninitNpmChains(); err != nil {
+		if err = iptMgr.UninitNpmChains(); err != nil {
 			log.Printf("Error uninitialize azure-npm chains.\n")
 			return err
 		}

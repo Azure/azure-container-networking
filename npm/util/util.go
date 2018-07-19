@@ -3,7 +3,18 @@ package util
 import (
 	"fmt"
 	"hash/fnv"
+	"strings"
 )
+
+// GetClusterID retrieves cluster ID through node name. (Azure-specific)
+func GetClusterID(nodeName string) string {
+	s := strings.Split(nodeName, "-")
+	if len(s) < 3 {
+		return ""
+	}
+
+	return s[2]
+}
 
 // Hash hashes a string to another string with length <= 32.
 func Hash(s string) string {

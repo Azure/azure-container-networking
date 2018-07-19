@@ -29,6 +29,14 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		return nil
 	}
 
+	var err error
+
+	defer func() {
+		if err = npMgr.UpdateAndSendReport(err, util.AddPodEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+	}()
+
 	podNs := podObj.ObjectMeta.Namespace
 	podName := podObj.ObjectMeta.Name
 	podNodeName := podObj.Spec.NodeName
@@ -40,7 +48,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Add the pod to its namespace's ipset.
 	log.Printf("Adding pod %s to ipset %s\n", podIP, podNs)
-	if err := ipsMgr.AddToSet(podNs, podIP); err != nil {
+	if err = ipsMgr.AddToSet(podNs, podIP); err != nil {
 		log.Printf("Error adding pod to namespace ipset.\n")
 	}
 
@@ -54,12 +62,14 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 
 		labelKey := util.KubeAllNamespacesFlag + "-" + podLabelKey + ":" + podLabelVal
 		log.Printf("Adding pod %s to ipset %s\n", podIP, labelKey)
-		if err := ipsMgr.AddToSet(labelKey, podIP); err != nil {
+		if err = ipsMgr.AddToSet(labelKey, podIP); err != nil {
 			log.Printf("Error adding pod to label ipset.\n")
 			return err
 		}
 		labelKeys = append(labelKeys, labelKey)
 	}
+
+	npMgr.clusterState.PodCount++
 
 	ns, err := newNs(podNs)
 	if err != nil {
@@ -76,6 +86,16 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 		return nil
 	}
 
+	var err error
+
+	defer func() {
+		npMgr.Lock()
+		if err = npMgr.UpdateAndSendReport(err, util.UpdateNamespaceEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+		npMgr.Unlock()
+	}()
+
 	oldPodObjNs := oldPodObj.ObjectMeta.Namespace
 	oldPodObjName := oldPodObj.ObjectMeta.Name
 	oldPodObjPhase := oldPodObj.Status.Phase
@@ -90,10 +110,14 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 		oldPodObjNs, oldPodObjName, oldPodObjPhase, oldPodObjIP, newPodObjNs, newPodObjName, newPodObjPhase, newPodObjIP,
 	)
 
-	npMgr.DeletePod(oldPodObj)
+	if err = npMgr.DeletePod(oldPodObj); err != nil {
+		return err
+	}
 
 	if newPodObj.ObjectMeta.DeletionTimestamp == nil && newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil {
-		npMgr.AddPod(newPodObj)
+		if err = npMgr.AddPod(newPodObj); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -108,6 +132,14 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		return nil
 	}
 
+	var err error
+
+	defer func() {
+		if err = npMgr.UpdateAndSendReport(err, util.DeletePodEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+	}()
+
 	podNs := podObj.ObjectMeta.Namespace
 	podName := podObj.ObjectMeta.Name
 	podNodeName := podObj.Spec.NodeName
@@ -118,7 +150,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	// Delete pod from ipset
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Delete the pod from its namespace's ipset.
-	if err := ipsMgr.DeleteFromSet(podNs, podIP); err != nil {
+	if err = ipsMgr.DeleteFromSet(podNs, podIP); err != nil {
 		log.Printf("Error deleting pod from namespace ipset.\n")
 		return err
 	}
@@ -130,11 +162,13 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		}
 
 		labelKey := util.KubeAllNamespacesFlag + "-" + podLabelKey + ":" + podLabelVal
-		if err := ipsMgr.DeleteFromSet(labelKey, podIP); err != nil {
+		if err = ipsMgr.DeleteFromSet(labelKey, podIP); err != nil {
 			log.Printf("Error deleting pod from label ipset.\n")
 			return err
 		}
 	}
+
+	npMgr.clusterState.PodCount--
 
 	return nil
 }

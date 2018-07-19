@@ -81,17 +81,25 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
 
+	var err error
+
+	defer func() {
+		if err = npMgr.UpdateAndSendReport(err, util.AddNamespaceEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+	}()
+
 	nsName, nsNs := nsObj.ObjectMeta.Name, nsObj.ObjectMeta.Namespace
 	log.Printf("NAMESPACE CREATED: %s/%s\n", nsName, nsNs)
 
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Create ipset for the namespace.
-	if err := ipsMgr.CreateSet(nsName); err != nil {
+	if err = ipsMgr.CreateSet(nsName); err != nil {
 		log.Printf("Error creating ipset for namespace %s.\n", nsName)
 		return err
 	}
 
-	if err := ipsMgr.AddToList(util.KubeAllNamespacesFlag, nsName); err != nil {
+	if err = ipsMgr.AddToList(util.KubeAllNamespacesFlag, nsName); err != nil {
 		log.Printf("Error adding %s to all-namespace ipset list.\n", nsName)
 		return err
 	}
@@ -102,7 +110,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	for nsLabelKey, nsLabelVal := range nsLabels {
 		labelKey := getNsIpsetName(nsLabelKey, nsLabelVal)
 		log.Printf("Adding namespace %s to ipset list %s\n", nsName, labelKey)
-		if err := ipsMgr.AddToList(labelKey, nsName); err != nil {
+		if err = ipsMgr.AddToList(labelKey, nsName); err != nil {
 			log.Printf("Error Adding namespace %s to ipset list %s\n", nsName, labelKey)
 			return err
 		}
@@ -115,18 +123,34 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	}
 	npMgr.nsMap[nsName] = ns
 
+	npMgr.clusterState.NsCount++
+
 	return nil
 }
 
 // UpdateNamespace handles update namespace.
 func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, newNsObj *corev1.Namespace) error {
+	var err error
+
+	defer func() {
+		npMgr.Lock()
+		if err = npMgr.UpdateAndSendReport(err, util.AddNamespaceEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+		npMgr.Unlock()
+	}()
+
 	oldNsName, newNsName := oldNsObj.ObjectMeta.Name, newNsObj.ObjectMeta.Name
 	log.Printf("NAMESPACE UPDATED. %s/%s", oldNsName, newNsName)
 
-	npMgr.DeleteNamespace(oldNsObj)
+	if err = npMgr.DeleteNamespace(oldNsObj); err != nil {
+		return err
+	}
 
 	if newNsObj.ObjectMeta.DeletionTimestamp == nil && newNsObj.ObjectMeta.DeletionGracePeriodSeconds == nil {
-		npMgr.AddNamespace(newNsObj)
+		if err = npMgr.AddNamespace(newNsObj); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -136,6 +160,14 @@ func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, n
 func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
+
+	var err error
+
+	defer func() {
+		if err = npMgr.UpdateAndSendReport(err, util.DeleteNamespaceEvent); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+	}()
 
 	nsName, nsNs := nsObj.ObjectMeta.Name, nsObj.ObjectMeta.Namespace
 	log.Printf("NAMESPACE DELETED: %s/%s\n", nsName, nsNs)
@@ -152,7 +184,7 @@ func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) erro
 	for nsLabelKey, nsLabelVal := range nsLabels {
 		labelKey := getNsIpsetName(nsLabelKey, nsLabelVal)
 		log.Printf("Deleting namespace %s from ipset list %s\n", nsName, labelKey)
-		if err := ipsMgr.DeleteFromList(labelKey, nsName); err != nil {
+		if err = ipsMgr.DeleteFromList(labelKey, nsName); err != nil {
 			log.Printf("Error deleting namespace %s from ipset list %s\n", nsName, labelKey)
 			return err
 		}
@@ -160,18 +192,20 @@ func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) erro
 	}
 
 	// Delete the namespace from all-namespace ipset list.
-	if err := ipsMgr.DeleteFromList(util.KubeAllNamespacesFlag, nsName); err != nil {
+	if err = ipsMgr.DeleteFromList(util.KubeAllNamespacesFlag, nsName); err != nil {
 		log.Printf("Error deleting namespace %s from ipset list %s\n", nsName, util.KubeAllNamespacesFlag)
 		return err
 	}
 
 	// Delete ipset for the namespace.
-	if err := ipsMgr.DeleteSet(nsName); err != nil {
+	if err = ipsMgr.DeleteSet(nsName); err != nil {
 		log.Printf("Error deleting ipset for namespace %s.\n", nsName)
 		return err
 	}
 
 	delete(npMgr.nsMap, nsName)
+
+	npMgr.clusterState.NsCount--
 
 	return nil
 }

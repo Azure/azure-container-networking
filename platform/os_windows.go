@@ -14,6 +14,9 @@ const (
 
 	// CNIRuntimePath is the path where CNM state files are stored.
 	CNIRuntimePath = ""
+
+	// NPMRuntimePath is the path where NPM state files are stored.
+	NPMRuntimePath = ""
 )
 
 // GetOSInfo returns OS version information.

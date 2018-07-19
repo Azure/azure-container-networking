@@ -68,3 +68,18 @@ const (
 	IpsetNetHashFlag string = "nethash"
 	AzureNpmPrefix   string = "azure-npm-"
 )
+
+//NPM telemetry constants.
+const (
+	AddNamespaceEvent    string = "Add Namespace"
+	UpdateNamespaceEvent string = "Update Namespace"
+	DeleteNamespaceEvent string = "Delete Namespace"
+
+	AddPodEvent    string = "Add Pod"
+	UpdatePodEvent string = "Update Pod"
+	DeletePodEvent string = "Delete Pod"
+
+	AddNetworkPolicyEvent    string = "Add network policy"
+	UpdateNetworkPolicyEvent string = "Update network policy"
+	DeleteNetworkPolicyEvent string = "Delete network policy"
+)

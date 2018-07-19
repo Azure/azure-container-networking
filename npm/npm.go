@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/Azure/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/informers"
@@ -13,6 +16,11 @@ import (
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+)
+
+var (
+	hostNetAgentURLForNpm = "http://169.254.169.254/machine/plugins?comp=netagent&type=npmreport"
+	reportType            = "application/json"
 )
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
@@ -28,6 +36,27 @@ type NetworkPolicyManager struct {
 	nodeName               string
 	nsMap                  map[string]*namespace
 	isAzureNpmChainCreated bool
+
+	clusterState  telemetry.ClusterState
+	reportManager *telemetry.NPMReportManager
+}
+
+// GetClusterState returns current cluster state.
+func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
+	return npMgr.clusterState
+}
+
+// UpdateAndSendReport updates the npm report then send it.
+// This function should only be called when npMgr is locked.
+func (npMgr *NetworkPolicyManager) UpdateAndSendReport(err error, eventMsg string) error {
+	npMgr.reportManager.Report.ClusterState = npMgr.GetClusterState()
+	npMgr.reportManager.Report.EventMessage = eventMsg
+
+	if err != nil {
+		npMgr.reportManager.Report.ErrorMessage = err.Error()
+	}
+
+	return npMgr.reportManager.SendReport()
 }
 
 // Run starts shared informers and waits for the shared informer cache to sync.
@@ -51,8 +80,20 @@ func (npMgr *NetworkPolicyManager) Run(stopCh <-chan struct{}) error {
 	return nil
 }
 
+// RunReportManager starts NPMReportManager and send telemetry periodically.
+func (npMgr *NetworkPolicyManager) RunReportManager() {
+	for {
+		npMgr.reportManager.Report.ClusterState = npMgr.GetClusterState()
+		if err := npMgr.reportManager.SendReport(); err != nil {
+			log.Printf("Error sending NPM telemetry report")
+		}
+
+		time.Sleep(1 * time.Minute)
+	}
+}
+
 // NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory) *NetworkPolicyManager {
+func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, npmVersion string) *NetworkPolicyManager {
 
 	podInformer := informerFactory.Core().V1().Pods()
 	nsInformer := informerFactory.Core().V1().Namespaces()
@@ -67,10 +108,33 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		nodeName:        os.Getenv("HOSTNAME"),
 		nsMap:           make(map[string]*namespace),
 		isAzureNpmChainCreated: false,
+		clusterState: telemetry.ClusterState{
+			PodCount:      0,
+			NsCount:       0,
+			NwPolicyCount: 0,
+		},
+		reportManager: &telemetry.NPMReportManager{
+			ReportManager: &telemetry.ReportManager{
+				HostNetAgentURL: hostNetAgentURLForNpm,
+				ReportType:      reportType,
+			},
+			Report: &telemetry.NPMReport{},
+		},
 	}
+
+	serverVersion, err := clientset.ServerVersion()
+	if err != nil {
+		log.Printf("Error retrieving server version")
+		panic(err.Error)
+	}
+
+	clusterID := util.GetClusterID(npMgr.nodeName)
+	clusterState := npMgr.GetClusterState()
+	npMgr.reportManager.GetReport(clusterID, npMgr.nodeName, npmVersion, serverVersion.GitVersion, clusterState)
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
 	if err != nil {
+		log.Printf("Error creating all-namespace")
 		panic(err.Error)
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
