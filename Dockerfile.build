@@ -5,6 +5,16 @@ RUN apt-get update && apt-get install -y zip
 RUN go get -d golang.org/x/sys/unix
 RUN go get -d github.com/Microsoft/hcsshim
 RUN go get -d github.com/containernetworking/cni/pkg/skel
+RUN go get -d k8s.io/api/core/v1
+RUN go get -d k8s.io/api/networking/v1
+RUN go get -d k8s.io/apimachinery/pkg/types
+RUN go get -d k8s.io/apimachinery/pkg/util/wait
+RUN go get -d k8s.io/client-go/informers
+RUN go get -d k8s.io/client-go/informers/core/v1
+RUN go get -d k8s.io/client-go/informers/networking/v1
+RUN go get -d k8s.io/client-go/kubernetes
+RUN go get -d k8s.io/client-go/rest
+RUN go get -d k8s.io/client-go/tools/cache
 
 COPY . /go/src/github.com/Azure/azure-container-networking
 
