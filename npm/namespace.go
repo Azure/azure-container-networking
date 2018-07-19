@@ -15,7 +15,7 @@ type namespace struct {
 	name   string
 	setMap map[string]string
 	podMap map[types.UID]*corev1.Pod
-	npMap  map[string]*networkingv1.NetworkPolicy // TODO: Optimize to ordered map.
+	npMap  map[string]*networkingv1.NetworkPolicy
 	ipsMgr *ipsm.IpsetManager
 	iptMgr *iptm.IptablesManager
 }
@@ -90,7 +90,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	}()
 
 	nsName, nsNs := nsObj.ObjectMeta.Name, nsObj.ObjectMeta.Namespace
-	log.Printf("NAMESPACE CREATED: %s/%s\n", nsName, nsNs)
+	log.Printf("NAMESPACE CREATING: %s/%s\n", nsName, nsNs)
 
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Create ipset for the namespace.
@@ -141,7 +141,7 @@ func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, n
 	}()
 
 	oldNsName, newNsName := oldNsObj.ObjectMeta.Name, newNsObj.ObjectMeta.Name
-	log.Printf("NAMESPACE UPDATED. %s/%s", oldNsName, newNsName)
+	log.Printf("NAMESPACE UPDATING. %s/%s", oldNsName, newNsName)
 
 	if err = npMgr.DeleteNamespace(oldNsObj); err != nil {
 		return err
@@ -170,7 +170,7 @@ func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) erro
 	}()
 
 	nsName, nsNs := nsObj.ObjectMeta.Name, nsObj.ObjectMeta.Namespace
-	log.Printf("NAMESPACE DELETED: %s/%s\n", nsName, nsNs)
+	log.Printf("NAMESPACE DELETING: %s/%s\n", nsName, nsNs)
 
 	_, exists := npMgr.nsMap[nsName]
 	if !exists {

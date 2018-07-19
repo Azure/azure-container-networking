@@ -20,7 +20,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}()
 
 	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
-	log.Printf("NETWORK POLICY CREATED: %s/%s\n", npNs, npName)
+	log.Printf("NETWORK POLICY CREATING: %s/%s\n", npNs, npName)
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
@@ -94,7 +94,7 @@ func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.Ne
 	}()
 
 	oldNpNs, oldNpName := oldNpObj.ObjectMeta.Namespace, oldNpObj.ObjectMeta.Name
-	log.Printf("NETWORK POLICY UPDATED: %s/%s\n", oldNpNs, oldNpName)
+	log.Printf("NETWORK POLICY UPDATING: %s/%s\n", oldNpNs, oldNpName)
 
 	if err = npMgr.DeleteNetworkPolicy(oldNpObj); err != nil {
 		return err
@@ -123,7 +123,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	}()
 
 	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
-	log.Printf("NETWORK POLICY DELETED: %s/%s\n", npNs, npName)
+	log.Printf("NETWORK POLICY DELETING: %s/%s\n", npNs, npName)
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 

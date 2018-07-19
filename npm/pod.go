@@ -42,7 +42,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	podNodeName := podObj.Spec.NodeName
 	podLabels := podObj.ObjectMeta.Labels
 	podIP := podObj.Status.PodIP
-	log.Printf("POD CREATED: %s/%s/%s%+v%s\n", podNs, podName, podNodeName, podLabels, podIP)
+	log.Printf("POD CREATING: %s/%s/%s%+v%s\n", podNs, podName, podNodeName, podLabels, podIP)
 
 	// Add the pod to ipset
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
@@ -106,7 +106,7 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 	newPodObjIP := newPodObj.Status.PodIP
 
 	log.Printf(
-		"POD UPDATED. %s %s %s %s %s %s %s %s\n",
+		"POD UPDATING. %s %s %s %s %s %s %s %s\n",
 		oldPodObjNs, oldPodObjName, oldPodObjPhase, oldPodObjIP, newPodObjNs, newPodObjName, newPodObjPhase, newPodObjIP,
 	)
 
@@ -145,7 +145,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	podNodeName := podObj.Spec.NodeName
 	podLabels := podObj.ObjectMeta.Labels
 	podIP := podObj.Status.PodIP
-	log.Printf("POD DELETED: %s/%s/%s\n", podNs, podName, podNodeName)
+	log.Printf("POD DELETING: %s/%s/%s\n", podNs, podName, podNodeName)
 
 	// Delete pod from ipset
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr

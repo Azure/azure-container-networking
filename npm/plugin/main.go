@@ -18,9 +18,8 @@ var version string
 func initLogging() error {
 	log.SetName("azure-npm")
 	log.SetLevel(log.LevelInfo)
-	err := log.SetTarget(log.TargetLogfile)
-	if err != nil {
-		log.Printf("[Azure-NPM] Failed to configure logging, err:%v.\n", err)
+	if err := log.SetTarget(log.TargetLogfile); err != nil {
+		log.Printf("[cni-npm] Failed to configure logging, err:%v.\n", err)
 		return err
 	}
 
@@ -28,7 +27,15 @@ func initLogging() error {
 }
 
 func main() {
-	if err := initLogging(); err != nil {
+	var err error
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[cni-npm] recovered from error: %v", err)
+		}
+	}()
+
+	if err = initLogging(); err != nil {
 		panic(err.Error())
 	}
 

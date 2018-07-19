@@ -309,7 +309,6 @@ func parseEgress(ns string, targetSets []string, rules []networkingv1.NetworkPol
 		isAppliedToNs = true
 	}
 
-	//TODO: handle IPBlock
 	for _, rule := range rules {
 		for _, portRule := range rule.Ports {
 			protPortPairSlice = append(protPortPairSlice,
