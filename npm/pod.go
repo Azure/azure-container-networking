@@ -20,7 +20,7 @@ func isSystemPod(podObj *corev1.Pod) bool {
 	return podObj.ObjectMeta.Namespace == util.KubeSystemFlag
 }
 
-// AddPod handles add pod.
+// AddPod handles adding pod ip to its label's ipset.
 func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
@@ -80,7 +80,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	return nil
 }
 
-// UpdatePod handles update pod.
+// UpdatePod handles updating pod ip in its label's ipset.
 func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) error {
 	if !isValidPod(newPodObj) {
 		return nil
@@ -123,7 +123,7 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 	return nil
 }
 
-// DeletePod handles delete pod.
+// DeletePod handles deleting pod from its label's ipset.
 func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()

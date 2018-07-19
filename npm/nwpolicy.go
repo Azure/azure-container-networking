@@ -6,7 +6,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
-// AddNetworkPolicy adds network policy.
+// AddNetworkPolicy handles adding network policy to iptables.
 func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
@@ -81,7 +81,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	return nil
 }
 
-// UpdateNetworkPolicy updates network policy.
+// UpdateNetworkPolicy handles updateing network policy in iptables.
 func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.NetworkPolicy, newNpObj *networkingv1.NetworkPolicy) error {
 	var err error
 
@@ -109,7 +109,7 @@ func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.Ne
 	return nil
 }
 
-// DeleteNetworkPolicy deletes network policy.
+// DeleteNetworkPolicy handles deleting network policy from iptables.
 func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()

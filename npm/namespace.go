@@ -76,7 +76,7 @@ func (npMgr *NetworkPolicyManager) UninitAllNsList() error {
 	return nil
 }
 
-// AddNamespace handles add namespace.
+// AddNamespace handles adding  namespace to ipset.
 func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
@@ -128,7 +128,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	return nil
 }
 
-// UpdateNamespace handles update namespace.
+// UpdateNamespace handles updating namespace in ipset.
 func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, newNsObj *corev1.Namespace) error {
 	var err error
 
@@ -156,7 +156,7 @@ func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, n
 	return nil
 }
 
-// DeleteNamespace handles delete namespace.
+// DeleteNamespace handles deleting namespace from ipset.
 func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
