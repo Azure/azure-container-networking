@@ -89,6 +89,7 @@ CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+NPM_IMAGE_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
@@ -202,13 +203,15 @@ publish-azure-vnet-plugin-image:
 # Build the Azure NPM image.
 .PHONY: azure-npm-image
 azure-npm-image: azure-npm
-	# Build the plugin image.
+ifeq ($(GOOS),linux)
 	docker build \
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(AZURE_NPM_VERSION) \
 	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
 	.
-	
+	docker save $(AZURE_NPM_IMAGE):$(AZURE_NPM_VERSION) | gzip -c > $(NPM_BUILD_DIR)/$(NPM_ARCHIVE_NAME)
+endif
+
 # Publish the Azure NPM image to a Docker registry
 .PHONY: publish-azure-npm-image
 publish-azure-npm-image:
