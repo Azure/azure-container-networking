@@ -1,6 +1,8 @@
 FROM golang:1.10
 
-RUN apt-get update && apt-get install -y zip
+RUN apt-get update \
+ && apt-get install -y zip \
+ && apt-get install -y sudo libltdl-dev
 
 RUN go get -d golang.org/x/sys/unix
 RUN go get -d github.com/Microsoft/hcsshim

@@ -99,7 +99,7 @@ CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 AZURE_NPM_IMAGE = containernetworking/azure-npm
 
 VERSION ?= $(shell git describe --tags --always --dirty)
-AZURE_NPM_VERSION = VERSION
+AZURE_NPM_VERSION = $(VERSION)
 
 ENSURE_OUTPUT_DIR_EXISTS := $(shell mkdir -p $(OUTPUT_DIR))
 
@@ -119,6 +119,8 @@ all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
 endif
+
+all-images: azure-npm-image
 
 # Clean all build artifacts.
 .PHONY: clean
@@ -146,17 +148,20 @@ $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT): $(NPMFILES)
 	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(NPM_DIR)/*.go
 
 # Build all binaries in a container.
-.PHONY: all-binaries-containerized
-all-binaries-containerized:
+.PHONY: all-containerized
+all-containerized:
 	pwd && ls -l
 	docker build -f Dockerfile.build -t $(BUILD_CONTAINER_IMAGE):$(VERSION) .
 	docker run --name $(BUILD_CONTAINER_NAME) \
+		-v /usr/bin/docker:/usr/bin/docker \
+		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(BUILD_CONTAINER_IMAGE):$(VERSION) \
 		bash -c '\
 			pwd && ls -l && \
 			export GOOS=$(GOOS) && \
 			export GOARCH=$(GOARCH) && \
 			make all-binaries && \
+			make all-images && \
 			chown -R $(BUILD_USER):$(BUILD_USER) $(BUILD_DIR) \
 		'
 	docker cp $(BUILD_CONTAINER_NAME):$(BUILD_CONTAINER_REPO_PATH)/$(BUILD_DIR) $(OUTPUT_DIR)
