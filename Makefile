@@ -108,9 +108,16 @@ azure-vnet: $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT)
 azure-vnet-ipam: $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
 azure-cni-plugin: azure-vnet azure-vnet-ipam cni-archive
 azure-cns: $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) cns-archive
+# Azure-NPM only supports Linux for now.
+ifeq ($(GOOS),linux)
 azure-npm: $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) npm-archive
+endif
 
+ifeq ($(GOOS),linux)
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
+else
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
+endif
 
 # Clean all build artifacts.
 .PHONY: clean
@@ -135,7 +142,7 @@ $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
 
 # Build the Azure NPM plugin.
 $(NPM_BUILD_DIR)/azure-npm: $(NPMFILES)
-	go build -v -o $(NPM_BUILD_DIR)/azure-npm -ldflags "-X main.version=$(VERSION) -s -w" $(NPM_DIR)/*.go
+	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(NPM_DIR)/*.go
 
 # Build all binaries in a container.
 .PHONY: all-binaries-containerized
@@ -235,11 +242,10 @@ cns-archive:
 	cd $(CNS_BUILD_DIR) && $(ARCHIVE_CMD) $(CNS_ARCHIVE_NAME) azure-cns$(EXE_EXT)
 	chown $(BUILD_USER):$(BUILD_USER) $(CNS_BUILD_DIR)/$(CNS_ARCHIVE_NAME)
 
-# Create a NPM archive for the target platform.
+# Create a NPM archive for the target platform. Only Linux is supported for now.
 .PHONY: npm-archive
 npm-archive:
 ifeq ($(GOOS),linux)
-	# Azure-NPM only supports Linux for now.
 	chmod 0755 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT)
 	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
 	chown $(BUILD_USER):$(BUILD_USER) $(NPM_BUILD_DIR)/$(NPM_ARCHIVE_NAME)
