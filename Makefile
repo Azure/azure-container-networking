@@ -141,7 +141,7 @@ $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
 	go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNS_DIR)/*.go
 
 # Build the Azure NPM plugin.
-$(NPM_BUILD_DIR)/azure-npm: $(NPMFILES)
+$(NPM_BUILD_DIR)/azure-npm$(EXE_EXT): $(NPMFILES)
 	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(NPM_DIR)/*.go
 
 # Build all binaries in a container.
