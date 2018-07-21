@@ -152,7 +152,8 @@ $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT): $(NPMFILES)
 all-containerized:
 	pwd && ls -l
 	docker build -f Dockerfile.build -t $(BUILD_CONTAINER_IMAGE):$(VERSION) .
-	docker run --name $(BUILD_CONTAINER_NAME) \
+	docker run --rm \
+		--name $(BUILD_CONTAINER_NAME) \
 		-v /usr/bin/docker:/usr/bin/docker \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(BUILD_CONTAINER_IMAGE):$(VERSION) \
@@ -165,7 +166,6 @@ all-containerized:
 			chown -R $(BUILD_USER):$(BUILD_USER) $(BUILD_DIR) \
 		'
 	docker cp $(BUILD_CONTAINER_NAME):$(BUILD_CONTAINER_REPO_PATH)/$(BUILD_DIR) $(OUTPUT_DIR)
-	docker rm $(BUILD_CONTAINER_NAME)
 	docker rmi $(BUILD_CONTAINER_IMAGE):$(VERSION)
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
