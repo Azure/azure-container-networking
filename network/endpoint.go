@@ -5,7 +5,6 @@ package network
 
 import (
 	"net"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -50,31 +49,6 @@ type RouteInfo struct {
 	Dst     net.IPNet
 	Gw      net.IP
 	DevName string
-}
-
-// ConstructEndpointID constructs endpoint name from netNsPath.
-func ConstructEndpointID(containerID string, netNsPath string, ifName string) (string, string) {
-	infraEpName, workloadEpName := "", ""
-
-	if len(containerID) > 8 {
-		containerID = containerID[:8]
-	}
-
-	if netNsPath != "" {
-		splits := strings.Split(netNsPath, ":")
-		// For workload containers, we extract its linking infrastructure container ID.
-		if len(splits) == 2 {
-			if len(splits[1]) > 8 {
-				splits[1] = splits[1][:8]
-			}
-			infraEpName = splits[1] + "-" + ifName
-			workloadEpName = containerID + "-" + ifName
-		} else {
-			// For infrastructure containers, we just use its container ID.
-			infraEpName = containerID + "-" + ifName
-		}
-	}
-	return infraEpName, workloadEpName
 }
 
 // NewEndpoint creates a new endpoint in the network.
@@ -135,6 +109,8 @@ func (nw *network) deleteEndpoint(endpointId string) error {
 
 // GetEndpoint returns the endpoint with the given ID.
 func (nw *network) getEndpoint(endpointId string) (*endpoint, error) {
+	log.Printf("Trying to retrieve endpoint id %v", endpointId)
+
 	ep := nw.Endpoints[endpointId]
 
 	if ep == nil {

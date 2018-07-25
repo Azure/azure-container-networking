@@ -31,6 +31,19 @@ func generateVethName(key string) string {
 	return hex.EncodeToString(h.Sum(nil))[:11]
 }
 
+func ConstructEndpointID(containerID string, netNsPath string, ifName string) (string, string) {
+	if len(containerID) > 8 {
+		containerID = containerID[:8]
+	} else {
+		log.Printf("Container ID is not greater than 8 ID: %v", containerID)
+		return "", ""
+	}
+
+	infraEpName := containerID + "-" + ifName
+
+	return infraEpName, ""
+}
+
 // newEndpointImpl creates a new endpoint in the network.
 func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	var containerIf *net.Interface
@@ -159,7 +172,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	// Create the endpoint object.
 	ep = &endpoint{
 		Id:               epInfo.Id,
-		IfName:           contIfName,
+		IfName:           epInfo.IfName,
 		HostIfName:       hostIfName,
 		MacAddress:       containerIf.HardwareAddr,
 		IPAddresses:      epInfo.IPAddresses,
