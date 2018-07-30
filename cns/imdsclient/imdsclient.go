@@ -55,7 +55,7 @@ func (imdsClient *ImdsClient) GetPrimaryInterfaceInfoFromHost() (*InterfaceInfo,
 
 	defer resp.Body.Close()
 
-	log.Printf("[Azure CNS] Response received from NMAgent for get interface details: %v", resp.Body)
+	log.Printf("[Azure CNS] Response received from NMAgent for get interface details: %+v", resp.Body)
 
 	var doc xmlDocument
 	decoder := xml.NewDecoder(resp.Body)

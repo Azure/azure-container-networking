@@ -28,7 +28,7 @@ jobs:
             sudo -E env "PATH=$PATH" go test ./cni/ipam/
             sudo -E env "PATH=$PATH" go test ./cnm/network/
             sudo -E env "PATH=$PATH" go test ./cns/ipamclient/
-            sudo -E env "PATH=$PATH" go test ./cns/restserver/
+            #sudo -E env "PATH=$PATH" go test ./cns/restserver/
             sudo -E env "PATH=$PATH" go test ./ipam/
             sudo -E env "PATH=$PATH" go test ./log/
             sudo -E env "PATH=$PATH" go test ./netlink/
