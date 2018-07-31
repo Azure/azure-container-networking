@@ -151,34 +151,32 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path)
 
 	defer func() {
+		// Add Interfaces to result.
+		if result == nil {
+			result = &cniTypesCurr.Result{}
+		}
+
+		iface = &cniTypesCurr.Interface{
+			Name: args.IfName,
+		}
+
+		result.Interfaces = append(result.Interfaces, iface)
+
+		addSnatInterface(nwCfg, result)
+
+		// Convert result to the requested CNI version.
+		res, vererr := result.GetAsVersion(nwCfg.CNIVersion)
+		if vererr != nil {
+			log.Printf("GetAsVersion failed with error %v", vererr)
+			plugin.Error(vererr)
+		}
+
 		if err == nil {
-			if result == nil {
-				result = &cniTypesCurr.Result{}
-			}
-
-			// Add Interfaces to result.
-			if result == nil {
-				result = &cniTypesCurr.Result{}
-			}
-
-			iface = &cniTypesCurr.Interface{
-				Name: args.IfName,
-			}
-
-			result.Interfaces = append(result.Interfaces, iface)
-
-			addSnatInterface(nwCfg, result)
-
-			// Convert result to the requested CNI version.
-			res, err := result.GetAsVersion(nwCfg.CNIVersion)
-			if err != nil {
-				err = plugin.Error(err)
-			}
-
 			// Output the result to stdout.
 			res.Print()
-			log.Printf("[cni-net] ADD command completed with result:%+v err:%v.", result, err)
 		}
+
+		log.Printf("[cni-net] ADD command completed with result:%+v err:%v.", result, err)
 	}()
 
 	// Parse Pod arguments.
