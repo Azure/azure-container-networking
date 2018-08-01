@@ -22,25 +22,23 @@ func (endpoint *EndpointInfo) HotAttachEndpoint(containerID string) error {
 
 // ConstructEndpointID constructs endpoint name from netNsPath.
 func ConstructEndpointID(containerID string, netNsPath string, ifName string) (string, string) {
-	infraEpName, workloadEpName := "", ""
-
 	if len(containerID) > 8 {
 		containerID = containerID[:8]
 	}
 
-	if netNsPath != "" {
-		splits := strings.Split(netNsPath, ":")
+	infraEpName, workloadEpName := "", ""
+
+	splits := strings.Split(netNsPath, ":")
+	if len(splits) == 2 {
 		// For workload containers, we extract its linking infrastructure container ID.
-		if len(splits) == 2 {
-			if len(splits[1]) > 8 {
-				splits[1] = splits[1][:8]
-			}
-			infraEpName = splits[1] + "-" + ifName
-			workloadEpName = containerID + "-" + ifName
-		} else {
-			// For infrastructure containers, we just use its container ID.
-			infraEpName = containerID + "-" + ifName
+		if len(splits[1]) > 8 {
+			splits[1] = splits[1][:8]
 		}
+		infraEpName = splits[1] + "-" + ifName
+		workloadEpName = containerID + "-" + ifName
+	} else {
+		// For infrastructure containers, we use its container ID directly.
+		infraEpName = containerID + "-" + ifName
 	}
 
 	return infraEpName, workloadEpName
