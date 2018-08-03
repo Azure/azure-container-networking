@@ -40,7 +40,7 @@ type NetworkPolicyManager struct {
 	isAzureNpmChainCreated bool
 
 	clusterState  telemetry.ClusterState
-	reportManager *telemetry.NPMReportManager
+	reportManager *telemetry.ReportManager
 }
 
 // GetClusterState returns current cluster state.
@@ -115,7 +115,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 			NsCount:       0,
 			NwPolicyCount: 0,
 		},
-		reportManager: &telemetry.NPMReportManager{
+		reportManager: &telemetry.ReportManager{
 			ReportManager: &telemetry.ReportManager{
 				HostNetAgentURL: hostNetAgentURLForNpm,
 				ReportType:      reportType,

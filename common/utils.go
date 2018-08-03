@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 )
 
-// Azure host agent XML document format.
+// XmlDocument - Azure host agent XML document format.
 type XmlDocument struct {
 	XMLName   xml.Name `xml:"Interfaces"`
 	Interface []struct {

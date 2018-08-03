@@ -14,11 +14,20 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
+	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/mem"
+)
+
+const (
+	metadataURL = "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json"
+	ContentType = "application/json"
 )
 
 // OS Details structure.
@@ -67,9 +76,45 @@ type OrchestratorInfo struct {
 	ErrorMessage        string
 }
 
+const (
+	// CNITelemetryFile Path.
+	CNITelemetryFile = platform.CNIRuntimePath + "AzureCNITelemetry.json"
+	// NPMTelemetryFile Path.
+	NPMTelemetryFile = platform.NPMRuntimePath + "AzureNPMTelemetry.json"
+	// DNCTelemetryFile Path.
+	DNCTelemetryFile = platform.DNCRuntimePath + "AzureDNCTelemetry.json"
+	// IPAM query URL
+
+)
+
+type Metadata struct {
+	Location             string `json:"location"`
+	VMName               string `json:"name"`
+	Offer                string `json:"offer"`
+	OsType               string `json:"osType"`
+	PlacementGroupID     string `json:"placementGroupId"`
+	PlatformFaultDomain  string `json:"platformFaultDomain"`
+	PlatformUpdateDomain string `json:"platformUpdateDomain"`
+	Publisher            string `json:"publisher"`
+	ResourceGroupName    string `json:"resourceGroupName"`
+	Sku                  string `json:"sku"`
+	SubscriptionID       string `json:"subscriptionId"`
+	Tags                 string `json:"tags"`
+	Version              string `json:"version"`
+	VMID                 string `json:"vmId"`
+	VMSize               string `json:"vmSize"`
+}
+
+type metadataWrapper struct {
+	Metadata Metadata `json:"compute"`
+}
+
 // Azure CNI Telemetry Report structure.
 type CNIReport struct {
-	StartFlag           bool
+	NewInstance         bool
+	CPUUsage            string
+	MemoryUsage         string
+	Processes           string
 	CniSucceeded        bool
 	Name                string
 	Version             string
@@ -82,6 +127,7 @@ type CNIReport struct {
 	SystemDetails       *SystemInfo
 	InterfaceDetails    *InterfaceInfo
 	BridgeDetails       *BridgeInfo
+	Metadata            Metadata `json:"compute"`
 }
 
 // ClusterState contains the current kubernetes cluster state.
@@ -93,7 +139,10 @@ type ClusterState struct {
 
 // NPMReport structure.
 type NPMReport struct {
-	StartFlag         bool
+	NewInstance       bool
+	CPUUsage          string
+	MemoryUsage       string
+	Processes         string
 	ClusterID         string
 	NodeName          string
 	InstanceName      string
@@ -103,32 +152,27 @@ type NPMReport struct {
 	EventMessage      string
 	UpTime            string
 	ClusterState      ClusterState
+	Metadata          Metadata `json:"compute"`
+}
+
+// DNCReport structure.
+type DNCReport struct {
+	NewInstance  bool
+	CPUUsage     string
+	MemoryUsage  string
+	Processes    string
+	EventMessage string
+	PartitionKey string
+	Allocations  string
+	Metadata     Metadata `json:"compute"`
 }
 
 // ReportManager structure.
 type ReportManager struct {
 	HostNetAgentURL string
-	ReportType      string
+	ContentType     string
+	Report          interface{}
 }
-
-// CNIReportManager structure.
-type CNIReportManager struct {
-	*ReportManager
-	IpamQueryURL string
-	Report       *CNIReport
-}
-
-// NPMReportManager structure.
-type NPMReportManager struct {
-	*ReportManager
-	Report *NPMReport
-}
-
-const (
-	// TelemetryFile Path.
-	CNITelemetryFile = platform.CNIRuntimePath + "AzureCNITelemetry.json"
-	NPMTelemetryFile = platform.NPMRuntimePath + "AzureNPMTelemetry.json"
-)
 
 // ReadFileByLines reads file line by line and return array of lines.
 func ReadFileByLines(filename string) ([]string, error) {
@@ -163,172 +207,142 @@ func ReadFileByLines(filename string) ([]string, error) {
 }
 
 // GetReport retrieves orchestrator, system, OS and Interface details and create a report structure.
-func (reportMgr *CNIReportManager) GetReport(name string, version string) {
-	reportMgr.Report.Name = name
-	reportMgr.Report.Version = version
+func (report *CNIReport) GetReport(name string, version string, ipamQueryURL string) {
+	report.Name = name
+	report.Version = version
 
-	reportMgr.Report.GetOrchestratorDetails()
-	reportMgr.Report.GetSystemDetails()
-	reportMgr.Report.GetOSDetails()
-	reportMgr.Report.GetInterfaceDetails(reportMgr.IpamQueryURL)
+	report.GetOrchestratorDetails()
+	report.GetSystemDetails()
+	report.GetOSDetails()
+	report.GetInterfaceDetails(ipamQueryURL)
 }
 
 // GetReport retrives npm and kubernetes cluster related info and create a report structure.
-func (reportMgr *NPMReportManager) GetReport(clusterID, nodeName, npmVersion, kubernetesVersion string, clusterState ClusterState) {
-	reportMgr.Report.ClusterID = clusterID
-	reportMgr.Report.NodeName = nodeName
-	reportMgr.Report.NpmVersion = npmVersion
-	reportMgr.Report.KubernetesVersion = kubernetesVersion
-	reportMgr.Report.ClusterState = clusterState
+func (report *NPMReport) GetReport(clusterID, nodeName, npmVersion, kubernetesVersion string, clusterState ClusterState) {
+	report.ClusterID = clusterID
+	report.NodeName = nodeName
+	report.NpmVersion = npmVersion
+	report.KubernetesVersion = kubernetesVersion
+	report.ClusterState = clusterState
 }
 
-// SendReport will send CNI telemetry report to HostNetAgent.
-func (reportMgr *CNIReportManager) SendReport() error {
-	var body bytes.Buffer
+// SendReport will send telemetry report to HostNetAgent.
+func (reportMgr *ReportManager) SendReport() error {
+	log.Printf("[Telemetry] Going to send Telemetry report to hostnetagent %v", reportMgr.HostNetAgentURL)
 
+	var body bytes.Buffer
 	httpc := &http.Client{}
 	json.NewEncoder(&body).Encode(reportMgr.Report)
 
-	log.Printf("Going to send Telemetry report to hostnetagent %v", reportMgr.ReportManager.HostNetAgentURL)
+	switch reportMgr.Report.(type) {
+	case *CNIReport:
+		log.Printf("[Telemetry] %+v", reportMgr.Report.(*CNIReport))
 
-	log.Printf(`"Start Flag %t CniSucceeded %t Name %v Version %v ErrorMessage %v vnet %v 
-				Context %v SubContext %v"`, reportMgr.Report.StartFlag, reportMgr.Report.CniSucceeded, reportMgr.Report.Name,
-		reportMgr.Report.Version, reportMgr.Report.ErrorMessage, reportMgr.Report.VnetAddressSpace,
-		reportMgr.Report.Context, reportMgr.Report.SubContext)
+	case *NPMReport:
+		log.Printf("[Telemetry] %+v", reportMgr.Report.(*NPMReport))
 
-	log.Printf("OrchestratorDetails %v", reportMgr.Report.OrchestratorDetails)
-	log.Printf("OSDetails %v", reportMgr.Report.OSDetails)
-	log.Printf("SystemDetails %v", reportMgr.Report.SystemDetails)
-	log.Printf("InterfaceDetails %v", reportMgr.Report.InterfaceDetails)
-	log.Printf("BridgeDetails %v", reportMgr.Report.BridgeDetails)
+	case *DNCReport:
+		log.Printf("[Telemetry] %+v", reportMgr.Report.(*DNCReport))
 
-	res, err := httpc.Post(reportMgr.ReportManager.HostNetAgentURL, reportMgr.ReportManager.ReportType, &body)
-	if err != nil {
-		return fmt.Errorf("[Azure CNI] HTTP Post returned error %v", err)
+	default:
+		return fmt.Errorf("[Telemetry] failed to resolve report type")
 	}
 
-	defer res.Body.Close()
+	resp, err := httpc.Post(reportMgr.HostNetAgentURL, reportMgr.ContentType, &body)
+	if err != nil {
+		return fmt.Errorf("[Telemetry] HTTP Post returned error %v", err)
+	}
 
-	if res.StatusCode != 200 {
-		if res.StatusCode == 400 {
-			return fmt.Errorf(`"[Azure CNI] HTTP Post returned statuscode %d. 
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		if resp.StatusCode == 400 {
+			return fmt.Errorf(`"[Telemetry] HTTP Post returned statuscode %d. 
 				This error happens because telemetry service is not yet activated. 
-				The error can be ignored as it won't affect CNI functionality"`, res.StatusCode)
+				The error can be ignored as it won't affect CNI functionality"`, resp.StatusCode)
 		}
 
-		return fmt.Errorf("[Azure CNI] HTTP Post returned statuscode %d", res.StatusCode)
+		return fmt.Errorf("[Telemetry] HTTP Post returned statuscode %d", resp.StatusCode)
 	}
 
-	log.Printf("Send telemetry success %d\n", res.StatusCode)
+	log.Printf("[Telemetry] Telemetry sent with status code %d\n", resp.StatusCode)
 
 	return nil
 }
 
-// SendReport will send NPM telemetry report to HostNetAgent.
-func (reportMgr *NPMReportManager) SendReport() error {
-	var body bytes.Buffer
+// SetReportState will save the state in file if telemetry report sent successfully.
+func (reportMgr *ReportManager) SetReportState() error {
+	var telemetryFile string
+	var reportBytes []byte
+	var err error
 
-	httpc := &http.Client{}
-	json.NewEncoder(&body).Encode(reportMgr.Report)
-
-	log.Printf("Going to send Telemetry report to hostnetagent %v", reportMgr.ReportManager.HostNetAgentURL)
-	log.Printf("Report: %+v", reportMgr.Report)
-
-	res, err := httpc.Post(reportMgr.ReportManager.HostNetAgentURL, reportMgr.ReportManager.ReportType, &body)
+	// try to open telemetry file
+	f, err := os.OpenFile(telemetryFile, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		return fmt.Errorf("[Azure NPM] HTTP Post returned error %v", err)
-	}
-
-	defer res.Body.Close()
-
-	if res.StatusCode != 200 {
-		if res.StatusCode == 400 {
-			return fmt.Errorf(`"[Azure NPM] HTTP Post returned statuscode %d. 
-				This error happens because telemetry service is not yet activated. 
-				The error can be ignored as it won't affect CNI functionality"`, res.StatusCode)
-		}
-
-		return fmt.Errorf("[Azure NPM] HTTP Post returned statuscode %d", res.StatusCode)
-	}
-
-	log.Printf("Send telemetry success %d\n", res.StatusCode)
-
-	return nil
-}
-
-// SetReportState will save the state in file if CNI telemetry report sent successfully.
-func (report *CNIReport) SetReportState() error {
-	f, err := os.OpenFile(CNITelemetryFile, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return fmt.Errorf("Error opening telemetry file %v", err)
+		return fmt.Errorf("[Telemetry] Error opening telemetry file %v", err)
 	}
 
 	defer f.Close()
 
-	reportBytes, err := json.Marshal(report)
+	// get bytes from associated report type
+	switch reportMgr.Report.(type) {
+	case *CNIReport:
+		telemetryFile = CNITelemetryFile
+		reportBytes, err = json.Marshal(reportMgr.Report.(*CNIReport))
+
+	case *NPMReport:
+		telemetryFile = NPMTelemetryFile
+		reportBytes, err = json.Marshal(reportMgr.Report.(*NPMReport))
+
+	case *DNCReport:
+		telemetryFile = DNCTelemetryFile
+		reportBytes, err = json.Marshal(reportMgr.Report.(*DNCReport))
+
+	default:
+		return fmt.Errorf("[Telemetry] Invalid report type")
+	}
+
 	if err != nil {
-		log.Printf("report write failed due to %v", err)
-		_, err = f.WriteString("report write failed")
+		log.Printf("[Telemetry] report write failed due to %v", err)
+		_, err = f.WriteString("[Telemetry] report write failed")
 	} else {
 		_, err = f.Write(reportBytes)
 	}
 
 	if err != nil {
-		log.Printf("Error while writing to file %v", err)
-		return fmt.Errorf("Error while writing to file %v", err)
+		log.Printf("[Telemetry] Error while writing to file %v", err)
+		return fmt.Errorf("[Telemetry] Error while writing to file %v", err)
 	}
 
-	report.StartFlag = false
-	log.Printf("SetReportState succeeded")
-
+	// set NewInstance in report
+	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("NewInstance").SetBool(false)
+	log.Printf("[Telemetry] SetReportState succeeded")
 	return nil
 }
 
-// SetReportState will save the state in file if NPM telemetry report sent successfully.
-func (report *NPMReport) SetReportState() error {
-	f, err := os.OpenFile(NPMTelemetryFile, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return fmt.Errorf("Error opening telemetry file %v", err)
-	}
+// GetReportState will check if report is sent at least once by checking telemetry file.
+func (reportMgr *ReportManager) GetReportState() bool {
+	var telemetryFile string
 
-	defer f.Close()
+	switch reportMgr.Report.(type) {
+	case *CNIReport:
+		telemetryFile = CNITelemetryFile
 
-	reportBytes, err := json.Marshal(report)
-	if err != nil {
-		log.Printf("report write failed due to %v", err)
-		_, err = f.WriteString("report write failed")
-	} else {
-		_, err = f.Write(reportBytes)
-	}
+	case *NPMReport:
+		telemetryFile = NPMTelemetryFile
 
-	if err != nil {
-		log.Printf("Error while writing to file %v", err)
-		return fmt.Errorf("Error while writing to file %v", err)
-	}
+	case *DNCReport:
+		telemetryFile = DNCTelemetryFile
 
-	report.StartFlag = false
-	log.Printf("SetReportState succeeded")
-
-	return nil
-}
-
-// GetReportState will check if CNI report is sent at least once by checking telemetry file.
-func (report *CNIReport) GetReportState() bool {
-	if _, err := os.Stat(CNITelemetryFile); os.IsNotExist(err) {
-		log.Printf("File not exist %v", CNITelemetryFile)
-		report.StartFlag = true
+	default:
+		log.Printf("[Telemetry] Invalid report type")
 		return false
 	}
 
-	return true
-}
-
-// GetReportState will check if NPM report is sent at least once by checking telemetry file.
-func (report *NPMReport) GetReportState() bool {
-	if _, err := os.Stat(NPMTelemetryFile); os.IsNotExist(err) {
-		log.Printf("File not exist %v", NPMTelemetryFile)
-		report.StartFlag = true
-		return false
+	// try to set NewInstance in report
+	if _, err := os.Stat(telemetryFile); os.IsNotExist(err) {
+		log.Printf("[Telemetry] File not exist %v", telemetryFile)
+		reflect.ValueOf(reportMgr.Report).Elem().FieldByName("NewInstance").SetBool(true)
 	}
 
 	return true
@@ -396,7 +410,7 @@ func (report *CNIReport) GetInterfaceDetails(queryUrl string) {
 						primaryCA = ip.Address
 						subnet = s.Prefix
 					} else {
-						secondaryCACount += 1
+						secondaryCACount++
 					}
 				}
 			}
@@ -417,22 +431,99 @@ func (report *CNIReport) GetInterfaceDetails(queryUrl string) {
 
 // GetOrchestratorDetails creates a report with orchestrator details(name, version).
 func (report *CNIReport) GetOrchestratorDetails() {
-	out, err := exec.Command("kubectl", "--version").Output()
-	if err != nil {
-		report.OrchestratorDetails = &OrchestratorInfo{}
-		report.OrchestratorDetails.ErrorMessage = "kubectl command failed due to " + err.Error()
-		return
-	}
-
-	outStr := string(out)
-	outStr = strings.TrimLeft(outStr, " ")
 	report.OrchestratorDetails = &OrchestratorInfo{}
 
-	resultArray := strings.Split(outStr, " ")
-	if len(resultArray) >= 2 {
-		report.OrchestratorDetails.OrchestratorName = resultArray[0]
-		report.OrchestratorDetails.OrchestratorVersion = resultArray[1]
+	if report.Metadata == (Metadata{}) {
+		report.OrchestratorDetails.ErrorMessage = "Host metadata unavailable"
 	} else {
-		report.OrchestratorDetails.ErrorMessage = "Length of array is less than 2"
+		for _, tag := range strings.Split(report.Metadata.Tags, ";") {
+			if strings.Contains(tag, "orchestrator") {
+				details := strings.Split(tag, ":")
+				if len(details) != 2 {
+					report.OrchestratorDetails.ErrorMessage = "length of orchestrator tag is less than 2"
+				} else {
+					report.OrchestratorDetails.OrchestratorName = details[0]
+					report.OrchestratorDetails.OrchestratorVersion = details[1]
+				}
+			}
+		}
 	}
+}
+
+// GetHostMetadata - retrieve metadata from host
+func (reportMgr *ReportManager) GetHostMetadata() error {
+	req, err := http.NewRequest("GET", metadataURL, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Metadata", "True")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		err = fmt.Errorf("[Telemetry] Request failed with HTTP error %d", resp.StatusCode)
+	} else if resp.Body != nil {
+		report := metadataWrapper{}
+		err = json.NewDecoder(resp.Body).Decode(&report)
+		if err == nil {
+			// Find Metadata struct in report and try to set values
+			v := reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Metadata")
+			if v.CanSet() {
+				v.FieldByName("Location").SetString(report.Metadata.Location)
+				v.FieldByName("VMName").SetString(report.Metadata.VMName)
+				v.FieldByName("Offer").SetString(report.Metadata.Offer)
+				v.FieldByName("OsType").SetString(report.Metadata.OsType)
+				v.FieldByName("PlacementGroupID").SetString(report.Metadata.PlacementGroupID)
+				v.FieldByName("PlatformFaultDomain").SetString(report.Metadata.PlatformFaultDomain)
+				v.FieldByName("PlatformUpdateDomain").SetString(report.Metadata.PlatformUpdateDomain)
+				v.FieldByName("Publisher").SetString(report.Metadata.Publisher)
+				v.FieldByName("ResourceGroupName").SetString(report.Metadata.ResourceGroupName)
+				v.FieldByName("Sku").SetString(report.Metadata.Sku)
+				v.FieldByName("SubscriptionID").SetString(report.Metadata.SubscriptionID)
+				v.FieldByName("Tags").SetString(report.Metadata.Tags)
+				v.FieldByName("Version").SetString(report.Metadata.Version)
+				v.FieldByName("VMID").SetString(report.Metadata.VMID)
+				v.FieldByName("VMSize").SetString(report.Metadata.VMSize)
+			} else {
+				err = fmt.Errorf("[Telemetry] Unable to set metadata values")
+			}
+		} else {
+			err = fmt.Errorf("[Telemetry] Unable to decode response body due to error: %s", err.Error())
+		}
+	} else {
+		err = fmt.Errorf("[Telemetry] Response body is empty")
+	}
+
+	return err
+}
+
+// GetSystemDetails - retrieve system details like cpu usage, mem usage, and number or running processes
+func (reportMgr *ReportManager) GetSystemDetails() error {
+	hostStat, err := host.Info()
+	if err != nil {
+		return err
+	}
+
+	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Processes").SetString(strconv.FormatUint(hostStat.Procs, 10))
+
+	cpuStat, err := cpu.Percent(0, false)
+	if err != nil {
+		return err
+	}
+
+	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("CPUUsage").SetString(strconv.FormatFloat(cpuStat[0], 'f', 2, 64))
+
+	memStat, err := mem.VirtualMemory()
+	if err != nil {
+		return err
+	}
+
+	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("MemoryUsage").SetString(strconv.FormatFloat(memStat.UsedPercent, 'f', 2, 64))
+	return nil
 }

@@ -5,6 +5,7 @@ package main
 
 import (
 	"os"
+	"reflect"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/network"
@@ -17,17 +18,16 @@ const (
 	hostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=cnireport"
 	ipamQueryURL    = "http://169.254.169.254/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
 	pluginName      = "CNI"
-	reportType      = "application/json"
 )
 
 // Version is populated by make during build.
 var version string
 
 // If report write succeeded, mark the report flag state to false.
-func markSendReport(reportManager *telemetry.CNIReportManager) {
-	if err := reportManager.Report.SetReportState(); err != nil {
+func markSendReport(reportManager *telemetry.ReportManager) {
+	if err := reportManager.SetReportState(); err != nil {
 		log.Printf("SetReportState failed due to %v", err)
-		reportManager.Report.ErrorMessage = err.Error()
+		reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
 
 		if reportManager.SendReport() != nil {
 			log.Printf("SendReport failed due to %v", err)
@@ -36,10 +36,10 @@ func markSendReport(reportManager *telemetry.CNIReportManager) {
 }
 
 // send error report to hostnetagent if CNI encounters any error.
-func reportPluginError(reportManager *telemetry.CNIReportManager, err error) {
+func reportPluginError(reportManager *telemetry.ReportManager, err error) {
 	log.Printf("Report plugin error")
-	reportManager.GetReport(pluginName, version)
-	reportManager.Report.ErrorMessage = err.Error()
+	reportManager.Report.(*telemetry.CNIReport).GetReport(pluginName, version, ipamQueryURL)
+	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
 
 	if err = reportManager.SendReport(); err != nil {
 		log.Printf("SendReport failed due to %v", err)
@@ -56,19 +56,18 @@ func main() {
 	)
 
 	config.Version = version
-	reportManager := &telemetry.CNIReportManager{
-		ReportManager: &telemetry.ReportManager{
-			HostNetAgentURL: hostNetAgentURL,
-			ReportType:      reportType,
+	reportManager := &telemetry.ReportManager{
+		HostNetAgentURL: hostNetAgentURL,
+		ContentType:     telemetry.ContentType,
+		Report: &telemetry.CNIReport{
+			Context: "AzureCNI",
 		},
-		IpamQueryURL: ipamQueryURL,
-		Report:       &telemetry.CNIReport{},
 	}
 
-	reportManager.GetReport(pluginName, config.Version)
-	reportManager.Report.Context = "AzureCNI"
+	reportManager.GetHostMetadata()
+	reportManager.Report.(*telemetry.CNIReport).GetReport(pluginName, config.Version, ipamQueryURL)
 
-	if !reportManager.Report.GetReportState() {
+	if !reportManager.GetReportState() {
 		log.Printf("GetReport state file didn't exist. Setting flag to true")
 
 		err = reportManager.SendReport()
@@ -122,7 +121,8 @@ func main() {
 	}
 
 	// Report CNI successfully finished execution.
-	reportManager.Report.CniSucceeded = true
+	reflect.ValueOf(reportManager.Report).Elem().FieldByName("CniSucceeded").SetBool(true)
+
 	if err = reportManager.SendReport(); err != nil {
 		log.Printf("SendReport failed due to %v", err)
 	} else {

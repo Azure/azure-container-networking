@@ -33,7 +33,7 @@ const (
 type netPlugin struct {
 	*cni.Plugin
 	nm            network.NetworkManager
-	reportManager *telemetry.CNIReportManager
+	reportManager *telemetry.ReportManager
 }
 
 // NewPlugin creates a new netPlugin object.
@@ -58,7 +58,7 @@ func NewPlugin(config *common.PluginConfig) (*netPlugin, error) {
 	}, nil
 }
 
-func (plugin *netPlugin) SetReportManager(reportManager *telemetry.CNIReportManager) {
+func (plugin *netPlugin) SetReportManager(reportManager *telemetry.ReportManager) {
 	plugin.reportManager = reportManager
 }
 

@@ -23,6 +23,9 @@ const (
 
 	// NPMRuntimePath is the path where NPM logging files are stored.
 	NPMRuntimePath = "/var/run/"
+
+	// DNCRuntimePath is the path where DNC logging files are stored.
+	DNCRuntimePath = "/var/run/"
 )
 
 // GetOSInfo returns OS version information.
