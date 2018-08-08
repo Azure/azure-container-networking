@@ -820,14 +820,9 @@ func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	service.lock.Lock()
 
 	switch req.OrchestratorType {
-	case cns.Kubernetes:
-		service.state.OrchestratorType = cns.Kubernetes
+	case cns.ServiceFabric, cns.Kubernetes, cns.WebApps:
+		service.state.OrchestratorType = req.OrchestratorType
 		service.saveState()
-		break
-	case cns.WebApps:
-		service.state.OrchestratorType = cns.WebApps
-		service.saveState()
-		break
 	default:
 		returnMessage = fmt.Sprintf("Invalid Orchestrator type %v", req.OrchestratorType)
 		returnCode = UnsupportedOrchestratorType
@@ -866,13 +861,14 @@ func (service *httpRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			CreateNetworkContainerRequest: req,
 			HostVersion:                   hostVersion}
 
-	if req.NetworkContainerType == cns.AzureContainerInstance {
+	if req.NetworkContainerType == cns.AzureContainerInstance ||
+		req.NetworkContainerType == cns.ClearContainer {
 		switch service.state.OrchestratorType {
-		case cns.Kubernetes:
+		case cns.Kubernetes, cns.ServiceFabric:
 			var podInfo cns.KubernetesPodInfo
 			err := json.Unmarshal(req.OrchestratorContext, &podInfo)
 			if err != nil {
-				errBuf := fmt.Sprintf("Unmarshalling AzureContainerInstanceInfo failed with error %v", err)
+				errBuf := fmt.Sprintf("Unmarshalling %s failed with error %v", req.NetworkContainerType, err)
 				return UnexpectedError, errBuf
 			}
 
@@ -980,7 +976,7 @@ func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 	defer service.lock.Unlock()
 
 	switch service.state.OrchestratorType {
-	case cns.Kubernetes:
+	case cns.Kubernetes, cns.ServiceFabric:
 		var podInfo cns.KubernetesPodInfo
 		err := json.Unmarshal(req.OrchestratorContext, &podInfo)
 		if err != nil {

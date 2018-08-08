@@ -16,11 +16,13 @@ const (
 const (
 	AzureContainerInstance = "AzureContainerInstance"
 	WebApps                = "WebApps"
+	ClearContainer         = "ClearContainer"
 )
 
 // Orchestrator Types
 const (
-	Kubernetes = "Kubernetes"
+	Kubernetes    = "Kubernetes"
+	ServiceFabric = "ServiceFabric"
 )
 
 // Encap Types
