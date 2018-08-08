@@ -25,15 +25,16 @@ jobs:
             export PATH=$GOROOT/bin:$PATH
             go get ./...
             go get github.com/docker/libnetwork/driverapi
-            sudo -E env "PATH=$PATH" go test ./cni/ipam/
-            sudo -E env "PATH=$PATH" go test ./cnm/network/
-            sudo -E env "PATH=$PATH" go test ./cns/ipamclient/
-            #sudo -E env "PATH=$PATH" go test ./cns/restserver/
+            go get github.com/gorilla/mux
             sudo -E env "PATH=$PATH" go test ./ipam/
             sudo -E env "PATH=$PATH" go test ./log/
             sudo -E env "PATH=$PATH" go test ./netlink/
             sudo -E env "PATH=$PATH" go test ./store/
             sudo -E env "PATH=$PATH" go test ./telemetry/
+            sudo -E env "PATH=$PATH" go test ./cni/ipam/
+            sudo -E env "PATH=$PATH" go test ./cnm/network/
+            sudo -E env "PATH=$PATH" go test ./cns/ipamclient/
+            #sudo -E env "PATH=$PATH" go test ./cns/restserver/
 workflows:
   version: 2
   run-tests:

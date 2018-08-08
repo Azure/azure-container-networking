@@ -16,7 +16,7 @@ import (
 // GetNetworkContainerInfoFromHost retrieves the programmed version of network container from Host.
 func (imdsClient *ImdsClient) GetNetworkContainerInfoFromHost(networkContainerID string, primaryAddress string, authToken string, apiVersion string) (*ContainerVersion, error) {
 	log.Printf("[Azure CNS] GetNetworkContainerInfoFromHost")
-	queryURL := fmt.Sprintf(hostQueryURLForProgrammedVersion,
+	queryURL := fmt.Sprintf(imdsClient.HostQueryURLForProgrammedVersion,
 		primaryAddress, networkContainerID, authToken, apiVersion)
 
 	log.Printf("[Azure CNS] Going to query Azure Host for container version @\n %v\n", queryURL)
@@ -48,18 +48,15 @@ func (imdsClient *ImdsClient) GetPrimaryInterfaceInfoFromHost() (*InterfaceInfo,
 	log.Printf("[Azure CNS] GetPrimaryInterfaceInfoFromHost")
 
 	interfaceInfo := &InterfaceInfo{}
-	resp, err := http.Get(hostQueryURL)
+	resp, err := http.Get(imdsClient.HostQueryURL)
 	if err != nil {
 		return nil, err
 	}
 
 	defer resp.Body.Close()
 
-	log.Printf("[Azure CNS] Response received from NMAgent for get interface details: %+v", resp.Body)
-
 	var doc xmlDocument
-	decoder := xml.NewDecoder(resp.Body)
-	err = decoder.Decode(&doc)
+	err = xml.NewDecoder(resp.Body).Decode(&doc)
 	if err != nil {
 		return nil, err
 	}
