@@ -171,7 +171,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			plugin.Error(vererr)
 		}
 
-		if err == nil {
+		if err == nil && res != nil {
 			// Output the result to stdout.
 			res.Print()
 		}
