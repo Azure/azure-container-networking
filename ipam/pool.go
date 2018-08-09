@@ -357,6 +357,29 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 	return ap, err
 }
 
+// Requests an in-use address pool from the address space with at least one available address
+func (as *addressSpace) getInUsePoolWithAvailableAddress(ifName string, v6 bool) *addressPool {
+	log.Printf("[ipam] Checking for in-use pool with at least one available address for ifName: %s, isIPv6: %v",
+		ifName, v6)
+
+	for _, pool := range as.Pools {
+		// Skip pool if not from the same address family or doesn't belong to the interface
+		if pool.IsIPv6 != v6 || (ifName != "" && ifName != pool.IfName) {
+			continue
+		}
+
+		if pool.isInUse() {
+			if poolInfo := pool.getInfo(); poolInfo.Available > 0 {
+				log.Printf("[ipam] Found pool: %s, available addresses: %d", pool.Id, poolInfo.Available)
+				return pool
+			}
+		}
+	}
+
+	log.Printf("[ipam] Couldn't find in-use pool with an available address")
+	return nil
+}
+
 // Releases a previously requested address pool back to its address space.
 func (as *addressSpace) releasePool(poolId string) error {
 	var err error

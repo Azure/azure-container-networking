@@ -42,6 +42,7 @@ type AddressManager interface {
 	RequestPool(asId, poolId, subPoolId string, options map[string]string, v6 bool) (string, string, error)
 	ReleasePool(asId, poolId string) error
 	GetPoolInfo(asId, poolId string) (*AddressPoolInfo, error)
+	GetInUsePoolWithAvailableAddress(asId string, options map[string]string, v6 bool) (bool, string, error)
 
 	RequestAddress(asId, poolId, address string, options map[string]string) (string, error)
 	ReleaseAddress(asId, poolId, address string, options map[string]string) error
@@ -283,6 +284,31 @@ func (am *addressManager) RequestPool(asId, poolId, subPoolId string, options ma
 	}
 
 	return pool.Id, pool.Subnet.String(), nil
+}
+
+// GetInUsePoolWithAvailableAddress requests an in-use address pool from the address space
+// with at least one available address
+func (am *addressManager) GetInUsePoolWithAvailableAddress(asId string, options map[string]string, v6 bool) (
+	bool, string, error) {
+	am.Lock()
+	defer am.Unlock()
+
+	am.refreshSource()
+
+	var isPoolAvailable bool
+	var subnet string
+
+	as, err := am.getAddressSpace(asId)
+	if err != nil {
+		return isPoolAvailable, subnet, err
+	}
+
+	if pool := as.getInUsePoolWithAvailableAddress(options[OptInterfaceName], v6); pool != nil {
+		isPoolAvailable = true
+		subnet = pool.Subnet.String()
+	}
+
+	return isPoolAvailable, subnet, nil
 }
 
 // ReleasePool releases a previously reserved address pool.

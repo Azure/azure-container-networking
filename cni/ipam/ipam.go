@@ -152,30 +152,39 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// Check if an address pool is specified.
 	if nwCfg.Ipam.Subnet == "" {
-		var poolID string
-		var subnet string
-
 		// Select the requested interface.
 		options := make(map[string]string)
 		options[ipam.OptInterfaceName] = nwCfg.Master
 
-		// Allocate an address pool.
-		poolID, subnet, err = plugin.am.RequestPool(nwCfg.Ipam.AddrSpace, "", "", options, false)
+		isPoolAvailable, subnet, err :=
+			plugin.am.GetInUsePoolWithAvailableAddress(nwCfg.Ipam.AddrSpace, options, false)
 		if err != nil {
-			err = plugin.Errorf("Failed to allocate pool: %v", err)
+			err = plugin.Errorf("Failed to get address pool: %v", err)
 			return err
 		}
 
-		// On failure, release the address pool.
-		defer func() {
-			if err != nil && poolID != "" {
-				log.Printf("[cni-ipam] Releasing pool %v.", poolID)
-				plugin.am.ReleasePool(nwCfg.Ipam.AddrSpace, poolID)
+		if !isPoolAvailable {
+			var poolID string
+
+			// Allocate an address pool.
+			poolID, subnet, err = plugin.am.RequestPool(nwCfg.Ipam.AddrSpace, "", "", options, false)
+			if err != nil {
+				err = plugin.Errorf("Failed to allocate pool: %v", err)
+				return err
 			}
-		}()
+
+			// On failure, release the address pool.
+			defer func() {
+				if err != nil && poolID != "" {
+					log.Printf("[cni-ipam] Releasing pool %v.", poolID)
+					plugin.am.ReleasePool(nwCfg.Ipam.AddrSpace, poolID)
+				}
+			}()
+
+			log.Printf("[cni-ipam] Allocated address poolID %v with subnet %v.", poolID, subnet)
+		}
 
 		nwCfg.Ipam.Subnet = subnet
-		log.Printf("[cni-ipam] Allocated address poolID %v with subnet %v.", poolID, subnet)
 	}
 
 	// Allocate an address for the endpoint.
