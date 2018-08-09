@@ -84,6 +84,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	err = hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsResponse.Id)
 	if err != nil {
 		log.Printf("[net] Failed to attach endpoint: %v.", err)
+		return nil, err
 	}
 
 	// Create the endpoint object.

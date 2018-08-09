@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -55,7 +56,8 @@ func handleConsecutiveAdd(containerId, endpointId string, nwInfo *network.Networ
 		return result, nil
 	}
 
-	return nil, nil
+	err = fmt.Errorf("endpoint %v not found", endpointId)
+	return nil, err
 }
 
 func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
