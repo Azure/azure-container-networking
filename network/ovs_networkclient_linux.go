@@ -314,7 +314,9 @@ func addOrDeletePrivateIPBlockRule(action string) error {
 	target := getFilterchainTarget()
 
 	for _, chain := range chains {
-		addOrDeleteFilterRule(action, "10.0.0.10", chain, target[0])
+		if err := addOrDeleteFilterRule(action, "10.0.0.10", chain, target[0]); err != nil {
+			return err
+		}
 	}
 
 	for _, ipAddress := range privateIPAddresses {
