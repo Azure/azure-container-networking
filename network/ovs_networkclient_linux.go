@@ -29,6 +29,21 @@ const (
 	ovsOpt         = "OVS_CTL_OPTS='--delete-bridges'"
 )
 
+func getPrivateIPSpace() []string {
+	privateIPAddresses := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+	return privateIPAddresses
+}
+
+func getFilterChains() []string {
+	chains := []string{"FORWARD", "INPUT", "OUTPUT"}
+	return chains
+}
+
+func getFilterchainTarget() []string {
+	actions := []string{"ACCEPT", "DROP"}
+	return actions
+}
+
 func updateOVSConfig(option string) error {
 	f, err := os.OpenFile(ovsConfigFile, os.O_APPEND|os.O_RDWR, 0666)
 	if err != nil {
@@ -83,6 +98,11 @@ func (client *OVSNetworkClient) CreateBridge() error {
 	if client.enableSnatOnHost {
 		if err := createSnatBridge(client.snatBridgeIP, client.bridgeName); err != nil {
 			log.Printf("[net] Creating snat bridge failed with erro %v", err)
+			return err
+		}
+
+		if err := addOrDeletePrivateIPBlockRule("A"); err != nil {
+			log.Printf("addPrivateIPBlockRule failed with error %v", err)
 			return err
 		}
 
@@ -171,6 +191,10 @@ func (client *OVSNetworkClient) DeleteBridge() error {
 			log.Printf("Deleting ebtable vlan drop rule failed with error %v", err)
 		}
 
+		if err := addOrDeletePrivateIPBlockRule("D"); err != nil {
+			log.Printf("Deleting PrivateIP Block rules failed with error %v", err)
+		}
+
 		if err := ovsctl.DeletePortFromOVS(client.bridgeName, azureSnatVeth1); err != nil {
 			return err
 		}
@@ -253,6 +277,58 @@ func createSnatBridge(snatBridgeIP string, mainInterface string) error {
 
 	if err := ovsctl.AddPortOnOVSBridge(azureSnatVeth1, mainInterface, 0); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func addOrDeleteFilterRule(action string, ipAddress string, chainName string, target string) error {
+	option := "i"
+
+	if chainName == "OUTPUT" {
+		option = "o"
+	}
+
+	if action != "D" {
+		cmd := fmt.Sprintf("iptables -t filter -C %v -%v %v -d %v -j %v", chainName, option, snatBridgeName, ipAddress, target)
+		_, err := platform.ExecuteCommand(cmd)
+		if err == nil {
+			log.Printf("Iptable filter for private ipaddr %v on %v chain %v target rule already exists", ipAddress, chainName, target)
+			return nil
+		}
+	}
+
+	cmd := fmt.Sprintf("iptables -t filter -%v %v -%v %v -d %v -j %v", action, chainName, option, snatBridgeName, ipAddress, target)
+	_, err := platform.ExecuteCommand(cmd)
+	if err != nil {
+		log.Printf("Iptable filter %v action for private ipaddr %v on %v chain %v target failed with %v", action, ipAddress, chainName, target, err)
+		return err
+	}
+
+	return nil
+}
+
+func addOrDeletePrivateIPBlockRule(action string) error {
+	privateIPAddresses := getPrivateIPSpace()
+	chains := getFilterChains()
+	target := getFilterchainTarget()
+
+	for _, chain := range chains {
+		addOrDeleteFilterRule(action, "10.0.0.10", chain, target[0])
+	}
+
+	for _, ipAddress := range privateIPAddresses {
+		if err := addOrDeleteFilterRule(action, ipAddress, chains[0], target[1]); err != nil {
+			return err
+		}
+
+		if err := addOrDeleteFilterRule(action, ipAddress, chains[1], target[1]); err != nil {
+			return err
+		}
+
+		if err := addOrDeleteFilterRule(action, ipAddress, chains[2], target[1]); err != nil {
+			return err
+		}
 	}
 
 	return nil

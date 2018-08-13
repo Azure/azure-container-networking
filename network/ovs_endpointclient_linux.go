@@ -75,6 +75,11 @@ func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 			return err
 		}
 
+		if err := addOrDeletePrivateIPBlockRule("A"); err != nil {
+			log.Printf("addPrivateIPBlockRule failed with error %v", err)
+			return err
+		}
+
 		if err := addMasqueradeRule(client.snatBridgeIP); err != nil {
 			log.Printf("Adding snat rule failed with error %v", err)
 			return err
