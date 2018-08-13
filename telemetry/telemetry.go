@@ -83,10 +83,18 @@ const (
 	NPMTelemetryFile = platform.NPMRuntimePath + "AzureNPMTelemetry.json"
 	// DNCTelemetryFile Path.
 	DNCTelemetryFile = platform.DNCRuntimePath + "AzureDNCTelemetry.json"
-	// IPAM query URL
-
 )
 
+const (
+	// CNI report type
+	CNIReportType = "CNI"
+	// NPM report type
+	NPMReportType = "NPM"
+	// DNC report type
+	DNCReportType = "DNC"
+)
+
+// Metadata retrieved from wireserver
 type Metadata struct {
 	Location             string `json:"location"`
 	VMName               string `json:"name"`
@@ -111,10 +119,7 @@ type metadataWrapper struct {
 
 // Azure CNI Telemetry Report structure.
 type CNIReport struct {
-	NewInstance         bool
-	CPUUsage            string
-	MemoryUsage         string
-	Processes           string
+	IsNewInstance       bool
 	CniSucceeded        bool
 	Name                string
 	Version             string
@@ -139,10 +144,7 @@ type ClusterState struct {
 
 // NPMReport structure.
 type NPMReport struct {
-	NewInstance       bool
-	CPUUsage          string
-	MemoryUsage       string
-	Processes         string
+	IsNewInstance     bool
 	ClusterID         string
 	NodeName          string
 	InstanceName      string
@@ -157,14 +159,14 @@ type NPMReport struct {
 
 // DNCReport structure.
 type DNCReport struct {
-	NewInstance  bool
-	CPUUsage     string
-	MemoryUsage  string
-	Processes    string
-	EventMessage string
-	PartitionKey string
-	Allocations  string
-	Metadata     Metadata `json:"compute"`
+	IsNewInstance bool
+	CPUUsage      string
+	MemoryUsage   string
+	Processes     string
+	EventMessage  string
+	PartitionKey  string
+	Allocations   string
+	Metadata      Metadata `json:"compute"`
 }
 
 // ReportManager structure.
@@ -276,14 +278,6 @@ func (reportMgr *ReportManager) SetReportState() error {
 	var reportBytes []byte
 	var err error
 
-	// try to open telemetry file
-	f, err := os.OpenFile(telemetryFile, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return fmt.Errorf("[Telemetry] Error opening telemetry file %v", err)
-	}
-
-	defer f.Close()
-
 	// get bytes from associated report type
 	switch reportMgr.Report.(type) {
 	case *CNIReport:
@@ -303,19 +297,25 @@ func (reportMgr *ReportManager) SetReportState() error {
 	}
 
 	if err != nil {
-		log.Printf("[Telemetry] report write failed due to %v", err)
-		_, err = f.WriteString("[Telemetry] report write failed")
-	} else {
-		_, err = f.Write(reportBytes)
+		return fmt.Errorf("[Telemetry] report write failed with err %+v", err)
 	}
 
+	// try to open telemetry file
+	f, err := os.OpenFile(telemetryFile, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return fmt.Errorf("[Telemetry] Error opening telemetry file %v", err)
+	}
+
+	defer f.Close()
+
+	_, err = f.Write(reportBytes)
 	if err != nil {
 		log.Printf("[Telemetry] Error while writing to file %v", err)
 		return fmt.Errorf("[Telemetry] Error while writing to file %v", err)
 	}
 
-	// set NewInstance in report
-	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("NewInstance").SetBool(false)
+	// set IsNewInstance in report
+	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("IsNewInstance").SetBool(false)
 	log.Printf("[Telemetry] SetReportState succeeded")
 	return nil
 }
@@ -339,10 +339,10 @@ func (reportMgr *ReportManager) GetReportState() bool {
 		return false
 	}
 
-	// try to set NewInstance in report
+	// try to set IsNewInstance in report
 	if _, err := os.Stat(telemetryFile); os.IsNotExist(err) {
 		log.Printf("[Telemetry] File not exist %v", telemetryFile)
-		reflect.ValueOf(reportMgr.Report).Elem().FieldByName("NewInstance").SetBool(true)
+		reflect.ValueOf(reportMgr.Report).Elem().FieldByName("IsNewInstance").SetBool(true)
 	}
 
 	return true
