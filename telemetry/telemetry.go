@@ -108,9 +108,10 @@ type Metadata struct {
 	Sku                  string `json:"sku"`
 	SubscriptionID       string `json:"subscriptionId"`
 	Tags                 string `json:"tags"`
-	Version              string `json:"version"`
+	OSVersion            string `json:"version"`
 	VMID                 string `json:"vmId"`
 	VMSize               string `json:"vmSize"`
+	kernel               string
 }
 
 type metadataWrapper struct {
@@ -122,7 +123,7 @@ type CNIReport struct {
 	IsNewInstance       bool
 	CniSucceeded        bool
 	Name                string
-	Version             string
+	OSVersion           string
 	ErrorMessage        string
 	Context             string
 	SubContext          string
@@ -211,7 +212,7 @@ func ReadFileByLines(filename string) ([]string, error) {
 // GetReport retrieves orchestrator, system, OS and Interface details and create a report structure.
 func (report *CNIReport) GetReport(name string, version string, ipamQueryURL string) {
 	report.Name = name
-	report.Version = version
+	report.OSVersion = version
 
 	report.GetOrchestratorDetails()
 	report.GetSystemDetails()
@@ -487,7 +488,7 @@ func (reportMgr *ReportManager) GetHostMetadata() error {
 				v.FieldByName("Sku").SetString(report.Metadata.Sku)
 				v.FieldByName("SubscriptionID").SetString(report.Metadata.SubscriptionID)
 				v.FieldByName("Tags").SetString(report.Metadata.Tags)
-				v.FieldByName("Version").SetString(report.Metadata.Version)
+				v.FieldByName("OSVersion").SetString(report.Metadata.OSVersion)
 				v.FieldByName("VMID").SetString(report.Metadata.VMID)
 				v.FieldByName("VMSize").SetString(report.Metadata.VMSize)
 			} else {
