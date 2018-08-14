@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -31,7 +31,7 @@ type DockerClient struct {
 func NewDockerClient(url string) (*DockerClient, error) {
 	return &DockerClient{
 		connectionURL: url,
-		imdsClient:    &imdsclient.ImdsClient{HostQueryURL: imdsclient.HostQueryURL, HostQueryURLForProgrammedVersion: imdsclient.HostQueryURLForProgrammedVersion},
+		imdsClient:    &imdsclient.ImdsClient{},
 	}, nil
 }
 
