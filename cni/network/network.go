@@ -376,6 +376,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	// A runtime must not call ADD twice (without a corresponding DEL) for the same
 	// (network name, container id, name of the interface inside the container)
 	vethName := fmt.Sprintf("%s%s%s", networkId, k8sContainerID, k8sIfName)
+	log.Printf("Created veth name as %s.", vethName)
 	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
 	var dns network.DNSInfo
