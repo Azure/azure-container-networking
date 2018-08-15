@@ -29,6 +29,8 @@ const (
 
 	LocalIPKey = "localIP"
 
+	InfraVnetIPKey = "infraVnetIP"
+
 	OptVethName = "vethname"
 )
 

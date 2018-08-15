@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	snatInterface = "eth1"
+	snatInterface  = "eth1"
+	infraInterface = "eth2"
 )
 
 // handleConsecutiveAdd is a dummy function for Linux platform.
@@ -27,6 +28,13 @@ func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *cn
 	gwIP := net.ParseIP(gwIPString)
 	epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP, DevName: snatInterface})
 	result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
+}
+
+func addInfraRoutes(azIpamResult *cniTypesCurr.Result, result *cniTypesCurr.Result, epInfo *network.EndpointInfo) {
+	for _, route := range azIpamResult.Routes {
+		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: route.Dst, Gw: route.GW, DevName: infraInterface})
+		result.Routes = append(result.Routes, &cniTypes.Route{Dst: route.Dst, GW: route.GW})
+	}
 }
 
 func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.NetworkInfo) {

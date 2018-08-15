@@ -174,8 +174,15 @@ func AddArpReplyRule(bridgeName string, port string, ip net.IP, mac string, vlan
 }
 
 func AddMacDnatRule(bridgeName string, port string, ip net.IP, mac string, vlanid int) error {
-	cmd := fmt.Sprintf("ovs-ofctl add-flow %s ip,nw_dst=%s,dl_vlan=%v,in_port=%s,actions=mod_dl_dst:%s,normal",
-		bridgeName, ip.String(), vlanid, port, mac)
+	var cmd string
+
+	if vlanid != 0 {
+		cmd = fmt.Sprintf("ovs-ofctl add-flow %s ip,nw_dst=%s,dl_vlan=%v,in_port=%s,actions=mod_dl_dst:%s,normal",
+			bridgeName, ip.String(), vlanid, port, mac)
+	} else {
+		cmd = fmt.Sprintf("ovs-ofctl add-flow %s ip,nw_dst=%s,in_port=%s,actions=mod_dl_dst:%s,normal",
+			bridgeName, ip.String(), port, mac)
+	}
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding MAC DNAT rule failed with error %v", err)
@@ -211,8 +218,16 @@ func DeleteIPSnatRule(bridgeName string, port string) {
 }
 
 func DeleteMacDnatRule(bridgeName string, port string, ip net.IP, vlanid int) {
-	cmd := fmt.Sprintf("ovs-ofctl del-flows %s ip,nw_dst=%s,dl_vlan=%v,in_port=%s",
-		bridgeName, ip.String(), vlanid, port)
+	var cmd string
+
+	if vlanid != 0 {
+		cmd = fmt.Sprintf("ovs-ofctl del-flows %s ip,nw_dst=%s,dl_vlan=%v,in_port=%s",
+			bridgeName, ip.String(), vlanid, port)
+	} else {
+		cmd = fmt.Sprintf("ovs-ofctl del-flows %s ip,nw_dst=%s,in_port=%s",
+			bridgeName, ip.String(), port)
+	}
+
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[net] Deleting MAC DNAT rule failed with error %v", err)

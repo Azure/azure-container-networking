@@ -10,6 +10,10 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 )
 
+const (
+	InfraVnet = 0
+)
+
 // Endpoint represents a container network interface.
 type endpoint struct {
 	Id               string
@@ -18,12 +22,14 @@ type endpoint struct {
 	IfName           string
 	HostIfName       string
 	MacAddress       net.HardwareAddr
+	InfraVnetIP      net.IPNet
 	IPAddresses      []net.IPNet
 	Gateways         []net.IP
 	DNS              DNSInfo
 	Routes           []RouteInfo
 	VlanID           int
 	EnableSnatOnHost bool
+	EnableInfraVnet  bool
 }
 
 // EndpointInfo contains read-only information about an endpoint.
@@ -37,10 +43,12 @@ type EndpointInfo struct {
 	MacAddress       net.HardwareAddr
 	DNS              DNSInfo
 	IPAddresses      []net.IPNet
+	InfraVnetIP      net.IPNet
 	Routes           []RouteInfo
 	Policies         []policy.Policy
 	Gateways         []net.IP
 	EnableSnatOnHost bool
+	EnableInfraVnet  bool
 	Data             map[string]interface{}
 }
 
@@ -129,12 +137,14 @@ func (ep *endpoint) getInfo() *EndpointInfo {
 	info := &EndpointInfo{
 		Id:               ep.Id,
 		IPAddresses:      ep.IPAddresses,
+		InfraVnetIP:      ep.InfraVnetIP,
 		Data:             make(map[string]interface{}),
 		MacAddress:       ep.MacAddress,
 		SandboxKey:       ep.SandboxKey,
 		IfIndex:          0, // Azure CNI supports only one interface
 		DNS:              ep.DNS,
 		EnableSnatOnHost: ep.EnableSnatOnHost,
+		EnableInfraVnet:  ep.EnableInfraVnet,
 	}
 
 	for _, route := range ep.Routes {

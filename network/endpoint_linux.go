@@ -175,11 +175,13 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		IfName:           epInfo.IfName,
 		HostIfName:       hostIfName,
 		MacAddress:       containerIf.HardwareAddr,
+		InfraVnetIP:      epInfo.InfraVnetIP,
 		IPAddresses:      epInfo.IPAddresses,
 		Gateways:         []net.IP{nw.extIf.IPv4Gateway},
 		DNS:              epInfo.DNS,
 		VlanID:           vlanid,
 		EnableSnatOnHost: epInfo.EnableSnatOnHost,
+		EnableInfraVnet:  epInfo.EnableInfraVnet,
 	}
 
 	for _, route := range epInfo.Routes {

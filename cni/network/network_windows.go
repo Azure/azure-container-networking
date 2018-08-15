@@ -63,10 +63,13 @@ func handleConsecutiveAdd(containerId, endpointId string, nwInfo *network.Networ
 func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
 }
 
+func addInfraRoutes(azIpamResult *cniTypesCurr.Result, result *cniTypesCurr.Result, epInfo *network.EndpointInfo) {
+}
+
 func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.NetworkInfo) {
 }
 
-func setEndpointOptions(cnsNwConfig *cns.GetNetworkContainerResponse, epInfo *network.EndpointInfo, vethName string) {
+func setEndpointOptions(cnsNwConfig *cns.GetNetworkContainerResponse, infraIPNet *net.IPNet, epInfo *network.EndpointInfo, vethName string) {
 }
 
 func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {

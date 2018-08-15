@@ -139,16 +139,27 @@ func GetEndpointID(args *cniSkel.CmdArgs) string {
 func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	var (
 		result           *cniTypesCurr.Result
+		azIpamResult     *cniTypesCurr.Result
 		err              error
 		nwCfg            *cni.NetworkConfig
 		epInfo           *network.EndpointInfo
 		iface            *cniTypesCurr.Interface
 		subnetPrefix     net.IPNet
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
+		enableInfraVnet  bool
 	)
 
 	log.Printf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path)
+
+	// Parse network configuration from stdin.
+	nwCfg, err = cni.ParseNetworkConfig(args.StdinData)
+	if err != nil {
+		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
+		return err
+	}
+
+	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
 
 	defer func() {
 		// Add Interfaces to result.
@@ -200,26 +211,30 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(errMsg)
 	}
 
-	// Parse network configuration from stdin.
-	nwCfg, err = cni.ParseNetworkConfig(args.StdinData)
-	if err != nil {
-		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
-		return err
+	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
+		if k8sNamespace == ns {
+			log.Printf("Enable infravnet for this pod %v in namespace %v", k8sPodName, k8sNamespace)
+			enableInfraVnet = true
+			break
+		}
 	}
-
-	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
-
 	// Initialize values from network config.
 	networkId := nwCfg.Name
 	endpointId := GetEndpointID(args)
 
-	result, cnsNetworkConfig, subnetPrefix, err = GetContainerNetworkConfiguration(nwCfg.MultiTenancy, "", k8sPodName, k8sNamespace)
+	result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = GetMultiTenancyCNIResult(enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
 	if err != nil {
-		log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
+		log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
 		return err
 	}
 
-	log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
+	defer func() {
+		if err != nil {
+			CleanupMultitenancyResources(enableInfraVnet, nwCfg, azIpamResult, plugin)
+		}
+	}()
+
+	log.Printf("Result from multitenancy %+v", result)
 
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
@@ -261,6 +276,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 			// Derive the subnet prefix from allocated IP address.
 			subnetPrefix = result.IPs[0].Address
+
+			iface := &cniTypesCurr.Interface{Name: args.IfName}
+			result.Interfaces = append(result.Interfaces, iface)
 		}
 
 		ipconfig := result.IPs[0]
@@ -340,6 +358,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 			ipconfig := result.IPs[0]
 
+			iface := &cniTypesCurr.Interface{Name: args.IfName}
+			result.Interfaces = append(result.Interfaces, iface)
+
 			// On failure, call into IPAM plugin to release the address.
 			defer func() {
 				if err != nil {
@@ -356,11 +377,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		NetNsPath:        args.Netns,
 		IfName:           args.IfName,
 		EnableSnatOnHost: nwCfg.EnableSnatOnHost,
+		EnableInfraVnet:  enableInfraVnet,
 	}
 	epInfo.Data = make(map[string]interface{})
-
-	vethName := fmt.Sprintf("%s.%s", k8sNamespace, k8sPodName)
-	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
 	var dns network.DNSInfo
 	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
@@ -393,7 +412,14 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: route.Dst, Gw: route.GW})
 	}
 
-	SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, epInfo, result)
+	if azIpamResult != nil && azIpamResult.IPs != nil {
+		epInfo.InfraVnetIP = azIpamResult.IPs[0].Address
+	}
+
+	SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, epInfo, result)
+
+	vethName := fmt.Sprintf("%s.%s", k8sNamespace, k8sPodName)
+	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
 	// Create the endpoint.
 	log.Printf("[cni-net] Creating endpoint %v.", epInfo.Id)
@@ -537,10 +563,20 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	// Call into IPAM plugin to release the endpoint's addresses.
-	nwCfg.Ipam.Subnet = nwInfo.Subnets[0].Prefix.String()
-	for _, address := range epInfo.IPAddresses {
-		nwCfg.Ipam.Address = address.IP.String()
+	if !nwCfg.MultiTenancy {
+		// Call into IPAM plugin to release the endpoint's addresses.
+		nwCfg.Ipam.Subnet = nwInfo.Subnets[0].Prefix.String()
+		for _, address := range epInfo.IPAddresses {
+			nwCfg.Ipam.Address = address.IP.String()
+			err = plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg)
+			if err != nil {
+				err = plugin.Errorf("Failed to release address: %v", err)
+				return err
+			}
+		}
+	} else if epInfo.EnableInfraVnet {
+		nwCfg.Ipam.Subnet = nwInfo.Subnets[0].Prefix.String()
+		nwCfg.Ipam.Address = epInfo.InfraVnetIP.IP.String()
 		err = plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg)
 		if err != nil {
 			err = plugin.Errorf("Failed to release address: %v", err)
