@@ -328,3 +328,20 @@ func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
 		nwInfo.Options[genericData] = vlanMap
 	}
 }
+
+func AddStaticRoute(ip string, interfaceName string) error {
+	log.Printf("[ovs] Adding %v static route", ip)
+	var routes []RouteInfo
+	_, ipNet, _ := net.ParseCIDR(ip)
+	gwIP := net.ParseIP("0.0.0.0")
+	route := RouteInfo{Dst: *ipNet, Gw: gwIP}
+	routes = append(routes, route)
+	if err := addRoutes(interfaceName, routes); err != nil {
+		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "file exists") {
+			log.Printf("addroutes failed with error %v", err)
+			return err
+		}
+	}
+
+	return nil
+}

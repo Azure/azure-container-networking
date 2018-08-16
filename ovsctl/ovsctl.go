@@ -91,9 +91,13 @@ func AddArpSnatRule(bridgeName string, mac string, macHex string, ofport string)
 	return nil
 }
 
-func AddIpSnatRule(bridgeName string, port string, mac string) error {
-	cmd := fmt.Sprintf("ovs-ofctl add-flow %v priority=20,ip,in_port=%s,vlan_tci=0,actions=mod_dl_src:%s,strip_vlan,normal",
-		bridgeName, port, mac)
+func AddIpSnatRule(bridgeName string, port string, mac string, outport string) error {
+	if outport == "" {
+		outport = "normal"
+	}
+
+	cmd := fmt.Sprintf("ovs-ofctl add-flow %v priority=20,ip,in_port=%s,vlan_tci=0,actions=mod_dl_src:%s,strip_vlan,%v",
+		bridgeName, port, mac, outport)
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding IP SNAT rule failed with error %v", err)

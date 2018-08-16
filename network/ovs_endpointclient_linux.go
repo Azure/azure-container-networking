@@ -1,13 +1,13 @@
 package network
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
 	"github.com/Azure/azure-container-networking/network/ovsinfravnet"
+	"github.com/Azure/azure-container-networking/network/ovssnat"
 	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
@@ -18,10 +18,8 @@ type OVSEndpointClient struct {
 	hostPrimaryMac    string
 	containerVethName string
 	containerMac      string
-	snatVethName      string
-	snatBridgeIP      string
+	snatClient        ovssnat.OVSSnatClient
 	infraVnetClient   ovsinfravnet.OVSInfraVnetClient
-	localIP           string
 	vlanID            int
 	enableSnatOnHost  bool
 	enableInfraVnet   bool
@@ -30,8 +28,6 @@ type OVSEndpointClient struct {
 const (
 	snatVethInterfacePrefix  = commonInterfacePrefix + "vint"
 	infraVethInterfacePrefix = commonInterfacePrefix + "vifv"
-	azureSnatIfName          = "eth1"
-	azureInfraIfName         = "eth2"
 )
 
 func NewOVSEndpointClient(
@@ -53,13 +49,8 @@ func NewOVSEndpointClient(
 		enableInfraVnet:   epInfo.EnableInfraVnet,
 	}
 
-	if _, ok := epInfo.Data[LocalIPKey]; ok {
-		client.localIP = epInfo.Data[LocalIPKey].(string)
-	}
-
-	if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
-		client.snatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
-	}
+	NewInfraVnetClient(client, epInfo.Id[:7])
+	NewSnatClient(client, epInfo)
 
 	return client
 }
@@ -77,42 +68,11 @@ func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 
 	client.containerMac = containerIf.HardwareAddr.String()
 
-	if client.enableSnatOnHost {
-		if err := createSnatBridge(client.snatBridgeIP, client.bridgeName); err != nil {
-			log.Printf("creating snat bridge failed with error %v", err)
-			return err
-		}
-
-		if err := addMasqueradeRule(client.snatBridgeIP); err != nil {
-			log.Printf("Adding snat rule failed with error %v", err)
-			return err
-		}
-
-		if err := addVlanDropRule(); err != nil {
-			log.Printf("Adding vlan drop rule failed with error %v", err)
-			return err
-		}
-
-		if err := addStaticRoute(imdsIP, client.bridgeName); err != nil {
-			log.Printf("Adding imds static route failed with error %v", err)
-			return err
-		}
-
-		hostIfName := fmt.Sprintf("%s%s", snatVethInterfacePrefix, epInfo.Id[:7])
-		contIfName := fmt.Sprintf("%s%s-2", snatVethInterfacePrefix, epInfo.Id[:7])
-
-		if err := epcommon.CreateEndpoint(hostIfName, contIfName); err != nil {
-			return err
-		}
-
-		if err := netlink.SetLinkMaster(hostIfName, snatBridgeName); err != nil {
-			return err
-		}
-
-		client.snatVethName = contIfName
+	if err := AddSnatEndpoint(client); err != nil {
+		return err
 	}
 
-	if err := AddInfraVnetEndpoint(client, epInfo.Id[:7]); err != nil {
+	if err := AddInfraVnetEndpoint(client); err != nil {
 		return err
 	}
 
@@ -141,7 +101,7 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 
 	// IP SNAT Rule
 	log.Printf("[ovs] Adding IP SNAT rule for egress traffic on %v.", containerPort)
-	if err := ovsctl.AddIpSnatRule(client.bridgeName, containerPort, client.hostPrimaryMac); err != nil {
+	if err := ovsctl.AddIpSnatRule(client.bridgeName, containerPort, client.hostPrimaryMac, ""); err != nil {
 		return err
 	}
 
@@ -163,7 +123,7 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 		return err
 	}
 
-	return nil
+	return AddSnatEndpointRules(client)
 }
 
 func (client *OVSEndpointClient) DeleteEndpointRules(ep *endpoint) {
@@ -205,11 +165,8 @@ func (client *OVSEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo
 		return err
 	}
 
-	if client.enableSnatOnHost {
-		log.Printf("[ovs] Setting link %v netns %v.", client.snatVethName, epInfo.NetNsPath)
-		if err := netlink.SetLinkNetNs(client.snatVethName, nsID); err != nil {
-			return err
-		}
+	if err := MoveSnatEndpointToContainerNS(client, epInfo.NetNsPath, nsID); err != nil {
+		return err
 	}
 
 	return MoveInfraEndpointToContainerNS(client, epInfo.NetNsPath, nsID)
@@ -224,11 +181,8 @@ func (client *OVSEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) 
 
 	client.containerVethName = epInfo.IfName
 
-	if client.enableSnatOnHost {
-		if err := epcommon.SetupContainerInterface(client.snatVethName, azureSnatIfName); err != nil {
-			return err
-		}
-		client.snatVethName = azureSnatIfName
+	if err := SetupSnatContainerInterface(client); err != nil {
+		return err
 	}
 
 	return SetupInfraVnetContainerInterface(client)
@@ -239,12 +193,8 @@ func (client *OVSEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *E
 		return err
 	}
 
-	if client.enableSnatOnHost {
-		log.Printf("[ovs] Adding IP address %v to link %v.", client.localIP, client.snatVethName)
-		ip, intIpAddr, _ := net.ParseCIDR(client.localIP)
-		if err := netlink.AddIpAddress(client.snatVethName, ip, intIpAddr); err != nil {
-			return err
-		}
+	if err := ConfigureSnatContainerInterface(client); err != nil {
+		return err
 	}
 
 	if err := ConfigureInfraVnetContainerInterface(client, epInfo.InfraVnetIP); err != nil {
@@ -260,16 +210,6 @@ func (client *OVSEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	if err != nil {
 		log.Printf("[ovs] Failed to delete veth pair %v: %v.", ep.HostIfName, err)
 		return err
-	}
-
-	if client.enableSnatOnHost {
-		hostIfName := fmt.Sprintf("%s%s", snatVethInterfacePrefix, ep.Id[:7])
-		log.Printf("[ovs] Deleting snat veth pair %v.", hostIfName)
-		err = netlink.DeleteLink(hostIfName)
-		if err != nil {
-			log.Printf("[ovs] Failed to delete veth pair %v: %v.", hostIfName, err)
-			return err
-		}
 	}
 
 	return DeleteInfraVnetEndpoint(client, ep.Id[:7])

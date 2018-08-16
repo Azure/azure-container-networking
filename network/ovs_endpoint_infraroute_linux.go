@@ -7,13 +7,17 @@ import (
 	"github.com/Azure/azure-container-networking/network/ovsinfravnet"
 )
 
-func AddInfraVnetEndpoint(client *OVSEndpointClient, epInfoID string) error {
+func NewInfraVnetClient(client *OVSEndpointClient, epID string) {
 	if client.enableInfraVnet {
-		hostIfName := fmt.Sprintf("%s%s", infraVethInterfacePrefix, epInfoID)
-		contIfName := fmt.Sprintf("%s%s-2", infraVethInterfacePrefix, epInfoID)
+		hostIfName := fmt.Sprintf("%s%s", infraVethInterfacePrefix, epID)
+		contIfName := fmt.Sprintf("%s%s-2", infraVethInterfacePrefix, epID)
 
 		client.infraVnetClient = ovsinfravnet.NewInfraVnetClient(hostIfName, contIfName)
+	}
+}
 
+func AddInfraVnetEndpoint(client *OVSEndpointClient) error {
+	if client.enableInfraVnet {
 		return client.infraVnetClient.CreateInfraVnetEndpoint(client.bridgeName)
 	}
 
@@ -30,8 +34,6 @@ func AddInfraEndpointRules(client *OVSEndpointClient, infraIP net.IPNet, hostPor
 
 func DeleteInfraVnetEndpointRules(client *OVSEndpointClient, ep *endpoint, hostPort string) {
 	if client.enableInfraVnet {
-		hostInfraVethName := fmt.Sprintf("%s%s", infraVethInterfacePrefix, ep.Id[:7])
-		client.infraVnetClient = ovsinfravnet.NewInfraVnetClient(hostInfraVethName, "")
 		client.infraVnetClient.DeleteInfraVnetRules(client.bridgeName, ep.InfraVnetIP, hostPort)
 	}
 }
@@ -46,7 +48,7 @@ func MoveInfraEndpointToContainerNS(client *OVSEndpointClient, netnsPath string,
 
 func SetupInfraVnetContainerInterface(client *OVSEndpointClient) error {
 	if client.enableInfraVnet {
-		return client.infraVnetClient.SetupInfraVnetContainerInterface(azureInfraIfName)
+		return client.infraVnetClient.SetupInfraVnetContainerInterface()
 	}
 
 	return nil
@@ -62,8 +64,6 @@ func ConfigureInfraVnetContainerInterface(client *OVSEndpointClient, infraIP net
 
 func DeleteInfraVnetEndpoint(client *OVSEndpointClient, epID string) error {
 	if client.enableInfraVnet {
-		hostInfraVethName := fmt.Sprintf("%s%s", infraVethInterfacePrefix, epID)
-		client.infraVnetClient = ovsinfravnet.NewInfraVnetClient(hostInfraVethName, "")
 		return client.infraVnetClient.DeleteInfraVnetEndpoint()
 	}
 

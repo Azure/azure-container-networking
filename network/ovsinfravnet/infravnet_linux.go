@@ -10,6 +10,10 @@ import (
 	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
+const (
+	azureInfraIfName = "eth2"
+)
+
 type OVSInfraVnetClient struct {
 	hostInfraVethName      string
 	ContainerInfraVethName string
@@ -60,7 +64,7 @@ func (client *OVSInfraVnetClient) CreateInfraVnetRules(
 		return err
 	}
 
-	if err := ovsctl.AddIpSnatRule(bridgeName, infraContainerPort, hostPrimaryMac); err != nil {
+	if err := ovsctl.AddIpSnatRule(bridgeName, infraContainerPort, hostPrimaryMac, hostPort); err != nil {
 		log.Printf("[ovs] AddIpSnatRule failed with error %v", err)
 		return err
 	}
@@ -78,12 +82,12 @@ func (client *OVSInfraVnetClient) MoveInfraEndpointToContainerNS(netnsPath strin
 	return netlink.SetLinkNetNs(client.ContainerInfraVethName, nsID)
 }
 
-func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface(targetIfName string) error {
-	if err := epcommon.SetupContainerInterface(client.ContainerInfraVethName, targetIfName); err != nil {
+func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
+	if err := epcommon.SetupContainerInterface(client.ContainerInfraVethName, azureInfraIfName); err != nil {
 		return err
 	}
 
-	client.ContainerInfraVethName = targetIfName
+	client.ContainerInfraVethName = azureInfraIfName
 
 	return nil
 }
