@@ -101,20 +101,20 @@ func TestGetOSDetails(t *testing.T) {
 	}
 }
 func TestGetSystemDetails(t *testing.T) {
-	reportManager.GetSystemDetails()
+	reportManager.Report.(*CNIReport).GetSystemDetails()
 	if reportManager.Report.(*CNIReport).ErrorMessage != "" {
 		t.Errorf("GetSystemDetails failed due to %v", reportManager.Report.(*CNIReport).ErrorMessage)
 	}
 }
 func TestGetInterfaceDetails(t *testing.T) {
-	reportManager.GetSystemDetails()
+	reportManager.Report.(*CNIReport).GetSystemDetails()
 	if reportManager.Report.(*CNIReport).ErrorMessage != "" {
 		t.Errorf("GetInterfaceDetails failed due to %v", reportManager.Report.(*CNIReport).ErrorMessage)
 	}
 }
 
 func TestGetReportState(t *testing.T) {
-	state := reportManager.GetReportState()
+	state := reportManager.GetReportState(CNITelemetryFile)
 	if state != false {
 		t.Errorf("Wrong state in getreport state")
 	}
@@ -128,7 +128,7 @@ func TestSendTelemetry(t *testing.T) {
 }
 
 func TestSetReportState(t *testing.T) {
-	err := reportManager.SetReportState()
+	err := reportManager.SetReportState(CNITelemetryFile)
 	if err != nil {
 		t.Errorf("SetReportState failed due to %v", err)
 	}

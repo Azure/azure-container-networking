@@ -23,6 +23,11 @@ import (
 )
 
 const (
+	// NPMTelemetryFile Path.
+	NPMTelemetryFile = platform.NPMRuntimePath + "AzureNPMTelemetry.json"
+	// CNITelemetryFile Path.
+	CNITelemetryFile = platform.CNIRuntimePath + "AzureCNITelemetry.json"
+
 	metadataURL = "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json"
 	ContentType = "application/json"
 )
@@ -72,24 +77,6 @@ type OrchestratorInfo struct {
 	OrchestratorVersion string
 	ErrorMessage        string
 }
-
-const (
-	// CNITelemetryFile Path.
-	CNITelemetryFile = platform.CNIRuntimePath + "AzureCNITelemetry.json"
-	// NPMTelemetryFile Path.
-	NPMTelemetryFile = platform.NPMRuntimePath + "AzureNPMTelemetry.json"
-	// DNCTelemetryFile Path.
-	DNCTelemetryFile = platform.DNCRuntimePath + "AzureDNCTelemetry.json"
-)
-
-const (
-	// CNI report type
-	CNIReportType = "CNI"
-	// NPM report type
-	NPMReportType = "NPM"
-	// DNC report type
-	DNCReportType = "DNC"
-)
 
 // Metadata retrieved from wireserver
 type Metadata struct {
@@ -155,18 +142,6 @@ type NPMReport struct {
 	Metadata          Metadata `json:"compute"`
 }
 
-// DNCReport structure.
-type DNCReport struct {
-	IsNewInstance bool
-	CPUUsage      string
-	MemoryUsage   string
-	Processes     string
-	EventMessage  string
-	PartitionKey  string
-	Allocations   string
-	Metadata      Metadata `json:"compute"`
-}
-
 // ReportManager structure.
 type ReportManager struct {
 	HostNetAgentURL string
@@ -230,24 +205,18 @@ func (report *NPMReport) GetReport(clusterID, nodeName, npmVersion, kubernetesVe
 func (reportMgr *ReportManager) SendReport() error {
 	log.Printf("[Telemetry] Going to send Telemetry report to hostnetagent %v", reportMgr.HostNetAgentURL)
 
-	var body bytes.Buffer
-	httpc := &http.Client{}
-	json.NewEncoder(&body).Encode(reportMgr.Report)
-
 	switch reportMgr.Report.(type) {
 	case *CNIReport:
 		log.Printf("[Telemetry] %+v", reportMgr.Report.(*CNIReport))
-
 	case *NPMReport:
 		log.Printf("[Telemetry] %+v", reportMgr.Report.(*NPMReport))
-
-	case *DNCReport:
-		log.Printf("[Telemetry] %+v", reportMgr.Report.(*DNCReport))
-
 	default:
-		return fmt.Errorf("[Telemetry] failed to resolve report type")
+		log.Printf("[Telemetry] %+v", reportMgr.Report)
 	}
 
+	httpc := &http.Client{}
+	var body bytes.Buffer
+	json.NewEncoder(&body).Encode(reportMgr.Report)
 	resp, err := httpc.Post(reportMgr.HostNetAgentURL, reportMgr.ContentType, &body)
 	if err != nil {
 		return fmt.Errorf("[Telemetry] HTTP Post returned error %v", err)
@@ -271,29 +240,11 @@ func (reportMgr *ReportManager) SendReport() error {
 }
 
 // SetReportState will save the state in file if telemetry report sent successfully.
-func (reportMgr *ReportManager) SetReportState() error {
-	var telemetryFile string
+func (reportMgr *ReportManager) SetReportState(telemetryFile string) error {
 	var reportBytes []byte
 	var err error
 
-	// get bytes from associated report type
-	switch reportMgr.Report.(type) {
-	case *CNIReport:
-		telemetryFile = CNITelemetryFile
-		reportBytes, err = json.Marshal(reportMgr.Report.(*CNIReport))
-
-	case *NPMReport:
-		telemetryFile = NPMTelemetryFile
-		reportBytes, err = json.Marshal(reportMgr.Report.(*NPMReport))
-
-	case *DNCReport:
-		telemetryFile = DNCTelemetryFile
-		reportBytes, err = json.Marshal(reportMgr.Report.(*DNCReport))
-
-	default:
-		return fmt.Errorf("[Telemetry] Invalid report type")
-	}
-
+	reportBytes, err = json.Marshal(reportMgr.Report)
 	if err != nil {
 		return fmt.Errorf("[Telemetry] report write failed with err %+v", err)
 	}
@@ -319,24 +270,7 @@ func (reportMgr *ReportManager) SetReportState() error {
 }
 
 // GetReportState will check if report is sent at least once by checking telemetry file.
-func (reportMgr *ReportManager) GetReportState() bool {
-	var telemetryFile string
-
-	switch reportMgr.Report.(type) {
-	case *CNIReport:
-		telemetryFile = CNITelemetryFile
-
-	case *NPMReport:
-		telemetryFile = NPMTelemetryFile
-
-	case *DNCReport:
-		telemetryFile = DNCTelemetryFile
-
-	default:
-		log.Printf("[Telemetry] Invalid report type")
-		return false
-	}
-
+func (reportMgr *ReportManager) GetReportState(telemetryFile string) bool {
 	// try to set IsNewInstance in report
 	if _, err := os.Stat(telemetryFile); os.IsNotExist(err) {
 		log.Printf("[Telemetry] File not exist %v", telemetryFile)
@@ -517,29 +451,4 @@ func (reportMgr *ReportManager) GetHostMetadata() error {
 	}
 
 	return err
-}
-
-// GetSystemDetails - retrieve system details like cpu usage, mem usage, and number or running processes
-func (reportMgr *ReportManager) GetSystemDetails() error {
-	// hostStat, err := host.Info()
-	// if err != nil {
-	// 	return err
-	// }
-
-	// reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Processes").SetString(strconv.FormatUint(hostStat.Procs, 10))
-
-	// cpuStat, err := cpu.Percent(0, false)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// reflect.ValueOf(reportMgr.Report).Elem().FieldByName("CPUUsage").SetString(strconv.FormatFloat(cpuStat[0], 'f', 2, 64))
-
-	// memStat, err := mem.VirtualMemory()
-	// if err != nil {
-	// 	return err
-	// }
-
-	// reflect.ValueOf(reportMgr.Report).Elem().FieldByName("MemoryUsage").SetString(strconv.FormatFloat(memStat.UsedPercent, 'f', 2, 64))
-	return nil
 }

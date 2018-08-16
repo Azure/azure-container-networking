@@ -25,7 +25,7 @@ var version string
 
 // If report write succeeded, mark the report flag state to false.
 func markSendReport(reportManager *telemetry.ReportManager) {
-	if err := reportManager.SetReportState(); err != nil {
+	if err := reportManager.SetReportState(telemetry.CNITelemetryFile); err != nil {
 		log.Printf("SetReportState failed due to %v", err)
 		reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
 
@@ -67,7 +67,7 @@ func main() {
 	reportManager.GetHostMetadata()
 	reportManager.Report.(*telemetry.CNIReport).GetReport(pluginName, config.Version, ipamQueryURL)
 
-	if !reportManager.GetReportState() {
+	if !reportManager.GetReportState(telemetry.CNITelemetryFile) {
 		log.Printf("GetReport state file didn't exist. Setting flag to true")
 
 		err = reportManager.SendReport()
