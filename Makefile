@@ -6,6 +6,9 @@ COREFILES = \
 	$(wildcard log/*.go) \
 	$(wildcard netlink/*.go) \
 	$(wildcard network/*.go) \
+	$(wildcard network/epcommon/*.go) \
+	$(wildcard network/ovsnfravnet/*.go) \
+	$(wildcard network/policy/*.go) \
 	$(wildcard platform/*.go) \
 	$(wildcard store/*.go)
 
