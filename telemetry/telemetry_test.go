@@ -15,8 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 )
 
-var reportManager *CNIReportManager
-var report *CNIReport
+var reportManager *ReportManager
 var ipamQueryUrl = "localhost:3501"
 var hostAgentUrl = "localhost:3500"
 
@@ -35,8 +34,7 @@ var ipamQueryResponse = "" +
 	"</Interfaces>"
 
 func TestMain(m *testing.M) {
-
-	u, _ := url.Parse("tcp://" + "localhost:3501")
+	u, _ := url.Parse("tcp://" + ipamQueryUrl)
 	ipamAgent, err := common.NewListener(u)
 	if err != nil {
 		fmt.Printf("Failed to create agent, err:%v.\n", err)
@@ -66,13 +64,10 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	reportManager = &CNIReportManager{}
-	reportManager.ReportManager = &ReportManager{}
-	reportManager.ReportManager.HostNetAgentURL = "http://" + hostAgentUrl
-	reportManager.ReportManager.ReportType = "application/json"
-	reportManager.IpamQueryURL = "http://" + ipamQueryUrl
+	reportManager = &ReportManager{}
+	reportManager.HostNetAgentURL = "http://" + hostAgentUrl
+	reportManager.ContentType = "application/json"
 	reportManager.Report = &CNIReport{}
-	report = reportManager.Report
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
@@ -100,27 +95,26 @@ func handleCNIReport(rw http.ResponseWriter, req *http.Request) {
 }
 
 func TestGetOSDetails(t *testing.T) {
-	report.GetOSDetails()
-	if report.ErrorMessage != "" {
-		t.Errorf("GetOSDetails failed due to %v", report.ErrorMessage)
+	reportManager.Report.(*CNIReport).GetOSDetails()
+	if reportManager.Report.(*CNIReport).ErrorMessage != "" {
+		t.Errorf("GetOSDetails failed due to %v", reportManager.Report.(*CNIReport).ErrorMessage)
 	}
 }
 func TestGetSystemDetails(t *testing.T) {
-
-	report.GetSystemDetails()
-	if report.ErrorMessage != "" {
-		t.Errorf("GetSystemDetails failed due to %v", report.ErrorMessage)
+	reportManager.GetSystemDetails()
+	if reportManager.Report.(*CNIReport).ErrorMessage != "" {
+		t.Errorf("GetSystemDetails failed due to %v", reportManager.Report.(*CNIReport).ErrorMessage)
 	}
 }
 func TestGetInterfaceDetails(t *testing.T) {
-	report.GetSystemDetails()
-	if report.ErrorMessage != "" {
-		t.Errorf("GetInterfaceDetails failed due to %v", report.ErrorMessage)
+	reportManager.GetSystemDetails()
+	if reportManager.Report.(*CNIReport).ErrorMessage != "" {
+		t.Errorf("GetInterfaceDetails failed due to %v", reportManager.Report.(*CNIReport).ErrorMessage)
 	}
 }
 
 func TestGetReportState(t *testing.T) {
-	state := report.GetReportState()
+	state := reportManager.GetReportState()
 	if state != false {
 		t.Errorf("Wrong state in getreport state")
 	}
@@ -134,7 +128,7 @@ func TestSendTelemetry(t *testing.T) {
 }
 
 func TestSetReportState(t *testing.T) {
-	err := report.SetReportState()
+	err := reportManager.SetReportState()
 	if err != nil {
 		t.Errorf("SetReportState failed due to %v", err)
 	}

@@ -14,15 +14,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"reflect"
-	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/host"
-	"github.com/shirou/gopsutil/mem"
 )
 
 const (
@@ -111,7 +108,7 @@ type Metadata struct {
 	OSVersion            string `json:"version"`
 	VMID                 string `json:"vmId"`
 	VMSize               string `json:"vmSize"`
-	kernel               string
+	KernelVersion        string
 }
 
 type metadataWrapper struct {
@@ -344,6 +341,7 @@ func (reportMgr *ReportManager) GetReportState() bool {
 	if _, err := os.Stat(telemetryFile); os.IsNotExist(err) {
 		log.Printf("[Telemetry] File not exist %v", telemetryFile)
 		reflect.ValueOf(reportMgr.Report).Elem().FieldByName("IsNewInstance").SetBool(true)
+		return false
 	}
 
 	return true
@@ -432,21 +430,38 @@ func (report *CNIReport) GetInterfaceDetails(queryUrl string) {
 
 // GetOrchestratorDetails creates a report with orchestrator details(name, version).
 func (report *CNIReport) GetOrchestratorDetails() {
+	// to-do: GetOrchestratorDetails for all report types and for all k8s environments
+	// current implementation works for clusters created via acs-engine and on master nodes
 	report.OrchestratorDetails = &OrchestratorInfo{}
 
-	if report.Metadata == (Metadata{}) {
-		report.OrchestratorDetails.ErrorMessage = "Host metadata unavailable"
-	} else {
-		for _, tag := range strings.Split(report.Metadata.Tags, ";") {
-			if strings.Contains(tag, "orchestrator") {
-				details := strings.Split(tag, ":")
-				if len(details) != 2 {
-					report.OrchestratorDetails.ErrorMessage = "length of orchestrator tag is less than 2"
-				} else {
-					report.OrchestratorDetails.OrchestratorName = details[0]
-					report.OrchestratorDetails.OrchestratorVersion = details[1]
-				}
+	// Check for orchestrator tag first
+	for _, tag := range strings.Split(report.Metadata.Tags, ";") {
+		if strings.Contains(tag, "orchestrator") {
+			details := strings.Split(tag, ":")
+			if len(details) != 2 {
+				report.OrchestratorDetails.ErrorMessage = "length of orchestrator tag is less than 2"
+			} else {
+				report.OrchestratorDetails.OrchestratorName = details[0]
+				report.OrchestratorDetails.OrchestratorVersion = details[1]
 			}
+		} else {
+			report.OrchestratorDetails.ErrorMessage = "Host metadata unavailable"
+		}
+	}
+
+	if report.OrchestratorDetails.ErrorMessage != "" {
+		out, err := exec.Command("kubectl", "version").Output()
+		if err != nil {
+			report.OrchestratorDetails.ErrorMessage = "kubectl command failed due to " + err.Error()
+			return
+		}
+
+		resultArray := strings.Split(strings.TrimLeft(string(out), " "), " ")
+		if len(resultArray) >= 2 {
+			report.OrchestratorDetails.OrchestratorName = resultArray[0]
+			report.OrchestratorDetails.OrchestratorVersion = resultArray[1]
+		} else {
+			report.OrchestratorDetails.ErrorMessage = "Length of array is less than 2"
 		}
 	}
 }
@@ -506,25 +521,25 @@ func (reportMgr *ReportManager) GetHostMetadata() error {
 
 // GetSystemDetails - retrieve system details like cpu usage, mem usage, and number or running processes
 func (reportMgr *ReportManager) GetSystemDetails() error {
-	hostStat, err := host.Info()
-	if err != nil {
-		return err
-	}
+	// hostStat, err := host.Info()
+	// if err != nil {
+	// 	return err
+	// }
 
-	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Processes").SetString(strconv.FormatUint(hostStat.Procs, 10))
+	// reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Processes").SetString(strconv.FormatUint(hostStat.Procs, 10))
 
-	cpuStat, err := cpu.Percent(0, false)
-	if err != nil {
-		return err
-	}
+	// cpuStat, err := cpu.Percent(0, false)
+	// if err != nil {
+	// 	return err
+	// }
 
-	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("CPUUsage").SetString(strconv.FormatFloat(cpuStat[0], 'f', 2, 64))
+	// reflect.ValueOf(reportMgr.Report).Elem().FieldByName("CPUUsage").SetString(strconv.FormatFloat(cpuStat[0], 'f', 2, 64))
 
-	memStat, err := mem.VirtualMemory()
-	if err != nil {
-		return err
-	}
+	// memStat, err := mem.VirtualMemory()
+	// if err != nil {
+	// 	return err
+	// }
 
-	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("MemoryUsage").SetString(strconv.FormatFloat(memStat.UsedPercent, 'f', 2, 64))
+	// reflect.ValueOf(reportMgr.Report).Elem().FieldByName("MemoryUsage").SetString(strconv.FormatFloat(memStat.UsedPercent, 'f', 2, 64))
 	return nil
 }

@@ -92,6 +92,10 @@ func (npMgr *NetworkPolicyManager) Run(stopCh <-chan struct{}) error {
 
 // RunReportManager starts NPMReportManager and send telemetry periodically.
 func (npMgr *NetworkPolicyManager) RunReportManager() {
+	if err := npMgr.reportManager.GetHostMetadata(); err != nil {
+		reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
+	}
+
 	for {
 		clusterState := npMgr.GetClusterState()
 		v := reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ClusterState")
