@@ -11,7 +11,7 @@ import (
 const (
 	ifName    = "nltest"
 	ifName2   = "nltest2"
-	dummyName = "dummy0"
+	dummyName = "dummy1"
 )
 
 // AddDummyInterface creates a dummy test interface used during actual tests.

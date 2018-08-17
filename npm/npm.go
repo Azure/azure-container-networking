@@ -5,6 +5,7 @@ package npm
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 
 var (
 	hostNetAgentURLForNpm = "http://169.254.169.254/machine/plugins?comp=netagent&type=npmreport"
-	reportType            = "application/json"
+	contentType           = "application/json"
 )
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
@@ -40,7 +41,7 @@ type NetworkPolicyManager struct {
 	isAzureNpmChainCreated bool
 
 	clusterState  telemetry.ClusterState
-	reportManager *telemetry.NPMReportManager
+	reportManager *telemetry.ReportManager
 }
 
 // GetClusterState returns current cluster state.
@@ -51,11 +52,18 @@ func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 // UpdateAndSendReport updates the npm report then send it.
 // This function should only be called when npMgr is locked.
 func (npMgr *NetworkPolicyManager) UpdateAndSendReport(err error, eventMsg string) error {
-	npMgr.reportManager.Report.ClusterState = npMgr.GetClusterState()
-	npMgr.reportManager.Report.EventMessage = eventMsg
+	clusterState := npMgr.GetClusterState()
+	v := reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ClusterState")
+	if v.CanSet() {
+		v.FieldByName("PodCount").SetInt(int64(clusterState.PodCount))
+		v.FieldByName("NsCount").SetInt(int64(clusterState.NsCount))
+		v.FieldByName("NwPolicyCount").SetInt(int64(clusterState.NwPolicyCount))
+	}
+
+	reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("EventMessage").SetString(eventMsg)
 
 	if err != nil {
-		npMgr.reportManager.Report.ErrorMessage = err.Error()
+		reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("EventMessage").SetString(err.Error())
 	}
 
 	return npMgr.reportManager.SendReport()
@@ -84,8 +92,19 @@ func (npMgr *NetworkPolicyManager) Run(stopCh <-chan struct{}) error {
 
 // RunReportManager starts NPMReportManager and send telemetry periodically.
 func (npMgr *NetworkPolicyManager) RunReportManager() {
+	if err := npMgr.reportManager.GetHostMetadata(); err != nil {
+		reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
+	}
+
 	for {
-		npMgr.reportManager.Report.ClusterState = npMgr.GetClusterState()
+		clusterState := npMgr.GetClusterState()
+		v := reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ClusterState")
+		if v.CanSet() {
+			v.FieldByName("PodCount").SetInt(int64(clusterState.PodCount))
+			v.FieldByName("NsCount").SetInt(int64(clusterState.NsCount))
+			v.FieldByName("NwPolicyCount").SetInt(int64(clusterState.NwPolicyCount))
+		}
+
 		if err := npMgr.reportManager.SendReport(); err != nil {
 			log.Printf("Error sending NPM telemetry report")
 		}
@@ -115,12 +134,10 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 			NsCount:       0,
 			NwPolicyCount: 0,
 		},
-		reportManager: &telemetry.NPMReportManager{
-			ReportManager: &telemetry.ReportManager{
-				HostNetAgentURL: hostNetAgentURLForNpm,
-				ReportType:      reportType,
-			},
-			Report: &telemetry.NPMReport{},
+		reportManager: &telemetry.ReportManager{
+			HostNetAgentURL: hostNetAgentURLForNpm,
+			ContentType:     contentType,
+			Report:          &telemetry.NPMReport{},
 		},
 	}
 
@@ -132,7 +149,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 
 	clusterID := util.GetClusterID(npMgr.nodeName)
 	clusterState := npMgr.GetClusterState()
-	npMgr.reportManager.GetReport(clusterID, npMgr.nodeName, npmVersion, serverVersion.GitVersion, clusterState)
+	npMgr.reportManager.Report.(*telemetry.NPMReport).GetReport(clusterID, npMgr.nodeName, npmVersion, serverVersion.GitVersion, clusterState)
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
 	if err != nil {

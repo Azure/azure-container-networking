@@ -1,0 +1,42 @@
+version: 2
+jobs:
+  setup-and-test:
+    # docker:
+    # - image: golang:1.10
+    machine:
+      image: circleci/classic:latest
+    steps:
+      - checkout
+      - run: 
+          name: Setup-and-test
+          command: |
+            sudo -E env "PATH=$PATH" apt-get update
+            sudo -E env "PATH=$PATH" apt-get install -y ebtables
+            sudo -E env "PATH=$PATH" apt-get install -y ipset
+            mkdir -p /home/circleci/go1-10
+            mkdir --parents /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
+            wget https://storage.googleapis.com/golang/go1.10.2.linux-amd64.tar.gz
+            tar -C /home/circleci/go1-10 -xvf go1.10.2.linux-amd64.tar.gz
+            rm go1.10.2.linux-amd64.tar.gz
+            mv * /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
+            cd /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
+            export GOROOT='/home/circleci/go1-10/go'
+            export GOPATH='/home/circleci/.goproject'
+            export PATH=$GOROOT/bin:$PATH
+            go get ./...
+            go get github.com/docker/libnetwork/driverapi
+            go get github.com/gorilla/mux
+            sudo -E env "PATH=$PATH" go test ./ipam/
+            sudo -E env "PATH=$PATH" go test ./log/
+            sudo -E env "PATH=$PATH" go test ./netlink/
+            sudo -E env "PATH=$PATH" go test ./store/
+            sudo -E env "PATH=$PATH" go test ./telemetry/
+            sudo -E env "PATH=$PATH" go test ./cni/ipam/
+            sudo -E env "PATH=$PATH" go test ./cnm/network/
+            sudo -E env "PATH=$PATH" go test ./cns/ipamclient/
+            #sudo -E env "PATH=$PATH" go test ./cns/restserver/
+workflows:
+  version: 2
+  run-tests:
+    jobs:
+      - setup-and-test

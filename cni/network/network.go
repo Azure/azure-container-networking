@@ -33,7 +33,7 @@ const (
 type netPlugin struct {
 	*cni.Plugin
 	nm            network.NetworkManager
-	reportManager *telemetry.CNIReportManager
+	reportManager *telemetry.ReportManager
 }
 
 // NewPlugin creates a new netPlugin object.
@@ -58,7 +58,7 @@ func NewPlugin(config *common.PluginConfig) (*netPlugin, error) {
 	}, nil
 }
 
-func (plugin *netPlugin) SetReportManager(reportManager *telemetry.CNIReportManager) {
+func (plugin *netPlugin) SetReportManager(reportManager *telemetry.ReportManager) {
 	plugin.reportManager = reportManager
 }
 
@@ -211,6 +211,20 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(errMsg)
 	}
 
+	k8sContainerID := args.ContainerID
+	if len(k8sContainerID) == 0 {
+		errMsg := "Container ID not specified in CNI Args"
+		log.Printf(errMsg)
+		return plugin.Errorf(errMsg)
+	}
+
+	k8sIfName := args.IfName
+	if len(k8sIfName) == 0 {
+		errMsg := "Interfacename not specified in CNI Args"
+		log.Printf(errMsg)
+		return plugin.Errorf(errMsg)
+	}
+
 	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
 		if k8sNamespace == ns {
 			log.Printf("Enable infravnet for this pod %v in namespace %v", k8sPodName, k8sNamespace)
@@ -218,6 +232,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			break
 		}
 	}
+
 	// Initialize values from network config.
 	networkId := nwCfg.Name
 	endpointId := GetEndpointID(args)
@@ -418,7 +433,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, epInfo, result)
 
-	vethName := fmt.Sprintf("%s.%s", k8sNamespace, k8sPodName)
+	// A runtime must not call ADD twice (without a corresponding DEL) for the same
+	// (network name, container id, name of the interface inside the container)
+	vethName := fmt.Sprintf("%s%s%s", networkId, k8sContainerID, k8sIfName)
 	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
 	// Create the endpoint.

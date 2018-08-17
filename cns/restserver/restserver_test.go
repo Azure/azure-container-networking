@@ -6,18 +6,78 @@ package restserver
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/imdsclient"
+	acncommon "github.com/Azure/azure-container-networking/common"
 )
 
-var service HTTPService
-var mux *http.ServeMux
+type IPAddress struct {
+	XMLName   xml.Name `xml:"IPAddress"`
+	Address   string   `xml:"Address,attr"`
+	IsPrimary bool     `xml:"IsPrimary,attr"`
+}
+type IPSubnet struct {
+	XMLName   xml.Name `xml:"IPSubnet"`
+	Prefix    string   `xml:"Prefix,attr"`
+	IPAddress []IPAddress
+}
+
+type Interface struct {
+	XMLName    xml.Name `xml:"Interface"`
+	MacAddress string   `xml:"MacAddress,attr"`
+	IsPrimary  bool     `xml:"IsPrimary,attr"`
+	IPSubnet   []IPSubnet
+}
+
+type xmlDocument struct {
+	XMLName   xml.Name `xml:"Interfaces"`
+	Interface []Interface
+}
+
+var (
+	service                               HTTPService
+	mux                                   *http.ServeMux
+	hostQueryForProgrammedVersionResponse = `{"httpStatusCode":"200","networkContainerId":"eab2470f-test-test-test-b3cd316979d5","version":"1"}`
+	hostQueryResponse                     = xmlDocument{
+		XMLName: xml.Name{Local: "Interfaces"},
+		Interface: []Interface{Interface{
+			XMLName:    xml.Name{Local: "Interface"},
+			MacAddress: "*",
+			IsPrimary:  true,
+			IPSubnet: []IPSubnet{
+				IPSubnet{XMLName: xml.Name{Local: "IPSubnet"},
+					Prefix: "10.0.0.0/16",
+					IPAddress: []IPAddress{
+						IPAddress{
+							XMLName:   xml.Name{Local: "IPAddress"},
+							Address:   "10.0.0.4",
+							IsPrimary: true},
+					}},
+			},
+		}},
+	}
+)
+
+func getInterfaceInfo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/xml")
+	output, _ := xml.Marshal(hostQueryResponse)
+	w.Write(output)
+}
+
+func getContainerInfo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(hostQueryForProgrammedVersionResponse))
+}
 
 // Wraps the test run with service setup and teardown.
 func TestMain(m *testing.M) {
@@ -33,6 +93,11 @@ func TestMain(m *testing.M) {
 
 	// Configure test mode.
 	service.(*httpRestService).Name = "cns-test-server"
+	service.(*httpRestService).imdsClient.HostQueryURL = imdsclient.HostQueryURL
+	service.(*httpRestService).imdsClient.HostQueryURLForProgrammedVersion = imdsclient.HostQueryURLForProgrammedVersion
+	// Following HostQueryURL and HostQueryURLForProgrammedVersion are only for mock environment.
+	// service.(*httpRestService).imdsClient.HostQueryURL = "http://localhost:9000/getInterface"
+	// service.(*httpRestService).imdsClient.HostQueryURLForProgrammedVersion = "http://localhost:9000/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/%s"
 
 	// Start the service.
 	err = service.Start(&config)
@@ -43,6 +108,26 @@ func TestMain(m *testing.M) {
 
 	// Get the internal http mux as test hook.
 	mux = service.(*httpRestService).Listener.GetMux()
+
+	// Setup mock nmagent server
+	u, err := url.Parse("tcp://localhost:9000")
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	nmAgentServer, err := acncommon.NewListener(u)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	nmAgentServer.AddHandler("/getInterface", getInterfaceInfo)
+	nmAgentServer.AddHandler("machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/{interface}/networkContainers/{networkContainer}/authenticationToken/{authToken}/api-version/{version}", getContainerInfo)
+
+	err = nmAgentServer.Start(make(chan error, 1))
+	if err != nil {
+		fmt.Printf("Failed to start agent, err:%v.\n", err)
+		return
+	}
 
 	// Run tests.
 	exitCode := m.Run()
@@ -71,7 +156,7 @@ func setEnv(t *testing.T) *httptest.ResponseRecorder {
 	envRequestJSON := new(bytes.Buffer)
 	json.NewEncoder(envRequestJSON).Encode(envRequest)
 
-	req, err := http.NewRequest(http.MethodPost, cns.V1Prefix+cns.SetEnvironmentPath, envRequestJSON)
+	req, err := http.NewRequest(http.MethodPost, cns.V2Prefix+cns.SetEnvironmentPath, envRequestJSON)
 	if err != nil {
 		t.Fatal(err)
 	}

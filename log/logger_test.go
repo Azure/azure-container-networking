@@ -27,21 +27,21 @@ func TestLogFileRotatesWhenSizeLimitIsReached(t *testing.T) {
 
 	l.Close()
 
-	fn := logName + ".log"
+	fn := l.GetLogDirectory() + logName + ".log"
 	_, err := os.Stat(fn)
 	if err != nil {
 		t.Errorf("Failed to find active log file.")
 	}
 	os.Remove(fn)
 
-	fn = logName + ".log.1"
+	fn = l.GetLogDirectory() + logName + ".log.1"
 	_, err = os.Stat(fn)
 	if err != nil {
 		t.Errorf("Failed to find the 1st rotated log file.")
 	}
 	os.Remove(fn)
 
-	fn = logName + ".log.2"
+	fn = l.GetLogDirectory() + logName + ".log.2"
 	_, err = os.Stat(fn)
 	if err == nil {
 		t.Errorf("Found the 2nd rotated log file which should have been deleted.")

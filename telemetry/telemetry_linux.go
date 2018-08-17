@@ -6,6 +6,7 @@ package telemetry
 import (
 	"fmt"
 	"os/exec"
+	"reflect"
 	"runtime"
 	"strings"
 	"syscall"
@@ -119,5 +120,16 @@ func (report *CNIReport) GetOSDetails() {
 		OSVersion:      osInfoArr["VERSION"],
 		KernelVersion:  kernelVersion,
 		OSDistribution: osInfoArr["ID"],
+	}
+}
+
+// Get kernel version
+func (reportMgr *ReportManager) GetKernelVersion() {
+	out, err := exec.Command("uname", "-r").Output()
+	if err == nil {
+		v := reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Metadata")
+		if v.CanSet() {
+			v.FieldByName("KernelVersion").SetString(strings.TrimSuffix(string(out), "\n"))
+		}
 	}
 }

@@ -17,6 +17,9 @@ const (
 
 	// NPMRuntimePath is the path where NPM state files are stored.
 	NPMRuntimePath = ""
+
+	// DNCRuntimePath is the path where NPM state files are stored.
+	DNCRuntimePath = ""
 )
 
 // GetOSInfo returns OS version information.
