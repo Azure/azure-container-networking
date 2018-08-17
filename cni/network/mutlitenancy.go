@@ -236,7 +236,7 @@ func GetMultiTenancyCNIResult(
 		log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
 
 		if checkIfSubnetOverlaps(enableInfraVnet, nwCfg, cnsNetworkConfig) {
-			buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", subnetPrefix.String(), cnsNetworkConfig.CnetAddressSpace)
+			buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", nwCfg.InfraVnetAddressSpace, cnsNetworkConfig.CnetAddressSpace)
 			log.Printf(buf)
 			err = errors.New(buf)
 			return nil, nil, net.IPNet{}, nil, err
