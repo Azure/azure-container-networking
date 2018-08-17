@@ -239,7 +239,7 @@ func GetMultiTenancyCNIResult(
 			buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", subnetPrefix.String(), cnsNetworkConfig.CnetAddressSpace)
 			log.Printf(buf)
 			err = errors.New(buf)
-			//return err
+			return nil, nil, net.IPNet{}, nil, err
 		}
 
 		azIpamResult, err := getInfraVnetIP(enableInfraVnet, subnetPrefix.String(), nwCfg, plugin)
