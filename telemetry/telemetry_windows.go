@@ -16,20 +16,21 @@ type DiskInfo struct {
 }
 
 func getMemInfo() (*MemInfo, error) {
-
 	return nil, nil
 }
 
 func getDiskInfo(path string) (*DiskInfo, error) {
-
 	return nil, nil
 }
 
 func (report *CNIReport) GetSystemDetails() {
-
 	report.SystemDetails = &SystemInfo{}
 }
 
 func (report *CNIReport) GetOSDetails() {
 	report.OSDetails = &OSInfo{OSType: runtime.GOOS}
+}
+
+func (reportMgr *ReportManager) GetKernelVersion() {
+	return
 }
