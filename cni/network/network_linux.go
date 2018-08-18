@@ -67,3 +67,15 @@ func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 		result.Interfaces = append(result.Interfaces, snatIface)
 	}
 }
+
+func setupInfraVnetRoutingForMultitenancy(
+	nwCfg *cni.NetworkConfig,
+	azIpamResult *cniTypesCurr.Result,
+	epInfo *network.EndpointInfo,
+	result *cniTypesCurr.Result) {
+
+	if epInfo.EnableInfraVnet {
+		_, ipNet, _ := net.ParseCIDR(nwCfg.InfraVnetAddressSpace)
+		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: *ipNet, Gw: azIpamResult.IPs[0].Gateway, DevName: infraInterface})
+	}
+}

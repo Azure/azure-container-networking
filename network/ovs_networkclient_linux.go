@@ -109,7 +109,6 @@ func (client *OVSNetworkClient) DeleteBridge() error {
 }
 
 func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
-	//primary := extIf.IPAddresses[0].IP.String()
 	mac := extIf.MacAddress.String()
 	macHex := strings.Replace(mac, ":", "", -1)
 

@@ -41,18 +41,6 @@ func SetupRoutingForMultitenancy(
 	}
 }
 
-func setupInfraVnetRoutingForMultitenancy(
-	nwCfg *cni.NetworkConfig,
-	azIpamResult *cniTypesCurr.Result,
-	epInfo *network.EndpointInfo,
-	result *cniTypesCurr.Result) {
-
-	if epInfo.EnableInfraVnet {
-		_, ipNet, _ := net.ParseCIDR(nwCfg.InfraVnetAddressSpace)
-		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: *ipNet, Gw: azIpamResult.IPs[0].Gateway, DevName: infraInterface})
-	}
-}
-
 func getContainerNetworkConfiguration(
 	nwCfg *cni.NetworkConfig,
 	address string,
@@ -246,6 +234,13 @@ func GetMultiTenancyCNIResult(
 			if cnsNetworkConfig.LocalIPConfiguration.IPSubnet.IPAddress == "" {
 				log.Printf("Snat IP is not populated. Got empty string")
 				return nil, nil, net.IPNet{}, nil, fmt.Errorf("Snat IP is not populated. Got empty string")
+			}
+		}
+
+		if enableInfraVnet {
+			if nwCfg.InfraVnetAddressSpace == "" {
+				log.Printf("InfraVnetAddressSpace is not populated. Got empty string")
+				return nil, nil, net.IPNet{}, nil, fmt.Errorf("InfraVnetAddressSpace is not populated. Got empty string")
 			}
 		}
 
