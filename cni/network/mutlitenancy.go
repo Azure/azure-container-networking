@@ -242,6 +242,13 @@ func GetMultiTenancyCNIResult(
 			return nil, nil, net.IPNet{}, nil, err
 		}
 
+		if nwCfg.EnableSnatOnHost {
+			if cnsNetworkConfig.LocalIPConfiguration.IPSubnet.IPAddress == "" {
+				log.Printf("Snat IP is not populated. Got empty string")
+				return nil, nil, net.IPNet{}, nil, fmt.Errorf("Snat IP is not populated. Got empty string")
+			}
+		}
+
 		azIpamResult, err := getInfraVnetIP(enableInfraVnet, subnetPrefix.String(), nwCfg, plugin)
 		if err != nil {
 			log.Printf("GetInfraVnetIP failed with error %v", err)

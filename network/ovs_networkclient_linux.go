@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/epcommon"
 	"github.com/Azure/azure-container-networking/network/ovssnat"
 	"github.com/Azure/azure-container-networking/ovsctl"
 )
@@ -129,7 +130,11 @@ func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
 	}
 
 	if client.enableSnatOnHost {
-		return AddStaticRoute(ovssnat.ImdsIP, ovssnat.SnatBridgeName)
+		if err := epcommon.AddOrDeletePrivateIPBlockRule(ovssnat.SnatBridgeName, "A"); err != nil {
+			return err
+		}
+
+		return AddStaticRoute(ovssnat.ImdsIP, client.bridgeName)
 	}
 
 	return nil
@@ -137,6 +142,12 @@ func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
 
 func (client *OVSNetworkClient) DeleteL2Rules(extIf *externalInterface) {
 	ovsctl.DeletePortFromOVS(client.bridgeName, client.hostInterfaceName)
+
+	if client.enableSnatOnHost {
+		if err := epcommon.AddOrDeletePrivateIPBlockRule(ovssnat.SnatBridgeName, "D"); err != nil {
+			log.Printf("Deleting PrivateIPBlock rules failed with error %v", err)
+		}
+	}
 }
 
 func (client *OVSNetworkClient) SetBridgeMasterToHostInterface() error {

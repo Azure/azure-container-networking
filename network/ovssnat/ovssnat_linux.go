@@ -62,6 +62,15 @@ func (client *OVSSnatClient) CreateSnatEndpoint(bridgeName string) error {
 	return netlink.SetLinkMaster(client.hostSnatVethName, SnatBridgeName)
 }
 
+func (client *OVSSnatClient) AddPrivateIPBlockRule() error {
+	if err := epcommon.AddOrDeletePrivateIPBlockRule(SnatBridgeName, "A"); err != nil {
+		log.Printf("AddPrivateIPBlockRule failed with error %v", err)
+		return err
+	}
+
+	return nil
+}
+
 func (client *OVSSnatClient) MoveSnatEndpointToContainerNS(netnsPath string, nsID uintptr) error {
 	log.Printf("[ovs] Setting link %v netns %v.", client.containerSnatVethName, netnsPath)
 	return netlink.SetLinkNetNs(client.containerSnatVethName, nsID)

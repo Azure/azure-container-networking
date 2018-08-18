@@ -1,11 +1,28 @@
 package epcommon
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/platform"
 )
+
+func getPrivateIPSpace() []string {
+	privateIPAddresses := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+	return privateIPAddresses
+}
+
+func getFilterChains() []string {
+	chains := []string{"FORWARD", "INPUT", "OUTPUT"}
+	return chains
+}
+
+func getFilterchainTarget() []string {
+	actions := []string{"ACCEPT", "DROP"}
+	return actions
+}
 
 func CreateEndpoint(hostVethName string, containerVethName string) error {
 	log.Printf("[net] Creating veth pair %v %v.", hostVethName, containerVethName)
@@ -57,6 +74,60 @@ func AssignIPToInterface(interfaceName string, ipAddresses []net.IPNet) error {
 		log.Printf("[net] Adding IP address %v to link %v.", ipAddr.String(), interfaceName)
 		err := netlink.AddIpAddress(interfaceName, ipAddr.IP, &ipAddr)
 		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func addOrDeleteFilterRule(bridgeName string, action string, ipAddress string, chainName string, target string) error {
+	option := "i"
+
+	if chainName == "OUTPUT" {
+		option = "o"
+	}
+
+	if action != "D" {
+		cmd := fmt.Sprintf("iptables -t filter -C %v -%v %v -d %v -j %v", chainName, option, bridgeName, ipAddress, target)
+		_, err := platform.ExecuteCommand(cmd)
+		if err == nil {
+			log.Printf("Iptable filter for private ipaddr %v on %v chain %v target rule already exists", ipAddress, chainName, target)
+			return nil
+		}
+	}
+
+	cmd := fmt.Sprintf("iptables -t filter -%v %v -%v %v -d %v -j %v", action, chainName, option, bridgeName, ipAddress, target)
+	_, err := platform.ExecuteCommand(cmd)
+	if err != nil {
+		log.Printf("Iptable filter %v action for private ipaddr %v on %v chain %v target failed with %v", action, ipAddress, chainName, target, err)
+		return err
+	}
+
+	return nil
+}
+
+func AddOrDeletePrivateIPBlockRule(bridgeName string, action string) error {
+	privateIPAddresses := getPrivateIPSpace()
+	chains := getFilterChains()
+	target := getFilterchainTarget()
+
+	for _, chain := range chains {
+		if err := addOrDeleteFilterRule(bridgeName, action, "10.0.0.10", chain, target[0]); err != nil {
+			return err
+		}
+	}
+
+	for _, ipAddress := range privateIPAddresses {
+		if err := addOrDeleteFilterRule(bridgeName, action, ipAddress, chains[0], target[1]); err != nil {
+			return err
+		}
+
+		if err := addOrDeleteFilterRule(bridgeName, action, ipAddress, chains[1], target[1]); err != nil {
+			return err
+		}
+
+		if err := addOrDeleteFilterRule(bridgeName, action, ipAddress, chains[2], target[1]); err != nil {
 			return err
 		}
 	}

@@ -35,7 +35,11 @@ func AddSnatEndpoint(client *OVSEndpointClient) error {
 
 func AddSnatEndpointRules(client *OVSEndpointClient) error {
 	if client.enableSnatOnHost {
-		return AddStaticRoute(ovssnat.ImdsIP, ovssnat.SnatBridgeName)
+		if err := client.snatClient.AddPrivateIPBlockRule(); err != nil {
+			return err
+		}
+
+		return AddStaticRoute(ovssnat.ImdsIP, client.bridgeName)
 	}
 
 	return nil
