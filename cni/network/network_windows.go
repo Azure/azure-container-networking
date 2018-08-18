@@ -87,7 +87,7 @@ func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, names
 	var dns network.DNSInfo
 
 	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
-		err = plugin.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
+		err = fmt.Errof("Wrong DNS configuration: %+v", nwCfg.DNS)
 		return dns, err
 	}
 
