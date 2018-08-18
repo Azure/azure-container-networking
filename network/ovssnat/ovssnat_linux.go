@@ -21,19 +21,26 @@ const (
 )
 
 type OVSSnatClient struct {
-	hostSnatVethName      string
-	containerSnatVethName string
-	localIP               string
-	snatBridgeIP          string
+	hostSnatVethName       string
+	containerSnatVethName  string
+	localIP                string
+	snatBridgeIP           string
+	SkipAddressesFromBlock []string
 }
 
-func NewSnatClient(hostIfName string, contIfName string, localIP string, snatBridgeIP string) OVSSnatClient {
+func NewSnatClient(hostIfName string, contIfName string, localIP string, snatBridgeIP string, skipAddressesFromBlock []string) OVSSnatClient {
 	log.Printf("Initialize new snat client")
 	snatClient := OVSSnatClient{}
 	snatClient.hostSnatVethName = hostIfName
 	snatClient.containerSnatVethName = contIfName
 	snatClient.localIP = localIP
 	snatClient.snatBridgeIP = snatBridgeIP
+
+	for _, address := range skipAddressesFromBlock {
+		snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, address)
+	}
+
+	log.Printf("Initialize new snat client %+v", snatClient)
 
 	return snatClient
 }
@@ -63,7 +70,7 @@ func (client *OVSSnatClient) CreateSnatEndpoint(bridgeName string) error {
 }
 
 func (client *OVSSnatClient) AddPrivateIPBlockRule() error {
-	if err := epcommon.AddOrDeletePrivateIPBlockRule(SnatBridgeName, "A"); err != nil {
+	if err := epcommon.AddOrDeletePrivateIPBlockRule(SnatBridgeName, client.SkipAddressesFromBlock, "A"); err != nil {
 		log.Printf("AddPrivateIPBlockRule failed with error %v", err)
 		return err
 	}

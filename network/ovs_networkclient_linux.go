@@ -12,10 +12,11 @@ import (
 )
 
 type OVSNetworkClient struct {
-	bridgeName        string
-	hostInterfaceName string
-	snatBridgeIP      string
-	enableSnatOnHost  bool
+	bridgeName             string
+	hostInterfaceName      string
+	snatBridgeIP           string
+	skipAddressesFromBlock []string
+	enableSnatOnHost       bool
 }
 
 const (
@@ -54,12 +55,13 @@ func updateOVSConfig(option string) error {
 	return nil
 }
 
-func NewOVSClient(bridgeName, hostInterfaceName, snatBridgeIP string, enableSnatOnHost bool) *OVSNetworkClient {
+func NewOVSClient(bridgeName, hostInterfaceName, snatBridgeIP string, skipAddressesFromBlock []string, enableSnatOnHost bool) *OVSNetworkClient {
 	ovsClient := &OVSNetworkClient{
-		bridgeName:        bridgeName,
-		hostInterfaceName: hostInterfaceName,
-		snatBridgeIP:      snatBridgeIP,
-		enableSnatOnHost:  enableSnatOnHost,
+		bridgeName:             bridgeName,
+		hostInterfaceName:      hostInterfaceName,
+		snatBridgeIP:           snatBridgeIP,
+		skipAddressesFromBlock: skipAddressesFromBlock,
+		enableSnatOnHost:       enableSnatOnHost,
 	}
 
 	return ovsClient
@@ -129,7 +131,7 @@ func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
 	}
 
 	if client.enableSnatOnHost {
-		if err := epcommon.AddOrDeletePrivateIPBlockRule(ovssnat.SnatBridgeName, "A"); err != nil {
+		if err := epcommon.AddOrDeletePrivateIPBlockRule(ovssnat.SnatBridgeName, client.skipAddressesFromBlock, "A"); err != nil {
 			return err
 		}
 
@@ -143,7 +145,7 @@ func (client *OVSNetworkClient) DeleteL2Rules(extIf *externalInterface) {
 	ovsctl.DeletePortFromOVS(client.bridgeName, client.hostInterfaceName)
 
 	if client.enableSnatOnHost {
-		if err := epcommon.AddOrDeletePrivateIPBlockRule(ovssnat.SnatBridgeName, "D"); err != nil {
+		if err := epcommon.AddOrDeletePrivateIPBlockRule(ovssnat.SnatBridgeName, client.skipAddressesFromBlock, "D"); err != nil {
 			log.Printf("Deleting PrivateIPBlock rules failed with error %v", err)
 		}
 	}

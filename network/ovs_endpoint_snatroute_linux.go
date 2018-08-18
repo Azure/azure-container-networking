@@ -21,7 +21,7 @@ func NewSnatClient(client *OVSEndpointClient, epInfo *EndpointInfo) {
 			snatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
 		}
 
-		client.snatClient = ovssnat.NewSnatClient(hostIfName, contIfName, localIP, snatBridgeIP)
+		client.snatClient = ovssnat.NewSnatClient(hostIfName, contIfName, localIP, snatBridgeIP, epInfo.DNS.Servers)
 	}
 }
 

@@ -3,6 +3,7 @@ package network
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -80,4 +81,27 @@ func setupInfraVnetRoutingForMultitenancy(
 	azIpamResult *cniTypesCurr.Result,
 	epInfo *network.EndpointInfo,
 	result *cniTypesCurr.Result) {
+}
+
+func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	var dns network.DNSInfo
+
+	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
+		err = plugin.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
+		return dns, err
+	}
+
+	if len(nwCfg.DNS.Search) > 0 {
+		dns = network.DNSInfo{
+			Servers: nwCfg.DNS.Nameservers,
+			Suffix:  namespace + "." + strings.Join(nwCfg.DNS.Search, ","),
+		}
+	} else {
+		dns = network.DNSInfo{
+			Suffix:  result.DNS.Domain,
+			Servers: result.DNS.Nameservers,
+		}
+	}
+
+	return dns, nil
 }

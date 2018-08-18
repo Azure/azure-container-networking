@@ -68,6 +68,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		Endpoints:        make(map[string]*endpoint),
 		extIf:            extIf,
 		VlanId:           vlanid,
+		DNS:              nwInfo.DNS,
 		EnableSnatOnHost: nwInfo.EnableSnatOnHost,
 	}
 
@@ -79,7 +80,7 @@ func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 	var networkClient NetworkClient
 
 	if nw.VlanId != 0 {
-		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name, "", nw.EnableSnatOnHost)
+		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name, "", nw.DNS.Servers, nw.EnableSnatOnHost)
 	} else {
 		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, nw.Mode)
 	}
@@ -203,7 +204,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 			snatBridgeIP, _ = opt[SnatBridgeIPKey].(string)
 		}
 
-		networkClient = NewOVSClient(bridgeName, extIf.Name, snatBridgeIP, nwInfo.EnableSnatOnHost)
+		networkClient = NewOVSClient(bridgeName, extIf.Name, snatBridgeIP, nwInfo.DNS.Servers, nwInfo.EnableSnatOnHost)
 	} else {
 		networkClient = NewLinuxBridgeClient(bridgeName, extIf.Name, nwInfo.Mode)
 	}

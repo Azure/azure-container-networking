@@ -21,10 +21,11 @@ type OVSInfraVnetClient struct {
 }
 
 func NewInfraVnetClient(hostIfName string, contIfName string) OVSInfraVnetClient {
-	log.Printf("Initialize new infravnet client")
 	infraVnetClient := OVSInfraVnetClient{}
 	infraVnetClient.hostInfraVethName = hostIfName
 	infraVnetClient.ContainerInfraVethName = contIfName
+
+	log.Printf("Initialize new infravnet client %+v", infraVnetClient)
 
 	return infraVnetClient
 }

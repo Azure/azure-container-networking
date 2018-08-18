@@ -107,15 +107,26 @@ func addOrDeleteFilterRule(bridgeName string, action string, ipAddress string, c
 	return nil
 }
 
-func AddOrDeletePrivateIPBlockRule(bridgeName string, action string) error {
+func AddOrDeletePrivateIPBlockRule(bridgeName string, skipAddresses []string, action string) error {
 	privateIPAddresses := getPrivateIPSpace()
 	chains := getFilterChains()
 	target := getFilterchainTarget()
 
-	for _, chain := range chains {
-		if err := addOrDeleteFilterRule(bridgeName, action, "10.0.0.10", chain, target[0]); err != nil {
+	log.Printf("[net] Addresses to allow %v", skipAddresses)
+
+	for _, address := range skipAddresses {
+		if err := addOrDeleteFilterRule(bridgeName, action, address, chains[0], target[0]); err != nil {
 			return err
 		}
+
+		if err := addOrDeleteFilterRule(bridgeName, action, address, chains[1], target[0]); err != nil {
+			return err
+		}
+
+		if err := addOrDeleteFilterRule(bridgeName, action, address, chains[2], target[0]); err != nil {
+			return err
+		}
+
 	}
 
 	for _, ipAddress := range privateIPAddresses {

@@ -396,22 +396,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 	epInfo.Data = make(map[string]interface{})
 
-	var dns network.DNSInfo
-	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
-		err = plugin.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
+	dns, err := getDNSSettings(nwCfg, result, k8sNamespace)
+	if err != nil {
+		log.Printf("Error retrieving dns settings %v", err)
 		return err
-	}
-
-	if len(nwCfg.DNS.Search) > 0 {
-		dns = network.DNSInfo{
-			Servers: nwCfg.DNS.Nameservers,
-			Suffix:  k8sNamespace + "." + strings.Join(nwCfg.DNS.Search, ","),
-		}
-	} else {
-		dns = network.DNSInfo{
-			Suffix:  result.DNS.Domain,
-			Servers: result.DNS.Nameservers,
-		}
 	}
 
 	epInfo.DNS = dns

@@ -79,3 +79,21 @@ func setupInfraVnetRoutingForMultitenancy(
 		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: *ipNet, Gw: azIpamResult.IPs[0].Gateway, DevName: infraInterface})
 	}
 }
+
+func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	var dns network.DNSInfo
+
+	if len(nwCfg.DNS.Nameservers) > 0 {
+		dns = network.DNSInfo{
+			Servers: nwCfg.DNS.Nameservers,
+			Suffix:  nwCfg.DNS.Domain,
+		}
+	} else {
+		dns = network.DNSInfo{
+			Suffix:  result.DNS.Domain,
+			Servers: result.DNS.Nameservers,
+		}
+	}
+
+	return dns, nil
+}

@@ -40,6 +40,7 @@ type network struct {
 	Subnets          []SubnetInfo
 	Endpoints        map[string]*endpoint
 	extIf            *externalInterface
+	DNS              DNSInfo
 	EnableSnatOnHost bool
 }
 
