@@ -97,6 +97,7 @@ func AssignIPToInterface(interfaceName string, ipAddresses []net.IPNet) error {
 }
 
 func addOrDeleteFilterRule(bridgeName string, action string, ipAddress string, chainName string, target string) error {
+	var cmd string
 	option := "i"
 
 	if chainName == "OUTPUT" {
@@ -104,7 +105,7 @@ func addOrDeleteFilterRule(bridgeName string, action string, ipAddress string, c
 	}
 
 	if action != "D" {
-		cmd := fmt.Sprintf("iptables -t filter -C %v -%v %v -d %v -j %v", chainName, option, bridgeName, ipAddress, target)
+		cmd = fmt.Sprintf("iptables -t filter -C %v -%v %v -d %v -j %v", chainName, option, bridgeName, ipAddress, target)
 		_, err := platform.ExecuteCommand(cmd)
 		if err == nil {
 			log.Printf("Iptable filter for private ipaddr %v on %v chain %v target rule already exists", ipAddress, chainName, target)
@@ -112,7 +113,13 @@ func addOrDeleteFilterRule(bridgeName string, action string, ipAddress string, c
 		}
 	}
 
-	cmd := fmt.Sprintf("iptables -t filter -%v %v -%v %v -d %v -j %v", action, chainName, option, bridgeName, ipAddress, target)
+	if target != "ACCEPT" {
+		cmd = fmt.Sprintf("iptables -t filter -%v %v -%v %v -d %v -j %v", action, chainName, option, bridgeName, ipAddress, target)
+	} else {
+		action = "I"
+		cmd = fmt.Sprintf("iptables -t filter -%v %v 1 -%v %v -d %v -j %v", action, chainName, option, bridgeName, ipAddress, target)
+	}
+
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("Iptable filter %v action for private ipaddr %v on %v chain %v target failed with %v", action, ipAddress, chainName, target, err)
