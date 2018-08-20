@@ -7,10 +7,16 @@
          "mode":"bridge",
          "bridge":"azure0",
          "multiTenancy":true,
+         "infraVnetAddressSpace":"",
+         "podNamespaceForDualNetwork":[],
+         "enableExactMatchForPodName": false,
          "enableSnatOnHost":true,
          "ipam":{
             "type":"azure-vnet-ipam"
-         }
+         },
+         "dns":{
+            "nameservers":[]
+        }
       },
       {
          "type":"portmap",

@@ -9,8 +9,23 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 )
 
+/*RFC For Private Address Space: https://tools.ietf.org/html/rfc1918
+   The Internet Assigned Numbers Authority (IANA) has reserved the
+   following three blocks of the IP address space for private internets:
+
+     10.0.0.0        -   10.255.255.255  (10/8 prefix)
+     172.16.0.0      -   172.31.255.255  (172.16/12 prefix)
+     192.168.0.0     -   192.168.255.255 (192.168/16 prefix)
+
+RFC for Link Local Addresses: https://tools.ietf.org/html/rfc3927
+   This document describes how a host may
+   automatically configure an interface with an IPv4 address within the
+   169.254/16 prefix that is valid for communication with other devices
+   connected to the same physical (or logical) link.
+*/
+
 func getPrivateIPSpace() []string {
-	privateIPAddresses := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+	privateIPAddresses := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"}
 	return privateIPAddresses
 }
 
