@@ -228,7 +228,7 @@ func (reportMgr *ReportManager) SendReport() error {
 		if resp.StatusCode == 400 {
 			return fmt.Errorf(`"[Telemetry] HTTP Post returned statuscode %d. 
 				This error happens because telemetry service is not yet activated. 
-				The error can be ignored as it won't affect CNI functionality"`, resp.StatusCode)
+				The error can be ignored as it won't affect functionality"`, resp.StatusCode)
 		}
 
 		return fmt.Errorf("[Telemetry] HTTP Post returned statuscode %d", resp.StatusCode)

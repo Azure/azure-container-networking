@@ -33,3 +33,8 @@ func (report *CNIReport) GetSystemDetails() {
 func (report *CNIReport) GetOSDetails() {
 	report.OSDetails = &OSInfo{OSType: runtime.GOOS}
 }
+
+// Get kernel version
+func (reportMgr *ReportManager) GetKernelVersion() {
+	// stub
+}
