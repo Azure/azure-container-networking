@@ -89,7 +89,17 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	}()
 
 	// Attach the endpoint happens on join
-	log.Printf("[net] Skipping Attaching endpoint %v to container %v, as this will happen in NetworkDriver/Join", hnsResponse.Id, epInfo.ContainerID)
+	if len(epInfo.ContainerID) > 0 {
+		log.Printf("[net] Attaching endpoint %v to container %v.", hnsResponse.Id, epInfo.ContainerID)
+		err = hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsResponse.Id)
+		if err != nil {
+			log.Printf("[net] Failed to attach endpoint: %v.", err)
+			return nil, err
+		}
+	} else {
+		// Attach the endpoint happens on join
+		log.Printf("[net] Skipping Attaching endpoint %v to container %v, as this will happen in NetworkDriver/Join", hnsResponse.Id, epInfo.ContainerID)
+	}
 
 	// Create the endpoint object.
 	ep := &endpoint{
