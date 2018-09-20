@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/Azure/azure-container-networking/cnm/ipam"
@@ -14,7 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
@@ -145,16 +146,23 @@ func main() {
 
 	err = common.CreateDirectory(platform.CNMRuntimePath)
 	if err != nil {
-		fmt.Printf("Failed to create File Store directory Error:%v", err.Error())
+		fmt.Printf("Failed to create database directory Error:%v", err.Error())
 		return
 	}
 
-	// Create the key value store.
-	config.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + name + ".json")
+	// Create the database.
+	config.Database, err = bolt.Open(filepath.Join(platform.CNMRuntimePath, name)+".db", 0600, nil)
 	if err != nil {
-		fmt.Printf("Failed to create store: %v\n", err)
+		fmt.Printf("Failed to open database: %v\n", err)
 		return
 	}
+
+	// Close the database on exit
+	defer func() {
+		if config.Database != nil {
+			config.Database.Close()
+		}
+	}()
 
 	// Create logging provider.
 	log.SetName(name)

@@ -10,7 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
@@ -27,8 +27,8 @@ type Service struct {
 }
 
 // NewService creates a new Service object.
-func NewService(name, version string, store store.KeyValueStore) (*Service, error) {
-	service, err := common.NewService(name, version, store)
+func NewService(name, version string, database *bolt.DB) (*Service, error) {
+	service, err := common.NewService(name, version, database)
 
 	if err != nil {
 		return nil, err

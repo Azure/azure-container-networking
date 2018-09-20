@@ -5,25 +5,24 @@ package ipam
 
 import (
 	"sync"
-	"time"
 
+	"github.com/Azure/azure-container-networking/boltwrapper"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
-	// IPAM store key.
-	storeKey = "IPAM"
+	// IPAM database key.
+	databaseKey = "IPAM"
 )
 
 // AddressManager manages the set of address spaces and pools allocated to containers.
 type addressManager struct {
 	Version    string
-	TimeStamp  time.Time
 	AddrSpaces map[string]*addressSpace `json:"AddressSpaces"`
-	store      store.KeyValueStore
+	database   *bolt.DB
 	source     addressConfigSource
 	netApi     common.NetApi
 	sync.Mutex
@@ -72,7 +71,7 @@ func NewAddressManager() (AddressManager, error) {
 // Initialize configures address manager.
 func (am *addressManager) Initialize(config *common.PluginConfig, options map[string]interface{}) error {
 	am.Version = config.Version
-	am.store = config.Store
+	am.database = config.Database
 	am.netApi = config.NetApi
 
 	// Restore persisted state.
@@ -92,22 +91,20 @@ func (am *addressManager) Uninitialize() {
 	am.StopSource()
 }
 
-// Restore reads address manager state from persistent store.
+// Restore reads address manager state from the on-disk database.
 func (am *addressManager) restore() error {
-	// Skip if a store is not provided.
-	if am.store == nil {
-		log.Printf("[ipam] ipam store is nil")
+	// Skip if a database is not provided.
+	if am.database == nil {
+		log.Printf("[ipam] ipam database is nil")
 		return nil
 	}
 
 	rebooted := false
 
 	// Check if the VM is rebooted.
-	modTime, err := am.store.GetModificationTime()
-	if err == nil {
-
+	if modTime, err := boltwrapper.GetModificationTime(am.database.Path()); err == nil {
 		rebootTime, err := platform.GetLastRebootTime()
-		log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
+		log.Printf("[ipam] reboot time %v database mod time %v", rebootTime, modTime)
 
 		if err == nil && rebootTime.After(modTime) {
 			rebooted = true
@@ -115,15 +112,13 @@ func (am *addressManager) restore() error {
 	}
 
 	// Read any persisted state.
-	err = am.store.Read(storeKey, am)
-	if err != nil {
-		if err == store.ErrKeyNotFound {
-			log.Printf("[ipam] store key not found")
+	if err := boltwrapper.Read(am.database, databaseKey, am); err != nil {
+		if err == boltwrapper.ErrNotFound {
+			log.Printf("[ipam] database key not found")
 			return nil
-		} else {
-			log.Printf("[ipam] Failed to restore state, err:%v\n", err)
-			return err
 		}
+		log.Printf("[ipam] Failed to restore state, err:%v\n", err)
+		return err
 	}
 
 	// Populate pointers.
@@ -159,23 +154,19 @@ func (am *addressManager) restore() error {
 	return nil
 }
 
-// Save writes address manager state to persistent store.
+// Save writes address manager state to the database.
 func (am *addressManager) save() error {
-	// Skip if a store is not provided.
-	if am.store == nil {
+	// Skip if a database is not provided.
+	if am.database == nil {
+		log.Printf("[ipam] Not saving, no database")
 		return nil
 	}
-
-	// Update time stamp.
-	am.TimeStamp = time.Now()
-
-	err := am.store.Write(storeKey, am)
-	if err == nil {
-		log.Printf("[ipam] Save succeeded.\n")
-	} else {
+	if err := boltwrapper.Write(am.database, databaseKey, am); err != nil {
 		log.Printf("[ipam] Save failed, err:%v\n", err)
+		return err
 	}
-	return err
+	log.Printf("[ipam] Save succeeded.\n")
+	return nil
 }
 
 // Starts configuration source.

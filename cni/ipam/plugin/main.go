@@ -26,14 +26,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := ipamPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
-		fmt.Printf("Failed to initialize key-value store of ipam plugin, err:%v.\n", err)
+	if err := ipamPlugin.Plugin.OpenDatabase(&config); err != nil {
+		fmt.Printf("Failed to open database of ipam plugin, err:%v.\n", err)
 		os.Exit(1)
 	}
 
 	defer func() {
-		if errUninit := ipamPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
-			fmt.Printf("Failed to uninitialize key-value store of ipam plugin, err:%v.\n", err)
+		if errUninit := ipamPlugin.Plugin.CloseDatabase(); errUninit != nil {
+			fmt.Printf("Failed to close database of ipam plugin, err:%v.\n", err)
 		}
 
 		if recover() != nil {

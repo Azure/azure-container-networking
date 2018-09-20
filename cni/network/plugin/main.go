@@ -87,15 +87,15 @@ func main() {
 
 	netPlugin.SetReportManager(reportManager)
 
-	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
-		log.Printf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
+	if err = netPlugin.Plugin.OpenDatabase(&config); err != nil {
+		log.Printf("Failed to open database of network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, err)
 		os.Exit(1)
 	}
 
 	defer func() {
-		if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
-			log.Printf("Failed to uninitialize key-value store of network plugin, err:%v.\n", err)
+		if errUninit := netPlugin.Plugin.CloseDatabase(); errUninit != nil {
+			log.Printf("Failed to close database of network plugin, err:%v.\n", err)
 		}
 
 		if recover() != nil {

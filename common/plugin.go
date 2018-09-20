@@ -4,16 +4,16 @@
 package common
 
 import (
-	"github.com/Azure/azure-container-networking/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Plugin is the parent class that implements behavior common to all plugins.
 type Plugin struct {
-	Name    string
-	Version string
-	Options map[string]interface{}
-	ErrChan chan error
-	Store   store.KeyValueStore
+	Name     string
+	Version  string
+	Options  map[string]interface{}
+	ErrChan  chan error
+	Database *bolt.DB
 }
 
 // Plugin base interface.
@@ -40,7 +40,7 @@ type PluginConfig struct {
 	IpamApi  IpamApi
 	Listener *Listener
 	ErrChan  chan error
-	Store    store.KeyValueStore
+	Database *bolt.DB
 }
 
 // NewPlugin creates a new Plugin object.
@@ -55,7 +55,7 @@ func NewPlugin(name, version string) (*Plugin, error) {
 // Initialize initializes the plugin.
 func (plugin *Plugin) Initialize(config *PluginConfig) error {
 	plugin.ErrChan = config.ErrChan
-	plugin.Store = config.Store
+	plugin.Database = config.Database
 
 	return nil
 }

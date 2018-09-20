@@ -6,18 +6,19 @@ package cni
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/store"
 
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 	cniVers "github.com/containernetworking/cni/pkg/version"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Plugin is the parent class for CNI plugins.
@@ -126,8 +127,7 @@ func (plugin *Plugin) DelegateDel(pluginName string, nwCfg *NetworkConfig) error
 
 	os.Setenv(Cmd, CmdDel)
 
-	err = cniInvoke.DelegateDel(pluginName, nwCfg.Serialize(), nil)
-	if err != nil {
+	if err := cniInvoke.DelegateDel(pluginName, nwCfg.Serialize(), nil); err != nil {
 		return fmt.Errorf("Failed to delegate: %v", err)
 	}
 
@@ -154,39 +154,29 @@ func (plugin *Plugin) Errorf(format string, args ...interface{}) *cniTypes.Error
 	return plugin.Error(fmt.Errorf(format, args...))
 }
 
-// Initialize key-value store
-func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error {
-	// Create the key value store.
-	if plugin.Store == nil {
+// Opens the database
+func (plugin *Plugin) OpenDatabase(config *common.PluginConfig) error {
+	// Create the database
+	if plugin.Database == nil {
 		var err error
-		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + plugin.Name + ".json")
+		plugin.Database, err = bolt.Open(filepath.Join(platform.CNIRuntimePath, plugin.Name)+".db", 0600, nil)
 		if err != nil {
-			log.Printf("[cni] Failed to create store: %v.", err)
+			log.Printf("[cni] Failed to create database: %v.", err)
 			return err
 		}
 	}
 
-	// Acquire store lock.
-	if err := plugin.Store.Lock(true); err != nil {
-		log.Printf("[cni] Failed to lock store: %v.", err)
-		return err
-	}
-
-	config.Store = plugin.Store
+	config.Database = plugin.Database
 
 	return nil
 }
 
-// Uninitialize key-value store
-func (plugin *Plugin) UninitializeKeyValueStore() error {
-	if plugin.Store != nil {
-		err := plugin.Store.Unlock()
-		if err != nil {
-			log.Printf("[cni] Failed to unlock store: %v.", err)
-			return err
-		}
+// Closes the database
+func (plugin *Plugin) CloseDatabase() error {
+	if plugin.Database != nil {
+		plugin.Database.Close()
 	}
-	plugin.Store = nil
+	plugin.Database = nil
 
 	return nil
 }

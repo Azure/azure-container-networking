@@ -8,16 +8,16 @@ import (
 
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Service implements behavior common to all services.
 type Service struct {
-	Name    string
-	Version string
-	Options map[string]interface{}
-	ErrChan chan error
-	Store   store.KeyValueStore
+	Name     string
+	Version  string
+	Options  map[string]interface{}
+	ErrChan  chan error
+	Database *bolt.DB
 }
 
 // ServiceAPI defines base interface.
@@ -34,18 +34,18 @@ type ServiceConfig struct {
 	Version  string
 	Listener *acn.Listener
 	ErrChan  chan error
-	Store    store.KeyValueStore
+	Database *bolt.DB
 }
 
 // NewService creates a new Service object.
-func NewService(name, version string, store store.KeyValueStore) (*Service, error) {
+func NewService(name, version string, database *bolt.DB) (*Service, error) {
 	log.Debugf("[Azure CNS] Going to create a service object with name: %v. version: %v.", name, version)
 
 	svc := &Service{
-		Name:    name,
-		Version: version,
-		Options: make(map[string]interface{}),
-		Store:   store,
+		Name:     name,
+		Version:  version,
+		Options:  make(map[string]interface{}),
+		Database: database,
 	}
 
 	log.Debugf("[Azure CNS] Finished creating service object with name: %v. version: %v.", name, version)
@@ -63,7 +63,7 @@ func (service *Service) Initialize(config *ServiceConfig) error {
 	log.Debugf("[Azure CNS] Going to initialize the service: %+v with config: %+v.", service, config)
 
 	service.ErrChan = config.ErrChan
-	service.Store = config.Store
+	service.Database = config.Database
 	service.Version = config.Version
 
 	log.Debugf("[Azure CNS] nitialized service: %+v with config: %+v.", service, config)

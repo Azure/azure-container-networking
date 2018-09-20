@@ -9,8 +9,8 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"time"
 
+	"github.com/Azure/azure-container-networking/boltwrapper"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
@@ -20,12 +20,12 @@ import (
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
 	// Key against which CNS state is persisted.
-	storeKey        = "ContainerNetworkService"
+	databaseKey     = "ContainerNetworkService"
 	swiftAPIVersion = "1"
 )
 
@@ -37,9 +37,9 @@ type httpRestService struct {
 	ipamClient       *ipamclient.IpamClient
 	networkContainer *networkcontainers.NetworkContainers
 	routingTable     *routes.RoutingTable
-	store            store.KeyValueStore
+	database         *bolt.DB
 	state            *httpRestServiceState
-	lock             sync.Mutex
+	sync.Mutex
 }
 
 // containerstatus is used to save status of an existing container
@@ -59,7 +59,6 @@ type httpRestServiceState struct {
 	ContainerIDByOrchestratorContext map[string]string          // OrchestratorContext is key and value is NetworkContainerID.
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
-	TimeStamp                        time.Time
 }
 
 type networkInfo struct {
@@ -75,7 +74,7 @@ type HTTPService interface {
 
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig) (HTTPService, error) {
-	service, err := cns.NewService(config.Name, config.Version, config.Store)
+	service, err := cns.NewService(config.Name, config.Version, config.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +98,7 @@ func NewHTTPRestService(config *common.ServiceConfig) (HTTPService, error) {
 
 	return &httpRestService{
 		Service:          service,
-		store:            service.Service.Store,
+		database:         service.Service.Database,
 		dockerClient:     dc,
 		imdsClient:       imdsClient,
 		ipamClient:       ic,
@@ -760,22 +759,19 @@ func (service *httpRestService) getHealthReport(w http.ResponseWriter, r *http.R
 func (service *httpRestService) saveState() error {
 	log.Printf("[Azure CNS] saveState")
 
-	// Skip if a store is not provided.
-	if service.store == nil {
-		log.Printf("[Azure CNS]  store not initialized.")
+	// Skip if a database is not provided.
+	if service.database == nil {
+		log.Printf("[Azure CNS]  database not initialized.")
 		return nil
 	}
 
-	// Update time stamp.
-	service.state.TimeStamp = time.Now()
-	err := service.store.Write(storeKey, &service.state)
-	if err == nil {
-		log.Printf("[Azure CNS]  State saved successfully.\n")
-	} else {
+	if err := boltwrapper.Write(service.database, databaseKey, &service.state); err != nil {
 		log.Printf("[Azure CNS]  Failed to save state., err:%v\n", err)
+		return err
 	}
 
-	return err
+	log.Printf("[Azure CNS]  State saved successfully.\n")
+	return nil
 }
 
 // restoreState restores CNS state from persistent store.
@@ -783,20 +779,18 @@ func (service *httpRestService) restoreState() error {
 	log.Printf("[Azure CNS] restoreState")
 
 	// Skip if a store is not provided.
-	if service.store == nil {
-		log.Printf("[Azure CNS]  store not initialized.")
+	if service.database == nil {
+		log.Printf("[Azure CNS]  database not initialized.")
 		return nil
 	}
 
 	// Read any persisted state.
-	err := service.store.Read(storeKey, &service.state)
-	if err != nil {
-		if err == store.ErrKeyNotFound {
+	if err := boltwrapper.Read(service.database, databaseKey, &service.state); err != nil {
+		if err == boltwrapper.ErrNotFound {
 			// Nothing to restore.
 			log.Printf("[Azure CNS]  No state to restore.\n")
 			return nil
 		}
-
 		log.Printf("[Azure CNS]  Failed to restore state, err:%v\n", err)
 		return err
 	}
@@ -817,7 +811,7 @@ func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 		return
 	}
 
-	service.lock.Lock()
+	service.Lock()
 
 	switch req.OrchestratorType {
 	case cns.ServiceFabric, cns.Kubernetes, cns.WebApps:
@@ -828,7 +822,7 @@ func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 		returnCode = UnsupportedOrchestratorType
 	}
 
-	service.lock.Unlock()
+	service.Unlock()
 
 	resp := cns.Response{
 		ReturnCode: returnCode,
@@ -841,8 +835,8 @@ func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 
 func (service *httpRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (int, string) {
 	// we don't want to overwrite what other calls may have written
-	service.lock.Lock()
-	defer service.lock.Unlock()
+	service.Lock()
+	defer service.Unlock()
 
 	existing, ok := service.state.ContainerStatus[req.NetworkContainerid]
 	var hostVersion string
@@ -912,9 +906,9 @@ func (service *httpRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 	case "POST":
 		if req.NetworkContainerType == cns.WebApps {
 			// try to get the saved nc state if it exists
-			service.lock.Lock()
+			service.Lock()
 			existing, ok := service.state.ContainerStatus[req.NetworkContainerid]
-			service.lock.Unlock()
+			service.Unlock()
 
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
 			if !ok || (ok && existing.VMVersion != req.Version) {
@@ -972,8 +966,8 @@ func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 	var containerID string
 	var getNetworkContainerResponse cns.GetNetworkContainerResponse
 
-	service.lock.Lock()
-	defer service.lock.Unlock()
+	service.Lock()
+	defer service.Unlock()
 
 	switch service.state.OrchestratorType {
 	case cns.Kubernetes, cns.ServiceFabric:
@@ -1057,9 +1051,9 @@ func (service *httpRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		var containerStatus containerstatus
 		var ok bool
 
-		service.lock.Lock()
+		service.Lock()
 		containerStatus, ok = service.state.ContainerStatus[req.NetworkContainerid]
-		service.lock.Unlock()
+		service.Unlock()
 
 		if !ok {
 			log.Printf("Not able to retrieve network container details for this container id %v", req.NetworkContainerid)
@@ -1075,8 +1069,8 @@ func (service *httpRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 			}
 		}
 
-		service.lock.Lock()
-		defer service.lock.Unlock()
+		service.Lock()
+		defer service.Unlock()
 
 		if service.state.ContainerStatus != nil {
 			delete(service.state.ContainerStatus, req.NetworkContainerid)
@@ -1122,8 +1116,8 @@ func (service *httpRestService) getNetworkContainerStatus(w http.ResponseWriter,
 		return
 	}
 
-	service.lock.Lock()
-	defer service.lock.Unlock()
+	service.Lock()
+	defer service.Unlock()
 	var ok bool
 	var containerDetails containerstatus
 
@@ -1230,15 +1224,13 @@ func (service *httpRestService) getInterfaceForContainer(w http.ResponseWriter, 
 func (service *httpRestService) restoreNetworkState() error {
 	log.Printf("[Azure CNS] Enter Restoring Network State")
 
-	if service.store == nil {
-		log.Printf("[Azure CNS] Store is not initialized, nothing to restore for network state.")
+	if service.database == nil {
+		log.Printf("[Azure CNS] Database is not initialized, nothing to restore for network state.")
 		return nil
 	}
 
 	rebooted := false
-	modTime, err := service.store.GetModificationTime()
-
-	if err == nil {
+	if modTime, err := boltwrapper.GetModificationTime(service.database.Path()); err == nil {
 		log.Printf("[Azure CNS] Store timestamp is %v.", modTime)
 
 		rebootTime, err := platform.GetLastRebootTime()

@@ -5,18 +5,18 @@ package network
 
 import (
 	"sync"
-	"time"
 
+	"github.com/Azure/azure-container-networking/boltwrapper"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
-	// Network store key.
-	storeKey  = "Network"
-	VlanIDKey = "VlanID"
+	// Network database key.
+	databaseKey = "Network"
+	VlanIDKey   = "VlanID"
 )
 
 type NetworkClient interface {
@@ -41,9 +41,8 @@ type EndpointClient interface {
 // NetworkManager manages the set of container networking resources.
 type networkManager struct {
 	Version            string
-	TimeStamp          time.Time
 	ExternalInterfaces map[string]*externalInterface
-	store              store.KeyValueStore
+	database           *bolt.DB
 	sync.Mutex
 }
 
@@ -77,7 +76,7 @@ func NewNetworkManager() (NetworkManager, error) {
 // Initialize configures network manager.
 func (nm *networkManager) Initialize(config *common.PluginConfig) error {
 	nm.Version = config.Version
-	nm.store = config.Store
+	nm.database = config.Database
 
 	// Restore persisted state.
 	err := nm.restore()
@@ -90,21 +89,18 @@ func (nm *networkManager) Uninitialize() {
 
 // Restore reads network manager state from persistent store.
 func (nm *networkManager) restore() error {
-	// Skip if a store is not provided.
-	if nm.store == nil {
-		log.Printf("[net] network store is nil")
+	// Skip if a database is not provided.
+	if nm.database == nil {
+		log.Printf("[net] network database is nil")
 		return nil
 	}
 
 	rebooted := false
 	// After a reboot, all address resources are implicitly released.
 	// Ignore the persisted state if it is older than the last reboot time.
-
-	// Read any persisted state.
-	err := nm.store.Read(storeKey, nm)
-	if err != nil {
-		if err == store.ErrKeyNotFound {
-			log.Printf("[net] network store key not found")
+	if err := boltwrapper.Read(nm.database, databaseKey, nm); err != nil {
+		if err == boltwrapper.ErrNotFound {
+			log.Printf("[net] database key %s not found", databaseKey)
 			// Considered successful.
 			return nil
 		} else {
@@ -113,10 +109,9 @@ func (nm *networkManager) restore() error {
 		}
 	}
 
-	modTime, err := nm.store.GetModificationTime()
-	if err == nil {
+	if modTime, err := boltwrapper.GetModificationTime(nm.database.Path()); err == nil {
 		rebootTime, err := platform.GetLastRebootTime()
-		log.Printf("[net] reboot time %v store mod time %v", rebootTime, modTime)
+		log.Printf("[net] reboot time %v database mod time %v", rebootTime, modTime)
 		if err == nil && rebootTime.After(modTime) {
 			rebooted = true
 		}
@@ -165,23 +160,20 @@ func (nm *networkManager) restore() error {
 	return nil
 }
 
-// Save writes network manager state to persistent store.
+// Save writes network manager state to its database.
 func (nm *networkManager) save() error {
-	// Skip if a store is not provided.
-	if nm.store == nil {
+	// Skip if a database is not provided.
+	if nm.database == nil {
 		return nil
 	}
 
-	// Update time stamp.
-	nm.TimeStamp = time.Now()
-
-	err := nm.store.Write(storeKey, nm)
-	if err == nil {
-		log.Printf("[net] Save succeeded.\n")
-	} else {
+	if err := boltwrapper.Write(nm.database, databaseKey, nm); err != nil {
 		log.Printf("[net] Save failed, err:%v\n", err)
+		return err
 	}
-	return err
+
+	log.Printf("[net] Save succeeded.\n")
+	return nil
 }
 
 //
