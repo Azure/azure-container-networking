@@ -53,6 +53,12 @@ func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 // This function should only be called when npMgr is locked.
 func (npMgr *NetworkPolicyManager) UpdateAndSendReport(err error, eventMsg string) error {
 	clusterState := npMgr.GetClusterState()
+
+	// Avoid a SIGSEGV
+	if npMgr.reportManager == nil || npMgr.reportManager.Report == nil {
+		return fmt.Errorf("no report manager or report object")
+	}
+
 	v := reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ClusterState")
 	if v.CanSet() {
 		v.FieldByName("PodCount").SetInt(int64(clusterState.PodCount))
