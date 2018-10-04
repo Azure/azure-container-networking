@@ -1,6 +1,7 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -104,4 +106,24 @@ func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, names
 	}
 
 	return dns, nil
+}
+
+// GetPoliciesFromRuntimeCfg returns network policies from network config.
+func (nwcfg *NetworkConfig) GetPoliciesFromRuntimeCfg() []policy.Policy {
+	var policies []policy.Policy
+	for _, mapping := range nwcfg.RuntimeConfig.PortMappings {
+		rawPolicy, _ := json.Marshal(&hcsshim.NatPolicy{
+			Type:         "NAT",
+			ExternalPort: uint16(mapping.HostPort),
+			InternalPort: uint16(mapping.ContainerPort),
+			Protocol:     mapping.Protocol,
+		})
+
+		return Policy{
+			Type: EndpointPolicy,
+			Data: rawPolicy,
+		}
+	}
+
+	return policies
 }

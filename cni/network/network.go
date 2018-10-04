@@ -403,7 +403,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	epInfo.DNS = dns
-	epInfo.Policies = policies
+	epPolicies := nwCfg.GetPoliciesFromRuntimeConf()
+
+	epInfo.Policies = append(policies, epPolicies)
 
 	// Populate addresses.
 	for _, ipconfig := range result.IPs {
