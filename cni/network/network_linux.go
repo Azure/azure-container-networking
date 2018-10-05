@@ -99,8 +99,8 @@ func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, names
 	return dns, nil
 }
 
-// GetPoliciesFromRuntimeCfg returns network policies from network config.
-// GetPoliciesFromRuntimeCfg is a dummy function for Linux platform.
-func (nwcfg *NetworkConfig) GetPoliciesFromRuntimeCfg() []policy.Policy {
+// getPoliciesFromRuntimeCfg returns network policies from network config.
+// getPoliciesFromRuntimeCfg is a dummy function for Linux platform.
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 	return nil
 }

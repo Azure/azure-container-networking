@@ -108,10 +108,10 @@ func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, names
 	return dns, nil
 }
 
-// GetPoliciesFromRuntimeCfg returns network policies from network config.
-func (nwcfg *NetworkConfig) GetPoliciesFromRuntimeCfg() []policy.Policy {
+// getPoliciesFromRuntimeCfg returns network policies from network config.
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 	var policies []policy.Policy
-	for _, mapping := range nwcfg.RuntimeConfig.PortMappings {
+	for _, mapping := range nwCfg.RuntimeConfig.PortMappings {
 		rawPolicy, _ := json.Marshal(&hcsshim.NatPolicy{
 			Type:         "NAT",
 			ExternalPort: uint16(mapping.HostPort),
@@ -119,10 +119,12 @@ func (nwcfg *NetworkConfig) GetPoliciesFromRuntimeCfg() []policy.Policy {
 			Protocol:     mapping.Protocol,
 		})
 
-		return Policy{
-			Type: EndpointPolicy,
+		policy := policy.Policy{
+			Type: policy.EndpointPolicy,
 			Data: rawPolicy,
 		}
+
+		policies = append(policies, policy)
 	}
 
 	return policies
