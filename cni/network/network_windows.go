@@ -83,25 +83,40 @@ func setupInfraVnetRoutingForMultitenancy(
 	result *cniTypesCurr.Result) {
 }
 
-func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
-	var dns network.DNSInfo
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	var nwDNS network.DNSInfo
 
 	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
 		err := fmt.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
-		return dns, err
+		return nwDNS, err
+	}
+
+	nwDNS = network.DNSInfo{
+		Servers: nwCfg.DNS.Nameservers,
+	}
+
+	return nwDNS, nil
+}
+
+func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	var epDNS network.DNSInfo
+
+	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
+		err := fmt.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
+		return epDNS, err
 	}
 
 	if len(nwCfg.DNS.Search) > 0 {
-		dns = network.DNSInfo{
+		epDNS = network.DNSInfo{
 			Servers: nwCfg.DNS.Nameservers,
 			Suffix:  namespace + "." + strings.Join(nwCfg.DNS.Search, ","),
 		}
 	} else {
-		dns = network.DNSInfo{
+		epDNS = network.DNSInfo{
 			Suffix:  result.DNS.Domain,
 			Servers: result.DNS.Nameservers,
 		}
 	}
 
-	return dns, nil
+	return epDNS, nil
 }

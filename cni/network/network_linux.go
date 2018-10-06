@@ -80,20 +80,24 @@ func setupInfraVnetRoutingForMultitenancy(
 	}
 }
 
-func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
-	var dns network.DNSInfo
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	var nwDNS network.DNSInfo
 
 	if len(nwCfg.DNS.Nameservers) > 0 {
-		dns = network.DNSInfo{
+		nwDNS = network.DNSInfo{
 			Servers: nwCfg.DNS.Nameservers,
 			Suffix:  nwCfg.DNS.Domain,
 		}
 	} else {
-		dns = network.DNSInfo{
+		nwDNS = network.DNSInfo{
 			Suffix:  result.DNS.Domain,
 			Servers: result.DNS.Nameservers,
 		}
 	}
 
-	return dns, nil
+	return nwDNS, nil
+}
+
+func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	return getNetworkDNSSettings(nwCfg, result, namespace)
 }

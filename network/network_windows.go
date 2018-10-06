@@ -33,7 +33,6 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 	hnsNetwork := &hcsshim.HNSNetwork{
 		Name:               nwInfo.Id,
 		NetworkAdapterName: networkAdapterName,
-		DNSSuffix:          nwInfo.DNS.Suffix,
 		DNSServerList:      strings.Join(nwInfo.DNS.Servers, ","),
 		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.Policies),
 	}
