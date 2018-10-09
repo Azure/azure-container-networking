@@ -326,11 +326,13 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			return err
 		}
 
-		nwDnsInfo, err := getNetworkDNSSettings(nwCfg, result, k8sNamespace)
+		nwDNSInfo, err := getNetworkDNSSettings(nwCfg, result, k8sNamespace)
 		if err != nil {
 			err = plugin.Errorf("Failed to getDNSSettings: %v", err)
 			return err
 		}
+
+		log.Printf("[cni-net] nwDNSInfo: %v", nwDNSInfo)
 
 		// Create the network.
 		nwInfo := network.NetworkInfo{
@@ -345,7 +347,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			},
 			BridgeName:       nwCfg.Bridge,
 			EnableSnatOnHost: nwCfg.EnableSnatOnHost,
-			DNS:              nwDnsInfo,
+			DNS:              nwDNSInfo,
 			Policies:         policies,
 		}
 
@@ -388,7 +390,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	epDnsInfo, err := getEndpointDNSSettings(nwCfg, result, k8sNamespace)
+	epDNSInfo, err := getEndpointDNSSettings(nwCfg, result, k8sNamespace)
 	if err != nil {
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return err
@@ -402,7 +404,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		EnableSnatOnHost: nwCfg.EnableSnatOnHost,
 		EnableInfraVnet:  enableInfraVnet,
 		Data:             make(map[string]interface{}),
-		DNS:              epDnsInfo,
+		DNS:              epDNSInfo,
 		Policies:         policies,
 	}
 
