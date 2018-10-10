@@ -22,6 +22,17 @@ type KVPair struct {
 	Value json.RawMessage `json:"value"`
 }
 
+type PortMapping struct {
+	HostPort      int    `json:"hostPort"`
+	ContainerPort int    `json:"containerPort"`
+	Protocol      string `json:"protocol"`
+	HostIp        string `json:"hostIP,omitempty"`
+}
+
+type RuntimeConfig struct {
+	PortMappings []PortMapping `json:"portMappings,omitempty"`
+}
+
 // NetworkConfig represents Azure CNI plugin network configuration.
 type NetworkConfig struct {
 	CNIVersion                 string   `json:"cniVersion"`
@@ -45,7 +56,8 @@ type NetworkConfig struct {
 		Address       string `json:"ipAddress,omitempty"`
 		QueryInterval string `json:"queryInterval,omitempty"`
 	}
-	DNS            cniTypes.DNS `json:"dns"`
+	DNS            cniTypes.DNS  `json:"dns"`
+	RuntimeConfig  RuntimeConfig `json:"runtimeConfig"`
 	AdditionalArgs []KVPair
 }
 
