@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/policy"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
@@ -100,4 +101,10 @@ func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result
 
 func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
 	return getNetworkDNSSettings(nwCfg, result, namespace)
+}
+
+// getPoliciesFromRuntimeCfg returns network policies from network config.
+// getPoliciesFromRuntimeCfg is a dummy function for Linux platform.
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
+	return nil
 }

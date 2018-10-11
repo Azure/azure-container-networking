@@ -1,6 +1,7 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -119,4 +121,28 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 	}
 
 	return epDNS, nil
+}
+
+// getPoliciesFromRuntimeCfg returns network policies from network config.
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
+	log.Printf("[net] RuntimeConfigs: %+v", nwCfg.RuntimeConfig)
+	var policies []policy.Policy
+	for _, mapping := range nwCfg.RuntimeConfig.PortMappings {
+		rawPolicy, _ := json.Marshal(&hcsshim.NatPolicy{
+			Type:         "NAT",
+			ExternalPort: uint16(mapping.HostPort),
+			InternalPort: uint16(mapping.ContainerPort),
+			Protocol:     mapping.Protocol,
+		})
+
+		policy := policy.Policy{
+			Type: policy.EndpointPolicy,
+			Data: rawPolicy,
+		}
+		log.Printf("[net] Creating port mapping policy: %+v", policy)
+
+		policies = append(policies, policy)
+	}
+
+	return policies
 }
