@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/Azure/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -37,6 +38,11 @@ func TestisSystemPod(t *testing.T) {
 func TestAddPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap: make(map[string]*namespace),
+		reportManager: &telemetry.ReportManager{
+			HostNetAgentURL: hostNetAgentURLForNpm,
+			ContentType:     contentType,
+			Report:          &telemetry.NPMReport{},
+		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
@@ -76,6 +82,11 @@ func TestAddPod(t *testing.T) {
 func TestUpdatePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap: make(map[string]*namespace),
+		reportManager: &telemetry.ReportManager{
+			HostNetAgentURL: hostNetAgentURLForNpm,
+			ContentType:     contentType,
+			Report:          &telemetry.NPMReport{},
+		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
@@ -133,6 +144,11 @@ func TestUpdatePod(t *testing.T) {
 func TestDeletePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap: make(map[string]*namespace),
+		reportManager: &telemetry.ReportManager{
+			HostNetAgentURL: hostNetAgentURLForNpm,
+			ContentType:     contentType,
+			Report:          &telemetry.NPMReport{},
+		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)

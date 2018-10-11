@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/iptm"
+	"github.com/Azure/azure-container-networking/telemetry"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -45,6 +46,11 @@ func TestAllNsList(t *testing.T) {
 func TestAddNamespace(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap: make(map[string]*namespace),
+		reportManager: &telemetry.ReportManager{
+			HostNetAgentURL: hostNetAgentURLForNpm,
+			ContentType:     contentType,
+			Report:          &telemetry.NPMReport{},
+		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
@@ -81,6 +87,11 @@ func TestAddNamespace(t *testing.T) {
 func TestUpdateNamespace(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap: make(map[string]*namespace),
+		reportManager: &telemetry.ReportManager{
+			HostNetAgentURL: hostNetAgentURLForNpm,
+			ContentType:     contentType,
+			Report:          &telemetry.NPMReport{},
+		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
@@ -130,6 +141,11 @@ func TestUpdateNamespace(t *testing.T) {
 func TestDeleteNamespace(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap: make(map[string]*namespace),
+		reportManager: &telemetry.ReportManager{
+			HostNetAgentURL: hostNetAgentURLForNpm,
+			ContentType:     contentType,
+			Report:          &telemetry.NPMReport{},
+		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
