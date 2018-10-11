@@ -4,19 +4,12 @@
 package network
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
-	"github.com/Microsoft/hcsshim"
-)
-
-const (
-	// HNS network types.
-	hnsL2bridge = "l2bridge"
-	hnsL2tunnel = "l2tunnel"
+	"github.com/Microsoft/hcsshim/hcn"
 )
 
 // Windows implementation of route.
@@ -29,45 +22,69 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 	if strings.HasPrefix(networkAdapterName, "vEthernet") {
 		networkAdapterName = ""
 	}
+
+	hcnPolicies := policy.SerializeHostComputeNetworkPolicies(nwInfo.Policies)
+
+	// Create NetworkAdapterName Policy
+	if networkAdapterName != "" {
+		hcnNetAdapterNamePolicy := policy.CreateNetworkAdapterNamePolicySetting(networkAdapterName)
+		hcnPolicies = append(hcnPolicies, hcnNetAdapterNamePolicy)
+	}
+
 	// Initialize HNS network.
-	hnsNetwork := &hcsshim.HNSNetwork{
-		Name:               nwInfo.Id,
-		NetworkAdapterName: networkAdapterName,
-		DNSServerList:      strings.Join(nwInfo.DNS.Servers, ","),
-		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.Policies),
+	hnsNetwork := &hcn.HostComputeNetwork{
+		Name: nwInfo.Id,
+		Ipams: []hcn.Ipam{
+			hcn.Ipam{
+				Type: "Static",
+			},
+		},
+		Dns: hcn.Dns{
+			Suffix:     nwInfo.DNS.Suffix,
+			ServerList: nwInfo.DNS.Servers,
+		},
+		SchemaVersion: hcn.SchemaVersion{
+			Major: 2,
+			Minor: 0,
+		},
+		Policies: hcnPolicies,
 	}
 
 	// Set network mode.
 	switch nwInfo.Mode {
 	case opModeBridge:
-		hnsNetwork.Type = hnsL2bridge
+		hnsNetwork.Type = hcn.L2Bridge
 	case opModeTunnel:
-		hnsNetwork.Type = hnsL2tunnel
+		hnsNetwork.Type = hcn.L2Tunnel
 	default:
 		return nil, errNetworkModeInvalid
 	}
 
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
-		hnsSubnet := hcsshim.Subnet{
-			AddressPrefix:  subnet.Prefix.String(),
-			GatewayAddress: subnet.Gateway.String(),
+		// Check for nil on address objects.
+		ipAddr := ""
+		if subnet.Prefix.IP != nil && subnet.Prefix.Mask != nil {
+			ipAddr = subnet.Prefix.String()
 		}
-
-		hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)
+		gwAddr := ""
+		if subnet.Gateway != nil {
+			gwAddr = subnet.Gateway.String()
+		}
+		hnsSubnet := hcn.Subnet{
+			IpAddressPrefix: ipAddr,
+			Routes: []hcn.Route{
+				hcn.Route{
+					NextHop: gwAddr,
+				},
+			},
+		}
+		hnsNetwork.Ipams[0].Subnets = append(hnsNetwork.Ipams[0].Subnets, hnsSubnet)
 	}
-
-	// Marshal the request.
-	buffer, err := json.Marshal(hnsNetwork)
-	if err != nil {
-		return nil, err
-	}
-	hnsRequest := string(buffer)
 
 	// Create the HNS network.
-	log.Printf("[net] HNSNetworkRequest POST request:%+v", hnsRequest)
-	hnsResponse, err := hcsshim.HNSNetworkRequest("POST", "", hnsRequest)
-	log.Printf("[net] HNSNetworkRequest POST response:%+v err:%v.", hnsResponse, err)
+	log.Printf("[net] HostComputeNetwork CREATE id:%+v", hnsNetwork)
+	hnsResponse, err := hnsNetwork.Create()
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +98,8 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		extIf:     extIf,
 	}
 
-	globals, err := hcsshim.GetHNSGlobals()
-	if err != nil || globals.Version.Major <= hcsshim.HNSVersion1803.Major {
+	globals, err := hcn.GetGlobals()
+	if err != nil || globals.Version.Major <= hcn.HNSVersion1803.Major {
 		// err would be not nil for windows 1709 & below
 		// Sleep for 10 seconds as a workaround for windows 1803 & below
 		// This is done only when the network is created.
@@ -94,11 +111,12 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 
 // DeleteNetworkImpl deletes an existing container network.
 func (nm *networkManager) deleteNetworkImpl(nw *network) error {
-	// Delete the HNS network.
-	log.Printf("[net] HNSNetworkRequest DELETE id:%v", nw.HnsId)
-	hnsResponse, err := hcsshim.HNSNetworkRequest("DELETE", nw.HnsId, "")
-	log.Printf("[net] HNSNetworkRequest DELETE response:%+v err:%v.", hnsResponse, err)
-
+	log.Printf("[net] HostComputeNetwork DELETE id:%v", nw.HnsId)
+	hnsNetwork, err := hcn.GetNetworkByID(nw.HnsId)
+	if err != nil {
+		return err
+	}
+	_, err = hnsNetwork.Delete()
 	return err
 }
 

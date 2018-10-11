@@ -17,11 +17,6 @@ const (
 	infraInterface = "eth2"
 )
 
-// handleConsecutiveAdd is a dummy function for Linux platform.
-func handleConsecutiveAdd(containerId, endpointId string, nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
-	return nil, nil
-}
-
 func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
 	_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
 	dstIP := net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet.Mask}

@@ -4,19 +4,14 @@
 package network
 
 import (
-	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
-	"github.com/Microsoft/hcsshim"
+	"github.com/Microsoft/hcsshim/hcn"
 )
-
-// HotAttachEndpoint is a wrapper of hcsshim's HotAttachEndpoint.
-func (endpoint *EndpointInfo) HotAttachEndpoint(containerID string) error {
-	return hcsshim.HotAttachEndpoint(containerID, endpoint.Id)
-}
 
 // ConstructEndpointID constructs endpoint name from netNsPath.
 func ConstructEndpointID(containerID string, netNsPath string, ifName string) (string, string) {
@@ -44,69 +39,90 @@ func ConstructEndpointID(containerID string, netNsPath string, ifName string) (s
 
 // newEndpointImpl creates a new endpoint in the network.
 func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
+	// Check for missing namespace
+	if epInfo.NetNsPath == "" {
+		log.Printf("[net] Endpoint missing Namsepace, cannot Create. [%v].", epInfo)
+		return nil, fmt.Errorf("Cannot create Endpoint without a Namespace")
+	}
+
 	// Get Infrastructure containerID. Handle ADD calls for workload container.
 	var err error
 	infraEpName, _ := ConstructEndpointID(epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName)
 
-	hnsEndpoint := &hcsshim.HNSEndpoint{
-		Name:           infraEpName,
-		VirtualNetwork: nw.HnsId,
-		DNSSuffix:      epInfo.DNS.Suffix,
-		DNSServerList:  strings.Join(epInfo.DNS.Servers, ","),
-		Policies:       policy.SerializePolicies(policy.EndpointPolicy, epInfo.Policies),
+	hcnPolicies := policy.SerializeHostComputeEndpointPolicies(epInfo.Policies)
+
+	hnsEndpoint := &hcn.HostComputeEndpoint{
+		Name:                 infraEpName,
+		HostComputeNetwork:   nw.HnsId,
+		HostComputeNamespace: epInfo.NetNsPath, // TODOERIK: Is this in the right form? (Guid)
+		Dns: hcn.Dns{
+			Suffix:     epInfo.DNS.Suffix,
+			ServerList: epInfo.DNS.Servers,
+		},
+		SchemaVersion: hcn.SchemaVersion{
+			Major: 2,
+			Minor: 0,
+		},
+		Policies: hcnPolicies,
 	}
 
-	// HNS currently supports only one IP address per endpoint.
-	if epInfo.IPAddresses != nil {
-		hnsEndpoint.IPAddress = epInfo.IPAddresses[0].IP
+	// Populate Mac, if present.
+	if epInfo.MacAddress != nil {
+		hnsEndpoint.MacAddress = epInfo.MacAddress.String()
+	}
+
+	// Populate Routes.
+	for _, route := range epInfo.Routes {
+		nextHop := ""
+		if route.Gw != nil {
+			nextHop = route.Gw.String()
+		}
+		dest := route.Dst.String()
+		hcnRoute := hcn.Route{
+			NextHop:           nextHop,
+			DestinationPrefix: dest,
+		}
+		hnsEndpoint.Routes = append(hnsEndpoint.Routes, hcnRoute)
+	}
+
+	// Populate IPConfigurations.
+	for _, ipAddress := range epInfo.IPAddresses {
+		ipAddr := ""
+		if ipAddress.IP != nil {
+			ipAddr = ipAddress.IP.String()
+		}
 		pl, _ := epInfo.IPAddresses[0].Mask.Size()
-		hnsEndpoint.PrefixLength = uint8(pl)
+		ipConfig := hcn.IpConfig{
+			IpAddress:    ipAddr,
+			PrefixLength: uint8(pl),
+		}
+		hnsEndpoint.IpConfigurations = append(hnsEndpoint.IpConfigurations, ipConfig)
 	}
-
-	// Marshal the request.
-	buffer, err := json.Marshal(hnsEndpoint)
-	if err != nil {
-		return nil, err
-	}
-	hnsRequest := string(buffer)
 
 	// Create the HNS endpoint.
-	log.Printf("[net] HNSEndpointRequest POST request:%+v", hnsRequest)
-	hnsResponse, err := hcsshim.HNSEndpointRequest("POST", "", hnsRequest)
-	log.Printf("[net] HNSEndpointRequest POST response:%+v err:%v.", hnsResponse, err)
+	log.Printf("[net] HostComputeEndpoint CREATE id:%+v", hnsEndpoint)
+	hnsResponse, err := hnsEndpoint.Create()
 	if err != nil {
 		return nil, err
 	}
 
 	defer func() {
 		if err != nil {
-			log.Printf("[net] HNSEndpointRequest DELETE id:%v", hnsResponse.Id)
-			hnsResponse, err := hcsshim.HNSEndpointRequest("DELETE", hnsResponse.Id, "")
-			log.Printf("[net] HNSEndpointRequest DELETE response:%+v err:%v.", hnsResponse, err)
+			delEndpoint(hnsResponse.Id)
 		}
 	}()
 
-	// Attach the endpoint.
-	log.Printf("[net] Attaching endpoint %v to container %v.", hnsResponse.Id, epInfo.ContainerID)
-	err = hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsResponse.Id)
-	if err != nil {
-		log.Printf("[net] Failed to attach endpoint: %v.", err)
-		return nil, err
-	}
-
 	// Create the endpoint object.
+	gatewayAddr := net.ParseIP(hnsResponse.Routes[0].NextHop)
 	ep := &endpoint{
 		Id:          infraEpName,
 		HnsId:       hnsResponse.Id,
 		SandboxKey:  epInfo.ContainerID,
 		IfName:      epInfo.IfName,
 		IPAddresses: epInfo.IPAddresses,
-		Gateways:    []net.IP{net.ParseIP(hnsResponse.GatewayAddress)},
+		Gateways:    []net.IP{gatewayAddr},
 		DNS:         epInfo.DNS,
-	}
-
-	for _, route := range epInfo.Routes {
-		ep.Routes = append(ep.Routes, route)
+		Routes:      epInfo.Routes,
 	}
 
 	ep.MacAddress, _ = net.ParseMAC(hnsResponse.MacAddress)
@@ -114,14 +130,19 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	return ep, nil
 }
 
-// deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(ep *endpoint) error {
-	// Delete the HNS endpoint.
-	log.Printf("[net] HNSEndpointRequest DELETE id:%v", ep.HnsId)
-	hnsResponse, err := hcsshim.HNSEndpointRequest("DELETE", ep.HnsId, "")
-	log.Printf("[net] HNSEndpointRequest DELETE response:%+v err:%v.", hnsResponse, err)
-
+func delEndpoint(id string) error {
+	log.Printf("[net] HostComputeEndpoint DELETE id:%v", id)
+	hnsEndpoint, err := hcn.GetEndpointByID(id)
+	if err != nil {
+		return err
+	}
+	_, err = hnsEndpoint.Delete()
 	return err
+}
+
+// deleteEndpointImpl deletes an existing endpoint from a network.
+func (nw *network) deleteEndpointImpl(ep *endpoint) error {
+	return delEndpoint(ep.HnsId)
 }
 
 // getInfoImpl returns information about the endpoint.

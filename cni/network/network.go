@@ -263,18 +263,11 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		 */
 		epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
 		if epInfo != nil {
-			result, err = handleConsecutiveAdd(args.ContainerID, endpointId, nwInfo, nwCfg)
-			if err != nil {
-				log.Printf("handleConsecutiveAdd failed with error %v", err)
-				return err
-			}
-
-			if result != nil {
-				return nil
-			}
+			return nil
 		}
 	}
 
+	// TODO: Remove network creation once the workflow no longer requires it.
 	if nwInfoErr != nil {
 		// Network does not exist.
 
