@@ -255,22 +255,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	// Check whether the network already exists.
 	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkId)
 
-	if nwInfoErr == nil {
-		/* Handle consecutive ADD calls for infrastructure containers.
-		* This is a temporary work around for issue #57253 of Kubernetes.
-		* We can delete this if statement once they fix it.
-		* Issue link: https://github.com/kubernetes/kubernetes/issues/57253
-		 */
-		epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
-		if epInfo != nil {
-			return nil
-		}
-	}
-
 	// TODO: Remove network creation once the workflow no longer requires it.
 	if nwInfoErr != nil {
 		// Network does not exist.
-
 		log.Printf("[cni-net] Creating network %v.", networkId)
 
 		if !nwCfg.MultiTenancy {
