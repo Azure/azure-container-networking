@@ -13,6 +13,18 @@ type Policy struct {
 	Data json.RawMessage
 }
 
+// TODO: RS5 at release does not process V2 Policy Schema, using V1 for now.
+// SerializePolicies serializes policies to json.
+func SerializePolicies(policyType CNIPolicyType, policies []Policy) []json.RawMessage {
+	var jsonPolicies []json.RawMessage
+	for _, policy := range policies {
+		if policy.Type == policyType {
+			jsonPolicies = append(jsonPolicies, policy.Data)
+		}
+	}
+	return jsonPolicies
+}
+
 // SerializeHostComputeNetworkPolicies converts Policy objects into HCN Policy objects.
 func SerializeHostComputeNetworkPolicies(policies []Policy) []hcn.NetworkPolicy {
 	var hcnPolicies []hcn.NetworkPolicy

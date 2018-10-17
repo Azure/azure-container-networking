@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
+	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
@@ -49,54 +50,72 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	var err error
 	infraEpName, _ := ConstructEndpointID(epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName)
 
-	hcnPolicies := policy.SerializeHostComputeEndpointPolicies(epInfo.Policies)
+	/*
+		// TODO: RS5 at release does not process V2 Endpoint Schema, using V1 for now.
+		hcnPolicies := policy.SerializeHostComputeEndpointPolicies(epInfo.Policies)
 
-	hnsEndpoint := &hcn.HostComputeEndpoint{
-		Name:                 infraEpName,
-		HostComputeNetwork:   nw.HnsId,
-		HostComputeNamespace: epInfo.NetNsPath, // TODOERIK: Is this in the right form? (Guid)
-		Dns: hcn.Dns{
-			Suffix:     epInfo.DNS.Suffix,
-			ServerList: epInfo.DNS.Servers,
-		},
-		SchemaVersion: hcn.SchemaVersion{
-			Major: 2,
-			Minor: 0,
-		},
-		Policies: hcnPolicies,
+		hnsEndpoint := &hcn.HostComputeEndpoint{
+			Name:                 infraEpName,
+			HostComputeNetwork:   nw.HnsId,
+			HostComputeNamespace: epInfo.NetNsPath,
+			Dns: hcn.Dns{
+				Suffix:     epInfo.DNS.Suffix,
+				ServerList: epInfo.DNS.Servers,
+			},
+			SchemaVersion: hcn.SchemaVersion{
+				Major: 2,
+				Minor: 0,
+			},
+			Policies: hcnPolicies,
+		}
+
+		// Populate Mac, if present.
+		if epInfo.MacAddress != nil {
+			hnsEndpoint.MacAddress = epInfo.MacAddress.String()
+		}
+
+		// Populate Routes.
+		for _, route := range epInfo.Routes {
+			nextHop := ""
+			if route.Gw != nil {
+				nextHop = route.Gw.String()
+			}
+			dest := route.Dst.String()
+			hcnRoute := hcn.Route{
+				NextHop:           nextHop,
+				DestinationPrefix: dest,
+			}
+			hnsEndpoint.Routes = append(hnsEndpoint.Routes, hcnRoute)
+		}
+
+		// Populate IPConfigurations.
+		for _, ipAddress := range epInfo.IPAddresses {
+			ipAddr := ""
+			if ipAddress.IP != nil {
+				ipAddr = ipAddress.IP.String()
+			}
+			pl, _ := epInfo.IPAddresses[0].Mask.Size()
+			ipConfig := hcn.IpConfig{
+				IpAddress:    ipAddr,
+				PrefixLength: uint8(pl),
+			}
+			hnsEndpoint.IpConfigurations = append(hnsEndpoint.IpConfigurations, ipConfig)
+		}
+	*/
+
+	hnsEndpoint := &hcsshim.HNSEndpoint{
+		Name:           infraEpName,
+		VirtualNetwork: nw.HnsId,
+		DNSSuffix:      epInfo.DNS.Suffix,
+		DNSServerList:  strings.Join(epInfo.DNS.Servers, ","),
+		Policies:       policy.SerializePolicies(policy.EndpointPolicy, epInfo.Policies),
 	}
 
-	// Populate Mac, if present.
-	if epInfo.MacAddress != nil {
-		hnsEndpoint.MacAddress = epInfo.MacAddress.String()
-	}
-
-	// Populate Routes.
-	for _, route := range epInfo.Routes {
-		nextHop := ""
-		if route.Gw != nil {
-			nextHop = route.Gw.String()
-		}
-		dest := route.Dst.String()
-		hcnRoute := hcn.Route{
-			NextHop:           nextHop,
-			DestinationPrefix: dest,
-		}
-		hnsEndpoint.Routes = append(hnsEndpoint.Routes, hcnRoute)
-	}
-
-	// Populate IPConfigurations.
-	for _, ipAddress := range epInfo.IPAddresses {
-		ipAddr := ""
-		if ipAddress.IP != nil {
-			ipAddr = ipAddress.IP.String()
-		}
+	// HNS currently supports only one IP address per endpoint.
+	if epInfo.IPAddresses != nil {
+		hnsEndpoint.IPAddress = epInfo.IPAddresses[0].IP
 		pl, _ := epInfo.IPAddresses[0].Mask.Size()
-		ipConfig := hcn.IpConfig{
-			IpAddress:    ipAddr,
-			PrefixLength: uint8(pl),
-		}
-		hnsEndpoint.IpConfigurations = append(hnsEndpoint.IpConfigurations, ipConfig)
+		hnsEndpoint.PrefixLength = uint8(pl)
 	}
 
 	// Create the HNS endpoint.
@@ -112,17 +131,37 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		}
 	}()
 
+	/*
+		// TODO: RS5 at release does not process V2 Endpoint Schema, using V1 for now.
+		// Create the endpoint object.
+		gatewayAddr := net.ParseIP(hnsResponse.Routes[0].NextHop)
+		ep := &endpoint{
+			Id:          infraEpName,
+			HnsId:       hnsResponse.Id,
+			SandboxKey:  epInfo.ContainerID,
+			IfName:      epInfo.IfName,
+			IPAddresses: epInfo.IPAddresses,
+			Gateways:    []net.IP{gatewayAddr},
+			DNS:         epInfo.DNS,
+			Routes:      epInfo.Routes,
+		}
+
+		ep.MacAddress, _ = net.ParseMAC(hnsResponse.MacAddress)
+	*/
+
 	// Create the endpoint object.
-	gatewayAddr := net.ParseIP(hnsResponse.Routes[0].NextHop)
 	ep := &endpoint{
 		Id:          infraEpName,
 		HnsId:       hnsResponse.Id,
 		SandboxKey:  epInfo.ContainerID,
 		IfName:      epInfo.IfName,
 		IPAddresses: epInfo.IPAddresses,
-		Gateways:    []net.IP{gatewayAddr},
+		Gateways:    []net.IP{net.ParseIP(hnsResponse.GatewayAddress)},
 		DNS:         epInfo.DNS,
-		Routes:      epInfo.Routes,
+	}
+
+	for _, route := range epInfo.Routes {
+		ep.Routes = append(ep.Routes, route)
 	}
 
 	ep.MacAddress, _ = net.ParseMAC(hnsResponse.MacAddress)
