@@ -13,14 +13,14 @@ jobs:
             sudo -E env "PATH=$PATH" apt-get update
             sudo -E env "PATH=$PATH" apt-get install -y ebtables
             sudo -E env "PATH=$PATH" apt-get install -y ipset
-            mkdir -p /home/circleci/go1-10
+            mkdir -p /home/circleci/go1-11
             mkdir --parents /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
-            wget https://storage.googleapis.com/golang/go1.10.2.linux-amd64.tar.gz
-            tar -C /home/circleci/go1-10 -xvf go1.10.2.linux-amd64.tar.gz
-            rm go1.10.2.linux-amd64.tar.gz
+            wget https://storage.googleapis.com/golang/go1.11.1.linux-amd64.tar.gz
+            tar -C /home/circleci/go1-11 -xvf go1.11.1.linux-amd64.tar.gz
+            rm go1.11.1.linux-amd64.tar.gz
             mv * /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
             cd /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
-            export GOROOT='/home/circleci/go1-10/go'
+            export GOROOT='/home/circleci/go1-11/go'
             export GOPATH='/home/circleci/.goproject'
             export PATH=$GOROOT/bin:$PATH
             go get ./...
