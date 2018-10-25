@@ -26,8 +26,8 @@
          }
       ],
       "windowsProfile":{
-         "adminUsername":"",
-         "adminPassword":""
+         "adminUsername":"azureuser",
+         "adminPassword":"azureTest@!"
       },
       "linuxProfile":{
          "adminUsername":"azureuser",
