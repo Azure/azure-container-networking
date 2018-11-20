@@ -1,12 +1,11 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
-// +build windows
-
 package network
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,8 +16,9 @@ import (
 
 const (
 	// HNS network types.
-	hnsL2bridge = "l2bridge"
-	hnsL2tunnel = "l2tunnel"
+	hnsL2bridge      = "l2bridge"
+	hnsL2tunnel      = "l2tunnel"
+	CnetAddressSpace = "cnetAddressSpace"
 )
 
 // Windows implementation of route.
@@ -26,6 +26,7 @@ type route interface{}
 
 // NewNetworkImpl creates a new container network.
 func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
+	var vlanid int
 	networkAdapterName := extIf.Name
 	// FixMe: Find a better way to check if a nic that is selected is not part of a vSwitch
 	if strings.HasPrefix(networkAdapterName, "vEthernet") {
@@ -35,9 +36,23 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 	hnsNetwork := &hcsshim.HNSNetwork{
 		Name:               nwInfo.Id,
 		NetworkAdapterName: networkAdapterName,
-		DNSSuffix:          nwInfo.DNS.Suffix,
 		DNSServerList:      strings.Join(nwInfo.DNS.Servers, ","),
 		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.Policies),
+	}
+
+	// Set the VLAN and OutboundNAT policies
+	opt, _ := nwInfo.Options[genericData].(map[string]interface{})
+	if opt != nil && opt[VlanIDKey] != nil {
+		vlanPolicy := hcsshim.VlanPolicy{
+			Type: "VLAN",
+		}
+		vlanID, _ := strconv.ParseUint(opt[VlanIDKey].(string), 10, 32)
+		vlanPolicy.VLAN = uint(vlanID)
+
+		serializedVlanPolicy, _ := json.Marshal(vlanPolicy)
+		hnsNetwork.Policies = append(hnsNetwork.Policies, serializedVlanPolicy)
+
+		vlanid = (int)(vlanPolicy.VLAN)
 	}
 
 	// Set network mode.
@@ -77,11 +92,13 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 
 	// Create the network object.
 	nw := &network{
-		Id:        nwInfo.Id,
-		HnsId:     hnsResponse.Id,
-		Mode:      nwInfo.Mode,
-		Endpoints: make(map[string]*endpoint),
-		extIf:     extIf,
+		Id:               nwInfo.Id,
+		HnsId:            hnsResponse.Id,
+		Mode:             nwInfo.Mode,
+		Endpoints:        make(map[string]*endpoint),
+		extIf:            extIf,
+		VlanId:           vlanid,
+		EnableSnatOnHost: nwInfo.EnableSnatOnHost,
 	}
 
 	globals, err := hcsshim.GetHNSGlobals()

@@ -1,14 +1,17 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -68,12 +71,57 @@ func addInfraRoutes(azIpamResult *cniTypesCurr.Result, result *cniTypesCurr.Resu
 }
 
 func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.NetworkInfo) {
+	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
+		log.Printf("Setting Network Options")
+		vlanMap := make(map[string]interface{})
+		vlanMap[network.VlanIDKey] = strconv.Itoa(cnsNwConfig.MultiTenancyInfo.ID)
+		nwInfo.Options[dockerNetworkOption] = vlanMap
+	}
 }
 
 func setEndpointOptions(cnsNwConfig *cns.GetNetworkContainerResponse, epInfo *network.EndpointInfo, vethName string) {
+	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
+		log.Printf("Setting Endpoint Options")
+		var cnetAddressMap []string
+		for _, ipSubnet := range cnsNwConfig.CnetAddressSpace {
+			cnetAddressMap = append(cnetAddressMap, ipSubnet.IPAddress+"/"+strconv.Itoa(int(ipSubnet.PrefixLength)))
+		}
+		epInfo.Data[network.CnetAddressSpace] = cnetAddressMap
+	}
 }
 
 func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
+}
+
+func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPrefix *net.IPNet) {
+	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
+		ipconfig := cnsNwConfig.IPConfiguration
+		ipAddr := net.ParseIP(ipconfig.IPSubnet.IPAddress)
+
+		if ipAddr.To4() != nil {
+			*subnetPrefix = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 32)}
+		} else {
+			*subnetPrefix = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 128)}
+		}
+
+		subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
+		log.Printf("Updated subnetPrefix: %s", subnetPrefix.String())
+	}
+}
+
+func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
+	if nwCfg.MultiTenancy {
+		_, cnsNetworkConfig, _, err := getContainerNetworkConfiguration(nwCfg, "", podName, podNs, ifName)
+		if err != nil {
+			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", podName, podNs, err)
+			return "", err
+		}
+
+		networkName := fmt.Sprintf("%s-vlanid%v", nwCfg.Name, cnsNetworkConfig.MultiTenancyInfo.ID)
+		return networkName, nil
+	}
+
+	return nwCfg.Name, nil
 }
 
 func setupInfraVnetRoutingForMultitenancy(
@@ -83,25 +131,64 @@ func setupInfraVnetRoutingForMultitenancy(
 	result *cniTypesCurr.Result) {
 }
 
-func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
-	var dns network.DNSInfo
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	var nwDNS network.DNSInfo
 
 	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
 		err := fmt.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
-		return dns, err
+		return nwDNS, err
+	}
+
+	nwDNS = network.DNSInfo{
+		Servers: nwCfg.DNS.Nameservers,
+	}
+
+	return nwDNS, nil
+}
+
+func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	var epDNS network.DNSInfo
+
+	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
+		err := fmt.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
+		return epDNS, err
 	}
 
 	if len(nwCfg.DNS.Search) > 0 {
-		dns = network.DNSInfo{
+		epDNS = network.DNSInfo{
 			Servers: nwCfg.DNS.Nameservers,
 			Suffix:  namespace + "." + strings.Join(nwCfg.DNS.Search, ","),
 		}
 	} else {
-		dns = network.DNSInfo{
+		epDNS = network.DNSInfo{
 			Suffix:  result.DNS.Domain,
 			Servers: result.DNS.Nameservers,
 		}
 	}
 
-	return dns, nil
+	return epDNS, nil
+}
+
+// getPoliciesFromRuntimeCfg returns network policies from network config.
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
+	log.Printf("[net] RuntimeConfigs: %+v", nwCfg.RuntimeConfig)
+	var policies []policy.Policy
+	for _, mapping := range nwCfg.RuntimeConfig.PortMappings {
+		rawPolicy, _ := json.Marshal(&hcsshim.NatPolicy{
+			Type:         "NAT",
+			ExternalPort: uint16(mapping.HostPort),
+			InternalPort: uint16(mapping.ContainerPort),
+			Protocol:     mapping.Protocol,
+		})
+
+		policy := policy.Policy{
+			Type: policy.EndpointPolicy,
+			Data: rawPolicy,
+		}
+		log.Printf("[net] Creating port mapping policy: %+v", policy)
+
+		policies = append(policies, policy)
+	}
+
+	return policies
 }

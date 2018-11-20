@@ -4,14 +4,19 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"reflect"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/telemetry"
+	"github.com/containernetworking/cni/pkg/skel"
 )
 
 const (
@@ -22,6 +27,22 @@ const (
 
 // Version is populated by make during build.
 var version string
+
+// Command line arguments for CNI plugin.
+var args = acn.ArgumentList{
+	{
+		Name:         acn.OptVersion,
+		Shorthand:    acn.OptVersionAlias,
+		Description:  "Print version information",
+		Type:         "bool",
+		DefaultValue: false,
+	},
+}
+
+// Prints version information.
+func printVersion() {
+	fmt.Printf("Azure CNI Version %v\n", version)
+}
 
 // If report write succeeded, mark the report flag state to false.
 func markSendReport(reportManager *telemetry.ReportManager) {
@@ -48,8 +69,82 @@ func reportPluginError(reportManager *telemetry.ReportManager, err error) {
 	}
 }
 
+func validateConfig(jsonBytes []byte) error {
+	var conf struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(jsonBytes, &conf); err != nil {
+		return fmt.Errorf("error reading network config: %s", err)
+	}
+	if conf.Name == "" {
+		return fmt.Errorf("missing network name")
+	}
+	return nil
+}
+
+func getCmdArgsFromEnv() (string, *skel.CmdArgs, error) {
+	log.Printf("Going to read from stdin")
+	stdinData, err := ioutil.ReadAll(os.Stdin)
+	if err != nil {
+		return "", nil, fmt.Errorf("error reading from stdin: %v", err)
+	}
+
+	cmdArgs := &skel.CmdArgs{
+		ContainerID: os.Getenv("CNI_CONTAINERID"),
+		Netns:       os.Getenv("CNI_NETNS"),
+		IfName:      os.Getenv("CNI_IFNAME"),
+		Args:        os.Getenv("CNI_ARGS"),
+		Path:        os.Getenv("CNI_PATH"),
+		StdinData:   stdinData,
+	}
+
+	cmd := os.Getenv("CNI_COMMAND")
+	return cmd, cmdArgs, nil
+}
+
+func handleIfCniUpdate(update func(*skel.CmdArgs) error) (bool, error) {
+	isupdate := true
+
+	if os.Getenv("CNI_COMMAND") != cni.CmdUpdate {
+		return false, nil
+	}
+
+	log.Printf("CNI UPDATE received.")
+
+	_, cmdArgs, err := getCmdArgsFromEnv()
+	if err != nil {
+		log.Printf("Received error while retrieving cmds from environment: %+v", err)
+		return isupdate, err
+	}
+
+	log.Printf("Retrieved command args for update +%v", cmdArgs)
+	err = validateConfig(cmdArgs.StdinData)
+	if err != nil {
+		log.Printf("Failed to handle CNI UPDATE, err:%v.", err)
+		return isupdate, err
+	}
+
+	err = update(cmdArgs)
+	if err != nil {
+		log.Printf("Failed to handle CNI UPDATE, err:%v.", err)
+		return isupdate, err
+	}
+
+	return isupdate, nil
+}
+
 // Main is the entry point for CNI network plugin.
 func main() {
+
+	// Initialize and parse command line arguments.
+	acn.ParseArgs(&args, printVersion)
+	vers := acn.GetArg(acn.OptVersion).(bool)
+
+	if vers {
+		printVersion()
+		os.Exit(0)
+	}
+
 	var (
 		config common.PluginConfig
 		err    error
@@ -109,7 +204,10 @@ func main() {
 		panic("network plugin fatal error")
 	}
 
-	if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
+	handled, err := handleIfCniUpdate(netPlugin.Update)
+	if handled == true {
+		log.Printf("CNI UPDATE finished.")
+	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
 		log.Printf("Failed to execute network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, err)
 	}

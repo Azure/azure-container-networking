@@ -161,14 +161,14 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 		var err error
 		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + plugin.Name + ".json")
 		if err != nil {
-			log.Printf("[cni] Failed to create store, err:%v.", err)
+			log.Printf("[cni] Failed to create store: %v.", err)
 			return err
 		}
 	}
 
 	// Acquire store lock.
 	if err := plugin.Store.Lock(true); err != nil {
-		log.Printf("[cni] Timed out on locking store, err:%v.", err)
+		log.Printf("[cni] Failed to lock store: %v.", err)
 		return err
 	}
 
@@ -182,7 +182,7 @@ func (plugin *Plugin) UninitializeKeyValueStore() error {
 	if plugin.Store != nil {
 		err := plugin.Store.Unlock()
 		if err != nil {
-			log.Printf("[cni] Failed to unlock store, err:%v.", err)
+			log.Printf("[cni] Failed to unlock store: %v.", err)
 			return err
 		}
 	}

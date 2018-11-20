@@ -9,10 +9,11 @@ import (
 
 const (
 	// CNI commands.
-	Cmd    = "CNI_COMMAND"
-	CmdAdd = "ADD"
-	CmdGet = "GET"
-	CmdDel = "DEL"
+	Cmd       = "CNI_COMMAND"
+	CmdAdd    = "ADD"
+	CmdGet    = "GET"
+	CmdDel    = "DEL"
+	CmdUpdate = "UPDATE"
 
 	// CNI errors.
 	ErrRuntime = 100
@@ -29,4 +30,5 @@ type PluginApi interface {
 	Add(args *cniSkel.CmdArgs) error
 	Get(args *cniSkel.CmdArgs) error
 	Delete(args *cniSkel.CmdArgs) error
+	Update(args *cniSkel.CmdArgs) error
 }

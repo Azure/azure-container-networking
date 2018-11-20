@@ -74,6 +74,12 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 		}
 	}
 
+	log.Printf("[net] Setting hairpin for hostveth %v", client.hostVethName)
+	if err := netlink.SetLinkHairpin(client.hostVethName, true); err != nil {
+		log.Printf("Setting up hairpin failed for interface %v error %v", client.hostVethName, err)
+		return err
+	}
+
 	return nil
 }
 
@@ -127,6 +133,7 @@ func (client *LinuxBridgeEndpointClient) SetupContainerInterfaces(epInfo *Endpoi
 	}
 
 	client.containerVethName = epInfo.IfName
+
 	return nil
 }
 

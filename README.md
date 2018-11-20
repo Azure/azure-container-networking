@@ -1,5 +1,7 @@
 # Microsoft Azure Container Networking
 
+[![CircleCI](https://circleci.com/gh/Azure/azure-container-networking/tree/master.svg?style=svg)](https://circleci.com/gh/Azure/azure-container-networking/tree/master) [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/azure-container-networking)](https://goreportcard.com/report/github.com/Azure/azure-container-networking) ![GitHub release](https://img.shields.io/github/release/Azure/azure-container-networking.svg)
+
 ## Overview
 This repository contains container networking plugins for Linux and Windows containers running on Azure:
 

@@ -1,8 +1,6 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
-// +build linux
-
 package network
 
 import (
@@ -98,14 +96,15 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		if err != nil {
 			log.Printf("CNI error. Delete Endpoint %v and rules that are created.", contIfName)
 			endpt := &endpoint{
-				Id:               epInfo.Id,
-				IfName:           contIfName,
-				HostIfName:       hostIfName,
-				IPAddresses:      epInfo.IPAddresses,
-				Gateways:         []net.IP{nw.extIf.IPv4Gateway},
-				DNS:              epInfo.DNS,
-				VlanID:           vlanid,
-				EnableSnatOnHost: epInfo.EnableSnatOnHost,
+				Id:                 epInfo.Id,
+				IfName:             contIfName,
+				HostIfName:         hostIfName,
+				IPAddresses:        epInfo.IPAddresses,
+				Gateways:           []net.IP{nw.extIf.IPv4Gateway},
+				DNS:                epInfo.DNS,
+				VlanID:             vlanid,
+				EnableSnatOnHost:   epInfo.EnableSnatOnHost,
+				EnableMultitenancy: epInfo.EnableMultiTenancy,
 			}
 
 			if containerIf != nil {
@@ -173,17 +172,22 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 
 	// Create the endpoint object.
 	ep = &endpoint{
-		Id:               epInfo.Id,
-		IfName:           epInfo.IfName,
-		HostIfName:       hostIfName,
-		MacAddress:       containerIf.HardwareAddr,
-		InfraVnetIP:      epInfo.InfraVnetIP,
-		IPAddresses:      epInfo.IPAddresses,
-		Gateways:         []net.IP{nw.extIf.IPv4Gateway},
-		DNS:              epInfo.DNS,
-		VlanID:           vlanid,
-		EnableSnatOnHost: epInfo.EnableSnatOnHost,
-		EnableInfraVnet:  epInfo.EnableInfraVnet,
+		Id:                 epInfo.Id,
+		IfName:             epInfo.IfName,
+		HostIfName:         hostIfName,
+		MacAddress:         containerIf.HardwareAddr,
+		InfraVnetIP:        epInfo.InfraVnetIP,
+		IPAddresses:        epInfo.IPAddresses,
+		Gateways:           []net.IP{nw.extIf.IPv4Gateway},
+		DNS:                epInfo.DNS,
+		VlanID:             vlanid,
+		EnableSnatOnHost:   epInfo.EnableSnatOnHost,
+		EnableInfraVnet:    epInfo.EnableInfraVnet,
+		EnableMultitenancy: epInfo.EnableMultiTenancy,
+		NetworkNameSpace:   epInfo.NetNsPath,
+		ContainerID:        epInfo.ContainerID,
+		PODName:            epInfo.PODName,
+		PODNameSpace:       epInfo.PODNameSpace,
 	}
 
 	for _, route := range epInfo.Routes {
@@ -222,7 +226,7 @@ func addRoutes(interfaceName string, routes []RouteInfo) error {
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
 	for _, route := range routes {
-		log.Printf("[ovs] Adding IP route %+v to link %v.", route, interfaceName)
+		log.Printf("[net] Adding IP route %+v to link %v.", route, interfaceName)
 
 		if route.DevName != "" {
 			devIf, _ := net.InterfaceByName(route.DevName)
@@ -255,7 +259,7 @@ func deleteRoutes(interfaceName string, routes []RouteInfo) error {
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
 	for _, route := range routes {
-		log.Printf("[ovs] Adding IP route %+v to link %v.", route, interfaceName)
+		log.Printf("[ovs] Deleting IP route %+v from link %v.", route, interfaceName)
 
 		if route.DevName != "" {
 			devIf, _ := net.InterfaceByName(route.DevName)
@@ -275,6 +279,140 @@ func deleteRoutes(interfaceName string, routes []RouteInfo) error {
 			return err
 		}
 	}
+
+	return nil
+}
+
+// updateEndpointImpl updates an existing endpoint in the network.
+func (nw *network) updateEndpointImpl(existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
+	var ns *Namespace
+	var ep *endpoint
+	var err error
+
+	existingEpFromRepository := nw.Endpoints[existingEpInfo.Id]
+	log.Printf("[updateEndpointImpl] Going to retrieve endpoint with Id %+v to update.", existingEpInfo.Id)
+	if existingEpFromRepository == nil {
+		log.Printf("[updateEndpointImpl] Endpoint cannot be updated as it does not exist.")
+		err = errEndpointNotFound
+		return nil, err
+	}
+
+	netns := existingEpFromRepository.NetworkNameSpace
+	// Network namespace for the container interface has to be specified
+	if netns != "" {
+		// Open the network namespace.
+		log.Printf("[updateEndpointImpl] Opening netns %v.", netns)
+		ns, err = OpenNamespace(netns)
+		if err != nil {
+			return nil, err
+		}
+		defer ns.Close()
+
+		// Enter the container network namespace.
+		log.Printf("[updateEndpointImpl] Entering netns %v.", netns)
+		if err = ns.Enter(); err != nil {
+			return nil, err
+		}
+
+		// Return to host network namespace.
+		defer func() {
+			log.Printf("[updateEndpointImpl] Exiting netns %v.", netns)
+			if err := ns.Exit(); err != nil {
+				log.Printf("[updateEndpointImpl] Failed to exit netns, err:%v.", err)
+			}
+		}()
+	} else {
+		log.Printf("[updateEndpointImpl] Endpoint cannot be updated as the network namespace does not exist: Epid: %v", existingEpInfo.Id)
+		err = errNamespaceNotFound
+		return nil, err
+	}
+
+	log.Printf("[updateEndpointImpl] Going to update routes in netns %v.", netns)
+	if err = updateRoutes(existingEpInfo, targetEpInfo); err != nil {
+		return nil, err
+	}
+
+	// Create the endpoint object.
+	ep = &endpoint{
+		Id: existingEpInfo.Id,
+	}
+
+	// Update existing endpoint state with the new routes to persist
+	for _, route := range targetEpInfo.Routes {
+		ep.Routes = append(ep.Routes, route)
+	}
+
+	return ep, nil
+}
+
+func updateRoutes(existingEp *EndpointInfo, targetEp *EndpointInfo) error {
+	log.Printf("Updating routes for the endpoint %+v.", existingEp)
+	log.Printf("Target endpoint is %+v", targetEp)
+
+	existingRoutes := make(map[string]RouteInfo)
+	targetRoutes := make(map[string]RouteInfo)
+	var tobeDeletedRoutes []RouteInfo
+	var tobeAddedRoutes []RouteInfo
+
+	// we should not remove default route from container if it exists
+	// we do not support enable/disable snat for now
+	defaultDst := net.ParseIP("0.0.0.0")
+
+	log.Printf("Going to collect routes and skip default and infravnet routes if applicable.")
+	log.Printf("Key for default route: %+v", defaultDst.String())
+
+	infraVnetKey := ""
+	if targetEp.EnableInfraVnet {
+		infraVnetSubnet := targetEp.InfraVnetAddressSpace
+		if infraVnetSubnet != "" {
+			infraVnetKey = strings.Split(infraVnetSubnet, "/")[0]
+		}
+	}
+
+	log.Printf("Key for route to infra vnet: %+v", infraVnetKey)
+	for _, route := range existingEp.Routes {
+		destination := route.Dst.IP.String()
+		log.Printf("Checking destination as %+v to skip or not", destination)
+		isDefaultRoute := destination == defaultDst.String()
+		isInfraVnetRoute := targetEp.EnableInfraVnet && (destination == infraVnetKey)
+		if !isDefaultRoute && !isInfraVnetRoute {
+			existingRoutes[route.Dst.String()] = route
+			log.Printf("%+v was skipped", destination)
+		}
+	}
+
+	for _, route := range targetEp.Routes {
+		targetRoutes[route.Dst.String()] = route
+	}
+
+	for _, existingRoute := range existingRoutes {
+		dst := existingRoute.Dst.String()
+		if _, ok := targetRoutes[dst]; !ok {
+			tobeDeletedRoutes = append(tobeDeletedRoutes, existingRoute)
+			log.Printf("Adding following route to the tobeDeleted list: %+v", existingRoute)
+		}
+	}
+
+	for _, targetRoute := range targetRoutes {
+		dst := targetRoute.Dst.String()
+		if _, ok := existingRoutes[dst]; !ok {
+			tobeAddedRoutes = append(tobeAddedRoutes, targetRoute)
+			log.Printf("Adding following route to the tobeAdded list: %+v", targetRoute)
+		}
+
+	}
+
+	err := deleteRoutes(existingEp.IfName, tobeDeletedRoutes)
+	if err != nil {
+		return err
+	}
+
+	err = addRoutes(existingEp.IfName, tobeAddedRoutes)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Successfully updated routes for the endpoint %+v using target: %+v", existingEp, targetEp)
 
 	return nil
 }

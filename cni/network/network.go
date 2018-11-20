@@ -4,12 +4,13 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -130,6 +131,31 @@ func GetEndpointID(args *cniSkel.CmdArgs) string {
 	return infraEpId
 }
 
+// getPodInfo returns POD info by parsing the CNI args.
+func (plugin *netPlugin) getPodInfo(args string) (string, string, error) {
+	podCfg, err := cni.ParseCniArgs(args)
+	if err != nil {
+		log.Printf("Error while parsing CNI Args %v", err)
+		return "", "", err
+	}
+
+	k8sNamespace := string(podCfg.K8S_POD_NAMESPACE)
+	if len(k8sNamespace) == 0 {
+		errMsg := "Pod Namespace not specified in CNI Args"
+		log.Printf(errMsg)
+		return "", "", plugin.Errorf(errMsg)
+	}
+
+	k8sPodName := string(podCfg.K8S_POD_NAME)
+	if len(k8sPodName) == 0 {
+		errMsg := "Pod Name not specified in CNI Args"
+		log.Printf(errMsg)
+		return "", "", plugin.Errorf(errMsg)
+	}
+
+	return k8sPodName, k8sNamespace, nil
+}
+
 //
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
@@ -191,24 +217,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}()
 
 	// Parse Pod arguments.
-	podCfg, err := cni.ParseCniArgs(args.Args)
+	k8sPodName, k8sNamespace, err := plugin.getPodInfo(args.Args)
 	if err != nil {
-		log.Printf("Error while parsing CNI Args %v", err)
 		return err
-	}
-
-	k8sNamespace := string(podCfg.K8S_POD_NAMESPACE)
-	if len(k8sNamespace) == 0 {
-		errMsg := "Pod Namespace not specified in CNI Args"
-		log.Printf(errMsg)
-		return plugin.Errorf(errMsg)
-	}
-
-	k8sPodName := string(podCfg.K8S_POD_NAME)
-	if len(k8sPodName) == 0 {
-		errMsg := "Pod Name not specified in CNI Args"
-		log.Printf(errMsg)
-		return plugin.Errorf(errMsg)
 	}
 
 	k8sContainerID := args.ContainerID
@@ -233,10 +244,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	// Initialize values from network config.
-	networkId := nwCfg.Name
-	endpointId := GetEndpointID(args)
-
 	result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = GetMultiTenancyCNIResult(enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
 	if err != nil {
 		log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
@@ -251,6 +258,15 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	log.Printf("Result from multitenancy %+v", result)
 
+	// Initialize values from network config.
+	networkId, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	if err != nil {
+		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
+		return err
+	}
+
+	endpointId := GetEndpointID(args)
+
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
 	// Check whether the network already exists.
@@ -264,13 +280,15 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		 */
 		epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
 		if epInfo != nil {
-			result, err = handleConsecutiveAdd(args.ContainerID, endpointId, nwInfo, nwCfg)
-			if err != nil {
-				log.Printf("handleConsecutiveAdd failed with error %v", err)
-				return err
+			resultConsAdd, errConsAdd := handleConsecutiveAdd(args.ContainerID, endpointId, nwInfo, nwCfg)
+			if errConsAdd != nil {
+				log.Printf("handleConsecutiveAdd failed with error %v", errConsAdd)
+				result = resultConsAdd
+				return errConsAdd
 			}
 
-			if result != nil {
+			if resultConsAdd != nil {
+				result = resultConsAdd
 				return nil
 			}
 		}
@@ -327,10 +345,21 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			return err
 		}
 
+		nwDNSInfo, err := getNetworkDNSSettings(nwCfg, result, k8sNamespace)
+		if err != nil {
+			err = plugin.Errorf("Failed to getDNSSettings: %v", err)
+			return err
+		}
+
+		log.Printf("[cni-net] nwDNSInfo: %v", nwDNSInfo)
+		// Update subnet prefix for multi-tenant scenario
+		updateSubnetPrefix(cnsNetworkConfig, &subnetPrefix)
+
 		// Create the network.
 		nwInfo := network.NetworkInfo{
-			Id:   networkId,
-			Mode: nwCfg.Mode,
+			Id:           networkId,
+			Mode:         nwCfg.Mode,
+			MasterIfName: masterIfName,
 			Subnets: []network.SubnetInfo{
 				network.SubnetInfo{
 					Family:  platform.AfINET,
@@ -340,11 +369,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			},
 			BridgeName:       nwCfg.Bridge,
 			EnableSnatOnHost: nwCfg.EnableSnatOnHost,
-			DNS: network.DNSInfo{
-				Servers: nwCfg.DNS.Nameservers,
-				Suffix:  k8sNamespace + "." + strings.Join(nwCfg.DNS.Search, ","),
-			},
-			Policies: policies,
+			DNS:              nwDNSInfo,
+			Policies:         policies,
 		}
 
 		nwInfo.Options = make(map[string]interface{})
@@ -386,24 +412,31 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	epInfo = &network.EndpointInfo{
-		Id:               endpointId,
-		ContainerID:      args.ContainerID,
-		NetNsPath:        args.Netns,
-		IfName:           args.IfName,
-		EnableSnatOnHost: nwCfg.EnableSnatOnHost,
-		EnableInfraVnet:  enableInfraVnet,
-	}
-	epInfo.Data = make(map[string]interface{})
-
-	dns, err := getDNSSettings(nwCfg, result, k8sNamespace)
+	epDNSInfo, err := getEndpointDNSSettings(nwCfg, result, k8sNamespace)
 	if err != nil {
-		log.Printf("Error retrieving dns settings %v", err)
+		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return err
 	}
 
-	epInfo.DNS = dns
-	epInfo.Policies = policies
+	epInfo = &network.EndpointInfo{
+		Id:                 endpointId,
+		ContainerID:        args.ContainerID,
+		NetNsPath:          args.Netns,
+		IfName:             args.IfName,
+		Data:               make(map[string]interface{}),
+		DNS:                epDNSInfo,
+		Policies:           policies,
+		EnableSnatOnHost:   nwCfg.EnableSnatOnHost,
+		EnableMultiTenancy: nwCfg.MultiTenancy,
+		EnableInfraVnet:    enableInfraVnet,
+		PODName:            k8sPodName,
+		PODNameSpace:       k8sNamespace,
+	}
+
+	epPolicies := getPoliciesFromRuntimeCfg(nwCfg)
+	for _, epPolicy := range epPolicies {
+		epInfo.Policies = append(epInfo.Policies, epPolicy)
+	}
 
 	// Populate addresses.
 	for _, ipconfig := range result.IPs {
@@ -479,8 +512,18 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
 
+	// Parse Pod arguments.
+	k8sPodName, k8sNamespace, err := plugin.getPodInfo(args.Args)
+	if err != nil {
+		return err
+	}
+
 	// Initialize values from network config.
-	networkId := nwCfg.Name
+	networkId, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	if err != nil {
+		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
+	}
+
 	endpointId := GetEndpointID(args)
 
 	// Query the network.
@@ -539,8 +582,18 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
 
+	// Parse Pod arguments.
+	k8sPodName, k8sNamespace, err := plugin.getPodInfo(args.Args)
+	if err != nil {
+		return err
+	}
+
 	// Initialize values from network config.
-	networkId := nwCfg.Name
+	networkId, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	if err != nil {
+		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
+	}
+
 	endpointId := GetEndpointID(args)
 
 	// Query the network.
@@ -587,6 +640,162 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 			err = plugin.Errorf("Failed to release address: %v", err)
 			return err
 		}
+	}
+
+	return nil
+}
+
+// Update handles CNI update commands.
+// Update is only supported for multitenancy and to update routes.
+func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
+	var (
+		result         *cniTypesCurr.Result
+		err            error
+		nwCfg          *cni.NetworkConfig
+		existingEpInfo *network.EndpointInfo
+	)
+
+	log.Printf("[cni-net] Processing UPDATE command with args {Netns:%v Args:%v Path:%v}.",
+		args.Netns, args.Args, args.Path)
+
+	// Parse network configuration from stdin.
+	nwCfg, err = cni.ParseNetworkConfig(args.StdinData)
+	if err != nil {
+		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
+		return err
+	}
+
+	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
+
+	defer func() {
+		if result == nil {
+			result = &cniTypesCurr.Result{}
+		}
+
+		// Convert result to the requested CNI version.
+		res, vererr := result.GetAsVersion(nwCfg.CNIVersion)
+		if vererr != nil {
+			log.Printf("GetAsVersion failed with error %v", vererr)
+			plugin.Error(vererr)
+		}
+
+		if err == nil && res != nil {
+			// Output the result to stdout.
+			res.Print()
+		}
+
+		log.Printf("[cni-net] UPDATE command completed with result:%+v err:%v.", result, err)
+	}()
+
+	// Parse Pod arguments.
+	podCfg, err := cni.ParseCniArgs(args.Args)
+	if err != nil {
+		log.Printf("Error while parsing CNI Args during UPDATE %v", err)
+		return err
+	}
+
+	k8sNamespace := string(podCfg.K8S_POD_NAMESPACE)
+	if len(k8sNamespace) == 0 {
+		errMsg := "Required parameter Pod Namespace not specified in CNI Args during UPDATE"
+		log.Printf(errMsg)
+		return plugin.Errorf(errMsg)
+	}
+
+	k8sPodName := string(podCfg.K8S_POD_NAME)
+	if len(k8sPodName) == 0 {
+		errMsg := "Required parameter Pod Name not specified in CNI Args during UPDATE"
+		log.Printf(errMsg)
+		return plugin.Errorf(errMsg)
+	}
+
+	// Initialize values from network config.
+	networkID := nwCfg.Name
+
+	// Query the network.
+	_, err = plugin.nm.GetNetworkInfo(networkID)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to query network during CNI UPDATE: %v", err)
+		log.Printf(errMsg)
+		return plugin.Errorf(errMsg)
+	}
+
+	// Query the existing endpoint since this is an update.
+	// Right now, we do not support updating pods that have multiple endpoints.
+	existingEpInfo, err = plugin.nm.GetEndpointInfoBasedOnPODDetails(networkID, k8sPodName, k8sNamespace)
+	if err != nil {
+		plugin.Errorf("Failed to retrieve target endpoint for CNI UPDATE [name=%v, namespace=%v]: %v", k8sPodName, k8sNamespace, err)
+		return err
+	} else {
+		log.Printf("Retrieved existing endpoint from state that may get update: %+v", existingEpInfo)
+	}
+
+	// now query CNS to get the target routes that should be there in the networknamespace (as a result of update)
+	log.Printf("Going to collect target routes for [name=%v, namespace=%v] from CNS.", k8sPodName, k8sNamespace)
+	cnsClient, err := cnsclient.NewCnsClient(nwCfg.CNSUrl)
+	if err != nil {
+		log.Printf("Initializing CNS client error in CNI Update%v", err)
+		log.Printf(err.Error())
+		return plugin.Errorf(err.Error())
+	}
+
+	// create struct with info for target POD
+	podInfo := cns.KubernetesPodInfo{PodName: k8sPodName, PodNamespace: k8sNamespace}
+	orchestratorContext, err := json.Marshal(podInfo)
+	if err != nil {
+		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
+		return plugin.Errorf(err.Error())
+	}
+
+	targetNetworkConfig, err := cnsClient.GetNetworkConfiguration(orchestratorContext)
+	if err != nil {
+		log.Printf("GetNetworkConfiguration failed with %v", err)
+		return plugin.Errorf(err.Error())
+	}
+
+	log.Printf("Network config received from cns for [name=%v, namespace=%v] is as follows -> %+v", k8sPodName, k8sNamespace, targetNetworkConfig)
+	targetEpInfo := &network.EndpointInfo{}
+
+	// get the target routes that should replace existingEpInfo.Routes inside the network namespace
+	log.Printf("Going to collect target routes for [name=%v, namespace=%v] from targetNetworkConfig.", k8sPodName, k8sNamespace)
+	if targetNetworkConfig.Routes != nil && len(targetNetworkConfig.Routes) > 0 {
+		for _, route := range targetNetworkConfig.Routes {
+			log.Printf("Adding route from routes to targetEpInfo %+v", route)
+			_, dstIPNet, _ := net.ParseCIDR(route.IPAddress)
+			gwIP := net.ParseIP(route.GatewayIPAddress)
+			targetEpInfo.Routes = append(targetEpInfo.Routes, network.RouteInfo{Dst: *dstIPNet, Gw: gwIP, DevName: existingEpInfo.IfName})
+			log.Printf("Successfully added route from routes to targetEpInfo %+v", route)
+		}
+	}
+
+	log.Printf("Going to collect target routes based on Cnetaddressspace for [name=%v, namespace=%v] from targetNetworkConfig.", k8sPodName, k8sNamespace)
+	ipconfig := targetNetworkConfig.IPConfiguration
+	for _, ipRouteSubnet := range targetNetworkConfig.CnetAddressSpace {
+		log.Printf("Adding route from cnetAddressspace to targetEpInfo %+v", ipRouteSubnet)
+		dstIPNet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), 32)}
+		gwIP := net.ParseIP(ipconfig.GatewayIPAddress)
+		route := network.RouteInfo{Dst: dstIPNet, Gw: gwIP, DevName: existingEpInfo.IfName}
+		targetEpInfo.Routes = append(targetEpInfo.Routes, route)
+		log.Printf("Successfully added route from cnetAddressspace to targetEpInfo %+v", ipRouteSubnet)
+	}
+
+	log.Printf("Finished collecting new routes in targetEpInfo as follows: %+v", targetEpInfo.Routes)
+	log.Printf("Now saving existing infravnetaddress space if needed.")
+	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
+		if k8sNamespace == ns {
+			targetEpInfo.EnableInfraVnet = true
+			targetEpInfo.InfraVnetAddressSpace = nwCfg.InfraVnetAddressSpace
+			log.Printf("Saving infravnet address space %s for [%s-%s]",
+				targetEpInfo.InfraVnetAddressSpace, existingEpInfo.PODNameSpace, existingEpInfo.PODName)
+			break
+		}
+	}
+
+	// Update the endpoint.
+	log.Printf("Now updating existing endpoint %v with targetNetworkConfig %+v.", existingEpInfo.Id, targetNetworkConfig)
+	err = plugin.nm.UpdateEndpoint(networkID, existingEpInfo, targetEpInfo)
+	if err != nil {
+		err = plugin.Errorf("Failed to update endpoint: %v", err)
+		return err
 	}
 
 	return nil

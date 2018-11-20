@@ -5,6 +5,7 @@ package network
 
 import (
 	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -46,6 +47,7 @@ type network struct {
 
 // NetworkInfo contains read-only information about a container network.
 type NetworkInfo struct {
+	MasterIfName     string
 	Id               string
 	Mode             string
 	Subnets          []SubnetInfo
@@ -121,6 +123,16 @@ func (nm *networkManager) findExternalInterfaceBySubnet(subnet string) *external
 	return nil
 }
 
+// FindExternalInterfaceByName finds an external interface by name.
+func (nm *networkManager) findExternalInterfaceByName(ifName string) *externalInterface {
+	extIf, exists := nm.ExternalInterfaces[ifName]
+	if exists && extIf != nil {
+		return extIf
+	}
+
+	return nil
+}
+
 // NewNetwork creates a new container network.
 func (nm *networkManager) newNetwork(nwInfo *NetworkInfo) (*network, error) {
 	var nw *network
@@ -138,8 +150,14 @@ func (nm *networkManager) newNetwork(nwInfo *NetworkInfo) (*network, error) {
 		nwInfo.Mode = opModeDefault
 	}
 
-	// Find the external interface for this subnet.
-	extIf := nm.findExternalInterfaceBySubnet(nwInfo.Subnets[0].Prefix.String())
+	// If the master interface name is provided, find the external interface by name
+	// else use subnet to to find the interface
+	var extIf *externalInterface
+	if len(strings.TrimSpace(nwInfo.MasterIfName)) > 0 {
+		extIf = nm.findExternalInterfaceByName(nwInfo.MasterIfName)
+	} else {
+		extIf = nm.findExternalInterfaceBySubnet(nwInfo.Subnets[0].Prefix.String())
+	}
 	if extIf == nil {
 		err = errSubnetNotFound
 		return nil, err

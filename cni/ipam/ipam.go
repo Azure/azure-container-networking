@@ -290,3 +290,8 @@ func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	return nil
 }
+
+// Update handles CNI update command.
+func (plugin *ipamPlugin) Update(args *cniSkel.CmdArgs) error {
+	return nil
+}

@@ -21,10 +21,10 @@ const (
 	lockExtension = ".lock"
 
 	// Maximum number of retries before failing a lock call.
-	lockMaxRetries = 20
+	lockMaxRetries = 200
 
 	// Delay between lock retries.
-	lockRetryDelayInMilliseconds = 100
+	lockRetryDelay = 100 * time.Millisecond
 )
 
 // jsonFileStore is an implementation of KeyValueStore using a local JSON file.
@@ -61,27 +61,22 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 		file, err := os.Open(kvs.fileName)
 		if err != nil {
 			if os.IsNotExist(err) {
-				return nil
+				return ErrKeyNotFound
 			}
 			return err
 		}
+		defer file.Close()
 
 		// Decode to raw JSON messages.
-		err = json.NewDecoder(file).Decode(&kvs.data)
-		if err != nil {
-			return err
-		}
-
-		err = file.Close()
-		if err != nil {
+		if err := json.NewDecoder(file).Decode(&kvs.data); err != nil {
 			return err
 		}
 
 		kvs.inSync = true
 	}
 
-	raw := kvs.data[key]
-	if raw == nil {
+	raw, ok := kvs.data[key]
+	if !ok {
 		return ErrKeyNotFound
 	}
 
@@ -118,18 +113,17 @@ func (kvs *jsonFileStore) flush() error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	buf, err := json.MarshalIndent(&kvs.data, "", "\t")
 	if err != nil {
 		return err
 	}
 
-	_, err = file.Write(buf)
-	if err != nil {
+	if _, err := file.Write(buf); err != nil {
 		return err
 	}
-
-	return file.Close()
+	return nil
 }
 
 // Lock locks the store for exclusive access.
@@ -153,21 +147,20 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 			break
 		}
 
-		if !block || i == lockMaxRetries {
-			return ErrStoreLocked
+		if !block {
+			return ErrNonBlockingLockIsAlreadyLocked
 		}
 
-		time.Sleep(time.Duration(lockRetryDelayInMilliseconds) * time.Millisecond)
+		if i == lockMaxRetries {
+			return ErrTimeoutLockingStore
+		}
+
+		time.Sleep(lockRetryDelay)
 	}
+	defer lockFile.Close()
 
 	// Write the process ID for easy identification.
-	_, err = lockFile.WriteString(strconv.Itoa(os.Getpid()))
-	if err != nil {
-		return err
-	}
-
-	err = lockFile.Close()
-	if err != nil {
+	if _, err = lockFile.WriteString(strconv.Itoa(os.Getpid())); err != nil {
 		return err
 	}
 
@@ -198,9 +191,12 @@ func (kvs *jsonFileStore) Unlock() error {
 
 // GetModificationTime returns the modification time of the persistent store.
 func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
+	kvs.Mutex.Lock()
+	defer kvs.Mutex.Unlock()
+
 	info, err := os.Stat(kvs.fileName)
 	if err != nil {
-		log.Printf("os.stat() for file %v failed with error %v", kvs.fileName, err)
+		log.Printf("os.stat() for file %v failed: %v", kvs.fileName, err)
 		return time.Time{}.UTC(), err
 	}
 

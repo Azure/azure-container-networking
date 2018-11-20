@@ -28,7 +28,7 @@ const (
 // Version is populated by make during build.
 var version string
 
-// Command line arguments for CNM plugin.
+// Command line arguments for CNS.
 var args = acn.ArgumentList{
 	{
 		Name:         acn.OptEnvironment,

@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/policy"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
@@ -80,20 +81,37 @@ func setupInfraVnetRoutingForMultitenancy(
 	}
 }
 
-func getDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
-	var dns network.DNSInfo
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	var nwDNS network.DNSInfo
 
 	if len(nwCfg.DNS.Nameservers) > 0 {
-		dns = network.DNSInfo{
+		nwDNS = network.DNSInfo{
 			Servers: nwCfg.DNS.Nameservers,
 			Suffix:  nwCfg.DNS.Domain,
 		}
 	} else {
-		dns = network.DNSInfo{
+		nwDNS = network.DNSInfo{
 			Suffix:  result.DNS.Domain,
 			Servers: result.DNS.Nameservers,
 		}
 	}
 
-	return dns, nil
+	return nwDNS, nil
+}
+
+func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+	return getNetworkDNSSettings(nwCfg, result, namespace)
+}
+
+// getPoliciesFromRuntimeCfg returns network policies from network config.
+// getPoliciesFromRuntimeCfg is a dummy function for Linux platform.
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
+	return nil
+}
+
+func updateSubnetPrefix(cnsNetworkConfig *cns.GetNetworkContainerResponse, subnetPrefix *net.IPNet) {
+}
+
+func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
+	return nwCfg.Name, nil
 }

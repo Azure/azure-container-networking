@@ -1,8 +1,6 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
-// +build linux
-
 package network
 
 import (
@@ -22,8 +20,6 @@ const (
 
 	// Virtual MAC address used by Azure VNET.
 	virtualMacAddress = "12:34:56:78:9a:bc"
-
-	genericData = "com.docker.network.generic"
 
 	SnatBridgeIPKey = "snatBridgeIP"
 

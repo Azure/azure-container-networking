@@ -34,6 +34,9 @@ jobs:
             sudo -E env "PATH=$PATH" go test ./cni/ipam/
             sudo -E env "PATH=$PATH" go test ./cnm/network/
             sudo -E env "PATH=$PATH" go test ./cns/ipamclient/
+            sudo -E env "PATH=$PATH" go test ./npm/iptm/
+            sudo -E env "PATH=$PATH" go test ./npm/ipsm/
+            sudo -E env "PATH=$PATH" go test ./npm/
             #sudo -E env "PATH=$PATH" go test ./cns/restserver/
 workflows:
   version: 2

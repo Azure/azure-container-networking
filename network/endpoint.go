@@ -16,40 +16,50 @@ const (
 
 // Endpoint represents a container network interface.
 type endpoint struct {
-	Id               string
-	HnsId            string `json:",omitempty"`
-	SandboxKey       string
-	IfName           string
-	HostIfName       string
-	MacAddress       net.HardwareAddr
-	InfraVnetIP      net.IPNet
-	IPAddresses      []net.IPNet
-	Gateways         []net.IP
-	DNS              DNSInfo
-	Routes           []RouteInfo
-	VlanID           int
-	EnableSnatOnHost bool
-	EnableInfraVnet  bool
+	Id                    string
+	HnsId                 string `json:",omitempty"`
+	SandboxKey            string
+	IfName                string
+	HostIfName            string
+	MacAddress            net.HardwareAddr
+	InfraVnetIP           net.IPNet
+	IPAddresses           []net.IPNet
+	Gateways              []net.IP
+	DNS                   DNSInfo
+	Routes                []RouteInfo
+	VlanID                int
+	EnableSnatOnHost      bool
+	EnableInfraVnet       bool
+	EnableMultitenancy    bool
+	NetworkNameSpace      string `json:",omitempty"`
+	ContainerID           string
+	PODName               string `json:",omitempty"`
+	PODNameSpace          string `json:",omitempty"`
+	InfraVnetAddressSpace string `json:",omitempty"`
 }
 
 // EndpointInfo contains read-only information about an endpoint.
 type EndpointInfo struct {
-	Id               string
-	ContainerID      string
-	NetNsPath        string
-	IfName           string
-	SandboxKey       string
-	IfIndex          int
-	MacAddress       net.HardwareAddr
-	DNS              DNSInfo
-	IPAddresses      []net.IPNet
-	InfraVnetIP      net.IPNet
-	Routes           []RouteInfo
-	Policies         []policy.Policy
-	Gateways         []net.IP
-	EnableSnatOnHost bool
-	EnableInfraVnet  bool
-	Data             map[string]interface{}
+	Id                    string
+	ContainerID           string
+	NetNsPath             string
+	IfName                string
+	SandboxKey            string
+	IfIndex               int
+	MacAddress            net.HardwareAddr
+	DNS                   DNSInfo
+	IPAddresses           []net.IPNet
+	InfraVnetIP           net.IPNet
+	Routes                []RouteInfo
+	Policies              []policy.Policy
+	Gateways              []net.IP
+	EnableSnatOnHost      bool
+	EnableInfraVnet       bool
+	EnableMultiTenancy    bool
+	PODName               string
+	PODNameSpace          string
+	Data                  map[string]interface{}
+	InfraVnetAddressSpace string
 }
 
 // RouteInfo contains information about an IP route.
@@ -128,6 +138,29 @@ func (nw *network) getEndpoint(endpointId string) (*endpoint, error) {
 	return ep, nil
 }
 
+// GetEndpointByPOD returns the endpoint with the given ID.
+func (nw *network) getEndpointByPOD(podName string, podNameSpace string) (*endpoint, error) {
+	log.Printf("Trying to retrieve endpoint for pod name: %v in namespace: %v", podName, podNameSpace)
+
+	var ep *endpoint
+
+	for _, endpoint := range nw.Endpoints {
+		if endpoint.PODName == podName && endpoint.PODNameSpace == podNameSpace {
+			if ep == nil {
+				ep = endpoint
+			} else {
+				return nil, errMultipleEndpointsFound
+			}
+		}
+	}
+
+	if ep == nil {
+		return nil, errEndpointNotFound
+	}
+
+	return ep, nil
+}
+
 //
 // Endpoint
 //
@@ -135,16 +168,22 @@ func (nw *network) getEndpoint(endpointId string) (*endpoint, error) {
 // GetInfo returns information about the endpoint.
 func (ep *endpoint) getInfo() *EndpointInfo {
 	info := &EndpointInfo{
-		Id:               ep.Id,
-		IPAddresses:      ep.IPAddresses,
-		InfraVnetIP:      ep.InfraVnetIP,
-		Data:             make(map[string]interface{}),
-		MacAddress:       ep.MacAddress,
-		SandboxKey:       ep.SandboxKey,
-		IfIndex:          0, // Azure CNI supports only one interface
-		DNS:              ep.DNS,
-		EnableSnatOnHost: ep.EnableSnatOnHost,
-		EnableInfraVnet:  ep.EnableInfraVnet,
+		Id:                 ep.Id,
+		IPAddresses:        ep.IPAddresses,
+		InfraVnetIP:        ep.InfraVnetIP,
+		Data:               make(map[string]interface{}),
+		MacAddress:         ep.MacAddress,
+		SandboxKey:         ep.SandboxKey,
+		IfIndex:            0, // Azure CNI supports only one interface
+		DNS:                ep.DNS,
+		EnableSnatOnHost:   ep.EnableSnatOnHost,
+		EnableInfraVnet:    ep.EnableInfraVnet,
+		EnableMultiTenancy: ep.EnableMultitenancy,
+		IfName:             ep.IfName,
+		ContainerID:        ep.ContainerID,
+		NetNsPath:          ep.NetworkNameSpace,
+		PODName:            ep.PODName,
+		PODNameSpace:       ep.PODNameSpace,
 	}
 
 	for _, route := range ep.Routes {
@@ -185,4 +224,36 @@ func (ep *endpoint) detach() error {
 	ep.SandboxKey = ""
 
 	return nil
+}
+
+// updateEndpoint updates an existing endpoint in the network.
+func (nw *network) updateEndpoint(exsitingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
+	var err error
+
+	log.Printf("[net] Updating existing endpoint [%+v] in network %v to target [%+v].", exsitingEpInfo, nw.Id, targetEpInfo)
+	defer func() {
+		if err != nil {
+			log.Printf("[net] Failed to update endpoint %v, err:%v.", exsitingEpInfo.Id, err)
+		}
+	}()
+
+	log.Printf("Trying to retrieve endpoint id %v", exsitingEpInfo.Id)
+
+	ep := nw.Endpoints[exsitingEpInfo.Id]
+	if ep == nil {
+		return nil, errEndpointNotFound
+	}
+
+	log.Printf("[net] Retrieved endpoint to update %+v.", ep)
+
+	// Call the platform implementation.
+	ep, err = nw.updateEndpointImpl(exsitingEpInfo, targetEpInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update routes for existing endpoint
+	nw.Endpoints[exsitingEpInfo.Id].Routes = ep.Routes
+
+	return ep, nil
 }
