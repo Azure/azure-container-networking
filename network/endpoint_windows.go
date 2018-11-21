@@ -61,35 +61,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		VirtualNetwork: nw.HnsId,
 		DNSSuffix:      epInfo.DNS.Suffix,
 		DNSServerList:  strings.Join(epInfo.DNS.Servers, ","),
-	}
-
-	// Set outbound NAT policy
-	outBoundNatPolicy := hcsshim.OutboundNatPolicy{}
-	outBoundNatPolicy.Policy.Type = hcsshim.OutboundNat
-
-	exceptionList, err := policy.GetOutBoundNatExceptionList(epInfo.Policies)
-	if err != nil {
-		log.Printf("[net] Failed to parse outbound NAT policy %v", err)
-		return nil, err
-	}
-
-	if exceptionList != nil {
-		for _, ipAddress := range exceptionList {
-			outBoundNatPolicy.Exceptions = append(outBoundNatPolicy.Exceptions, ipAddress)
-		}
-	}
-
-	if epInfo.Data[CnetAddressSpace] != nil {
-		if cnetAddressSpace := epInfo.Data[CnetAddressSpace].([]string); cnetAddressSpace != nil {
-			for _, ipAddress := range cnetAddressSpace {
-				outBoundNatPolicy.Exceptions = append(outBoundNatPolicy.Exceptions, ipAddress)
-			}
-		}
-	}
-
-	if outBoundNatPolicy.Exceptions != nil {
-		serializedOutboundNatPolicy, _ := json.Marshal(outBoundNatPolicy)
-		hnsEndpoint.Policies = append(hnsEndpoint.Policies, serializedOutboundNatPolicy)
+		Policies:       policy.SerializePolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data),
 	}
 
 	// HNS currently supports only one IP address per endpoint.
