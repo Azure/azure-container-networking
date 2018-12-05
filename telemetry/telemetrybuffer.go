@@ -1,4 +1,4 @@
-// Copyright 2017 Microsoft. All rights reserved.
+// Copyright 2018 Microsoft. All rights reserved.
 // MIT License
 
 package telemetry
@@ -55,7 +55,7 @@ func NewTelemetryBuffer() (*TelemetryBuffer, error) {
 	tb.connections = make([]net.Conn, 1)
 	err := tb.Listen(FdName)
 	if err != nil {
-		tb.fdExists = strings.Contains(err.Error(), "exist") || strings.Contains(err.Error(), "in use")
+		tb.fdExists = strings.Contains(err.Error(), "exist") || strings.Contains(err.Error(), "in use") || strings.Contains(err.Error(), "Access is denied")
 	} else {
 		// Spawn server goroutine to handle incoming connections
 		go func() {
@@ -103,11 +103,14 @@ func NewTelemetryBuffer() (*TelemetryBuffer, error) {
 }
 
 // Start - start running an instance if it isn't already being run elsewhere
-func (tb *TelemetryBuffer) Start() {
+func (tb *TelemetryBuffer) Start(intervalms time.Duration) {
 	defer tb.close()
 	if !tb.fdExists && tb.connected {
-		interval := time.NewTicker(DefaultInterval).C
+		if intervalms < DefaultInterval {
+			intervalms = DefaultInterval
+		}
 
+		interval := time.NewTicker(intervalms).C
 		for {
 			select {
 			case <-interval:
@@ -185,7 +188,7 @@ func (tb *TelemetryBuffer) sendToHost() error {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("[Telemetry] HTTP Post returned statuscode %d", resp.StatusCode)
 	}
 
