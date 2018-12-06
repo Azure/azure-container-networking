@@ -32,3 +32,8 @@ func (tb *TelemetryBuffer) Listen(name string) (err error) {
 
 	return err
 }
+
+// cleanup - stub
+func (tb *TelemetryBuffer) cleanup(name string) error {
+	return nil
+}

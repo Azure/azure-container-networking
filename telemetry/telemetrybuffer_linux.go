@@ -6,6 +6,7 @@ package telemetry
 import (
 	"fmt"
 	"net"
+	"os"
 )
 
 const (
@@ -30,4 +31,9 @@ func (tb *TelemetryBuffer) Listen(name string) (err error) {
 	}
 
 	return err
+}
+
+// cleanup - manually remove socket
+func (tb *TelemetryBuffer) cleanup(name string) error {
+	return os.Remove(fmt.Sprintf(fdTemplate, name))
 }

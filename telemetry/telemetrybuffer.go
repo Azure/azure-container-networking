@@ -55,7 +55,7 @@ func NewTelemetryBuffer() (*TelemetryBuffer, error) {
 	tb.connections = make([]net.Conn, 1)
 	err := tb.Listen(FdName)
 	if err != nil {
-		tb.fdExists = strings.Contains(err.Error(), "exist") || strings.Contains(err.Error(), "in use") || strings.Contains(err.Error(), "Access is denied")
+		tb.fdExists = strings.Contains(err.Error(), "in use") || strings.Contains(err.Error(), "Access is denied")
 	} else {
 		// Spawn server goroutine to handle incoming connections
 		go func() {
@@ -97,6 +97,8 @@ func NewTelemetryBuffer() (*TelemetryBuffer, error) {
 		tb.payload.DNCReports = make([]DNCReport, 0)
 		tb.payload.CNIReports = make([]CNIReport, 0)
 		tb.payload.NPMReports = make([]NPMReport, 0)
+	} else if tb.fdExists {
+		tb.cleanup(FdName)
 	}
 
 	return &tb, err
