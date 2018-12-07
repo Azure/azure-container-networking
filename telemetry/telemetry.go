@@ -1,4 +1,4 @@
-// Copyright 2017 Microsoft. All rights reserved.
+// Copyright 2018 Microsoft. All rights reserved.
 // MIT License
 
 package telemetry
@@ -142,6 +142,21 @@ type NPMReport struct {
 	Metadata          Metadata `json:"compute"`
 }
 
+// DNCReport structure.
+type DNCReport struct {
+	IsNewInstance bool
+	CPUUsage      string
+	MemoryUsage   string
+	Processes     string
+	EventMessage  string
+	PartitionKey  string
+	Allocations   string
+	Timestamp     string
+	UUID          string
+	Errorcode     string
+	Metadata      Metadata `json:"compute"`
+}
+
 // ReportManager structure.
 type ReportManager struct {
 	HostNetAgentURL string
@@ -210,8 +225,10 @@ func (reportMgr *ReportManager) SendReport() error {
 		log.Printf("[Telemetry] %+v", reportMgr.Report.(*CNIReport))
 	case *NPMReport:
 		log.Printf("[Telemetry] %+v", reportMgr.Report.(*NPMReport))
+	case *DNCReport:
+		log.Printf("[Telemetry] %+v", reportMgr.Report.(*DNCReport))
 	default:
-		log.Printf("[Telemetry] %+v", reportMgr.Report)
+		log.Printf("[Telemetry] Invalid report type")
 	}
 
 	httpc := &http.Client{}
@@ -451,4 +468,21 @@ func (reportMgr *ReportManager) GetHostMetadata() error {
 	}
 
 	return err
+}
+
+// ReportToBytes - returns the report bytes
+func (reportMgr *ReportManager) ReportToBytes() (report []byte, err error) {
+	switch reportMgr.Report.(type) {
+	case *CNIReport:
+	case *NPMReport:
+	case *DNCReport:
+	default:
+		err = fmt.Errorf("[Telemetry] Invalid report type")
+	}
+
+	if err == nil {
+		report, err = json.Marshal(reportMgr.Report)
+	}
+
+	return
 }
