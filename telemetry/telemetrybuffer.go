@@ -45,6 +45,7 @@ type Payload struct {
 	DNCReports []DNCReport
 	CNIReports []CNIReport
 	NPMReports []NPMReport
+	CNSReports []CNSReport
 }
 
 // NewTelemetryBuffer - create a new TelemetryBuffer
@@ -82,6 +83,10 @@ func NewTelemetryBuffer() (*TelemetryBuffer, error) {
 									var dncReport DNCReport
 									json.Unmarshal([]byte(reportStr), &dncReport)
 									tb.data <- dncReport
+								} else if _, ok := tmp["DncPartitionKey"]; ok {
+									var cnsReport CNSReport
+									json.Unmarshal([]byte(reportStr), &cnsReport)
+									tb.data <- cnsReport
 								}
 							}
 						}

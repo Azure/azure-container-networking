@@ -53,6 +53,7 @@ type Logger struct {
 	maxFileCount int
 	callCount    int
 	directory    string
+	reports      chan interface{}
 	mutex        *sync.Mutex
 }
 
@@ -86,6 +87,11 @@ func (logger *Logger) SetLevel(level int) {
 func (logger *Logger) SetLogFileLimits(maxFileSize int, maxFileCount int) {
 	logger.maxFileSize = maxFileSize
 	logger.maxFileCount = maxFileCount
+}
+
+// SetChannel sets the channel for error message reports.
+func (logger *Logger) SetChannel(reports chan interface{}) {
+	logger.reports = reports
 }
 
 // Close closes the log stream.
@@ -182,8 +188,8 @@ func (logger *Logger) logf(format string, args ...interface{}) {
 	if logger.callCount%rotationCheckFrq == 0 {
 		logger.rotate()
 	}
-	logger.callCount++
 
+	logger.callCount++
 	logger.l.Printf(format, args...)
 }
 
@@ -203,4 +209,12 @@ func (logger *Logger) Debugf(format string, args ...interface{}) {
 		logger.logf(format, args...)
 		logger.mutex.Unlock()
 	}
+}
+
+// Errorf logs a formatted string at info level and sends the string to TelemetryBuffer.
+func (logger *Logger) Errorf(format string, args ...interface{}) {
+	logger.Printf(format, args...)
+	go func() {
+		logger.reports <- fmt.Sprintf(format, args...)
+	}()
 }

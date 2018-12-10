@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Azure/azure-container-networking/telemetry"
+
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -27,6 +29,10 @@ const (
 
 // Version is populated by make during build.
 var version string
+
+// Reports channel
+var reports = make(chan interface{})
+var telemetryStopProcessing = make(chan bool)
 
 // Command line arguments for CNS.
 var args = acn.ArgumentList{
@@ -116,6 +122,13 @@ var args = acn.ArgumentList{
 		Type:         "bool",
 		DefaultValue: false,
 	},
+	{
+		Name:         acn.OptReportToHostInterval,
+		Shorthand:    acn.OptReportToHostIntervalAlias,
+		Description:  "Set interval in ms to report to host",
+		Type:         "int",
+		DefaultValue: 60000,
+	},
 }
 
 // Prints description and version information.
@@ -140,6 +153,7 @@ func main() {
 	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
 	stopcnm = acn.GetArg(acn.OptStopAzureVnet).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
+	reportToHostInterval := acn.GetArg(acn.OptReportToHostInterval).(int)
 
 	if vers {
 		printVersion()
@@ -166,6 +180,10 @@ func main() {
 	if err != nil {
 		fmt.Printf("Failed to configure logging: %v\n", err)
 		return
+	}
+
+	if logger := log.GetStd(); logger != nil {
+		logger.SetChannel(reports)
 	}
 
 	// Log platform information.
@@ -196,6 +214,10 @@ func main() {
 
 	// Start CNS.
 	if httpRestService != nil {
+		go telemetry.SendCnsTelemetry(reportToHostInterval,
+			reports,
+			httpRestService.(*restserver.HTTPRestService),
+			telemetryStopProcessing)
 		err = httpRestService.Start(&config)
 		if err != nil {
 			log.Printf("Failed to start CNS, err:%v.\n", err)
@@ -268,6 +290,8 @@ func main() {
 	if httpRestService != nil {
 		httpRestService.Stop()
 	}
+
+	telemetryStopProcessing <- true
 
 	if !stopcnm {
 		if netPlugin != nil {

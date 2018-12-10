@@ -12,13 +12,16 @@ const (
 	// CNMRuntimePath is the path where CNM state files are stored.
 	CNMRuntimePath = ""
 
-	// CNIRuntimePath is the path where CNM state files are stored.
+	// CNIRuntimePath is the path where CNI state files are stored.
 	CNIRuntimePath = ""
+
+	// CNSRuntimePath is the path where CNS state files are stored.
+	CNSRuntimePath = ""
 
 	// NPMRuntimePath is the path where NPM state files are stored.
 	NPMRuntimePath = ""
 
-	// DNCRuntimePath is the path where NPM state files are stored.
+	// DNCRuntimePath is the path where DNC state files are stored.
 	DNCRuntimePath = ""
 )
 
