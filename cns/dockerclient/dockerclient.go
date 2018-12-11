@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -51,7 +51,7 @@ func (dockerClient *DockerClient) NetworkExists(networkName string) error {
 		dockerClient.connectionURL + inspectNetworkPath + networkName)
 
 	if err != nil {
-		log.Printf("[Azure CNS] Error received from http Post for docker network inspect %v %v", networkName, err.Error())
+		log.Errorf("[Azure CNS] Error received from http Post for docker network inspect %v %v", networkName, err.Error())
 		return err
 	}
 

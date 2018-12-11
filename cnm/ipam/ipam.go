@@ -19,6 +19,8 @@ const (
 	// Plugin capabilities reported to libnetwork.
 	requiresMACAddress    = false
 	requiresRequestReplay = false
+	returnCode            = 0
+	returnStr             = "Success"
 )
 
 // IpamPlugin represents a CNM (libnetwork) IPAM plugin.
@@ -118,7 +120,7 @@ func (plugin *ipamPlugin) getCapabilities(w http.ResponseWriter, r *http.Request
 
 	err := plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles GetDefaultAddressSpaces requests.
@@ -135,7 +137,7 @@ func (plugin *ipamPlugin) getDefaultAddressSpaces(w http.ResponseWriter, r *http
 
 	err := plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles RequestPool requests.
@@ -163,7 +165,7 @@ func (plugin *ipamPlugin) requestPool(w http.ResponseWriter, r *http.Request) {
 
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles ReleasePool requests.
@@ -195,7 +197,7 @@ func (plugin *ipamPlugin) releasePool(w http.ResponseWriter, r *http.Request) {
 
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles GetPoolInfo requests.
@@ -234,7 +236,7 @@ func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
 
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles RequestAddress requests.
@@ -275,7 +277,7 @@ func (plugin *ipamPlugin) requestAddress(w http.ResponseWriter, r *http.Request)
 
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles ReleaseAddress requests.
@@ -307,5 +309,5 @@ func (plugin *ipamPlugin) releaseAddress(w http.ResponseWriter, r *http.Request)
 
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }

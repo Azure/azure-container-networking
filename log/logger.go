@@ -170,16 +170,16 @@ func (logger *Logger) Request(tag string, request interface{}, err error) {
 	if err == nil {
 		logger.Printf("[%s] Received %T %+v.", tag, request, request)
 	} else {
-		logger.Printf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
+		logger.Errorf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
 	}
 }
 
 // Response logs a structured response.
-func (logger *Logger) Response(tag string, response interface{}, err error) {
-	if err == nil {
+func (logger *Logger) Response(tag string, response interface{}, returnCode int, returnStr string, err error) {
+	if err == nil && returnCode == 0 {
 		logger.Printf("[%s] Sent %T %+v.", tag, response, response)
 	} else {
-		logger.Printf("[%s] Failed to encode %T %+v %s.", tag, response, response, err.Error())
+		logger.Errorf("[%s] Code:%s, %+v %s.", tag, returnStr, response, err.Error())
 	}
 }
 

@@ -130,6 +130,7 @@ type CNSReport struct {
 	DncPartitionKey string
 	Timestamp       string
 	UUID            string
+	Errorcode       string
 	Metadata        Metadata `json:"compute"`
 }
 

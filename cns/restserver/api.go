@@ -22,3 +22,42 @@ const (
 	UnsupportedOrchestratorType  = 19
 	UnexpectedError              = 99
 )
+
+func ReturnCodeToString(returnCode int) (s string) {
+	switch returnCode {
+	case Success:
+		s = "Success"
+	case UnsupportedNetworkType:
+		s = "UnsupportedNetworkType"
+	case InvalidParameter:
+		s = "InvalidParameter"
+	case UnreachableHost:
+		s = "UnreachableHost"
+	case ReservationNotFound:
+		s = "ReservationNotFound"
+	case MalformedSubnet:
+		s = "MalformedSubnet"
+	case UnreachableDockerDaemon:
+		s = "UnreachableDockerDaemon"
+	case UnspecifiedNetworkName:
+		s = "UnspecifiedNetworkName"
+	case NotFound:
+		s = "NotFound"
+	case AddressUnavailable:
+		s = "AddressUnavailable"
+	case NetworkContainerNotSpecified:
+		s = "NetworkContainerNotSpecified"
+	case CallToHostFailed:
+		s = "CallToHostFailed"
+	case UnknownContainerID:
+		s = "UnknownContainerID"
+	case UnsupportedOrchestratorType:
+		s = "UnsupportedOrchestratorType"
+	case UnexpectedError:
+		s = "UnexpectedError"
+	default:
+		s = "UnknownError"
+	}
+
+	return
+}

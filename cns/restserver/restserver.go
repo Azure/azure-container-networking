@@ -116,19 +116,19 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 
 	err := service.Initialize(config)
 	if err != nil {
-		log.Printf("[Azure CNS]  Failed to initialize base service, err:%v.", err)
+		log.Errorf("[Azure CNS]  Failed to initialize base service, err:%v.", err)
 		return err
 	}
 
 	err = service.restoreState()
 	if err != nil {
-		log.Printf("[Azure CNS]  Failed to restore service state, err:%v.", err)
+		log.Errorf("[Azure CNS]  Failed to restore service state, err:%v.", err)
 		return err
 	}
 
 	err = service.restoreNetworkState()
 	if err != nil {
-		log.Printf("[Azure CNS]  Failed to restore network state, err:%v.", err)
+		log.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)
 		return err
 	}
 
@@ -209,7 +209,7 @@ func (service *HTTPRestService) setEnvironment(w http.ResponseWriter, r *http.Re
 	resp := &cns.Response{ReturnCode: 0}
 	err = service.Listener.Encode(w, &resp)
 
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles CreateNetwork requests.
@@ -313,7 +313,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 		service.saveState()
 	}
 
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles DeleteNetwork requests.
@@ -369,7 +369,7 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 		service.saveState()
 	}
 
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles ip reservation requests.
@@ -444,10 +444,10 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 		ReturnCode: returnCode,
 		Message:    returnMessage,
 	}
+
 	reserveResp := &cns.ReserveIPAddressResponse{Response: resp, IPAddress: address}
 	err = service.Listener.Encode(w, &reserveResp)
-
-	log.Response(service.Name, reserveResp, err)
+	log.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles release ip reservation requests.
@@ -512,8 +512,7 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	}
 
 	err = service.Listener.Encode(w, &resp)
-
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Retrieves the host local ip address. Containers can talk to host using this IP address.
@@ -565,7 +564,7 @@ func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 
 	err := service.Listener.Encode(w, &hostLocalIPResponse)
 
-	log.Response(service.Name, hostLocalIPResponse, err)
+	log.Response(service.Name, hostLocalIPResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles ip address utilization requests.
@@ -630,8 +629,7 @@ func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r
 	}
 
 	err := service.Listener.Encode(w, &utilResponse)
-
-	log.Response(service.Name, utilResponse, err)
+	log.Response(service.Name, utilResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles retrieval of ip addresses that are available to be reserved from ipam driver.
@@ -648,7 +646,7 @@ func (service *HTTPRestService) getAvailableIPAddresses(w http.ResponseWriter, r
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	log.Response(service.Name, ipResp, err)
+	log.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles retrieval of reserved ip addresses from ipam driver.
@@ -665,7 +663,7 @@ func (service *HTTPRestService) getReservedIPAddresses(w http.ResponseWriter, r 
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	log.Response(service.Name, ipResp, err)
+	log.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles retrieval of ghost ip addresses from ipam driver.
@@ -728,8 +726,7 @@ func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 	}
 
 	err := service.Listener.Encode(w, &ipResp)
-
-	log.Response(service.Name, ipResp, err)
+	log.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // getAllIPAddresses retrieves all ip addresses from ipam driver.
@@ -746,7 +743,7 @@ func (service *HTTPRestService) getAllIPAddresses(w http.ResponseWriter, r *http
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	log.Response(service.Name, ipResp, err)
+	log.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles health report requests.
@@ -762,7 +759,7 @@ func (service *HTTPRestService) getHealthReport(w http.ResponseWriter, r *http.R
 	resp := &cns.Response{ReturnCode: 0}
 	err := service.Listener.Encode(w, &resp)
 
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // saveState writes CNS state to persistent store.
@@ -781,7 +778,7 @@ func (service *HTTPRestService) saveState() error {
 	if err == nil {
 		log.Printf("[Azure CNS]  State saved successfully.\n")
 	} else {
-		log.Printf("[Azure CNS]  Failed to save state., err:%v\n", err)
+		log.Errorf("[Azure CNS]  Failed to save state., err:%v\n", err)
 	}
 
 	return err
@@ -806,7 +803,7 @@ func (service *HTTPRestService) restoreState() error {
 			return nil
 		}
 
-		log.Printf("[Azure CNS]  Failed to restore state, err:%v\n", err)
+		log.Errorf("[Azure CNS]  Failed to restore state, err:%v\n", err)
 		return err
 	}
 
@@ -847,7 +844,7 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	}
 
 	err = service.Listener.Encode(w, &resp)
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (int, string) {
@@ -952,8 +949,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 
 	reserveResp := &cns.CreateNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-
-	log.Response(service.Name, reserveResp, err)
+	log.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r *http.Request) {
@@ -976,7 +972,7 @@ func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r
 
 	reserveResp := &cns.GetNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-	log.Response(service.Name, reserveResp, err)
+	log.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkContainerRequest) cns.GetNetworkContainerResponse {
@@ -1040,9 +1036,9 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	}
 
 	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
-
+	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	err = service.Listener.Encode(w, &getNetworkContainerResponse)
-	log.Response(service.Name, getNetworkContainerResponse, err)
+	log.Response(service.Name, getNetworkContainerResponse, returnCode, ReturnCodeToString(returnCode), err)
 }
 
 func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
@@ -1116,8 +1112,7 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 	reserveResp := &cns.DeleteNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-
-	log.Response(service.Name, reserveResp, err)
+	log.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 func (service *HTTPRestService) getNetworkContainerStatus(w http.ResponseWriter, r *http.Request) {
@@ -1179,8 +1174,7 @@ func (service *HTTPRestService) getNetworkContainerStatus(w http.ResponseWriter,
 	}
 
 	err = service.Listener.Encode(w, &networkContainerStatusReponse)
-
-	log.Response(service.Name, networkContainerStatusReponse, err)
+	log.Response(service.Name, networkContainerStatusReponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, r *http.Request) {
@@ -1234,7 +1228,7 @@ func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, 
 
 	err = service.Listener.Encode(w, &getInterfaceForContainerResponse)
 
-	log.Response(service.Name, getInterfaceForContainerResponse, err)
+	log.Response(service.Name, getInterfaceForContainerResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // restoreNetworkState restores Network state that existed before reboot.

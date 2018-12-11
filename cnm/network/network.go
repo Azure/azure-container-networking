@@ -23,6 +23,8 @@ const (
 
 	// Prefix for container network interface names.
 	containerInterfacePrefix = "eth"
+	returnCode               = 0
+	returnStr                = "Success"
 )
 
 // NetPlugin represents a CNM (libnetwork) network plugin.
@@ -121,7 +123,7 @@ func (plugin *netPlugin) getCapabilities(w http.ResponseWriter, r *http.Request)
 	resp := getCapabilitiesResponse{Scope: plugin.scope}
 	err := plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles CreateNetwork requests.
@@ -175,7 +177,7 @@ func (plugin *netPlugin) createNetwork(w http.ResponseWriter, r *http.Request) {
 	resp := createNetworkResponse{}
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles DeleteNetwork requests.
@@ -200,7 +202,7 @@ func (plugin *netPlugin) deleteNetwork(w http.ResponseWriter, r *http.Request) {
 	resp := deleteNetworkResponse{}
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles CreateEndpoint requests.
@@ -244,7 +246,7 @@ func (plugin *netPlugin) createEndpoint(w http.ResponseWriter, r *http.Request) 
 
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles DeleteEndpoint requests.
@@ -269,7 +271,7 @@ func (plugin *netPlugin) deleteEndpoint(w http.ResponseWriter, r *http.Request) 
 	resp := deleteEndpointResponse{}
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles Join requests.
@@ -303,7 +305,7 @@ func (plugin *netPlugin) join(w http.ResponseWriter, r *http.Request) {
 
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles Leave requests.
@@ -328,7 +330,7 @@ func (plugin *netPlugin) leave(w http.ResponseWriter, r *http.Request) {
 	resp := leaveResponse{}
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
 
 // Handles EndpointOperInfo requests.
@@ -353,5 +355,5 @@ func (plugin *netPlugin) endpointOperInfo(w http.ResponseWriter, r *http.Request
 	resp := endpointOperInfoResponse{Value: epInfo.Data}
 	err = plugin.Listener.Encode(w, &resp)
 
-	log.Response(plugin.Name, &resp, err)
+	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }

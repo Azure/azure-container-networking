@@ -6,9 +6,11 @@ package telemetry
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/google/uuid"
 )
@@ -16,6 +18,7 @@ import (
 const (
 	// CNSTelemetryFile - telemetry file path.
 	CNSTelemetryFile = platform.CNSRuntimePath + "AzureCNSTelemetry.json"
+	errorcodePrefix  = 5
 )
 
 // SendCnsTelemetry - handles cns telemetry reports
@@ -47,7 +50,7 @@ CONNECT:
 			}
 
 			// Try to set partition key from DNC
-			if reportMgr.Report.(CNSReport).DncPartitionKey == "" {
+			if reportMgr.Report.(*CNSReport).DncPartitionKey == "" {
 				reflect.ValueOf(reportMgr.Report).Elem().FieldByName("DncPartitionKey").SetString(service.GetPartitionKey())
 			}
 
@@ -55,6 +58,11 @@ CONNECT:
 			case <-heartbeat:
 				reflect.ValueOf(reportMgr.Report).Elem().FieldByName("EventMessage").SetString("Heartbeat")
 			case msg := <-reports:
+				codeStr := regexp.MustCompile(`Code:(\w*)`).FindString(msg.(string))
+				if len(codeStr) > errorcodePrefix {
+					reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Errorcode").SetString(codeStr[errorcodePrefix:])
+				}
+
 				reflect.ValueOf(reportMgr.Report).Elem().FieldByName("EventMessage").SetString(msg.(string))
 			case <-telemetryStopProcessing:
 				telemetryBuffer.Cancel()
@@ -80,7 +88,7 @@ CONNECT:
 			}
 		}
 	} else {
-		reports <- CNSReport{EventMessage: "Failed to establish telemetry buffer connection."}
+		log.Printf("[Telemetry] Failed to establish telemetry buffer connection.")
 		time.Sleep(time.Minute * 1)
 		goto CONNECT
 	}

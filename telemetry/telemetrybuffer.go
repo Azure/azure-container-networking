@@ -22,9 +22,10 @@ import (
 // DefaultNpmReportsSize - default NPM report slice size
 // DefaultInterval - default interval for sending payload to host
 const (
-	FdName          = "azure-telemetry"
-	Delimiter       = '\n'
-	HostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=payload"
+	FdName    = "azure-telemetry"
+	Delimiter = '\n'
+	//HostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=payload"
+	HostNetAgentURL = "http://localhost:8019/hostnetagent/container/1234/payload"
 	DefaultInterval = 1 * time.Minute
 )
 
@@ -102,6 +103,7 @@ func NewTelemetryBuffer() (*TelemetryBuffer, error) {
 		tb.payload.DNCReports = make([]DNCReport, 0)
 		tb.payload.CNIReports = make([]CNIReport, 0)
 		tb.payload.NPMReports = make([]NPMReport, 0)
+		tb.payload.CNSReports = make([]CNSReport, 0)
 	} else if tb.fdExists {
 		tb.cleanup(FdName)
 	}
@@ -185,6 +187,7 @@ func (tb *TelemetryBuffer) close() {
 
 // sendToHost - send payload to host
 func (tb *TelemetryBuffer) sendToHost() error {
+	fmt.Printf("%+v\n", tb.payload)
 	httpc := &http.Client{}
 	var body bytes.Buffer
 	json.NewEncoder(&body).Encode(tb.payload)
@@ -211,6 +214,8 @@ func (pl *Payload) push(x interface{}) {
 		pl.CNIReports = append(pl.CNIReports, x.(CNIReport))
 	case NPMReport:
 		pl.NPMReports = append(pl.NPMReports, x.(NPMReport))
+	case CNSReport:
+		pl.CNSReports = append(pl.CNSReports, x.(CNSReport))
 	}
 }
 
@@ -222,4 +227,6 @@ func (pl *Payload) reset() {
 	pl.CNIReports = make([]CNIReport, 0)
 	pl.NPMReports = nil
 	pl.NPMReports = make([]NPMReport, 0)
+	pl.CNSReports = nil
+	pl.CNSReports = make([]CNSReport, 0)
 }

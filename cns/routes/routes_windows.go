@@ -168,7 +168,7 @@ func putRoutes(routes []Route) error {
 			if err == nil {
 				log.Printf("[Azure CNS] Successfully executed add route: %v\n%v", args, string(bytes))
 			} else {
-				log.Printf("[Azure CNS] Failed to execute add route: %v\n%v", args, string(bytes))
+				log.Errorf("[Azure CNS] Failed to execute add route: %v\n%v", args, string(bytes))
 			}
 		} else {
 			log.Printf("[Azure CNS] Route already exists. skipping %+v", route)
