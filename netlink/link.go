@@ -31,6 +31,11 @@ const (
 	IPVLAN_MODE_MAX
 )
 
+const (
+	ADD = iota
+	REMOVE
+)
+
 // Link represents a network interface.
 type Link interface {
 	Info() *LinkInfo
@@ -381,6 +386,45 @@ func SetLinkHairpin(bridgeName string, on bool) error {
 	attrProtInfo := newAttribute(unix.IFLA_PROTINFO|unix.NLA_F_NESTED, nil)
 	attrProtInfo.addNested(newAttribute(IFLA_BRPORT_MODE, hairpin))
 	req.addPayload(attrProtInfo)
+
+	return s.sendAndWaitForAck(req)
+}
+
+// AddOrRemoveStaticArp sets/removes static arp entry based on mode
+func AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac net.HardwareAddr) error {
+	s, err := getSocket()
+	if err != nil {
+		return err
+	}
+
+	var req *message
+	state := 0
+	if mode == ADD {
+		req = newRequest(unix.RTM_NEWNEIGH, unix.NLM_F_CREATE|unix.NLM_F_REPLACE|unix.NLM_F_ACK)
+		state = NUD_PERMANENT
+	} else {
+		req = newRequest(unix.RTM_DELNEIGH, unix.NLM_F_ACK)
+		state = NUD_INCOMPLETE
+	}
+
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		return err
+	}
+
+	msg := neighMsg{
+		Family: uint8(unix.AF_INET),
+		Index:  uint32(iface.Index),
+		State:  uint16(state),
+	}
+	req.addPayload(&msg)
+
+	ipData := ipaddr.To4()
+	dstData := newRtAttr(NDA_DST, ipData)
+	req.addPayload(dstData)
+
+	hwData := newRtAttr(NDA_LLADDR, []byte(mac))
+	req.addPayload(hwData)
 
 	return s.sendAndWaitForAck(req)
 }

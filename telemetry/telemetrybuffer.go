@@ -22,10 +22,9 @@ import (
 // DefaultNpmReportsSize - default NPM report slice size
 // DefaultInterval - default interval for sending payload to host
 const (
-	FdName    = "azure-telemetry"
-	Delimiter = '\n'
-	//HostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=payload"
-	HostNetAgentURL = "http://localhost:8019/hostnetagent/container/1234/payload"
+	FdName          = "azure-telemetry"
+	Delimiter       = '\n'
+	HostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=payload"
 	DefaultInterval = 1 * time.Minute
 )
 
@@ -157,7 +156,7 @@ func (tb *TelemetryBuffer) Write(b []byte) (c int, err error) {
 	w := bufio.NewWriter(tb.client)
 	c, err = w.Write(b)
 	if err == nil {
-		w.Flush()
+		err = w.Flush()
 	}
 
 	return
@@ -187,7 +186,6 @@ func (tb *TelemetryBuffer) close() {
 
 // sendToHost - send payload to host
 func (tb *TelemetryBuffer) sendToHost() error {
-	fmt.Printf("%+v\n", tb.payload)
 	httpc := &http.Client{}
 	var body bytes.Buffer
 	json.NewEncoder(&body).Encode(tb.payload)
