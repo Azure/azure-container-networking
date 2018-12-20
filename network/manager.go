@@ -121,7 +121,22 @@ func (nm *networkManager) restore() error {
 		rebootTime, err := platform.GetLastRebootTime()
 		log.Printf("[net] reboot time %v store mod time %v", rebootTime, modTime)
 		if err == nil && rebootTime.After(modTime) {
+			log.Printf("[net] Detected Reboot")
 			rebooted = true
+			if clearNwConfig, err := platform.ClearNetworkConfiguration(); clearNwConfig {
+				if err != nil {
+					log.Printf("[net] Failed to clear network configuration, err:%v\n", err)
+					return err
+				}
+
+				// Clear networkManager contents
+				nm.TimeStamp = time.Time{}
+				for extIfName := range nm.ExternalInterfaces {
+					delete(nm.ExternalInterfaces, extIfName)
+				}
+
+				return nil
+			}
 		}
 	}
 

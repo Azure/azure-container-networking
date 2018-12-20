@@ -110,6 +110,7 @@ func (am *addressManager) restore() error {
 		log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
 
 		if err == nil && rebootTime.After(modTime) {
+			log.Printf("[ipam] Detected Reboot")
 			rebooted = true
 		}
 	}
