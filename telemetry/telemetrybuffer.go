@@ -17,15 +17,14 @@ import (
 // FdName - file descriptor name
 // Delimiter - delimiter for socket reads/writes
 // HostNetAgentURL - host net agent url of type payload
-// DefaultDncReportsSize - default DNC report slice size
-// DefaultCniReportsSize - default CNI report slice size
-// DefaultNpmReportsSize - default NPM report slice size
 // DefaultInterval - default interval for sending payload to host
+// MaxPayloadSize - max payload size (~2MB)
 const (
 	FdName          = "azure-telemetry"
 	Delimiter       = '\n'
 	HostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=payload"
 	DefaultInterval = 1 * time.Minute
+	MaxPayloadSize  = 2097
 )
 
 // TelemetryBuffer object
@@ -205,15 +204,32 @@ func (tb *TelemetryBuffer) sendToHost() error {
 
 // push - push the report (x) to corresponding slice
 func (pl *Payload) push(x interface{}) {
+	truncate := false
+	if pl.len() > MaxPayloadSize {
+		truncate = true
+	}
+
 	switch x.(type) {
 	case DNCReport:
 		pl.DNCReports = append(pl.DNCReports, x.(DNCReport))
+		if truncate {
+			pl.DNCReports = pl.DNCReports[1:]
+		}
 	case CNIReport:
 		pl.CNIReports = append(pl.CNIReports, x.(CNIReport))
+		if truncate {
+			pl.CNIReports = pl.CNIReports[1:]
+		}
 	case NPMReport:
 		pl.NPMReports = append(pl.NPMReports, x.(NPMReport))
+		if truncate {
+			pl.NPMReports = pl.NPMReports[1:]
+		}
 	case CNSReport:
 		pl.CNSReports = append(pl.CNSReports, x.(CNSReport))
+		if truncate {
+			pl.CNSReports = pl.CNSReports[1:]
+		}
 	}
 }
 
@@ -227,4 +243,9 @@ func (pl *Payload) reset() {
 	pl.NPMReports = make([]NPMReport, 0)
 	pl.CNSReports = nil
 	pl.CNSReports = make([]CNSReport, 0)
+}
+
+// len - get number of payload items
+func (pl *Payload) len() int {
+	return len(pl.CNIReports) + len(pl.CNSReports) + len(pl.DNCReports) + len(pl.NPMReports)
 }
