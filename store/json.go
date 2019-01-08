@@ -170,11 +170,11 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 }
 
 // Unlock unlocks the store.
-func (kvs *jsonFileStore) Unlock() error {
+func (kvs *jsonFileStore) Unlock(forceUnlock bool) error {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
 
-	if !kvs.locked {
+	if !forceUnlock && !kvs.locked {
 		return ErrStoreNotLocked
 	}
 
@@ -197,6 +197,30 @@ func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
 	info, err := os.Stat(kvs.fileName)
 	if err != nil {
 		log.Printf("os.stat() for file %v failed: %v", kvs.fileName, err)
+		return time.Time{}.UTC(), err
+	}
+
+	return info.ModTime().UTC(), nil
+}
+
+// GetLockFileModificationTime returns the modification time of the lock file of the persistent store.
+func (kvs *jsonFileStore) GetLockFileModificationTime() (time.Time, error) {
+	kvs.Mutex.Lock()
+	defer kvs.Mutex.Unlock()
+
+	lockFileName := kvs.fileName + lockExtension
+
+	// Check if the file exists.
+	file, err := os.Open(lockFileName)
+	if err != nil {
+		return time.Time{}.UTC(), err
+	}
+
+	defer file.Close()
+
+	info, err := os.Stat(lockFileName)
+	if err != nil {
+		log.Printf("os.stat() for file %v failed: %v", lockFileName, err)
 		return time.Time{}.UTC(), err
 	}
 

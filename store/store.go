@@ -14,8 +14,9 @@ type KeyValueStore interface {
 	Write(key string, value interface{}) error
 	Flush() error
 	Lock(block bool) error
-	Unlock() error
+	Unlock(forceUnlock bool) error
 	GetModificationTime() (time.Time, error)
+	GetLockFileModificationTime() (time.Time, error)
 }
 
 var (

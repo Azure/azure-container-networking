@@ -65,7 +65,15 @@ func GetLastRebootTime() (time.Time, error) {
 	bootPM := strings.Contains(strings.Split(systemBootTime, " ")[2], "PM")
 
 	month := strings.Split(bootDate, "/")[0]
+	if len(month) < 2 {
+		month = "0" + month
+	}
+
 	day := strings.Split(bootDate, "/")[1]
+	if len(day) < 2 {
+		day = "0" + day
+	}
+
 	year := strings.Split(bootDate, "/")[2]
 	year = strings.Trim(year, ",")
 	hour := strings.Split(bootTime, ":")[0]
