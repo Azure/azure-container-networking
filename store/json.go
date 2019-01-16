@@ -141,7 +141,10 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 	lockPerm := os.FileMode(0664) + os.FileMode(os.ModeExclusive)
 
 	// Try to acquire the lock file.
-	for i := 0; ; i++ {
+	var lockRetryCount uint
+	var modTimeCur time.Time
+	var modTimePrev time.Time
+	for lockRetryCount < lockMaxRetries {
 		lockFile, err = os.OpenFile(lockName, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
 		if err == nil {
 			break
@@ -151,12 +154,24 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 			return ErrNonBlockingLockIsAlreadyLocked
 		}
 
-		if i == lockMaxRetries {
-			return ErrTimeoutLockingStore
+		// Reset the lock retry count if the timestamp for the lock file changes.
+		if fileInfo, err := os.Stat(lockName); err == nil {
+			modTimeCur = fileInfo.ModTime()
+			if !modTimeCur.Equal(modTimePrev) {
+				lockRetryCount = 0
+			}
+			modTimePrev = modTimeCur
 		}
 
 		time.Sleep(lockRetryDelay)
+
+		lockRetryCount++
 	}
+
+	if lockRetryCount == lockMaxRetries {
+		return ErrTimeoutLockingStore
+	}
+
 	defer lockFile.Close()
 
 	// Write the process ID for easy identification.
