@@ -38,6 +38,7 @@ jobs:
             sudo -E env "PATH=$PATH" go test ./npm/ipsm/
             sudo -E env "PATH=$PATH" go test ./npm/
             #sudo -E env "PATH=$PATH" go test ./cns/restserver/
+            bash <(curl -s https://codecov.io/bash)
 workflows:
   version: 2
   run-tests:
