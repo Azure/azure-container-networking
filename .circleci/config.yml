@@ -14,6 +14,7 @@ jobs:
             sudo -E env "PATH=$PATH" apt-get install -y ebtables
             sudo -E env "PATH=$PATH" apt-get install -y ipset
             sudo -E env "PATH=$PATH" apt-get install -y python3-dev gcc
+            sudo -E env "PATH=$PATH" pip install coverage
             mkdir -p /home/circleci/go1-10
             mkdir --parents /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
             wget https://storage.googleapis.com/golang/go1.10.2.linux-amd64.tar.gz
