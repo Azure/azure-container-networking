@@ -40,7 +40,7 @@ jobs:
             sudo -E env "PATH=$PATH" go test ./npm/iptm/ -coverprofile coverage-iptm.out
             sudo -E env "PATH=$PATH" go test ./npm/ipsm/ -coverprofile coverage-ipsm.out
             sudo -E env "PATH=$PATH" go test ./npm/ -coverprofile coverage-npm.out
-            sudo -E env "PATH=$PATH" go test ./cns/restserver/ -coverprofile coverage-restserver.out
+            #sudo -E env "PATH=$PATH" go test ./cns/restserver/ -coverprofile coverage-restserver.out
             bash <(curl -s https://codecov.io/bash)
 workflows:
   version: 2
