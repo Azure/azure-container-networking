@@ -29,7 +29,7 @@ jobs:
             go get github.com/docker/libnetwork/driverapi
             go get github.com/gorilla/mux
             go get golang.org/x/tools/cmd/cover
-            sudo -E env "PATH=$PATH" go test ./ipam/ -coverprofile fmt
+            sudo -E env "PATH=$PATH" go test ./ipam/ -coverprofile coverage.out
             sudo -E env "PATH=$PATH" go test ./log/
             sudo -E env "PATH=$PATH" go test ./netlink/
             sudo -E env "PATH=$PATH" go test ./store/
