@@ -101,5 +101,5 @@ func (service *Service) ParseOptions(options OptionMap) OptionMap {
 func (service *Service) SendErrorResponse(w http.ResponseWriter, errMsg error) {
 	resp := errorResponse{errMsg.Error()}
 	err := service.Listener.Encode(w, &resp)
-	log.Response(service.Name, &resp, err)
+	log.Errorf("[%s] %+v %s.", service.Name, &resp, err.Error())
 }

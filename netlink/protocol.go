@@ -13,6 +13,41 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const (
+	NDA_UNSPEC = iota
+	NDA_DST
+	NDA_LLADDR
+	NDA_CACHEINFO
+	NDA_PROBES
+	NDA_VLAN
+	NDA_PORT
+	NDA_VNI
+	NDA_IFINDEX
+	NDA_MAX = NDA_IFINDEX
+)
+
+// Neighbor Cache Entry States.
+const (
+	NUD_NONE       = 0x00
+	NUD_INCOMPLETE = 0x01
+	NUD_REACHABLE  = 0x02
+	NUD_STALE      = 0x04
+	NUD_DELAY      = 0x08
+	NUD_PROBE      = 0x10
+	NUD_FAILED     = 0x20
+	NUD_NOARP      = 0x40
+	NUD_PERMANENT  = 0x80
+)
+
+// Neighbor Flags
+const (
+	NTF_USE    = 0x01
+	NTF_SELF   = 0x02
+	NTF_MASTER = 0x04
+	NTF_PROXY  = 0x08
+	NTF_ROUTER = 0x80
+)
+
 // Netlink protocol constants that are not already defined in unix package.
 const (
 	IFLA_INFO_KIND   = 1
@@ -30,6 +65,40 @@ type serializable interface {
 	length() int
 }
 
+//
+// Netlink message
+//
+
+// Generic netlink message
+type message struct {
+	unix.NlMsghdr
+	data    []byte
+	payload []serializable
+}
+
+// Generic netlink message attribute
+type attribute struct {
+	unix.NlAttr
+	value    []byte
+	children []serializable
+}
+
+// Neighbor entry message strutcure
+type neighMsg struct {
+	Family uint8
+	Index  uint32
+	State  uint16
+	Flags  uint8
+	Type   uint8
+}
+
+// rta attribute structure
+type rtAttr struct {
+	unix.RtAttr
+	Data     []byte
+	children []serializable
+}
+
 // Byte encoder
 var encoder binary.ByteOrder
 
@@ -41,17 +110,6 @@ func initEncoder() {
 	} else {
 		encoder = binary.LittleEndian
 	}
-}
-
-//
-// Netlink message
-//
-
-// Generic netlink message
-type message struct {
-	unix.NlMsghdr
-	data    []byte
-	payload []serializable
 }
 
 // Creates a new netlink message.
@@ -127,14 +185,6 @@ func (msg *message) getAttributes(body serializable) []*attribute {
 //
 // Netlink message attribute
 //
-
-// Generic netlink message attribute
-type attribute struct {
-	unix.NlAttr
-	value    []byte
-	children []serializable
-}
-
 // Creates a new attribute.
 func newAttribute(attrType int, value []byte) *attribute {
 	return &attribute{
@@ -338,4 +388,71 @@ func (rt *rtMsg) serialize() []byte {
 // Returns the length of a route message.
 func (rt *rtMsg) length() int {
 	return unix.SizeofRtMsg
+}
+
+// serialize neighbor message
+func (msg *neighMsg) serialize() []byte {
+	return (*(*[unsafe.Sizeof(*msg)]byte)(unsafe.Pointer(msg)))[:]
+}
+
+func (msg *neighMsg) length() int {
+	return int(unsafe.Sizeof(*msg))
+}
+
+// creates new rta attr message
+func newRtAttr(attrType int, data []byte) *rtAttr {
+	return &rtAttr{
+		RtAttr: unix.RtAttr{
+			Type: uint16(attrType),
+		},
+		children: []serializable{},
+		Data:     data,
+	}
+}
+
+// align rta attributes
+func rtaAlignOf(attrlen int) int {
+	return (attrlen + unix.RTA_ALIGNTO - 1) & ^(unix.RTA_ALIGNTO - 1)
+}
+
+// serialize rta message
+func (rta *rtAttr) serialize() []byte {
+	length := rta.length()
+	buf := make([]byte, rtaAlignOf(length))
+
+	next := 4
+	if rta.Data != nil {
+		copy(buf[next:], rta.Data)
+		next += rtaAlignOf(len(rta.Data))
+	}
+	if len(rta.children) > 0 {
+		for _, child := range rta.children {
+			childBuf := child.serialize()
+			copy(buf[next:], childBuf)
+			next += rtaAlignOf(len(childBuf))
+		}
+	}
+
+	if l := uint16(length); l != 0 {
+		encoder.PutUint16(buf[0:2], l)
+	}
+	encoder.PutUint16(buf[2:4], rta.Type)
+	return buf
+}
+
+func (rta *rtAttr) length() int {
+	if len(rta.children) == 0 {
+		return (unix.SizeofRtAttr + len(rta.Data))
+	}
+
+	l := 0
+	for _, child := range rta.children {
+		l += rtaAlignOf(child.length())
+	}
+	l += unix.SizeofRtAttr
+	return rtaAlignOf(l + len(rta.Data))
+}
+
+func (rta *rtAttr) addChild(attr serializable) {
+	rta.children = append(rta.children, attr)
 }

@@ -81,6 +81,7 @@ type Route struct {
 // SetOrchestratorTypeRequest specifies the orchestrator type for the node.
 type SetOrchestratorTypeRequest struct {
 	OrchestratorType string
+	DncPartitionKey  string
 }
 
 // CreateNetworkContainerResponse specifies response of creating a network container.

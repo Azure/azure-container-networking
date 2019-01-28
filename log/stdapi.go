@@ -43,8 +43,8 @@ func Request(tag string, request interface{}, err error) {
 	stdLog.Request(tag, request, err)
 }
 
-func Response(tag string, response interface{}, err error) {
-	stdLog.Response(tag, response, err)
+func Response(tag string, response interface{}, returnCode int, returnStr string, err error) {
+	stdLog.Response(tag, response, returnCode, returnStr, err)
 }
 
 func Printf(format string, args ...interface{}) {
@@ -53,4 +53,8 @@ func Printf(format string, args ...interface{}) {
 
 func Debugf(format string, args ...interface{}) {
 	stdLog.Debugf(format, args...)
+}
+
+func Errorf(format string, args ...interface{}) {
+	stdLog.Errorf(format, args...)
 }

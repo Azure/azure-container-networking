@@ -15,8 +15,9 @@ import (
 
 const (
 	// Network store key.
-	storeKey  = "Network"
-	VlanIDKey = "VlanID"
+	storeKey    = "Network"
+	VlanIDKey   = "VlanID"
+	genericData = "com.docker.network.generic"
 )
 
 type NetworkClient interface {
@@ -61,8 +62,10 @@ type NetworkManager interface {
 	CreateEndpoint(networkId string, epInfo *EndpointInfo) error
 	DeleteEndpoint(networkId string, endpointId string) error
 	GetEndpointInfo(networkId string, endpointId string) (*EndpointInfo, error)
+	GetEndpointInfoBasedOnPODDetails(networkId string, podName string, podNameSpace string) (*EndpointInfo, error)
 	AttachEndpoint(networkId string, endpointId string, sandboxKey string) (*endpoint, error)
 	DetachEndpoint(networkId string, endpointId string) error
+	UpdateEndpoint(networkId string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error
 }
 
 // Creates a new network manager.
@@ -118,7 +121,30 @@ func (nm *networkManager) restore() error {
 		rebootTime, err := platform.GetLastRebootTime()
 		log.Printf("[net] reboot time %v store mod time %v", rebootTime, modTime)
 		if err == nil && rebootTime.After(modTime) {
+			log.Printf("[net] Detected Reboot")
 			rebooted = true
+			if clearNwConfig, err := platform.ClearNetworkConfiguration(); clearNwConfig {
+				if err != nil {
+					log.Printf("[net] Failed to clear network configuration, err:%v\n", err)
+					return err
+				}
+
+				// Delete the networks left behind after reboot
+				for _, extIf := range nm.ExternalInterfaces {
+					for _, nw := range extIf.Networks {
+						log.Printf("[net] Deleting the network %s on reboot\n", nw.Id)
+						nm.deleteNetwork(nw.Id)
+					}
+				}
+
+				// Clear networkManager contents
+				nm.TimeStamp = time.Time{}
+				for extIfName := range nm.ExternalInterfaces {
+					delete(nm.ExternalInterfaces, extIfName)
+				}
+
+				return nil
+			}
 		}
 	}
 
@@ -153,11 +179,11 @@ func (nm *networkManager) restore() error {
 
 	log.Printf("[net] Restored state, %+v\n", nm)
 	for _, extIf := range nm.ExternalInterfaces {
-		log.Printf("External Interface %v", extIf)
+		log.Printf("External Interface %+v", extIf)
 		for _, nw := range extIf.Networks {
-			log.Printf("network %v", nw)
+			log.Printf("network %+v", nw)
 			for _, ep := range nw.Endpoints {
-				log.Printf("endpoint %v", ep)
+				log.Printf("endpoint %+v", ep)
 			}
 		}
 	}
@@ -341,6 +367,25 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 	return ep.getInfo(), nil
 }
 
+// GetEndpointInfoBasedOnPODDetails returns information about the given endpoint.
+// It returns an error if a single pod has multiple endpoints.
+func (nm *networkManager) GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string) (*EndpointInfo, error) {
+	nm.Lock()
+	defer nm.Unlock()
+
+	nw, err := nm.getNetwork(networkID)
+	if err != nil {
+		return nil, err
+	}
+
+	ep, err := nw.getEndpointByPOD(podName, podNameSpace)
+	if err != nil {
+		return nil, err
+	}
+
+	return ep.getInfo(), nil
+}
+
 // AttachEndpoint attaches an endpoint to a sandbox.
 func (nm *networkManager) AttachEndpoint(networkId string, endpointId string, sandboxKey string) (*endpoint, error) {
 	nm.Lock()
@@ -385,6 +430,29 @@ func (nm *networkManager) DetachEndpoint(networkId string, endpointId string) er
 	}
 
 	err = ep.detach()
+	if err != nil {
+		return err
+	}
+
+	err = nm.save()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateEndpoint updates an existing container endpoint.
+func (nm *networkManager) UpdateEndpoint(networkID string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error {
+	nm.Lock()
+	defer nm.Unlock()
+
+	nw, err := nm.getNetwork(networkID)
+	if err != nil {
+		return err
+	}
+
+	_, err = nw.updateEndpoint(existingEpInfo, targetEpInfo)
 	if err != nil {
 		return err
 	}

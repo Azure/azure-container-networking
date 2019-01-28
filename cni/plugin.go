@@ -34,6 +34,18 @@ func NewPlugin(name, version string) (*Plugin, error) {
 		return nil, err
 	}
 
+	// Initialize logging.
+	log.SetName(plugin.Name)
+	log.SetLevel(log.LevelInfo)
+	err = log.SetTarget(log.TargetLogfile)
+	if err != nil {
+		log.Printf("[cni] Failed to configure logging, err:%v.\n", err)
+		return &Plugin{
+			Plugin:  plugin,
+			version: version,
+		}, err
+	}
+
 	return &Plugin{
 		Plugin:  plugin,
 		version: version,
@@ -45,14 +57,6 @@ func (plugin *Plugin) Initialize(config *common.PluginConfig) error {
 	// Initialize the base plugin.
 	plugin.Plugin.Initialize(config)
 
-	// Initialize logging.
-	log.SetName(plugin.Name)
-	log.SetLevel(log.LevelInfo)
-	err := log.SetTarget(log.TargetLogfile)
-	if err != nil {
-		log.Printf("[cni] Failed to configure logging, err:%v.\n", err)
-		return err
-	}
 	return nil
 }
 
@@ -164,6 +168,21 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 			log.Printf("[cni] Failed to create store: %v.", err)
 			return err
 		}
+
+		// Force unlock the json store if the lock file is left on the node after reboot
+		if lockFileModTime, err := plugin.Store.GetLockFileModificationTime(); err == nil {
+			rebootTime, err := platform.GetLastRebootTime()
+			log.Printf("[cni] reboot time %v storeLockFile mod time %v", rebootTime, lockFileModTime)
+			if err == nil && rebootTime.After(lockFileModTime) {
+				log.Printf("[cni] Detected Reboot")
+
+				if err := plugin.Store.Unlock(true); err != nil {
+					log.Printf("[cni] Failed to force unlock store due to error %v", err)
+				} else {
+					log.Printf("[cni] Force unlocked the store successfully")
+				}
+			}
+		}
 	}
 
 	// Acquire store lock.
@@ -180,7 +199,7 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 // Uninitialize key-value store
 func (plugin *Plugin) UninitializeKeyValueStore() error {
 	if plugin.Store != nil {
-		err := plugin.Store.Unlock()
+		err := plugin.Store.Unlock(false)
 		if err != nil {
 			log.Printf("[cni] Failed to unlock store: %v.", err)
 			return err

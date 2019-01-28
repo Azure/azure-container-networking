@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Azure/azure-container-networking/telemetry"
+
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -28,7 +30,11 @@ const (
 // Version is populated by make during build.
 var version string
 
-// Command line arguments for CNM plugin.
+// Reports channel
+var reports = make(chan interface{})
+var telemetryStopProcessing = make(chan bool)
+
+// Command line arguments for CNS.
 var args = acn.ArgumentList{
 	{
 		Name:         acn.OptEnvironment,
@@ -116,6 +122,13 @@ var args = acn.ArgumentList{
 		Type:         "bool",
 		DefaultValue: false,
 	},
+	{
+		Name:         acn.OptReportToHostInterval,
+		Shorthand:    acn.OptReportToHostIntervalAlias,
+		Description:  "Set interval in ms to report to host",
+		Type:         "int",
+		DefaultValue: "60000",
+	},
 }
 
 // Prints description and version information.
@@ -140,6 +153,7 @@ func main() {
 	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
 	stopcnm = acn.GetArg(acn.OptStopAzureVnet).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
+	reportToHostInterval := acn.GetArg(acn.OptReportToHostInterval).(int)
 
 	if vers {
 		printVersion()
@@ -168,26 +182,30 @@ func main() {
 		return
 	}
 
+	if logger := log.GetStd(); logger != nil {
+		logger.SetChannel(reports)
+	}
+
 	// Log platform information.
 	log.Printf("Running on %v", platform.GetOSInfo())
 
 	err = acn.CreateDirectory(platform.CNMRuntimePath)
 	if err != nil {
-		log.Printf("Failed to create File Store directory Error:%v", err.Error())
+		log.Errorf("Failed to create File Store directory Error:%v", err.Error())
 		return
 	}
 
 	// Create the key value store.
 	config.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + name + ".json")
 	if err != nil {
-		log.Printf("Failed to create store: %v\n", err)
+		log.Errorf("Failed to create store: %v\n", err)
 		return
 	}
 
 	// Create CNS object.
 	httpRestService, err := restserver.NewHTTPRestService(&config)
 	if err != nil {
-		log.Printf("Failed to create CNS object, err:%v.\n", err)
+		log.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
 	}
 
@@ -196,9 +214,13 @@ func main() {
 
 	// Start CNS.
 	if httpRestService != nil {
+		go telemetry.SendCnsTelemetry(reportToHostInterval,
+			reports,
+			httpRestService.(*restserver.HTTPRestService),
+			telemetryStopProcessing)
 		err = httpRestService.Start(&config)
 		if err != nil {
-			log.Printf("Failed to start CNS, err:%v.\n", err)
+			log.Errorf("Failed to start CNS, err:%v.\n", err)
 			return
 		}
 	}
@@ -216,21 +238,21 @@ func main() {
 		// Create network plugin.
 		netPlugin, err = network.NewPlugin(&pluginConfig)
 		if err != nil {
-			log.Printf("Failed to create network plugin, err:%v.\n", err)
+			log.Errorf("Failed to create network plugin, err:%v.\n", err)
 			return
 		}
 
 		// Create IPAM plugin.
 		ipamPlugin, err = ipam.NewPlugin(&pluginConfig)
 		if err != nil {
-			log.Printf("Failed to create IPAM plugin, err:%v.\n", err)
+			log.Errorf("Failed to create IPAM plugin, err:%v.\n", err)
 			return
 		}
 
 		// Create the key value store.
 		pluginConfig.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + pluginName + ".json")
 		if err != nil {
-			log.Printf("Failed to create store: %v\n", err)
+			log.Errorf("Failed to create store: %v\n", err)
 			return
 		}
 
@@ -238,7 +260,7 @@ func main() {
 		netPlugin.SetOption(acn.OptAPIServerURL, url)
 		log.Printf("Start netplugin\n")
 		if err := netPlugin.Start(&pluginConfig); err != nil {
-			log.Printf("Failed to create network plugin, err:%v.\n", err)
+			log.Errorf("Failed to create network plugin, err:%v.\n", err)
 			return
 		}
 
@@ -247,7 +269,7 @@ func main() {
 		ipamPlugin.SetOption(acn.OptIpamQueryUrl, ipamQueryUrl)
 		ipamPlugin.SetOption(acn.OptIpamQueryInterval, ipamQueryInterval)
 		if err := ipamPlugin.Start(&pluginConfig); err != nil {
-			log.Printf("Failed to create IPAM plugin, err:%v.\n", err)
+			log.Errorf("Failed to create IPAM plugin, err:%v.\n", err)
 			return
 		}
 	}
@@ -268,6 +290,8 @@ func main() {
 	if httpRestService != nil {
 		httpRestService.Stop()
 	}
+
+	telemetryStopProcessing <- true
 
 	if !stopcnm {
 		if netPlugin != nil {

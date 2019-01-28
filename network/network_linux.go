@@ -21,8 +21,6 @@ const (
 	// Virtual MAC address used by Azure VNET.
 	virtualMacAddress = "12:34:56:78:9a:bc"
 
-	genericData = "com.docker.network.generic"
-
 	SnatBridgeIPKey = "snatBridgeIP"
 
 	LocalIPKey = "localIP"
@@ -54,7 +52,8 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		if opt != nil && opt[VlanIDKey] != nil {
 			vlanid, _ = strconv.Atoi(opt[VlanIDKey].(string))
 		}
-
+	case opModeTransparent:
+		break
 	default:
 		return nil, errNetworkModeInvalid
 	}

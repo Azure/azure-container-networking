@@ -9,12 +9,14 @@ import (
 
 var (
 	// Error responses returned by NetworkManager.
-	errSubnetNotFound     = fmt.Errorf("Subnet not found")
-	errNetworkModeInvalid = fmt.Errorf("Network mode is invalid")
-	errNetworkExists      = fmt.Errorf("Network already exists")
-	errNetworkNotFound    = fmt.Errorf("Network not found")
-	errEndpointExists     = fmt.Errorf("Endpoint already exists")
-	errEndpointNotFound   = fmt.Errorf("Endpoint not found")
-	errEndpointInUse      = fmt.Errorf("Endpoint is already joined to a sandbox")
-	errEndpointNotInUse   = fmt.Errorf("Endpoint is not joined to a sandbox")
+	errSubnetNotFound         = fmt.Errorf("Subnet not found")
+	errNetworkModeInvalid     = fmt.Errorf("Network mode is invalid")
+	errNetworkExists          = fmt.Errorf("Network already exists")
+	errNetworkNotFound        = fmt.Errorf("Network not found")
+	errEndpointExists         = fmt.Errorf("Endpoint already exists")
+	errEndpointNotFound       = fmt.Errorf("Endpoint not found")
+	errNamespaceNotFound      = fmt.Errorf("Namespace not found")
+	errMultipleEndpointsFound = fmt.Errorf("Multiple endpoints found")
+	errEndpointInUse          = fmt.Errorf("Endpoint is already joined to a sandbox")
+	errEndpointNotInUse       = fmt.Errorf("Endpoint is not joined to a sandbox")
 )

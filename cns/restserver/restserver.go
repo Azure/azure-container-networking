@@ -29,8 +29,8 @@ const (
 	swiftAPIVersion = "1"
 )
 
-// httpRestService represents http listener for CNS - Container Networking Service.
-type httpRestService struct {
+// HTTPRestService represents http listener for CNS - Container Networking Service.
+type HTTPRestService struct {
 	*cns.Service
 	dockerClient     *dockerclient.DockerClient
 	imdsClient       *imdsclient.ImdsClient
@@ -40,6 +40,7 @@ type httpRestService struct {
 	store            store.KeyValueStore
 	state            *httpRestServiceState
 	lock             sync.Mutex
+	dncPartitionKey  string
 }
 
 // containerstatus is used to save status of an existing container
@@ -97,7 +98,7 @@ func NewHTTPRestService(config *common.ServiceConfig) (HTTPService, error) {
 	serviceState := &httpRestServiceState{}
 	serviceState.Networks = make(map[string]*networkInfo)
 
-	return &httpRestService{
+	return &HTTPRestService{
 		Service:          service,
 		store:            service.Service.Store,
 		dockerClient:     dc,
@@ -111,23 +112,23 @@ func NewHTTPRestService(config *common.ServiceConfig) (HTTPService, error) {
 }
 
 // Start starts the CNS listener.
-func (service *httpRestService) Start(config *common.ServiceConfig) error {
+func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 
 	err := service.Initialize(config)
 	if err != nil {
-		log.Printf("[Azure CNS]  Failed to initialize base service, err:%v.", err)
+		log.Errorf("[Azure CNS]  Failed to initialize base service, err:%v.", err)
 		return err
 	}
 
 	err = service.restoreState()
 	if err != nil {
-		log.Printf("[Azure CNS]  Failed to restore service state, err:%v.", err)
+		log.Errorf("[Azure CNS]  Failed to restore service state, err:%v.", err)
 		return err
 	}
 
 	err = service.restoreNetworkState()
 	if err != nil {
-		log.Printf("[Azure CNS]  Failed to restore network state, err:%v.", err)
+		log.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)
 		return err
 	}
 
@@ -170,13 +171,21 @@ func (service *httpRestService) Start(config *common.ServiceConfig) error {
 }
 
 // Stop stops the CNS.
-func (service *httpRestService) Stop() {
+func (service *HTTPRestService) Stop() {
 	service.Uninitialize()
 	log.Printf("[Azure CNS]  Service stopped.")
 }
 
+// Get dnc/service partition key
+func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
+	service.lock.Lock()
+	dncPartitionKey = service.dncPartitionKey
+	service.lock.Unlock()
+	return
+}
+
 // Handles requests to set the environment type.
-func (service *httpRestService) setEnvironment(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) setEnvironment(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] setEnvironment")
 
 	var req cns.SetEnvironmentRequest
@@ -200,11 +209,11 @@ func (service *httpRestService) setEnvironment(w http.ResponseWriter, r *http.Re
 	resp := &cns.Response{ReturnCode: 0}
 	err = service.Listener.Encode(w, &resp)
 
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles CreateNetwork requests.
-func (service *httpRestService) createNetwork(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] createNetwork")
 
 	var err error
@@ -304,11 +313,11 @@ func (service *httpRestService) createNetwork(w http.ResponseWriter, r *http.Req
 		service.saveState()
 	}
 
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles DeleteNetwork requests.
-func (service *httpRestService) deleteNetwork(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] deleteNetwork")
 
 	var req cns.DeleteNetworkRequest
@@ -360,11 +369,11 @@ func (service *httpRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 		service.saveState()
 	}
 
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles ip reservation requests.
-func (service *httpRestService) reserveIPAddress(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] reserveIPAddress")
 
 	var req cns.ReserveIPAddressRequest
@@ -435,14 +444,14 @@ func (service *httpRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 		ReturnCode: returnCode,
 		Message:    returnMessage,
 	}
+
 	reserveResp := &cns.ReserveIPAddressResponse{Response: resp, IPAddress: address}
 	err = service.Listener.Encode(w, &reserveResp)
-
-	log.Response(service.Name, reserveResp, err)
+	log.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles release ip reservation requests.
-func (service *httpRestService) releaseIPAddress(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] releaseIPAddress")
 
 	var req cns.ReleaseIPAddressRequest
@@ -503,12 +512,11 @@ func (service *httpRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	}
 
 	err = service.Listener.Encode(w, &resp)
-
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Retrieves the host local ip address. Containers can talk to host using this IP address.
-func (service *httpRestService) getHostLocalIP(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getHostLocalIP")
 	log.Request(service.Name, "getHostLocalIP", nil)
 
@@ -556,11 +564,11 @@ func (service *httpRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 
 	err := service.Listener.Encode(w, &hostLocalIPResponse)
 
-	log.Response(service.Name, hostLocalIPResponse, err)
+	log.Response(service.Name, hostLocalIPResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles ip address utilization requests.
-func (service *httpRestService) getIPAddressUtilization(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getIPAddressUtilization")
 	log.Request(service.Name, "getIPAddressUtilization", nil)
 
@@ -621,12 +629,11 @@ func (service *httpRestService) getIPAddressUtilization(w http.ResponseWriter, r
 	}
 
 	err := service.Listener.Encode(w, &utilResponse)
-
-	log.Response(service.Name, utilResponse, err)
+	log.Response(service.Name, utilResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles retrieval of ip addresses that are available to be reserved from ipam driver.
-func (service *httpRestService) getAvailableIPAddresses(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getAvailableIPAddresses(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getAvailableIPAddresses")
 	log.Request(service.Name, "getAvailableIPAddresses", nil)
 
@@ -639,11 +646,11 @@ func (service *httpRestService) getAvailableIPAddresses(w http.ResponseWriter, r
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	log.Response(service.Name, ipResp, err)
+	log.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles retrieval of reserved ip addresses from ipam driver.
-func (service *httpRestService) getReservedIPAddresses(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getReservedIPAddresses(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getReservedIPAddresses")
 	log.Request(service.Name, "getReservedIPAddresses", nil)
 
@@ -656,11 +663,11 @@ func (service *httpRestService) getReservedIPAddresses(w http.ResponseWriter, r 
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	log.Response(service.Name, ipResp, err)
+	log.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles retrieval of ghost ip addresses from ipam driver.
-func (service *httpRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getUnhealthyIPAddresses")
 	log.Request(service.Name, "getUnhealthyIPAddresses", nil)
 
@@ -719,12 +726,11 @@ func (service *httpRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 	}
 
 	err := service.Listener.Encode(w, &ipResp)
-
-	log.Response(service.Name, ipResp, err)
+	log.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // getAllIPAddresses retrieves all ip addresses from ipam driver.
-func (service *httpRestService) getAllIPAddresses(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getAllIPAddresses(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getAllIPAddresses")
 	log.Request(service.Name, "getAllIPAddresses", nil)
 
@@ -737,11 +743,11 @@ func (service *httpRestService) getAllIPAddresses(w http.ResponseWriter, r *http
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	log.Response(service.Name, ipResp, err)
+	log.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // Handles health report requests.
-func (service *httpRestService) getHealthReport(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getHealthReport(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getHealthReport")
 	log.Request(service.Name, "getHealthReport", nil)
 
@@ -753,11 +759,11 @@ func (service *httpRestService) getHealthReport(w http.ResponseWriter, r *http.R
 	resp := &cns.Response{ReturnCode: 0}
 	err := service.Listener.Encode(w, &resp)
 
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // saveState writes CNS state to persistent store.
-func (service *httpRestService) saveState() error {
+func (service *HTTPRestService) saveState() error {
 	log.Printf("[Azure CNS] saveState")
 
 	// Skip if a store is not provided.
@@ -772,14 +778,14 @@ func (service *httpRestService) saveState() error {
 	if err == nil {
 		log.Printf("[Azure CNS]  State saved successfully.\n")
 	} else {
-		log.Printf("[Azure CNS]  Failed to save state., err:%v\n", err)
+		log.Errorf("[Azure CNS]  Failed to save state., err:%v\n", err)
 	}
 
 	return err
 }
 
 // restoreState restores CNS state from persistent store.
-func (service *httpRestService) restoreState() error {
+func (service *HTTPRestService) restoreState() error {
 	log.Printf("[Azure CNS] restoreState")
 
 	// Skip if a store is not provided.
@@ -797,7 +803,7 @@ func (service *httpRestService) restoreState() error {
 			return nil
 		}
 
-		log.Printf("[Azure CNS]  Failed to restore state, err:%v\n", err)
+		log.Errorf("[Azure CNS]  Failed to restore state, err:%v\n", err)
 		return err
 	}
 
@@ -805,7 +811,7 @@ func (service *httpRestService) restoreState() error {
 	return nil
 }
 
-func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] setOrchestratorType")
 
 	var req cns.SetOrchestratorTypeRequest
@@ -818,6 +824,8 @@ func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	}
 
 	service.lock.Lock()
+
+	service.dncPartitionKey = req.DncPartitionKey
 
 	switch req.OrchestratorType {
 	case cns.ServiceFabric, cns.Kubernetes, cns.WebApps:
@@ -836,10 +844,10 @@ func (service *httpRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	}
 
 	err = service.Listener.Encode(w, &resp)
-	log.Response(service.Name, resp, err)
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
-func (service *httpRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (int, string) {
+func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (int, string) {
 	// we don't want to overwrite what other calls may have written
 	service.lock.Lock()
 	defer service.lock.Unlock()
@@ -890,7 +898,7 @@ func (service *httpRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	return 0, ""
 }
 
-func (service *httpRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] createOrUpdateNetworkContainer")
 
 	var req cns.CreateNetworkContainerRequest
@@ -941,11 +949,10 @@ func (service *httpRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 
 	reserveResp := &cns.CreateNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-
-	log.Response(service.Name, reserveResp, err)
+	log.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
-func (service *httpRestService) getNetworkContainerByID(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getNetworkContainerByID")
 
 	var req cns.GetNetworkContainerRequest
@@ -965,10 +972,10 @@ func (service *httpRestService) getNetworkContainerByID(w http.ResponseWriter, r
 
 	reserveResp := &cns.GetNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-	log.Response(service.Name, reserveResp, err)
+	log.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
-func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkContainerRequest) cns.GetNetworkContainerResponse {
+func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkContainerRequest) cns.GetNetworkContainerResponse {
 	var containerID string
 	var getNetworkContainerResponse cns.GetNetworkContainerResponse
 
@@ -1017,7 +1024,7 @@ func (service *httpRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 	return getNetworkContainerResponse
 }
 
-func (service *httpRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getNetworkContainerByOrchestratorContext")
 
 	var req cns.GetNetworkContainerRequest
@@ -1029,12 +1036,12 @@ func (service *httpRestService) getNetworkContainerByOrchestratorContext(w http.
 	}
 
 	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
-
+	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	err = service.Listener.Encode(w, &getNetworkContainerResponse)
-	log.Response(service.Name, getNetworkContainerResponse, err)
+	log.Response(service.Name, getNetworkContainerResponse, returnCode, ReturnCodeToString(returnCode), err)
 }
 
-func (service *httpRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] deleteNetworkContainer")
 
 	var req cns.DeleteNetworkContainerRequest
@@ -1105,11 +1112,10 @@ func (service *httpRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 	reserveResp := &cns.DeleteNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-
-	log.Response(service.Name, reserveResp, err)
+	log.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
-func (service *httpRestService) getNetworkContainerStatus(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getNetworkContainerStatus(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getNetworkContainerStatus")
 
 	var req cns.GetNetworkContainerStatusRequest
@@ -1168,11 +1174,10 @@ func (service *httpRestService) getNetworkContainerStatus(w http.ResponseWriter,
 	}
 
 	err = service.Listener.Encode(w, &networkContainerStatusReponse)
-
-	log.Response(service.Name, networkContainerStatusReponse, err)
+	log.Response(service.Name, networkContainerStatusReponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
-func (service *httpRestService) getInterfaceForContainer(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] getInterfaceForContainer")
 
 	var req cns.GetInterfaceForContainerRequest
@@ -1223,11 +1228,11 @@ func (service *httpRestService) getInterfaceForContainer(w http.ResponseWriter, 
 
 	err = service.Listener.Encode(w, &getInterfaceForContainerResponse)
 
-	log.Response(service.Name, getInterfaceForContainerResponse, err)
+	log.Response(service.Name, getInterfaceForContainerResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 // restoreNetworkState restores Network state that existed before reboot.
-func (service *httpRestService) restoreNetworkState() error {
+func (service *HTTPRestService) restoreNetworkState() error {
 	log.Printf("[Azure CNS] Enter Restoring Network State")
 
 	if service.store == nil {

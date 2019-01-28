@@ -13,6 +13,8 @@ jobs:
             sudo -E env "PATH=$PATH" apt-get update
             sudo -E env "PATH=$PATH" apt-get install -y ebtables
             sudo -E env "PATH=$PATH" apt-get install -y ipset
+            sudo -E env "PATH=$PATH" apt-get install -y python3-dev gcc
+            sudo -E env "PATH=$PATH" pip install coverage
             mkdir -p /home/circleci/go1-10
             mkdir --parents /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
             wget https://storage.googleapis.com/golang/go1.10.2.linux-amd64.tar.gz
@@ -26,18 +28,20 @@ jobs:
             go get ./...
             go get github.com/docker/libnetwork/driverapi
             go get github.com/gorilla/mux
-            sudo -E env "PATH=$PATH" go test ./ipam/
-            sudo -E env "PATH=$PATH" go test ./log/
-            sudo -E env "PATH=$PATH" go test ./netlink/
-            sudo -E env "PATH=$PATH" go test ./store/
-            sudo -E env "PATH=$PATH" go test ./telemetry/
-            sudo -E env "PATH=$PATH" go test ./cni/ipam/
-            sudo -E env "PATH=$PATH" go test ./cnm/network/
-            sudo -E env "PATH=$PATH" go test ./cns/ipamclient/
-            sudo -E env "PATH=$PATH" go test ./npm/iptm/
-            sudo -E env "PATH=$PATH" go test ./npm/ipsm/
-            sudo -E env "PATH=$PATH" go test ./npm/
-            #sudo -E env "PATH=$PATH" go test ./cns/restserver/
+            go get golang.org/x/tools/cmd/cover
+            sudo -E env "PATH=$PATH" go test ./ipam/ -coverprofile coverage-ipam.out
+            sudo -E env "PATH=$PATH" go test ./log/ -coverprofile coverage-log.out
+            sudo -E env "PATH=$PATH" go test ./netlink/ -coverprofile coverage-netlink.out
+            sudo -E env "PATH=$PATH" go test ./store/ -coverprofile coverage-store.out
+            sudo -E env "PATH=$PATH" go test ./telemetry/ -coverprofile coverage-telemetry.out
+            sudo -E env "PATH=$PATH" go test ./cni/ipam/ -coverprofile coverage-ipam.out
+            sudo -E env "PATH=$PATH" go test ./cnm/network/ -coverprofile coverage-network.out
+            sudo -E env "PATH=$PATH" go test ./cns/ipamclient/ -coverprofile coverage-ipamclient.out
+            sudo -E env "PATH=$PATH" go test ./npm/iptm/ -coverprofile coverage-iptm.out
+            sudo -E env "PATH=$PATH" go test ./npm/ipsm/ -coverprofile coverage-ipsm.out
+            sudo -E env "PATH=$PATH" go test ./npm/ -coverprofile coverage-npm.out
+            #sudo -E env "PATH=$PATH" go test ./cns/restserver/ -coverprofile coverage-restserver.out
+            bash <(curl -s https://codecov.io/bash)
 workflows:
   version: 2
   run-tests:

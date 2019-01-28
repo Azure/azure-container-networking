@@ -21,6 +21,9 @@ const (
 	// CNIRuntimePath is the path where CNI state files are stored.
 	CNIRuntimePath = "/var/run/"
 
+	// CNSRuntimePath is the path where CNS state files are stored.
+	CNSRuntimePath = "/var/run/"
+
 	// NPMRuntimePath is the path where NPM logging files are stored.
 	NPMRuntimePath = "/var/run/"
 
@@ -84,4 +87,10 @@ func SetOutboundSNAT(subnet string) error {
 		return err
 	}
 	return nil
+}
+
+// ClearNetworkConfiguration clears the azure-vnet.json contents.
+// This will be called only when reboot is detected - This is windows specific
+func ClearNetworkConfiguration() (bool, error) {
+	return false, nil
 }

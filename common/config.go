@@ -48,6 +48,10 @@ const (
 	OptStopAzureVnet      = "stop-azure-cnm"
 	OptStopAzureVnetAlias = "stopcnm"
 
+	// Interval to send reports to host
+	OptReportToHostInterval      = "report-interval"
+	OptReportToHostIntervalAlias = "hostinterval"
+
 	// Version.
 	OptVersion      = "version"
 	OptVersionAlias = "v"
