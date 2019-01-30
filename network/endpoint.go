@@ -5,6 +5,7 @@ package network
 
 import (
 	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -142,13 +143,13 @@ func (nw *network) getEndpoint(endpointId string) (*endpoint, error) {
 }
 
 // GetEndpointByPOD returns the endpoint with the given ID.
-func (nw *network) getEndpointByPOD(podName string, podNameSpace string) (*endpoint, error) {
+func (nw *network) getEndpointByPOD(podName string, podNameSpace string, doExactMatchForPodName bool) (*endpoint, error) {
 	log.Printf("Trying to retrieve endpoint for pod name: %v in namespace: %v", podName, podNameSpace)
 
 	var ep *endpoint
 
 	for _, endpoint := range nw.Endpoints {
-		if endpoint.PODName == podName && endpoint.PODNameSpace == podNameSpace {
+		if podNameMatches(endpoint.PODName, podName, doExactMatchForPodName) && endpoint.PODNameSpace == podNameSpace {
 			if ep == nil {
 				ep = endpoint
 			} else {
@@ -162,6 +163,16 @@ func (nw *network) getEndpointByPOD(podName string, podNameSpace string) (*endpo
 	}
 
 	return ep, nil
+}
+
+func podNameMatches(source string, actualValue string, doExactMatch bool) bool {
+	if doExactMatch {
+		return (source == actualValue)
+	} else {
+		// If exact match flag is disabled we just check if the existing podname field for an endpoint
+		// starts with passed podname string.
+		return (source == GetPodNameWithoutSuffix(actualValue))
+	}
 }
 
 //
@@ -259,4 +270,17 @@ func (nw *network) updateEndpoint(exsitingEpInfo *EndpointInfo, targetEpInfo *En
 	nw.Endpoints[exsitingEpInfo.Id].Routes = ep.Routes
 
 	return ep, nil
+}
+
+func GetPodNameWithoutSuffix(podName string) string {
+	nameSplit := strings.Split(podName, "-")
+	log.Printf("namesplit %v", nameSplit)
+	if len(nameSplit) > 2 {
+		nameSplit = nameSplit[:len(nameSplit)-2]
+	} else {
+		return podName
+	}
+
+	log.Printf("Pod name after splitting based on - : %v", nameSplit)
+	return strings.Join(nameSplit, "-")
 }

@@ -17,6 +17,12 @@ import (
 )
 
 func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkContainerRequest) error {
+	// Create Operation is only supported for WebApps only on Windows
+	if createNetworkContainerRequest.NetworkContainerType != cns.WebApps {
+		log.Printf("[Azure CNS] Operation not supported for container type %v", createNetworkContainerRequest.NetworkContainerType)
+		return nil
+	}
+
 	exists, _ := interfaceExists(createNetworkContainerRequest.NetworkContainerid)
 
 	if !exists {
@@ -24,6 +30,10 @@ func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkCont
 	}
 
 	return createOrUpdateWithOperation(createNetworkContainerRequest, "UPDATE")
+}
+
+func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerRequest, netpluginConfig *NetPluginConfiguration) error {
+	return nil
 }
 
 func setWeakHostOnInterface(ipAddress string) error {

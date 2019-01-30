@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/routes"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -928,6 +929,24 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			if !ok || (ok && existing.VMVersion != req.Version) {
 				nc := service.networkContainer
 				if err = nc.Create(req); err != nil {
+					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
+					returnCode = UnexpectedError
+					break
+				}
+			}
+		} else if req.NetworkContainerType == cns.AzureContainerInstance {
+			// try to get the saved nc state if it exists
+			service.lock.Lock()
+			existing, ok := service.state.ContainerStatus[req.NetworkContainerid]
+			service.lock.Unlock()
+
+			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
+			if ok && existing.VMVersion != req.Version {
+				nc := service.networkContainer
+				pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
+				configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
+				netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
+				if err = nc.Update(req, netPluginConfig); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
 					returnCode = UnexpectedError
 					break

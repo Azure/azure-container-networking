@@ -21,6 +21,12 @@ const (
 	// CNIRuntimePath is the path where CNI state files are stored.
 	CNIRuntimePath = ""
 
+	// CNI runtime path on a Kubernetes cluster
+	K8SCNIRuntimePath = ""
+
+	// Network configuration file path on a Kubernetes cluster
+	K8SNetConfigPath = ""
+
 	// CNSRuntimePath is the path where CNS state files are stored.
 	CNSRuntimePath = ""
 

@@ -24,6 +24,12 @@ const (
 	// CNSRuntimePath is the path where CNS state files are stored.
 	CNSRuntimePath = "/var/run/"
 
+	// CNI runtime path on a Kubernetes cluster
+	K8SCNIRuntimePath = "/opt/cni/bin"
+
+	// Network configuration file path on a Kubernetes cluster
+	K8SNetConfigPath = "/etc/cni/net.d"
+
 	// NPMRuntimePath is the path where NPM logging files are stored.
 	NPMRuntimePath = "/var/run/"
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -50,7 +49,7 @@ func getContainerNetworkConfiguration(
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
-		podNameWithoutSuffix = getPodNameWithoutSuffix(podName)
+		podNameWithoutSuffix = network.GetPodNameWithoutSuffix(podName)
 	} else {
 		podNameWithoutSuffix = podName
 	}
@@ -132,19 +131,6 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	result.Interfaces = append(result.Interfaces, iface)
 
 	return result
-}
-
-func getPodNameWithoutSuffix(podName string) string {
-	nameSplit := strings.Split(podName, "-")
-	log.Printf("namesplit %v", nameSplit)
-	if len(nameSplit) > 2 {
-		nameSplit = nameSplit[:len(nameSplit)-2]
-	} else {
-		return podName
-	}
-
-	log.Printf("Pod name after splitting based on - : %v", nameSplit)
-	return strings.Join(nameSplit, "-")
 }
 
 func getInfraVnetIP(
