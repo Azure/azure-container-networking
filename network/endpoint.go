@@ -64,9 +64,12 @@ type EndpointInfo struct {
 
 // RouteInfo contains information about an IP route.
 type RouteInfo struct {
-	Dst     net.IPNet
-	Gw      net.IP
-	DevName string
+	Dst      net.IPNet
+	Src      net.IP
+	Gw       net.IP
+	Protocol int
+	DevName  string
+	Scope    int
 }
 
 // NewEndpoint creates a new endpoint in the network.

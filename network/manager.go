@@ -129,6 +129,14 @@ func (nm *networkManager) restore() error {
 					return err
 				}
 
+				// Delete the networks left behind after reboot
+				for _, extIf := range nm.ExternalInterfaces {
+					for _, nw := range extIf.Networks {
+						log.Printf("[net] Deleting the network %s on reboot\n", nw.Id)
+						nm.deleteNetwork(nw.Id)
+					}
+				}
+
 				// Clear networkManager contents
 				nm.TimeStamp = time.Time{}
 				for extIfName := range nm.ExternalInterfaces {

@@ -185,7 +185,7 @@ func TestLockingStoreGivesExclusiveAccess(t *testing.T) {
 	}
 
 	// Unlock the first store.
-	err = kvs.Unlock()
+	err = kvs.Unlock(false)
 	if err != nil {
 		t.Errorf("Failed to unlock first store: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestLockingStoreGivesExclusiveAccess(t *testing.T) {
 	}
 
 	// Unlock the second store.
-	err = kvs2.Unlock()
+	err = kvs2.Unlock(false)
 	if err != nil {
 		t.Errorf("Failed to unlock second store: %v", err)
 	}

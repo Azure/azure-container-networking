@@ -11,6 +11,17 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const (
+	RT_SCOPE_UNIVERSE = 0
+	RT_SCOPE_SITE     = 200
+	RT_SCOPE_LINK     = 253
+	RT_SCOPE_HOST     = 254
+	RT_SCOPE_NOWHERE  = 255
+)
+const (
+	RTPROT_KERNEL = 2
+)
+
 // GetIpAddressFamily returns the address family of an IP address.
 func GetIpAddressFamily(ip net.IP) int {
 	if len(ip) <= net.IPv4len {

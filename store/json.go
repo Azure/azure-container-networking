@@ -141,7 +141,10 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 	lockPerm := os.FileMode(0664) + os.FileMode(os.ModeExclusive)
 
 	// Try to acquire the lock file.
-	for i := 0; ; i++ {
+	var lockRetryCount uint
+	var modTimeCur time.Time
+	var modTimePrev time.Time
+	for lockRetryCount < lockMaxRetries {
 		lockFile, err = os.OpenFile(lockName, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
 		if err == nil {
 			break
@@ -151,12 +154,24 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 			return ErrNonBlockingLockIsAlreadyLocked
 		}
 
-		if i == lockMaxRetries {
-			return ErrTimeoutLockingStore
+		// Reset the lock retry count if the timestamp for the lock file changes.
+		if fileInfo, err := os.Stat(lockName); err == nil {
+			modTimeCur = fileInfo.ModTime()
+			if !modTimeCur.Equal(modTimePrev) {
+				lockRetryCount = 0
+			}
+			modTimePrev = modTimeCur
 		}
 
 		time.Sleep(lockRetryDelay)
+
+		lockRetryCount++
 	}
+
+	if lockRetryCount == lockMaxRetries {
+		return ErrTimeoutLockingStore
+	}
+
 	defer lockFile.Close()
 
 	// Write the process ID for easy identification.
@@ -170,11 +185,11 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 }
 
 // Unlock unlocks the store.
-func (kvs *jsonFileStore) Unlock() error {
+func (kvs *jsonFileStore) Unlock(forceUnlock bool) error {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
 
-	if !kvs.locked {
+	if !forceUnlock && !kvs.locked {
 		return ErrStoreNotLocked
 	}
 
@@ -197,6 +212,30 @@ func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
 	info, err := os.Stat(kvs.fileName)
 	if err != nil {
 		log.Printf("os.stat() for file %v failed: %v", kvs.fileName, err)
+		return time.Time{}.UTC(), err
+	}
+
+	return info.ModTime().UTC(), nil
+}
+
+// GetLockFileModificationTime returns the modification time of the lock file of the persistent store.
+func (kvs *jsonFileStore) GetLockFileModificationTime() (time.Time, error) {
+	kvs.Mutex.Lock()
+	defer kvs.Mutex.Unlock()
+
+	lockFileName := kvs.fileName + lockExtension
+
+	// Check if the file exists.
+	file, err := os.Open(lockFileName)
+	if err != nil {
+		return time.Time{}.UTC(), err
+	}
+
+	defer file.Close()
+
+	info, err := os.Stat(lockFileName)
+	if err != nil {
+		log.Printf("os.stat() for file %v failed: %v", lockFileName, err)
 		return time.Time{}.UTC(), err
 	}
 

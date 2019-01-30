@@ -68,8 +68,8 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	}
 
 	if _, ok := epInfo.Data[OptVethName]; ok {
-		log.Printf("Generate veth name based on the key provided")
 		key := epInfo.Data[OptVethName].(string)
+		log.Printf("Generate veth name based on the key provided %v", key)
 		vethname := generateVethName(key)
 		hostIfName = fmt.Sprintf("%s%s", hostVEthInterfacePrefix, vethname)
 		contIfName = fmt.Sprintf("%s%s2", hostVEthInterfacePrefix, vethname)
@@ -81,14 +81,19 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	}
 
 	if vlanid != 0 {
+		log.Printf("OVS client")
 		epClient = NewOVSEndpointClient(
 			nw.extIf,
 			epInfo,
 			hostIfName,
 			contIfName,
 			vlanid)
-	} else {
+	} else if nw.Mode != opModeTransparent {
+		log.Printf("Bridge client")
 		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode)
+	} else {
+		log.Printf("Transparent client")
+		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode)
 	}
 
 	// Cleanup on failure.
@@ -207,8 +212,10 @@ func (nw *network) deleteEndpointImpl(ep *endpoint) error {
 	if ep.VlanID != 0 {
 		epInfo := ep.getInfo()
 		epClient = NewOVSEndpointClient(nw.extIf, epInfo, ep.HostIfName, "", ep.VlanID)
-	} else {
+	} else if nw.Mode != opModeTransparent {
 		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode)
+	} else {
+		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode)
 	}
 
 	epClient.DeleteEndpointRules(ep)
@@ -246,7 +253,7 @@ func addRoutes(interfaceName string, routes []RouteInfo) error {
 			if !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 				return err
 			} else {
-				log.Printf("route already exists")
+				log.Printf("[net] route already exists")
 			}
 		}
 	}
@@ -259,12 +266,22 @@ func deleteRoutes(interfaceName string, routes []RouteInfo) error {
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
 	for _, route := range routes {
-		log.Printf("[ovs] Deleting IP route %+v from link %v.", route, interfaceName)
+		log.Printf("[net] Deleting IP route %+v from link %v.", route, interfaceName)
 
 		if route.DevName != "" {
 			devIf, _ := net.InterfaceByName(route.DevName)
+			if devIf == nil {
+				log.Printf("[net] Not deleting route. Interface %v doesn't exist", interfaceName)
+				continue
+			}
+
 			ifIndex = devIf.Index
 		} else {
+			if interfaceIf == nil {
+				log.Printf("[net] Not deleting route. Interface %v doesn't exist", interfaceName)
+				continue
+			}
+
 			ifIndex = interfaceIf.Index
 		}
 
@@ -413,6 +430,17 @@ func updateRoutes(existingEp *EndpointInfo, targetEp *EndpointInfo) error {
 	}
 
 	log.Printf("Successfully updated routes for the endpoint %+v using target: %+v", existingEp, targetEp)
+
+	return nil
+}
+
+func getDefaultGateway(routes []RouteInfo) net.IP {
+	_, defDstIP, _ := net.ParseCIDR("0.0.0.0/0")
+	for _, route := range routes {
+		if route.Dst.String() == defDstIP.String() {
+			return route.Gw
+		}
+	}
 
 	return nil
 }

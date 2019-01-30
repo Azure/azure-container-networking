@@ -105,7 +105,6 @@ func (am *addressManager) restore() error {
 	// Check if the VM is rebooted.
 	modTime, err := am.store.GetModificationTime()
 	if err == nil {
-
 		rebootTime, err := platform.GetLastRebootTime()
 		log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
 
@@ -147,6 +146,7 @@ func (am *addressManager) restore() error {
 		for _, as := range am.AddrSpaces {
 			for _, ap := range as.Pools {
 				ap.as = as
+				ap.RefCount = 0
 
 				for _, ar := range ap.Addresses {
 					ar.InUse = false
