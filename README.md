@@ -4,20 +4,18 @@
 [![codecov](https://codecov.io/gh/Azure/azure-container-networking/branch/master/graph/badge.svg)](https://codecov.io/gh/Azure/azure-container-networking)
 
 ## Overview
-This repository contains container networking plugins for Linux and Windows containers running on Azure:
+This repository contains container networking services and plugins for Linux and Windows containers running on Azure:
 
-* [CNM (libnetwork) network and IPAM plugins](docs/cnm.md) for Docker Engine.
-* [CNI network and IPAM plugins](docs/cni.md) for Kubernetes and DC/OS.
+* [Azure CNI network and IPAM plugins](docs/cni.md) for Kubernetes and DC/OS.
+* [Azure CNM (libnetwork) network and IPAM plugins](docs/cnm.md) for Docker Engine.
+* Azure NPM - Kubernetes Network Policy Manager (Supports only linux for now).
 
 The `azure-vnet` network plugins connect containers to your [Azure VNET](https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-overview), to take advantage of Azure SDN capabilities. The `azure-vnet-ipam` IPAM plugins provide address management functionality for container IP addresses allocated from Azure VNET address space.
 
-> Azure VNET plugins are currently available as a **public preview**.
-
 The following environments are supported:
 * [Microsoft Azure](https://azure.microsoft.com): Available in all Azure regions.
-* [Microsoft Azure Stack](https://azure.microsoft.com/en-us/overview/azure-stack/): The hybrid cloud platform that enables you to deliver Azure services from your own datacenter.
 
-Plugins are offered as part of [Azure Container Service (ACS)](https://azure.microsoft.com/en-us/services/container-service), as well as for individual Azure IaaS VMs. For ACS clusters created by [acs-engine](https://github.com/Azure/acs-engine), the deployment and configuration of both plugins on both Linux and Windows nodes is automatic.
+Plugins are offered as part of [Azure Kubernetes Service (AKS)](https://docs.microsoft.com/en-us/azure/aks/), as well as for individual Azure IaaS VMs. For Kubernetes clusters created by [aks-engine](https://github.com/Azure/aks-engine), the deployment and configuration of both plugins on both Linux and Windows nodes is automatic and default.
 
 ## Documentation
 See [Documentation](docs/) for more information and examples.
@@ -41,9 +39,6 @@ Please follow these steps before submitting a PR:
 * Clone the repository and create a topic branch.
 * Make changes, adding new tests for new functionality.
 * Submit a PR.
-
-## Changelog
-See [CHANGELOG](CHANGELOG.md).
 
 ## License
 See [LICENSE](LICENSE).
