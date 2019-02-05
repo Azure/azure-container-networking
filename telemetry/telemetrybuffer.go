@@ -204,31 +204,16 @@ func (tb *TelemetryBuffer) sendToHost() error {
 
 // push - push the report (x) to corresponding slice
 func (pl *Payload) push(x interface{}) {
-	truncate := false
-	if pl.len() > MaxPayloadSize {
-		truncate = true
-	}
-
-	switch x.(type) {
-	case DNCReport:
-		pl.DNCReports = append(pl.DNCReports, x.(DNCReport))
-		if truncate {
-			pl.DNCReports = pl.DNCReports[1:]
-		}
-	case CNIReport:
-		pl.CNIReports = append(pl.CNIReports, x.(CNIReport))
-		if truncate {
-			pl.CNIReports = pl.CNIReports[1:]
-		}
-	case NPMReport:
-		pl.NPMReports = append(pl.NPMReports, x.(NPMReport))
-		if truncate {
-			pl.NPMReports = pl.NPMReports[1:]
-		}
-	case CNSReport:
-		pl.CNSReports = append(pl.CNSReports, x.(CNSReport))
-		if truncate {
-			pl.CNSReports = pl.CNSReports[1:]
+	if pl.len() < MaxPayloadSize {
+		switch x.(type) {
+		case DNCReport:
+			pl.DNCReports = append(pl.DNCReports, x.(DNCReport))
+		case CNIReport:
+			pl.CNIReports = append(pl.CNIReports, x.(CNIReport))
+		case NPMReport:
+			pl.NPMReports = append(pl.NPMReports, x.(NPMReport))
+		case CNSReport:
+			pl.CNSReports = append(pl.CNSReports, x.(CNSReport))
 		}
 	}
 }
