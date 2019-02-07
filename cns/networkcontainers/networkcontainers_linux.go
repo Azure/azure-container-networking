@@ -4,18 +4,13 @@
 package networkcontainers
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"go/types"
 	"os"
-	"os/exec"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/containernetworking/cni/libcni"
-	"github.com/containernetworking/cni/pkg/invoke"
 )
 
 func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkContainerRequest) error {
@@ -85,41 +80,6 @@ func deleteInterface(networkContainerID string) error {
 	return nil
 }
 
-func execPlugin(rt *libcni.RuntimeConf, netconf []byte, path string) error {
-	environ := args("UPDATE", rt).AsEnv()
-	log.Printf("[Azure CNS] CNI called with environ variables %v", environ)
-	stdout := &bytes.Buffer{}
-	command := exec.Command(path)
-	command.Env = environ
-	command.Stdin = bytes.NewBuffer(netconf)
-	command.Stdout = stdout
-	command.Stderr = os.Stderr
-	return pluginErr(command.Run(), stdout.Bytes())
-}
-
-// Environment variables
-func args(action string, rt *libcni.RuntimeConf) *invoke.Args {
-	return &invoke.Args{
-		Command:     action,
-		ContainerID: rt.ContainerID,
-		NetNS:       rt.NetNS,
-		PluginArgs:  rt.Args,
-		IfName:      rt.IfName,
-		Path:        "",
-	}
-}
-
-func pluginErr(err error, output []byte) error {
-	if err != nil {
-		if _, ok := err.(*exec.ExitError); ok {
-			emsg := types.Error{}
-			if err := json.Unmarshal(output, &emsg); err != nil {
-				emsg.Msg = fmt.Sprintf("netplugin failed but error parsing its diagnostic message %s: %+v", string(output), err)
-			}
-
-			return &emsg
-		}
-	}
-
+func configureNetworkContainerNetworking(operation, podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) (err error) {
 	return err
 }

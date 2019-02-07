@@ -14,6 +14,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/containernetworking/cni/libcni"
 )
 
 func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkContainerRequest) error {
@@ -175,4 +176,27 @@ func deleteInterface(networkContainerID string) error {
 		return err
 	}
 	return nil
+}
+
+func configureNetworkContainerNetworking(operation, podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) (err error) {
+	cniRtConf := &libcni.RuntimeConf{
+		ContainerID: dockerContainerid,
+		Args: [][2]string{
+			{K8PodNameSpaceStr, podNamespace},
+			{K8PodNameStr, podName}}}
+	log.Printf("[Azure CNS] run time conf info %+v", cniRtConf)
+
+	netConfig, err := getNetworkConfig(netPluginConfig.networkConfigPath)
+	if err != nil {
+		log.Printf("[Azure CNS] Failed to build network configuration with error %v", err)
+		return err
+	}
+
+	log.Printf("[Azure CNS] network configuration info %v", string(netConfig))
+
+	if err = execPlugin(cniRtConf, netConfig, operation, netPluginConfig.path); err != nil {
+		log.Printf("[Azure CNS] Failed to invoke CNI with %s operation on docker container %s with error %v", operation, dockerContainerid, err)
+	}
+
+	return err
 }

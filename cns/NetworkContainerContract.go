@@ -10,6 +10,8 @@ const (
 	GetNetworkContainerStatus                = "/network/getnetworkcontainerstatus"
 	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
 	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
+	AttachNetworkContainerToNetwork          = "/network/attachnetworkcontainertonetwork"
+	DetachNetworkContainerFromNetwork        = "/network/detachnetworkcontainerfromnetwork"
 )
 
 // NetworkContainer Types
@@ -17,12 +19,15 @@ const (
 	AzureContainerInstance = "AzureContainerInstance"
 	WebApps                = "WebApps"
 	ClearContainer         = "ClearContainer"
+	Docker                 = "Docker"
 )
 
 // Orchestrator Types
 const (
-	Kubernetes    = "Kubernetes"
-	ServiceFabric = "ServiceFabric"
+	Kubernetes      = "Kubernetes"
+	ServiceFabric   = "ServiceFabric"
+	Batch           = "Batch"
+	DBforPostgreSQL = "DBforPostgreSQL"
 )
 
 // Encap Types
@@ -44,6 +49,12 @@ type CreateNetworkContainerRequest struct {
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
 	Routes                     []Route
+}
+
+// ConfigureNetworkContainerNetworkingRequest - specifies request to attach/detach network container to network.
+type ConfigureNetworkContainerNetworkingRequest struct {
+	DockerContainerid string
+	Containerid       string
 }
 
 // KubernetesPodInfo is an OrchestratorContext that holds PodName and PodNamespace.
@@ -141,6 +152,16 @@ type GetInterfaceForContainerResponse struct {
 	CnetAddressSpace        []IPSubnet
 	DNSServers              []string
 	Response                Response
+}
+
+// AttachNetworkContainerToNetworkResponse specifies response of attaching network container to network.
+type AttachNetworkContainerToNetworkResponse struct {
+	Response Response
+}
+
+// DetachNetworkContainerToNetworkResponse specifies response of detaching network container from network.
+type DetachNetworkContainerFromNetworkResponse struct {
+	Response Response
 }
 
 // NetworkInterface specifies the information that can be used to unquely identify an interface.

@@ -4,14 +4,20 @@
 package networkcontainers
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/types"
 	"io/ioutil"
 	"net"
+	"os"
+	"os/exec"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/containernetworking/cni/libcni"
+	"github.com/containernetworking/cni/pkg/invoke"
 )
 
 const (
@@ -117,4 +123,68 @@ func getNetworkConfig(configFilePath string) ([]byte, error) {
 	}
 
 	return netConfig, nil
+}
+
+func args(action string, rt *libcni.RuntimeConf) *invoke.Args {
+	return &invoke.Args{
+		Command:     action,
+		ContainerID: rt.ContainerID,
+		NetNS:       rt.NetNS,
+		PluginArgs:  rt.Args,
+		IfName:      rt.IfName,
+		Path:        "",
+	}
+}
+
+func pluginErr(err error, output []byte) error {
+	if err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			emsg := types.Error{}
+			if err := json.Unmarshal(output, &emsg); err != nil {
+				emsg.Msg = fmt.Sprintf("netplugin failed but error parsing its diagnostic message %s: %+v", string(output), err)
+			}
+
+			return &emsg
+		}
+	}
+
+	return err
+}
+
+func execPlugin(rt *libcni.RuntimeConf, netconf []byte, operation, path string) error {
+	switch operation {
+	case "ADD":
+		fallthrough
+	case "DEL":
+		fallthrough
+	case "UPDATE":
+		environ := args(operation, rt).AsEnv()
+		log.Printf("[Azure CNS] CNI called with environ variables %v", environ)
+		stdout := &bytes.Buffer{}
+		command := exec.Command(path)
+		command.Env = environ
+		command.Stdin = bytes.NewBuffer(netconf)
+		command.Stdout = stdout
+		command.Stderr = os.Stderr
+		return pluginErr(command.Run(), stdout.Bytes())
+
+	default:
+		return fmt.Errorf("[Azure CNS] Invalid operation being passed to CNI: %s", operation)
+	}
+}
+
+// Attach - attache network container to network.
+func (cn *NetworkContainers) Attach(podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
+	log.Printf("[Azure CNS] NetworkContainers.Attach called")
+	err := configureNetworkContainerNetworking("ADD", podName, podNamespace, dockerContainerid, netPluginConfig)
+	log.Printf("[Azure CNS] NetworkContainers.Attach finished")
+	return err
+}
+
+// Detach - attache network container to network.
+func (cn *NetworkContainers) Detach(podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
+	log.Printf("[Azure CNS] NetworkContainers.Detach called")
+	err := configureNetworkContainerNetworking("DEL", podName, podNamespace, dockerContainerid, netPluginConfig)
+	log.Printf("[Azure CNS] NetworkContainers.Detach finished")
+	return err
 }
