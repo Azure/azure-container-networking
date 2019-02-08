@@ -181,9 +181,11 @@ func deleteInterface(networkContainerID string) error {
 func configureNetworkContainerNetworking(operation, podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) (err error) {
 	cniRtConf := &libcni.RuntimeConf{
 		ContainerID: dockerContainerid,
+		NetNS:       "none",
+		IfName:      "eth0",
 		Args: [][2]string{
-			{K8PodNameSpaceStr, podNamespace},
-			{K8PodNameStr, podName}}}
+			{K8sPodNameSpaceStr, podNamespace},
+			{K8sPodNameStr, podName}}}
 	log.Printf("[Azure CNS] run time conf info %+v", cniRtConf)
 
 	netConfig, err := getNetworkConfig(netPluginConfig.networkConfigPath)

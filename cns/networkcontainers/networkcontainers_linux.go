@@ -52,8 +52,8 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 		NetNS:       "", // Not needed for CNI update operation
 		IfName:      createNetworkContainerRequest.NetworkContainerid,
 		Args: [][2]string{
-			{K8PodNameSpaceStr, podInfo.PodNamespace},
-			{K8PodNameStr, podInfo.PodName},
+			{K8sPodNameSpaceStr, podInfo.PodNamespace},
+			{K8sPodNameStr, podInfo.PodName},
 		},
 	}
 
@@ -67,7 +67,7 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 
 	log.Printf("[Azure CNS] network configuration info %v", string(netConfig))
 
-	err = execPlugin(rt, netConfig, netpluginConfig.path)
+	err = execPlugin(rt, netConfig, "UPDATE", netpluginConfig.path)
 	if err != nil {
 		log.Printf("[Azure CNS] Failed to update network with error %v", err)
 		return err

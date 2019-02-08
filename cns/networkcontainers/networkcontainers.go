@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	VersionStr        string = "cniVersion"
-	PluginsStr        string = "plugins"
-	NameStr           string = "name"
-	K8PodNameSpaceStr string = "K8S_POD_NAMESPACE"
-	K8PodNameStr      string = "K8S_POD_NAME"
+	VersionStr              = "cniVersion"
+	PluginsStr              = "plugins"
+	NameStr                 = "name"
+	K8sPodNameSpaceStr      = "K8S_POD_NAMESPACE"
+	K8sPodNameStr           = "K8S_POD_NAME"
+	K8sPodInfraContainerStr = "K8S_POD_INFRA_CONTAINER_ID"
 )
 
 // NetworkContainers can be used to perform operations on network containers.
@@ -125,14 +126,14 @@ func getNetworkConfig(configFilePath string) ([]byte, error) {
 	return netConfig, nil
 }
 
-func args(action string, rt *libcni.RuntimeConf) *invoke.Args {
+func args(action, path string, rt *libcni.RuntimeConf) *invoke.Args {
 	return &invoke.Args{
 		Command:     action,
 		ContainerID: rt.ContainerID,
 		NetNS:       rt.NetNS,
 		PluginArgs:  rt.Args,
 		IfName:      rt.IfName,
-		Path:        "",
+		Path:        path,
 	}
 }
 
@@ -158,10 +159,10 @@ func execPlugin(rt *libcni.RuntimeConf, netconf []byte, operation, path string) 
 	case "DEL":
 		fallthrough
 	case "UPDATE":
-		environ := args(operation, rt).AsEnv()
+		environ := args(operation, path, rt).AsEnv()
 		log.Printf("[Azure CNS] CNI called with environ variables %v", environ)
 		stdout := &bytes.Buffer{}
-		command := exec.Command(path)
+		command := exec.Command(path + string(os.PathSeparator) + "azure-vnet")
 		command.Env = environ
 		command.Stdin = bytes.NewBuffer(netconf)
 		command.Stdout = stdout

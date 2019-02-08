@@ -150,6 +150,8 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.SetOrchestratorType, service.setOrchestratorType)
 	listener.AddHandler(cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
+	listener.AddHandler(cns.AttachNetworkContainerToNetwork, service.attachNetworkContainerToNetwork)
+	listener.AddHandler(cns.DetachNetworkContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
@@ -831,7 +833,15 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	service.dncPartitionKey = req.DncPartitionKey
 
 	switch req.OrchestratorType {
-	case cns.ServiceFabric, cns.Kubernetes, cns.WebApps:
+	case cns.ServiceFabric:
+		fallthrough
+	case cns.Kubernetes:
+		fallthrough
+	case cns.WebApps:
+		fallthrough
+	case cns.Batch:
+		fallthrough
+	case cns.DBforPostgreSQL:
 		service.state.OrchestratorType = req.OrchestratorType
 		service.saveState()
 	default:
@@ -872,10 +882,20 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			CreateNetworkContainerRequest: req,
 			HostVersion:                   hostVersion}
 
-	if req.NetworkContainerType == cns.AzureContainerInstance ||
-		req.NetworkContainerType == cns.ClearContainer {
+	switch req.NetworkContainerType {
+	case cns.AzureContainerInstance:
+		fallthrough
+	case cns.ClearContainer:
+		fallthrough
+	case cns.Docker:
 		switch service.state.OrchestratorType {
-		case cns.Kubernetes, cns.ServiceFabric:
+		case cns.Kubernetes:
+			fallthrough
+		case cns.ServiceFabric:
+			fallthrough
+		case cns.Batch:
+			fallthrough
+		case cns.DBforPostgreSQL:
 			var podInfo cns.KubernetesPodInfo
 			err := json.Unmarshal(req.OrchestratorContext, &podInfo)
 			if err != nil {
@@ -1004,7 +1024,13 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 	defer service.lock.Unlock()
 
 	switch service.state.OrchestratorType {
-	case cns.Kubernetes, cns.ServiceFabric:
+	case cns.Kubernetes:
+		fallthrough
+	case cns.ServiceFabric:
+		fallthrough
+	case cns.Batch:
+		fallthrough
+	case cns.DBforPostgreSQL:
 		var podInfo cns.KubernetesPodInfo
 		err := json.Unmarshal(req.OrchestratorContext, &podInfo)
 		if err != nil {
