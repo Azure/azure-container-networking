@@ -21,12 +21,15 @@ import (
 )
 
 const (
-	VersionStr              = "cniVersion"
-	PluginsStr              = "plugins"
-	NameStr                 = "name"
-	K8sPodNameSpaceStr      = "K8S_POD_NAMESPACE"
-	K8sPodNameStr           = "K8S_POD_NAME"
-	K8sPodInfraContainerStr = "K8S_POD_INFRA_CONTAINER_ID"
+	versionStr              = "cniVersion"
+	pluginsStr              = "plugins"
+	nameStr                 = "name"
+	k8sPodNamespaceStr      = "K8S_POD_NAMESPACE"
+	k8sPodNameStr           = "K8S_POD_NAME"
+	k8sPodInfraContainerStr = "K8S_POD_INFRA_CONTAINER_ID"
+	cniAdd                  = "ADD"
+	cniDelete               = "DEL"
+	cniUpdate               = "UPDATE"
 )
 
 // NetworkContainers can be used to perform operations on network containers.
@@ -89,7 +92,7 @@ func (cn *NetworkContainers) Delete(networkContainerID string) error {
 	return err
 }
 
-// This function gets the flattened network configuration (compliant with azure cni) in bytes array format
+// This function gets the flattened network configuration (compliant with azure cni) in byte array format
 func getNetworkConfig(configFilePath string) ([]byte, error) {
 	content, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
@@ -103,18 +106,20 @@ func getNetworkConfig(configFilePath string) ([]byte, error) {
 	}
 
 	// Get the plugins section
-	pluginsSection := configMap[PluginsStr].([]interface{})
-	flatNetConfigMap := pluginsSection[0].(map[string]interface{})
+	var flatNetConfigMap map[string]interface{}
+	if pluginsSection, ok := configMap[pluginsStr]; ok {
+		flatNetConfigMap = pluginsSection.([]interface{})[0].(map[string]interface{})
+	}
 
 	if flatNetConfigMap == nil {
-		msg := "[Azure CNS] " + PluginsStr + " section of the network configuration cannot be empty."
+		msg := "[Azure CNS] " + pluginsStr + " section of the network configuration cannot be empty."
 		log.Printf(msg)
 		return nil, errors.New(msg)
 	}
 
 	// insert version and name fields
-	flatNetConfigMap[VersionStr] = configMap[VersionStr].(string)
-	flatNetConfigMap[NameStr] = configMap[NameStr].(string)
+	flatNetConfigMap[versionStr] = configMap[versionStr].(string)
+	flatNetConfigMap[nameStr] = configMap[nameStr].(string)
 
 	// convert into bytes format
 	netConfig, err := json.Marshal(flatNetConfigMap)
@@ -154,11 +159,11 @@ func pluginErr(err error, output []byte) error {
 
 func execPlugin(rt *libcni.RuntimeConf, netconf []byte, operation, path string) error {
 	switch operation {
-	case "ADD":
+	case cniAdd:
 		fallthrough
-	case "DEL":
+	case cniDelete:
 		fallthrough
-	case "UPDATE":
+	case cniUpdate:
 		environ := args(operation, path, rt).AsEnv()
 		log.Printf("[Azure CNS] CNI called with environ variables %v", environ)
 		stdout := &bytes.Buffer{}
@@ -168,7 +173,6 @@ func execPlugin(rt *libcni.RuntimeConf, netconf []byte, operation, path string) 
 		command.Stdout = stdout
 		command.Stderr = os.Stderr
 		return pluginErr(command.Run(), stdout.Bytes())
-
 	default:
 		return fmt.Errorf("[Azure CNS] Invalid operation being passed to CNI: %s", operation)
 	}
@@ -177,7 +181,7 @@ func execPlugin(rt *libcni.RuntimeConf, netconf []byte, operation, path string) 
 // Attach - attache network container to network.
 func (cn *NetworkContainers) Attach(podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
 	log.Printf("[Azure CNS] NetworkContainers.Attach called")
-	err := configureNetworkContainerNetworking("ADD", podName, podNamespace, dockerContainerid, netPluginConfig)
+	err := configureNetworkContainerNetworking(cniAdd, podName, podNamespace, dockerContainerid, netPluginConfig)
 	log.Printf("[Azure CNS] NetworkContainers.Attach finished")
 	return err
 }
@@ -185,7 +189,7 @@ func (cn *NetworkContainers) Attach(podName, podNamespace, dockerContainerid str
 // Detach - attache network container to network.
 func (cn *NetworkContainers) Detach(podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
 	log.Printf("[Azure CNS] NetworkContainers.Detach called")
-	err := configureNetworkContainerNetworking("DEL", podName, podNamespace, dockerContainerid, netPluginConfig)
+	err := configureNetworkContainerNetworking(cniDelete, podName, podNamespace, dockerContainerid, netPluginConfig)
 	log.Printf("[Azure CNS] NetworkContainers.Detach finished")
 	return err
 }

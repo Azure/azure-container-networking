@@ -30,6 +30,12 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 		return nil
 	}
 
+	if netpluginConfig == nil {
+		err := errors.New("Network plugin configuration cannot be nil.")
+		log.Printf("[Azure CNS] Update interface failed with error %v", err)
+		return err
+	}
+
 	if _, err := os.Stat(netpluginConfig.path); err != nil {
 		if os.IsNotExist(err) {
 			msg := "[Azure CNS] Unable to find " + netpluginConfig.path + ", cannot continue."
@@ -45,15 +51,15 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 		return err
 	}
 
-	log.Printf("[Azure CNS] Going to update networkign for the pod with Pod info %+v", podInfo)
+	log.Printf("[Azure CNS] Going to update networking for the pod with Pod info %+v", podInfo)
 
 	rt := &libcni.RuntimeConf{
 		ContainerID: "", // Not needed for CNI update operation
 		NetNS:       "", // Not needed for CNI update operation
 		IfName:      createNetworkContainerRequest.NetworkContainerid,
 		Args: [][2]string{
-			{K8sPodNameSpaceStr, podInfo.PodNamespace},
-			{K8sPodNameStr, podInfo.PodName},
+			{k8sPodNamespaceStr, podInfo.PodNamespace},
+			{k8sPodNameStr, podInfo.PodName},
 		},
 	}
 
@@ -67,7 +73,7 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 
 	log.Printf("[Azure CNS] network configuration info %v", string(netConfig))
 
-	err = execPlugin(rt, netConfig, "UPDATE", netpluginConfig.path)
+	err = execPlugin(rt, netConfig, cniUpdate, netpluginConfig.path)
 	if err != nil {
 		log.Printf("[Azure CNS] Failed to update network with error %v", err)
 		return err

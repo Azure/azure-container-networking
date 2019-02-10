@@ -184,8 +184,8 @@ func configureNetworkContainerNetworking(operation, podName, podNamespace, docke
 		NetNS:       "none",
 		IfName:      "eth0",
 		Args: [][2]string{
-			{K8sPodNameSpaceStr, podNamespace},
-			{K8sPodNameStr, podName}}}
+			{k8sPodNamespaceStr, podNamespace},
+			{k8sPodNameStr, podName}}}
 	log.Printf("[Azure CNS] run time conf info %+v", cniRtConf)
 
 	netConfig, err := getNetworkConfig(netPluginConfig.networkConfigPath)
