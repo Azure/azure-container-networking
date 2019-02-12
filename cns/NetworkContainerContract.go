@@ -10,8 +10,13 @@ const (
 	GetNetworkContainerStatus                = "/network/getnetworkcontainerstatus"
 	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
 	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
-	AttachNetworkContainerToNetwork          = "/network/attachnetworkcontainertonetwork"
-	DetachNetworkContainerFromNetwork        = "/network/detachnetworkcontainerfromnetwork"
+	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
+	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
+)
+
+// NetworkContainer Prefixes
+const (
+	SwiftPrefix = "Swift_"
 )
 
 // NetworkContainer Types
@@ -53,8 +58,8 @@ type CreateNetworkContainerRequest struct {
 
 // ConfigureNetworkContainerNetworkingRequest - specifies request to attach/detach network container to network.
 type ConfigureNetworkContainerNetworkingRequest struct {
-	DockerContainerid string
-	Containerid       string
+	Containerid        string
+	NetworkContainerid string
 }
 
 // KubernetesPodInfo is an OrchestratorContext that holds PodName and PodNamespace.
@@ -154,13 +159,13 @@ type GetInterfaceForContainerResponse struct {
 	Response                Response
 }
 
-// AttachNetworkContainerToNetworkResponse specifies response of attaching network container to network.
-type AttachNetworkContainerToNetworkResponse struct {
+// AttachContainerToNetworkResponse specifies response of attaching network container to network.
+type AttachContainerToNetworkResponse struct {
 	Response Response
 }
 
 // DetachNetworkContainerToNetworkResponse specifies response of detaching network container from network.
-type DetachNetworkContainerFromNetworkResponse struct {
+type DetachContainerFromNetworkResponse struct {
 	Response Response
 }
 
