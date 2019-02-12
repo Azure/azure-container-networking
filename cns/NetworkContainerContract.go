@@ -56,8 +56,8 @@ type CreateNetworkContainerRequest struct {
 	Routes                     []Route
 }
 
-// ConfigureNetworkContainerNetworkingRequest - specifies request to attach/detach network container to network.
-type ConfigureNetworkContainerNetworkingRequest struct {
+// ConfigureContainerNetworkRequest - specifies request to attach/detach network container to network.
+type ConfigureContainerNetworkRequest struct {
 	Containerid        string
 	NetworkContainerid string
 }

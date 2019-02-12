@@ -1328,7 +1328,7 @@ func (service *HTTPRestService) restoreNetworkState() error {
 func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] attachNetworkContainerToNetwork")
 
-	var req cns.ConfigureNetworkContainerNetworkingRequest
+	var req cns.ConfigureContainerNetworkRequest
 	returnMessage := ""
 	returnCode := 0
 
@@ -1391,7 +1391,7 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] detachNetworkContainerFromNetwork")
 
-	var req cns.ConfigureNetworkContainerNetworkingRequest
+	var req cns.ConfigureContainerNetworkRequest
 	returnMessage := ""
 	returnCode := 0
 
