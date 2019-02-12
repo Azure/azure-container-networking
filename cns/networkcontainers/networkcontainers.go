@@ -107,7 +107,7 @@ func getNetworkConfig(configFilePath string) ([]byte, error) {
 
 	// Get the plugins section
 	var flatNetConfigMap map[string]interface{}
-	if pluginsSection, ok := configMap[pluginsStr]; ok {
+	if pluginsSection, ok := configMap[pluginsStr]; ok && len(pluginsSection.([]interface{})) > 0 {
 		flatNetConfigMap = pluginsSection.([]interface{})[0].(map[string]interface{})
 	}
 
