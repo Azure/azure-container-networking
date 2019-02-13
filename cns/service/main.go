@@ -133,9 +133,9 @@ var args = acn.ArgumentList{
 	{
 		Name:         acn.OptCNIPath,
 		Shorthand:    acn.OptCNIPathAlias,
-		Description:  "Set CNI binary absolute path",
+		Description:  "Set CNI binary absolute path to parent (of azure-vnet and azure-vnet-ipam)",
 		Type:         "string",
-		DefaultValue: platform.K8SCNIRuntimePath + string(os.PathSeparator) + pluginName,
+		DefaultValue: platform.K8SCNIRuntimePath,
 	},
 	{
 		Name:         acn.OptCNIConfigFile,

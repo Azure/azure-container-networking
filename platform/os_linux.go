@@ -14,7 +14,6 @@ import (
 )
 
 const (
-
 	// CNMRuntimePath is the path where CNM state files are stored.
 	CNMRuntimePath = "/var/lib/azure-network/"
 
