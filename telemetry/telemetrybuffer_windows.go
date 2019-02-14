@@ -5,12 +5,16 @@ package telemetry
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/Microsoft/go-winio"
 )
 
 const (
-	fdTemplate = "\\\\.\\pipe\\%s"
+	fdTemplate                  = "\\\\.\\pipe\\%s"
+	telemetryServiceProcessName = "azure-vnet-telemetry.exe"
+	cniInstallDir               = "c:\\k\\azurecni\\bin"
+	metadataFile                = "azuremetadata.json"
 )
 
 // Dial - try to connect to a named pipe with 'name'
@@ -33,7 +37,16 @@ func (tb *TelemetryBuffer) Listen(name string) (err error) {
 	return err
 }
 
-// cleanup - stub
-func (tb *TelemetryBuffer) cleanup(name string) error {
+// Cleanup - cleanup named pipe
+func (tb *TelemetryBuffer) Cleanup(name string) error {
 	return nil
+}
+
+// Check if telemetry unix domain socket exists
+func checkIfSockExists() bool {
+	if _, err := os.Stat(fmt.Sprintf(fdTemplate, FdName)); !os.IsNotExist(err) {
+		return true
+	}
+
+	return false
 }

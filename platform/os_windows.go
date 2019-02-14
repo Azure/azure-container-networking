@@ -4,6 +4,7 @@
 package platform
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -65,7 +66,15 @@ func GetLastRebootTime() (time.Time, error) {
 	bootPM := strings.Contains(strings.Split(systemBootTime, " ")[2], "PM")
 
 	month := strings.Split(bootDate, "/")[0]
+	if len(month) < 2 {
+		month = "0" + month
+	}
+
 	day := strings.Split(bootDate, "/")[1]
+	if len(day) < 2 {
+		day = "0" + day
+	}
+
 	year := strings.Split(bootDate, "/")[2]
 	year = strings.Trim(year, ",")
 	hour := strings.Split(bootTime, ":")[0]
@@ -95,7 +104,20 @@ func GetLastRebootTime() (time.Time, error) {
 }
 
 func ExecuteCommand(command string) (string, error) {
-	return "", nil
+	log.Printf("[Azure-Utils] %s", command)
+
+	var stderr bytes.Buffer
+	var out bytes.Buffer
+	cmd := exec.Command("cmd", "/c", command)
+	cmd.Stderr = &stderr
+	cmd.Stdout = &out
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("%s:%s", err.Error(), stderr.String())
+	}
+
+	return out.String(), nil
 }
 
 func SetOutboundSNAT(subnet string) error {
@@ -115,4 +137,9 @@ func ClearNetworkConfiguration() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func KillProcessByName(processName string) {
+	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
+	ExecuteCommand(cmd)
 }

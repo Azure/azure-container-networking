@@ -25,16 +25,23 @@ const (
 	// Plugin name.
 	name                = "azure-vnet"
 	dockerNetworkOption = "com.docker.network.generic"
-
+	opModeTransparent   = "transparent"
 	// Supported IP version. Currently support only IPv4
 	ipVersion = "4"
+)
+
+// CNI Operation Types
+const (
+	CNI_ADD    = "ADD"
+	CNI_DEL    = "DEL"
+	CNI_UPDATE = "UPDATE"
 )
 
 // NetPlugin represents the CNI network plugin.
 type netPlugin struct {
 	*cni.Plugin
-	nm            network.NetworkManager
-	reportManager *telemetry.ReportManager
+	nm     network.NetworkManager
+	report *telemetry.CNIReport
 }
 
 // NewPlugin creates a new netPlugin object.
@@ -59,8 +66,8 @@ func NewPlugin(config *common.PluginConfig) (*netPlugin, error) {
 	}, nil
 }
 
-func (plugin *netPlugin) SetReportManager(reportManager *telemetry.ReportManager) {
-	plugin.reportManager = reportManager
+func (plugin *netPlugin) SetCNIReport(report *telemetry.CNIReport) {
+	plugin.report = report
 }
 
 // Starts the plugin.
@@ -156,6 +163,18 @@ func (plugin *netPlugin) getPodInfo(args string) (string, string, error) {
 	return k8sPodName, k8sNamespace, nil
 }
 
+func (plugin *netPlugin) setCNIReportDetails(nwCfg *cni.NetworkConfig, opType string, msg string) {
+	if nwCfg.MultiTenancy {
+		plugin.report.Context = "AzureCNIMultitenancy"
+	}
+
+	plugin.report.OperationType = opType
+	plugin.report.SubContext = fmt.Sprintf("%+v", nwCfg)
+	plugin.report.EventMessage = msg
+	plugin.report.BridgeDetails.NetworkMode = nwCfg.Mode
+	plugin.report.InterfaceDetails.SecondaryCAUsedCount = plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)
+}
+
 //
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
@@ -167,6 +186,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		result           *cniTypesCurr.Result
 		azIpamResult     *cniTypesCurr.Result
 		err              error
+		vethName         string
 		nwCfg            *cni.NetworkConfig
 		epInfo           *network.EndpointInfo
 		iface            *cniTypesCurr.Interface
@@ -186,6 +206,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
+
+	plugin.setCNIReportDetails(nwCfg, CNI_ADD, "")
 
 	defer func() {
 		// Add Interfaces to result.
@@ -274,9 +296,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	if nwInfoErr == nil {
 		/* Handle consecutive ADD calls for infrastructure containers.
-		* This is a temporary work around for issue #57253 of Kubernetes.
-		* We can delete this if statement once they fix it.
-		* Issue link: https://github.com/kubernetes/kubernetes/issues/57253
+		 * This is a temporary work around for issue #57253 of Kubernetes.
+		 * We can delete this if statement once they fix it.
+		 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 		 */
 		epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
 		if epInfo != nil {
@@ -388,9 +410,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			// Network already exists.
 			subnetPrefix := nwInfo.Subnets[0].Prefix.String()
 			log.Printf("[cni-net] Found network %v with subnet %v.", networkId, subnetPrefix)
+			nwCfg.Ipam.Subnet = subnetPrefix
 
 			// Call into IPAM plugin to allocate an address for the endpoint.
-			nwCfg.Ipam.Subnet = subnetPrefix
 			result, err = plugin.DelegateAdd(nwCfg.Ipam.Type, nwCfg)
 			if err != nil {
 				err = plugin.Errorf("Failed to allocate address: %v", err)
@@ -398,7 +420,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 
 			ipconfig := result.IPs[0]
-
 			iface := &cniTypesCurr.Interface{Name: args.IfName}
 			result.Interfaces = append(result.Interfaces, iface)
 
@@ -454,9 +475,16 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, epInfo, result)
 
-	// A runtime must not call ADD twice (without a corresponding DEL) for the same
-	// (network name, container id, name of the interface inside the container)
-	vethName := fmt.Sprintf("%s%s%s", networkId, k8sContainerID, k8sIfName)
+	if nwCfg.Mode == opModeTransparent {
+		// this mechanism of using only namespace and name is not unique for different incarnations of POD/container.
+		// IT will result in unpredictable behavior if API server decides to
+		// reorder DELETE and ADD call for new incarnation of same POD.
+		vethName = fmt.Sprintf("%s.%s", k8sNamespace, k8sPodName)
+	} else {
+		// A runtime must not call ADD twice (without a corresponding DEL) for the same
+		// (network name, container id, name of the interface inside the container)
+		vethName = fmt.Sprintf("%s%s%s", networkId, k8sContainerID, k8sIfName)
+	}
 	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
 	// Create the endpoint.
@@ -466,6 +494,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
 		return err
 	}
+
+	msg := fmt.Sprintf("CNI ADD succeeded : allocated ipaddress %+v, vlanid: %v, podname %v, namespace %v",
+		result, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace)
+	plugin.setCNIReportDetails(nwCfg, CNI_ADD, msg)
 
 	return nil
 }
@@ -582,6 +614,8 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
 
+	plugin.setCNIReportDetails(nwCfg, CNI_DEL, "")
+
 	// Parse Pod arguments.
 	k8sPodName, k8sNamespace, err := plugin.getPodInfo(args.Args)
 	if err != nil {
@@ -642,6 +676,9 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 	}
 
+	msg := fmt.Sprintf("CNI DEL succeeded : Released ip %+v podname %v namespace %v", nwCfg.Ipam.Address, k8sPodName, k8sNamespace)
+	plugin.setCNIReportDetails(nwCfg, CNI_DEL, msg)
+
 	return nil
 }
 
@@ -666,6 +703,8 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 	}
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
+
+	plugin.setCNIReportDetails(nwCfg, CNI_UPDATE, "")
 
 	defer func() {
 		if result == nil {
@@ -797,6 +836,9 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		err = plugin.Errorf("Failed to update endpoint: %v", err)
 		return err
 	}
+
+	msg := fmt.Sprintf("CNI UPDATE succeeded : Updated %+v podname %v namespace %v", targetNetworkConfig, k8sPodName, k8sNamespace)
+	plugin.setCNIReportDetails(nwCfg, CNI_UPDATE, msg)
 
 	return nil
 }

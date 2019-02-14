@@ -14,9 +14,10 @@ import (
 
 const (
 	// Operational modes.
-	opModeBridge  = "bridge"
-	opModeTunnel  = "tunnel"
-	opModeDefault = opModeTunnel
+	opModeBridge      = "bridge"
+	opModeTunnel      = "tunnel"
+	opModeTransparent = "transparent"
+	opModeDefault     = opModeTunnel
 )
 
 // ExternalInterface is a host network interface that bridges containers to external networks.

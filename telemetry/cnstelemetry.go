@@ -4,7 +4,6 @@
 package telemetry
 
 import (
-	"fmt"
 	"reflect"
 	"regexp"
 	"time"
@@ -17,20 +16,28 @@ import (
 
 const (
 	// CNSTelemetryFile - telemetry file path.
-	CNSTelemetryFile = platform.CNSRuntimePath + "AzureCNSTelemetry.json"
-	errorcodePrefix  = 5
+	CNSTelemetryFile           = platform.CNSRuntimePath + "AzureCNSTelemetry.json"
+	errorcodePrefix            = 5
+	heartbeatIntervalInMinutes = 30
+	retryWaitTimeInSeconds     = 60
 )
 
 // SendCnsTelemetry - handles cns telemetry reports
 func SendCnsTelemetry(interval int, reports chan interface{}, service *restserver.HTTPRestService, telemetryStopProcessing chan bool) {
-	retrieveMetadata := true
 
 CONNECT:
-	telemetryBuffer, err := NewTelemetryBuffer()
-	if err == nil {
-		go telemetryBuffer.Start(time.Duration(interval))
+	telemetryBuffer := NewTelemetryBuffer("")
+	err := telemetryBuffer.StartServer()
+	if err == nil || telemetryBuffer.FdExists {
+		if err := telemetryBuffer.Connect(); err != nil {
+			log.Printf("[CNS-Telemetry] Failed to establish telemetry manager connection.")
+			time.Sleep(time.Second * retryWaitTimeInSeconds)
+			goto CONNECT
+		}
 
-		heartbeat := time.NewTicker(time.Minute * 30).C
+		go telemetryBuffer.BufferAndPushData(time.Duration(0))
+
+		heartbeat := time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
 		reportMgr := ReportManager{
 			ContentType: ContentType,
 			Report:      &CNSReport{},
@@ -40,15 +47,6 @@ CONNECT:
 		reportMgr.GetKernelVersion()
 
 		for {
-			// Try to retrieve metadata until successful
-			if retrieveMetadata {
-				if err := reportMgr.GetHostMetadata(); err != nil {
-					reports <- CNSReport{EventMessage: fmt.Sprintf("Failed to retrieve host metadata with error: %s", err.Error())}
-				} else {
-					retrieveMetadata = false
-				}
-			}
-
 			// Try to set partition key from DNC
 			if reportMgr.Report.(*CNSReport).DncPartitionKey == "" {
 				reflect.ValueOf(reportMgr.Report).Elem().FieldByName("DncPartitionKey").SetString(service.GetPartitionKey())
@@ -88,8 +86,8 @@ CONNECT:
 			}
 		}
 	} else {
-		log.Printf("[Telemetry] Failed to establish telemetry buffer connection.")
-		time.Sleep(time.Minute * 1)
+		log.Printf("[CNS-Telemetry] Failed to start telemetry manager server.")
+		time.Sleep(time.Second * retryWaitTimeInSeconds)
 		goto CONNECT
 	}
 }

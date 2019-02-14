@@ -6,6 +6,7 @@ COREFILES = \
 	$(wildcard log/*.go) \
 	$(wildcard netlink/*.go) \
 	$(wildcard network/*.go) \
+	$(wildcard telemetry/*.go) \
 	$(wildcard network/epcommon/*.go) \
 	$(wildcard network/ovsnfravnet/*.go) \
 	$(wildcard network/ovssnat/*.go) \
@@ -28,6 +29,7 @@ CNIFILES = \
 	$(wildcard cni/ipam/plugin/*.go) \
 	$(wildcard cni/network/*.go) \
 	$(wildcard cni/network/plugin/*.go) \
+	$(wildcard cni/telemetry/service/*.go) \
 	$(COREFILES)
 
 CNSFILES = \
@@ -59,6 +61,7 @@ GOARCH ?= amd64
 CNM_DIR = cnm/plugin
 CNI_NET_DIR = cni/network/plugin
 CNI_IPAM_DIR = cni/ipam/plugin
+CNI_TELEMETRY_DIR = cni/telemetry/service
 CNS_DIR = cns/service
 NPM_DIR = npm/plugin
 OUTPUT_DIR = output
@@ -111,8 +114,10 @@ ENSURE_OUTPUT_DIR_EXISTS := $(shell mkdir -p $(OUTPUT_DIR))
 azure-cnm-plugin: $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) cnm-archive
 azure-vnet: $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT)
 azure-vnet-ipam: $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
-azure-cni-plugin: azure-vnet azure-vnet-ipam cni-archive
+azure-cni-plugin: azure-vnet azure-vnet-ipam azure-vnet-telemetry cni-archive
 azure-cns: $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) cns-archive
+azure-vnet-telemetry: $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT)
+
 # Azure-NPM only supports Linux for now.
 ifeq ($(GOOS),linux)
 azure-npm: $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) npm-archive
@@ -126,8 +131,8 @@ endif
 
 ifeq ($(GOOS),linux)
 all-images: azure-npm-image
-else 
-all-images: 
+else
+all-images:
 	@echo "Nothing to build. Skip."
 endif
 
@@ -147,6 +152,10 @@ $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT): $(CNIFILES)
 # Build the Azure CNI IPAM plugin.
 $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT): $(CNIFILES)
 	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_IPAM_DIR)/*.go
+
+# Build the Azure CNI IPAM plugin.
+$(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT): $(CNIFILES)
+	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_TELEMETRY_DIR)/*.go
 
 # Build the Azure CNS Service.
 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
@@ -235,8 +244,8 @@ publish-azure-npm-image:
 .PHONY: cni-archive
 cni-archive:
 	cp cni/azure-$(GOOS).conflist $(CNI_BUILD_DIR)/10-azure.conflist
-	chmod 0755 $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
-	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) 10-azure.conflist
+	chmod 0755 $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT)
+	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist
 	chown $(BUILD_USER):$(BUILD_USER) $(CNI_BUILD_DIR)/$(CNI_ARCHIVE_NAME)
 	mkdir -p $(CNI_MULTITENANCY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-multitenancy.conflist $(CNI_MULTITENANCY_BUILD_DIR)/10-azure.conflist

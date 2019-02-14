@@ -103,3 +103,23 @@ func GetInterfaceSubnetWithSpecificIp(ipAddr string) *net.IPNet {
 
 	return nil
 }
+
+func StartProcess(path string) error {
+	var attr = os.ProcAttr{
+		Env: os.Environ(),
+		Files: []*os.File{
+			os.Stdin,
+			nil,
+			nil,
+		},
+	}
+
+	args := []string{path}
+	process, err := os.StartProcess(path, args, &attr)
+	if err == nil {
+		// Release detaches the process
+		return process.Release()
+	}
+
+	return err
+}
