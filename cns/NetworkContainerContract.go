@@ -25,6 +25,7 @@ const (
 	WebApps                = "WebApps"
 	ClearContainer         = "ClearContainer"
 	Docker                 = "Docker"
+	Basic                  = "Basic"
 )
 
 // Orchestrator Types
@@ -33,6 +34,7 @@ const (
 	ServiceFabric   = "ServiceFabric"
 	Batch           = "Batch"
 	DBforPostgreSQL = "DBforPostgreSQL"
+	AzureFirstParty = "AzureFirstParty"
 )
 
 // Encap Types

@@ -842,6 +842,8 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	case cns.Batch:
 		fallthrough
 	case cns.DBforPostgreSQL:
+		fallthrough
+	case cns.AzureFirstParty:
 		service.state.OrchestratorType = req.OrchestratorType
 		service.saveState()
 	default:
@@ -888,6 +890,8 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	case cns.ClearContainer:
 		fallthrough
 	case cns.Docker:
+		fallthrough
+	case cns.Basic:
 		switch service.state.OrchestratorType {
 		case cns.Kubernetes:
 			fallthrough
@@ -896,6 +900,8 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		case cns.Batch:
 			fallthrough
 		case cns.DBforPostgreSQL:
+			fallthrough
+		case cns.AzureFirstParty:
 			var podInfo cns.KubernetesPodInfo
 			err := json.Unmarshal(req.OrchestratorContext, &podInfo)
 			if err != nil {
@@ -1031,6 +1037,8 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 	case cns.Batch:
 		fallthrough
 	case cns.DBforPostgreSQL:
+		fallthrough
+	case cns.AzureFirstParty:
 		var podInfo cns.KubernetesPodInfo
 		err := json.Unmarshal(req.OrchestratorContext, &podInfo)
 		if err != nil {
