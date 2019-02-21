@@ -5,7 +5,6 @@ package telemetry
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -18,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 )
 
@@ -107,16 +105,23 @@ type CNIReport struct {
 	IsNewInstance       bool
 	CniSucceeded        bool
 	Name                string
-	OSVersion           string
+	Version             string
 	ErrorMessage        string
+	EventMessage        string
+	OperationType       string
+	OperationDuration   int
 	Context             string
 	SubContext          string
+	VMUptime            string
+	Timestamp           string
+	ContainerName       string
+	InfraVnetID         string
 	VnetAddressSpace    []string
-	OrchestratorDetails *OrchestratorInfo
-	OSDetails           *OSInfo
-	SystemDetails       *SystemInfo
-	InterfaceDetails    *InterfaceInfo
-	BridgeDetails       *BridgeInfo
+	OrchestratorDetails OrchestratorInfo
+	OSDetails           OSInfo
+	SystemDetails       SystemInfo
+	InterfaceDetails    InterfaceInfo
+	BridgeDetails       BridgeInfo
 	Metadata            Metadata `json:"compute"`
 }
 
@@ -213,12 +218,10 @@ func ReadFileByLines(filename string) ([]string, error) {
 // GetReport retrieves orchestrator, system, OS and Interface details and create a report structure.
 func (report *CNIReport) GetReport(name string, version string, ipamQueryURL string) {
 	report.Name = name
-	report.OSVersion = version
+	report.Version = version
 
-	report.GetOrchestratorDetails()
 	report.GetSystemDetails()
 	report.GetOSDetails()
-	report.GetInterfaceDetails(ipamQueryURL)
 }
 
 // GetReport retrives npm and kubernetes cluster related info and create a report structure.
@@ -231,43 +234,34 @@ func (report *NPMReport) GetReport(clusterID, nodeName, npmVersion, kubernetesVe
 }
 
 // SendReport will send telemetry report to HostNetAgent.
-func (reportMgr *ReportManager) SendReport() error {
-	log.Printf("[Telemetry] Going to send Telemetry report to hostnetagent %v", reportMgr.HostNetAgentURL)
+func (reportMgr *ReportManager) SendReport(tb *TelemetryBuffer) error {
+	var err error
+	if tb != nil && tb.Connected {
+		telemetryLogger.Printf("[Telemetry] Going to send Telemetry report to hostnetagent")
 
-	switch reportMgr.Report.(type) {
-	case *CNIReport:
-		log.Printf("[Telemetry] %+v", reportMgr.Report.(*CNIReport))
-	case *NPMReport:
-		log.Printf("[Telemetry] %+v", reportMgr.Report.(*NPMReport))
-	case *DNCReport:
-		log.Printf("[Telemetry] %+v", reportMgr.Report.(*DNCReport))
-	default:
-		log.Printf("[Telemetry] Invalid report type")
-	}
-
-	httpc := &http.Client{}
-	var body bytes.Buffer
-	json.NewEncoder(&body).Encode(reportMgr.Report)
-	resp, err := httpc.Post(reportMgr.HostNetAgentURL, reportMgr.ContentType, &body)
-	if err != nil {
-		return fmt.Errorf("[Telemetry] HTTP Post returned error %v", err)
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		if resp.StatusCode == 400 {
-			return fmt.Errorf(`"[Telemetry] HTTP Post returned statuscode %d. 
-				This error happens because telemetry service is not yet activated. 
-				The error can be ignored as it won't affect functionality"`, resp.StatusCode)
+		switch reportMgr.Report.(type) {
+		case *CNIReport:
+			telemetryLogger.Printf("[Telemetry] %+v", reportMgr.Report.(*CNIReport))
+		case *NPMReport:
+			telemetryLogger.Printf("[Telemetry] %+v", reportMgr.Report.(*NPMReport))
+		case *DNCReport:
+			telemetryLogger.Printf("[Telemetry] %+v", reportMgr.Report.(*DNCReport))
+		default:
+			telemetryLogger.Printf("[Telemetry] Invalid report type")
 		}
 
-		return fmt.Errorf("[Telemetry] HTTP Post returned statuscode %d", resp.StatusCode)
+		report, err := reportMgr.ReportToBytes()
+		if err == nil {
+			// If write fails, try to re-establish connections as server/client
+			if _, err = tb.Write(report); err != nil {
+				tb.Cancel()
+			}
+		}
+	} else {
+		err = fmt.Errorf("Not connected to telemetry server or tb is nil")
 	}
 
-	log.Printf("[Telemetry] Telemetry sent with status code %d\n", resp.StatusCode)
-
-	return nil
+	return err
 }
 
 // SetReportState will save the state in file if telemetry report sent successfully.
@@ -290,13 +284,13 @@ func (reportMgr *ReportManager) SetReportState(telemetryFile string) error {
 
 	_, err = f.Write(reportBytes)
 	if err != nil {
-		log.Printf("[Telemetry] Error while writing to file %v", err)
+		telemetryLogger.Printf("[Telemetry] Error while writing to file %v", err)
 		return fmt.Errorf("[Telemetry] Error while writing to file %v", err)
 	}
 
 	// set IsNewInstance in report
 	reflect.ValueOf(reportMgr.Report).Elem().FieldByName("IsNewInstance").SetBool(false)
-	log.Printf("[Telemetry] SetReportState succeeded")
+	telemetryLogger.Printf("[Telemetry] SetReportState succeeded")
 	return nil
 }
 
@@ -304,7 +298,7 @@ func (reportMgr *ReportManager) SetReportState(telemetryFile string) error {
 func (reportMgr *ReportManager) GetReportState(telemetryFile string) bool {
 	// try to set IsNewInstance in report
 	if _, err := os.Stat(telemetryFile); os.IsNotExist(err) {
-		log.Printf("[Telemetry] File not exist %v", telemetryFile)
+		telemetryLogger.Printf("[Telemetry] File not exist %v", telemetryFile)
 		reflect.ValueOf(reportMgr.Report).Elem().FieldByName("IsNewInstance").SetBool(true)
 		return false
 	}
@@ -329,26 +323,30 @@ func (report *CNIReport) GetInterfaceDetails(queryUrl string) {
 
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		report.InterfaceDetails = &InterfaceInfo{}
 		report.InterfaceDetails.ErrorMessage = "Getting all interfaces failed due to " + err.Error()
 		return
 	}
 
 	resp, err := http.Get(queryUrl)
 	if err != nil {
-		report.InterfaceDetails = &InterfaceInfo{}
 		report.InterfaceDetails.ErrorMessage = "Http get failed in getting interface details " + err.Error()
 		return
 	}
 
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("Error while getting interface details. http code :%d", resp.StatusCode)
+		report.InterfaceDetails.ErrorMessage = errMsg
+		telemetryLogger.Printf(errMsg)
+		return
+	}
+
 	// Decode XML document.
 	var doc common.XmlDocument
 	decoder := xml.NewDecoder(resp.Body)
 	err = decoder.Decode(&doc)
 	if err != nil {
-		report.InterfaceDetails = &InterfaceInfo{}
 		report.InterfaceDetails.ErrorMessage = "xml decode failed due to " + err.Error()
 		return
 	}
@@ -383,7 +381,7 @@ func (report *CNIReport) GetInterfaceDetails(queryUrl string) {
 		}
 	}
 
-	report.InterfaceDetails = &InterfaceInfo{
+	report.InterfaceDetails = InterfaceInfo{
 		InterfaceType:         "Primary",
 		MAC:                   macAddress,
 		Subnet:                subnet,
@@ -397,7 +395,7 @@ func (report *CNIReport) GetInterfaceDetails(queryUrl string) {
 func (report *CNIReport) GetOrchestratorDetails() {
 	// to-do: GetOrchestratorDetails for all report types and for all k8s environments
 	// current implementation works for clusters created via acs-engine and on master nodes
-	report.OrchestratorDetails = &OrchestratorInfo{}
+	report.OrchestratorDetails = OrchestratorInfo{}
 
 	// Check for orchestrator tag first
 	for _, tag := range strings.Split(report.Metadata.Tags, ";") {
@@ -429,59 +427,6 @@ func (report *CNIReport) GetOrchestratorDetails() {
 			report.OrchestratorDetails.ErrorMessage = "Length of array is less than 2"
 		}
 	}
-}
-
-// GetHostMetadata - retrieve metadata from host
-func (reportMgr *ReportManager) GetHostMetadata() error {
-	req, err := http.NewRequest("GET", metadataURL, nil)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Metadata", "True")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		err = fmt.Errorf("[Telemetry] Request failed with HTTP error %d", resp.StatusCode)
-	} else if resp.Body != nil {
-		report := metadataWrapper{}
-		err = json.NewDecoder(resp.Body).Decode(&report)
-		if err == nil {
-			// Find Metadata struct in report and try to set values
-			v := reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Metadata")
-			if v.CanSet() {
-				v.FieldByName("Location").SetString(report.Metadata.Location)
-				v.FieldByName("VMName").SetString(report.Metadata.VMName)
-				v.FieldByName("Offer").SetString(report.Metadata.Offer)
-				v.FieldByName("OsType").SetString(report.Metadata.OsType)
-				v.FieldByName("PlacementGroupID").SetString(report.Metadata.PlacementGroupID)
-				v.FieldByName("PlatformFaultDomain").SetString(report.Metadata.PlatformFaultDomain)
-				v.FieldByName("PlatformUpdateDomain").SetString(report.Metadata.PlatformUpdateDomain)
-				v.FieldByName("Publisher").SetString(report.Metadata.Publisher)
-				v.FieldByName("ResourceGroupName").SetString(report.Metadata.ResourceGroupName)
-				v.FieldByName("Sku").SetString(report.Metadata.Sku)
-				v.FieldByName("SubscriptionID").SetString(report.Metadata.SubscriptionID)
-				v.FieldByName("Tags").SetString(report.Metadata.Tags)
-				v.FieldByName("OSVersion").SetString(report.Metadata.OSVersion)
-				v.FieldByName("VMID").SetString(report.Metadata.VMID)
-				v.FieldByName("VMSize").SetString(report.Metadata.VMSize)
-			} else {
-				err = fmt.Errorf("[Telemetry] Unable to set metadata values")
-			}
-		} else {
-			err = fmt.Errorf("[Telemetry] Unable to decode response body due to error: %s", err.Error())
-		}
-	} else {
-		err = fmt.Errorf("[Telemetry] Response body is empty")
-	}
-
-	return err
 }
 
 // ReportToBytes - returns the report bytes

@@ -66,7 +66,7 @@ func (npMgr *NetworkPolicyManager) UpdateAndSendReport(err error, eventMsg strin
 		reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("EventMessage").SetString(err.Error())
 	}
 
-	return npMgr.reportManager.SendReport()
+	return npMgr.reportManager.SendReport(nil)
 }
 
 // Run starts shared informers and waits for the shared informer cache to sync.
@@ -92,10 +92,6 @@ func (npMgr *NetworkPolicyManager) Run(stopCh <-chan struct{}) error {
 
 // RunReportManager starts NPMReportManager and send telemetry periodically.
 func (npMgr *NetworkPolicyManager) RunReportManager() {
-	if err := npMgr.reportManager.GetHostMetadata(); err != nil {
-		reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
-	}
-
 	for {
 		clusterState := npMgr.GetClusterState()
 		v := reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ClusterState")
@@ -105,7 +101,7 @@ func (npMgr *NetworkPolicyManager) RunReportManager() {
 			v.FieldByName("NwPolicyCount").SetInt(int64(clusterState.NwPolicyCount))
 		}
 
-		if err := npMgr.reportManager.SendReport(); err != nil {
+		if err := npMgr.reportManager.SendReport(nil); err != nil {
 			log.Printf("Error sending NPM telemetry report")
 		}
 

@@ -10,7 +10,10 @@ import (
 )
 
 const (
-	fdTemplate = "/tmp/%s.sock"
+	fdTemplate                  = "/tmp/%s.sock"
+	telemetryServiceProcessName = "azure-vnet-telemetry"
+	cniInstallDir               = "/opt/cni/bin"
+	metadataFile                = "/tmp/azuremetadata.json"
 )
 
 // Dial - try to connect to/create a socket with 'name'
@@ -34,6 +37,14 @@ func (tb *TelemetryBuffer) Listen(name string) (err error) {
 }
 
 // cleanup - manually remove socket
-func (tb *TelemetryBuffer) cleanup(name string) error {
+func (tb *TelemetryBuffer) Cleanup(name string) error {
 	return os.Remove(fmt.Sprintf(fdTemplate, name))
+}
+
+func checkIfSockExists() bool {
+	if _, err := os.Stat(fmt.Sprintf(fdTemplate, FdName)); !os.IsNotExist(err) {
+		return true
+	}
+
+	return false
 }

@@ -66,6 +66,7 @@ type NetworkManager interface {
 	AttachEndpoint(networkId string, endpointId string, sandboxKey string) (*endpoint, error)
 	DetachEndpoint(networkId string, endpointId string) error
 	UpdateEndpoint(networkId string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error
+	GetNumberOfEndpoints(ifName string, networkId string) int
 }
 
 // Creates a new network manager.
@@ -463,4 +464,27 @@ func (nm *networkManager) UpdateEndpoint(networkID string, existingEpInfo *Endpo
 	}
 
 	return nil
+}
+
+func (nm *networkManager) GetNumberOfEndpoints(ifName string, networkId string) int {
+	if ifName == "" {
+		for key := range nm.ExternalInterfaces {
+			ifName = key
+			break
+		}
+	}
+
+	log.Printf("Get number of endpoints for ifname %v network %v", ifName, networkId)
+
+	if nm.ExternalInterfaces != nil {
+		extIf := nm.ExternalInterfaces[ifName]
+		if extIf != nil && extIf.Networks != nil {
+			nw := extIf.Networks[networkId]
+			if nw != nil && nw.Endpoints != nil {
+				return len(nw.Endpoints)
+			}
+		}
+	}
+
+	return 0
 }
