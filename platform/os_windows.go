@@ -4,6 +4,7 @@
 package platform
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -103,7 +104,20 @@ func GetLastRebootTime() (time.Time, error) {
 }
 
 func ExecuteCommand(command string) (string, error) {
-	return "", nil
+	log.Printf("[Azure-Utils] %s", command)
+
+	var stderr bytes.Buffer
+	var out bytes.Buffer
+	cmd := exec.Command("cmd", "/c", command)
+	cmd.Stderr = &stderr
+	cmd.Stdout = &out
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("%s:%s", err.Error(), stderr.String())
+	}
+
+	return out.String(), nil
 }
 
 func SetOutboundSNAT(subnet string) error {
@@ -123,4 +137,9 @@ func ClearNetworkConfiguration() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func KillProcessByName(processName string) {
+	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
+	ExecuteCommand(cmd)
 }

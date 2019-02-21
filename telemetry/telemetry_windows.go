@@ -3,7 +3,17 @@
 
 package telemetry
 
-import "runtime"
+import (
+	"runtime"
+	"strings"
+
+	"github.com/Azure/azure-container-networking/platform"
+)
+
+const (
+	delimiter  = "\r\n"
+	versionCmd = "ver"
+)
 
 type MemInfo struct {
 	MemTotal uint64
@@ -26,12 +36,15 @@ func getDiskInfo(path string) (*DiskInfo, error) {
 }
 
 func (report *CNIReport) GetSystemDetails() {
-
-	report.SystemDetails = &SystemInfo{}
+	report.SystemDetails = SystemInfo{}
 }
 
 func (report *CNIReport) GetOSDetails() {
-	report.OSDetails = &OSInfo{OSType: runtime.GOOS}
+	report.OSDetails = OSInfo{OSType: runtime.GOOS}
+	out, err := platform.ExecuteCommand(versionCmd)
+	if err == nil {
+		report.OSDetails.OSVersion = strings.Replace(out, delimiter, "", -1)
+	}
 }
 
 // Get kernel version

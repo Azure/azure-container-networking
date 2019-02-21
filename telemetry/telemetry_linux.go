@@ -77,7 +77,7 @@ func (report *CNIReport) GetSystemDetails() {
 		errMsg = errMsg + err.Error()
 	}
 
-	report.SystemDetails = &SystemInfo{
+	report.SystemDetails = SystemInfo{
 		MemVMTotal:   memInfo.MemTotal,
 		MemVMFree:    memInfo.MemFree,
 		DiskVMTotal:  diskInfo.DiskTotal,
@@ -91,7 +91,7 @@ func (report *CNIReport) GetSystemDetails() {
 func (report *CNIReport) GetOSDetails() {
 	linesArr, err := ReadFileByLines("/etc/os-release")
 	if err != nil || len(linesArr) <= 0 {
-		report.OSDetails = &OSInfo{OSType: runtime.GOOS}
+		report.OSDetails = OSInfo{OSType: runtime.GOOS}
 		report.OSDetails.ErrorMessage = "reading /etc/os-release failed with" + err.Error()
 		return
 	}
@@ -107,7 +107,7 @@ func (report *CNIReport) GetOSDetails() {
 
 	out, err := exec.Command("uname", "-r").Output()
 	if err != nil {
-		report.OSDetails = &OSInfo{OSType: runtime.GOOS}
+		report.OSDetails = OSInfo{OSType: runtime.GOOS}
 		report.OSDetails.ErrorMessage = "uname -r failed with " + err.Error()
 		return
 	}
@@ -115,7 +115,7 @@ func (report *CNIReport) GetOSDetails() {
 	kernelVersion := string(out)
 	kernelVersion = strings.TrimSuffix(kernelVersion, "\n")
 
-	report.OSDetails = &OSInfo{
+	report.OSDetails = OSInfo{
 		OSType:         runtime.GOOS,
 		OSVersion:      osInfoArr["VERSION"],
 		KernelVersion:  kernelVersion,

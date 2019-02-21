@@ -11,11 +11,13 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 )
 
 var reportManager *ReportManager
+var tb *TelemetryBuffer
 var ipamQueryUrl = "localhost:3501"
 var hostAgentUrl = "localhost:3500"
 
@@ -56,7 +58,7 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	hostAgent.AddHandler("/", handleCNIReport)
+	hostAgent.AddHandler("/", handlePayload)
 
 	err = hostAgent.Start(make(chan error, 1))
 	if err != nil {
@@ -68,7 +70,20 @@ func TestMain(m *testing.M) {
 	reportManager.HostNetAgentURL = "http://" + hostAgentUrl
 	reportManager.ContentType = "application/json"
 	reportManager.Report = &CNIReport{}
+
+	tb = NewTelemetryBuffer(hostAgentUrl)
+	err = tb.StartServer()
+	if err == nil {
+		go tb.BufferAndPushData(0)
+	}
+
+	if err := tb.Connect(); err != nil {
+		fmt.Printf("connection to telemetry server failed %v", err)
+	}
+
 	exitCode := m.Run()
+	tb.Cancel()
+	tb.Cleanup(FdName)
 	os.Exit(exitCode)
 }
 
@@ -77,9 +92,9 @@ func handleIpamQuery(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(ipamQueryResponse))
 }
 
-func handleCNIReport(rw http.ResponseWriter, req *http.Request) {
+func handlePayload(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
-	var t CNIReport
+	var t Payload
 	err := decoder.Decode(&t)
 	if err != nil {
 		panic(err)
@@ -87,11 +102,7 @@ func handleCNIReport(rw http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	log.Println(t)
 
-	log.Println("OrchestratorDetails", t.OrchestratorDetails)
-	log.Println("OSDetails", t.OSDetails)
-	log.Println("SystemDetails", t.SystemDetails)
-	log.Println("InterfaceDetails", t.InterfaceDetails)
-	log.Println("BridgeDetails", t.BridgeDetails)
+	log.Printf("Payload: %+v", t)
 }
 
 func TestGetOSDetails(t *testing.T) {
@@ -121,19 +132,25 @@ func TestGetReportState(t *testing.T) {
 }
 
 func TestSendTelemetry(t *testing.T) {
-	err := reportManager.SendReport()
+	err := reportManager.SendReport(tb)
 	if err != nil {
 		t.Errorf("SendTelemetry failed due to %v", err)
 	}
 }
 
+func TestReceiveTelemetryData(t *testing.T) {
+	time.Sleep(300 * time.Millisecond)
+	if len(tb.payload.CNIReports) != 1 {
+		t.Errorf("payload doesn't contain CNI report")
+	}
+}
 func TestSetReportState(t *testing.T) {
-	err := reportManager.SetReportState(CNITelemetryFile)
+	err := reportManager.SetReportState("a.json")
 	if err != nil {
 		t.Errorf("SetReportState failed due to %v", err)
 	}
 
-	err = os.Remove(CNITelemetryFile)
+	err = os.Remove("a.json")
 	if err != nil {
 		t.Errorf("Error removing telemetry file due to %v", err)
 	}
