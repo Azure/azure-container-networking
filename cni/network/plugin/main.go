@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	hostNetAgentURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=cnireport"
-	ipamQueryURL    = "http://169.254.169.254/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
+	hostNetAgentURL = "http://168.63.129.16/machine/plugins?comp=netagent&type=cnireport"
+	ipamQueryURL    = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
 	pluginName      = "CNI"
 )
 
