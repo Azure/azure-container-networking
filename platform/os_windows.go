@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -44,57 +43,28 @@ func GetOSInfo() string {
 
 // GetLastRebootTime returns the last time the system rebooted.
 func GetLastRebootTime() (time.Time, error) {
-	var systemBootTime string
-	out, err := exec.Command("cmd", "/c", "systeminfo").Output()
+	out, err := exec.Command("cmd", "/c", "wmic os get lastbootuptime").Output()
 	if err != nil {
-		log.Printf("Failed to query systeminfo, err: %v", err)
+		log.Printf("Failed to query wmic os get lastbootuptime, err: %v", err)
 		return time.Time{}.UTC(), err
 	}
 
-	systemInfo := strings.Split(string(out), "\n")
-	for _, systemProperty := range systemInfo {
-		if strings.Contains(systemProperty, "Boot Time") {
-			systemBootTime = strings.TrimSpace(strings.Split(systemProperty, "System Boot Time:")[1])
-		}
+	lastBootupTime := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if strings.TrimSpace(lastBootupTime[0]) != "LastBootUpTime" || len(lastBootupTime) != 2 {
+		log.Printf("Failed to retrieve boot time")
+		return time.Time{}.UTC(), fmt.Errorf("Failed to retrieve boot time with 'wmic os get lastbootuptime'")
 	}
+	systemBootupTime := strings.Split(lastBootupTime[1], ".")[0]
 
-	if len(strings.TrimSpace(systemBootTime)) == 0 {
-		log.Printf("Failed to retrieve boot time from systeminfo")
-		return time.Time{}.UTC(), fmt.Errorf("Failed to retrieve boot time from systeminfo")
-	}
+	// The systembootuptime is in the format YYYYMMDDHHMMSS
+	bootYear := systemBootupTime[0:4]
+	bootMonth := systemBootupTime[4:6]
+	bootDay := systemBootupTime[6:8]
+	bootHour := systemBootupTime[8:10]
+	bootMin := systemBootupTime[10:12]
+	bootSec := systemBootupTime[12:14]
+	systemBootTime := bootYear + "-" + bootMonth + "-" + bootDay + " " + bootHour + ":" + bootMin + ":" + bootSec
 
-	log.Printf("Boot time: %s", systemBootTime)
-	// The System Boot Time is in the following format "01/02/2006, 03:04:05 PM"
-	// Formulate the Boot Time in the format: "2006-01-02 15:04:05"
-	bootDate := strings.Split(systemBootTime, " ")[0]
-	bootTime := strings.Split(systemBootTime, " ")[1]
-	bootPM := strings.Contains(strings.Split(systemBootTime, " ")[2], "PM")
-
-	month := strings.Split(bootDate, "/")[0]
-	if len(month) < 2 {
-		month = "0" + month
-	}
-
-	day := strings.Split(bootDate, "/")[1]
-	if len(day) < 2 {
-		day = "0" + day
-	}
-
-	year := strings.Split(bootDate, "/")[2]
-	year = strings.Trim(year, ",")
-	hour := strings.Split(bootTime, ":")[0]
-	hourInt, _ := strconv.Atoi(hour)
-	min := strings.Split(bootTime, ":")[1]
-	sec := strings.Split(bootTime, ":")[2]
-
-	if bootPM && hourInt < 12 {
-		hourInt += 12
-	} else if !bootPM && hourInt == 12 {
-		hourInt = 0
-	}
-
-	hour = strconv.Itoa(hourInt)
-	systemBootTime = year + "-" + month + "-" + day + " " + hour + ":" + min + ":" + sec
 	log.Printf("Formatted Boot time: %s", systemBootTime)
 
 	// Parse the boot time.
