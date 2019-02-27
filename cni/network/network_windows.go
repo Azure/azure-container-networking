@@ -192,3 +192,20 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 
 	return policies
 }
+
+func getCustomDNS(nwCfg *cni.NetworkConfig) network.DNSInfo {
+	log.Printf("[net] RuntimeConfigs: %+v", nwCfg.RuntimeConfig)
+	var epDNS network.DNSInfo
+
+	var search string
+	if len(nwCfg.RuntimeConfig.DNS.Searches) > 0 {
+		search = nwCfg.RuntimeConfig.DNS.Searches[0]
+	}
+
+	epDNS = network.DNSInfo{
+		Servers: nwCfg.RuntimeConfig.DNS.Servers,
+		Suffix:  search,
+	}
+
+	return epDNS
+}
