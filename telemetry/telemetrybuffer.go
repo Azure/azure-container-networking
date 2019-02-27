@@ -39,6 +39,7 @@ const (
 )
 
 var telemetryLogger = log.NewLogger(logName, log.LevelInfo, log.TargetStderr)
+var payloadSize uint16 = 0
 
 // TelemetryBuffer object
 type TelemetryBuffer struct {
@@ -253,31 +254,29 @@ func (pl *Payload) push(x interface{}) {
 		}
 	}
 
-	switch x.(type) {
-	case DNCReport:
-		dncReport := x.(DNCReport)
-		dncReport.Metadata = metadata
-		pl.DNCReports = append(pl.DNCReports, dncReport)
-		pl.capPayload(dnc)
-	case CNIReport:
-		cniReport := x.(CNIReport)
-		cniReport.Metadata = metadata
-		pl.CNIReports = append(pl.CNIReports, cniReport)
-		pl.capPayload(cni)
-	case NPMReport:
-		npmReport := x.(NPMReport)
-		npmReport.Metadata = metadata
-		pl.NPMReports = append(pl.NPMReports, npmReport)
-		pl.capPayload(npm)
-	case CNSReport:
-		cnsReport := x.(CNSReport)
-		cnsReport.Metadata = metadata
-		pl.CNSReports = append(pl.CNSReports, cnsReport)
-		pl.capPayload(cns)
+	if notExceeded, reportType := pl.payloadCapNotExceeded(x); notExceeded {
+		switch reportType {
+		case dnc:
+			dncReport := x.(DNCReport)
+			dncReport.Metadata = metadata
+			pl.DNCReports = append(pl.DNCReports, dncReport)
+		case cni:
+			cniReport := x.(CNIReport)
+			cniReport.Metadata = metadata
+			pl.CNIReports = append(pl.CNIReports, cniReport)
+		case npm:
+			npmReport := x.(NPMReport)
+			npmReport.Metadata = metadata
+			pl.NPMReports = append(pl.NPMReports, npmReport)
+		case cns:
+			cnsReport := x.(CNSReport)
+			cnsReport.Metadata = metadata
+			pl.CNSReports = append(pl.CNSReports, cnsReport)
+		}
 	}
 }
 
-// reset - reset payload slices
+// reset - reset payload slices and sets payloadSize to 0
 func (pl *Payload) reset() {
 	pl.DNCReports = nil
 	pl.DNCReports = make([]DNCReport, 0)
@@ -287,24 +286,34 @@ func (pl *Payload) reset() {
 	pl.NPMReports = make([]NPMReport, 0)
 	pl.CNSReports = nil
 	pl.CNSReports = make([]CNSReport, 0)
+	payloadSize = 0
 }
 
-// capPayload - get number of payload items
-func (pl *Payload) capPayload(reportType string) {
+// payloadCapNotExceeded - Returns whether payload cap will be exceeded as a result of adding the new report; and the report type
+//                         If the cap is not exceeded, we update the payload size here.
+func (pl *Payload) payloadCapNotExceeded(x interface{}) (notExceeded bool, reportType string) {
 	var body bytes.Buffer
-	json.NewEncoder(&body).Encode(pl)
-	if uint16(body.Len()) > MaxPayloadSize {
-		switch reportType {
-		case dnc:
-			pl.DNCReports = pl.DNCReports[:len(pl.DNCReports)-1]
-		case cni:
-			pl.CNIReports = pl.CNIReports[:len(pl.CNIReports)-1]
-		case npm:
-			pl.NPMReports = pl.NPMReports[:len(pl.NPMReports)-1]
-		case cns:
-			pl.CNSReports = pl.CNSReports[:len(pl.CNSReports)-1]
-		}
+	switch x.(type) {
+	case DNCReport:
+		reportType = dnc
+		json.NewEncoder(&body).Encode(x.(DNCReport))
+	case CNIReport:
+		reportType = cni
+		json.NewEncoder(&body).Encode(x.(CNIReport))
+	case NPMReport:
+		reportType = npm
+		json.NewEncoder(&body).Encode(x.(NPMReport))
+	case CNSReport:
+		reportType = cns
+		json.NewEncoder(&body).Encode(x.(CNSReport))
 	}
+
+	updatedPayloadSize := uint16(body.Len()) + payloadSize
+	if notExceeded = updatedPayloadSize < MaxPayloadSize && payloadSize < updatedPayloadSize; notExceeded {
+		payloadSize = updatedPayloadSize
+	}
+
+	return
 }
 
 // saveHostMetadata - save metadata got from wireserver to json file
