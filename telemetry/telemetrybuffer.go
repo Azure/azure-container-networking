@@ -22,17 +22,20 @@ import (
 // FdName - file descriptor name
 // Delimiter - delimiter for socket reads/writes
 // azureHostReportURL - host net agent url of type payload
-// DefaultDncReportsSize - default DNC report slice size
-// DefaultCniReportsSize - default CNI report slice size
-// DefaultNpmReportsSize - default NPM report slice size
 // DefaultInterval - default interval for sending payload to host
+// logName - telemetry log name
+// MaxPayloadSize - max payload size in bytes
 const (
-	FdName             = "azure-vnet-telemetry"
-	Delimiter          = '\n'
-	azureHostReportURL = "http://168.63.129.16/machine/plugins?comp=netagent&type=payload"
-	DefaultInterval    = 60 * time.Second
-	logName            = "azure-vnet-telemetry"
-	MaxPayloadSize     = 2097
+	FdName                    = "azure-vnet-telemetry"
+	Delimiter                 = '\n'
+	azureHostReportURL        = "http://168.63.129.16/machine/plugins?comp=netagent&type=payload"
+	DefaultInterval           = 10 * time.Second
+	logName                   = "azure-vnet-telemetry"
+	MaxPayloadSize     uint16 = 65535
+	dnc                       = "DNC"
+	cns                       = "CNS"
+	npm                       = "NPM"
+	cni                       = "CNI"
 )
 
 var telemetryLogger = log.NewLogger(logName, log.LevelInfo, log.TargetStderr)
@@ -108,7 +111,6 @@ func (tb *TelemetryBuffer) StartServer() error {
 								json.Unmarshal([]byte(reportStr), &npmReport)
 								tb.data <- npmReport
 							} else if _, ok := tmp["CniSucceeded"]; ok {
-								telemetryLogger.Printf("[Telemetry] Got cni report")
 								var cniReport CNIReport
 								json.Unmarshal([]byte(reportStr), &cniReport)
 								tb.data <- cniReport
@@ -157,14 +159,12 @@ func (tb *TelemetryBuffer) BufferAndPushData(intervalms time.Duration) {
 			case <-interval:
 				// Send payload to host and clear cache when sent successfully
 				// To-do : if we hit max slice size in payload, write to disk and process the logs on disk on future sends
-				telemetryLogger.Printf("[Telemetry] send data to host")
 				if err := tb.sendToHost(); err == nil {
 					tb.payload.reset()
 				} else {
 					telemetryLogger.Printf("[Telemetry] sending to host failed with error %+v", err)
 				}
 			case report := <-tb.data:
-				telemetryLogger.Printf("[Telemetry] Got data..Append it to buffer")
 				tb.payload.push(report)
 			case <-tb.cancel:
 				goto EXIT
@@ -253,25 +253,27 @@ func (pl *Payload) push(x interface{}) {
 		}
 	}
 
-	if pl.len() < MaxPayloadSize {
-		switch x.(type) {
-		case DNCReport:
-			dncReport := x.(DNCReport)
-			dncReport.Metadata = metadata
-			pl.DNCReports = append(pl.DNCReports, dncReport)
-		case CNIReport:
-			cniReport := x.(CNIReport)
-			cniReport.Metadata = metadata
-			pl.CNIReports = append(pl.CNIReports, cniReport)
-		case NPMReport:
-			npmReport := x.(NPMReport)
-			npmReport.Metadata = metadata
-			pl.NPMReports = append(pl.NPMReports, npmReport)
-		case CNSReport:
-			cnsReport := x.(CNSReport)
-			cnsReport.Metadata = metadata
-			pl.CNSReports = append(pl.CNSReports, cnsReport)
-		}
+	switch x.(type) {
+	case DNCReport:
+		dncReport := x.(DNCReport)
+		dncReport.Metadata = metadata
+		pl.DNCReports = append(pl.DNCReports, dncReport)
+		pl.capPayload(dnc)
+	case CNIReport:
+		cniReport := x.(CNIReport)
+		cniReport.Metadata = metadata
+		pl.CNIReports = append(pl.CNIReports, cniReport)
+		pl.capPayload(cni)
+	case NPMReport:
+		npmReport := x.(NPMReport)
+		npmReport.Metadata = metadata
+		pl.NPMReports = append(pl.NPMReports, npmReport)
+		pl.capPayload(npm)
+	case CNSReport:
+		cnsReport := x.(CNSReport)
+		cnsReport.Metadata = metadata
+		pl.CNSReports = append(pl.CNSReports, cnsReport)
+		pl.capPayload(cns)
 	}
 }
 
@@ -287,9 +289,22 @@ func (pl *Payload) reset() {
 	pl.CNSReports = make([]CNSReport, 0)
 }
 
-// len - get number of payload items
-func (pl *Payload) len() int {
-	return len(pl.CNIReports) + len(pl.CNSReports) + len(pl.DNCReports) + len(pl.NPMReports)
+// capPayload - get number of payload items
+func (pl *Payload) capPayload(reportType string) {
+	var body bytes.Buffer
+	json.NewEncoder(&body).Encode(pl)
+	if uint16(body.Len()) > MaxPayloadSize {
+		switch reportType {
+		case dnc:
+			pl.DNCReports = pl.DNCReports[:len(pl.DNCReports)-1]
+		case cni:
+			pl.CNIReports = pl.CNIReports[:len(pl.CNIReports)-1]
+		case npm:
+			pl.NPMReports = pl.NPMReports[:len(pl.NPMReports)-1]
+		case cns:
+			pl.CNSReports = pl.CNSReports[:len(pl.CNSReports)-1]
+		}
+	}
 }
 
 // saveHostMetadata - save metadata got from wireserver to json file

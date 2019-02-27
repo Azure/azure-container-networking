@@ -4,6 +4,7 @@
 package telemetry
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -34,6 +35,28 @@ var ipamQueryResponse = "" +
 	"		</IPSubnet>" +
 	"	</Interface>" +
 	"</Interfaces>"
+
+var sampleCniReport = CNIReport{
+	IsNewInstance: false,
+	EventMessage:  "[azure-cns] Code:UnknownContainerID {IPConfiguration:{IPSubnet:{IPAddress: PrefixLength:0} DNSServers:[] GatewayIPAddress:} Routes:[] CnetAddressSpace:[] MultiTenancyInfo:{EncapType: ID:0} PrimaryInterfaceIdentifier: LocalIPConfiguration:{IPSubnet:{IPAddress: PrefixLength:0} DNSServers:[] GatewayIPAddress:} {ReturnCode:18 Message:NetworkContainer doesn't exist.}}.",
+	Timestamp:     "2019-02-27 17:44:47.319911225 +0000 UTC",
+	Metadata: Metadata{
+		Location:             "EastUS2EUAP",
+		VMName:               "k8s-agentpool1-65609007-0",
+		Offer:                "aks",
+		OsType:               "Linux",
+		PlacementGroupID:     "",
+		PlatformFaultDomain:  "0",
+		PlatformUpdateDomain: "0",
+		Publisher:            "microsoft-aks",
+		ResourceGroupName:    "rghostnetagttest",
+		Sku:                  "aks-ubuntu-1604-201811",
+		SubscriptionID:       "eff73b63-f38d-4cb5-bad1-21f273c1e36b",
+		Tags:                 "acsengineVersion:v0.25.0;creationSource:acsengine-k8s-agentpool1-65609007-0;orchestrator:Kubernetes:1.10.9;poolName:agentpool1;resourceNameSuffix:65609007",
+		OSVersion:            "2018.11.02",
+		VMID:                 "eff73b63-f38d-4cb5-bad1-21f273c1e36b",
+		VMSize:               "Standard_DS2_v2",
+		KernelVersion:        ""}}
 
 func TestMain(m *testing.M) {
 	u, _ := url.Parse("tcp://" + ipamQueryUrl)
@@ -153,5 +176,20 @@ func TestSetReportState(t *testing.T) {
 	err = os.Remove("a.json")
 	if err != nil {
 		t.Errorf("Error removing telemetry file due to %v", err)
+	}
+}
+
+func TestPayloadCap(t *testing.T) {
+	// sampleCniReport is ~66 bytes and we're adding 2000 reports here to test that the payload will be capped to 65535
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 500; j++ {
+			tb.payload.push(sampleCniReport)
+		}
+
+		var body bytes.Buffer
+		json.NewEncoder(&body).Encode(tb.payload)
+		if uint16(body.Len()) > MaxPayloadSize {
+			t.Fatalf("Payload size exceeded max size of %d", MaxPayloadSize)
+		}
 	}
 }
