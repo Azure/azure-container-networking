@@ -26,11 +26,10 @@ import (
 // DefaultCniReportsSize - default CNI report slice size
 // DefaultNpmReportsSize - default NPM report slice size
 // DefaultInterval - default interval for sending payload to host
-// MaxPayloadSize - max payload size (~2MB)
 const (
 	FdName             = "azure-vnet-telemetry"
 	Delimiter          = '\n'
-	azureHostReportURL = "http://169.254.169.254/machine/plugins?comp=netagent&type=payload"
+	azureHostReportURL = "http://168.63.129.16/machine/plugins?comp=netagent&type=payload"
 	DefaultInterval    = 60 * time.Second
 	logName            = "azure-vnet-telemetry"
 	MaxPayloadSize     = 2097

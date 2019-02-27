@@ -10,6 +10,13 @@ const (
 	GetNetworkContainerStatus                = "/network/getnetworkcontainerstatus"
 	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
 	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
+	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
+	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
+)
+
+// NetworkContainer Prefixes
+const (
+	SwiftPrefix = "Swift_"
 )
 
 // NetworkContainer Types
@@ -17,12 +24,17 @@ const (
 	AzureContainerInstance = "AzureContainerInstance"
 	WebApps                = "WebApps"
 	ClearContainer         = "ClearContainer"
+	Docker                 = "Docker"
+	Basic                  = "Basic"
 )
 
 // Orchestrator Types
 const (
-	Kubernetes    = "Kubernetes"
-	ServiceFabric = "ServiceFabric"
+	Kubernetes      = "Kubernetes"
+	ServiceFabric   = "ServiceFabric"
+	Batch           = "Batch"
+	DBforPostgreSQL = "DBforPostgreSQL"
+	AzureFirstParty = "AzureFirstParty"
 )
 
 // Encap Types
@@ -44,6 +56,12 @@ type CreateNetworkContainerRequest struct {
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
 	Routes                     []Route
+}
+
+// ConfigureContainerNetworkingRequest - specifies request to attach/detach container to network.
+type ConfigureContainerNetworkingRequest struct {
+	Containerid        string
+	NetworkContainerid string
 }
 
 // KubernetesPodInfo is an OrchestratorContext that holds PodName and PodNamespace.
@@ -141,6 +159,16 @@ type GetInterfaceForContainerResponse struct {
 	CnetAddressSpace        []IPSubnet
 	DNSServers              []string
 	Response                Response
+}
+
+// AttachContainerToNetworkResponse specifies response of attaching network container to network.
+type AttachContainerToNetworkResponse struct {
+	Response Response
+}
+
+// DetachNetworkContainerToNetworkResponse specifies response of detaching network container from network.
+type DetachContainerFromNetworkResponse struct {
+	Response Response
 }
 
 // NetworkInterface specifies the information that can be used to unquely identify an interface.

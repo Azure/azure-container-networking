@@ -178,8 +178,10 @@ func (logger *Logger) Request(tag string, request interface{}, err error) {
 func (logger *Logger) Response(tag string, response interface{}, returnCode int, returnStr string, err error) {
 	if err == nil && returnCode == 0 {
 		logger.Printf("[%s] Sent %T %+v.", tag, response, response)
-	} else {
+	} else if err != nil {
 		logger.Errorf("[%s] Code:%s, %+v %s.", tag, returnStr, response, err.Error())
+	} else {
+		logger.Errorf("[%s] Code:%s, %+v.", tag, returnStr, response)
 	}
 }
 

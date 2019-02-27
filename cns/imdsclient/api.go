@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	hostQueryURL                     = "http://169.254.169.254/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
-	hostQueryURLForProgrammedVersion = "http://169.254.169.254/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/%s"
+	hostQueryURL                     = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
+	hostQueryURLForProgrammedVersion = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/%s"
 )
 
 // ImdsClient can be used to connect to VM Host agent in Azure.

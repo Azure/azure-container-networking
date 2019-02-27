@@ -760,7 +760,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 
 	// Query the existing endpoint since this is an update.
 	// Right now, we do not support updating pods that have multiple endpoints.
-	existingEpInfo, err = plugin.nm.GetEndpointInfoBasedOnPODDetails(networkID, k8sPodName, k8sNamespace)
+	existingEpInfo, err = plugin.nm.GetEndpointInfoBasedOnPODDetails(networkID, k8sPodName, k8sNamespace, nwCfg.EnableExactMatchForPodName)
 	if err != nil {
 		plugin.Errorf("Failed to retrieve target endpoint for CNI UPDATE [name=%v, namespace=%v]: %v", k8sPodName, k8sNamespace, err)
 		return err

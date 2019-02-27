@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	hostNetAgentURLForNpm = "http://169.254.169.254/machine/plugins?comp=netagent&type=npmreport"
+	hostNetAgentURLForNpm = "http://168.63.129.16/machine/plugins?comp=netagent&type=npmreport"
 	contentType           = "application/json"
 )
 

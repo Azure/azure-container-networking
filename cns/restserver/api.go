@@ -20,6 +20,7 @@ const (
 	CallToHostFailed             = 17
 	UnknownContainerID           = 18
 	UnsupportedOrchestratorType  = 19
+	DockerContainerNotSpecified  = 20
 	UnexpectedError              = 99
 )
 
@@ -55,6 +56,8 @@ func ReturnCodeToString(returnCode int) (s string) {
 		s = "UnsupportedOrchestratorType"
 	case UnexpectedError:
 		s = "UnexpectedError"
+	case DockerContainerNotSpecified:
+		s = "DockerContainerNotSpecified"
 	default:
 		s = "UnknownError"
 	}

@@ -62,7 +62,7 @@ type NetworkManager interface {
 	CreateEndpoint(networkId string, epInfo *EndpointInfo) error
 	DeleteEndpoint(networkId string, endpointId string) error
 	GetEndpointInfo(networkId string, endpointId string) (*EndpointInfo, error)
-	GetEndpointInfoBasedOnPODDetails(networkId string, podName string, podNameSpace string) (*EndpointInfo, error)
+	GetEndpointInfoBasedOnPODDetails(networkId string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error)
 	AttachEndpoint(networkId string, endpointId string, sandboxKey string) (*endpoint, error)
 	DetachEndpoint(networkId string, endpointId string) error
 	UpdateEndpoint(networkId string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error
@@ -370,7 +370,7 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 
 // GetEndpointInfoBasedOnPODDetails returns information about the given endpoint.
 // It returns an error if a single pod has multiple endpoints.
-func (nm *networkManager) GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string) (*EndpointInfo, error) {
+func (nm *networkManager) GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error) {
 	nm.Lock()
 	defer nm.Unlock()
 
@@ -379,7 +379,7 @@ func (nm *networkManager) GetEndpointInfoBasedOnPODDetails(networkID string, pod
 		return nil, err
 	}
 
-	ep, err := nw.getEndpointByPOD(podName, podNameSpace)
+	ep, err := nw.getEndpointByPOD(podName, podNameSpace, doExactMatchForPodName)
 	if err != nil {
 		return nil, err
 	}

@@ -59,4 +59,12 @@ const (
 	// Help.
 	OptHelp      = "help"
 	OptHelpAlias = "h"
+
+	// CNI binary location
+	OptCNIPath      = "cni-path"
+	OptCNIPathAlias = "cni"
+
+	// CNI binary location
+	OptCNIConfigFile      = "cni-config-file"
+	OptCNIConfigFileAlias = "cniconfig"
 )

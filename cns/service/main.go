@@ -23,8 +23,9 @@ import (
 
 const (
 	// Service name.
-	name       = "azure-cns"
-	pluginName = "azure-vnet"
+	name                            = "azure-cns"
+	pluginName                      = "azure-vnet"
+	defaultCNINetworkConfigFileName = "10-azure.conflist"
 )
 
 // Version is populated by make during build.
@@ -129,6 +130,20 @@ var args = acn.ArgumentList{
 		Type:         "int",
 		DefaultValue: "60000",
 	},
+	{
+		Name:         acn.OptCNIPath,
+		Shorthand:    acn.OptCNIPathAlias,
+		Description:  "Set CNI binary absolute path to parent (of azure-vnet and azure-vnet-ipam)",
+		Type:         "string",
+		DefaultValue: platform.K8SCNIRuntimePath,
+	},
+	{
+		Name:         acn.OptCNIConfigFile,
+		Shorthand:    acn.OptCNIConfigFileAlias,
+		Description:  "Set CNI configuration file absolute path",
+		Type:         "string",
+		DefaultValue: platform.K8SNetConfigPath + string(os.PathSeparator) + defaultCNINetworkConfigFileName,
+	},
 }
 
 // Prints description and version information.
@@ -145,6 +160,8 @@ func main() {
 
 	environment := acn.GetArg(acn.OptEnvironment).(string)
 	url := acn.GetArg(acn.OptAPIServerURL).(string)
+	cniPath := acn.GetArg(acn.OptCNIPath).(string)
+	cniConfigFile := acn.GetArg(acn.OptCNIConfigFile).(string)
 	cnsURL := acn.GetArg(acn.OptCnsURL).(string)
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
@@ -211,6 +228,8 @@ func main() {
 
 	// Set CNS options.
 	httpRestService.SetOption(acn.OptCnsURL, cnsURL)
+	httpRestService.SetOption(acn.OptCNIPath, cniPath)
+	httpRestService.SetOption(acn.OptCNIConfigFile, cniConfigFile)
 
 	// Start CNS.
 	if httpRestService != nil {
