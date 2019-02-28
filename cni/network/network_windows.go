@@ -134,6 +134,12 @@ func setupInfraVnetRoutingForMultitenancy(
 func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
 	var nwDNS network.DNSInfo
 
+	// use custom dns if present
+	nwDNS = getCustomDNS(nwCfg)
+	if len(nwDNS.Servers) > 0 || nwDNS.Suffix != "" {
+		return nwDNS, nil
+	}
+
 	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
 		err := fmt.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
 		return nwDNS, err
@@ -148,6 +154,12 @@ func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result
 
 func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
 	var epDNS network.DNSInfo
+
+	// use custom dns if present
+	epDNS = getCustomDNS(nwCfg)
+	if len(epDNS.Servers) > 0 || epDNS.Suffix != "" {
+		return epDNS, nil
+	}
 
 	if (len(nwCfg.DNS.Search) == 0) != (len(nwCfg.DNS.Nameservers) == 0) {
 		err := fmt.Errorf("Wrong DNS configuration: %+v", nwCfg.DNS)
@@ -195,17 +207,14 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 
 func getCustomDNS(nwCfg *cni.NetworkConfig) network.DNSInfo {
 	log.Printf("[net] RuntimeConfigs: %+v", nwCfg.RuntimeConfig)
-	var epDNS network.DNSInfo
 
 	var search string
 	if len(nwCfg.RuntimeConfig.DNS.Searches) > 0 {
 		search = nwCfg.RuntimeConfig.DNS.Searches[0]
 	}
 
-	epDNS = network.DNSInfo{
+	return network.DNSInfo{
 		Servers: nwCfg.RuntimeConfig.DNS.Servers,
 		Suffix:  search,
 	}
-
-	return epDNS
 }

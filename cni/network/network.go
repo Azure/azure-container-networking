@@ -367,13 +367,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			return err
 		}
 
-		nwDNSInfo := getCustomDNS(nwCfg)
-		if len(nwDNSInfo.Servers) == 0 && nwDNSInfo.Suffix == "" {
-			nwDNSInfo, err = getNetworkDNSSettings(nwCfg, result, k8sNamespace)
-			if err != nil {
-				err = plugin.Errorf("Failed to getDNSSettings: %v", err)
-				return err
-			}
+		nwDNSInfo, err := getNetworkDNSSettings(nwCfg, result, k8sNamespace)
+		if err != nil {
+			err = plugin.Errorf("Failed to getDNSSettings: %v", err)
+			return err
 		}
 
 		log.Printf("[cni-net] nwDNSInfo: %v", nwDNSInfo)
@@ -436,13 +433,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	epDNSInfo := getCustomDNS(nwCfg)
-	if len(epDNSInfo.Servers) == 0 && epDNSInfo.Suffix == "" {
-		epDNSInfo, err = getEndpointDNSSettings(nwCfg, result, k8sNamespace)
-		if err != nil {
-			err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
-			return err
-		}
+	epDNSInfo, err := getEndpointDNSSettings(nwCfg, result, k8sNamespace)
+	if err != nil {
+		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
+		return err
 	}
 
 	epInfo = &network.EndpointInfo{

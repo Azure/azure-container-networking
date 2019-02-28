@@ -33,7 +33,7 @@ type RuntimeConfig struct {
 	DNS          RuntimeDNSConfig `json:"dns,omitempty"`
 }
 
-// https://github.com/kubernetes/kubernetes/blob/7dbe426b2426458f02339e28d1cc102efdb6eda1/pkg/kubelet/dockershim/network/cni/cni.go#L104
+// https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/dockershim/network/cni/cni.go#L104
 type RuntimeDNSConfig struct {
 	Servers  []string `json:"servers,omitempty"`
 	Searches []string `json:"searches,omitempty"`
