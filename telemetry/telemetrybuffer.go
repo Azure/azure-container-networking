@@ -22,20 +22,24 @@ import (
 // FdName - file descriptor name
 // Delimiter - delimiter for socket reads/writes
 // azureHostReportURL - host net agent url of type payload
-// DefaultDncReportsSize - default DNC report slice size
-// DefaultCniReportsSize - default CNI report slice size
-// DefaultNpmReportsSize - default NPM report slice size
 // DefaultInterval - default interval for sending payload to host
+// logName - telemetry log name
+// MaxPayloadSize - max payload size in bytes
 const (
-	FdName             = "azure-vnet-telemetry"
-	Delimiter          = '\n'
-	azureHostReportURL = "http://168.63.129.16/machine/plugins?comp=netagent&type=payload"
-	DefaultInterval    = 60 * time.Second
-	logName            = "azure-vnet-telemetry"
-	MaxPayloadSize     = 2097
+	FdName                    = "azure-vnet-telemetry"
+	Delimiter                 = '\n'
+	azureHostReportURL        = "http://168.63.129.16/machine/plugins?comp=netagent&type=payload"
+	DefaultInterval           = 10 * time.Second
+	logName                   = "azure-vnet-telemetry"
+	MaxPayloadSize     uint16 = 65535
+	dnc                       = "DNC"
+	cns                       = "CNS"
+	npm                       = "NPM"
+	cni                       = "CNI"
 )
 
 var telemetryLogger = log.NewLogger(logName, log.LevelInfo, log.TargetStderr)
+var payloadSize uint16 = 0
 
 // TelemetryBuffer object
 type TelemetryBuffer struct {
@@ -68,7 +72,7 @@ func NewTelemetryBuffer(hostReportURL string) *TelemetryBuffer {
 
 	tb.data = make(chan interface{})
 	tb.cancel = make(chan bool, 1)
-	tb.connections = make([]net.Conn, 1)
+	tb.connections = make([]net.Conn, 0)
 	tb.payload.DNCReports = make([]DNCReport, 0)
 	tb.payload.CNIReports = make([]CNIReport, 0)
 	tb.payload.NPMReports = make([]NPMReport, 0)
@@ -82,14 +86,21 @@ func NewTelemetryBuffer(hostReportURL string) *TelemetryBuffer {
 	return &tb
 }
 
+func remove(s []net.Conn, i int) []net.Conn {
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
+}
+
 // Starts Telemetry server listening on unix domain socket
 func (tb *TelemetryBuffer) StartServer() error {
 	err := tb.Listen(FdName)
 	if err != nil {
 		tb.FdExists = strings.Contains(err.Error(), "in use") || strings.Contains(err.Error(), "Access is denied")
+		telemetryLogger.Printf("Listen returns: %v", err.Error())
 		return err
 	}
 
+	telemetryLogger.Printf("Telemetry service started")
 	// Spawn server goroutine to handle incoming connections
 	go func() {
 		for {
@@ -108,7 +119,6 @@ func (tb *TelemetryBuffer) StartServer() error {
 								json.Unmarshal([]byte(reportStr), &npmReport)
 								tb.data <- npmReport
 							} else if _, ok := tmp["CniSucceeded"]; ok {
-								telemetryLogger.Printf("[Telemetry] Got cni report")
 								var cniReport CNIReport
 								json.Unmarshal([]byte(reportStr), &cniReport)
 								tb.data <- cniReport
@@ -121,9 +131,20 @@ func (tb *TelemetryBuffer) StartServer() error {
 								json.Unmarshal([]byte(reportStr), &cnsReport)
 								tb.data <- cnsReport
 							}
+						} else {
+							telemetryLogger.Printf("Server closing client connection")
+							for index, value := range tb.connections {
+								if value == conn {
+									conn.Close()
+									tb.connections = remove(tb.connections, index)
+									return
+								}
+							}
 						}
 					}
 				}()
+			} else {
+				return
 			}
 		}
 	}()
@@ -144,7 +165,7 @@ func (tb *TelemetryBuffer) Connect() error {
 
 // BufferAndPushData - BufferAndPushData running an instance if it isn't already being run elsewhere
 func (tb *TelemetryBuffer) BufferAndPushData(intervalms time.Duration) {
-	defer tb.close()
+	defer tb.Close()
 	if !tb.FdExists {
 		telemetryLogger.Printf("[Telemetry] Buffer telemetry data and send it to host")
 		if intervalms < DefaultInterval {
@@ -157,21 +178,21 @@ func (tb *TelemetryBuffer) BufferAndPushData(intervalms time.Duration) {
 			case <-interval:
 				// Send payload to host and clear cache when sent successfully
 				// To-do : if we hit max slice size in payload, write to disk and process the logs on disk on future sends
-				telemetryLogger.Printf("[Telemetry] send data to host")
 				if err := tb.sendToHost(); err == nil {
 					tb.payload.reset()
 				} else {
 					telemetryLogger.Printf("[Telemetry] sending to host failed with error %+v", err)
 				}
 			case report := <-tb.data:
-				telemetryLogger.Printf("[Telemetry] Got data..Append it to buffer")
 				tb.payload.push(report)
 			case <-tb.cancel:
+				telemetryLogger.Printf("server cancel event")
 				goto EXIT
 			}
 		}
 	} else {
 		<-tb.cancel
+		telemetryLogger.Printf("Received cancel event")
 	}
 
 EXIT:
@@ -204,19 +225,25 @@ func (tb *TelemetryBuffer) Cancel() {
 	tb.cancel <- true
 }
 
-// close - close all connections
-func (tb *TelemetryBuffer) close() {
+// Close - close all connections
+func (tb *TelemetryBuffer) Close() {
 	if tb.client != nil {
+		telemetryLogger.Printf("client close")
 		tb.client.Close()
+		tb.client = nil
 	}
 
 	if tb.listener != nil {
+		telemetryLogger.Printf("server close")
 		tb.listener.Close()
+		tb.listener = nil
 	}
 
-	for _, conn := range tb.connections {
+	for index, conn := range tb.connections {
 		if conn != nil {
+			telemetryLogger.Printf("connection close")
 			conn.Close()
+			remove(tb.connections, index)
 		}
 	}
 }
@@ -253,21 +280,21 @@ func (pl *Payload) push(x interface{}) {
 		}
 	}
 
-	if pl.len() < MaxPayloadSize {
-		switch x.(type) {
-		case DNCReport:
+	if notExceeded, reportType := pl.payloadCapNotExceeded(x); notExceeded {
+		switch reportType {
+		case dnc:
 			dncReport := x.(DNCReport)
 			dncReport.Metadata = metadata
 			pl.DNCReports = append(pl.DNCReports, dncReport)
-		case CNIReport:
+		case cni:
 			cniReport := x.(CNIReport)
 			cniReport.Metadata = metadata
 			pl.CNIReports = append(pl.CNIReports, cniReport)
-		case NPMReport:
+		case npm:
 			npmReport := x.(NPMReport)
 			npmReport.Metadata = metadata
 			pl.NPMReports = append(pl.NPMReports, npmReport)
-		case CNSReport:
+		case cns:
 			cnsReport := x.(CNSReport)
 			cnsReport.Metadata = metadata
 			pl.CNSReports = append(pl.CNSReports, cnsReport)
@@ -275,7 +302,7 @@ func (pl *Payload) push(x interface{}) {
 	}
 }
 
-// reset - reset payload slices
+// reset - reset payload slices and sets payloadSize to 0
 func (pl *Payload) reset() {
 	pl.DNCReports = nil
 	pl.DNCReports = make([]DNCReport, 0)
@@ -285,11 +312,34 @@ func (pl *Payload) reset() {
 	pl.NPMReports = make([]NPMReport, 0)
 	pl.CNSReports = nil
 	pl.CNSReports = make([]CNSReport, 0)
+	payloadSize = 0
 }
 
-// len - get number of payload items
-func (pl *Payload) len() int {
-	return len(pl.CNIReports) + len(pl.CNSReports) + len(pl.DNCReports) + len(pl.NPMReports)
+// payloadCapNotExceeded - Returns whether payload cap will be exceeded as a result of adding the new report; and the report type
+//                         If the cap is not exceeded, we update the payload size here.
+func (pl *Payload) payloadCapNotExceeded(x interface{}) (notExceeded bool, reportType string) {
+	var body bytes.Buffer
+	switch x.(type) {
+	case DNCReport:
+		reportType = dnc
+		json.NewEncoder(&body).Encode(x.(DNCReport))
+	case CNIReport:
+		reportType = cni
+		json.NewEncoder(&body).Encode(x.(CNIReport))
+	case NPMReport:
+		reportType = npm
+		json.NewEncoder(&body).Encode(x.(NPMReport))
+	case CNSReport:
+		reportType = cns
+		json.NewEncoder(&body).Encode(x.(CNSReport))
+	}
+
+	updatedPayloadSize := uint16(body.Len()) + payloadSize
+	if notExceeded = updatedPayloadSize < MaxPayloadSize && payloadSize < updatedPayloadSize; notExceeded {
+		payloadSize = updatedPayloadSize
+	}
+
+	return
 }
 
 // saveHostMetadata - save metadata got from wireserver to json file

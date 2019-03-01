@@ -184,6 +184,8 @@ func main() {
 		}
 	}
 
+	defer tb.Close()
+
 	t := time.Now()
 	cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 	cniReport.GetReport(pluginName, version, ipamQueryURL)
@@ -205,7 +207,7 @@ func main() {
 	if err != nil {
 		log.Printf("Failed to create network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, tb, err)
-		os.Exit(1)
+		return
 	}
 
 	netPlugin.SetCNIReport(cniReport)
@@ -213,7 +215,7 @@ func main() {
 	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 		log.Printf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, tb, err)
-		os.Exit(1)
+		return
 	}
 
 	defer func() {
@@ -222,7 +224,7 @@ func main() {
 		}
 
 		if recover() != nil {
-			os.Exit(1)
+			return
 		}
 	}()
 
