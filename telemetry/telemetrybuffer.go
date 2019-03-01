@@ -239,13 +239,15 @@ func (tb *TelemetryBuffer) Close() {
 		tb.listener = nil
 	}
 
-	for index, conn := range tb.connections {
+	for _, conn := range tb.connections {
 		if conn != nil {
 			telemetryLogger.Printf("connection close")
 			conn.Close()
-			remove(tb.connections, index)
 		}
 	}
+
+	tb.connections = nil
+	tb.connections = make([]net.Conn, 0)
 }
 
 // sendToHost - send payload to host
