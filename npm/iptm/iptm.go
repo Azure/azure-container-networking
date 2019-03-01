@@ -84,53 +84,6 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		}
 	}
 
-	// Add default allow kube-system rules to AZURE-NPM chain.
-	/*
-		entry.Specs = []string{
-			util.IptablesMatchFlag,
-			util.IptablesSetFlag,
-			util.IptablesMatchSetFlag,
-			util.GetHashedName(util.KubeSystemFlag),
-			util.IptablesDstFlag,
-			util.IptablesJumpFlag,
-			util.IptablesAccept,
-		}
-		exists, err = iptMgr.Exists(entry)
-		if err != nil {
-			return err
-		}
-
-		if !exists {
-			iptMgr.OperationFlag = util.IptablesAppendFlag
-			if _, err := iptMgr.Run(entry); err != nil {
-				log.Printf("Error adding default allow kube-system rule to AZURE-NPM chain\n")
-				return err
-			}
-		}
-
-		entry.Specs = []string{
-			util.IptablesMatchFlag,
-			util.IptablesSetFlag,
-			util.IptablesMatchSetFlag,
-			util.GetHashedName(util.KubeSystemFlag),
-			util.IptablesSrcFlag,
-			util.IptablesJumpFlag,
-			util.IptablesAccept,
-		}
-		exists, err = iptMgr.Exists(entry)
-		if err != nil {
-			return err
-		}
-
-		if !exists {
-			iptMgr.OperationFlag = util.IptablesAppendFlag
-			if _, err := iptMgr.Run(entry); err != nil {
-				log.Printf("Error adding default allow kube-system rule to AZURE-NPM chain\n")
-				return err
-			}
-		}
-	*/
-
 	// Create AZURE-NPM-INGRESS-PORT chain.
 	if err := iptMgr.AddChain(util.IptablesAzureIngressPortChain); err != nil {
 		return err
