@@ -210,7 +210,7 @@ func getCustomDNS(nwCfg *cni.NetworkConfig) network.DNSInfo {
 
 	var search string
 	if len(nwCfg.RuntimeConfig.DNS.Searches) > 0 {
-		search = nwCfg.RuntimeConfig.DNS.Searches[0]
+		search = strings.Join(nwCfg.RuntimeConfig.DNS.Searches, ",")
 	}
 
 	return network.DNSInfo{
