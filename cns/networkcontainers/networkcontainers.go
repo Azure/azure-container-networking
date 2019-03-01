@@ -25,7 +25,7 @@ const (
 	versionStr              = "cniVersion"
 	pluginsStr              = "plugins"
 	nameStr                 = "name"
-	cnsURL                  = "cnsurl"
+	cnsURLStr               = "cnsurl"
 	k8sPodNamespaceStr      = "K8S_POD_NAMESPACE"
 	k8sPodNameStr           = "K8S_POD_NAME"
 	k8sPodInfraContainerStr = "K8S_POD_INFRA_CONTAINER_ID"
@@ -97,7 +97,7 @@ func (cn *NetworkContainers) Delete(networkContainerID string) error {
 }
 
 // This function gets the flattened network configuration (compliant with azure cni) in byte array format
-func getNetworkConfig(configFilePath, cnsUrl string) ([]byte, error) {
+func getNetworkConfig(configFilePath, cnsURL string) ([]byte, error) {
 	content, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func getNetworkConfig(configFilePath, cnsUrl string) ([]byte, error) {
 	flatNetConfigMap[nameStr] = configMap[nameStr].(string)
 
 	// insert CNS URL
-	flatNetConfigMap[cnsURL] = strings.Replace(cnsUrl, "tcp://", "http://", -1)
+	flatNetConfigMap[cnsURLStr] = strings.Replace(cnsURL, "tcp://", "http://", -1)
 
 	// convert into bytes format
 	netConfig, err := json.Marshal(flatNetConfigMap)

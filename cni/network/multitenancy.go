@@ -42,7 +42,6 @@ func SetupRoutingForMultitenancy(
 
 func getContainerNetworkConfiguration(
 	nwCfg *cni.NetworkConfig,
-	address string,
 	podName string,
 	podNamespace string,
 	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
@@ -55,7 +54,7 @@ func getContainerNetworkConfiguration(
 	}
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
-	return getContainerNetworkConfigurationInternal(address, podNamespace, podNameWithoutSuffix, ifName)
+	return getContainerNetworkConfigurationInternal(nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
 }
 
 func getContainerNetworkConfigurationInternal(
@@ -201,7 +200,7 @@ func GetMultiTenancyCNIResult(
 	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error) {
 
 	if nwCfg.MultiTenancy {
-		result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(nwCfg, nwCfg.CNSUrl, k8sPodName, k8sNamespace, ifName)
+		result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
 		if err != nil {
 			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
 			return nil, nil, net.IPNet{}, nil, err
