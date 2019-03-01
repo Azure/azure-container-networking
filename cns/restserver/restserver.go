@@ -973,7 +973,8 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 				nc := service.networkContainer
 				pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
 				configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-				netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
+				cnsURL, _ := service.GetOption(acn.OptCnsURL).(string)
+				netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath, cnsURL)
 				if err = nc.Update(req, netPluginConfig); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
 					returnCode = UnexpectedError
@@ -1372,7 +1373,8 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 					nc := service.networkContainer
 					pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
 					configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-					netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
+					cnsURL, _ := service.GetOption(acn.OptCnsURL).(string)
+					netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath, cnsURL)
 					if err = nc.Attach(podInfo.PodName, podInfo.PodNamespace, req.Containerid, netPluginConfig); err != nil {
 						returnMessage = fmt.Sprintf("[Azure CNS] Error. AttachContainerToNetwork failed %+v", err.Error())
 						returnCode = UnexpectedError
@@ -1435,7 +1437,8 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 					nc := service.networkContainer
 					pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
 					configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-					netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
+					cnsURL, _ := service.GetOption(acn.OptCnsURL).(string)
+					netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath, cnsURL)
 					if err = nc.Detach(podInfo.PodName, podInfo.PodNamespace, req.Containerid, netPluginConfig); err != nil {
 						returnMessage = fmt.Sprintf("[Azure CNS] Error. detachNetworkContainerFromNetwork failed %+v", err.Error())
 						returnCode = UnexpectedError

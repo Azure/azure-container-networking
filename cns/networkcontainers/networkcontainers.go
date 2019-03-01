@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
@@ -24,6 +25,7 @@ const (
 	versionStr              = "cniVersion"
 	pluginsStr              = "plugins"
 	nameStr                 = "name"
+	cnsURL                  = "cnsurl"
 	k8sPodNamespaceStr      = "K8S_POD_NAMESPACE"
 	k8sPodNameStr           = "K8S_POD_NAME"
 	k8sPodInfraContainerStr = "K8S_POD_INFRA_CONTAINER_ID"
@@ -41,13 +43,15 @@ type NetworkContainers struct {
 type NetPluginConfiguration struct {
 	path              string
 	networkConfigPath string
+	cnsUrl            string
 }
 
 // NewNetPluginConfiguration create a new netplugin configuration.
-func NewNetPluginConfiguration(binPath string, configPath string) *NetPluginConfiguration {
+func NewNetPluginConfiguration(binPath string, configPath string, cnsURLParam string) *NetPluginConfiguration {
 	return &NetPluginConfiguration{
 		path:              binPath,
 		networkConfigPath: configPath,
+		cnsUrl:            cnsURLParam,
 	}
 }
 
@@ -93,7 +97,7 @@ func (cn *NetworkContainers) Delete(networkContainerID string) error {
 }
 
 // This function gets the flattened network configuration (compliant with azure cni) in byte array format
-func getNetworkConfig(configFilePath string) ([]byte, error) {
+func getNetworkConfig(configFilePath, cnsUrl string) ([]byte, error) {
 	content, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		return nil, err
@@ -120,6 +124,9 @@ func getNetworkConfig(configFilePath string) ([]byte, error) {
 	// insert version and name fields
 	flatNetConfigMap[versionStr] = configMap[versionStr].(string)
 	flatNetConfigMap[nameStr] = configMap[nameStr].(string)
+
+	// insert CNS URL
+	flatNetConfigMap[cnsURL] = strings.Replace(cnsUrl, "tcp://", "http://", -1)
 
 	// convert into bytes format
 	netConfig, err := json.Marshal(flatNetConfigMap)
