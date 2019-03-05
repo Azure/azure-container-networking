@@ -65,7 +65,7 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 
 	log.Printf("[Azure CNS] run time configuration for CNI plugin info %+v", rt)
 
-	netConfig, err := getNetworkConfig(netpluginConfig.networkConfigPath, netpluginConfig.cnsUrl)
+	netConfig, err := getNetworkConfig(netpluginConfig.networkConfigPath, netpluginConfig.cnsUrl, false)
 	if err != nil {
 		log.Printf("[Azure CNS] Failed to build network configuration with error %v", err)
 		return err
