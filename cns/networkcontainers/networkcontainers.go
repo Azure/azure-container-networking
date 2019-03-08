@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/containernetworking/cni/libcni"
 	"github.com/containernetworking/cni/pkg/invoke"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 )
 
 const (
@@ -163,6 +164,11 @@ func pluginErr(err error, output []byte) error {
 
 			return &emsg
 		}
+	} else if len(output) > 0 {
+		var cniError cniTypes.Error
+		if err = json.Unmarshal(output, &cniError); err == nil && cniError.Code != 0 {
+			return fmt.Errorf("netplugin completed with error: %+v", cniError)
+		}
 	}
 
 	return err
@@ -182,7 +188,6 @@ func execPlugin(rt *libcni.RuntimeConf, netconf []byte, operation, path string) 
 		command.Env = environ
 		command.Stdin = bytes.NewBuffer(netconf)
 		command.Stdout = stdout
-		command.Stderr = os.Stderr
 		return pluginErr(command.Run(), stdout.Bytes())
 	default:
 		return fmt.Errorf("[Azure CNS] Invalid operation being passed to CNI: %s", operation)
