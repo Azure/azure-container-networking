@@ -11,11 +11,14 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/containernetworking/cni/libcni"
 )
+
+var loopbackOperationLock = &sync.Mutex{}
 
 func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkContainerRequest) error {
 	// Create Operation is only supported for WebApps only on Windows
@@ -87,7 +90,10 @@ func setWeakHostOnInterface(ipAddress string) error {
 
 	log.Printf("[Azure CNS] Going to enable weak host send/receive on interface: %v", args)
 	c := exec.Command("cmd", args...)
+
+	loopbackOperationLock.Lock()
 	bytes, err := c.Output()
+	loopbackOperationLock.Unlock()
 
 	if err == nil {
 		log.Printf("[Azure CNS] Successfully updated weak host send/receive on interface %v.\n", string(bytes))
@@ -136,7 +142,10 @@ func createOrUpdateWithOperation(createNetworkContainerRequest cns.CreateNetwork
 
 	log.Printf("[Azure CNS] Going to create/update network loopback adapter: %v", args)
 	c := exec.Command("cmd", args...)
+
+	loopbackOperationLock.Lock()
 	bytes, err := c.Output()
+	loopbackOperationLock.Unlock()
 
 	if err == nil {
 		log.Printf("[Azure CNS] Successfully created network loopback adapter %v.\n", string(bytes))
@@ -167,7 +176,10 @@ func deleteInterface(networkContainerID string) error {
 
 	log.Printf("[Azure CNS] Going to delete network loopback adapter: %v", args)
 	c := exec.Command("cmd", args...)
+
+	loopbackOperationLock.Lock()
 	bytes, err := c.Output()
+	loopbackOperationLock.Unlock()
 
 	if err == nil {
 		log.Printf("[Azure CNS] Successfully deleted network container %v.\n", string(bytes))
