@@ -1,12 +1,11 @@
 # Use a minimal image as a parent image
-FROM ubuntu:18.10
+FROM ubuntu:16.04
 ARG NPM_BUILD_DIR
-ARG SCRIPTS_DIR
 
 # Install dependencies.
-COPY $SCRIPTS_DIR/install-npm-dependencies.sh .
-RUN chmod +x ./install-npm-dependencies.sh
-RUN ./install-npm-dependencies.sh 
+RUN apt-get update
+RUN apt-get install -y iptables
+RUN apt-get install -y ipset
 
 # Install plugin.
 COPY $NPM_BUILD_DIR/azure-npm /usr/bin

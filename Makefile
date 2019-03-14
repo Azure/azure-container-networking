@@ -64,7 +64,6 @@ CNI_IPAM_DIR = cni/ipam/plugin
 CNI_TELEMETRY_DIR = cni/telemetry/service
 CNS_DIR = cns/service
 NPM_DIR = npm/plugin
-SCRIPTS_DIR = scripts
 OUTPUT_DIR = output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
@@ -232,7 +231,6 @@ ifeq ($(GOOS),linux)
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(AZURE_NPM_VERSION) \
 	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
-	--build-arg SCRIPTS_DIR=$(SCRIPTS_DIR) \
 	.
 	docker save $(AZURE_NPM_IMAGE):$(AZURE_NPM_VERSION) | gzip -c > $(NPM_BUILD_DIR)/$(NPM_ARCHIVE_NAME)
 endif
