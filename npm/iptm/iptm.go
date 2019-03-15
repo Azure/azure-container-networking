@@ -354,6 +354,17 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
+	l, err := grabIptablesLocks()
+	if err != nil {
+		return err
+	}
+
+	defer func(l *os.File) {
+		if err = l.Close(); err != nil {
+			fmt.Printf("Failed to close iptables locks")
+		}
+	}(l)
+
 	// create the config file for writing
 	f, err := os.Create(configFile)
 	if err != nil {
@@ -372,33 +383,6 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 
 	return nil
 }
-
-// Restore restores iptables configuration from /var/log/iptables.conf
-/*
-func (iptMgr *IptablesManager) Restore(configFile string) error {
-	if len(configFile) == 0 {
-		configFile = util.IptablesConfigFile
-	}
-
-	// open the config file for reading
-	f, err := os.Open(configFile)
-	if err != nil {
-		log.Printf("Error opening file: %s.", configFile)
-		return err
-	}
-	defer f.Close()
-
-	cmd := exec.Command(util.IptablesRestore, util.IptablesWaitFlag)
-	cmd.Stdin = f
-	if err := cmd.Start(); err != nil {
-		log.Printf("Error running iptables-restore.")
-		return err
-	}
-	cmd.Wait()
-
-	return nil
-}
-*/
 
 // Restore restores iptables configuration from /var/log/iptables.conf
 func (iptMgr *IptablesManager) Restore(configFile string) error {
