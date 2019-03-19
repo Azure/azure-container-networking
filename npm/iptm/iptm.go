@@ -7,7 +7,6 @@ https://github.com/kubernetes/kubernetes/blob/master/pkg/util/iptables
 package iptm
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -361,7 +360,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 
 	defer func(l *os.File) {
 		if err = l.Close(); err != nil {
-			fmt.Printf("Failed to close iptables locks")
+			log.Printf("Failed to close iptables locks")
 		}
 	}(l)
 
@@ -397,7 +396,7 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 
 	defer func(l *os.File) {
 		if err = l.Close(); err != nil {
-			fmt.Printf("Failed to close iptables locks")
+			log.Printf("Failed to close iptables locks")
 		}
 	}(l)
 
