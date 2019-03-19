@@ -24,9 +24,9 @@ import (
 )
 
 const (
-	hostNetAgentURLForNpm  = "http://168.63.129.16/machine/plugins?comp=netagent&type=npmreport"
-	contentType            = "application/json"
-	retryWaitTimeInSeconds = 60
+	hostNetAgentURLForNpm           = "http://168.63.129.16/machine/plugins?comp=netagent&type=npmreport"
+	contentType                     = "application/json"
+	telemetryRetryWaitTimeInSeconds = 60
 )
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
@@ -133,7 +133,7 @@ func connectToTelemetryServer(telemetryBuffer *telemetry.TelemetryBuffer) {
 			}
 
 			log.Printf("[NPM-Telemetry] Failed to establish telemetry manager connection.")
-			time.Sleep(time.Second * retryWaitTimeInSeconds)
+			time.Sleep(time.Second * telemetryRetryWaitTimeInSeconds)
 		}
 	}
 }
