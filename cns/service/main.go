@@ -9,8 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Azure/azure-container-networking/telemetry"
-
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -170,7 +168,7 @@ func main() {
 	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
 	stopcnm = acn.GetArg(acn.OptStopAzureVnet).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
-	reportToHostInterval := acn.GetArg(acn.OptReportToHostInterval).(int)
+	// reportToHostInterval := acn.GetArg(acn.OptReportToHostInterval).(int)
 
 	if vers {
 		printVersion()
@@ -233,10 +231,10 @@ func main() {
 
 	// Start CNS.
 	if httpRestService != nil {
-		go telemetry.SendCnsTelemetry(reportToHostInterval,
-			reports,
-			httpRestService.(*restserver.HTTPRestService),
-			telemetryStopProcessing)
+		// go telemetry.SendCnsTelemetry(reportToHostInterval,
+		// 	reports,
+		// 	httpRestService.(*restserver.HTTPRestService),
+		// 	telemetryStopProcessing)
 		err = httpRestService.Start(&config)
 		if err != nil {
 			log.Errorf("Failed to start CNS, err:%v.\n", err)
