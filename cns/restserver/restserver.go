@@ -1207,6 +1207,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		MultiTenancyInfo:           savedReq.MultiTenancyInfo,
 		PrimaryInterfaceIdentifier: savedReq.PrimaryInterfaceIdentifier,
 		LocalIPConfiguration:       savedReq.LocalIPConfiguration,
+		AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
 	}
 
 	return getNetworkContainerResponse
