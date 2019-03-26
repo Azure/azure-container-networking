@@ -72,8 +72,6 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		labelKeys = append(labelKeys, labelKey)
 	}
 
-	npMgr.clusterState.PodCount++
-
 	ns, err := newNs(podNs)
 	if err != nil {
 		log.Printf("Error creating namespace %s\n", podNs)
@@ -171,8 +169,6 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 			return err
 		}
 	}
-
-	npMgr.clusterState.PodCount--
 
 	return nil
 }

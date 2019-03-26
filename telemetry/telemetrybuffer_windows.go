@@ -12,8 +12,8 @@ import (
 
 const (
 	fdTemplate                  = "\\\\.\\pipe\\%s"
-	telemetryServiceProcessName = "azure-vnet-telemetry.exe"
-	cniInstallDir               = "c:\\k\\azurecni\\bin"
+	TelemetryServiceProcessName = "azure-vnet-telemetry.exe"
+	CniInstallDir               = "c:\\k\\azurecni\\bin"
 	metadataFile                = "azuremetadata.json"
 )
 
@@ -43,7 +43,7 @@ func (tb *TelemetryBuffer) Cleanup(name string) error {
 }
 
 // Check if telemetry unix domain socket exists
-func checkIfSockExists() bool {
+func SockExists() bool {
 	if _, err := os.Stat(fmt.Sprintf(fdTemplate, FdName)); !os.IsNotExist(err) {
 		return true
 	}

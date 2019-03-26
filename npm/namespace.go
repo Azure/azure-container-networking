@@ -40,10 +40,6 @@ func isSystemNs(nsObj *corev1.Namespace) bool {
 	return nsObj.ObjectMeta.Name == util.KubeSystemFlag
 }
 
-func getNsIpsetName(k, v string) string {
-	return "ns-" + k + ":" + v
-}
-
 // InitAllNsList syncs all-namespace ipset list.
 func (npMgr *NetworkPolicyManager) InitAllNsList() error {
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
@@ -110,7 +106,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	var labelKeys []string
 	nsLabels := nsObj.ObjectMeta.Labels
 	for nsLabelKey, nsLabelVal := range nsLabels {
-		labelKey := getNsIpsetName(nsLabelKey, nsLabelVal)
+		labelKey := util.GetNsIpsetName(nsLabelKey, nsLabelVal)
 		log.Printf("Adding namespace %s to ipset list %s\n", nsName, labelKey)
 		if err = ipsMgr.AddToList(labelKey, nsName); err != nil {
 			log.Printf("Error Adding namespace %s to ipset list %s\n", nsName, labelKey)
@@ -124,8 +120,6 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 		log.Printf("Error creating namespace %s\n", nsName)
 	}
 	npMgr.nsMap[nsName] = ns
-
-	npMgr.clusterState.NsCount++
 
 	return nil
 }
@@ -184,7 +178,7 @@ func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) erro
 	var labelKeys []string
 	nsLabels := nsObj.ObjectMeta.Labels
 	for nsLabelKey, nsLabelVal := range nsLabels {
-		labelKey := getNsIpsetName(nsLabelKey, nsLabelVal)
+		labelKey := util.GetNsIpsetName(nsLabelKey, nsLabelVal)
 		log.Printf("Deleting namespace %s from ipset list %s\n", nsName, labelKey)
 		if err = ipsMgr.DeleteFromList(labelKey, nsName); err != nil {
 			log.Printf("Error deleting namespace %s from ipset list %s\n", nsName, labelKey)
@@ -206,8 +200,6 @@ func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) erro
 	}
 
 	delete(npMgr.nsMap, nsName)
-
-	npMgr.clusterState.NsCount--
 
 	return nil
 }

@@ -216,7 +216,7 @@ func (logger *Logger) Debugf(format string, args ...interface{}) {
 // Errorf logs a formatted string at info level and sends the string to TelemetryBuffer.
 func (logger *Logger) Errorf(format string, args ...interface{}) {
 	logger.Printf(format, args...)
-	go func() {
-		logger.reports <- fmt.Sprintf(format, args...)
-	}()
+	// go func() {
+	// 	logger.reports <- fmt.Sprintf(format, args...)
+	// }()
 }

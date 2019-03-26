@@ -104,7 +104,7 @@ func GetInterfaceSubnetWithSpecificIp(ipAddr string) *net.IPNet {
 	return nil
 }
 
-func StartProcess(path string) error {
+func StartProcess(path string, args []string) error {
 	var attr = os.ProcAttr{
 		Env: os.Environ(),
 		Files: []*os.File{
@@ -114,8 +114,8 @@ func StartProcess(path string) error {
 		},
 	}
 
-	args := []string{path}
-	process, err := os.StartProcess(path, args, &attr)
+	processArgs := append([]string{path}, args...)
+	process, err := os.StartProcess(path, processArgs, &attr)
 	if err == nil {
 		// Release detaches the process
 		return process.Release()

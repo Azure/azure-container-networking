@@ -67,4 +67,8 @@ const (
 	// CNI binary location
 	OptCNIConfigFile      = "cni-config-file"
 	OptCNIConfigFileAlias = "cniconfig"
+
+	// Telemetry config Location
+	OptTelemetryConfigDir      = "telemetry-config-file"
+	OptTelemetryConfigDirAlias = "d"
 )

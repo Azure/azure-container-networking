@@ -28,9 +28,16 @@ type PortMapping struct {
 	Protocol      string `json:"protocol"`
 	HostIp        string `json:"hostIP,omitempty"`
 }
-
 type RuntimeConfig struct {
-	PortMappings []PortMapping `json:"portMappings,omitempty"`
+	PortMappings []PortMapping    `json:"portMappings,omitempty"`
+	DNS          RuntimeDNSConfig `json:"dns,omitempty"`
+}
+
+// https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/dockershim/network/cni/cni.go#L104
+type RuntimeDNSConfig struct {
+	Servers  []string `json:"servers,omitempty"`
+	Searches []string `json:"searches,omitempty"`
+	Options  []string `json:"options,omitempty"`
 }
 
 // NetworkConfig represents Azure CNI plugin network configuration.

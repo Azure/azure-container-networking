@@ -11,10 +11,16 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/platform"
+)
+
+const (
+	telemetryConfig = "azure-vnet-telemetry.config"
 )
 
 var reportManager *ReportManager
@@ -89,6 +95,12 @@ func TestMain(m *testing.M) {
 		return
 	}
 
+	if runtime.GOOS == "linux" {
+		platform.ExecuteCommand("cp metadata_test.json /tmp/azuremetadata.json")
+	} else {
+		platform.ExecuteCommand("copy metadata_test.json azuremetadata.json")
+	}
+
 	reportManager = &ReportManager{}
 	reportManager.HostNetAgentURL = "http://" + hostAgentUrl
 	reportManager.ContentType = "application/json"
@@ -105,6 +117,13 @@ func TestMain(m *testing.M) {
 	}
 
 	exitCode := m.Run()
+
+	if runtime.GOOS == "linux" {
+		platform.ExecuteCommand("rm /tmp/azuremetadata.json")
+	} else {
+		platform.ExecuteCommand("del azuremetadata.json")
+	}
+
 	tb.Cleanup(FdName)
 	os.Exit(exitCode)
 }
@@ -158,6 +177,14 @@ func TestSendTelemetry(t *testing.T) {
 	if err != nil {
 		t.Errorf("SendTelemetry failed due to %v", err)
 	}
+
+	i := 3
+	rpMgr := &ReportManager{}
+	rpMgr.Report = &i
+	err = rpMgr.SendReport(tb)
+	if err == nil {
+		t.Errorf("SendTelemetry not failed for incorrect report type")
+	}
 }
 
 func TestReceiveTelemetryData(t *testing.T) {
@@ -173,6 +200,99 @@ func TestCloseTelemetryConnection(t *testing.T) {
 	if len(tb.connections) != 0 {
 		t.Errorf("server didn't close connection")
 	}
+}
+
+func TestServerCloseTelemetryConnection(t *testing.T) {
+	// create server telemetrybuffer and start server
+	tb = NewTelemetryBuffer(hostAgentUrl)
+	err := tb.StartServer()
+	if err == nil {
+		go tb.BufferAndPushData(0)
+	}
+
+	// create client telemetrybuffer and connect to server
+	tb1 := NewTelemetryBuffer(hostAgentUrl)
+	if err := tb1.Connect(); err != nil {
+		t.Errorf("connection to telemetry server failed %v", err)
+	}
+
+	// Exit server thread and close server connection
+	tb.Cancel()
+	time.Sleep(300 * time.Millisecond)
+
+	b := []byte("tamil")
+	if _, err := tb1.Write(b); err == nil {
+		t.Errorf("Client couldn't recognise server close")
+	}
+
+	if len(tb.connections) != 0 {
+		t.Errorf("All connections not closed as expected")
+	}
+
+	// Close client connection
+	tb1.Close()
+}
+
+func TestClientCloseTelemetryConnection(t *testing.T) {
+	// create server telemetrybuffer and start server
+	tb = NewTelemetryBuffer(hostAgentUrl)
+	err := tb.StartServer()
+	if err == nil {
+		go tb.BufferAndPushData(0)
+	}
+
+	if !SockExists() {
+		t.Errorf("telemetry sock doesn't exist")
+	}
+
+	// create client telemetrybuffer and connect to server
+	tb1 := NewTelemetryBuffer(hostAgentUrl)
+	if err := tb1.Connect(); err != nil {
+		t.Errorf("connection to telemetry server failed %v", err)
+	}
+
+	// Close client connection
+	tb1.Close()
+	time.Sleep(300 * time.Millisecond)
+
+	if len(tb.connections) != 0 {
+		t.Errorf("All connections not closed as expected")
+	}
+
+	// Exit server thread and close server connection
+	tb.Cancel()
+}
+
+func TestReadConfigFile(t *testing.T) {
+	config, err := ReadConfigFile(telemetryConfig)
+	if err != nil {
+		t.Errorf("Read telemetry config failed with error %v", err)
+	}
+
+	if config.ReportToHostIntervalInSeconds != 30 {
+		t.Errorf("ReportToHostIntervalInSeconds not expected value. Got %d", config.ReportToHostIntervalInSeconds)
+	}
+
+	config, err = ReadConfigFile("a.config")
+	if err == nil {
+		t.Errorf("[Telemetry] Didn't throw not found error: %v", err)
+	}
+
+	config, err = ReadConfigFile("telemetry.go")
+	if err == nil {
+		t.Errorf("[Telemetry] Didn't report invalid telemetry config: %v", err)
+	}
+}
+
+func TestStartTelemetryService(t *testing.T) {
+	err := StartTelemetryService("", nil)
+	if err == nil {
+		t.Errorf("StartTelemetryService didnt return error for incorrect service name %v", err)
+	}
+}
+
+func TestWaitForTelemetrySocket(t *testing.T) {
+	WaitForTelemetrySocket(1, 10)
 }
 
 func TestSetReportState(t *testing.T) {

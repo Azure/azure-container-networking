@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	fdTemplate                  = "/tmp/%s.sock"
-	telemetryServiceProcessName = "azure-vnet-telemetry"
-	cniInstallDir               = "/opt/cni/bin"
+	fdTemplate                  = "/var/run/%s.sock"
+	TelemetryServiceProcessName = "azure-vnet-telemetry"
+	CniInstallDir               = "/opt/cni/bin"
 	metadataFile                = "/tmp/azuremetadata.json"
 )
 
@@ -41,7 +41,7 @@ func (tb *TelemetryBuffer) Cleanup(name string) error {
 	return os.Remove(fmt.Sprintf(fdTemplate, name))
 }
 
-func checkIfSockExists() bool {
+func SockExists() bool {
 	if _, err := os.Stat(fmt.Sprintf(fdTemplate, FdName)); !os.IsNotExist(err) {
 		return true
 	}

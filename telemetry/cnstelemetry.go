@@ -80,6 +80,7 @@ CONNECT:
 			if err == nil {
 				// If write fails, try to re-establish connections as server/client
 				if _, err = telemetryBuffer.Write(report); err != nil {
+					log.Printf("[CNS-Telemetry] Telemetry write failed: %v", err)
 					telemetryBuffer.Cancel()
 					goto CONNECT
 				}

@@ -11,12 +11,15 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
-// azureNpmPrefix defines prefix for ipset.
-const azureNpmPrefix string = "azure-npm-"
-
 type portsInfo struct {
 	protocol string
 	port     string
+}
+
+func appendAndClearSets(podNsRuleSets *[]string, nsRuleLists *[]string, policyRuleSets *[]string, policyRuleLists *[]string) {
+	*policyRuleSets = append(*policyRuleSets, *podNsRuleSets...)
+	*policyRuleLists = append(*policyRuleLists, *nsRuleLists...)
+	podNsRuleSets, nsRuleLists = nil, nil
 }
 
 func parseIngress(ns string, targetSets []string, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
@@ -25,55 +28,16 @@ func parseIngress(ns string, targetSets []string, rules []networkingv1.NetworkPo
 		fromRuleExists    = false
 		isAppliedToNs     = false
 		protPortPairSlice []*portsInfo
-		PodNsRuleSets     []string // pod sets listed in Ingress rules.
-		nsRuleLists       []string // namespace sets listed in Ingress rules
+		podNsRuleSets     []string // pod sets listed in one ingress rules.
+		nsRuleLists       []string // namespace sets listed in one ingress rule
+		policyRuleSets    []string // policy-wise pod sets
+		policyRuleLists   []string // policy-wise namespace sets
 		entries           []*iptm.IptEntry
-		ipblock           *networkingv1.IPBlock
 	)
 
 	if len(targetSets) == 0 {
 		targetSets = append(targetSets, ns)
 		isAppliedToNs = true
-	}
-
-	for _, rule := range rules {
-		for _, portRule := range rule.Ports {
-			protPortPairSlice = append(protPortPairSlice,
-				&portsInfo{
-					protocol: string(*portRule.Protocol),
-					port:     fmt.Sprint(portRule.Port.IntVal),
-				})
-
-			portRuleExists = true
-		}
-
-		for _, fromRule := range rule.From {
-			if fromRule.PodSelector != nil {
-				if len(fromRule.PodSelector.MatchLabels) == 0 {
-					PodNsRuleSets = append(PodNsRuleSets, ns)
-				}
-
-				for podLabelKey, podLabelVal := range fromRule.PodSelector.MatchLabels {
-					PodNsRuleSets = append(PodNsRuleSets, util.KubeAllNamespacesFlag+"-"+podLabelKey+":"+podLabelVal)
-				}
-			}
-
-			if fromRule.NamespaceSelector != nil {
-				if len(fromRule.NamespaceSelector.MatchLabels) == 0 {
-					nsRuleLists = append(nsRuleLists, util.KubeAllNamespacesFlag)
-				}
-
-				for nsLabelKey, nsLabelVal := range fromRule.NamespaceSelector.MatchLabels {
-					nsRuleLists = append(nsRuleLists, "ns-"+nsLabelKey+":"+nsLabelVal)
-				}
-			}
-
-			if fromRule.IPBlock != nil {
-				ipblock = fromRule.IPBlock
-			}
-
-			fromRuleExists = true
-		}
 	}
 
 	if isAppliedToNs {
@@ -121,177 +85,350 @@ func parseIngress(ns string, targetSets []string, rules []networkingv1.NetworkPo
 			continue
 		}
 
-		if !portRuleExists && !fromRuleExists {
-			allow := &iptm.IptEntry{
-				Name:       targetSet,
-				HashedName: hashedTargetSetName,
-				Chain:      util.IptablesAzureIngressPortChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAccept,
-				},
+		// allow kube-system
+		hashedKubeSystemSet := util.GetHashedName(util.KubeSystemFlag)
+		allowKubeSystemIngress := &iptm.IptEntry{
+			Name:       util.KubeSystemFlag,
+			HashedName: hashedKubeSystemSet,
+			Chain:      util.IptablesAzureIngressPortChain,
+			Specs: []string{
+				util.IptablesMatchFlag,
+				util.IptablesSetFlag,
+				util.IptablesMatchSetFlag,
+				hashedKubeSystemSet,
+				util.IptablesSrcFlag,
+				util.IptablesMatchFlag,
+				util.IptablesSetFlag,
+				util.IptablesMatchSetFlag,
+				hashedTargetSetName,
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+			},
+		}
+		entries = append(entries, allowKubeSystemIngress)
+
+		for _, rule := range rules {
+			for _, portRule := range rule.Ports {
+				protPortPairSlice = append(protPortPairSlice,
+					&portsInfo{
+						protocol: string(*portRule.Protocol),
+						port:     fmt.Sprint(portRule.Port.IntVal),
+					})
+
+				portRuleExists = true
 			}
-			entries = append(entries, allow)
-			continue
+
+			if rule.From != nil {
+				for _, fromRule := range rule.From {
+					if fromRule.PodSelector != nil {
+						fromRuleExists = true
+					}
+					if fromRule.NamespaceSelector != nil {
+						fromRuleExists = true
+					}
+					if fromRule.IPBlock != nil {
+						fromRuleExists = true
+					}
+				}
+			}
 		}
 
-		if !portRuleExists {
-			entry := &iptm.IptEntry{
-				Name:       targetSet,
-				HashedName: hashedTargetSetName,
-				Chain:      util.IptablesAzureIngressPortChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAzureIngressFromChain,
-				},
-			}
-			entries = append(entries, entry)
-		} else {
-			for _, protPortPair := range protPortPairSlice {
-				entry := &iptm.IptEntry{
+		for _, rule := range rules {
+			if !portRuleExists && !fromRuleExists {
+				allow := &iptm.IptEntry{
 					Name:       targetSet,
 					HashedName: hashedTargetSetName,
 					Chain:      util.IptablesAzureIngressPortChain,
 					Specs: []string{
-						util.IptablesProtFlag,
-						protPortPair.protocol,
-						util.IptablesDstPortFlag,
-						protPortPair.port,
 						util.IptablesMatchFlag,
 						util.IptablesSetFlag,
 						util.IptablesMatchSetFlag,
 						hashedTargetSetName,
 						util.IptablesDstFlag,
 						util.IptablesJumpFlag,
-						util.IptablesAzureIngressFromChain,
+						util.IptablesAccept,
+					},
+				}
+				entries = append(entries, allow)
+				continue
+			}
+
+			if !portRuleExists {
+				entry := &iptm.IptEntry{
+					Name:       targetSet,
+					HashedName: hashedTargetSetName,
+					Chain:      util.IptablesAzureIngressPortChain,
+					Specs: []string{
+						util.IptablesMatchFlag,
+						util.IptablesSetFlag,
+						util.IptablesMatchSetFlag,
+						hashedTargetSetName,
+						util.IptablesDstFlag,
+						util.IptablesJumpFlag,
+						util.IptablesAzureIngressFromNsChain,
 					},
 				}
 				entries = append(entries, entry)
-			}
-		}
-
-		if !fromRuleExists {
-			entry := &iptm.IptEntry{
-				Name:       targetSet,
-				HashedName: hashedTargetSetName,
-				Chain:      util.IptablesAzureIngressFromChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAccept,
-				},
-			}
-			entries = append(entries, entry)
-			continue
-		}
-
-		if ipblock != nil {
-			// Handle ipblock field of NetworkPolicyPeer
-			if len(ipblock.Except) > 0 {
-				for _, except := range ipblock.Except {
+			} else {
+				for _, protPortPair := range protPortPairSlice {
 					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureIngressFromChain,
+						Name:       targetSet,
+						HashedName: hashedTargetSetName,
+						Chain:      util.IptablesAzureIngressPortChain,
 						Specs: []string{
+							util.IptablesProtFlag,
+							protPortPair.protocol,
+							util.IptablesDstPortFlag,
+							protPortPair.port,
 							util.IptablesMatchFlag,
 							util.IptablesSetFlag,
 							util.IptablesMatchSetFlag,
 							hashedTargetSetName,
 							util.IptablesDstFlag,
-							util.IptablesSFlag,
-							except,
 							util.IptablesJumpFlag,
-							util.IptablesDrop,
+							util.IptablesAzureIngressFromNsChain,
 						},
 					}
 					entries = append(entries, entry)
 				}
 			}
 
-			if len(ipblock.CIDR) > 0 {
-				cidrEntry := &iptm.IptEntry{
-					Chain: util.IptablesAzureIngressFromChain,
+			if !fromRuleExists {
+				entry := &iptm.IptEntry{
+					Name:       targetSet,
+					HashedName: hashedTargetSetName,
+					Chain:      util.IptablesAzureIngressFromNsChain,
 					Specs: []string{
 						util.IptablesMatchFlag,
 						util.IptablesSetFlag,
 						util.IptablesMatchSetFlag,
 						hashedTargetSetName,
 						util.IptablesDstFlag,
-						util.IptablesSFlag,
-						ipblock.CIDR,
 						util.IptablesJumpFlag,
 						util.IptablesAccept,
 					},
 				}
-				entries = append(entries, cidrEntry)
+				entries = append(entries, entry)
+				continue
 			}
-		}
 
-		// Handle PodSelector field of NetworkPolicyPeer.
-		for _, podRuleSet := range PodNsRuleSets {
-			hashedRuleSetName := util.GetHashedName(podRuleSet)
-			entry := &iptm.IptEntry{
-				Name:       podRuleSet,
-				HashedName: hashedRuleSetName,
-				Chain:      util.IptablesAzureIngressFromChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedRuleSetName,
-					util.IptablesSrcFlag,
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAccept,
-				},
-			}
-			entries = append(entries, entry)
-		}
+			for _, fromRule := range rule.From {
+				// Handle IPBlock field of NetworkPolicyPeer
+				if fromRule.IPBlock != nil {
+					if len(fromRule.IPBlock.CIDR) > 0 {
+						cidrEntry := &iptm.IptEntry{
+							Chain: util.IptablesAzureIngressFromNsChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesDstFlag,
+								util.IptablesSFlag,
+								fromRule.IPBlock.CIDR,
+								util.IptablesJumpFlag,
+								util.IptablesAccept,
+							},
+						}
+						entries = append(entries, cidrEntry)
+					}
 
-		// Handle NamespaceSelector field of NetworkPolicyPeer
-		for _, nsRuleSet := range nsRuleLists {
-			hashedRuleSetName := util.GetHashedName(nsRuleSet)
-			entry := &iptm.IptEntry{
-				Name:       nsRuleSet,
-				HashedName: hashedRuleSetName,
-				Chain:      util.IptablesAzureIngressFromChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedRuleSetName,
-					util.IptablesSrcFlag,
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAccept,
-				},
+					if len(fromRule.IPBlock.Except) > 0 {
+						for _, except := range fromRule.IPBlock.Except {
+							entry := &iptm.IptEntry{
+								Chain: util.IptablesAzureIngressFromNsChain,
+								Specs: []string{
+									util.IptablesMatchFlag,
+									util.IptablesSetFlag,
+									util.IptablesMatchSetFlag,
+									hashedTargetSetName,
+									util.IptablesDstFlag,
+									util.IptablesSFlag,
+									except,
+									util.IptablesJumpFlag,
+									util.IptablesDrop,
+								},
+							}
+							entries = append(entries, entry)
+						}
+					}
+				}
+
+				if fromRule.PodSelector == nil && fromRule.NamespaceSelector == nil {
+					continue
+				}
+
+				// Allow traffic from namespaceSelector
+				if fromRule.PodSelector == nil && fromRule.NamespaceSelector != nil {
+					// allow traffic from all namespaces
+					if len(fromRule.NamespaceSelector.MatchLabels) == 0 {
+						nsRuleLists = append(nsRuleLists, util.KubeAllNamespacesFlag)
+					}
+
+					for nsLabelKey, nsLabelVal := range fromRule.NamespaceSelector.MatchLabels {
+						nsRuleLists = append(nsRuleLists, util.GetNsIpsetName(nsLabelKey, nsLabelVal))
+					}
+
+					for _, nsRuleSet := range nsRuleLists {
+						hashedNsRuleSetName := util.GetHashedName(nsRuleSet)
+						entry := &iptm.IptEntry{
+							Name:       nsRuleSet,
+							HashedName: hashedNsRuleSetName,
+							Chain:      util.IptablesAzureIngressFromNsChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedNsRuleSetName,
+								util.IptablesSrcFlag,
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAccept,
+							},
+						}
+						entries = append(entries, entry)
+					}
+					appendAndClearSets(&podNsRuleSets, &nsRuleLists, &policyRuleSets, &policyRuleLists)
+					continue
+				}
+
+				// Allow traffic from podSelector
+				if fromRule.PodSelector != nil && fromRule.NamespaceSelector == nil {
+					// allow traffic from the same namespace
+					if len(fromRule.PodSelector.MatchLabels) == 0 {
+						podNsRuleSets = append(podNsRuleSets, ns)
+					}
+
+					for podLabelKey, podLabelVal := range fromRule.PodSelector.MatchLabels {
+						podNsRuleSets = append(podNsRuleSets, util.KubeAllNamespacesFlag+"-"+podLabelKey+":"+podLabelVal)
+					}
+
+					// Handle PodSelector field of NetworkPolicyPeer.
+					for _, podRuleSet := range podNsRuleSets {
+						hashedPodRuleSetName := util.GetHashedName(podRuleSet)
+						nsEntry := &iptm.IptEntry{
+							Name:       podRuleSet,
+							HashedName: hashedPodRuleSetName,
+							Chain:      util.IptablesAzureIngressFromNsChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAzureIngressFromPodChain,
+							},
+						}
+						entries = append(entries, nsEntry)
+
+						podEntry := &iptm.IptEntry{
+							Name:       podRuleSet,
+							HashedName: hashedPodRuleSetName,
+							Chain:      util.IptablesAzureIngressFromPodChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedPodRuleSetName,
+								util.IptablesSrcFlag,
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAccept,
+							},
+						}
+						entries = append(entries, podEntry)
+					}
+					appendAndClearSets(&podNsRuleSets, &nsRuleLists, &policyRuleSets, &policyRuleLists)
+					continue
+				}
+
+				// Allow traffic from podSelector intersects namespaceSelector
+				// This is only supported in kubernetes version >= 1.11
+				if util.IsNewNwPolicyVerFlag {
+					// allow traffic from all namespaces
+					if len(fromRule.NamespaceSelector.MatchLabels) == 0 {
+						nsRuleLists = append(nsRuleLists, util.KubeAllNamespacesFlag)
+					}
+
+					for nsLabelKey, nsLabelVal := range fromRule.NamespaceSelector.MatchLabels {
+						nsRuleLists = append(nsRuleLists, util.GetNsIpsetName(nsLabelKey, nsLabelVal))
+					}
+
+					for _, nsRuleSet := range nsRuleLists {
+						hashedNsRuleSetName := util.GetHashedName(nsRuleSet)
+						entry := &iptm.IptEntry{
+							Name:       nsRuleSet,
+							HashedName: hashedNsRuleSetName,
+							Chain:      util.IptablesAzureIngressFromNsChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedNsRuleSetName,
+								util.IptablesSrcFlag,
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAzureIngressFromPodChain,
+							},
+						}
+						entries = append(entries, entry)
+					}
+
+					// allow traffic from the same namespace
+					if len(fromRule.PodSelector.MatchLabels) == 0 {
+						podNsRuleSets = append(podNsRuleSets, ns)
+					}
+
+					for podLabelKey, podLabelVal := range fromRule.PodSelector.MatchLabels {
+						podNsRuleSets = append(podNsRuleSets, util.KubeAllNamespacesFlag+"-"+podLabelKey+":"+podLabelVal)
+					}
+
+					// Handle PodSelector field of NetworkPolicyPeer.
+					for _, podRuleSet := range podNsRuleSets {
+						hashedPodRuleSetName := util.GetHashedName(podRuleSet)
+						entry := &iptm.IptEntry{
+							Name:       podRuleSet,
+							HashedName: hashedPodRuleSetName,
+							Chain:      util.IptablesAzureIngressFromPodChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedPodRuleSetName,
+								util.IptablesSrcFlag,
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAccept,
+							},
+						}
+						entries = append(entries, entry)
+					}
+					appendAndClearSets(&podNsRuleSets, &nsRuleLists, &policyRuleSets, &policyRuleLists)
+				}
 			}
-			entries = append(entries, entry)
 		}
 	}
 
-	return PodNsRuleSets, nsRuleLists, entries
+	log.Printf("finished parsing ingress rule")
+	return policyRuleSets, policyRuleLists, entries
 }
 
 func parseEgress(ns string, targetSets []string, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry) {
@@ -300,55 +437,16 @@ func parseEgress(ns string, targetSets []string, rules []networkingv1.NetworkPol
 		toRuleExists      = false
 		isAppliedToNs     = false
 		protPortPairSlice []*portsInfo
-		PodNsRuleSets     []string // pod sets listed in Egress rules.
-		nsRuleLists       []string // namespace sets listed in Egress rules
+		podNsRuleSets     []string // pod sets listed in one ingress rules.
+		nsRuleLists       []string // namespace sets listed in one ingress rule
+		policyRuleSets    []string // policy-wise pod sets
+		policyRuleLists   []string // policy-wise namespace sets
 		entries           []*iptm.IptEntry
-		ipblock           *networkingv1.IPBlock
 	)
 
 	if len(targetSets) == 0 {
 		targetSets = append(targetSets, ns)
 		isAppliedToNs = true
-	}
-
-	for _, rule := range rules {
-		for _, portRule := range rule.Ports {
-			protPortPairSlice = append(protPortPairSlice,
-				&portsInfo{
-					protocol: string(*portRule.Protocol),
-					port:     fmt.Sprint(portRule.Port.IntVal),
-				})
-
-			portRuleExists = true
-		}
-
-		for _, toRule := range rule.To {
-			if toRule.PodSelector != nil {
-				if len(toRule.PodSelector.MatchLabels) == 0 {
-					PodNsRuleSets = append(PodNsRuleSets, ns)
-				}
-
-				for podLabelKey, podLabelVal := range toRule.PodSelector.MatchLabels {
-					PodNsRuleSets = append(PodNsRuleSets, util.KubeAllNamespacesFlag+"-"+podLabelKey+":"+podLabelVal)
-				}
-			}
-
-			if toRule.NamespaceSelector != nil {
-				if len(toRule.NamespaceSelector.MatchLabels) == 0 {
-					nsRuleLists = append(nsRuleLists, util.KubeAllNamespacesFlag)
-				}
-
-				for nsLabelKey, nsLabelVal := range toRule.NamespaceSelector.MatchLabels {
-					nsRuleLists = append(nsRuleLists, "ns-"+nsLabelKey+":"+nsLabelVal)
-				}
-			}
-
-			if toRule.IPBlock != nil {
-				ipblock = toRule.IPBlock
-			}
-
-			toRuleExists = true
-		}
 	}
 
 	if isAppliedToNs {
@@ -363,7 +461,7 @@ func parseEgress(ns string, targetSets []string, rules []networkingv1.NetworkPol
 				util.IptablesSetFlag,
 				util.IptablesMatchSetFlag,
 				hashedTargetSetName,
-				util.IptablesSrcFlag,
+				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesDrop,
 			},
@@ -373,6 +471,8 @@ func parseEgress(ns string, targetSets []string, rules []networkingv1.NetworkPol
 
 	// Use hashed string for ipset name to avoid string length limit of ipset.
 	for _, targetSet := range targetSets {
+		log.Printf("Parsing iptables for label %s", targetSet)
+
 		hashedTargetSetName := util.GetHashedName(targetSet)
 
 		if len(rules) == 0 {
@@ -394,177 +494,351 @@ func parseEgress(ns string, targetSets []string, rules []networkingv1.NetworkPol
 			continue
 		}
 
-		if !portRuleExists && !toRuleExists {
-			allow := &iptm.IptEntry{
-				Name:       targetSet,
-				HashedName: hashedTargetSetName,
-				Chain:      util.IptablesAzureEgressPortChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesSrcFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAccept,
-				},
+		// allow kube-system
+		hashedKubeSystemSet := util.GetHashedName(util.KubeSystemFlag)
+		allowKubeSystemEgress := &iptm.IptEntry{
+			Name:       util.KubeSystemFlag,
+			HashedName: hashedKubeSystemSet,
+			Chain:      util.IptablesAzureEgressPortChain,
+			Specs: []string{
+				util.IptablesMatchFlag,
+				util.IptablesSetFlag,
+				util.IptablesMatchSetFlag,
+				hashedTargetSetName,
+				util.IptablesSrcFlag,
+				util.IptablesMatchFlag,
+				util.IptablesSetFlag,
+				util.IptablesMatchSetFlag,
+				hashedKubeSystemSet,
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+			},
+		}
+		entries = append(entries, allowKubeSystemEgress)
+
+		for _, rule := range rules {
+			for _, portRule := range rule.Ports {
+				protPortPairSlice = append(protPortPairSlice,
+					&portsInfo{
+						protocol: string(*portRule.Protocol),
+						port:     fmt.Sprint(portRule.Port.IntVal),
+					})
+
+				portRuleExists = true
 			}
-			entries = append(entries, allow)
-			continue
+
+			if rule.To != nil {
+				for _, toRule := range rule.To {
+					if toRule.PodSelector != nil {
+						toRuleExists = true
+					}
+					if toRule.NamespaceSelector != nil {
+						toRuleExists = true
+					}
+					if toRule.IPBlock != nil {
+						toRuleExists = true
+					}
+				}
+			}
 		}
 
-		if !portRuleExists {
-			entry := &iptm.IptEntry{
-				Name:       targetSet,
-				HashedName: hashedTargetSetName,
-				Chain:      util.IptablesAzureEgressPortChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAzureEgressToChain,
-				},
-			}
-			entries = append(entries, entry)
-		} else {
-			for _, protPortPair := range protPortPairSlice {
-				entry := &iptm.IptEntry{
+		for _, rule := range rules {
+			if !portRuleExists && !toRuleExists {
+				allow := &iptm.IptEntry{
 					Name:       targetSet,
 					HashedName: hashedTargetSetName,
 					Chain:      util.IptablesAzureEgressPortChain,
 					Specs: []string{
-						util.IptablesProtFlag,
-						protPortPair.protocol,
-						util.IptablesDstPortFlag,
-						protPortPair.port,
 						util.IptablesMatchFlag,
 						util.IptablesSetFlag,
 						util.IptablesMatchSetFlag,
 						hashedTargetSetName,
 						util.IptablesSrcFlag,
 						util.IptablesJumpFlag,
-						util.IptablesAzureEgressToChain,
+						util.IptablesAccept,
+					},
+				}
+				entries = append(entries, allow)
+				continue
+			}
+
+			if !portRuleExists {
+				entry := &iptm.IptEntry{
+					Name:       targetSet,
+					HashedName: hashedTargetSetName,
+					Chain:      util.IptablesAzureEgressPortChain,
+					Specs: []string{
+						util.IptablesMatchFlag,
+						util.IptablesSetFlag,
+						util.IptablesMatchSetFlag,
+						hashedTargetSetName,
+						util.IptablesSrcFlag,
+						util.IptablesJumpFlag,
+						util.IptablesAzureEgressToNsChain,
 					},
 				}
 				entries = append(entries, entry)
-			}
-		}
-
-		if !toRuleExists {
-			entry := &iptm.IptEntry{
-				Name:       targetSet,
-				HashedName: hashedTargetSetName,
-				Chain:      util.IptablesAzureEgressToChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAccept,
-				},
-			}
-			entries = append(entries, entry)
-			continue
-		}
-
-		if ipblock != nil {
-			// Handle ipblock field of NetworkPolicyPeer
-			if len(ipblock.Except) > 0 {
-				for _, except := range ipblock.Except {
+			} else {
+				for _, protPortPair := range protPortPairSlice {
 					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureEgressToChain,
+						Name:       targetSet,
+						HashedName: hashedTargetSetName,
+						Chain:      util.IptablesAzureEgressPortChain,
 						Specs: []string{
+							util.IptablesProtFlag,
+							protPortPair.protocol,
+							util.IptablesDstPortFlag,
+							protPortPair.port,
 							util.IptablesMatchFlag,
 							util.IptablesSetFlag,
 							util.IptablesMatchSetFlag,
 							hashedTargetSetName,
 							util.IptablesSrcFlag,
-							util.IptablesDFlag,
-							except,
 							util.IptablesJumpFlag,
-							util.IptablesDrop,
+							util.IptablesAzureEgressToNsChain,
 						},
 					}
 					entries = append(entries, entry)
 				}
 			}
 
-			if len(ipblock.CIDR) > 0 {
-				cidrEntry := &iptm.IptEntry{
-					Chain: util.IptablesAzureEgressToChain,
+			if !toRuleExists {
+				entry := &iptm.IptEntry{
+					Name:       targetSet,
+					HashedName: hashedTargetSetName,
+					Chain:      util.IptablesAzureEgressToNsChain,
 					Specs: []string{
 						util.IptablesMatchFlag,
 						util.IptablesSetFlag,
 						util.IptablesMatchSetFlag,
 						hashedTargetSetName,
 						util.IptablesSrcFlag,
-						util.IptablesDFlag,
-						ipblock.CIDR,
 						util.IptablesJumpFlag,
 						util.IptablesAccept,
 					},
 				}
-				entries = append(entries, cidrEntry)
+				entries = append(entries, entry)
+				continue
 			}
-		}
 
-		// Handle PodSelector field of NetworkPolicyPeer.
-		for _, podRuleSet := range PodNsRuleSets {
-			hashedRuleSetName := util.GetHashedName(podRuleSet)
-			entry := &iptm.IptEntry{
-				Name:       podRuleSet,
-				HashedName: hashedRuleSetName,
-				Chain:      util.IptablesAzureEgressToChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesSrcFlag,
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedRuleSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAccept,
-				},
-			}
-			entries = append(entries, entry)
-		}
+			for _, toRule := range rule.To {
+				// Handle IPBlock field of NetworkPolicyPeer
+				if toRule.IPBlock != nil {
+					if len(toRule.IPBlock.CIDR) > 0 {
+						cidrEntry := &iptm.IptEntry{
+							Chain: util.IptablesAzureEgressToNsChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesSrcFlag,
+								util.IptablesDFlag,
+								toRule.IPBlock.CIDR,
+								util.IptablesJumpFlag,
+								util.IptablesAccept,
+							},
+						}
+						entries = append(entries, cidrEntry)
+					}
 
-		// Handle NamespaceSelector field of NetworkPolicyPeer
-		for _, nsRuleSet := range nsRuleLists {
-			hashedRuleSetName := util.GetHashedName(nsRuleSet)
-			entry := &iptm.IptEntry{
-				Name:       nsRuleSet,
-				HashedName: hashedRuleSetName,
-				Chain:      util.IptablesAzureEgressToChain,
-				Specs: []string{
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedTargetSetName,
-					util.IptablesSrcFlag,
-					util.IptablesMatchFlag,
-					util.IptablesSetFlag,
-					util.IptablesMatchSetFlag,
-					hashedRuleSetName,
-					util.IptablesDstFlag,
-					util.IptablesJumpFlag,
-					util.IptablesAccept,
-				},
+					if len(toRule.IPBlock.Except) > 0 {
+						for _, except := range toRule.IPBlock.Except {
+							entry := &iptm.IptEntry{
+								Chain: util.IptablesAzureEgressToNsChain,
+								Specs: []string{
+									util.IptablesMatchFlag,
+									util.IptablesSetFlag,
+									util.IptablesMatchSetFlag,
+									hashedTargetSetName,
+									util.IptablesSrcFlag,
+									util.IptablesDFlag,
+									except,
+									util.IptablesJumpFlag,
+									util.IptablesDrop,
+								},
+							}
+							entries = append(entries, entry)
+						}
+					}
+				}
+
+				if toRule.PodSelector == nil && toRule.NamespaceSelector == nil {
+					continue
+				}
+
+				// Allow traffic from namespaceSelector
+				if toRule.PodSelector == nil && toRule.NamespaceSelector != nil {
+					// allow traffic from all namespaces
+					if len(toRule.NamespaceSelector.MatchLabels) == 0 {
+						nsRuleLists = append(nsRuleLists, util.KubeAllNamespacesFlag)
+					}
+
+					for nsLabelKey, nsLabelVal := range toRule.NamespaceSelector.MatchLabels {
+						nsRuleLists = append(nsRuleLists, util.GetNsIpsetName(nsLabelKey, nsLabelVal))
+					}
+
+					for _, nsRuleSet := range nsRuleLists {
+						hashedNsRuleSetName := util.GetHashedName(nsRuleSet)
+						entry := &iptm.IptEntry{
+							Name:       nsRuleSet,
+							HashedName: hashedNsRuleSetName,
+							Chain:      util.IptablesAzureEgressToNsChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesSrcFlag,
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedNsRuleSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAccept,
+							},
+						}
+						entries = append(entries, entry)
+					}
+					appendAndClearSets(&podNsRuleSets, &nsRuleLists, &policyRuleSets, &policyRuleLists)
+					continue
+				}
+
+				// Allow traffic from podSelector
+				if toRule.PodSelector != nil && toRule.NamespaceSelector == nil {
+					// allow traffic from the same namespace
+					if len(toRule.PodSelector.MatchLabels) == 0 {
+						podNsRuleSets = append(podNsRuleSets, ns)
+					}
+
+					for podLabelKey, podLabelVal := range toRule.PodSelector.MatchLabels {
+						podNsRuleSets = append(podNsRuleSets, util.KubeAllNamespacesFlag+"-"+podLabelKey+":"+podLabelVal)
+					}
+
+					// Handle PodSelector field of NetworkPolicyPeer.
+					for _, podRuleSet := range podNsRuleSets {
+						hashedPodRuleSetName := util.GetHashedName(podRuleSet)
+						nsEntry := &iptm.IptEntry{
+							Name:       podRuleSet,
+							HashedName: hashedPodRuleSetName,
+							Chain:      util.IptablesAzureEgressToNsChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesSrcFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAzureEgressToPodChain,
+							},
+						}
+						entries = append(entries, nsEntry)
+
+						podEntry := &iptm.IptEntry{
+							Name:       podRuleSet,
+							HashedName: hashedPodRuleSetName,
+							Chain:      util.IptablesAzureEgressToPodChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesSrcFlag,
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedPodRuleSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAccept,
+							},
+						}
+						entries = append(entries, podEntry)
+					}
+					appendAndClearSets(&podNsRuleSets, &nsRuleLists, &policyRuleSets, &policyRuleLists)
+					continue
+				}
+
+				// Allow traffic from podSelector intersects namespaceSelector
+				// This is only supported in kubernetes version >= 1.11
+				if util.IsNewNwPolicyVerFlag {
+					log.Printf("Kubernetes version > 1.11, parsing podSelector AND namespaceSelector")
+					// allow traffic from all namespaces
+					if len(toRule.NamespaceSelector.MatchLabels) == 0 {
+						nsRuleLists = append(nsRuleLists, util.KubeAllNamespacesFlag)
+					}
+
+					for nsLabelKey, nsLabelVal := range toRule.NamespaceSelector.MatchLabels {
+						nsRuleLists = append(nsRuleLists, util.GetNsIpsetName(nsLabelKey, nsLabelVal))
+					}
+
+					for _, nsRuleSet := range nsRuleLists {
+						hashedNsRuleSetName := util.GetHashedName(nsRuleSet)
+						entry := &iptm.IptEntry{
+							Name:       nsRuleSet,
+							HashedName: hashedNsRuleSetName,
+							Chain:      util.IptablesAzureEgressToNsChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesSrcFlag,
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedNsRuleSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAzureEgressToPodChain,
+							},
+						}
+						entries = append(entries, entry)
+					}
+
+					// allow traffic from the same namespace
+					if len(toRule.PodSelector.MatchLabels) == 0 {
+						podNsRuleSets = append(podNsRuleSets, ns)
+					}
+
+					for podLabelKey, podLabelVal := range toRule.PodSelector.MatchLabels {
+						podNsRuleSets = append(podNsRuleSets, util.KubeAllNamespacesFlag+"-"+podLabelKey+":"+podLabelVal)
+					}
+
+					// Handle PodSelector field of NetworkPolicyPeer.
+					for _, podRuleSet := range podNsRuleSets {
+						hashedPodRuleSetName := util.GetHashedName(podRuleSet)
+						entry := &iptm.IptEntry{
+							Name:       podRuleSet,
+							HashedName: hashedPodRuleSetName,
+							Chain:      util.IptablesAzureEgressToPodChain,
+							Specs: []string{
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedTargetSetName,
+								util.IptablesSrcFlag,
+								util.IptablesMatchFlag,
+								util.IptablesSetFlag,
+								util.IptablesMatchSetFlag,
+								hashedPodRuleSetName,
+								util.IptablesDstFlag,
+								util.IptablesJumpFlag,
+								util.IptablesAccept,
+							},
+						}
+						entries = append(entries, entry)
+					}
+					appendAndClearSets(&podNsRuleSets, &nsRuleLists, &policyRuleSets, &policyRuleLists)
+				}
 			}
-			entries = append(entries, entry)
 		}
 	}
 
-	return PodNsRuleSets, nsRuleLists, entries
+	log.Printf("finished parsing ingress rule")
+	return policyRuleSets, policyRuleLists, entries
 }
 
 // Drop all non-whitelisted packets.
@@ -609,6 +883,63 @@ func getDefaultDropEntries(targetSets []string) []*iptm.IptEntry {
 	return entries
 }
 
+// Allow traffic from/to kube-system pods
+func getAllowKubeSystemEntries(ns string, targetSets []string) []*iptm.IptEntry {
+	var entries []*iptm.IptEntry
+
+	if len(targetSets) == 0 {
+		targetSets = append(targetSets, ns)
+	}
+
+	for _, targetSet := range targetSets {
+		hashedTargetSetName := util.GetHashedName(targetSet)
+		hashedKubeSystemSet := util.GetHashedName(util.KubeSystemFlag)
+		allowKubeSystemIngress := &iptm.IptEntry{
+			Name:       util.KubeSystemFlag,
+			HashedName: hashedKubeSystemSet,
+			Chain:      util.IptablesAzureIngressPortChain,
+			Specs: []string{
+				util.IptablesMatchFlag,
+				util.IptablesSetFlag,
+				util.IptablesMatchSetFlag,
+				hashedKubeSystemSet,
+				util.IptablesSrcFlag,
+				util.IptablesMatchFlag,
+				util.IptablesSetFlag,
+				util.IptablesMatchSetFlag,
+				hashedTargetSetName,
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+			},
+		}
+		entries = append(entries, allowKubeSystemIngress)
+
+		allowKubeSystemEgress := &iptm.IptEntry{
+			Name:       util.KubeSystemFlag,
+			HashedName: hashedKubeSystemSet,
+			Chain:      util.IptablesAzureEgressPortChain,
+			Specs: []string{
+				util.IptablesMatchFlag,
+				util.IptablesSetFlag,
+				util.IptablesMatchSetFlag,
+				hashedTargetSetName,
+				util.IptablesSrcFlag,
+				util.IptablesMatchFlag,
+				util.IptablesSetFlag,
+				util.IptablesMatchSetFlag,
+				hashedKubeSystemSet,
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+			},
+		}
+		entries = append(entries, allowKubeSystemEgress)
+	}
+
+	return entries
+}
+
 // ParsePolicy parses network policy.
 func parsePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*iptm.IptEntry) {
 	var (
@@ -623,6 +954,10 @@ func parsePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*iptm
 	for podLabelKey, podLabelVal := range selector {
 		affectedSet := util.KubeAllNamespacesFlag + "-" + podLabelKey + ":" + podLabelVal
 		affectedSets = append(affectedSets, affectedSet)
+	}
+
+	if len(npObj.Spec.Ingress) > 0 || len(npObj.Spec.Egress) > 0 {
+		entries = append(entries, getAllowKubeSystemEntries(npNs, affectedSets)...)
 	}
 
 	if len(npObj.Spec.PolicyTypes) == 0 {

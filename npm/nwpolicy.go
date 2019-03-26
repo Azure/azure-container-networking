@@ -72,8 +72,6 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	allNs.npMap[npName] = npObj
 
-	npMgr.clusterState.NwPolicyCount++
-
 	ns, err := newNs(npNs)
 	if err != nil {
 		log.Printf("Error creating namespace %s\n", npNs)
@@ -140,8 +138,6 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	}
 
 	delete(allNs.npMap, npName)
-
-	npMgr.clusterState.NwPolicyCount--
 
 	if len(allNs.npMap) == 0 {
 		if err = iptMgr.UninitNpmChains(); err != nil {

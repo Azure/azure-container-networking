@@ -63,6 +63,8 @@ func main() {
 		panic(err.Error)
 	}
 
+	// Disable Azure-NPM telemetry for now since it might throttle wireserver.
+	npMgr.TelemetryEnabled = false
 	go npMgr.RunReportManager()
 
 	select {}

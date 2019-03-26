@@ -1,12 +1,22 @@
+/*
+
+Part of this file is modified from iptables package from Kuberenetes.
+https://github.com/kubernetes/kubernetes/blob/master/pkg/util/iptables
+
+*/
 package iptm
 
 import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 // IptEntry represents an iptables rule.
@@ -66,7 +76,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	entry.Specs = []string{
 		util.IptablesMatchFlag,
 		util.IptablesStateFlag,
-		util.IPtablesMatchStateFlag,
+		util.IptablesMatchStateFlag,
 		util.IptablesRelatedState + "," + util.IptablesEstablishedState,
 		util.IptablesJumpFlag,
 		util.IptablesAccept,
@@ -84,50 +94,6 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		}
 	}
 
-	// Add default allow kube-system rules to AZURE-NPM chain.
-	entry.Specs = []string{
-		util.IptablesMatchFlag,
-		util.IptablesSetFlag,
-		util.IptablesMatchSetFlag,
-		util.GetHashedName(util.KubeSystemFlag),
-		util.IptablesDstFlag,
-		util.IptablesJumpFlag,
-		util.IptablesAccept,
-	}
-	exists, err = iptMgr.Exists(entry)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		iptMgr.OperationFlag = util.IptablesAppendFlag
-		if _, err := iptMgr.Run(entry); err != nil {
-			log.Printf("Error adding default allow kube-system rule to AZURE-NPM chain\n")
-			return err
-		}
-	}
-
-	entry.Specs = []string{
-		util.IptablesMatchFlag,
-		util.IptablesSetFlag,
-		util.IptablesMatchSetFlag,
-		util.GetHashedName(util.KubeSystemFlag),
-		util.IptablesSrcFlag,
-		util.IptablesJumpFlag,
-		util.IptablesAccept,
-	}
-	exists, err = iptMgr.Exists(entry)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		iptMgr.OperationFlag = util.IptablesAppendFlag
-		if _, err := iptMgr.Run(entry); err != nil {
-			log.Printf("Error adding default allow kube-system rule to AZURE-NPM chain\n")
-			return err
-		}
-	}
 	// Create AZURE-NPM-INGRESS-PORT chain.
 	if err := iptMgr.AddChain(util.IptablesAzureIngressPortChain); err != nil {
 		return err
@@ -149,8 +115,13 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		}
 	}
 
-	// Create AZURE-NPM-INGRESS-FROM chain.
-	if err := iptMgr.AddChain(util.IptablesAzureIngressFromChain); err != nil {
+	// Create AZURE-NPM-INGRESS-FROM-NS chain.
+	if err = iptMgr.AddChain(util.IptablesAzureIngressFromNsChain); err != nil {
+		return err
+	}
+
+	// Create AZURE-NPM-INGRESS-FROM-POD chain.
+	if err = iptMgr.AddChain(util.IptablesAzureIngressFromPodChain); err != nil {
 		return err
 	}
 
@@ -175,8 +146,13 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		}
 	}
 
-	// Create AZURE-NPM-EGRESS-FROM chain.
-	if err := iptMgr.AddChain(util.IptablesAzureEgressToChain); err != nil {
+	// Create AZURE-NPM-EGRESS-TO-NS chain.
+	if err = iptMgr.AddChain(util.IptablesAzureEgressToNsChain); err != nil {
+		return err
+	}
+
+	// Create AZURE-NPM-EGRESS-TO-POD chain.
+	if err = iptMgr.AddChain(util.IptablesAzureEgressToPodChain); err != nil {
 		return err
 	}
 
@@ -209,9 +185,11 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 	IptablesAzureChainList := []string{
 		util.IptablesAzureChain,
 		util.IptablesAzureIngressPortChain,
-		util.IptablesAzureIngressFromChain,
+		util.IptablesAzureIngressFromNsChain,
+		util.IptablesAzureIngressFromPodChain,
 		util.IptablesAzureEgressPortChain,
-		util.IptablesAzureEgressToChain,
+		util.IptablesAzureEgressToNsChain,
+		util.IptablesAzureEgressToPodChain,
 		util.IptablesAzureTargetSetsChain,
 	}
 
@@ -352,7 +330,7 @@ func (iptMgr *IptablesManager) Delete(entry *IptEntry) error {
 // Run execute an iptables command to update iptables.
 func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
 	cmdName := util.Iptables
-	cmdArgs := append([]string{iptMgr.OperationFlag, entry.Chain}, entry.Specs...)
+	cmdArgs := append([]string{util.IptablesWaitFlag, iptMgr.OperationFlag, entry.Chain}, entry.Specs...)
 
 	cmdOut, err := exec.Command(cmdName, cmdArgs...).Output()
 	log.Printf("%s\n", string(cmdOut))
@@ -375,6 +353,17 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
+	l, err := grabIptablesLocks()
+	if err != nil {
+		return err
+	}
+
+	defer func(l *os.File) {
+		if err = l.Close(); err != nil {
+			log.Printf("Failed to close iptables locks")
+		}
+	}(l)
+
 	// create the config file for writing
 	f, err := os.Create(configFile)
 	if err != nil {
@@ -386,7 +375,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 	cmd := exec.Command(util.IptablesSave)
 	cmd.Stdout = f
 	if err := cmd.Start(); err != nil {
-		log.Printf("Error running iptables-save.\n")
+		log.Printf("Error running iptables-save.")
 		return err
 	}
 	cmd.Wait()
@@ -399,6 +388,17 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 	if len(configFile) == 0 {
 		configFile = util.IptablesConfigFile
 	}
+
+	l, err := grabIptablesLocks()
+	if err != nil {
+		return err
+	}
+
+	defer func(l *os.File) {
+		if err = l.Close(); err != nil {
+			log.Printf("Failed to close iptables locks")
+		}
+	}(l)
 
 	// open the config file for reading
 	f, err := os.Open(configFile)
@@ -417,4 +417,42 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 	cmd.Wait()
 
 	return nil
+}
+
+// grabs iptables v1.6 xtable lock
+func grabIptablesLocks() (*os.File, error) {
+	var success bool
+
+	l := &os.File{}
+	defer func(l *os.File) {
+		// Clean up immediately on failure
+		if !success {
+			l.Close()
+		}
+	}(l)
+
+	// Grab 1.6.x style lock.
+	l, err := os.OpenFile(util.IptablesLockFile, os.O_CREATE, 0600)
+	if err != nil {
+		log.Printf("failed to open iptables lock")
+		return nil, err
+	}
+
+	if err := wait.PollImmediate(200*time.Millisecond, 2*time.Second, func() (bool, error) {
+		if err := grabIptablesFileLock(l); err != nil {
+			return false, nil
+		}
+
+		return true, nil
+	}); err != nil {
+		log.Printf("failed to acquire new iptables lock: %v", err)
+		return nil, err
+	}
+
+	success = true
+	return l, nil
+}
+
+func grabIptablesFileLock(f *os.File) error {
+	return unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 }
