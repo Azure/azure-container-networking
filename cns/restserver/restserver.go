@@ -1469,6 +1469,5 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 func (service *HTTPRestService) getNetPluginConfiguration() *networkcontainers.NetPluginConfiguration {
 	pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
 	configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-	cnsURL, _ := service.GetOption(acn.OptCnsURL).(string)
-	return networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath, cnsURL)
+	return networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
 }

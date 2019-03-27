@@ -200,7 +200,7 @@ func configureNetworkContainerNetworking(operation, podName, podNamespace, docke
 			{k8sPodNameStr, podName}}}
 	log.Printf("[Azure CNS] run time conf info %+v", cniRtConf)
 
-	netConfig, err := getNetworkConfig(netPluginConfig.networkConfigPath, netPluginConfig.cnsUrl, true)
+	netConfig, err := getNetworkConfig(netPluginConfig.networkConfigPath)
 	if err != nil {
 		log.Printf("[Azure CNS] Failed to build network configuration with error %v", err)
 		return err

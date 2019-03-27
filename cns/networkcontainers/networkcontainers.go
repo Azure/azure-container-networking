@@ -13,7 +13,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
@@ -23,17 +22,15 @@ import (
 )
 
 const (
-	versionStr                    = "cniVersion"
-	pluginsStr                    = "plugins"
-	nameStr                       = "name"
-	cnsURLStr                     = "cnsurl"
-	enableExactMatchForPodNameStr = "enableExactMatchForPodName"
-	k8sPodNamespaceStr            = "K8S_POD_NAMESPACE"
-	k8sPodNameStr                 = "K8S_POD_NAME"
-	k8sPodInfraContainerStr       = "K8S_POD_INFRA_CONTAINER_ID"
-	cniAdd                        = "ADD"
-	cniDelete                     = "DEL"
-	cniUpdate                     = "UPDATE"
+	versionStr              = "cniVersion"
+	pluginsStr              = "plugins"
+	nameStr                 = "name"
+	k8sPodNamespaceStr      = "K8S_POD_NAMESPACE"
+	k8sPodNameStr           = "K8S_POD_NAME"
+	k8sPodInfraContainerStr = "K8S_POD_INFRA_CONTAINER_ID"
+	cniAdd                  = "ADD"
+	cniDelete               = "DEL"
+	cniUpdate               = "UPDATE"
 )
 
 // NetworkContainers can be used to perform operations on network containers.
@@ -45,15 +42,13 @@ type NetworkContainers struct {
 type NetPluginConfiguration struct {
 	path              string
 	networkConfigPath string
-	cnsUrl            string
 }
 
 // NewNetPluginConfiguration create a new netplugin configuration.
-func NewNetPluginConfiguration(binPath string, configPath string, cnsURLParam string) *NetPluginConfiguration {
+func NewNetPluginConfiguration(binPath, configPath string) *NetPluginConfiguration {
 	return &NetPluginConfiguration{
 		path:              binPath,
 		networkConfigPath: configPath,
-		cnsUrl:            cnsURLParam,
 	}
 }
 
@@ -99,7 +94,7 @@ func (cn *NetworkContainers) Delete(networkContainerID string) error {
 }
 
 // This function gets the flattened network configuration (compliant with azure cni) in byte array format
-func getNetworkConfig(configFilePath, cnsURL string, enableExactMatchForPodName bool) ([]byte, error) {
+func getNetworkConfig(configFilePath string) ([]byte, error) {
 	content, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		return nil, err
@@ -126,12 +121,6 @@ func getNetworkConfig(configFilePath, cnsURL string, enableExactMatchForPodName 
 	// insert version and name fields
 	flatNetConfigMap[versionStr] = configMap[versionStr].(string)
 	flatNetConfigMap[nameStr] = configMap[nameStr].(string)
-
-	// insert CNS URL
-	flatNetConfigMap[cnsURLStr] = strings.Replace(cnsURL, "tcp://", "http://", -1)
-
-	// enable exact match for pod name
-	flatNetConfigMap[enableExactMatchForPodNameStr] = enableExactMatchForPodName
 
 	// convert into bytes format
 	netConfig, err := json.Marshal(flatNetConfigMap)
