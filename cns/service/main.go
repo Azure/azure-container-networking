@@ -142,6 +142,13 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: platform.K8SNetConfigPath + string(os.PathSeparator) + defaultCNINetworkConfigFileName,
 	},
+	{
+		Name:         acn.OptCreateExtNetworkType,
+		Shorthand:    acn.OptCreateExtNetworkTypeAlias,
+		Description:  "Create ext hns network for windows platform with the specified type",
+		Type:         "string",
+		DefaultValue: "",
+	},
 }
 
 // Prints description and version information.
@@ -169,6 +176,7 @@ func main() {
 	stopcnm = acn.GetArg(acn.OptStopAzureVnet).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 	// reportToHostInterval := acn.GetArg(acn.OptReportToHostInterval).(int)
+	createExtNetworkType := acn.GetArg(acn.OptCreateExtNetworkType).(string)
 
 	if vers {
 		printVersion()
@@ -228,6 +236,7 @@ func main() {
 	httpRestService.SetOption(acn.OptCnsURL, cnsURL)
 	httpRestService.SetOption(acn.OptCNIPath, cniPath)
 	httpRestService.SetOption(acn.OptCNIConfigFile, cniConfigFile)
+	httpRestService.SetOption(acn.OptCreateExtNetworkType, createExtNetworkType)
 
 	// Start CNS.
 	if httpRestService != nil {
