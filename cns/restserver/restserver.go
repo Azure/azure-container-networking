@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
-	"github.com/Microsoft/hcsshim"
 )
 
 const (
@@ -184,66 +182,8 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 
 // CreateExtHnsNetwork creates ext HNS network if not present.
 func (service *HTTPRestService) CreateExtHnsNetwork() error {
-	// Ext Hns network is valid for windows only
-	if !strings.EqualFold(platform.GetOSInfo(), "windows") {
-		return nil
-	}
-
-	// Check if the CNS option for createExtNetworkType is set
 	createExtNetworkType, _ := service.GetOption(acn.OptCreateExtNetworkType).(string)
-
-	if len(strings.TrimSpace(createExtNetworkType)) == 0 {
-		return nil
-	}
-
-	if !strings.EqualFold(createExtNetworkType, "l2bridge") &&
-		!strings.EqualFold(createExtNetworkType, "l2tunnel") {
-		return fmt.Errorf("Invalid ext hns network type %s", createExtNetworkType)
-	}
-
-	log.Printf("[Azure CNS] CreateExtHnsNetwork")
-	extHnsNetwork, err := hcsshim.GetHNSNetworkByName("ext")
-
-	if extHnsNetwork != nil {
-		log.Printf("[Azure CNS] Found existing ext hns network with type: %s", extHnsNetwork.Type)
-		if !strings.EqualFold(createExtNetworkType, extHnsNetwork.Type) {
-			return fmt.Errorf("Network type mismatch with existing network: %s", extHnsNetwork.Type)
-		}
-
-		return nil
-	}
-
-	// create new hns network
-	log.Printf("[Azure CNS] Creating ext hns network with type %s", createExtNetworkType)
-
-	hnsNetwork := &hcsshim.HNSNetwork{
-		Name: "ext",
-		Type: createExtNetworkType,
-	}
-
-	hnsSubnet := hcsshim.Subnet{
-		AddressPrefix:  "192.168.255.0/30",
-		GatewayAddress: "192.168.255.1",
-	}
-
-	hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)
-
-	// Marshal the request.
-	buffer, err := json.Marshal(hnsNetwork)
-	if err != nil {
-		return err
-	}
-	hnsRequest := string(buffer)
-
-	// Create the HNS network.
-	log.Printf("[Azure CNS] HNSNetworkRequest POST request:%+v", hnsRequest)
-	hnsResponse, err := hcsshim.HNSNetworkRequest("POST", "", hnsRequest)
-	log.Printf("[Azure CNS] HNSNetworkRequest POST response:%+v err:%v.", hnsResponse, err)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return platform.CreateExtHnsNetwork(createExtNetworkType)
 }
 
 // Stop stops the CNS.

@@ -105,3 +105,9 @@ func KillProcessByName(processName string) error {
 	_, err := ExecuteCommand(cmd)
 	return err
 }
+
+// CreateExtHnsNetwork creates ext HNS network if not present
+func CreateExtHnsNetwork(createExtNetworkType string) error {
+	// This feature is windows specific
+	return nil
+}
