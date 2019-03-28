@@ -133,7 +133,7 @@ func CreateExtHnsNetwork(createExtNetworkType string) error {
 	}
 
 	log.Printf("[Azure CNS] CreateExtHnsNetwork")
-	extHnsNetwork, err := hcsshim.GetHNSNetworkByName("ext")
+	extHnsNetwork, _ := hcsshim.GetHNSNetworkByName("ext")
 
 	if extHnsNetwork != nil {
 		log.Printf("[Azure CNS] Found existing ext hns network with type: %s", extHnsNetwork.Type)
@@ -170,9 +170,6 @@ func CreateExtHnsNetwork(createExtNetworkType string) error {
 	log.Printf("[Azure CNS] HNSNetworkRequest POST request:%+v", hnsRequest)
 	hnsResponse, err := hcsshim.HNSNetworkRequest("POST", "", hnsRequest)
 	log.Printf("[Azure CNS] HNSNetworkRequest POST response:%+v err:%v.", hnsResponse, err)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
