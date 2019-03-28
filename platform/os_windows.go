@@ -36,6 +36,15 @@ const (
 
 	// DNCRuntimePath is the path where DNC state files are stored.
 	DNCRuntimePath = ""
+
+	// Name of the external hns network
+	ExtHnsNetworkName = "ext"
+
+	// Address prefix for external hns network
+	ExtHnsNetworkAddressPrefix = "192.168.255.0/30"
+
+	// Gateway address for external hns network
+	ExtHnsNetworkGwAddress = "192.168.255.1"
 )
 
 // GetOSInfo returns OS version information.
@@ -133,7 +142,7 @@ func CreateExtHnsNetwork(createExtNetworkType string) error {
 	}
 
 	log.Printf("[Azure CNS] CreateExtHnsNetwork")
-	extHnsNetwork, _ := hcsshim.GetHNSNetworkByName("ext")
+	extHnsNetwork, _ := hcsshim.GetHNSNetworkByName(ExtHnsNetworkName)
 
 	if extHnsNetwork != nil {
 		log.Printf("[Azure CNS] Found existing ext hns network with type: %s", extHnsNetwork.Type)
@@ -148,13 +157,13 @@ func CreateExtHnsNetwork(createExtNetworkType string) error {
 	log.Printf("[Azure CNS] Creating ext hns network with type %s", createExtNetworkType)
 
 	hnsNetwork := &hcsshim.HNSNetwork{
-		Name: "ext",
+		Name: ExtHnsNetworkName,
 		Type: createExtNetworkType,
 	}
 
 	hnsSubnet := hcsshim.Subnet{
-		AddressPrefix:  "192.168.255.0/30",
-		GatewayAddress: "192.168.255.1",
+		AddressPrefix:  ExtHnsNetworkAddressPrefix,
+		GatewayAddress: ExtHnsNetworkGwAddress,
 	}
 
 	hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)

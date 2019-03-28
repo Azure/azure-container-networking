@@ -171,6 +171,9 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 
+	// Create ext network on windows platform if speficied through the cns commandline options.
+	// This allows orchestrators to start CNS which pre-provisions the network so that the
+	// VM network blip / disconnect is avoided when calling cni add for the very first time.
 	if err := service.CreateExtHnsNetwork(); err != nil {
 		log.Printf("[Azure CNS] Failed to create ext network. Error: %v", err)
 		return err
