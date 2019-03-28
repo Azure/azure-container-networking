@@ -11,6 +11,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -463,4 +465,37 @@ func ReadConfigFile(filePath string) (TelemetryConfig, error) {
 	}
 
 	return config, err
+}
+
+// ConnectToTelemetryService - Attempt to spawn telemetry process if it's not already running.
+func (tb *TelemetryBuffer) ConnectToTelemetryService() {
+	var path string
+	var args []string
+
+	path = fmt.Sprintf("%v/%v", CniInstallDir, TelemetryServiceProcessName)
+	if exists, _ := common.CheckIfFileExists(path); !exists {
+		ex, _ := os.Executable()
+		exDir := filepath.Dir(ex)
+		path = fmt.Sprintf("%v/%v", exDir, TelemetryServiceProcessName)
+		if exists, _ = common.CheckIfFileExists(path); !exists {
+			log.Printf("Skip starting telemetry service as file didn't exist")
+			return
+		}
+		args = []string{"-d", exDir}
+	} else {
+		args = []string{"-d", CniInstallDir}
+	}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := tb.Connect(); err != nil {
+			log.Printf("Connection to telemetry socket failed: %v", err)
+			tb.Cleanup(FdName)
+			StartTelemetryService(path, args)
+			WaitForTelemetrySocket(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
+		} else {
+			tb.Connected = true
+			log.Printf("Connected to telemetry service")
+			return
+		}
+	}
 }

@@ -26,17 +26,10 @@ const (
 func SendCnsTelemetry(interval int, reports chan interface{}, service *restserver.HTTPRestService, telemetryStopProcessing chan bool) {
 
 CONNECT:
-	telemetryBuffer := NewTelemetryBuffer("")
-	err := telemetryBuffer.StartServer()
-	if err == nil || telemetryBuffer.FdExists {
-		if err := telemetryBuffer.Connect(); err != nil {
-			log.Printf("[CNS-Telemetry] Failed to establish telemetry manager connection.")
-			time.Sleep(time.Second * retryWaitTimeInSeconds)
-			goto CONNECT
-		}
-
-		go telemetryBuffer.BufferAndPushData(time.Duration(0))
-
+	tb := NewTelemetryBuffer("")
+	tb.ConnectToTelemetryService()
+	if tb.Connected {
+		go tb.BufferAndPushData(time.Duration(0))
 		heartbeat := time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
 		reportMgr := ReportManager{
 			ContentType: ContentType,
@@ -63,7 +56,7 @@ CONNECT:
 
 				reflect.ValueOf(reportMgr.Report).Elem().FieldByName("EventMessage").SetString(msg.(string))
 			case <-telemetryStopProcessing:
-				telemetryBuffer.Cancel()
+				tb.Cancel()
 				return
 			}
 
@@ -79,16 +72,12 @@ CONNECT:
 			report, err := reportMgr.ReportToBytes()
 			if err == nil {
 				// If write fails, try to re-establish connections as server/client
-				if _, err = telemetryBuffer.Write(report); err != nil {
+				if _, err = tb.Write(report); err != nil {
 					log.Printf("[CNS-Telemetry] Telemetry write failed: %v", err)
-					telemetryBuffer.Cancel()
+					tb.Cancel()
 					goto CONNECT
 				}
 			}
 		}
-	} else {
-		log.Printf("[CNS-Telemetry] Failed to start telemetry manager server.")
-		time.Sleep(time.Second * retryWaitTimeInSeconds)
-		goto CONNECT
 	}
 }

@@ -22,11 +22,9 @@ import (
 )
 
 const (
-	hostNetAgentURL                 = "http://168.63.129.16/machine/plugins?comp=netagent&type=cnireport"
-	ipamQueryURL                    = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
-	pluginName                      = "CNI"
-	telemetryNumRetries             = 5
-	telemetryWaitTimeInMilliseconds = 200
+	hostNetAgentURL = "http://168.63.129.16/machine/plugins?comp=netagent&type=cnireport"
+	ipamQueryURL    = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
+	pluginName      = "CNI"
 )
 
 // Version is populated by make during build.
@@ -135,30 +133,6 @@ func handleIfCniUpdate(update func(*skel.CmdArgs) error) (bool, error) {
 	return isupdate, nil
 }
 
-func connectToTelemetryService(tb *telemetry.TelemetryBuffer) {
-	path := fmt.Sprintf("%v/%v", telemetry.CniInstallDir, telemetry.TelemetryServiceProcessName)
-	args := []string{"-d", telemetry.CniInstallDir}
-
-	for attempt := 0; attempt < 2; attempt++ {
-		if err := tb.Connect(); err != nil {
-			log.Printf("Connection to telemetry socket failed: %v", err)
-			tb.Cleanup(telemetry.FdName)
-
-			if isExists, _ := common.CheckIfFileExists(path); !isExists {
-				log.Printf("Skip starting telemetry service as file didn't exist")
-				return
-			}
-
-			telemetry.StartTelemetryService(path, args)
-			telemetry.WaitForTelemetrySocket(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
-		} else {
-			tb.Connected = true
-			log.Printf("Connected to telemetry service")
-			return
-		}
-	}
-}
-
 // Main is the entry point for CNI network plugin.
 func main() {
 
@@ -196,7 +170,7 @@ func main() {
 	}
 
 	tb := telemetry.NewTelemetryBuffer("")
-	connectToTelemetryService(tb)
+	tb.ConnectToTelemetryService()
 	defer tb.Close()
 
 	t := time.Now()
