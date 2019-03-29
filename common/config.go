@@ -71,4 +71,8 @@ const (
 	// Telemetry config Location
 	OptTelemetryConfigDir      = "telemetry-config-file"
 	OptTelemetryConfigDirAlias = "d"
+
+	// Disable Telemetry
+	OptTelemetry      = "telemetry"
+	OptTelemetryAlias = "dt"
 )

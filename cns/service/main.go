@@ -143,6 +143,13 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: platform.K8SNetConfigPath + string(os.PathSeparator) + defaultCNINetworkConfigFileName,
 	},
+	{
+		Name:         acn.OptTelemetry,
+		Shorthand:    acn.OptTelemetryAlias,
+		Description:  "Set to false to disable telemetry",
+		Type:         "bool",
+		DefaultValue: true,
+	},
 }
 
 // Prints description and version information.
@@ -198,7 +205,8 @@ func main() {
 		return
 	}
 
-	if logger := log.GetStd(); logger != nil {
+	// Set-up channel for CNS telemetry if it's enabled (enabled by default)
+	if logger := log.GetStd(); logger != nil && acn.GetArg(acn.OptTelemetry).(bool) {
 		logger.SetChannel(reports)
 	}
 
