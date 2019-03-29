@@ -73,6 +73,6 @@ const (
 	OptTelemetryConfigDirAlias = "d"
 
 	// Create ext Hns network
-	OptCreateExtNetworkType      = "create-extnetwork-type"
-	OptCreateExtNetworkTypeAlias = "extnetworktype"
+	OptCreateExtSwitchNetworkType      = "create-extswitchnetwork-type"
+	OptCreateExtSwitchNetworkTypeAlias = "extswitchnetworktype"
 )

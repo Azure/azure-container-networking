@@ -106,8 +106,7 @@ func KillProcessByName(processName string) error {
 	return err
 }
 
-// CreateExtHnsNetwork creates ext HNS network if not present
-func CreateExtHnsNetwork(createExtNetworkType string) error {
-	// This feature is windows specific
+// Perform platform specific initialization
+func Init(createExtSwitchNetworkType string) error {
 	return nil
 }
