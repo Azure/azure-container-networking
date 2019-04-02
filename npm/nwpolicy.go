@@ -13,7 +13,10 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	npMgr.Lock()
 	defer npMgr.Unlock()
 
-	var err error
+	var (
+		err error
+		ns  *namespace
+	)
 
 	defer func() {
 		if err = npMgr.UpdateAndSendReport(err, util.AddNetworkPolicyEvent); err != nil {
@@ -23,6 +26,15 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY CREATING: %s/%s\n", npNs, npName)
+
+	var exists bool
+	if ns, exists = npMgr.nsMap[npNs]; !exists {
+		ns, err = newNs(npNs)
+		if err != nil {
+			log.Printf("Error creating namespace %s\n", npNs)
+		}
+		npMgr.nsMap[npNs] = ns
+	}
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
@@ -40,43 +52,62 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		npMgr.isAzureNpmChainCreated = true
 	}
 
-	podSets, nsLists, iptEntries := parsePolicy(npObj)
+	labels, newPolicies := splitPolicy(npObj)
+	var (
+		mergedPolicy   *networkingv1.NetworkPolicy
+		oldPolicies    []*networkingv1.NetworkPolicy
+		mergedPolicies []*networkingv1.NetworkPolicy
+	)
+	for i := range newPolicies {
+		label, newPolicy := labels[i], newPolicies[i]
+		if oldPolicy, exists := ns.npMap[label]; exists {
+			mergedPolicy, err = mergePolicy(oldPolicy, newPolicy)
+			oldPolicies = append(oldPolicies, oldPolicy)
+			mergedPolicies = append(mergedPolicies, mergedPolicy)
+			continue
+		}
+		mergedPolicies = append(mergedPolicies, newPolicy)
+	}
 
-	ipsMgr := allNs.ipsMgr
-	for _, set := range podSets {
-		if err = ipsMgr.CreateSet(set); err != nil {
-			log.Printf("Error creating ipset %s-%s\n", npNs, set)
+	npMgr.Unlock()
+	for _, oldPolicy := range oldPolicies {
+		npMgr.DeleteNetworkPolicy(oldPolicy)
+	}
+	npMgr.Lock()
+
+	for _, mergedPolicy = range mergedPolicies {
+
+		podSets, nsLists, iptEntries := parsePolicy(npObj)
+
+		ipsMgr := allNs.ipsMgr
+		for _, set := range podSets {
+			if err = ipsMgr.CreateSet(set); err != nil {
+				log.Printf("Error creating ipset %s-%s\n", npNs, set)
+				return err
+			}
+		}
+
+		for _, list := range nsLists {
+			if err = ipsMgr.CreateList(list); err != nil {
+				log.Printf("Error creating ipset list %s-%s\n", npNs, list)
+				return err
+			}
+		}
+
+		if err = npMgr.InitAllNsList(); err != nil {
+			log.Printf("Error initializing all-namespace ipset list.\n")
 			return err
 		}
-	}
 
-	for _, list := range nsLists {
-		if err = ipsMgr.CreateList(list); err != nil {
-			log.Printf("Error creating ipset list %s-%s\n", npNs, list)
-			return err
+		iptMgr := allNs.iptMgr
+		for _, iptEntry := range iptEntries {
+			if err = iptMgr.Add(iptEntry); err != nil {
+				log.Printf("Error applying iptables rule\n. Rule: %+v", iptEntry)
+				return err
+			}
 		}
-	}
 
-	if err = npMgr.InitAllNsList(); err != nil {
-		log.Printf("Error initializing all-namespace ipset list.\n")
-		return err
 	}
-
-	iptMgr := allNs.iptMgr
-	for _, iptEntry := range iptEntries {
-		if err = iptMgr.Add(iptEntry); err != nil {
-			log.Printf("Error applying iptables rule\n. Rule: %+v", iptEntry)
-			return err
-		}
-	}
-
-	allNs.npMap[npName] = npObj
-
-	ns, err := newNs(npNs)
-	if err != nil {
-		log.Printf("Error creating namespace %s\n", npNs)
-	}
-	npMgr.nsMap[npNs] = ns
 
 	return nil
 }
