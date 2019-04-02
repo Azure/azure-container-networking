@@ -38,7 +38,7 @@ type NetworkContainers struct {
 	logpath string
 }
 
-// NetPluginConfiguration represent network plugin configuration that is used during Update operation
+// NetPluginConfiguration represent network plugin configuration that is used during CNI ADD/DELETE/UPDATE operation
 type NetPluginConfiguration struct {
 	path              string
 	networkConfigPath string
@@ -143,6 +143,7 @@ func args(action, path string, rt *libcni.RuntimeConf) *invoke.Args {
 	}
 }
 
+// pluginErr - Check for command.Run() error and if that is nil, then we check for plugin error
 func pluginErr(err error, output []byte) error {
 	if err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
@@ -184,17 +185,17 @@ func execPlugin(rt *libcni.RuntimeConf, netconf []byte, operation, path string) 
 }
 
 // Attach - attaches network container to network.
-func (cn *NetworkContainers) Attach(podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
+func (cn *NetworkContainers) Attach(podInfo cns.KubernetesPodInfo, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
 	log.Printf("[Azure CNS] NetworkContainers.Attach called")
-	err := configureNetworkContainerNetworking(cniAdd, podName, podNamespace, dockerContainerid, netPluginConfig)
+	err := configureNetworkContainerNetworking(cniAdd, podInfo.PodName, podInfo.PodNamespace, dockerContainerid, netPluginConfig)
 	log.Printf("[Azure CNS] NetworkContainers.Attach finished")
 	return err
 }
 
 // Detach - attaches network container to network.
-func (cn *NetworkContainers) Detach(podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
+func (cn *NetworkContainers) Detach(podInfo cns.KubernetesPodInfo, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
 	log.Printf("[Azure CNS] NetworkContainers.Detach called")
-	err := configureNetworkContainerNetworking(cniDelete, podName, podNamespace, dockerContainerid, netPluginConfig)
+	err := configureNetworkContainerNetworking(cniDelete, podInfo.PodName, podInfo.PodNamespace, dockerContainerid, netPluginConfig)
 	log.Printf("[Azure CNS] NetworkContainers.Detach finished")
 	return err
 }

@@ -971,7 +971,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
 			if ok && existing.VMVersion != req.Version {
 				nc := service.networkContainer
-				netPluginConfig := service.getNetPluginConfiguration()
+				netPluginConfig := service.getCNIPluginDetails()
 				if err = nc.Update(req, netPluginConfig); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
 					returnCode = UnexpectedError
@@ -1370,8 +1370,8 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 						returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
 					} else {
 						nc := service.networkContainer
-						netPluginConfig := service.getNetPluginConfiguration()
-						if err = nc.Attach(podInfo.PodName, podInfo.PodNamespace, req.Containerid, netPluginConfig); err != nil {
+						netPluginConfig := service.getCNIPluginDetails()
+						if err = nc.Attach(podInfo, req.Containerid, netPluginConfig); err != nil {
 							returnMessage = fmt.Sprintf("[Azure CNS] Error. AttachContainerToNetwork failed %+v", err.Error())
 							returnCode = UnexpectedError
 						}
@@ -1438,8 +1438,8 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 						returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
 					} else {
 						nc := service.networkContainer
-						netPluginConfig := service.getNetPluginConfiguration()
-						if err = nc.Detach(podInfo.PodName, podInfo.PodNamespace, req.Containerid, netPluginConfig); err != nil {
+						netPluginConfig := service.getCNIPluginDetails()
+						if err = nc.Detach(podInfo, req.Containerid, netPluginConfig); err != nil {
 							returnMessage = fmt.Sprintf("[Azure CNS] Error. detachNetworkContainerFromNetwork failed %+v", err.Error())
 							returnCode = UnexpectedError
 						}
@@ -1466,7 +1466,7 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 	log.Response(service.Name, detachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
-func (service *HTTPRestService) getNetPluginConfiguration() *networkcontainers.NetPluginConfiguration {
+func (service *HTTPRestService) getCNIPluginDetails() *networkcontainers.NetPluginConfiguration {
 	pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
 	configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
 	return networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
