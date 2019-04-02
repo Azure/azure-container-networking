@@ -16,20 +16,21 @@ import (
 
 const (
 	// CNSTelemetryFile - telemetry file path.
-	CNSTelemetryFile           = platform.CNSRuntimePath + "AzureCNSTelemetry.json"
-	errorcodePrefix            = 5
-	heartbeatIntervalInMinutes = 30
-	retryWaitTimeInSeconds     = 60
+	CNSTelemetryFile                = platform.CNSRuntimePath + "AzureCNSTelemetry.json"
+	errorcodePrefix                 = 5
+	heartbeatIntervalInMinutes      = 30
+	retryWaitTimeInSeconds          = 60
+	telemetryNumRetries             = 5
+	telemetryWaitTimeInMilliseconds = 200
 )
 
 // SendCnsTelemetry - handles cns telemetry reports
-func SendCnsTelemetry(interval int, reports chan interface{}, service *restserver.HTTPRestService, telemetryStopProcessing chan bool) {
+func SendCnsTelemetry(reports chan interface{}, service *restserver.HTTPRestService, telemetryStopProcessing chan bool) {
 
 CONNECT:
 	tb := NewTelemetryBuffer("")
-	tb.ConnectToTelemetryService()
+	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	if tb.Connected {
-		go tb.BufferAndPushData(time.Duration(0))
 		heartbeat := time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
 		reportMgr := ReportManager{
 			ContentType: ContentType,
@@ -56,7 +57,7 @@ CONNECT:
 
 				reflect.ValueOf(reportMgr.Report).Elem().FieldByName("EventMessage").SetString(msg.(string))
 			case <-telemetryStopProcessing:
-				tb.Cancel()
+				tb.Close()
 				return
 			}
 
@@ -74,7 +75,7 @@ CONNECT:
 				// If write fails, try to re-establish connections as server/client
 				if _, err = tb.Write(report); err != nil {
 					log.Printf("[CNS-Telemetry] Telemetry write failed: %v", err)
-					tb.Cancel()
+					tb.Close()
 					goto CONNECT
 				}
 			}

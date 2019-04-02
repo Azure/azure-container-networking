@@ -123,13 +123,6 @@ var args = acn.ArgumentList{
 		DefaultValue: false,
 	},
 	{
-		Name:         acn.OptReportToHostInterval,
-		Shorthand:    acn.OptReportToHostIntervalAlias,
-		Description:  "Set interval in ms to report to host",
-		Type:         "int",
-		DefaultValue: "60000",
-	},
-	{
 		Name:         acn.OptCNIPath,
 		Shorthand:    acn.OptCNIPathAlias,
 		Description:  "Set CNI binary absolute path to parent (of azure-vnet and azure-vnet-ipam)",
@@ -176,7 +169,7 @@ func main() {
 	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
 	stopcnm = acn.GetArg(acn.OptStopAzureVnet).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
-	reportToHostInterval := acn.GetArg(acn.OptReportToHostInterval).(int)
+	telemetryEnabled := acn.GetArg(acn.OptTelemetry).(bool)
 
 	if vers {
 		printVersion()
@@ -206,7 +199,7 @@ func main() {
 	}
 
 	// Set-up channel for CNS telemetry if it's enabled (enabled by default)
-	if logger := log.GetStd(); logger != nil && acn.GetArg(acn.OptTelemetry).(bool) {
+	if logger := log.GetStd(); logger != nil && telemetryEnabled {
 		logger.SetChannel(reports)
 	}
 
@@ -240,10 +233,13 @@ func main() {
 
 	// Start CNS.
 	if httpRestService != nil {
-		go telemetry.SendCnsTelemetry(reportToHostInterval,
-			reports,
-			httpRestService.(*restserver.HTTPRestService),
-			telemetryStopProcessing)
+		if telemetryEnabled {
+			go telemetry.SendCnsTelemetry(
+				reports,
+				httpRestService.(*restserver.HTTPRestService),
+				telemetryStopProcessing)
+		}
+
 		err = httpRestService.Start(&config)
 		if err != nil {
 			log.Errorf("Failed to start CNS, err:%v.\n", err)

@@ -27,10 +27,8 @@ const (
 	// CNITelemetryFile Path.
 	CNITelemetryFile = platform.CNIRuntimePath + "AzureCNITelemetry.json"
 	// ContentType of JSON
-	ContentType                     = "application/json"
-	metadataURL                     = "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json"
-	telemetryNumRetries             = 5
-	telemetryWaitTimeInMilliseconds = 200
+	ContentType = "application/json"
+	metadataURL = "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json"
 )
 
 // OS Details structure.
