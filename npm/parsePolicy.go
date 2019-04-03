@@ -14,7 +14,7 @@ func splitPolicy(npObj *networkingv1.NetworkPolicy) ([]string, []*networkingv1.N
 	for i := range keys {
 		policy := *npObj
 		policy.Spec.PodSelector.MatchExpressions = []metav1.LabelSelectorRequirement{}
-		policy.Spec.PodSelector.MatchLabels[keys[i]] = vals[i]
+		policy.Spec.PodSelector.MatchLabels = map[string]string{keys[i]: vals[i]}
 		policies = append(policies, &policy)
 	}
 
