@@ -6,6 +6,50 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func TestParseLabel(t *testing.T) {
+	label, isComplementSet := ParseLabel("test:frontend")
+	expectedLabel := "test:frontend"
+	if isComplementSet || label != expectedLabel {
+		t.Errorf("TestParseLabel failed @ label %s", label)
+	}
+
+	label, isComplementSet = ParseLabel("!test:frontend")
+	expectedLabel = "test:frontend"
+	if !isComplementSet || label != expectedLabel {
+		t.Errorf("TestParseLabel failed @ label %s", label)
+	}
+
+	label, isComplementSet = ParseLabel("test")
+	expectedLabel = "test"
+	if isComplementSet || label != expectedLabel {
+		t.Errorf("TestParseLabel failed @ label %s", label)
+	}
+
+	label, isComplementSet = ParseLabel("!test")
+	expectedLabel = "test"
+	if !isComplementSet || label != expectedLabel {
+		t.Errorf("TestParseLabel failed @ label %s", label)
+	}
+
+	label, isComplementSet = ParseLabel("!!test")
+	expectedLabel = "!test"
+	if !isComplementSet || label != expectedLabel {
+		t.Errorf("TestParseLabel failed @ label %s", label)
+	}
+
+	label, isComplementSet = ParseLabel("test:!frontend")
+	expectedLabel = "test:!frontend"
+	if isComplementSet || label != expectedLabel {
+		t.Errorf("TestParseLabel failed @ label %s", label)
+	}
+
+	label, isComplementSet = ParseLabel("!test:!frontend")
+	expectedLabel = "test:!frontend"
+	if !isComplementSet || label != expectedLabel {
+		t.Errorf("TestParseLabel failed @ label %s", label)
+	}
+}
+
 func TestParseSelector(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{

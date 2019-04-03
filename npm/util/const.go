@@ -38,6 +38,7 @@ const (
 	IptablesDrop                     string = "DROP"
 	IptablesSrcFlag                  string = "src"
 	IptablesDstFlag                  string = "dst"
+	IptablesNotFlag                  string = "!"
 	IptablesProtFlag                 string = "-p"
 	IptablesSFlag                    string = "-s"
 	IptablesDFlag                    string = "-d"
