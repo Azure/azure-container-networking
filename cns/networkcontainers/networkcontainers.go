@@ -192,7 +192,7 @@ func (cn *NetworkContainers) Attach(podInfo cns.KubernetesPodInfo, dockerContain
 	return err
 }
 
-// Detach - attaches network container to network.
+// Detach - detaches network container from network.
 func (cn *NetworkContainers) Detach(podInfo cns.KubernetesPodInfo, dockerContainerid string, netPluginConfig *NetPluginConfiguration) error {
 	log.Printf("[Azure CNS] NetworkContainers.Detach called")
 	err := configureNetworkContainerNetworking(cniDelete, podInfo.PodName, podInfo.PodNamespace, dockerContainerid, netPluginConfig)
