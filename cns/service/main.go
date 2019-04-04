@@ -129,16 +129,16 @@ var args = acn.ArgumentList{
 		DefaultValue: "60000",
 	},
 	{
-		Name:         acn.OptCNIPath,
-		Shorthand:    acn.OptCNIPathAlias,
-		Description:  "Set CNI binary absolute path to parent (of azure-vnet and azure-vnet-ipam)",
+		Name:         acn.OptPluginPath,
+		Shorthand:    acn.OptPluginPathAlias,
+		Description:  "Set plugin binary absolute path to parent (of azure-vnet and azure-vnet-ipam)",
 		Type:         "string",
 		DefaultValue: platform.K8SCNIRuntimePath,
 	},
 	{
-		Name:         acn.OptCNIConfigFile,
-		Shorthand:    acn.OptCNIConfigFileAlias,
-		Description:  "Set CNI configuration file absolute path",
+		Name:         acn.OptPluginConfigFile,
+		Shorthand:    acn.OptPluginConfigFileAlias,
+		Description:  "Set plugin configuration file absolute path",
 		Type:         "string",
 		DefaultValue: platform.K8SNetConfigPath + string(os.PathSeparator) + defaultCNINetworkConfigFileName,
 	},
@@ -158,8 +158,8 @@ func main() {
 
 	environment := acn.GetArg(acn.OptEnvironment).(string)
 	url := acn.GetArg(acn.OptAPIServerURL).(string)
-	cniPath := acn.GetArg(acn.OptCNIPath).(string)
-	cniConfigFile := acn.GetArg(acn.OptCNIConfigFile).(string)
+	cniPath := acn.GetArg(acn.OptPluginPath).(string)
+	cniConfigFile := acn.GetArg(acn.OptPluginConfigFile).(string)
 	cnsURL := acn.GetArg(acn.OptCnsURL).(string)
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
@@ -226,8 +226,8 @@ func main() {
 
 	// Set CNS options.
 	httpRestService.SetOption(acn.OptCnsURL, cnsURL)
-	httpRestService.SetOption(acn.OptCNIPath, cniPath)
-	httpRestService.SetOption(acn.OptCNIConfigFile, cniConfigFile)
+	httpRestService.SetOption(acn.OptPluginPath, cniPath)
+	httpRestService.SetOption(acn.OptPluginConfigFile, cniConfigFile)
 
 	// Start CNS.
 	if httpRestService != nil {

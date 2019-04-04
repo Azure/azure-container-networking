@@ -28,6 +28,8 @@ const (
 	// Key against which CNS state is persisted.
 	storeKey        = "ContainerNetworkService"
 	swiftAPIVersion = "1"
+	attach          = "Attach"
+	detach          = "Detach"
 )
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
@@ -971,7 +973,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
 			if ok && existing.VMVersion != req.Version {
 				nc := service.networkContainer
-				netPluginConfig := service.getCNIPluginDetails()
+				netPluginConfig := service.getNetPluginDetails()
 				if err = nc.Update(req, netPluginConfig); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
 					returnCode = UnexpectedError
@@ -1341,7 +1343,7 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 		return
 	}
 
-	resp := service.attachOrDetachHelper(req, "Attach", r.Method)
+	resp := service.attachOrDetachHelper(req, attach, r.Method)
 	attachResp := &cns.AttachContainerToNetworkResponse{Response: resp}
 	err = service.Listener.Encode(w, &attachResp)
 	log.Response(service.Name, attachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
@@ -1357,7 +1359,7 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 		return
 	}
 
-	resp := service.attachOrDetachHelper(req, "Detach", r.Method)
+	resp := service.attachOrDetachHelper(req, detach, r.Method)
 	detachResp := &cns.DetachContainerFromNetworkResponse{Response: resp}
 	err = service.Listener.Encode(w, &detachResp)
 	log.Response(service.Name, detachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
@@ -1400,11 +1402,11 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 			returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
 		} else {
 			nc := service.networkContainer
-			netPluginConfig := service.getCNIPluginDetails()
+			netPluginConfig := service.getNetPluginDetails()
 			switch operation {
-			case "Attach":
+			case attach:
 				err = nc.Attach(podInfo, req.Containerid, netPluginConfig)
-			case "Detach":
+			case detach:
 				err = nc.Detach(podInfo, req.Containerid, netPluginConfig)
 			}
 			if err != nil {
@@ -1423,8 +1425,8 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 		Message:    returnMessage}
 }
 
-func (service *HTTPRestService) getCNIPluginDetails() *networkcontainers.NetPluginConfiguration {
-	pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
-	configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
+func (service *HTTPRestService) getNetPluginDetails() *networkcontainers.NetPluginConfiguration {
+	pluginBinPath, _ := service.GetOption(acn.OptPluginPath).(string)
+	configPath, _ := service.GetOption(acn.OptPluginConfigFile).(string)
 	return networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
 }

@@ -61,12 +61,12 @@ const (
 	OptHelpAlias = "h"
 
 	// CNI binary location
-	OptCNIPath      = "cni-path"
-	OptCNIPathAlias = "cni"
+	OptPluginPath      = "plugin-path"
+	OptPluginPathAlias = "plugin"
 
 	// CNI binary location
-	OptCNIConfigFile      = "cni-config-file"
-	OptCNIConfigFileAlias = "cniconfig"
+	OptPluginConfigFile      = "plugin-config-file"
+	OptPluginConfigFileAlias = "pluginconfig"
 
 	// Telemetry config Location
 	OptTelemetryConfigDir      = "telemetry-config-file"
