@@ -57,7 +57,7 @@ func main() {
 	factory := informers.NewSharedInformerFactory(clientset, time.Hour*24)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
-	err = npMgr.Run(wait.NeverStop)
+	err = npMgr.Start(wait.NeverStop)
 	if err != nil {
 		log.Printf("[Azure-NPM] npm failed with error %v.", err)
 		panic(err.Error)

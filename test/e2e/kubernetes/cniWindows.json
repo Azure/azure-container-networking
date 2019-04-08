@@ -3,12 +3,12 @@
    "properties":{
       "orchestratorProfile":{
          "orchestratorType":"Kubernetes",
-         "orchestratorRelease": "1.11",
-		     "kubernetesConfig":{
-           "networkPlugin":"azure",
-           "networkPolicy":"azure",
-           "azureCNIVersion":"v1.0.16",
-           "azureCNIURLWindows":""
+         "orchestratorRelease":"1.11",
+         "kubernetesConfig":{
+            "networkPlugin":"azure",
+            "networkPolicy":"azure",
+            "azureCNIVersion":"",
+            "azureCNIURLWindows":""
          }
       },
       "masterProfile":{
@@ -23,19 +23,11 @@
             "vmSize":"Standard_D2_v2",
             "availabilityProfile":"AvailabilitySet",
             "osType":"Windows",
-            "extensions": [
+            "extensions":[
                {
-                 "name": "windows-patches"
+                  "name":"windows-patches"
                }
-             ]         
-         }
-      ],
-      "extensionProfiles": [
-         {
-           "name": "windows-patches",
-           "version": "v1",
-           "rootURL": "https://raw.githubusercontent.com/Azure/aks-engine/master/",
-           "extensionParameters": "'http://download.windowsupdate.com/c/msdownload/update/software/updt/2019/01/windows10.0-kb4476976-x64_a9c241844c041cb8dbcf28b5635eecb1a57e028a.msu'"
+            ]
          }
       ],
       "windowsProfile":{
@@ -47,7 +39,7 @@
          "ssh":{
             "publicKeys":[
                {
-                "keyData":""
+                  "keyData":""
                }
             ]
          }

@@ -5,6 +5,7 @@ package util
 import (
 	"fmt"
 	"hash/fnv"
+	"os"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,17 @@ import (
 
 // IsNewNwPolicyVerFlag indicates if the current kubernetes version is newer than 1.11 or not
 var IsNewNwPolicyVerFlag = false
+
+// Exists reports whether the named file or directory exists.
+func Exists(filePath string) bool {
+	if _, err := os.Stat(filePath); err == nil {
+		return true
+	} else if !os.IsNotExist(err) {
+		return true
+	}
+
+	return false
+}
 
 // GetClusterID retrieves cluster ID through node name. (Azure-specific)
 func GetClusterID(nodeName string) string {
