@@ -1426,7 +1426,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 }
 
 func (service *HTTPRestService) getNetPluginDetails() *networkcontainers.NetPluginConfiguration {
-	pluginBinPath, _ := service.GetOption(acn.OptPluginPath).(string)
-	configPath, _ := service.GetOption(acn.OptPluginConfigFile).(string)
+	pluginBinPath, _ := service.GetOption(acn.OptNetPluginPath).(string)
+	configPath, _ := service.GetOption(acn.OptNetPluginConfigFile).(string)
 	return networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
 }
