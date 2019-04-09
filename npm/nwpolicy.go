@@ -54,19 +54,19 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	labels, newPolicies := splitPolicy(npObj)
 	var (
-		mergedPolicy   *networkingv1.NetworkPolicy
-		oldPolicies    []*networkingv1.NetworkPolicy
-		mergedPolicies []*networkingv1.NetworkPolicy
+		addedPolicy   *networkingv1.NetworkPolicy
+		oldPolicies   []*networkingv1.NetworkPolicy
+		addedPolicies []*networkingv1.NetworkPolicy
 	)
 	for i := range newPolicies {
 		label, newPolicy := labels[i], newPolicies[i]
 		if oldPolicy, exists := ns.npMap[label]; exists {
-			mergedPolicy, err = mergePolicy(oldPolicy, newPolicy)
+			addedPolicy, err = addPolicy(oldPolicy, newPolicy)
 			oldPolicies = append(oldPolicies, oldPolicy)
-			mergedPolicies = append(mergedPolicies, mergedPolicy)
+			addedPolicies = append(addedPolicies, addedPolicy)
 			continue
 		}
-		mergedPolicies = append(mergedPolicies, newPolicy)
+		addedPolicies = append(addedPolicies, newPolicy)
 	}
 
 	npMgr.Unlock()
@@ -75,7 +75,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 	npMgr.Lock()
 
-	for _, mergedPolicy = range mergedPolicies {
+	for _, addedPolicy = range addedPolicies {
 
 		podSets, nsLists, iptEntries := parsePolicy(npObj)
 

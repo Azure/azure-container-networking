@@ -1,8 +1,10 @@
 package npm
 
 import (
+	"reflect"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -51,7 +53,44 @@ func TestParseLabel(t *testing.T) {
 }
 
 func TestParseSelector(t *testing.T) {
-	selector := &metav1.LabelSelector{
+	var selector, expectedSelector *metav1.LabelSelector
+	selector, expectedSelector = nil, nil
+	labels, keys, vals := ParseSelector(selector)
+	expectedLabels, expectedKeys, expectedVals := []string{}, []string{}, []string{}
+	if len(labels) != len(expectedLabels) {
+		t.Errorf("TestparseSelector failed @ labels length comparison")
+	}
+
+	if len(keys) != len(expectedKeys) {
+		t.Errorf("TestparseSelector failed @ keys length comparison")
+	}
+
+	if len(vals) != len(expectedVals) {
+		t.Errorf("TestparseSelector failed @ vals length comparison")
+	}
+
+	if selector != expectedSelector {
+		t.Errorf("TestparseSelector failed @ vals length comparison")
+	}
+
+	selector = &metav1.LabelSelector{}
+	labels, keys, vals = ParseSelector(selector)
+	expectedLabels = []string{util.KubeAllNamespacesFlag}
+	expectedKeys = []string{util.KubeAllNamespacesFlag}
+	expectedVals = []string{""}
+	if len(labels) != len(expectedLabels) {
+		t.Errorf("TestparseSelector failed @ labels length comparison")
+	}
+
+	if len(keys) != len(expectedKeys) {
+		t.Errorf("TestparseSelector failed @ keys length comparison")
+	}
+
+	if len(vals) != len(expectedVals) {
+		t.Errorf("TestparseSelector failed @ vals length comparison")
+	}
+
+	selector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			metav1.LabelSelectorRequirement{
 				Key:      "testIn",
@@ -64,16 +103,16 @@ func TestParseSelector(t *testing.T) {
 		},
 	}
 
-	labels, keys, vals := ParseSelector(selector)
-	expectedLabels := []string{
+	labels, keys, vals = ParseSelector(selector)
+	expectedLabels = []string{
 		"testIn:frontend",
 		"testIn:backend",
 	}
-	expectedKeys := []string{
+	expectedKeys = []string{
 		"testIn",
 		"testIn",
 	}
-	expectedVals := []string{
+	expectedVals = []string{
 		"frontend",
 		"backend",
 	}
@@ -90,18 +129,14 @@ func TestParseSelector(t *testing.T) {
 		t.Errorf("TestparseSelector failed @ vals length comparison")
 	}
 
-	for i := range labels {
-		if labels[i] != expectedLabels[i] {
-			t.Errorf("TestparseSelector failed @ label comparison")
-		}
-
-		if keys[i] != expectedKeys[i] {
-			t.Errorf("TestparseSelector failed @ key comparison")
-		}
-
-		if vals[i] != expectedVals[i] {
-			t.Errorf("TestparseSelector failed @ value comparison")
-		}
+	if !reflect.DeepEqual(labels, expectedLabels) {
+		t.Errorf("TestparseSelector failed @ label comparison")
+	}
+	if !reflect.DeepEqual(keys, expectedKeys) {
+		t.Errorf("TestparseSelector failed @ key comparison")
+	}
+	if !reflect.DeepEqual(vals, expectedVals) {
+		t.Errorf("TestparseSelector failed @ value comparison")
 	}
 
 	notIn := metav1.LabelSelectorRequirement{
@@ -145,18 +180,14 @@ func TestParseSelector(t *testing.T) {
 		t.Errorf("TestparseSelector failed @ vals length comparison")
 	}
 
-	for i := range labels {
-		if labels[i] != expectedLabels[i] {
-			t.Errorf("TestparseSelector failed @ label comparison")
-		}
-
-		if keys[i] != expectedKeys[i] {
-			t.Errorf("TestparseSelector failed @ key comparison")
-		}
-
-		if vals[i] != expectedVals[i] {
-			t.Errorf("TestparseSelector failed @ value comparison")
-		}
+	if !reflect.DeepEqual(labels, expectedLabels) {
+		t.Errorf("TestparseSelector failed @ label comparison")
+	}
+	if !reflect.DeepEqual(keys, expectedKeys) {
+		t.Errorf("TestparseSelector failed @ key comparison")
+	}
+	if !reflect.DeepEqual(vals, expectedVals) {
+		t.Errorf("TestparseSelector failed @ value comparison")
 	}
 
 	exists := metav1.LabelSelectorRequirement{
@@ -193,18 +224,14 @@ func TestParseSelector(t *testing.T) {
 		t.Errorf("TestparseSelector failed @ vals length comparison")
 	}
 
-	for i := range labels {
-		if labels[i] != expectedLabels[i] {
-			t.Errorf("TestparseSelector failed @ label comparison")
-		}
-
-		if keys[i] != expectedKeys[i] {
-			t.Errorf("TestparseSelector failed @ key comparison")
-		}
-
-		if vals[i] != expectedVals[i] {
-			t.Errorf("TestparseSelector failed @ value comparison")
-		}
+	if !reflect.DeepEqual(labels, expectedLabels) {
+		t.Errorf("TestparseSelector failed @ label comparison")
+	}
+	if !reflect.DeepEqual(keys, expectedKeys) {
+		t.Errorf("TestparseSelector failed @ key comparison")
+	}
+	if !reflect.DeepEqual(vals, expectedVals) {
+		t.Errorf("TestparseSelector failed @ value comparison")
 	}
 
 	doesNotExist := metav1.LabelSelectorRequirement{
@@ -241,17 +268,15 @@ func TestParseSelector(t *testing.T) {
 		t.Errorf("TestparseSelector failed @ vals length comparison")
 	}
 
-	for i := range labels {
-		if labels[i] != expectedLabels[i] {
-			t.Errorf("TestparseSelector failed @ label comparison")
-		}
+	if !reflect.DeepEqual(labels, expectedLabels) {
+		t.Errorf("TestparseSelector failed @ label comparison")
+	}
 
-		if keys[i] != expectedKeys[i] {
-			t.Errorf("TestparseSelector failed @ key comparison")
-		}
+	if !reflect.DeepEqual(keys, expectedKeys) {
+		t.Errorf("TestparseSelector failed @ key comparison")
+	}
 
-		if vals[i] != expectedVals[i] {
-			t.Errorf("TestparseSelector failed @ value comparison")
-		}
+	if !reflect.DeepEqual(vals, expectedVals) {
+		t.Errorf("TestparseSelector failed @ value comparison")
 	}
 }
