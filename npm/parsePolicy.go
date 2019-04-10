@@ -26,12 +26,13 @@ func splitPolicy(npObj *networkingv1.NetworkPolicy) ([]string, []*networkingv1.N
 }
 
 // addPolicy merges policies based on labels.
-func addPolicy(old *networkingv1.NetworkPolicy, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error) {
+func addPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error) {
 	// if namespace matches && podSelector matches, then merge
 	// else return as is.
 	if !reflect.DeepEqual(old.TypeMeta, new.TypeMeta) {
 		return nil, fmt.Errorf("Old and new networkpolicy don't have the same TypeMeta")
 	}
+
 	if old.ObjectMeta.Namespace != new.ObjectMeta.Namespace {
 		return nil, fmt.Errorf("Old and new networkpolicy don't have the same namespace")
 	}
@@ -68,4 +69,22 @@ func addPolicy(old *networkingv1.NetworkPolicy, new *networkingv1.NetworkPolicy)
 	addedPolicy.Spec.Egress = egress
 
 	return addedPolicy, nil
+}
+
+// deductPolicy deduct one policy from the other.
+func deductPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error) {
+	// if namespace matches && podSelector matches, then merge
+	// else return as is.
+	if !reflect.DeepEqual(old.TypeMeta, new.TypeMeta) {
+		return nil, fmt.Errorf("Old and new networkpolicy don't have the same TypeMeta")
+	}
+
+	if old.ObjectMeta.Namespace != new.ObjectMeta.Namespace {
+		return nil, fmt.Errorf("Old and new networkpolicy don't have the same namespace")
+	}
+
+	if len(old.Spec.PodSelector.MatchLabels) != 1 || !reflect.DeepEqual(old.Spec.PodSelector, new.Spec.PodSelector) {
+		return nil, fmt.Errorf("Old and new networkpolicy don't have apply to the same set of target pods")
+	}
+
 }

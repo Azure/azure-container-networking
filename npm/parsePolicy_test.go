@@ -275,7 +275,7 @@ func TestAddPolicy(t *testing.T) {
 	}
 }
 
-func TestDeductPolicy(t *testing.T {
+func TestDeductPolicy(t *testing.T) {
 	tcp, udp := v1.ProtocolTCP, v1.ProtocolUDP
 	port6783, port6784 := intstr.FromInt(6783), intstr.FromInt(6784)
 	oldIngressPodSelector := &metav1.LabelSelector{
@@ -370,7 +370,7 @@ func TestDeductPolicy(t *testing.T {
 	newPolicy := oldPolicy
 	newPolicy.Spec.Ingress[0].From = newPolicy.Spec.Ingress[0].From[0:1]
 	newPolicy.Spec.Egress[0].To[0] = networkingv1.NetworkPolicyPeer{
-		PodSelector: metav1.LabelSelector{},
+		PodSelector: &metav1.LabelSelector{},
 	}
 
 	expectedPolicy := networkingv1.NetworkPolicy{
@@ -420,4 +420,4 @@ func TestDeductPolicy(t *testing.T {
 		fmt.Println(deductedPolicy)
 		fmt.Println(expectedPolicy)
 	}
-})
+}
