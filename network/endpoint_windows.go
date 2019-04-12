@@ -94,7 +94,10 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		}
 	}()
 
-	if !epInfo.SkipHotAttachEp {
+	if epInfo.SkipHotAttachEp {
+		log.Printf("[net] Skipping attaching the endpoint %v to container %v.",
+			hnsResponse.Id, epInfo.ContainerID)
+	} else {
 		// Attach the endpoint.
 		log.Printf("[net] Attaching endpoint %v to container %v.", hnsResponse.Id, epInfo.ContainerID)
 		err = hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsResponse.Id)

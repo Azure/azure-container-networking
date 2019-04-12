@@ -452,7 +452,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		EnableInfraVnet:    enableInfraVnet,
 		PODName:            k8sPodName,
 		PODNameSpace:       k8sNamespace,
-		SkipHotAttachEp:    false,
+		SkipHotAttachEp:    false, // Hot attach at the time of endpoint creation
 	}
 
 	epPolicies := getPoliciesFromRuntimeCfg(nwCfg)
