@@ -171,7 +171,7 @@ func podNameMatches(source string, actualValue string, doExactMatch bool) bool {
 	} else {
 		// If exact match flag is disabled we just check if the existing podname field for an endpoint
 		// starts with passed podname string.
-		return (source == GetPodNameWithoutSuffix(actualValue))
+		return (actualValue == GetPodNameWithoutSuffix(source))
 	}
 }
 

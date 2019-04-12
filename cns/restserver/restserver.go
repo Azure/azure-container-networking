@@ -28,6 +28,8 @@ const (
 	// Key against which CNS state is persisted.
 	storeKey        = "ContainerNetworkService"
 	swiftAPIVersion = "1"
+	attach          = "Attach"
+	detach          = "Detach"
 )
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
@@ -978,9 +980,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
 			if ok && existing.VMVersion != req.Version {
 				nc := service.networkContainer
-				pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
-				configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-				netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
+				netPluginConfig := service.getNetPluginDetails()
 				if err = nc.Update(req, netPluginConfig); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
 					returnCode = UnexpectedError
@@ -1094,6 +1094,14 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	err := service.Listener.Decode(w, r, &req)
 	log.Request(service.Name, &req, err)
 	if err != nil {
+		return
+	}
+
+	// getNetworkContainerByOrchestratorContext gets called for multitenancy and
+	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
+	// to work correctly in case of windows platform. Return if there is an error
+	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
+		log.Printf("[Azure CNS] SetSdnRemoteArpMacAddress failed with error: %s", err.Error())
 		return
 	}
 
@@ -1344,60 +1352,13 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 	log.Printf("[Azure CNS] attachNetworkContainerToNetwork")
 
 	var req cns.ConfigureContainerNetworkingRequest
-	returnMessage := ""
-	returnCode := 0
-
 	err := service.Listener.Decode(w, r, &req)
 	log.Request(service.Name, &req, err)
 	if err != nil {
 		return
 	}
 
-	if req.Containerid == "" {
-		returnCode = DockerContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. Containerid is empty")
-	} else if req.NetworkContainerid == "" {
-		returnCode = NetworkContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. NetworkContainerid is empty")
-	} else {
-		switch r.Method {
-		case "POST":
-			// try to get the saved nc state if it exists
-			service.lock.Lock()
-			existing, ok := service.state.ContainerStatus[cns.SwiftPrefix+req.NetworkContainerid]
-			service.lock.Unlock()
-			if !ok {
-				returnMessage = fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)
-				returnCode = NotFound
-			} else {
-				var podInfo cns.KubernetesPodInfo
-				err := json.Unmarshal(existing.CreateNetworkContainerRequest.OrchestratorContext, &podInfo)
-				if err != nil {
-					returnCode = UnexpectedError
-					returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
-				} else {
-					nc := service.networkContainer
-					pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
-					configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-					netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
-					if err = nc.Attach(podInfo.PodName, podInfo.PodNamespace, req.Containerid, netPluginConfig); err != nil {
-						returnMessage = fmt.Sprintf("[Azure CNS] Error. AttachContainerToNetwork failed %+v", err.Error())
-						returnCode = UnexpectedError
-					}
-				}
-			}
-
-		default:
-			returnMessage = "[Azure CNS] Error. AttachContainerToNetwork did not receive a POST."
-			returnCode = InvalidParameter
-		}
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
+	resp := service.attachOrDetachHelper(req, attach, r.Method)
 	attachResp := &cns.AttachContainerToNetworkResponse{Response: resp}
 	err = service.Listener.Encode(w, &attachResp)
 	log.Response(service.Name, attachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
@@ -1407,61 +1368,80 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 	log.Printf("[Azure CNS] detachNetworkContainerFromNetwork")
 
 	var req cns.ConfigureContainerNetworkingRequest
-	returnMessage := ""
-	returnCode := 0
-
 	err := service.Listener.Decode(w, r, &req)
 	log.Request(service.Name, &req, err)
 	if err != nil {
 		return
 	}
 
-	if req.Containerid == "" {
-		returnCode = DockerContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. Containerid is empty")
-	} else if req.NetworkContainerid == "" {
-		returnCode = NetworkContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. NetworkContainerid is empty")
-	} else {
-		switch r.Method {
-		case "POST":
-			// try to get the saved nc state if it exists
-			service.lock.Lock()
-			existing, ok := service.state.ContainerStatus[cns.SwiftPrefix+req.NetworkContainerid]
-			service.lock.Unlock()
-			if !ok {
-				returnMessage = fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)
-				returnCode = NotFound
-			} else {
-				var podInfo cns.KubernetesPodInfo
-				err := json.Unmarshal(existing.CreateNetworkContainerRequest.OrchestratorContext, &podInfo)
-				if err != nil {
-					returnCode = UnexpectedError
-					returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
-				} else {
-					nc := service.networkContainer
-					pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
-					configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-					netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
-					if err = nc.Detach(podInfo.PodName, podInfo.PodNamespace, req.Containerid, netPluginConfig); err != nil {
-						returnMessage = fmt.Sprintf("[Azure CNS] Error. detachNetworkContainerFromNetwork failed %+v", err.Error())
-						returnCode = UnexpectedError
-					}
-				}
-			}
-
-		default:
-			returnMessage = "[Azure CNS] Error. detachNetworkContainerFromNetwork did not receive a POST."
-			returnCode = InvalidParameter
-		}
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
+	resp := service.attachOrDetachHelper(req, detach, r.Method)
 	detachResp := &cns.DetachContainerFromNetworkResponse{Response: resp}
 	err = service.Listener.Encode(w, &detachResp)
 	log.Response(service.Name, detachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+}
+
+func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerNetworkingRequest, operation, method string) cns.Response {
+	if method != "POST" {
+		return cns.Response{
+			ReturnCode: InvalidParameter,
+			Message:    "[Azure CNS] Error. " + operation + "ContainerToNetwork did not receive a POST."}
+	}
+	if req.Containerid == "" {
+		return cns.Response{
+			ReturnCode: DockerContainerNotSpecified,
+			Message:    "[Azure CNS] Error. Containerid is empty"}
+	}
+	if req.NetworkContainerid == "" {
+		return cns.Response{
+			ReturnCode: NetworkContainerNotSpecified,
+			Message:    "[Azure CNS] Error. NetworkContainerid is empty"}
+	}
+
+	service.lock.Lock()
+	existing, ok := service.state.ContainerStatus[cns.SwiftPrefix+req.NetworkContainerid]
+	service.lock.Unlock()
+	if !ok {
+		return cns.Response{
+			ReturnCode: NotFound,
+			Message:    fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)}
+	}
+
+	returnCode := 0
+	returnMessage := ""
+	switch service.state.OrchestratorType {
+	case cns.Batch:
+		var podInfo cns.KubernetesPodInfo
+		err := json.Unmarshal(existing.CreateNetworkContainerRequest.OrchestratorContext, &podInfo)
+		if err != nil {
+			returnCode = UnexpectedError
+			returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
+		} else {
+			nc := service.networkContainer
+			netPluginConfig := service.getNetPluginDetails()
+			switch operation {
+			case attach:
+				err = nc.Attach(podInfo, req.Containerid, netPluginConfig)
+			case detach:
+				err = nc.Detach(podInfo, req.Containerid, netPluginConfig)
+			}
+			if err != nil {
+				returnCode = UnexpectedError
+				returnMessage = fmt.Sprintf("[Azure CNS] Error. "+operation+"ContainerToNetwork failed %+v", err.Error())
+			}
+		}
+
+	default:
+		returnMessage = fmt.Sprintf("[Azure CNS] Invalid orchestrator type %v", service.state.OrchestratorType)
+		returnCode = UnsupportedOrchestratorType
+	}
+
+	return cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage}
+}
+
+func (service *HTTPRestService) getNetPluginDetails() *networkcontainers.NetPluginConfiguration {
+	pluginBinPath, _ := service.GetOption(acn.OptNetPluginPath).(string)
+	configPath, _ := service.GetOption(acn.OptNetPluginConfigFile).(string)
+	return networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
 }
