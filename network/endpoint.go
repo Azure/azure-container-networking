@@ -61,6 +61,7 @@ type EndpointInfo struct {
 	PODNameSpace          string
 	Data                  map[string]interface{}
 	InfraVnetAddressSpace string
+	SkipHotAttachEp       bool
 }
 
 // RouteInfo contains information about an IP route.

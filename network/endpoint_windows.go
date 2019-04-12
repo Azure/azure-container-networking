@@ -94,12 +94,14 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		}
 	}()
 
-	// Attach the endpoint.
-	log.Printf("[net] Attaching endpoint %v to container %v.", hnsResponse.Id, epInfo.ContainerID)
-	err = hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsResponse.Id)
-	if err != nil {
-		log.Printf("[net] Failed to attach endpoint: %v.", err)
-		return nil, err
+	if !epInfo.SkipHotAttachEp {
+		// Attach the endpoint.
+		log.Printf("[net] Attaching endpoint %v to container %v.", hnsResponse.Id, epInfo.ContainerID)
+		err = hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsResponse.Id)
+		if err != nil {
+			log.Printf("[net] Failed to attach endpoint: %v.", err)
+			return nil, err
+		}
 	}
 
 	// Create the endpoint object.
