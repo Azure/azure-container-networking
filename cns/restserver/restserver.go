@@ -1090,14 +1090,18 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 		return
 	}
 
+	// getNetworkContainerByOrchestratorContext gets called for multitenancy and
+	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
+	// to work correctly in case of windows platform. Return if there is an error
+	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
+		log.Printf("[Azure CNS] SetSdnRemoteArpMacAddress failed with error: %s", err.Error())
+		return
+	}
+
 	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
 	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	err = service.Listener.Encode(w, &getNetworkContainerResponse)
 	log.Response(service.Name, getNetworkContainerResponse, returnCode, ReturnCodeToString(returnCode), err)
-
-	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
-		log.Printf("[Azure CNS] %s", err.Error())
-	}
 }
 
 func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
