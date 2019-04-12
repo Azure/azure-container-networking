@@ -3,11 +3,15 @@
 
 package cns
 
+import "encoding/json"
+
 // Container Network Service remote API Contract
 const (
 	SetEnvironmentPath          = "/network/environment"
 	CreateNetworkPath           = "/network/create"
+	CreateHnsNetworkPath        = "/network/createhns"
 	DeleteNetworkPath           = "/network/delete"
+	DeleteHnsNetworkPath        = "/network/deletehns"
 	ReserveIPAddressPath        = "/network/ip/reserve"
 	ReleaseIPAddressPath        = "/network/ip/release"
 	GetHostLocalIPPath          = "/network/ip/hostlocal"
@@ -41,6 +45,51 @@ type CreateNetworkRequest struct {
 
 // DeleteNetworkRequest describes request to delete the network.
 type DeleteNetworkRequest struct {
+	NetworkName string
+}
+
+/*
+// CreateHnsNetworkRequest describes request to create the HNS network.
+type CreateHnsNetworkRequest struct {
+	NetworkName string
+	NetworkType string
+	Options     map[string]interface{}
+}*/
+
+// CreateHnsNetworkRequest describes request to create the HNS network.
+type CreateHnsNetworkRequest struct {
+	ID                   string            `json:"ID,omitempty"`
+	Name                 string            `json:",omitempty"`
+	Type                 string            `json:",omitempty"`
+	NetworkAdapterName   string            `json:",omitempty"`
+	SourceMac            string            `json:",omitempty"`
+	Policies             []json.RawMessage `json:",omitempty"`
+	MacPools             []MacPool         `json:",omitempty"`
+	Subnets              []Subnet          `json:",omitempty"`
+	DNSSuffix            string            `json:",omitempty"`
+	DNSServerList        string            `json:",omitempty"`
+	DNSServerCompartment uint32            `json:",omitempty"`
+	ManagementIP         string            `json:",omitempty"`
+	AutomaticDNS         bool              `json:",omitempty"`
+}
+
+// Subnet is assoicated with HNS network and represents a list
+// of subnets available to the network
+type Subnet struct {
+	AddressPrefix  string            `json:",omitempty"`
+	GatewayAddress string            `json:",omitempty"`
+	Policies       []json.RawMessage `json:",omitempty"`
+}
+
+// MacPool is assoicated with HNS  network and represents a list
+// of macaddresses available to the network
+type MacPool struct {
+	StartMacAddress string `json:",omitempty"`
+	EndMacAddress   string `json:",omitempty"`
+}
+
+// DeleteHnsNetworkRequest describes request to delete the HNS network.
+type DeleteHnsNetworkRequest struct {
 	NetworkName string
 }
 

@@ -154,6 +154,8 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
 	listener.AddHandler(cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
+	listener.AddHandler(cns.CreateHnsNetworkPath, service.createHnsNetwork)
+	listener.AddHandler(cns.DeleteHnsNetworkPath, service.deleteHnsNetwork)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
@@ -172,13 +174,8 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
 	listener.AddHandler(cns.V2Prefix+cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
-
-	createExtSwitchNetworkType, _ := service.GetOption(acn.OptCreateExtSwitchNetworkType).(string)
-	// Perform platform specific initialization
-	if err := platform.Init(createExtSwitchNetworkType); err != nil {
-		log.Printf("[Azure CNS] Failed with platform initialization due to error: %v", err)
-		return err
-	}
+	listener.AddHandler(cns.V2Prefix+cns.CreateHnsNetworkPath, service.createHnsNetwork)
+	listener.AddHandler(cns.V2Prefix+cns.DeleteHnsNetworkPath, service.deleteHnsNetwork)
 
 	log.Printf("[Azure CNS]  Listening.")
 	return nil
@@ -255,7 +252,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 					case "Underlay":
 						switch service.state.Location {
 						case "Azure":
-							log.Printf("[Azure CNS] Goign to create network with name %v.", req.NetworkName)
+							log.Printf("[Azure CNS] Creating network with name %v.", req.NetworkName)
 
 							err = rt.GetRoutingTable()
 							if err != nil {
@@ -351,7 +348,7 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 
 		// Network does exist
 		if err == nil {
-			log.Printf("[Azure CNS] Goign to delete network with name %v.", req.NetworkName)
+			log.Printf("[Azure CNS] Deleting network with name %v.", req.NetworkName)
 			err := dc.DeleteNetwork(req.NetworkName)
 			if err != nil {
 				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetwork failed %v.", err.Error())
@@ -369,6 +366,107 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 	default:
 		returnMessage = "[Azure CNS] Error. DeleteNetwork did not receive a POST."
 		returnCode = InvalidParameter
+	}
+
+	resp := &cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage,
+	}
+
+	err = service.Listener.Encode(w, &resp)
+
+	if returnCode == 0 {
+		delete(service.state.Networks, req.NetworkName)
+		service.saveState()
+	}
+
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+}
+
+// Handles CreateHnsNetwork requests.
+func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[Azure CNS] createHnsNetwork")
+
+	var err error
+	returnCode := 0
+	returnMessage := ""
+
+	var req cns.CreateHnsNetworkRequest
+	err = service.Listener.Decode(w, r, &req)
+	log.Request(service.Name, &req, err)
+
+	if err != nil {
+		returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
+		returnCode = InvalidParameter
+	} else {
+		switch r.Method {
+		case "POST":
+			if err := platform.CreateNetwork(req); err == nil {
+				// Save the HnsNetwork that is created. CNS deleteHnsNetwork will only allow deleting
+				// these networks.
+				networkInfo := &networkInfo{
+					NetworkName: req.NetworkName,
+				}
+				service.state.Networks[req.NetworkName] = networkInfo
+				returnMessage = fmt.Sprintf("[Azure CNS] Successfully created HNS network: %s", req.NetworkName)
+			} else {
+				returnMessage = fmt.Sprintf("[Azure CNS] CreateHnsNetwork failed with error %v", err.Error())
+				returnCode = UnexpectedError
+			}
+		default:
+			returnMessage = "[Azure CNS] Error. CreateHnsNetwork did not receive a POST."
+			returnCode = InvalidParameter
+		}
+	}
+
+	resp := &cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage,
+	}
+
+	err = service.Listener.Encode(w, &resp)
+
+	if returnCode == 0 {
+		service.saveState()
+	}
+
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+}
+
+// Handles deleteHnsNetwork requests.
+func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[Azure CNS] deleteHnsNetwork")
+
+	var err error
+	var req cns.DeleteHnsNetworkRequest
+	returnCode := 0
+	returnMessage := ""
+
+	err = service.Listener.Decode(w, r, &req)
+	log.Request(service.Name, &req, err)
+
+	if err != nil {
+		returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
+		returnCode = InvalidParameter
+	} else {
+		switch r.Method {
+		case "POST":
+			networkInfo, ok := service.state.Networks[req.NetworkName]
+			if ok && networkInfo.NetworkName == req.NetworkName {
+				if err = platform.DeleteNetwork(req.NetworkName); err == nil {
+					returnMessage = fmt.Sprintf("[Azure CNS] Successfully deleted HNS network: %s", req.NetworkName)
+				} else {
+					returnMessage = fmt.Sprintf("[Azure CNS] DeleteHnsNetwork failed with error %v", err.Error())
+					returnCode = UnexpectedError
+				}
+			} else {
+				returnMessage = fmt.Sprintf("[Azure CNS] Invalid network name: %s", req.NetworkName)
+				returnCode = InvalidParameter
+			}
+		default:
+			returnMessage = "[Azure CNS] Error. CreateHnsNetwork did not receive a POST."
+			returnCode = InvalidParameter
+		}
 	}
 
 	resp := &cns.Response{

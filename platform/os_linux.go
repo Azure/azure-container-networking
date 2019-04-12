@@ -106,12 +106,14 @@ func KillProcessByName(processName string) error {
 	return err
 }
 
-// Perform platform specific initialization
-func Init(createExtSwitchNetworkType string) error {
-}
-
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
 // This operation is specific to windows OS
 func SetSdnRemoteArpMacAddress() error {
+}
+
+// CreateNetwork creates network (if it doesn't exist already)
+// to create external switch on windows platform. This is not needed
+// in linux platoform.
+func CreateNetwork(networkType string) error {
 	return nil
 }

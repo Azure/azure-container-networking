@@ -155,65 +155,6 @@ func KillProcessByName(processName string) {
 	ExecuteCommand(cmd)
 }
 
-// Perform platform specific initialization
-func Init(createExtSwitchNetworkType string) error {
-	// Create HNS network to create external switch on windows platform
-	// This allows orchestrators to start CNS which pre-provisions the network so that the
-	// VM network blip / disconnect is avoided when calling cni add for the very first time.
-	return createExtSwitchHnsNetwork(createExtSwitchNetworkType)
-}
-
-// createExtSwitchHnsNetwork creates ext HNS network if not present.
-func createExtSwitchHnsNetwork(createExtNetworkType string) error {
-	networkType := strings.ToLower(strings.TrimSpace(createExtNetworkType))
-	if len(networkType) == 0 {
-		return nil
-	}
-
-	if networkType != hnsL2Bridge && networkType != hnsL2Tunnel {
-		return fmt.Errorf("Invalid hns network type %s", createExtNetworkType)
-	}
-
-	log.Printf("[Azure CNS] createExtSwitchHnsNetwork")
-	extHnsNetwork, _ := hcsshim.GetHNSNetworkByName(ExtHnsNetworkName)
-
-	if extHnsNetwork != nil {
-		log.Printf("[Azure CNS] Found existing external switch hns network with type: %s", extHnsNetwork.Type)
-		if !strings.EqualFold(networkType, extHnsNetwork.Type) {
-			return fmt.Errorf("Network type mismatch with existing network: %s", extHnsNetwork.Type)
-		}
-
-		return nil
-	}
-
-	// create new hns network
-	log.Printf("[Azure CNS] Creating external switch hns network with type %s", networkType)
-
-	hnsNetwork := &hcsshim.HNSNetwork{
-		Name: ExtHnsNetworkName,
-		Type: networkType,
-	}
-
-	hnsSubnet := hcsshim.Subnet{
-		AddressPrefix:  ExtHnsNetworkAddressPrefix,
-		GatewayAddress: ExtHnsNetworkGwAddress,
-	}
-
-	hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)
-
-	// Marshal the request.
-	buffer, err := json.Marshal(hnsNetwork)
-	if err != nil {
-		return err
-	}
-	hnsRequest := string(buffer)
-
-	// Create the HNS network.
-	log.Printf("[Azure CNS] HNSNetworkRequest POST request:%+v", hnsRequest)
-	hnsResponse, err := hcsshim.HNSNetworkRequest("POST", "", hnsRequest)
-	log.Printf("[Azure CNS] HNSNetworkRequest POST response:%+v err:%v.", hnsResponse, err)
-
-	return err
 // executePowershellCommand executes powershell command
 func executePowershellCommand(command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
@@ -257,4 +198,103 @@ func SetSdnRemoteArpMacAddress() error {
 	}
 
 	return nil
+}
+
+// CreateNetwork creates HNS network with the provided configuration
+func CreateNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
+	log.Printf("[Azure CNS] CreateNetwork")
+// Initialize HNS network.
+hnsNetwork := &hcsshim.HNSNetwork{
+	Name:               nwInfo.networkName,
+	Type: nwInfo.networkType,
+	NetworkAdapterName: nwInfo.networkAdapterName,
+	DNSServerList:      nwInfo.networkDnsServerList,
+	Policies:           nwInfo.networkPolicies,
+}
+
+// Populate subnets.
+for _, subnet := range nwInfo.Subnets {
+	hnsSubnet := hcsshim.Subnet{
+		AddressPrefix:  subnet.Prefix.String(),
+		GatewayAddress: subnet.Gateway.String(),
+	}
+
+	hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)
+}
+
+return createHnsNetwork(hnsNetwork)
+}
+
+// CreateDefaultExtNetwork creates default HNS network named ext (if it doesn't exist already)
+// to create external switch on windows platform.
+// This allows orchestrators to start CNS which pre-provisions the network so that the
+// VM network blip / disconnect is avoided when calling cni add for the very first time.
+func CreateDefaultExtNetwork(networkType string) error {
+	networkType = strings.ToLower(strings.TrimSpace(networkType))
+	if len(networkType) == 0 {
+		return nil
+	}
+
+	if networkType != hnsL2Bridge && networkType != hnsL2Tunnel {
+		return fmt.Errorf("Invalid hns network type %s", networkType)
+	}
+
+	log.Printf("[Azure CNS] CreateDefaultExtNetwork")
+	extHnsNetwork, _ := hcsshim.GetHNSNetworkByName(ExtHnsNetworkName)
+
+	if extHnsNetwork != nil {
+		log.Printf("[Azure CNS] Found existing DefaultExtNetwork with type: %s", extHnsNetwork.Type)
+		if !strings.EqualFold(networkType, extHnsNetwork.Type) {
+			return fmt.Errorf("Network type mismatch with existing network: %s", extHnsNetwork.Type)
+		}
+
+		return nil
+	}
+
+	// create new hns network
+	log.Printf("[Azure CNS] Creating DefaultExtNetwork with type %s", networkType)
+
+	hnsNetwork := &hcsshim.HNSNetwork{
+		Name: ExtHnsNetworkName,
+		Type: networkType,
+	}
+
+	hnsSubnet := hcsshim.Subnet{
+		AddressPrefix:  ExtHnsNetworkAddressPrefix,
+		GatewayAddress: ExtHnsNetworkGwAddress,
+	}
+
+	hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)
+
+	return createHnsNetwork(hnsNetwork)
+}
+
+// createHnsNetwork calls the hcshim to create the hns network
+func createHnsNetwork(hnsNetwork *hcsshim.HNSNetwork) error {
+	// Marshal the request.
+	buffer, err := json.Marshal(hnsNetwork)
+	if err != nil {
+		return err
+	}
+	hnsRequest := string(buffer)
+
+	// Create the HNS network.
+	log.Printf("[Azure CNS] HNSNetworkRequest POST request:%+v", hnsRequest)
+	hnsResponse, err := hcsshim.HNSNetworkRequest("POST", "", hnsRequest)
+	log.Printf("[Azure CNS] HNSNetworkRequest POST response:%+v err:%v.", hnsResponse, err)
+
+	return err
+}
+
+
+func DeleteNetwork(networkName string) error {
+	hnsNetwork, err := hcsshim.GetHNSNetworkByName(networkName)
+	if err == nil {
+		// Delete the HNS network.
+		log.Printf("[Azure CNS] HNSNetworkRequest DELETE id:%v", hnsNetwork.Id)
+		hnsResponse, err := hcsshim.HNSNetworkRequest("DELETE", hnsNetwork.Id, "")
+		log.Printf("[Azure CNS] HNSNetworkRequest DELETE response:%+v err:%v.", hnsResponse, err)
+	}
+
+	return err
 }

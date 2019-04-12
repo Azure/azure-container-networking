@@ -240,6 +240,13 @@ func main() {
 	httpRestService.SetOption(acn.OptNetPluginConfigFile, cniConfigFile)
 	httpRestService.SetOption(acn.OptCreateExtSwitchNetworkType, createExtSwitchNetworkType)
 
+	//createExtSwitchNetworkType, _ := service.GetOption(acn.OptCreateExtSwitchNetworkType).(string)
+	// Perform platform specific initialization
+	if err := platform.CreateDefaultExtNetwork(createExtSwitchNetworkType); err != nil {
+		log.Printf("[Azure CNS] Failed to create %s network due to error: %v", createExtSwitchNetworkType, err)
+		return
+	}
+
 	// Start CNS.
 	if httpRestService != nil {
 		if telemetryEnabled {
