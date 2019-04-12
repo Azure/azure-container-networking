@@ -105,3 +105,9 @@ func KillProcessByName(processName string) error {
 	_, err := ExecuteCommand(cmd)
 	return err
 }
+
+// SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
+// This operation is specific to windows OS
+func SetSdnRemoteArpMacAddress() error {
+	return nil
+}

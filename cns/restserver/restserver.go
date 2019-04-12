@@ -1094,6 +1094,10 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	err = service.Listener.Encode(w, &getNetworkContainerResponse)
 	log.Response(service.Name, getNetworkContainerResponse, returnCode, ReturnCodeToString(returnCode), err)
+
+	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
+		log.Printf("[Azure CNS] %s", err.Error())
+	}
 }
 
 func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {

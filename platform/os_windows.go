@@ -34,7 +34,26 @@ const (
 
 	// DNCRuntimePath is the path where DNC state files are stored.
 	DNCRuntimePath = ""
+
+	// SDNRemoteArpMacAddress is the registry key for the remote arp mac address.
+	// This is set for multitenancy to get arp response from within VM
+	// for vlan tagged arp requests
+	SDNRemoteArpMacAddress = "12-34-56-78-9a-bc"
+
+	// Command to get SDNRemoteArpMacAddress registry key
+	GetSdnRemoteArpMacAddressCommand = "(Get-ItemProperty " +
+		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"
+
+	// Command to set SDNRemoteArpMacAddress registry key
+	SetSdnRemoteArpMacAddressCommand = "Set-ItemProperty " +
+		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
+
+	// Command to restart HNS service
+	RestartHnsServiceCommand = "Restart-Service -Name hns"
 )
+
+// Flag to check if sdnRemoteArpMacAddress registry key is set
+var sdnRemoteArpMacAddressSet = false
 
 // GetOSInfo returns OS version information.
 func GetOSInfo() string {
@@ -117,4 +136,49 @@ func ClearNetworkConfiguration() (bool, error) {
 func KillProcessByName(processName string) {
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
 	ExecuteCommand(cmd)
+}
+
+// executePowershellCommand executes powershell command
+func executePowershellCommand(command string) (string, error) {
+	ps, err := exec.LookPath("powershell.exe")
+	if err != nil {
+		return "", fmt.Errorf("Failed to find powershell executable")
+	}
+
+	cmd := exec.Command(ps, command)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	cmd.Run()
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
+func SetSdnRemoteArpMacAddress() error {
+	if sdnRemoteArpMacAddressSet == false {
+		result, err := executePowershellCommand(GetSdnRemoteArpMacAddressCommand)
+		if err != nil {
+			return err
+		}
+
+		// Set the reg key if not already set or has incorrect value
+		if result == "" || result != SDNRemoteArpMacAddress {
+			if _, err = executePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
+				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
+				return err
+			}
+
+			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
+			if _, err := executePowershellCommand(RestartHnsServiceCommand); err != nil {
+				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
+				return err
+			}
+		}
+
+		sdnRemoteArpMacAddressSet = true
+	}
+
+	return nil
 }
