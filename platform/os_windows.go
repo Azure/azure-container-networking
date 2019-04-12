@@ -164,7 +164,7 @@ func SetSdnRemoteArpMacAddress() error {
 		}
 
 		// Set the reg key if not already set or has incorrect value
-		if result == "" || result != SDNRemoteArpMacAddress {
+		if result != SDNRemoteArpMacAddress {
 			if _, err = executePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
 				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
 				return err
