@@ -401,9 +401,9 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 	} else {
 		switch r.Method {
 		case "POST":
-			if err := platform.CreateNetwork(req); err == nil {
-				// Save the HnsNetwork that is created. CNS deleteHnsNetwork will only allow deleting
-				// these networks.
+			if err := platform.CreateHnsNetwork(req); err == nil {
+				// Save the newly created HnsNetwork name. CNS deleteHnsNetwork API
+				// will only allow deleting these networks.
 				networkInfo := &networkInfo{
 					NetworkName: req.NetworkName,
 				}
@@ -453,7 +453,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 		case "POST":
 			networkInfo, ok := service.state.Networks[req.NetworkName]
 			if ok && networkInfo.NetworkName == req.NetworkName {
-				if err = platform.DeleteNetwork(req.NetworkName); err == nil {
+				if err = platform.DeleteHnsNetwork(req.NetworkName); err == nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Successfully deleted HNS network: %s", req.NetworkName)
 				} else {
 					returnMessage = fmt.Sprintf("[Azure CNS] DeleteHnsNetwork failed with error %v", err.Error())

@@ -48,24 +48,16 @@ type DeleteNetworkRequest struct {
 	NetworkName string
 }
 
-/*
 // CreateHnsNetworkRequest describes request to create the HNS network.
 type CreateHnsNetworkRequest struct {
-	NetworkName string
-	NetworkType string
-	Options     map[string]interface{}
-}*/
-
-// CreateHnsNetworkRequest describes request to create the HNS network.
-type CreateHnsNetworkRequest struct {
-	ID                   string            `json:"ID,omitempty"`
-	Name                 string            `json:",omitempty"`
-	Type                 string            `json:",omitempty"`
+	NetworkID            string            `json:"ID,omitempty"`
+	NetworkName          string            `json:",omitempty"`
+	NetworkType          string            `json:",omitempty"`
 	NetworkAdapterName   string            `json:",omitempty"`
 	SourceMac            string            `json:",omitempty"`
 	Policies             []json.RawMessage `json:",omitempty"`
 	MacPools             []MacPool         `json:",omitempty"`
-	Subnets              []Subnet          `json:",omitempty"`
+	Subnets              []SubnetInfo      `json:",omitempty"`
 	DNSSuffix            string            `json:",omitempty"`
 	DNSServerList        string            `json:",omitempty"`
 	DNSServerCompartment uint32            `json:",omitempty"`
@@ -73,9 +65,9 @@ type CreateHnsNetworkRequest struct {
 	AutomaticDNS         bool              `json:",omitempty"`
 }
 
-// Subnet is assoicated with HNS network and represents a list
+// SubnetInfo is assoicated with HNS network and represents a list
 // of subnets available to the network
-type Subnet struct {
+type SubnetInfo struct {
 	AddressPrefix  string            `json:",omitempty"`
 	GatewayAddress string            `json:",omitempty"`
 	Policies       []json.RawMessage `json:",omitempty"`
@@ -90,7 +82,7 @@ type MacPool struct {
 
 // DeleteHnsNetworkRequest describes request to delete the HNS network.
 type DeleteHnsNetworkRequest struct {
-	NetworkName string
+	NetworkName string `json:"NetworkName"`
 }
 
 // ReserveIPAddressRequest describes request to reserve an IP Address

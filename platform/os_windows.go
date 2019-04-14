@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Microsoft/hcsshim"
 )
@@ -37,20 +38,6 @@ const (
 	// DNCRuntimePath is the path where DNC state files are stored.
 	DNCRuntimePath = ""
 
-<<<<<<< HEAD
-	// Name of the external hns network
-	ExtHnsNetworkName = "ext"
-
-	// Address prefix for external hns network
-	ExtHnsNetworkAddressPrefix = "192.168.255.0/30"
-
-	// Gateway address for external hns network
-	ExtHnsNetworkGwAddress = "192.168.255.1"
-
-	// HNS network types
-	hnsL2Bridge = "l2bridge"
-	hnsL2Tunnel = "l2tunnel"
-=======
 	// SDNRemoteArpMacAddress is the registry key for the remote arp mac address.
 	// This is set for multitenancy to get arp response from within VM
 	// for vlan tagged arp requests
@@ -66,7 +53,19 @@ const (
 
 	// Command to restart HNS service
 	RestartHnsServiceCommand = "Restart-Service -Name hns"
->>>>>>> origin/master
+
+	// Name of the external hns network
+	ExtHnsNetworkName = "ext"
+
+	// Address prefix for external hns network
+	ExtHnsNetworkAddressPrefix = "192.168.255.0/30"
+
+	// Gateway address for external hns network
+	ExtHnsNetworkGwAddress = "192.168.255.1"
+
+	// HNS network types
+	hnsL2Bridge = "l2bridge"
+	hnsL2Tunnel = "l2tunnel"
 )
 
 // Flag to check if sdnRemoteArpMacAddress registry key is set
@@ -200,29 +199,52 @@ func SetSdnRemoteArpMacAddress() error {
 	return nil
 }
 
-// CreateNetwork creates HNS network with the provided configuration
-func CreateNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
-	log.Printf("[Azure CNS] CreateNetwork")
-// Initialize HNS network.
-hnsNetwork := &hcsshim.HNSNetwork{
-	Name:               nwInfo.networkName,
-	Type: nwInfo.networkType,
-	NetworkAdapterName: nwInfo.networkAdapterName,
-	DNSServerList:      nwInfo.networkDnsServerList,
-	Policies:           nwInfo.networkPolicies,
-}
-
-// Populate subnets.
-for _, subnet := range nwInfo.Subnets {
-	hnsSubnet := hcsshim.Subnet{
-		AddressPrefix:  subnet.Prefix.String(),
-		GatewayAddress: subnet.Gateway.String(),
+// CreateHnsNetwork creates the HNS network with the provided configuration
+func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
+	log.Printf("[Azure CNS] CreateHnsNetwork")
+	// Initialize HNS network.
+	hnsNetwork := &hcsshim.HNSNetwork{
+		Id:                   nwConfig.NetworkID,
+		Name:                 nwConfig.NetworkName,
+		Type:                 nwConfig.NetworkType,
+		NetworkAdapterName:   nwConfig.NetworkAdapterName,
+		SourceMac:            nwConfig.SourceMac,
+		DNSSuffix:            nwConfig.DNSSuffix,
+		DNSServerList:        nwConfig.DNSServerList,
+		DNSServerCompartment: nwConfig.DNSServerCompartment,
+		ManagementIP:         nwConfig.ManagementIP,
+		AutomaticDNS:         nwConfig.AutomaticDNS,
 	}
 
-	hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)
+	for _, policy := range nwConfig.Policies {
+		hnsNetwork.Policies = append(hnsNetwork.Policies, policy)
+	}
+
+	for _, subnet := range nwConfig.Subnets {
+		hnsSubnet := hcsshim.Subnet{
+			AddressPrefix:  subnet.AddressPrefix,
+			GatewayAddress: subnet.GatewayAddress,
+		}
+
+		hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)
+	}
+
+	for _, macPool := range nwConfig.MacPools {
+		hnsMacPool := hcsshim.MacPool{
+			StartMacAddress: macPool.StartMacAddress,
+			EndMacAddress:   macPool.EndMacAddress,
+		}
+		hnsNetwork.MacPools = append(hnsNetwork.MacPools, hnsMacPool)
+	}
+
+	return createHnsNetwork(hnsNetwork)
 }
 
-return createHnsNetwork(hnsNetwork)
+// DeleteHnsNetwork deletes the HNS network with the provided name
+func DeleteHnsNetwork(networkName string) error {
+	log.Printf("[Azure CNS] DeleteHnsNetwork")
+
+	return deleteHnsNetwork(networkName)
 }
 
 // CreateDefaultExtNetwork creates default HNS network named ext (if it doesn't exist already)
@@ -269,6 +291,13 @@ func CreateDefaultExtNetwork(networkType string) error {
 	return createHnsNetwork(hnsNetwork)
 }
 
+// DeleteDefaultExtNetwork deletes the default HNS network
+func DeleteDefaultExtNetwork() error {
+	log.Printf("[Azure CNS] DeleteDefaultExtNetwork")
+
+	return deleteHnsNetwork(ExtHnsNetworkName)
+}
+
 // createHnsNetwork calls the hcshim to create the hns network
 func createHnsNetwork(hnsNetwork *hcsshim.HNSNetwork) error {
 	// Marshal the request.
@@ -286,13 +315,14 @@ func createHnsNetwork(hnsNetwork *hcsshim.HNSNetwork) error {
 	return err
 }
 
-
-func DeleteNetwork(networkName string) error {
+// deleteHnsNetwork calls HNS to delete the network with the provided name
+func deleteHnsNetwork(networkName string) error {
 	hnsNetwork, err := hcsshim.GetHNSNetworkByName(networkName)
 	if err == nil {
 		// Delete the HNS network.
+		var hnsResponse *hcsshim.HNSNetwork
 		log.Printf("[Azure CNS] HNSNetworkRequest DELETE id:%v", hnsNetwork.Id)
-		hnsResponse, err := hcsshim.HNSNetworkRequest("DELETE", hnsNetwork.Id, "")
+		hnsResponse, err = hcsshim.HNSNetworkRequest("DELETE", hnsNetwork.Id, "")
 		log.Printf("[Azure CNS] HNSNetworkRequest DELETE response:%+v err:%v.", hnsResponse, err)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/Azure/azure-container-networking/cnm/ipam"
@@ -137,9 +138,9 @@ var args = acn.ArgumentList{
 		DefaultValue: platform.K8SNetConfigPath + string(os.PathSeparator) + defaultCNINetworkConfigFileName,
 	},
 	{
-		Name:         acn.OptCreateExtSwitchNetworkType,
-		Shorthand:    acn.OptCreateExtSwitchNetworkTypeAlias,
-		Description:  "Create ext switch network for windows platform with the specified type (l2bridge or l2tunnel)",
+		Name:         acn.OptCreateDefaultExtNetworkType,
+		Shorthand:    acn.OptCreateDefaultExtNetworkTypeAlias,
+		Description:  "Create default external network for windows platform with the specified type (l2bridge or l2tunnel)",
 		Type:         "string",
 		DefaultValue: "",
 	},
@@ -176,7 +177,7 @@ func main() {
 	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
 	stopcnm = acn.GetArg(acn.OptStopAzureVnet).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
-	createExtSwitchNetworkType := acn.GetArg(acn.OptCreateExtSwitchNetworkType).(string)
+	createDefaultExtNetworkType := acn.GetArg(acn.OptCreateDefaultExtNetworkType).(string)
 	telemetryEnabled := acn.GetArg(acn.OptTelemetry).(bool)
 
 	if vers {
@@ -238,13 +239,16 @@ func main() {
 	httpRestService.SetOption(acn.OptCnsURL, cnsURL)
 	httpRestService.SetOption(acn.OptNetPluginPath, cniPath)
 	httpRestService.SetOption(acn.OptNetPluginConfigFile, cniConfigFile)
-	httpRestService.SetOption(acn.OptCreateExtSwitchNetworkType, createExtSwitchNetworkType)
+	httpRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
 
-	//createExtSwitchNetworkType, _ := service.GetOption(acn.OptCreateExtSwitchNetworkType).(string)
-	// Perform platform specific initialization
-	if err := platform.CreateDefaultExtNetwork(createExtSwitchNetworkType); err != nil {
-		log.Printf("[Azure CNS] Failed to create %s network due to error: %v", createExtSwitchNetworkType, err)
-		return
+	// Create default ext network if commandline option is set
+	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
+		if err := platform.CreateDefaultExtNetwork(createDefaultExtNetworkType); err == nil {
+			log.Printf("[Azure CNS] Successfully created default ext network")
+		} else {
+			log.Printf("[Azure CNS] Failed to create default ext network due to error: %v", err)
+			return
+		}
 	}
 
 	// Start CNS.
@@ -322,6 +326,14 @@ func main() {
 		log.Printf("CNS Received OS signal <" + sig.String() + ">, shutting down.")
 	case err := <-config.ErrChan:
 		log.Printf("CNS Received unhandled error %v, shutting down.", err)
+	}
+
+	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
+		if err := platform.DeleteDefaultExtNetwork(); err == nil {
+			log.Printf("[Azure CNS] Successfully deleted default ext network")
+		} else {
+			log.Printf("[Azure CNS] Failed to delete default ext network due to error: %v", err)
+		}
 	}
 
 	// Cleanup.

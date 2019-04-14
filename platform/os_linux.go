@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 )
 
@@ -109,11 +110,30 @@ func KillProcessByName(processName string) error {
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
 // This operation is specific to windows OS
 func SetSdnRemoteArpMacAddress() error {
+	return nil
 }
 
-// CreateNetwork creates network (if it doesn't exist already)
-// to create external switch on windows platform. This is not needed
-// in linux platoform.
-func CreateNetwork(networkType string) error {
-	return nil
+// CreateDefaultExtNetwork creates the default ext network (if it doesn't exist already)
+// to create external switch on windows platform.
+// This is windows platform specific.
+func CreateDefaultExtNetwork(networkType string) error {
+	return fmt.Errorf("CreateDefaultExtNetwork shouldn't be called for the platform: %s", GetOSInfo)
+}
+
+// DeleteDefaultExtNetwork deletes the default HNS network.
+// This is windows platform specific.
+func DeleteDefaultExtNetwork() error {
+	return fmt.Errorf("DeleteDefaultExtNetwork shouldn't be called for the platform: %s", GetOSInfo)
+}
+
+// CreateHnsNetwork creates the HNS network with the provided configuration
+// This is windows platform specific.
+func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
+	return fmt.Errorf("CreateHnsNetwork shouldn't be called for the platform: %s", GetOSInfo)
+}
+
+// DeleteHnsNetwork deletes the HNS network with the provided name.
+// This is windows platform specific.
+func DeleteHnsNetwork(networkName string) error {
+	return fmt.Errorf("DeleteHnsNetwork shouldn't be called for the platform: %s", GetOSInfo)
 }
