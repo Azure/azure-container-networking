@@ -67,16 +67,16 @@ type CreateHnsNetworkRequest struct {
 // SubnetInfo is assoicated with HNS network and represents a list
 // of subnets available to the network
 type SubnetInfo struct {
-	AddressPrefix  string            `json:",omitempty"`
-	GatewayAddress string            `json:",omitempty"`
+	AddressPrefix  string
+	GatewayAddress string
 	Policies       []json.RawMessage `json:",omitempty"`
 }
 
 // MacPool is assoicated with HNS  network and represents a list
 // of macaddresses available to the network
 type MacPool struct {
-	StartMacAddress string `json:",omitempty"`
-	EndMacAddress   string `json:",omitempty"`
+	StartMacAddress string
+	EndMacAddress   string
 }
 
 // DeleteHnsNetworkRequest describes request to delete the HNS network.

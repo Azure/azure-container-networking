@@ -195,6 +195,33 @@ func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
 	return
 }
 
+// Get the network info from the service network state
+func (service *HTTPRestService) getNetworkInfo(networkName string) (*networkInfo, bool) {
+	service.lock.Lock()
+	defer service.lock.Unlock()
+	networkInfo, found := service.state.Networks[networkName]
+
+	return networkInfo, found
+}
+
+// Set the network info in the service network state
+func (service *HTTPRestService) setNetworkInfo(networkName string, networkInfo *networkInfo) {
+	service.lock.Lock()
+	defer service.lock.Unlock()
+	service.state.Networks[networkName] = networkInfo
+
+	return
+}
+
+// Remove the network info from the service network state
+func (service *HTTPRestService) removeNetworkInfo(networkName string) {
+	service.lock.Lock()
+	defer service.lock.Unlock()
+	delete(service.state.Networks, networkName)
+
+	return
+}
+
 // Handles requests to set the environment type.
 func (service *HTTPRestService) setEnvironment(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Azure CNS] setEnvironment")
@@ -376,7 +403,7 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 	err = service.Listener.Encode(w, &resp)
 
 	if returnCode == 0 {
-		delete(service.state.Networks, req.NetworkName)
+		service.removeNetworkInfo(req.NetworkName)
 		service.saveState()
 	}
 
@@ -407,9 +434,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 				networkInfo := &networkInfo{
 					NetworkName: req.NetworkName,
 				}
-				service.lock.Lock()
-				service.state.Networks[req.NetworkName] = networkInfo
-				service.lock.Unlock()
+				service.setNetworkInfo(req.NetworkName, networkInfo)
 				returnMessage = fmt.Sprintf("[Azure CNS] Successfully created HNS network: %s", req.NetworkName)
 			} else {
 				returnMessage = fmt.Sprintf("[Azure CNS] CreateHnsNetwork failed with error %v", err.Error())
@@ -429,9 +454,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 	err = service.Listener.Encode(w, &resp)
 
 	if returnCode == 0 {
-		service.lock.Lock()
 		service.saveState()
-		service.lock.Unlock()
 	}
 
 	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
@@ -455,9 +478,8 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 	} else {
 		switch r.Method {
 		case "POST":
-			service.lock.Lock()
-			networkInfo, ok := service.state.Networks[req.NetworkName]
-			if ok && networkInfo.NetworkName == req.NetworkName {
+			networkInfo, found := service.getNetworkInfo(req.NetworkName)
+			if found && networkInfo.NetworkName == req.NetworkName {
 				if err = platform.DeleteHnsNetwork(req.NetworkName); err == nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Successfully deleted HNS network: %s", req.NetworkName)
 				} else {
@@ -468,7 +490,6 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 				returnMessage = fmt.Sprintf("[Azure CNS] Network %s not found", req.NetworkName)
 				returnCode = InvalidParameter
 			}
-			service.lock.Unlock()
 		default:
 			returnMessage = "[Azure CNS] Error. DeleteHnsNetwork did not receive a POST."
 			returnCode = InvalidParameter
@@ -483,10 +504,8 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 	err = service.Listener.Encode(w, &resp)
 
 	if returnCode == 0 {
-		service.lock.Lock()
-		delete(service.state.Networks, req.NetworkName)
+		service.removeNetworkInfo(req.NetworkName)
 		service.saveState()
-		service.lock.Unlock()
 	}
 
 	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
