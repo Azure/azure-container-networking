@@ -9,9 +9,9 @@ import "encoding/json"
 const (
 	SetEnvironmentPath          = "/network/environment"
 	CreateNetworkPath           = "/network/create"
-	CreateHnsNetworkPath        = "/network/createhns"
 	DeleteNetworkPath           = "/network/delete"
-	DeleteHnsNetworkPath        = "/network/deletehns"
+	CreateHnsNetworkPath        = "/network/hns/create"
+	DeleteHnsNetworkPath        = "/network/hns/delete"
 	ReserveIPAddressPath        = "/network/ip/reserve"
 	ReleaseIPAddressPath        = "/network/ip/release"
 	GetHostLocalIPPath          = "/network/ip/hostlocal"
@@ -50,18 +50,18 @@ type DeleteNetworkRequest struct {
 
 // CreateHnsNetworkRequest describes request to create the HNS network.
 type CreateHnsNetworkRequest struct {
-	NetworkName          string            `json:",omitempty"`
-	NetworkType          string            `json:",omitempty"`
+	NetworkName          string
+	NetworkType          string
 	NetworkAdapterName   string            `json:",omitempty"`
 	SourceMac            string            `json:",omitempty"`
 	Policies             []json.RawMessage `json:",omitempty"`
 	MacPools             []MacPool         `json:",omitempty"`
-	Subnets              []SubnetInfo      `json:",omitempty"`
-	DNSSuffix            string            `json:",omitempty"`
-	DNSServerList        string            `json:",omitempty"`
-	DNSServerCompartment uint32            `json:",omitempty"`
-	ManagementIP         string            `json:",omitempty"`
-	AutomaticDNS         bool              `json:",omitempty"`
+	Subnets              []SubnetInfo
+	DNSSuffix            string `json:",omitempty"`
+	DNSServerList        string `json:",omitempty"`
+	DNSServerCompartment uint32 `json:",omitempty"`
+	ManagementIP         string `json:",omitempty"`
+	AutomaticDNS         bool   `json:",omitempty"`
 }
 
 // SubnetInfo is assoicated with HNS network and represents a list
@@ -81,7 +81,7 @@ type MacPool struct {
 
 // DeleteHnsNetworkRequest describes request to delete the HNS network.
 type DeleteHnsNetworkRequest struct {
-	NetworkName string `json:"NetworkName"`
+	NetworkName string
 }
 
 // ReserveIPAddressRequest describes request to reserve an IP Address
