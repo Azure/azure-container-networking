@@ -50,7 +50,6 @@ type DeleteNetworkRequest struct {
 
 // CreateHnsNetworkRequest describes request to create the HNS network.
 type CreateHnsNetworkRequest struct {
-	NetworkID            string            `json:"ID,omitempty"`
 	NetworkName          string            `json:",omitempty"`
 	NetworkType          string            `json:",omitempty"`
 	NetworkAdapterName   string            `json:",omitempty"`

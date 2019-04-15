@@ -204,7 +204,6 @@ func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
 	log.Printf("[Azure CNS] CreateHnsNetwork")
 	// Initialize HNS network.
 	hnsNetwork := &hcsshim.HNSNetwork{
-		Id:                   nwConfig.NetworkID,
 		Name:                 nwConfig.NetworkName,
 		Type:                 nwConfig.NetworkType,
 		NetworkAdapterName:   nwConfig.NetworkAdapterName,
