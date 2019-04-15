@@ -407,7 +407,9 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 				networkInfo := &networkInfo{
 					NetworkName: req.NetworkName,
 				}
+				service.lock.Lock()
 				service.state.Networks[req.NetworkName] = networkInfo
+				service.lock.Unlock()
 				returnMessage = fmt.Sprintf("[Azure CNS] Successfully created HNS network: %s", req.NetworkName)
 			} else {
 				returnMessage = fmt.Sprintf("[Azure CNS] CreateHnsNetwork failed with error %v", err.Error())
@@ -427,7 +429,9 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 	err = service.Listener.Encode(w, &resp)
 
 	if returnCode == 0 {
+		service.lock.Lock()
 		service.saveState()
+		service.lock.Unlock()
 	}
 
 	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
@@ -451,6 +455,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 	} else {
 		switch r.Method {
 		case "POST":
+			service.lock.Lock()
 			networkInfo, ok := service.state.Networks[req.NetworkName]
 			if ok && networkInfo.NetworkName == req.NetworkName {
 				if err = platform.DeleteHnsNetwork(req.NetworkName); err == nil {
@@ -460,11 +465,12 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 					returnCode = UnexpectedError
 				}
 			} else {
-				returnMessage = fmt.Sprintf("[Azure CNS] Invalid network name: %s", req.NetworkName)
+				returnMessage = fmt.Sprintf("[Azure CNS] Network %s not found", req.NetworkName)
 				returnCode = InvalidParameter
 			}
+			service.lock.Unlock()
 		default:
-			returnMessage = "[Azure CNS] Error. CreateHnsNetwork did not receive a POST."
+			returnMessage = "[Azure CNS] Error. DeleteHnsNetwork did not receive a POST."
 			returnCode = InvalidParameter
 		}
 	}
@@ -477,8 +483,10 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 	err = service.Listener.Encode(w, &resp)
 
 	if returnCode == 0 {
+		service.lock.Lock()
 		delete(service.state.Networks, req.NetworkName)
 		service.saveState()
+		service.lock.Unlock()
 	}
 
 	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
