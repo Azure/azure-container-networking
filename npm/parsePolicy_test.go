@@ -49,6 +49,9 @@ func TestSplitPolicy(t *testing.T) {
 
 	expectedPolicies := []*networkingv1.NetworkPolicy{
 		&networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "role:client",
+			},
 			Spec: networkingv1.NetworkPolicySpec{
 				PodSelector: metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -59,6 +62,9 @@ func TestSplitPolicy(t *testing.T) {
 			},
 		},
 		&networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "protocol:https",
+			},
 			Spec: networkingv1.NetworkPolicySpec{
 				PodSelector: metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -69,6 +75,9 @@ func TestSplitPolicy(t *testing.T) {
 			},
 		},
 		&networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "testIn:frontend",
+			},
 			Spec: networkingv1.NetworkPolicySpec{
 				PodSelector: metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -79,6 +88,9 @@ func TestSplitPolicy(t *testing.T) {
 			},
 		},
 		&networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "testIn:backend",
+			},
 			Spec: networkingv1.NetworkPolicySpec{
 				PodSelector: metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -89,6 +101,9 @@ func TestSplitPolicy(t *testing.T) {
 			},
 		},
 		&networkingv1.NetworkPolicy{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "!testDoesNotExist",
+			},
 			Spec: networkingv1.NetworkPolicySpec{
 				PodSelector: metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -111,6 +126,8 @@ func TestSplitPolicy(t *testing.T) {
 	for i := range labels {
 		if !reflect.DeepEqual(labels, expectedLabels) {
 			t.Errorf("TestsplitPolicy failed @ label comparison")
+			fmt.Println(labels)
+			fmt.Println(expectedLabels)
 		}
 
 		if !reflect.DeepEqual(policies[i].Spec.PodSelector.MatchLabels, expectedPolicies[i].Spec.PodSelector.MatchLabels) {
@@ -269,15 +286,15 @@ func TestAddPolicy(t *testing.T) {
 
 	addedPolicy, err := addPolicy(&oldPolicy, &newPolicy)
 	if err != nil || !reflect.DeepEqual(addedPolicy, expectedPolicy) {
-		t.Errorf("TestMergePolicy failed")
+		t.Errorf("TestAddPolicy failed")
 		fmt.Println(addedPolicy)
 		fmt.Println(expectedPolicy)
 	}
 }
 
 func TestDeductPolicy(t *testing.T) {
-	tcp, udp := v1.ProtocolTCP, v1.ProtocolUDP
-	port6783, port6784 := intstr.FromInt(6783), intstr.FromInt(6784)
+	tcp := v1.ProtocolTCP
+	port6783 := intstr.FromInt(6783)
 	oldIngressPodSelector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"app": "db",
@@ -367,13 +384,7 @@ func TestDeductPolicy(t *testing.T) {
 		},
 	}
 
-	newPolicy := oldPolicy
-	newPolicy.Spec.Ingress[0].From = newPolicy.Spec.Ingress[0].From[0:1]
-	newPolicy.Spec.Egress[0].To[0] = networkingv1.NetworkPolicyPeer{
-		PodSelector: &metav1.LabelSelector{},
-	}
-
-	expectedPolicy := networkingv1.NetworkPolicy{
+	newPolicy := networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "testnamespace",
 		},
@@ -393,7 +404,7 @@ func TestDeductPolicy(t *testing.T) {
 					},
 					From: []networkingv1.NetworkPolicyPeer{
 						networkingv1.NetworkPolicyPeer{
-							PodSelector: oldIngressNamespaceSelector,
+							PodSelector: oldIngressPodSelector,
 						},
 					},
 				},
@@ -403,7 +414,7 @@ func TestDeductPolicy(t *testing.T) {
 					Ports: []networkingv1.NetworkPolicyPort{},
 					To: []networkingv1.NetworkPolicyPeer{
 						networkingv1.NetworkPolicyPeer{
-							PodSelector: oldEgressPodSelector,
+							PodSelector: &metav1.LabelSelector{},
 						},
 					},
 				},
@@ -414,10 +425,19 @@ func TestDeductPolicy(t *testing.T) {
 		},
 	}
 
+	expectedPolicy := oldPolicy
+	expectedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{
+		networkingv1.PolicyTypeIngress,
+		networkingv1.PolicyTypeEgress,
+	}
 	deductedPolicy, err := deductPolicy(&oldPolicy, &newPolicy)
-	if err != nil || !reflect.DeepEqual(deductedPolicy, expectedPolicy) {
-		t.Errorf("TestMergePolicy failed")
-		fmt.Println(deductedPolicy)
-		fmt.Println(expectedPolicy)
+	if err != nil || !reflect.DeepEqual(deductedPolicy, &expectedPolicy) {
+		t.Errorf("TestDeductPolicy failed")
+	}
+
+	newPolicy = oldPolicy
+	deductedPolicy, err = deductPolicy(&oldPolicy, &newPolicy)
+	if err != nil || deductedPolicy != nil {
+		t.Errorf("TestDeductPolicy failed @ identical policies")
 	}
 }

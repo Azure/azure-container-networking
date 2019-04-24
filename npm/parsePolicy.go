@@ -10,6 +10,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func isSamePolicy(old, new *networkingv1.NetworkPolicy) bool {
+	if !reflect.DeepEqual(old.TypeMeta, new.TypeMeta) {
+		return false
+	}
+
+	if old.ObjectMeta.Namespace != new.ObjectMeta.Namespace {
+		return false
+	}
+
+	if !reflect.DeepEqual(old.Spec, new.Spec) {
+		return false
+	}
+
+	return true
+}
+
 func splitPolicy(npObj *networkingv1.NetworkPolicy) ([]string, []*networkingv1.NetworkPolicy) {
 	var policies []*networkingv1.NetworkPolicy
 
@@ -87,4 +103,57 @@ func deductPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPo
 		return nil, fmt.Errorf("Old and new networkpolicy don't have apply to the same set of target pods")
 	}
 
+	deductedPolicy := &networkingv1.NetworkPolicy{
+		TypeMeta: old.TypeMeta,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      old.ObjectMeta.Name,
+			Namespace: old.ObjectMeta.Namespace,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: old.Spec.PodSelector,
+		},
+	}
+
+	deductedIngress, newIngress := old.Spec.Ingress, new.Spec.Ingress
+	deductedEgress, newEgress := old.Spec.Egress, new.Spec.Egress
+	for _, ni := range newIngress {
+		for i, di := range deductedIngress {
+			if reflect.DeepEqual(di, ni) {
+				deductedIngress = append(deductedIngress[:i], deductedIngress[i+1:]...)
+				break
+			}
+		}
+	}
+
+	for _, ne := range newEgress {
+		for i, de := range deductedEgress {
+			if reflect.DeepEqual(de, ne) {
+				deductedEgress = append(deductedEgress[:i], deductedEgress[i+1:]...)
+				break
+			}
+		}
+	}
+
+	fmt.Println("deduIn\n:", deductedIngress)
+	fmt.Println("deduE\n:", deductedEgress)
+
+	if len(deductedIngress) == 0 && len(deductedEgress) == 0 {
+		return nil, nil
+	}
+
+	deductedPolicy.Spec.Ingress = deductedIngress
+	deductedPolicy.Spec.Egress = deductedEgress
+
+	if len(old.Spec.PolicyTypes) == 1 && old.Spec.PolicyTypes[0] == networkingv1.PolicyTypeEgress &&
+		len(new.Spec.PolicyTypes) == 1 && new.Spec.PolicyTypes[0] == networkingv1.PolicyTypeEgress &&
+		len(deductedIngress) == 0 {
+		deductedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
+	} else {
+		deductedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{
+			networkingv1.PolicyTypeIngress,
+			networkingv1.PolicyTypeEgress,
+		}
+	}
+
+	return deductedPolicy, nil
 }

@@ -14,23 +14,25 @@ import (
 )
 
 type namespace struct {
-	name   string
-	setMap map[string]string
-	podMap map[types.UID]*corev1.Pod
-	npMap  map[string]*networkingv1.NetworkPolicy
-	ipsMgr *ipsm.IpsetManager
-	iptMgr *iptm.IptablesManager
+	name           string
+	setMap         map[string]string
+	podMap         map[types.UID]*corev1.Pod
+	rawNpMap       map[string]*networkingv1.NetworkPolicy
+	processedNpMap map[string]*networkingv1.NetworkPolicy
+	ipsMgr         *ipsm.IpsetManager
+	iptMgr         *iptm.IptablesManager
 }
 
 // newNS constructs a new namespace object.
 func newNs(name string) (*namespace, error) {
 	ns := &namespace{
-		name:   name,
-		setMap: make(map[string]string),
-		podMap: make(map[types.UID]*corev1.Pod),
-		npMap:  make(map[string]*networkingv1.NetworkPolicy),
-		ipsMgr: ipsm.NewIpsetManager(),
-		iptMgr: iptm.NewIptablesManager(),
+		name:           name,
+		setMap:         make(map[string]string),
+		podMap:         make(map[types.UID]*corev1.Pod),
+		rawNpMap:       make(map[string]*networkingv1.NetworkPolicy),
+		processedNpMap: make(map[string]*networkingv1.NetworkPolicy),
+		ipsMgr:         ipsm.NewIpsetManager(),
+		iptMgr:         iptm.NewIptablesManager(),
 	}
 
 	return ns, nil
@@ -38,6 +40,16 @@ func newNs(name string) (*namespace, error) {
 
 func isSystemNs(nsObj *corev1.Namespace) bool {
 	return nsObj.ObjectMeta.Name == util.KubeSystemFlag
+}
+
+func (ns *namespace) policyExists(npObj *networkingv1.NetworkPolicy) bool {
+	if np, exists := ns.rawNpMap[npObj.ObjectMeta.Name]; exists {
+		if isSamePolicy(np, npObj) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // InitAllNsList syncs all-namespace ipset list.

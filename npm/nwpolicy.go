@@ -8,6 +8,16 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
+func (npMgr *NetworkPolicyManager) canCleanUpNpmChains() bool {
+	for _, ns := range npMgr.nsMap {
+		if len(ns.rawNpMap) > 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
 // AddNetworkPolicy handles adding network policy to iptables.
 func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	npMgr.Lock()
@@ -36,6 +46,10 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		npMgr.nsMap[npNs] = ns
 	}
 
+	if ns.policyExists(npObj) {
+		return nil
+	}
+
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
 	if !npMgr.isAzureNpmChainCreated {
@@ -60,7 +74,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	)
 	for i := range newPolicies {
 		label, newPolicy := labels[i], newPolicies[i]
-		if oldPolicy, exists := ns.npMap[label]; exists {
+		if oldPolicy, exists := ns.processedNpMap[label]; exists {
 			addedPolicy, err = addPolicy(oldPolicy, newPolicy)
 			oldPolicies = append(oldPolicies, oldPolicy)
 			addedPolicies = append(addedPolicies, addedPolicy)
@@ -109,6 +123,8 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	}
 
+	ns.rawNpMap[npName] = npObj
+
 	return nil
 }
 
@@ -145,7 +161,10 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	npMgr.Lock()
 	defer npMgr.Unlock()
 
-	var err error
+	var (
+		err error
+		ns  *namespace
+	)
 
 	defer func() {
 		if err = npMgr.UpdateAndSendReport(err, util.DeleteNetworkPolicyEvent); err != nil {
@@ -155,6 +174,19 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 
 	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY DELETING: %s/%s\n", npNs, npName)
+
+	var exists bool
+	if ns, exists = npMgr.nsMap[npNs]; !exists {
+		ns, err = newNs(npNs)
+		if err != nil {
+			log.Printf("Error creating namespace %s\n", npNs)
+		}
+		npMgr.nsMap[npNs] = ns
+	}
+
+	if !ns.policyExists(npObj) {
+		return nil
+	}
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
@@ -168,9 +200,9 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		}
 	}
 
-	delete(allNs.npMap, npName)
+	delete(ns.rawNpMap, npName)
 
-	if len(allNs.npMap) == 0 {
+	if npMgr.canCleanUpNpmChains() {
 		if err = iptMgr.UninitNpmChains(); err != nil {
 			log.Printf("Error uninitialize azure-npm chains.\n")
 			return err
