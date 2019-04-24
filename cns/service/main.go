@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/Azure/azure-container-networking/cnm/ipam"
@@ -17,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-container-networking/telemetry"
 )
 
 const (
@@ -122,25 +124,32 @@ var args = acn.ArgumentList{
 		DefaultValue: false,
 	},
 	{
-		Name:         acn.OptReportToHostInterval,
-		Shorthand:    acn.OptReportToHostIntervalAlias,
-		Description:  "Set interval in ms to report to host",
-		Type:         "int",
-		DefaultValue: "60000",
-	},
-	{
-		Name:         acn.OptCNIPath,
-		Shorthand:    acn.OptCNIPathAlias,
-		Description:  "Set CNI binary absolute path to parent (of azure-vnet and azure-vnet-ipam)",
+		Name:         acn.OptNetPluginPath,
+		Shorthand:    acn.OptNetPluginPathAlias,
+		Description:  "Set network plugin binary absolute path to parent (of azure-vnet and azure-vnet-ipam)",
 		Type:         "string",
 		DefaultValue: platform.K8SCNIRuntimePath,
 	},
 	{
-		Name:         acn.OptCNIConfigFile,
-		Shorthand:    acn.OptCNIConfigFileAlias,
-		Description:  "Set CNI configuration file absolute path",
+		Name:         acn.OptNetPluginConfigFile,
+		Shorthand:    acn.OptNetPluginConfigFileAlias,
+		Description:  "Set network plugin configuration file absolute path",
 		Type:         "string",
 		DefaultValue: platform.K8SNetConfigPath + string(os.PathSeparator) + defaultCNINetworkConfigFileName,
+	},
+	{
+		Name:         acn.OptCreateDefaultExtNetworkType,
+		Shorthand:    acn.OptCreateDefaultExtNetworkTypeAlias,
+		Description:  "Create default external network for windows platform with the specified type (l2bridge or l2tunnel)",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptTelemetry,
+		Shorthand:    acn.OptTelemetryAlias,
+		Description:  "Set to false to disable telemetry",
+		Type:         "bool",
+		DefaultValue: true,
 	},
 }
 
@@ -158,8 +167,8 @@ func main() {
 
 	environment := acn.GetArg(acn.OptEnvironment).(string)
 	url := acn.GetArg(acn.OptAPIServerURL).(string)
-	cniPath := acn.GetArg(acn.OptCNIPath).(string)
-	cniConfigFile := acn.GetArg(acn.OptCNIConfigFile).(string)
+	cniPath := acn.GetArg(acn.OptNetPluginPath).(string)
+	cniConfigFile := acn.GetArg(acn.OptNetPluginConfigFile).(string)
 	cnsURL := acn.GetArg(acn.OptCnsURL).(string)
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
@@ -168,7 +177,8 @@ func main() {
 	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
 	stopcnm = acn.GetArg(acn.OptStopAzureVnet).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
-	// reportToHostInterval := acn.GetArg(acn.OptReportToHostInterval).(int)
+	createDefaultExtNetworkType := acn.GetArg(acn.OptCreateDefaultExtNetworkType).(string)
+	telemetryEnabled := acn.GetArg(acn.OptTelemetry).(bool)
 
 	if vers {
 		printVersion()
@@ -197,7 +207,8 @@ func main() {
 		return
 	}
 
-	if logger := log.GetStd(); logger != nil {
+	// Set-up channel for CNS telemetry if it's enabled (enabled by default)
+	if logger := log.GetStd(); logger != nil && telemetryEnabled {
 		logger.SetChannel(reports)
 	}
 
@@ -226,15 +237,29 @@ func main() {
 
 	// Set CNS options.
 	httpRestService.SetOption(acn.OptCnsURL, cnsURL)
-	httpRestService.SetOption(acn.OptCNIPath, cniPath)
-	httpRestService.SetOption(acn.OptCNIConfigFile, cniConfigFile)
+	httpRestService.SetOption(acn.OptNetPluginPath, cniPath)
+	httpRestService.SetOption(acn.OptNetPluginConfigFile, cniConfigFile)
+	httpRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
+
+	// Create default ext network if commandline option is set
+	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
+		if err := platform.CreateDefaultExtNetwork(createDefaultExtNetworkType); err == nil {
+			log.Printf("[Azure CNS] Successfully created default ext network")
+		} else {
+			log.Printf("[Azure CNS] Failed to create default ext network due to error: %v", err)
+			return
+		}
+	}
 
 	// Start CNS.
 	if httpRestService != nil {
-		// go telemetry.SendCnsTelemetry(reportToHostInterval,
-		// 	reports,
-		// 	httpRestService.(*restserver.HTTPRestService),
-		// 	telemetryStopProcessing)
+		if telemetryEnabled {
+			go telemetry.SendCnsTelemetry(
+				reports,
+				httpRestService.(*restserver.HTTPRestService),
+				telemetryStopProcessing)
+		}
+
 		err = httpRestService.Start(&config)
 		if err != nil {
 			log.Errorf("Failed to start CNS, err:%v.\n", err)
@@ -301,6 +326,14 @@ func main() {
 		log.Printf("CNS Received OS signal <" + sig.String() + ">, shutting down.")
 	case err := <-config.ErrChan:
 		log.Printf("CNS Received unhandled error %v, shutting down.", err)
+	}
+
+	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
+		if err := platform.DeleteDefaultExtNetwork(); err == nil {
+			log.Printf("[Azure CNS] Successfully deleted default ext network")
+		} else {
+			log.Printf("[Azure CNS] Failed to delete default ext network due to error: %v", err)
+		}
 	}
 
 	// Cleanup.

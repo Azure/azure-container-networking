@@ -208,7 +208,9 @@ func (nm *networkManager) deleteNetwork(networkId string) error {
 	}
 
 	// Remove the network object.
-	delete(nw.extIf.Networks, networkId)
+	if nw.extIf != nil {
+		delete(nw.extIf.Networks, networkId)
+	}
 
 	log.Printf("[net] Deleted network %+v.", nw)
 	return nil

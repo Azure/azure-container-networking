@@ -6,6 +6,7 @@
 * [ACS](acs.md) - describes how to use the plugins with Azure Container Service.
 * [Network](network.md) - describes container networks created by plugins.
 * [IPAM](ipam.md) - describes how container IP address management is done by plugins.
+* [NPM](npm.md) - describes how to setup Azure-NPM (Azure Network Policy Manager).
 * [Scripts](scripts.md) - describes how to use the scripts in this repository.
 
 ## Code of Conduct

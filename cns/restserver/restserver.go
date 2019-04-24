@@ -28,6 +28,8 @@ const (
 	// Key against which CNS state is persisted.
 	storeKey        = "ContainerNetworkService"
 	swiftAPIVersion = "1"
+	attach          = "Attach"
+	detach          = "Detach"
 )
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
@@ -152,6 +154,8 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
 	listener.AddHandler(cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
+	listener.AddHandler(cns.CreateHnsNetworkPath, service.createHnsNetwork)
+	listener.AddHandler(cns.DeleteHnsNetworkPath, service.deleteHnsNetwork)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
@@ -170,6 +174,8 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
 	listener.AddHandler(cns.V2Prefix+cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
+	listener.AddHandler(cns.V2Prefix+cns.CreateHnsNetworkPath, service.createHnsNetwork)
+	listener.AddHandler(cns.V2Prefix+cns.DeleteHnsNetworkPath, service.deleteHnsNetwork)
 
 	log.Printf("[Azure CNS]  Listening.")
 	return nil
@@ -186,6 +192,33 @@ func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
 	service.lock.Lock()
 	dncPartitionKey = service.dncPartitionKey
 	service.lock.Unlock()
+	return
+}
+
+// Get the network info from the service network state
+func (service *HTTPRestService) getNetworkInfo(networkName string) (*networkInfo, bool) {
+	service.lock.Lock()
+	defer service.lock.Unlock()
+	networkInfo, found := service.state.Networks[networkName]
+
+	return networkInfo, found
+}
+
+// Set the network info in the service network state
+func (service *HTTPRestService) setNetworkInfo(networkName string, networkInfo *networkInfo) {
+	service.lock.Lock()
+	defer service.lock.Unlock()
+	service.state.Networks[networkName] = networkInfo
+
+	return
+}
+
+// Remove the network info from the service network state
+func (service *HTTPRestService) removeNetworkInfo(networkName string) {
+	service.lock.Lock()
+	defer service.lock.Unlock()
+	delete(service.state.Networks, networkName)
+
 	return
 }
 
@@ -246,7 +279,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 					case "Underlay":
 						switch service.state.Location {
 						case "Azure":
-							log.Printf("[Azure CNS] Goign to create network with name %v.", req.NetworkName)
+							log.Printf("[Azure CNS] Creating network with name %v.", req.NetworkName)
 
 							err = rt.GetRoutingTable()
 							if err != nil {
@@ -342,7 +375,7 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 
 		// Network does exist
 		if err == nil {
-			log.Printf("[Azure CNS] Goign to delete network with name %v.", req.NetworkName)
+			log.Printf("[Azure CNS] Deleting network with name %v.", req.NetworkName)
 			err := dc.DeleteNetwork(req.NetworkName)
 			if err != nil {
 				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetwork failed %v.", err.Error())
@@ -370,7 +403,108 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 	err = service.Listener.Encode(w, &resp)
 
 	if returnCode == 0 {
-		delete(service.state.Networks, req.NetworkName)
+		service.removeNetworkInfo(req.NetworkName)
+		service.saveState()
+	}
+
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+}
+
+// Handles CreateHnsNetwork requests.
+func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[Azure CNS] createHnsNetwork")
+
+	var err error
+	returnCode := 0
+	returnMessage := ""
+
+	var req cns.CreateHnsNetworkRequest
+	err = service.Listener.Decode(w, r, &req)
+	log.Request(service.Name, &req, err)
+
+	if err != nil {
+		returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
+		returnCode = InvalidParameter
+	} else {
+		switch r.Method {
+		case "POST":
+			if err := platform.CreateHnsNetwork(req); err == nil {
+				// Save the newly created HnsNetwork name. CNS deleteHnsNetwork API
+				// will only allow deleting these networks.
+				networkInfo := &networkInfo{
+					NetworkName: req.NetworkName,
+				}
+				service.setNetworkInfo(req.NetworkName, networkInfo)
+				returnMessage = fmt.Sprintf("[Azure CNS] Successfully created HNS network: %s", req.NetworkName)
+			} else {
+				returnMessage = fmt.Sprintf("[Azure CNS] CreateHnsNetwork failed with error %v", err.Error())
+				returnCode = UnexpectedError
+			}
+		default:
+			returnMessage = "[Azure CNS] Error. CreateHnsNetwork did not receive a POST."
+			returnCode = InvalidParameter
+		}
+	}
+
+	resp := &cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage,
+	}
+
+	err = service.Listener.Encode(w, &resp)
+
+	if returnCode == 0 {
+		service.saveState()
+	}
+
+	log.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+}
+
+// Handles deleteHnsNetwork requests.
+func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[Azure CNS] deleteHnsNetwork")
+
+	var err error
+	var req cns.DeleteHnsNetworkRequest
+	returnCode := 0
+	returnMessage := ""
+
+	err = service.Listener.Decode(w, r, &req)
+	log.Request(service.Name, &req, err)
+
+	if err != nil {
+		returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
+		returnCode = InvalidParameter
+	} else {
+		switch r.Method {
+		case "POST":
+			networkInfo, found := service.getNetworkInfo(req.NetworkName)
+			if found && networkInfo.NetworkName == req.NetworkName {
+				if err = platform.DeleteHnsNetwork(req.NetworkName); err == nil {
+					returnMessage = fmt.Sprintf("[Azure CNS] Successfully deleted HNS network: %s", req.NetworkName)
+				} else {
+					returnMessage = fmt.Sprintf("[Azure CNS] DeleteHnsNetwork failed with error %v", err.Error())
+					returnCode = UnexpectedError
+				}
+			} else {
+				returnMessage = fmt.Sprintf("[Azure CNS] Network %s not found", req.NetworkName)
+				returnCode = InvalidParameter
+			}
+		default:
+			returnMessage = "[Azure CNS] Error. DeleteHnsNetwork did not receive a POST."
+			returnCode = InvalidParameter
+		}
+	}
+
+	resp := &cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage,
+	}
+
+	err = service.Listener.Encode(w, &resp)
+
+	if returnCode == 0 {
+		service.removeNetworkInfo(req.NetworkName)
 		service.saveState()
 	}
 
@@ -971,9 +1105,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
 			if ok && existing.VMVersion != req.Version {
 				nc := service.networkContainer
-				pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
-				configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-				netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
+				netPluginConfig := service.getNetPluginDetails()
 				if err = nc.Update(req, netPluginConfig); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
 					returnCode = UnexpectedError
@@ -1087,6 +1219,14 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	err := service.Listener.Decode(w, r, &req)
 	log.Request(service.Name, &req, err)
 	if err != nil {
+		return
+	}
+
+	// getNetworkContainerByOrchestratorContext gets called for multitenancy and
+	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
+	// to work correctly in case of windows platform. Return if there is an error
+	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
+		log.Printf("[Azure CNS] SetSdnRemoteArpMacAddress failed with error: %s", err.Error())
 		return
 	}
 
@@ -1337,60 +1477,13 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 	log.Printf("[Azure CNS] attachNetworkContainerToNetwork")
 
 	var req cns.ConfigureContainerNetworkingRequest
-	returnMessage := ""
-	returnCode := 0
-
 	err := service.Listener.Decode(w, r, &req)
 	log.Request(service.Name, &req, err)
 	if err != nil {
 		return
 	}
 
-	if req.Containerid == "" {
-		returnCode = DockerContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. Containerid is empty")
-	} else if req.NetworkContainerid == "" {
-		returnCode = NetworkContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. NetworkContainerid is empty")
-	} else {
-		switch r.Method {
-		case "POST":
-			// try to get the saved nc state if it exists
-			service.lock.Lock()
-			existing, ok := service.state.ContainerStatus[cns.SwiftPrefix+req.NetworkContainerid]
-			service.lock.Unlock()
-			if !ok {
-				returnMessage = fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)
-				returnCode = NotFound
-			} else {
-				var podInfo cns.KubernetesPodInfo
-				err := json.Unmarshal(existing.CreateNetworkContainerRequest.OrchestratorContext, &podInfo)
-				if err != nil {
-					returnCode = UnexpectedError
-					returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
-				} else {
-					nc := service.networkContainer
-					pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
-					configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-					netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
-					if err = nc.Attach(podInfo.PodName, podInfo.PodNamespace, req.Containerid, netPluginConfig); err != nil {
-						returnMessage = fmt.Sprintf("[Azure CNS] Error. AttachContainerToNetwork failed %+v", err.Error())
-						returnCode = UnexpectedError
-					}
-				}
-			}
-
-		default:
-			returnMessage = "[Azure CNS] Error. AttachContainerToNetwork did not receive a POST."
-			returnCode = InvalidParameter
-		}
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
+	resp := service.attachOrDetachHelper(req, attach, r.Method)
 	attachResp := &cns.AttachContainerToNetworkResponse{Response: resp}
 	err = service.Listener.Encode(w, &attachResp)
 	log.Response(service.Name, attachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
@@ -1400,61 +1493,80 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 	log.Printf("[Azure CNS] detachNetworkContainerFromNetwork")
 
 	var req cns.ConfigureContainerNetworkingRequest
-	returnMessage := ""
-	returnCode := 0
-
 	err := service.Listener.Decode(w, r, &req)
 	log.Request(service.Name, &req, err)
 	if err != nil {
 		return
 	}
 
-	if req.Containerid == "" {
-		returnCode = DockerContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. Containerid is empty")
-	} else if req.NetworkContainerid == "" {
-		returnCode = NetworkContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. NetworkContainerid is empty")
-	} else {
-		switch r.Method {
-		case "POST":
-			// try to get the saved nc state if it exists
-			service.lock.Lock()
-			existing, ok := service.state.ContainerStatus[cns.SwiftPrefix+req.NetworkContainerid]
-			service.lock.Unlock()
-			if !ok {
-				returnMessage = fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)
-				returnCode = NotFound
-			} else {
-				var podInfo cns.KubernetesPodInfo
-				err := json.Unmarshal(existing.CreateNetworkContainerRequest.OrchestratorContext, &podInfo)
-				if err != nil {
-					returnCode = UnexpectedError
-					returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
-				} else {
-					nc := service.networkContainer
-					pluginBinPath, _ := service.GetOption(acn.OptCNIPath).(string)
-					configPath, _ := service.GetOption(acn.OptCNIConfigFile).(string)
-					netPluginConfig := networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
-					if err = nc.Detach(podInfo.PodName, podInfo.PodNamespace, req.Containerid, netPluginConfig); err != nil {
-						returnMessage = fmt.Sprintf("[Azure CNS] Error. detachNetworkContainerFromNetwork failed %+v", err.Error())
-						returnCode = UnexpectedError
-					}
-				}
-			}
-
-		default:
-			returnMessage = "[Azure CNS] Error. detachNetworkContainerFromNetwork did not receive a POST."
-			returnCode = InvalidParameter
-		}
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
+	resp := service.attachOrDetachHelper(req, detach, r.Method)
 	detachResp := &cns.DetachContainerFromNetworkResponse{Response: resp}
 	err = service.Listener.Encode(w, &detachResp)
 	log.Response(service.Name, detachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+}
+
+func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerNetworkingRequest, operation, method string) cns.Response {
+	if method != "POST" {
+		return cns.Response{
+			ReturnCode: InvalidParameter,
+			Message:    "[Azure CNS] Error. " + operation + "ContainerToNetwork did not receive a POST."}
+	}
+	if req.Containerid == "" {
+		return cns.Response{
+			ReturnCode: DockerContainerNotSpecified,
+			Message:    "[Azure CNS] Error. Containerid is empty"}
+	}
+	if req.NetworkContainerid == "" {
+		return cns.Response{
+			ReturnCode: NetworkContainerNotSpecified,
+			Message:    "[Azure CNS] Error. NetworkContainerid is empty"}
+	}
+
+	service.lock.Lock()
+	existing, ok := service.state.ContainerStatus[cns.SwiftPrefix+req.NetworkContainerid]
+	service.lock.Unlock()
+	if !ok {
+		return cns.Response{
+			ReturnCode: NotFound,
+			Message:    fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)}
+	}
+
+	returnCode := 0
+	returnMessage := ""
+	switch service.state.OrchestratorType {
+	case cns.Batch:
+		var podInfo cns.KubernetesPodInfo
+		err := json.Unmarshal(existing.CreateNetworkContainerRequest.OrchestratorContext, &podInfo)
+		if err != nil {
+			returnCode = UnexpectedError
+			returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
+		} else {
+			nc := service.networkContainer
+			netPluginConfig := service.getNetPluginDetails()
+			switch operation {
+			case attach:
+				err = nc.Attach(podInfo, req.Containerid, netPluginConfig)
+			case detach:
+				err = nc.Detach(podInfo, req.Containerid, netPluginConfig)
+			}
+			if err != nil {
+				returnCode = UnexpectedError
+				returnMessage = fmt.Sprintf("[Azure CNS] Error. "+operation+"ContainerToNetwork failed %+v", err.Error())
+			}
+		}
+
+	default:
+		returnMessage = fmt.Sprintf("[Azure CNS] Invalid orchestrator type %v", service.state.OrchestratorType)
+		returnCode = UnsupportedOrchestratorType
+	}
+
+	return cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage}
+}
+
+func (service *HTTPRestService) getNetPluginDetails() *networkcontainers.NetPluginConfiguration {
+	pluginBinPath, _ := service.GetOption(acn.OptNetPluginPath).(string)
+	configPath, _ := service.GetOption(acn.OptNetPluginConfigFile).(string)
+	return networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
 }

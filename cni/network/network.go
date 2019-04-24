@@ -452,6 +452,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		EnableInfraVnet:    enableInfraVnet,
 		PODName:            k8sPodName,
 		PODNameSpace:       k8sNamespace,
+		SkipHotAttachEp:    false, // Hot attach at the time of endpoint creation
 	}
 
 	epPolicies := getPoliciesFromRuntimeCfg(nwCfg)
@@ -495,8 +496,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	msg := fmt.Sprintf("CNI ADD succeeded : allocated ipaddress %+v, vlanid: %v, podname %v, namespace %v",
-		result, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace)
+	msg := fmt.Sprintf("CNI ADD succeeded : CNI Version %+v, IP:%+v, Interfaces:%+v, vlanid: %v, podname %v, namespace %v",
+		result.CNIVersion, result.IPs, result.Interfaces, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace)
 	plugin.setCNIReportDetails(nwCfg, CNI_ADD, msg)
 
 	return nil

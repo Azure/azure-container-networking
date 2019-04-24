@@ -6,6 +6,7 @@ package networkcontainers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -87,5 +88,5 @@ func deleteInterface(networkContainerID string) error {
 }
 
 func configureNetworkContainerNetworking(operation, podName, podNamespace, dockerContainerid string, netPluginConfig *NetPluginConfiguration) (err error) {
-	return err
+	return fmt.Errorf("[Azure CNS] Operation is not supported in linux.")
 }

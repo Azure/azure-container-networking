@@ -1,0 +1,10 @@
+{
+    "NetworkName": "hnsnw",
+    "NetworkType": "l2tunnel",
+    "Subnets": [
+        {
+            "AddressPrefix": "192.168.255.0/30",
+            "GatewayAddress": "192.168.255.1"
+        }
+    ]
+}
