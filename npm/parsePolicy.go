@@ -134,9 +134,6 @@ func deductPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPo
 		}
 	}
 
-	fmt.Println("deduIn\n:", deductedIngress)
-	fmt.Println("deduE\n:", deductedEgress)
-
 	if len(deductedIngress) == 0 && len(deductedEgress) == 0 {
 		return nil, nil
 	}
