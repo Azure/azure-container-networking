@@ -114,6 +114,7 @@ func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPref
 
 func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (networkName string, err error) {
 	networkName = nwCfg.Name
+	err = nil
 	if nwCfg.MultiTenancy {
 		_, cnsNetworkConfig, _, err := getContainerNetworkConfiguration(nwCfg, podName, podNs, ifName)
 		if err != nil {

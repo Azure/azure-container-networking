@@ -288,12 +288,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	endpointId := GetEndpointID(args)
-
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
 	// Check whether the network already exists.
 	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkId)
-
 	if nwInfoErr == nil {
 		/* Handle consecutive ADD calls for infrastructure containers.
 		 * This is a temporary work around for issue #57253 of Kubernetes.
@@ -318,7 +316,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	if nwInfoErr != nil {
 		// Network does not exist.
-
 		log.Printf("[cni-net] Creating network %v.", networkId)
 
 		if !nwCfg.MultiTenancy {
@@ -331,11 +328,11 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 			// Derive the subnet prefix from allocated IP address.
 			subnetPrefix = result.IPs[0].Address
-
 			iface := &cniTypesCurr.Interface{Name: args.IfName}
 			result.Interfaces = append(result.Interfaces, iface)
 		}
 
+		subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
 		ipconfig := result.IPs[0]
 		gateway := ipconfig.Gateway
 
@@ -351,7 +348,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 		}()
 
-		subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
 		// Find the master interface.
 		masterIfName := plugin.findMasterInterface(nwCfg, &subnetPrefix)
 		if masterIfName == "" {
