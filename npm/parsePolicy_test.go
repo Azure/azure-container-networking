@@ -1,7 +1,6 @@
 package npm
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -126,8 +125,6 @@ func TestSplitPolicy(t *testing.T) {
 	for i := range labels {
 		if !reflect.DeepEqual(labels, expectedLabels) {
 			t.Errorf("TestsplitPolicy failed @ label comparison")
-			fmt.Println(labels)
-			fmt.Println(expectedLabels)
 		}
 
 		if !reflect.DeepEqual(policies[i].Spec.PodSelector.MatchLabels, expectedPolicies[i].Spec.PodSelector.MatchLabels) {
@@ -287,8 +284,6 @@ func TestAddPolicy(t *testing.T) {
 	addedPolicy, err := addPolicy(&oldPolicy, &newPolicy)
 	if err != nil || !reflect.DeepEqual(addedPolicy, expectedPolicy) {
 		t.Errorf("TestAddPolicy failed")
-		fmt.Println(addedPolicy)
-		fmt.Println(expectedPolicy)
 	}
 }
 
@@ -432,12 +427,67 @@ func TestDeductPolicy(t *testing.T) {
 	}
 	deductedPolicy, err := deductPolicy(&oldPolicy, &newPolicy)
 	if err != nil || !reflect.DeepEqual(deductedPolicy, &expectedPolicy) {
-		t.Errorf("TestDeductPolicy failed")
+		t.Errorf(
+			"TestDeductPolicy failed.\n"+
+				"Expected Policy: %v\n"+
+				"DeductedPolicy: %v\n",
+			&expectedPolicy,
+			deductedPolicy,
+		)
 	}
 
 	newPolicy = oldPolicy
 	deductedPolicy, err = deductPolicy(&oldPolicy, &newPolicy)
 	if err != nil || deductedPolicy != nil {
-		t.Errorf("TestDeductPolicy failed @ identical policies")
+		t.Errorf(
+			"TestDeductPolicy failed.\n"+
+				"Expected Policy: %v\n"+
+				"DeductedPolicy: %v\n",
+			&expectedPolicy,
+			deductedPolicy,
+		)
+	}
+
+	newPolicy = networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "testnamespace",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"role": "client",
+				},
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				networkingv1.NetworkPolicyEgressRule{
+					Ports: []networkingv1.NetworkPolicyPort{},
+					To: []networkingv1.NetworkPolicyPeer{
+						networkingv1.NetworkPolicyPeer{
+							PodSelector: oldEgressPodSelector,
+						},
+					},
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeEgress,
+			},
+		},
+	}
+
+	expectedPolicy = oldPolicy
+	expectedPolicy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{}
+	expectedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{
+		networkingv1.PolicyTypeIngress,
+		networkingv1.PolicyTypeEgress,
+	}
+	deductedPolicy, err = deductPolicy(&oldPolicy, &newPolicy)
+	if err != nil || !reflect.DeepEqual(deductedPolicy, &expectedPolicy) {
+		t.Errorf(
+			"TestDeductPolicy failed.\n"+
+				"Expected Policy: %v\n"+
+				"DeductedPolicy: %v\n",
+			&expectedPolicy,
+			deductedPolicy,
+		)
 	}
 }
