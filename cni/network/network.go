@@ -288,12 +288,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	endpointId := GetEndpointID(args)
-
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
 	// Check whether the network already exists.
 	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkId)
-
 	if nwInfoErr == nil {
 		/* Handle consecutive ADD calls for infrastructure containers.
 		 * This is a temporary work around for issue #57253 of Kubernetes.
@@ -318,7 +316,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	if nwInfoErr != nil {
 		// Network does not exist.
-
 		log.Printf("[cni-net] Creating network %v.", networkId)
 
 		if !nwCfg.MultiTenancy {
@@ -331,7 +328,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 			// Derive the subnet prefix from allocated IP address.
 			subnetPrefix = result.IPs[0].Address
-
 			iface := &cniTypesCurr.Interface{Name: args.IfName}
 			result.Interfaces = append(result.Interfaces, iface)
 		}
@@ -375,7 +371,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		log.Printf("[cni-net] nwDNSInfo: %v", nwDNSInfo)
 		// Update subnet prefix for multi-tenant scenario
-		updateSubnetPrefix(cnsNetworkConfig, &subnetPrefix)
+		if err = updateSubnetPrefix(cnsNetworkConfig, &subnetPrefix); err != nil {
+			err = plugin.Errorf("Failed to updateSubnetPrefix: %v", err)
+			return err
+		}
 
 		// Create the network.
 		nwInfo := network.NetworkInfo{
