@@ -10,6 +10,21 @@ import (
 	"github.com/Microsoft/hcsshim"
 )
 
+const (
+	// Name of the external hns network
+	ExtHnsNetworkName = "ext"
+
+	// Address prefix for external hns network
+	ExtHnsNetworkAddressPrefix = "192.168.255.0/30"
+
+	// Gateway address for external hns network
+	ExtHnsNetworkGwAddress = "192.168.255.1"
+
+	// HNS network types
+	hnsL2Bridge = "l2bridge"
+	hnsL2Tunnel = "l2tunnel"
+)
+
 // CreateHnsNetwork creates the HNS network with the provided configuration
 func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
 	log.Printf("[Azure CNS] CreateHnsNetwork")
