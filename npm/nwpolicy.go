@@ -78,9 +78,10 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 			addedPolicy, err = addPolicy(oldPolicy, newPolicy)
 			oldPolicies = append(oldPolicies, oldPolicy)
 			addedPolicies = append(addedPolicies, addedPolicy)
-			continue
+		} else {
+			ns.processedNpMap[label] = newPolicy
+			addedPolicies = append(addedPolicies, newPolicy)
 		}
-		addedPolicies = append(addedPolicies, newPolicy)
 	}
 
 	npMgr.Unlock()
