@@ -91,7 +91,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	for _, addedPolicy = range addedPolicies {
 
-		podSets, nsLists, iptEntries := parsePolicy(npObj)
+		podSets, nsLists, iptEntries := translatePolicy(npObj)
 
 		ipsMgr := allNs.ipsMgr
 		for _, set := range podSets {
@@ -190,7 +190,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
-	_, _, iptEntries := parsePolicy(npObj)
+	_, _, iptEntries := translatePolicy(npObj)
 
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {

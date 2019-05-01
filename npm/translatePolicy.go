@@ -17,7 +17,7 @@ func translateIngress(ns string, targetSets []string, rules []networkingv1.Netwo
 	return nil, nil, nil
 }
 
-func translateIngress(ns string, targetSets []string, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
+func translateEgress(ns string, targetSets []string, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry) {
 	return nil, nil, nil
 }
 
@@ -93,8 +93,9 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 	)
 
 	// Get targeting pods.
-	targetSets, _, _ := ParseSelector(npObj.Spec.PodSelector)
+	targetSets, _, _ := ParseSelector(&(npObj.Spec.PodSelector))
 
+	npNs := npObj.ObjectMeta.Namespace
 	if len(npObj.Spec.Ingress) > 0 || len(npObj.Spec.Egress) > 0 {
 		entries = append(entries, getAllowKubeSystemEntries(npNs, targetSets)...)
 	}
