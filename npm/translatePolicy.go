@@ -17,23 +17,23 @@ type portsInfo struct {
 
 func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
-		portRuleExists    = false
-		fromRuleExists    = false
-		isAppliedToNs     = false
+		portRuleExists = false
+		fromRuleExists = false
+		//isAppliedToNs     = false
 		protPortPairSlice []*portsInfo
-		podNsRuleSets     []string // pod sets listed in one ingress rules.
-		nsRuleLists       []string // namespace sets listed in one ingress rule
-		policyRuleSets    []string // policy-wise pod sets
-		policyRuleLists   []string // policy-wise namespace sets
-		entries           []*iptm.IptEntry
+		//podNsRuleSets     []string // pod sets listed in one ingress rules.
+		//nsRuleLists       []string // namespace sets listed in one ingress rule
+		policyRuleSets  []string // policy-wise pod sets
+		policyRuleLists []string // policy-wise namespace sets
+		entries         []*iptm.IptEntry
 	)
 
-	labels, keys, vals := ParseSelector(&targetSelector)
+	labels, _, _ := ParseSelector(&targetSelector)
 	for i := range labels {
-		label, key, val := labels[i], keys[i], vals[i]
+		label := labels[i]
 		log.Printf("Parsing iptables for label %s", label)
 
-		hashedLabelName := util.GetHashedName(label)
+		//hashedLabelName := util.GetHashedName(label)
 
 		for _, rule := range rules {
 			// parse Ports field
