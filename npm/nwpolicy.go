@@ -91,17 +91,17 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	npMgr.Lock()
 
 	for _, addedPolicy = range addedPolicies {
-		podSets, nsLists, iptEntries := translatePolicy(addedPolicy)
+		sets, lists, iptEntries := translatePolicy(addedPolicy)
 
 		ipsMgr := allNs.ipsMgr
-		for _, set := range podSets {
+		for _, set := range sets {
 			if err = ipsMgr.CreateSet(set); err != nil {
 				log.Printf("Error creating ipset %s-%s\n", npNs, set)
 				return err
 			}
 		}
 
-		for _, list := range nsLists {
+		for _, list := range lists {
 			if err = ipsMgr.CreateList(list); err != nil {
 				log.Printf("Error creating ipset list %s-%s\n", npNs, list)
 				return err
