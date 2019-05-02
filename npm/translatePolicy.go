@@ -32,7 +32,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 	for i := range labels {
 		label, key, val := labels[i], keys[i], vals[i]
 		log.Printf("Parsing iptables for label %s", label)
-		
+
 		hashedLabelName := util.GetHashedName(label)
 
 		for _, rule := range rules {
@@ -40,8 +40,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			for _, portRule := range rule.Ports {
 				protPortPairSlice = append(protPortPairSlice,
 					&portsInfo{
-						protocol: string(*portRule.ProtoMessage),
-						port: protRule.Port.String(),
+						protocol: string(*portRule.Protocol),
+						port:     portRule.Port.String(),
 					},
 				)
 				portRuleExists = true
@@ -50,8 +50,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			if rule.From != nil {
 				for _, fromRule := range rule.From {
 					if fromRule.PodSelector != nil ||
-					fromRule.NamespaceSelector != nil ||
-					fromRule.IPBlock != nil {
+						fromRule.NamespaceSelector != nil ||
+						fromRule.IPBlock != nil {
 						fromRuleExists = true
 					}
 				}
@@ -62,7 +62,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				break
 			}
 		}
-	}	
+	}
 
 	log.Printf("finished parsing ingress rule")
 	return policyRuleSets, policyRuleLists, entries
@@ -158,8 +158,6 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 		resultLists = append(resultLists, egressNsSets...)
 		entries = append(entries, egressEntries...)
 
-		resultSets = append(resultSets, npObj.Spec.PodSelector...)
-
 		return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists), entries
 	}
 
@@ -179,7 +177,6 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 		}
 	}
 
-	resultSets = append(resultSets, npObj.Spec.PodSelector...)
 	resultSets = append(resultSets, npNs)
 
 	return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists), entries
