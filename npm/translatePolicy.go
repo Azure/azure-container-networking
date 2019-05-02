@@ -42,7 +42,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					&portsInfo{
 						protocol: string(*portRule.ProtoMessage),
 						port: protRule.Port.String(),
-					}
+					},
 				)
 				portRuleExists = true
 			}
