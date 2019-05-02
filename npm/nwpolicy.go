@@ -91,8 +91,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	npMgr.Lock()
 
 	for _, addedPolicy = range addedPolicies {
-
-		podSets, nsLists, iptEntries := translatePolicy(npObj)
+		podSets, nsLists, iptEntries := translatePolicy(addedPolicy)
 
 		ipsMgr := allNs.ipsMgr
 		for _, set := range podSets {
