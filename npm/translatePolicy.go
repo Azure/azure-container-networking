@@ -17,9 +17,8 @@ type portsInfo struct {
 
 func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
-		portRuleExists = false
-		fromRuleExists = false
-		//isAppliedToNs     = false
+		portRuleExists    = false
+		fromRuleExists    = false
 		protPortPairSlice []*portsInfo
 		//podNsRuleSets     []string // pod sets listed in one ingress rules.
 		//nsRuleLists       []string // namespace sets listed in one ingress rule
