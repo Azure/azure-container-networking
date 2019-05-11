@@ -57,6 +57,8 @@ type Logger struct {
 	mutex        *sync.Mutex
 }
 
+var pid = os.Getpid()
+
 // NewLogger creates a new Logger.
 func NewLogger(name string, level int, target int) *Logger {
 	var logger Logger
@@ -190,7 +192,7 @@ func (logger *Logger) logf(format string, args ...interface{}) {
 	if logger.callCount%rotationCheckFrq == 0 {
 		logger.rotate()
 	}
-
+	format = fmt.Sprintf("[%v] %s", pid, format)
 	logger.callCount++
 	logger.l.Printf(format, args...)
 }
