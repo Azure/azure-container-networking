@@ -24,6 +24,8 @@ const (
 	telemetryWaitTimeInMilliseconds = 200
 )
 
+var codeRegex = regexp.MustCompile(`Code:(\w*)`)
+
 // SendCnsTelemetry - handles cns telemetry reports
 func SendCnsTelemetry(reports chan interface{}, service *restserver.HTTPRestService, telemetryStopProcessing chan bool) {
 
@@ -50,7 +52,7 @@ CONNECT:
 			case <-heartbeat:
 				reflect.ValueOf(reportMgr.Report).Elem().FieldByName("EventMessage").SetString("Heartbeat")
 			case msg := <-reports:
-				codeStr := regexp.MustCompile(`Code:(\w*)`).FindString(msg.(string))
+				codeStr := codeRegex.FindString(msg.(string))
 				if len(codeStr) > errorcodePrefix {
 					reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Errorcode").SetString(codeStr[errorcodePrefix:])
 				}
@@ -74,7 +76,7 @@ CONNECT:
 			if err == nil {
 				// If write fails, try to re-establish connections as server/client
 				if _, err = tb.Write(report); err != nil {
-					log.Printf("[CNS-Telemetry] Telemetry write failed: %v", err)
+					log.Logf("[CNS-Telemetry] Telemetry write failed: %v", err)
 					tb.Close()
 					goto CONNECT
 				}

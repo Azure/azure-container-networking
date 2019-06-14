@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
+	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
@@ -428,7 +429,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 	} else {
 		switch r.Method {
 		case "POST":
-			if err := platform.CreateHnsNetwork(req); err == nil {
+			if err := hnsclient.CreateHnsNetwork(req); err == nil {
 				// Save the newly created HnsNetwork name. CNS deleteHnsNetwork API
 				// will only allow deleting these networks.
 				networkInfo := &networkInfo{
@@ -480,7 +481,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 		case "POST":
 			networkInfo, found := service.getNetworkInfo(req.NetworkName)
 			if found && networkInfo.NetworkName == req.NetworkName {
-				if err = platform.DeleteHnsNetwork(req.NetworkName); err == nil {
+				if err = hnsclient.DeleteHnsNetwork(req.NetworkName); err == nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Successfully deleted HNS network: %s", req.NetworkName)
 				} else {
 					returnMessage = fmt.Sprintf("[Azure CNS] DeleteHnsNetwork failed with error %v", err.Error())

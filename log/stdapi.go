@@ -47,6 +47,12 @@ func Response(tag string, response interface{}, returnCode int, returnStr string
 	stdLog.Response(tag, response, returnCode, returnStr, err)
 }
 
+// Logf logs to the local log.
+func Logf(format string, args ...interface{}) {
+	stdLog.Logf(format, args...)
+}
+
+// Printf logs to the local log and send the log through the channel.
 func Printf(format string, args ...interface{}) {
 	stdLog.Printf(format, args...)
 }

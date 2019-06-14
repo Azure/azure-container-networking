@@ -22,7 +22,7 @@ func TestLogFileRotatesWhenSizeLimitIsReached(t *testing.T) {
 	l.SetLogFileLimits(512, 2)
 
 	for i := 1; i <= 100; i++ {
-		l.Printf("LogText %v", i)
+		l.Logf("LogText %v", i)
 	}
 
 	l.Close()

@@ -14,6 +14,8 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const waitForTelemetryInSeconds = 60
+
 // Version is populated by make during build.
 var version string
 
@@ -21,7 +23,7 @@ func initLogging() error {
 	log.SetName("azure-npm")
 	log.SetLevel(log.LevelInfo)
 	if err := log.SetTarget(log.TargetLogfile); err != nil {
-		log.Printf("[cni-npm] Failed to configure logging, err:%v.\n", err)
+		log.Logf("Failed to configure logging, err:%v.", err)
 		return err
 	}
 
@@ -33,7 +35,7 @@ func main() {
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[cni-npm] recovered from error: %v", err)
+			log.Logf("recovered from error: %v", err)
 		}
 	}()
 
@@ -50,22 +52,23 @@ func main() {
 	// Creates the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Printf("[Azure-NPM] clientset creation failed with error %v.\n", err)
+		log.Logf("clientset creation failed with error %v.", err)
 		panic(err.Error())
 	}
 
 	factory := informers.NewSharedInformerFactory(clientset, time.Hour*24)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
+
+	go npMgr.SendNpmTelemetry()
+
+	time.Sleep(time.Second * waitForTelemetryInSeconds)
+
 	err = npMgr.Start(wait.NeverStop)
 	if err != nil {
-		log.Printf("[Azure-NPM] npm failed with error %v.", err)
+		log.Logf("npm failed with error %v.", err)
 		panic(err.Error)
 	}
-
-	// Disable Azure-NPM telemetry for now since it might throttle wireserver.
-	npMgr.TelemetryEnabled = false
-	go npMgr.RunReportManager()
 
 	select {}
 }

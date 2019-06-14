@@ -32,7 +32,9 @@
       ],
       "windowsProfile":{
          "adminUsername":"azureuser",
-         "adminPassword":"azureTest@!"
+         "adminPassword":"azureTest@!",
+         "enableAutomaticUpdates":false,
+         "sshEnabled":true
       },
       "linuxProfile":{
          "adminUsername":"azureuser",

@@ -4,12 +4,15 @@ package util
 
 //kubernetes related constants.
 const (
-	KubeSystemFlag          string = "kube-system"
-	KubePodTemplateHashFlag string = "pod-template-hash"
-	KubeAllPodsFlag         string = "all-pod"
-	KubeAllNamespacesFlag   string = "all-namespace"
-	KubeAppFlag             string = "k8s-app"
-	KubeProxyFlag           string = "kube-proxy"
+	KubeSystemFlag             string = "kube-system"
+	KubePodTemplateHashFlag    string = "pod-template-hash"
+	KubeAllPodsFlag            string = "all-pod"
+	KubeAllNamespacesFlag      string = "all-namespace"
+	KubeAppFlag                string = "k8s-app"
+	KubeProxyFlag              string = "kube-proxy"
+	KubePodStatusFailedFlag    string = "Failed"
+	KubePodStatusSucceededFlag string = "Succeeded"
+	KubePodStatusUnknownFlag   string = "Unknown"
 
 	// The version of k8s that accept "AND" between namespaceSelector and podSelector is "1.11"
 	k8sMajorVerForNewPolicyDef string = "1"

@@ -29,21 +29,22 @@ type TelemetryConfig struct {
 
 // FdName - file descriptor name
 // Delimiter - delimiter for socket reads/writes
-// azureHostReportURL - host net agent url of type payload
-// DefaultInterval - default interval for sending payload to host
+// azureHostReportURL - host net agent url of type buffer
+// DefaultInterval - default interval for sending buffer to host
 // logName - telemetry log name
-// MaxPayloadSize - max payload size in bytes
+// MaxPayloadSize - max buffer size in bytes
 const (
-	FdName                    = "azure-vnet-telemetry"
-	Delimiter                 = '\n'
-	azureHostReportURL        = "http://168.63.129.16/machine/plugins?comp=netagent&type=payload"
-	minInterval               = 10 * time.Second
-	logName                   = "azure-vnet-telemetry"
-	MaxPayloadSize     uint16 = 4096
-	dnc                       = "DNC"
-	cns                       = "CNS"
-	npm                       = "NPM"
-	cni                       = "CNI"
+	FdName             = "azure-vnet-telemetry"
+	Delimiter          = '\n'
+	azureHostReportURL = "http://168.63.129.16/machine/plugins?comp=netagent&type=payload"
+	minInterval        = 10 * time.Second
+	logName            = "azure-vnet-telemetry"
+	MaxPayloadSize     = 4096
+	MaxBufferSize      = 1048576
+	dnc                = "DNC"
+	cns                = "CNS"
+	npm                = "NPM"
+	cni                = "CNI"
 )
 
 var payloadSize uint16 = 0
@@ -54,7 +55,7 @@ type TelemetryBuffer struct {
 	listener           net.Listener
 	connections        []net.Conn
 	azureHostReportURL string
-	payload            Payload
+	buffer             Buffer
 	FdExists           bool
 	Connected          bool
 	data               chan interface{}
@@ -62,8 +63,8 @@ type TelemetryBuffer struct {
 	mutex              sync.Mutex
 }
 
-// Payload object holds the different types of reports
-type Payload struct {
+// Buffer object holds the different types of reports
+type Buffer struct {
 	DNCReports []DNCReport
 	CNIReports []CNIReport
 	NPMReports []NPMReport
@@ -78,13 +79,13 @@ func NewTelemetryBuffer(hostReportURL string) *TelemetryBuffer {
 		tb.azureHostReportURL = azureHostReportURL
 	}
 
-	tb.data = make(chan interface{})
+	tb.data = make(chan interface{}, 1000)
 	tb.cancel = make(chan bool, 1)
 	tb.connections = make([]net.Conn, 0)
-	tb.payload.DNCReports = make([]DNCReport, 0)
-	tb.payload.CNIReports = make([]CNIReport, 0)
-	tb.payload.NPMReports = make([]NPMReport, 0)
-	tb.payload.CNSReports = make([]CNSReport, 0)
+	tb.buffer.DNCReports = make([]DNCReport, 0)
+	tb.buffer.CNIReports = make([]CNIReport, 0)
+	tb.buffer.NPMReports = make([]NPMReport, 0)
+	tb.buffer.CNSReports = make([]CNSReport, 0)
 
 	return &tb
 }
@@ -95,7 +96,7 @@ func remove(s []net.Conn, i int) []net.Conn {
 		return s[:len(s)-1]
 	}
 
-	log.Printf("tb connections remove failed index %v len %v", i, len(s))
+	log.Logf("tb connections remove failed index %v len %v", i, len(s))
 	return s
 }
 
@@ -104,11 +105,11 @@ func (tb *TelemetryBuffer) StartServer() error {
 	err := tb.Listen(FdName)
 	if err != nil {
 		tb.FdExists = strings.Contains(err.Error(), "in use") || strings.Contains(err.Error(), "Access is denied")
-		log.Printf("Listen returns: %v", err.Error())
+		log.Logf("Listen returns: %v", err.Error())
 		return err
 	}
 
-	log.Printf("Telemetry service started")
+	log.Logf("Telemetry service started")
 	// Spawn server goroutine to handle incoming connections
 	go func() {
 		for {
@@ -166,7 +167,7 @@ func (tb *TelemetryBuffer) StartServer() error {
 					}
 				}()
 			} else {
-				log.Printf("Telemetry Server accept error %v", err)
+				log.Logf("Telemetry Server accept error %v", err)
 				return
 			}
 		}
@@ -190,7 +191,7 @@ func (tb *TelemetryBuffer) Connect() error {
 func (tb *TelemetryBuffer) BufferAndPushData(intervalms time.Duration) {
 	defer tb.Close()
 	if !tb.FdExists {
-		log.Printf("[Telemetry] Buffer telemetry data and send it to host")
+		log.Logf("[Telemetry] Buffer telemetry data and send it to host")
 		if intervalms < minInterval {
 			intervalms = minInterval
 		}
@@ -199,23 +200,23 @@ func (tb *TelemetryBuffer) BufferAndPushData(intervalms time.Duration) {
 		for {
 			select {
 			case <-interval:
-				// Send payload to host and clear cache when sent successfully
-				// To-do : if we hit max slice size in payload, write to disk and process the logs on disk on future sends
-				if err := tb.sendToHost(); err == nil {
-					tb.payload.reset()
-				} else {
-					log.Printf("[Telemetry] sending to host failed with error %+v", err)
-				}
+				// Send buffer to host and clear cache when sent successfully
+				// To-do : if we hit max slice size in buffer, write to disk and process the logs on disk on future sends
+				tb.mutex.Lock()
+				tb.sendToHost()
+				tb.mutex.Unlock()
 			case report := <-tb.data:
-				tb.payload.push(report)
+				tb.mutex.Lock()
+				tb.buffer.push(report)
+				tb.mutex.Unlock()
 			case <-tb.cancel:
-				log.Printf("server cancel event")
+				log.Logf("[Telemetry] server cancel event")
 				goto EXIT
 			}
 		}
 	} else {
 		<-tb.cancel
-		log.Printf("Received cancel event")
+		log.Logf("[Telemetry] Received cancel event")
 	}
 
 EXIT:
@@ -256,7 +257,7 @@ func (tb *TelemetryBuffer) Close() {
 	}
 
 	if tb.listener != nil {
-		log.Printf("server close")
+		log.Logf("server close")
 		tb.listener.Close()
 	}
 
@@ -273,13 +274,124 @@ func (tb *TelemetryBuffer) Close() {
 	tb.connections = make([]net.Conn, 0)
 }
 
-// sendToHost - send payload to host
+// sendToHost - send buffer to host
 func (tb *TelemetryBuffer) sendToHost() error {
+	buf := Buffer{
+		DNCReports: make([]DNCReport, 0),
+		CNIReports: make([]CNIReport, 0),
+		NPMReports: make([]NPMReport, 0),
+		CNSReports: make([]CNSReport, 0),
+	}
+	i, payloadSize, maxPayloadSizeReached := 0, 0, false
+	isDNCReportsEmpty, isCNIReportsEmpty, isCNSReportsEmpty, isNPMReportsEmpty := false, false, false, false
+	for {
+		// craft payload in a round-robin manner.
+		switch i % 4 {
+		case 0:
+			reportLen := len(tb.buffer.DNCReports)
+			if reportLen == 0 || isDNCReportsEmpty {
+				isDNCReportsEmpty = true
+				break
+			}
+
+			if reportLen == 1 {
+				isDNCReportsEmpty = true
+			}
+
+			report := tb.buffer.DNCReports[0]
+			if bytes, err := json.Marshal(report); err == nil {
+				payloadSize += len(bytes)
+				if payloadSize > MaxPayloadSize {
+					maxPayloadSizeReached = true
+					break
+				}
+			}
+			buf.DNCReports = append(buf.DNCReports, report)
+			tb.buffer.DNCReports = tb.buffer.DNCReports[1:]
+		case 1:
+			reportLen := len(tb.buffer.CNIReports)
+			if reportLen == 0 || isCNIReportsEmpty {
+				isCNIReportsEmpty = true
+				break
+			}
+
+			if reportLen == 1 {
+				isCNIReportsEmpty = true
+			}
+
+			report := tb.buffer.CNIReports[0]
+			if bytes, err := json.Marshal(report); err == nil {
+				payloadSize += len(bytes)
+				if payloadSize > MaxPayloadSize {
+					maxPayloadSizeReached = true
+					break
+				}
+			}
+			buf.CNIReports = append(buf.CNIReports, report)
+			tb.buffer.CNIReports = tb.buffer.CNIReports[1:]
+		case 2:
+			reportLen := len(tb.buffer.CNSReports)
+			if reportLen == 0 || isCNSReportsEmpty {
+				isCNSReportsEmpty = true
+				break
+			}
+
+			if reportLen == 1 {
+				isCNSReportsEmpty = true
+			}
+
+			report := tb.buffer.CNSReports[0]
+			if bytes, err := json.Marshal(report); err == nil {
+				payloadSize += len(bytes)
+				if payloadSize > MaxPayloadSize {
+					maxPayloadSizeReached = true
+					break
+				}
+			}
+			buf.CNSReports = append(buf.CNSReports, report)
+			tb.buffer.CNSReports = tb.buffer.CNSReports[1:]
+		case 3:
+			reportLen := len(tb.buffer.NPMReports)
+			if reportLen == 0 || isNPMReportsEmpty {
+				isNPMReportsEmpty = true
+				break
+			}
+
+			if reportLen == 1 {
+				isNPMReportsEmpty = true
+			}
+
+			report := tb.buffer.NPMReports[0]
+			if bytes, err := json.Marshal(report); err == nil {
+				payloadSize += len(bytes)
+				if payloadSize > MaxPayloadSize {
+					maxPayloadSizeReached = true
+					break
+				}
+			}
+			buf.NPMReports = append(buf.NPMReports, report)
+			tb.buffer.NPMReports = tb.buffer.NPMReports[1:]
+		}
+
+		if isDNCReportsEmpty && isCNIReportsEmpty && isCNSReportsEmpty && isNPMReportsEmpty {
+			break
+		}
+
+		if maxPayloadSizeReached {
+			break
+		}
+
+		i++
+	}
+
 	httpc := &http.Client{}
 	var body bytes.Buffer
-	log.Printf("Sending payload %+v", tb.payload)
-	json.NewEncoder(&body).Encode(tb.payload)
+	log.Logf("Sending buffer %+v", buf)
+	if err := json.NewEncoder(&body).Encode(buf); err != nil {
+		log.Logf("[Telemetry] Encode buffer error %v", err)
+	}
 	resp, err := httpc.Post(tb.azureHostReportURL, ContentType, &body)
+	log.Logf("[Telemetry] Got response %v", resp)
 	if err != nil {
 		return fmt.Errorf("[Telemetry] HTTP Post returned error %v", err)
 	}
@@ -294,77 +406,48 @@ func (tb *TelemetryBuffer) sendToHost() error {
 }
 
 // push - push the report (x) to corresponding slice
-func (pl *Payload) push(x interface{}) {
+func (buf *Buffer) push(x interface{}) {
 	metadata, err := getHostMetadata()
 	if err != nil {
-		log.Printf("Error getting metadata %v", err)
+		log.Logf("Error getting metadata %v", err)
 	} else {
 		err = saveHostMetadata(metadata)
 		if err != nil {
-			log.Printf("saving host metadata failed with :%v", err)
+			log.Logf("saving host metadata failed with :%v", err)
 		}
 	}
 
-	if notExceeded, reportType := pl.payloadCapNotExceeded(x); notExceeded {
-		switch reportType {
-		case dnc:
-			dncReport := x.(DNCReport)
-			dncReport.Metadata = metadata
-			pl.DNCReports = append(pl.DNCReports, dncReport)
-		case cni:
-			cniReport := x.(CNIReport)
-			cniReport.Metadata = metadata
-			pl.CNIReports = append(pl.CNIReports, cniReport)
-		case npm:
-			npmReport := x.(NPMReport)
-			npmReport.Metadata = metadata
-			pl.NPMReports = append(pl.NPMReports, npmReport)
-		case cns:
-			cnsReport := x.(CNSReport)
-			cnsReport.Metadata = metadata
-			pl.CNSReports = append(pl.CNSReports, cnsReport)
-		}
-	}
-}
-
-// reset - reset payload slices and sets payloadSize to 0
-func (pl *Payload) reset() {
-	pl.DNCReports = nil
-	pl.DNCReports = make([]DNCReport, 0)
-	pl.CNIReports = nil
-	pl.CNIReports = make([]CNIReport, 0)
-	pl.NPMReports = nil
-	pl.NPMReports = make([]NPMReport, 0)
-	pl.CNSReports = nil
-	pl.CNSReports = make([]CNSReport, 0)
-	payloadSize = 0
-}
-
-// payloadCapNotExceeded - Returns whether payload cap will be exceeded as a result of adding the new report; and the report type
-//                         If the cap is not exceeded, we update the payload size here.
-func (pl *Payload) payloadCapNotExceeded(x interface{}) (notExceeded bool, reportType string) {
-	var body bytes.Buffer
 	switch x.(type) {
 	case DNCReport:
-		reportType = dnc
-		json.NewEncoder(&body).Encode(x.(DNCReport))
+		dncReport := x.(DNCReport)
+		dncReport.Metadata = metadata
+		buf.DNCReports = append(buf.DNCReports, dncReport)
 	case CNIReport:
-		reportType = cni
-		json.NewEncoder(&body).Encode(x.(CNIReport))
+		cniReport := x.(CNIReport)
+		cniReport.Metadata = metadata
+		buf.CNIReports = append(buf.CNIReports, cniReport)
 	case NPMReport:
-		reportType = npm
-		json.NewEncoder(&body).Encode(x.(NPMReport))
+		npmReport := x.(NPMReport)
+		npmReport.Metadata = metadata
+		buf.NPMReports = append(buf.NPMReports, npmReport)
 	case CNSReport:
-		reportType = cns
-		json.NewEncoder(&body).Encode(x.(CNSReport))
+		cnsReport := x.(CNSReport)
+		cnsReport.Metadata = metadata
+		buf.CNSReports = append(buf.CNSReports, cnsReport)
 	}
+}
 
-	updatedPayloadSize := uint16(body.Len()) + payloadSize
-	if notExceeded = updatedPayloadSize < MaxPayloadSize && payloadSize < updatedPayloadSize; notExceeded {
-		payloadSize = updatedPayloadSize
-	}
-
-	return
+// reset - reset buffer slices and sets payloadSize to 0
+func (buf *Buffer) reset() {
+	buf.DNCReports = nil
+	buf.DNCReports = make([]DNCReport, 0)
+	buf.CNIReports = nil
+	buf.CNIReports = make([]CNIReport, 0)
+	buf.NPMReports = nil
+	buf.NPMReports = make([]NPMReport, 0)
+	buf.CNSReports = nil
+	buf.CNSReports = make([]CNSReport, 0)
+	payloadSize = 0
 }
 
 // saveHostMetadata - save metadata got from wireserver to json file
@@ -375,7 +458,7 @@ func saveHostMetadata(metadata Metadata) error {
 	}
 
 	if err = ioutil.WriteFile(metadataFile, dataBytes, 0644); err != nil {
-		log.Printf("[Telemetry] Writing metadata to file failed: %v", err)
+		log.Logf("[Telemetry] Writing metadata to file failed: %v", err)
 	}
 
 	return err
@@ -391,7 +474,7 @@ func getHostMetadata() (Metadata, error) {
 		}
 	}
 
-	log.Printf("[Telemetry] Request metadata from wireserver")
+	log.Logf("[Telemetry] Request metadata from wireserver")
 
 	req, err := http.NewRequest("GET", metadataURL, nil)
 	if err != nil {
@@ -438,14 +521,14 @@ func WaitForTelemetrySocket(maxAttempt int, waitTimeInMillisecs time.Duration) {
 func StartTelemetryService(path string, args []string) error {
 	platform.KillProcessByName(TelemetryServiceProcessName)
 
-	log.Printf("[Telemetry] Starting telemetry service process :%v args:%v", path, args)
+	log.Logf("[Telemetry] Starting telemetry service process :%v args:%v", path, args)
 
 	if err := common.StartProcess(path, args); err != nil {
-		log.Printf("[Telemetry] Failed to start telemetry service process :%v", err)
+		log.Logf("[Telemetry] Failed to start telemetry service process :%v", err)
 		return err
 	}
 
-	log.Printf("[Telemetry] Telemetry service started")
+	log.Logf("[Telemetry] Telemetry service started")
 
 	return nil
 }
@@ -456,12 +539,12 @@ func ReadConfigFile(filePath string) (TelemetryConfig, error) {
 
 	b, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		log.Printf("[Telemetry] Failed to read telemetry config: %v", err)
+		log.Logf("[Telemetry] Failed to read telemetry config: %v", err)
 		return config, err
 	}
 
 	if err = json.Unmarshal(b, &config); err != nil {
-		log.Printf("[Telemetry] unmarshal failed with %v", err)
+		log.Logf("[Telemetry] unmarshal failed with %v", err)
 	}
 
 	return config, err
@@ -473,16 +556,27 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 	args := []string{"-d", dir}
 	for attempt := 0; attempt < 2; attempt++ {
 		if err := tb.Connect(); err != nil {
-			log.Printf("Connection to telemetry socket failed: %v", err)
+			log.Logf("Connection to telemetry socket failed: %v", err)
 			tb.Cleanup(FdName)
 			StartTelemetryService(path, args)
 			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
 		} else {
 			tb.Connected = true
-			log.Printf("Connected to telemetry service")
+			log.Logf("Connected to telemetry service")
 			return
 		}
 	}
+}
+
+// TryToConnectToTelemetryService - Attempt to connect telemetry process without spawning it if it's not already running.
+func (tb *TelemetryBuffer) TryToConnectToTelemetryService() {
+	if err := tb.Connect(); err != nil {
+		log.Logf("Connection to telemetry socket failed: %v", err)
+		return
+	}
+
+	tb.Connected = true
+	log.Logf("Connected to telemetry service")
 }
 
 func getTelemetryServiceDirectory() (path string, dir string) {
@@ -492,7 +586,7 @@ func getTelemetryServiceDirectory() (path string, dir string) {
 		exDir := filepath.Dir(ex)
 		path = fmt.Sprintf("%v/%v", exDir, TelemetryServiceProcessName)
 		if exists, _ = common.CheckIfFileExists(path); !exists {
-			log.Printf("Skip starting telemetry service as file didn't exist")
+			log.Logf("Skip starting telemetry service as file didn't exist")
 			return
 		}
 		dir = exDir

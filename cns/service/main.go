@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -243,7 +244,7 @@ func main() {
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
-		if err := platform.CreateDefaultExtNetwork(createDefaultExtNetworkType); err == nil {
+		if err := hnsclient.CreateDefaultExtNetwork(createDefaultExtNetworkType); err == nil {
 			log.Printf("[Azure CNS] Successfully created default ext network")
 		} else {
 			log.Printf("[Azure CNS] Failed to create default ext network due to error: %v", err)
@@ -329,7 +330,7 @@ func main() {
 	}
 
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
-		if err := platform.DeleteDefaultExtNetwork(); err == nil {
+		if err := hnsclient.DeleteDefaultExtNetwork(); err == nil {
 			log.Printf("[Azure CNS] Successfully deleted default ext network")
 		} else {
 			log.Printf("[Azure CNS] Failed to delete default ext network due to error: %v", err)

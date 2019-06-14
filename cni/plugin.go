@@ -4,6 +4,7 @@
 package cni
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime"
@@ -108,7 +109,7 @@ func (plugin *Plugin) DelegateAdd(pluginName string, nwCfg *NetworkConfig) (*cni
 
 	os.Setenv(Cmd, CmdAdd)
 
-	res, err := cniInvoke.DelegateAdd(pluginName, nwCfg.Serialize(), nil)
+	res, err := cniInvoke.DelegateAdd(context.TODO(), pluginName, nwCfg.Serialize(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to delegate: %v", err)
 	}
@@ -130,7 +131,7 @@ func (plugin *Plugin) DelegateDel(pluginName string, nwCfg *NetworkConfig) error
 
 	os.Setenv(Cmd, CmdDel)
 
-	err = cniInvoke.DelegateDel(pluginName, nwCfg.Serialize(), nil)
+	err = cniInvoke.DelegateDel(context.TODO(), pluginName, nwCfg.Serialize(), nil)
 	if err != nil {
 		return fmt.Errorf("Failed to delegate: %v", err)
 	}

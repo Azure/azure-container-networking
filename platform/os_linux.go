@@ -8,33 +8,30 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"strings"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 )
 
 const (
 	// CNMRuntimePath is the path where CNM state files are stored.
 	CNMRuntimePath = "/var/lib/azure-network/"
-
 	// CNIRuntimePath is the path where CNI state files are stored.
 	CNIRuntimePath = "/var/run/"
-
 	// CNSRuntimePath is the path where CNS state files are stored.
 	CNSRuntimePath = "/var/run/"
-
 	// CNI runtime path on a Kubernetes cluster
 	K8SCNIRuntimePath = "/opt/cni/bin"
-
 	// Network configuration file path on a Kubernetes cluster
 	K8SNetConfigPath = "/etc/cni/net.d"
-
 	// NPMRuntimePath is the path where NPM logging files are stored.
 	NPMRuntimePath = "/var/run/"
-
 	// DNCRuntimePath is the path where DNC logging files are stored.
 	DNCRuntimePath = "/var/run/"
+	// This file contains OS details
+	osReleaseFile = "/etc/os-release"
 )
 
 // GetOSInfo returns OS version information.
@@ -113,27 +110,20 @@ func SetSdnRemoteArpMacAddress() error {
 	return nil
 }
 
-// CreateDefaultExtNetwork creates the default ext network (if it doesn't exist already)
-// to create external switch on windows platform.
-// This is windows platform specific.
-func CreateDefaultExtNetwork(networkType string) error {
-	return fmt.Errorf("CreateDefaultExtNetwork shouldn't be called for the platform: %s", GetOSInfo)
-}
+func GetOSDetails() (map[string]string, error) {
+	linesArr, err := common.ReadFileByLines(osReleaseFile)
+	if err != nil || len(linesArr) <= 0 {
+		return nil, err
+	}
 
-// DeleteDefaultExtNetwork deletes the default HNS network.
-// This is windows platform specific.
-func DeleteDefaultExtNetwork() error {
-	return fmt.Errorf("DeleteDefaultExtNetwork shouldn't be called for the platform: %s", GetOSInfo)
-}
+	osInfoArr := make(map[string]string)
 
-// CreateHnsNetwork creates the HNS network with the provided configuration
-// This is windows platform specific.
-func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
-	return fmt.Errorf("CreateHnsNetwork shouldn't be called for the platform: %s", GetOSInfo)
-}
+	for i := range linesArr {
+		s := strings.Split(linesArr[i], "=")
+		if len(s) == 2 {
+			osInfoArr[s[0]] = strings.TrimSuffix(s[1], "\n")
+		}
+	}
 
-// DeleteHnsNetwork deletes the HNS network with the provided name.
-// This is windows platform specific.
-func DeleteHnsNetwork(networkName string) error {
-	return fmt.Errorf("DeleteHnsNetwork shouldn't be called for the platform: %s", GetOSInfo)
+	return osInfoArr, nil
 }

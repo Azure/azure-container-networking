@@ -4,7 +4,6 @@
 package telemetry
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -135,7 +134,7 @@ func handleIpamQuery(w http.ResponseWriter, r *http.Request) {
 
 func handlePayload(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
-	var t Payload
+	var t Buffer
 	err := decoder.Decode(&t)
 	if err != nil {
 		panic(err)
@@ -143,7 +142,7 @@ func handlePayload(rw http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	log.Println(t)
 
-	log.Printf("Payload: %+v", t)
+	fmt.Printf("Buffer: %+v", t)
 }
 
 func TestGetOSDetails(t *testing.T) {
@@ -189,8 +188,8 @@ func TestSendTelemetry(t *testing.T) {
 
 func TestReceiveTelemetryData(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
-	if len(tb.payload.CNIReports) != 1 {
-		t.Errorf("payload doesn't contain CNI report")
+	if len(tb.buffer.CNIReports) != 1 {
+		t.Errorf("buffer doesn't contain CNI report")
 	}
 }
 
@@ -304,20 +303,5 @@ func TestSetReportState(t *testing.T) {
 	err = os.Remove("a.json")
 	if err != nil {
 		t.Errorf("Error removing telemetry file due to %v", err)
-	}
-}
-
-func TestPayloadCap(t *testing.T) {
-	// sampleCniReport is ~66 bytes and we're adding 2000 reports here to test that the payload will be capped to 65535
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 500; j++ {
-			tb.payload.push(sampleCniReport)
-		}
-
-		var body bytes.Buffer
-		json.NewEncoder(&body).Encode(tb.payload)
-		if uint16(body.Len()) > MaxPayloadSize {
-			t.Fatalf("Payload size exceeded max size of %d", MaxPayloadSize)
-		}
 	}
 }

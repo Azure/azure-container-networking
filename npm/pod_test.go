@@ -40,9 +40,8 @@ func TestAddPod(t *testing.T) {
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
-			HostNetAgentURL: hostNetAgentURLForNpm,
-			ContentType:     contentType,
-			Report:          &telemetry.NPMReport{},
+			ContentType: telemetry.ContentType,
+			Report:      &telemetry.NPMReport{},
 		},
 	}
 
@@ -85,9 +84,8 @@ func TestUpdatePod(t *testing.T) {
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
-			HostNetAgentURL: hostNetAgentURLForNpm,
-			ContentType:     contentType,
-			Report:          &telemetry.NPMReport{},
+			ContentType: telemetry.ContentType,
+			Report:      &telemetry.NPMReport{},
 		},
 	}
 
@@ -148,9 +146,8 @@ func TestDeletePod(t *testing.T) {
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
-			HostNetAgentURL: hostNetAgentURLForNpm,
-			ContentType:     contentType,
-			Report:          &telemetry.NPMReport{},
+			ContentType: telemetry.ContentType,
+			Report:      &telemetry.NPMReport{},
 		},
 	}
 

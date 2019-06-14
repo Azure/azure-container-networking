@@ -4,11 +4,9 @@
 package telemetry
 
 import (
-	"bufio"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -158,6 +156,7 @@ type NPMReport struct {
 	ErrorMessage      string
 	EventMessage      string
 	UpTime            string
+	Timestamp         string
 	ClusterState      ClusterState
 	Metadata          Metadata `json:"compute"`
 }
@@ -182,38 +181,6 @@ type ReportManager struct {
 	HostNetAgentURL string
 	ContentType     string
 	Report          interface{}
-}
-
-// ReadFileByLines reads file line by line and return array of lines.
-func ReadFileByLines(filename string) ([]string, error) {
-	var (
-		lineStrArr []string
-	)
-
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("Error opening %s file error %v", filename, err)
-	}
-
-	r := bufio.NewReader(f)
-
-	for {
-		lineStr, err := r.ReadString('\n')
-		if err != nil {
-			if err != io.EOF {
-				return nil, fmt.Errorf("Error reading %s file error %v", filename, err)
-			}
-			break
-		}
-		lineStrArr = append(lineStrArr, lineStr)
-	}
-
-	err = f.Close()
-	if err != nil {
-		return nil, fmt.Errorf("Error closing %s file error %v", filename, err)
-	}
-
-	return lineStrArr, nil
 }
 
 // GetReport retrieves orchestrator, system, OS and Interface details and create a report structure.
@@ -272,7 +239,7 @@ func (reportMgr *ReportManager) SetReportState(telemetryFile string) error {
 
 	_, err = f.Write(reportBytes)
 	if err != nil {
-		log.Printf("[Telemetry] Error while writing to file %v", err)
+		fmt.Printf("[Telemetry] Error while writing to file %v", err)
 		return fmt.Errorf("[Telemetry] Error while writing to file %v", err)
 	}
 
@@ -285,7 +252,7 @@ func (reportMgr *ReportManager) SetReportState(telemetryFile string) error {
 func (reportMgr *ReportManager) GetReportState(telemetryFile string) bool {
 	// try to set IsNewInstance in report
 	if _, err := os.Stat(telemetryFile); os.IsNotExist(err) {
-		log.Printf("[Telemetry] File not exist %v", telemetryFile)
+		fmt.Printf("[Telemetry] File not exist %v", telemetryFile)
 		reflect.ValueOf(reportMgr.Report).Elem().FieldByName("IsNewInstance").SetBool(true)
 		return false
 	}
@@ -325,7 +292,7 @@ func (report *CNIReport) GetInterfaceDetails(queryUrl string) {
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Error while getting interface details. http code :%d", resp.StatusCode)
 		report.InterfaceDetails.ErrorMessage = errMsg
-		log.Printf(errMsg)
+		log.Logf(errMsg)
 		return
 	}
 

@@ -138,7 +138,7 @@ func (logger *Logger) rotate() {
 	fileName := logger.getLogFileName()
 	fileInfo, err := os.Stat(fileName)
 	if err != nil {
-		logger.Printf("[log] Failed to query log file info %+v.", err)
+		logger.Logf("[log] Failed to query log file info %+v.", err)
 		return
 	}
 
@@ -185,7 +185,7 @@ func (logger *Logger) Response(tag string, response interface{}, returnCode int,
 	}
 }
 
-// Logf logs a formatted string.
+// logf logs a formatted string.
 func (logger *Logger) logf(format string, args ...interface{}) {
 	if logger.callCount%rotationCheckFrq == 0 {
 		logger.rotate()
@@ -195,27 +195,48 @@ func (logger *Logger) logf(format string, args ...interface{}) {
 	logger.l.Printf(format, args...)
 }
 
-// Printf logs a formatted string at info level.
-func (logger *Logger) Printf(format string, args ...interface{}) {
-	if logger.level >= LevelInfo {
-		logger.mutex.Lock()
-		logger.logf(format, args...)
-		logger.mutex.Unlock()
-	}
+// Logf wraps logf.
+func (logger *Logger) Logf(format string, args ...interface{}) {
+	logger.mutex.Lock()
+	logger.logf(format, args...)
+	logger.mutex.Unlock()
 }
 
-// Debugf logs a formatted string at debug level.
-func (logger *Logger) Debugf(format string, args ...interface{}) {
-	if logger.level >= LevelDebug {
-		logger.mutex.Lock()
-		logger.logf(format, args...)
-		logger.mutex.Unlock()
+// Printf logs a formatted string at info level.
+func (logger *Logger) Printf(format string, args ...interface{}) {
+	if logger.level < LevelInfo {
+		return
 	}
+
+	logger.mutex.Lock()
+	logger.logf(format, args...)
+	logger.mutex.Unlock()
+	go func() {
+		if logger.reports != nil {
+			logger.reports <- fmt.Sprintf(format, args...)
+		}
+	}()
+}
+
+// Debugf logs a formatted string at info level.
+func (logger *Logger) Debugf(format string, args ...interface{}) {
+	if logger.level < LevelDebug {
+		return
+	}
+
+	logger.mutex.Lock()
+	logger.logf(format, args...)
+	logger.mutex.Unlock()
+	go func() {
+		if logger.reports != nil {
+			logger.reports <- fmt.Sprintf(format, args...)
+		}
+	}()
 }
 
 // Errorf logs a formatted string at info level and sends the string to TelemetryBuffer.
 func (logger *Logger) Errorf(format string, args ...interface{}) {
-	logger.Printf(format, args...)
+	logger.Logf(format, args...)
 	go func() {
 		if logger.reports != nil {
 			logger.reports <- fmt.Sprintf(format, args...)

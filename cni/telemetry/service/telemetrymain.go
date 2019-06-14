@@ -106,7 +106,7 @@ func main() {
 		return
 	}
 
-	log.Printf("args %+v", os.Args)
+	log.Logf("args %+v", os.Args)
 
 	if runtime.GOOS == "linux" {
 		configPath = fmt.Sprintf("%s/%s%s", configDirectory, azureVnetTelemetry, configExtension)
@@ -114,25 +114,25 @@ func main() {
 		configPath = fmt.Sprintf("%s\\%s%s", configDirectory, azureVnetTelemetry, configExtension)
 	}
 
-	log.Printf("[Telemetry] Config path: %s", configPath)
+	log.Logf("[Telemetry] Config path: %s", configPath)
 
 	config, err = telemetry.ReadConfigFile(configPath)
 	if err != nil {
-		log.Printf("[Telemetry] Error reading telemetry config: %v", err)
+		log.Logf("[Telemetry] Error reading telemetry config: %v", err)
 	}
 
-	log.Printf("read config returned %+v", config)
+	log.Logf("read config returned %+v", config)
 
 	for {
 		tb = telemetry.NewTelemetryBuffer("")
 
-		log.Printf("[Telemetry] Starting telemetry server")
+		log.Logf("[Telemetry] Starting telemetry server")
 		err = tb.StartServer()
 		if err == nil || tb.FdExists {
 			break
 		}
 
-		log.Printf("[Telemetry] Telemetry service starting failed: %v", err)
+		log.Logf("[Telemetry] Telemetry service starting failed: %v", err)
 		tb.Cleanup(telemetry.FdName)
 		time.Sleep(time.Millisecond * 200)
 	}
@@ -141,7 +141,7 @@ func main() {
 		config.ReportToHostIntervalInSeconds = reportToHostIntervalInSeconds
 	}
 
-	log.Printf("[Telemetry] Report to host for an interval of %d seconds", config.ReportToHostIntervalInSeconds)
+	log.Logf("[Telemetry] Report to host for an interval of %d seconds", config.ReportToHostIntervalInSeconds)
 	tb.BufferAndPushData(config.ReportToHostIntervalInSeconds * time.Second)
 	log.Close()
 }

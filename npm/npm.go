@@ -25,13 +25,15 @@ import (
 )
 
 const (
-	hostNetAgentURLForNpm           = "http://168.63.129.16/machine/plugins?comp=netagent&type=npmreport"
-	contentType                     = "application/json"
-	telemetryRetryWaitTimeInSeconds = 60
-	restoreRetryWaitTimeInSeconds   = 5
-	restoreMaxRetries               = 10
-	backupWaitTimeInSeconds         = 60
+	restoreRetryWaitTimeInSeconds = 5
+	restoreMaxRetries             = 10
+	backupWaitTimeInSeconds       = 60
+	telemetryRetryTimeInSeconds   = 60
+	heartbeatIntervalInMinutes    = 30
 )
+
+// reports channel
+var reports = make(chan interface{}, 1000)
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
@@ -58,17 +60,17 @@ type NetworkPolicyManager struct {
 func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 	pods, err := npMgr.clientset.CoreV1().Pods("").List(metav1.ListOptions{})
 	if err != nil {
-		log.Printf("Error Listing pods in GetClusterState")
+		log.Logf("Error: Failed to list pods in GetClusterState")
 	}
 
 	namespaces, err := npMgr.clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
 	if err != nil {
-		log.Printf("Error Listing namespaces in GetClusterState")
+		log.Logf("Error: Failed to list namespaces in GetClusterState")
 	}
 
 	networkpolicies, err := npMgr.clientset.NetworkingV1().NetworkPolicies("").List(metav1.ListOptions{})
 	if err != nil {
-		log.Printf("Error Listing networkpolicies in GetClusterState")
+		log.Logf("Error: Failed to list networkpolicies in GetClusterState")
 	}
 
 	npMgr.clusterState.PodCount = len(pods.Items)
@@ -78,31 +80,58 @@ func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 	return npMgr.clusterState
 }
 
-// UpdateAndSendReport updates the npm report then send it.
-// This function should only be called when npMgr is locked.
-func (npMgr *NetworkPolicyManager) UpdateAndSendReport(err error, eventMsg string) error {
+// SendNpmTelemetry updates the npm report then send it.
+func (npMgr *NetworkPolicyManager) SendNpmTelemetry() {
 	if !npMgr.TelemetryEnabled {
-		return nil
+		return
 	}
 
-	clusterState := npMgr.GetClusterState()
-	v := reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ClusterState")
-	if v.CanSet() {
-		v.FieldByName("PodCount").SetInt(int64(clusterState.PodCount))
-		v.FieldByName("NsCount").SetInt(int64(clusterState.NsCount))
-		v.FieldByName("NwPolicyCount").SetInt(int64(clusterState.NwPolicyCount))
+CONNECT:
+	tb := telemetry.NewTelemetryBuffer("")
+	for {
+		tb.TryToConnectToTelemetryService()
+		if tb.Connected {
+			break
+		}
+
+		time.Sleep(time.Second * telemetryRetryTimeInSeconds)
 	}
 
-	reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("EventMessage").SetString(eventMsg)
+	heartbeat := time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
+	report := npMgr.reportManager.Report
+	for {
+		select {
+		case <-heartbeat:
+			clusterState := npMgr.GetClusterState()
+			v := reflect.ValueOf(report).Elem().FieldByName("ClusterState")
+			if v.CanSet() {
+				v.FieldByName("PodCount").SetInt(int64(clusterState.PodCount))
+				v.FieldByName("NsCount").SetInt(int64(clusterState.NsCount))
+				v.FieldByName("NwPolicyCount").SetInt(int64(clusterState.NwPolicyCount))
+			}
+			reflect.ValueOf(report).Elem().FieldByName("ErrorMessage").SetString("heartbeat")
+		case msg := <-reports:
+			reflect.ValueOf(report).Elem().FieldByName("ErrorMessage").SetString(msg.(string))
+			fmt.Println(msg.(string))
+		}
 
-	if err != nil {
-		reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("EventMessage").SetString(err.Error())
+		reflect.ValueOf(report).Elem().FieldByName("Timestamp").SetString(time.Now().UTC().String())
+		// TODO: Remove below line after the host change is rolled out
+		reflect.ValueOf(report).Elem().FieldByName("EventMessage").SetString(time.Now().UTC().String())
+
+		report, err := npMgr.reportManager.ReportToBytes()
+		if err != nil {
+			log.Logf("ReportToBytes failed: %v", err)
+			continue
+		}
+
+		// If write fails, try to re-establish connections as server/client
+		if _, err = tb.Write(report); err != nil {
+			log.Logf("Telemetry write failed: %v", err)
+			tb.Close()
+			goto CONNECT
+		}
 	}
-
-	var telemetryBuffer *telemetry.TelemetryBuffer
-	connectToTelemetryServer(telemetryBuffer)
-
-	return npMgr.reportManager.SendReport(telemetryBuffer)
 }
 
 // restore restores iptables from backup file
@@ -117,7 +146,7 @@ func (npMgr *NetworkPolicyManager) restore() {
 		time.Sleep(restoreRetryWaitTimeInSeconds * time.Second)
 	}
 
-	log.Printf("Timeout restoring Azure-NPM states")
+	log.Logf("Error: timeout restoring Azure-NPM states")
 	panic(err.Error)
 }
 
@@ -129,7 +158,7 @@ func (npMgr *NetworkPolicyManager) backup() {
 		time.Sleep(backupWaitTimeInSeconds * time.Second)
 
 		if err = iptMgr.Save(util.IptablesConfigFile); err != nil {
-			log.Printf("Error backing up Azure-NPM states")
+			log.Logf("Error: failed to back up Azure-NPM states")
 		}
 	}
 }
@@ -162,51 +191,6 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	return nil
 }
 
-func connectToTelemetryServer(telemetryBuffer *telemetry.TelemetryBuffer) {
-	for {
-		telemetryBuffer = telemetry.NewTelemetryBuffer("")
-		err := telemetryBuffer.StartServer()
-		if err == nil || telemetryBuffer.FdExists {
-			connErr := telemetryBuffer.Connect()
-			if connErr == nil {
-				break
-			}
-
-			log.Printf("[NPM-Telemetry] Failed to establish telemetry manager connection.")
-			time.Sleep(time.Second * telemetryRetryWaitTimeInSeconds)
-		}
-	}
-}
-
-// RunReportManager starts NPMReportManager and send telemetry periodically.
-func (npMgr *NetworkPolicyManager) RunReportManager() {
-	if !npMgr.TelemetryEnabled {
-		return
-	}
-
-	var telemetryBuffer *telemetry.TelemetryBuffer
-	connectToTelemetryServer(telemetryBuffer)
-
-	go telemetryBuffer.BufferAndPushData(time.Duration(0))
-
-	for {
-		clusterState := npMgr.GetClusterState()
-		v := reflect.ValueOf(npMgr.reportManager.Report).Elem().FieldByName("ClusterState")
-		if v.CanSet() {
-			v.FieldByName("PodCount").SetInt(int64(clusterState.PodCount))
-			v.FieldByName("NsCount").SetInt(int64(clusterState.NsCount))
-			v.FieldByName("NwPolicyCount").SetInt(int64(clusterState.NwPolicyCount))
-		}
-
-		if err := npMgr.reportManager.SendReport(telemetryBuffer); err != nil {
-			log.Printf("[NPM-Telemetry] Error sending NPM telemetry report")
-			connectToTelemetryServer(telemetryBuffer)
-		}
-
-		time.Sleep(5 * time.Minute)
-	}
-}
-
 // NewNetworkPolicyManager creates a NetworkPolicyManager
 func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, npmVersion string) *NetworkPolicyManager {
 
@@ -216,13 +200,13 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 
 	serverVersion, err := clientset.ServerVersion()
 	if err != nil {
-		log.Printf("Error retrieving server version")
+		log.Logf("Error: failed to retrieving kubernetes version")
 		panic(err.Error)
 	}
-	log.Printf("API server version: %+v", serverVersion)
+	log.Logf("API server version: %+v", serverVersion)
 
 	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
-		log.Printf("Error setting IsNewNwPolicyVerFlag")
+		log.Logf("Error: failed to set IsNewNwPolicyVerFlag")
 		panic(err.Error)
 	}
 
@@ -241,12 +225,16 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 			NwPolicyCount: 0,
 		},
 		reportManager: &telemetry.ReportManager{
-			HostNetAgentURL: hostNetAgentURLForNpm,
-			ContentType:     contentType,
-			Report:          &telemetry.NPMReport{},
+			ContentType: telemetry.ContentType,
+			Report:      &telemetry.NPMReport{},
 		},
 		serverVersion:    serverVersion,
 		TelemetryEnabled: true,
+	}
+
+	// Set-up channel for Azure-NPM telemetry if it's enabled (enabled by default)
+	if logger := log.GetStd(); logger != nil && npMgr.TelemetryEnabled {
+		logger.SetChannel(reports)
 	}
 
 	clusterID := util.GetClusterID(npMgr.nodeName)
@@ -255,7 +243,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
 	if err != nil {
-		log.Printf("Error creating all-namespace")
+		log.Logf("Error: failed to create all-namespace.")
 		panic(err.Error)
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs

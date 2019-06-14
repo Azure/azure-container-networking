@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 // Memory Info structure.
@@ -89,20 +91,11 @@ func (report *CNIReport) GetSystemDetails() {
 
 // This function  creates a report with os details(ostype, version).
 func (report *CNIReport) GetOSDetails() {
-	linesArr, err := ReadFileByLines("/etc/os-release")
-	if err != nil || len(linesArr) <= 0 {
+	osInfoArr, err := platform.GetOSDetails()
+	if err != nil {
 		report.OSDetails = OSInfo{OSType: runtime.GOOS}
-		report.OSDetails.ErrorMessage = "reading /etc/os-release failed with" + err.Error()
+		report.OSDetails.ErrorMessage = "GetOSDetails failed with" + err.Error()
 		return
-	}
-
-	osInfoArr := make(map[string]string)
-
-	for i := range linesArr {
-		s := strings.Split(linesArr[i], "=")
-		if len(s) == 2 {
-			osInfoArr[s[0]] = strings.TrimSuffix(s[1], "\n")
-		}
 	}
 
 	out, err := exec.Command("uname", "-r").Output()

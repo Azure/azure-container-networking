@@ -48,9 +48,8 @@ func TestAddNamespace(t *testing.T) {
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
-			HostNetAgentURL: hostNetAgentURLForNpm,
-			ContentType:     contentType,
-			Report:          &telemetry.NPMReport{},
+			ContentType: telemetry.ContentType,
+			Report:      &telemetry.NPMReport{},
 		},
 	}
 
@@ -90,9 +89,8 @@ func TestUpdateNamespace(t *testing.T) {
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
-			HostNetAgentURL: hostNetAgentURLForNpm,
-			ContentType:     contentType,
-			Report:          &telemetry.NPMReport{},
+			ContentType: telemetry.ContentType,
+			Report:      &telemetry.NPMReport{},
 		},
 	}
 
@@ -145,9 +143,8 @@ func TestDeleteNamespace(t *testing.T) {
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
-			HostNetAgentURL: hostNetAgentURLForNpm,
-			ContentType:     contentType,
-			Report:          &telemetry.NPMReport{},
+			ContentType: telemetry.ContentType,
+			Report:      &telemetry.NPMReport{},
 		},
 	}
 

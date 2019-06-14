@@ -1,0 +1,66 @@
+# Gopkg.toml example
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#   name = "github.com/x/y"
+#   version = "2.4.0"
+#
+# [prune]
+#   non-go = false
+#   go-tests = true
+#   unused-packages = true
+
+
+[[constraint]]
+  name = "github.com/Microsoft/go-winio"
+  version = "0.4.12"
+
+[[constraint]]
+  name = "github.com/docker/libnetwork"
+  version = "0.5.6"
+
+[[constraint]]
+  name = "github.com/google/uuid"
+  version = "1.1.1"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/sys"
+
+[[constraint]]
+  branch = "master"
+  name = "k8s.io/api"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  revision = "d7deff9243b165ee192f5551710ea4285dcfd615"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "11.0.0"
+
+[[constraint]]
+  name = "github.com/Microsoft/hcsshim"
+  version = "0.8.6"
+
+[[constraint]]
+  name = "github.com/containernetworking/cni"
+  revision = "fbb95fff8a5239a4295c991efa8a397d43118f7e"
+
+[prune]
+  go-tests = true
+  unused-packages = true

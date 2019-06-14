@@ -28,14 +28,8 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		ns  *namespace
 	)
 
-	defer func() {
-		if err = npMgr.UpdateAndSendReport(err, util.AddNetworkPolicyEvent); err != nil {
-			log.Printf("Error sending NPM telemetry report")
-		}
-	}()
-
 	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
-	log.Printf("NETWORK POLICY CREATING: %s/%s\n", npNs, npName)
+	log.Printf("NETWORK POLICY CREATING: %v", npObj)
 
 	var exists bool
 	if ns, exists = npMgr.nsMap[npNs]; !exists {
@@ -54,12 +48,12 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	if !npMgr.isAzureNpmChainCreated {
 		if err = allNs.ipsMgr.CreateSet(util.KubeSystemFlag); err != nil {
-			log.Printf("Error initialize kube-system ipset.\n")
+			log.Errorf("Error: failed to initialize kube-system ipset.")
 			return err
 		}
 
 		if err = allNs.iptMgr.InitNpmChains(); err != nil {
-			log.Printf("Error initialize azure-npm chains.\n")
+			log.Errorf("Error: failed to initialize azure-npm chains.")
 			return err
 		}
 
@@ -132,16 +126,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.NetworkPolicy, newNpObj *networkingv1.NetworkPolicy) error {
 	var err error
 
-	defer func() {
-		npMgr.Lock()
-		if err = npMgr.UpdateAndSendReport(err, util.UpdateNetworkPolicyEvent); err != nil {
-			log.Printf("Error sending NPM telemetry report")
-		}
-		npMgr.Unlock()
-	}()
-
-	oldNpNs, oldNpName := oldNpObj.ObjectMeta.Namespace, oldNpObj.ObjectMeta.Name
-	log.Printf("NETWORK POLICY UPDATING: %s/%s\n", oldNpNs, oldNpName)
+	log.Printf("NETWORK POLICY UPDATING:\n old policy:[%v]\n new policy:[%v]", oldNpObj, newNpObj)
 
 	if err = npMgr.DeleteNetworkPolicy(oldNpObj); err != nil {
 		return err
@@ -166,14 +151,8 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		ns  *namespace
 	)
 
-	defer func() {
-		if err = npMgr.UpdateAndSendReport(err, util.DeleteNetworkPolicyEvent); err != nil {
-			log.Printf("Error sending NPM telemetry report")
-		}
-	}()
-
-	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
-	log.Printf("NETWORK POLICY DELETING: %s/%s\n", npNs, npName)
+	npName := npObj.ObjectMeta.Name
+	log.Printf("NETWORK POLICY DELETING: %v", npObj)
 
 	var exists bool
 	if ns, exists = npMgr.nsMap[npNs]; !exists {
@@ -195,7 +174,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
 		if err = iptMgr.Delete(iptEntry); err != nil {
-			log.Printf("Error applying iptables rule.\n Rule: %+v", iptEntry)
+			log.Errorf("Error: failed to apply iptables rule. Rule: %+v", iptEntry)
 			return err
 		}
 	}
@@ -204,7 +183,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 
 	if npMgr.canCleanUpNpmChains() {
 		if err = iptMgr.UninitNpmChains(); err != nil {
-			log.Printf("Error uninitialize azure-npm chains.\n")
+			log.Errorf("Error: failed to uninitialize azure-npm chains.")
 			return err
 		}
 		npMgr.isAzureNpmChainCreated = false
