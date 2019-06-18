@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +42,7 @@ const (
 	minInterval        = 10 * time.Second
 	logName            = "azure-vnet-telemetry"
 	MaxPayloadSize     = 4096
-	MaxBufferSize      = 1048576
+	MaxNumReports      = 1000
 	dnc                = "DNC"
 	cns                = "CNS"
 	npm                = "NPM"
@@ -79,13 +81,13 @@ func NewTelemetryBuffer(hostReportURL string) *TelemetryBuffer {
 		tb.azureHostReportURL = azureHostReportURL
 	}
 
-	tb.data = make(chan interface{}, 1000)
+	tb.data = make(chan interface{}, MaxNumReports)
 	tb.cancel = make(chan bool, 1)
 	tb.connections = make([]net.Conn, 0)
-	tb.buffer.DNCReports = make([]DNCReport, 0)
-	tb.buffer.CNIReports = make([]CNIReport, 0)
-	tb.buffer.NPMReports = make([]NPMReport, 0)
-	tb.buffer.CNSReports = make([]CNSReport, 0)
+	tb.buffer.DNCReports = make([]DNCReport, 0, MaxNumReports)
+	tb.buffer.CNIReports = make([]CNIReport, 0, MaxNumReports)
+	tb.buffer.NPMReports = make([]NPMReport, 0, MaxNumReports)
+	tb.buffer.CNSReports = make([]CNSReport, 0, MaxNumReports)
 
 	return &tb
 }
@@ -282,7 +284,9 @@ func (tb *TelemetryBuffer) sendToHost() error {
 		NPMReports: make([]NPMReport, 0),
 		CNSReports: make([]CNSReport, 0),
 	}
-	i, payloadSize, maxPayloadSizeReached := 0, 0, false
+
+	seed := rand.NewSource(time.Now().UnixNano())
+	i, payloadSize, maxPayloadSizeReached := rand.New(seed).Intn(reflect.ValueOf(&buf).Elem().NumField()), 0, false
 	isDNCReportsEmpty, isCNIReportsEmpty, isCNSReportsEmpty, isNPMReportsEmpty := false, false, false, false
 	for {
 		// craft payload in a round-robin manner.
@@ -419,18 +423,30 @@ func (buf *Buffer) push(x interface{}) {
 
 	switch x.(type) {
 	case DNCReport:
+		if len(buf.DNCReports) >= MaxNumReports {
+			return
+		}
 		dncReport := x.(DNCReport)
 		dncReport.Metadata = metadata
 		buf.DNCReports = append(buf.DNCReports, dncReport)
 	case CNIReport:
+		if len(buf.CNIReports) >= MaxNumReports {
+			return
+		}
 		cniReport := x.(CNIReport)
 		cniReport.Metadata = metadata
 		buf.CNIReports = append(buf.CNIReports, cniReport)
 	case NPMReport:
+		if len(buf.NPMReports) >= MaxNumReports {
+			return
+		}
 		npmReport := x.(NPMReport)
 		npmReport.Metadata = metadata
 		buf.NPMReports = append(buf.NPMReports, npmReport)
 	case CNSReport:
+		if len(buf.CNSReports) >= MaxNumReports {
+			return
+		}
 		cnsReport := x.(CNSReport)
 		cnsReport.Metadata = metadata
 		buf.CNSReports = append(buf.CNSReports, cnsReport)
