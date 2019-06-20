@@ -81,10 +81,28 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				for _, protPortPair := range protPortPairSlice {
 					entry := &iptm.IptEntry{
 						Name: "allow-to-ports-of-"+label,
-						HashedName:
+						HashedName: hashedLabelName,
+						Chain: util.IptablesAzureIngressPortChain,
+						Specs: []string{
+							util.IptablesProtFlag,
+							protPortPair.protocol,
+							util.IptablesDstPortFlag,
+							protPortPair.port,
+							util.IptablesMatchFlag,
+							util.IptablesSetModuleFlag,
+							util.IptablesMatchSetFlag,
+							hashedLabelName,
+							util.IptablesDstFlag,
+							util.IptablesJumpFlag,
+							util.IptablesAzureIngressFromNsChain,
+						}
 					}
+					entries = append(entries, entry)					
 				}
+				continue
 			}
+
+			//TODO: !portRuleExists
 		}
 	}
 
