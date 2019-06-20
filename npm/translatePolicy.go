@@ -57,9 +57,9 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 			if !portRuleExists && !fromRuleExists {
 				entry := &iptm.IptEntry{
-					Name: "allow-all-to-"+label,
-					HashedName:hashedLabelName,
-					Chain: util.IptablesAzureIngressFromChain,
+					Name:       "allow-all-to-" + label,
+					HashedName: hashedLabelName,
+					Chain:      util.IptablesAzureIngressFromChain,
 					Specs: []string{
 						util.IptablesMatchFlag,
 						util.IptablesSetModuleFlag,
@@ -70,8 +70,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						util.IptablesAccept,
 						util.IptablesMatchFlag,
 						util.IptablesCommentFlag,
-
-					}
+					},
 				}
 				entries = append(entries, entry)
 				continue
@@ -80,9 +79,9 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			if !fromRuleExists {
 				for _, protPortPair := range protPortPairSlice {
 					entry := &iptm.IptEntry{
-						Name: "allow-to-ports-of-"+label,
+						Name:       "allow-to-ports-of-" + label,
 						HashedName: hashedLabelName,
-						Chain: util.IptablesAzureIngressPortChain,
+						Chain:      util.IptablesAzureIngressPortChain,
 						Specs: []string{
 							util.IptablesProtFlag,
 							protPortPair.protocol,
@@ -95,9 +94,9 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							util.IptablesDstFlag,
 							util.IptablesJumpFlag,
 							util.IptablesAzureIngressFromNsChain,
-						}
+						},
 					}
-					entries = append(entries, entry)					
+					entries = append(entries, entry)
 				}
 				continue
 			}
