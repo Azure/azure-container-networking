@@ -81,8 +81,8 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	entry.Chain = util.IptablesAzureChain
 	entry.Specs = []string{
 		util.IptablesMatchFlag,
+		util.IptablesStateModuleFlag,
 		util.IptablesStateFlag,
-		util.IptablesMatchStateFlag,
 		util.IptablesRelatedState + "," + util.IptablesEstablishedState,
 		util.IptablesJumpFlag,
 		util.IptablesAccept,

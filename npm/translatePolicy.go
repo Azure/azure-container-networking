@@ -32,8 +32,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 		label := labels[i]
 		log.Printf("Parsing iptables for label %s", label)
 
-		//hashedLabelName := util.GetHashedName(label)
-
+		hashedLabelName := util.GetHashedName(label)
 		for _, rule := range rules {
 			// parse Ports field
 			for _, portRule := range rule.Ports {
@@ -56,9 +55,35 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				}
 			}
 
-			// TODO
 			if !portRuleExists && !fromRuleExists {
-				break
+				entry := &iptm.IptEntry{
+					Name: "allow-all-to-"+label,
+					HashedName:hashedLabelName,
+					Chain: util.IptablesAzureIngressFromChain,
+					Specs: []string{
+						util.IptablesMatchFlag,
+						util.IptablesSetModuleFlag,
+						util.IptablesMatchSetFlag,
+						hashedLabelName,
+						util.IptablesDstFlag,
+						util.IptablesJumpFlag,
+						util.IptablesAccept,
+						util.IptablesMatchFlag,
+						util.IptablesCommentFlag,
+
+					}
+				}
+				entries = append(entries, entry)
+				continue
+			}
+
+			if !fromRuleExists {
+				for _, protPortPair := range protPortPairSlice {
+					entry := &iptm.IptEntry{
+						Name: "allow-to-ports-of-"+label,
+						HashedName:
+					}
+				}
 			}
 		}
 	}
@@ -85,12 +110,12 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 			Chain:      util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesMatchFlag,
-				util.IptablesSetFlag,
+				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
 				hashedKubeSystemSet,
 				util.IptablesSrcFlag,
 				util.IptablesMatchFlag,
-				util.IptablesSetFlag,
+				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
 				hashedLabelName,
 				util.IptablesDstFlag,
@@ -106,12 +131,12 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 			Chain:      util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesMatchFlag,
-				util.IptablesSetFlag,
+				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
 				hashedLabelName,
 				util.IptablesSrcFlag,
 				util.IptablesMatchFlag,
-				util.IptablesSetFlag,
+				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
 				hashedKubeSystemSet,
 				util.IptablesDstFlag,
