@@ -155,12 +155,12 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	log.Printf("NETWORK POLICY DELETING: %v", npObj)
 
 	var exists bool
-	if ns, exists = npMgr.nsMap[npNs]; !exists {
-		ns, err = newNs(npNs)
+	if ns, exists = npMgr.nsMap[npName]; !exists {
+		ns, err = newNs(npName)
 		if err != nil {
-			log.Printf("Error creating namespace %s\n", npNs)
+			log.Printf("Error creating namespace %s\n", npName)
 		}
-		npMgr.nsMap[npNs] = ns
+		npMgr.nsMap[npName] = ns
 	}
 
 	if !ns.policyExists(npObj) {
