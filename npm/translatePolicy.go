@@ -101,7 +101,52 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				continue
 			}
 
-			//TODO: !portRuleExists
+			if !portRuleExists {
+				for _, fromRule := range rule.From {
+					// Handle IPBlock field of NetworkPolicyPeer
+					if fromRule.IPBlock != nil {
+						if len(fromRule.IPBlock.CIDR) > 0 {
+							cidrEntry := &iptm.IptEntry{
+								Chain: util.IptablesAzureIngressFromNsChain,
+								Specs: []string{
+									util.IptablesMatchFlag,
+									util.IptablesSetModuleFlag,
+									util.IptablesMatchSetFlag,
+									hashedLabelName,
+									util.IptablesDstFlag,
+									util.IptablesSFlag,
+									fromRule.IPBlock.CIDR,
+									util.IptablesJumpFlag,
+									util.IptablesAccept,
+								},
+							}
+							entries = append(entries, cidrEntry)
+						}
+
+						if len(fromRule.IPBlock.Except) > 0 {
+							for _, except := range fromRule.IPBlock.Except {
+								entry := &iptm.IptEntry{
+									Chain: util.IptablesAzureIngressFromNsChain,
+									Specs: []string{
+										util.IptablesMatchFlag,
+										util.IptablesSetModuleFlag,
+										util.IptablesMatchSetFlag,
+										hashedTargetSetName,
+										util.IptablesDstFlag,
+										util.IptablesSFlag,
+										except,
+										util.IptablesJumpFlag,
+										util.IptablesDrop,
+									},
+								}
+								entries = append(entries, entry)
+							}
+						}
+					}
+
+					// Handle podSelector and namespaceSelector
+				}
+			}
 		}
 	}
 
