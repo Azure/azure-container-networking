@@ -27,7 +27,6 @@ const (
 type IptEntry struct {
 	Command               string
 	Name                  string
-	HashedName            string
 	Chain                 string
 	Flag                  string
 	LockWaitTimeInSeconds string

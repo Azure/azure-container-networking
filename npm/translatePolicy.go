@@ -57,9 +57,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 			if !portRuleExists && !fromRuleExists {
 				entry := &iptm.IptEntry{
-					Name:       "allow-all-to-" + label,
-					HashedName: hashedLabelName,
-					Chain:      util.IptablesAzureIngressFromChain,
+					Name:  "allow-all-to-" + label,
+					Chain: util.IptablesAzureIngressFromChain,
 					Specs: []string{
 						util.IptablesMatchFlag,
 						util.IptablesSetModuleFlag,
@@ -79,9 +78,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			if !fromRuleExists {
 				for _, protPortPair := range protPortPairSlice {
 					entry := &iptm.IptEntry{
-						Name:       "allow-to-ports-of-" + label,
-						HashedName: hashedLabelName,
-						Chain:      util.IptablesAzureIngressPortChain,
+						Name:  "allow-to-ports-of-" + label,
+						Chain: util.IptablesAzureIngressPortChain,
 						Specs: []string{
 							util.IptablesProtFlag,
 							protPortPair.protocol,
@@ -167,9 +165,8 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 	for _, label := range labels {
 		hashedLabelName := util.GetHashedName(label)
 		allowKubeSystemIngress := &iptm.IptEntry{
-			Name:       util.KubeSystemFlag,
-			HashedName: hashedKubeSystemSet,
-			Chain:      util.IptablesAzureIngressPortChain,
+			Name:  util.KubeSystemFlag,
+			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesMatchFlag,
 				util.IptablesSetModuleFlag,
@@ -188,9 +185,8 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 		entries = append(entries, allowKubeSystemIngress)
 
 		allowKubeSystemEgress := &iptm.IptEntry{
-			Name:       util.KubeSystemFlag,
-			HashedName: hashedKubeSystemSet,
-			Chain:      util.IptablesAzureEgressPortChain,
+			Name:  util.KubeSystemFlag,
+			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesMatchFlag,
 				util.IptablesSetModuleFlag,
