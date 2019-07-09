@@ -2,7 +2,7 @@ version: 2
 jobs:
   setup-and-test:
     # docker:
-    # - image: golang:1.10
+    # - image: golang:1.12
     machine:
       image: circleci/classic:latest
     steps:
@@ -15,14 +15,14 @@ jobs:
             sudo -E env "PATH=$PATH" apt-get install -y ipset
             sudo -E env "PATH=$PATH" apt-get install -y python3-dev gcc
             sudo -E env "PATH=$PATH" pip install coverage
-            mkdir -p /home/circleci/go1-10
+            mkdir -p /home/circleci/go1-12
             mkdir --parents /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
-            wget https://storage.googleapis.com/golang/go1.10.2.linux-amd64.tar.gz
-            tar -C /home/circleci/go1-10 -xvf go1.10.2.linux-amd64.tar.gz
-            rm go1.10.2.linux-amd64.tar.gz
+            wget https://storage.googleapis.com/golang/go1.12.6.linux-amd64.tar.gz
+            tar -C /home/circleci/go1-12 -xvf go1.12.6.linux-amd64.tar.gz
+            rm go1.12.6.linux-amd64.tar.gz
             mv * /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
             cd /home/circleci/.goproject/src/github.com/Azure/azure-container-networking
-            export GOROOT='/home/circleci/go1-10/go'
+            export GOROOT='/home/circleci/go1-12/go'
             export GOPATH='/home/circleci/.goproject'
             export PATH=$GOROOT/bin:$PATH
             go get ./...
