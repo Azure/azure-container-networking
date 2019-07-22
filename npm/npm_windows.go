@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -53,7 +52,7 @@ type NetworkPolicyManager struct {
 	TelemetryEnabled bool
 }
 
-// restore restores ACLPolicies from backup file
+// restore restores ACL policies from backup file
 func (npMgr *NetworkPolicyManager) restore() {
 	aclMgr := hnsm.NewACLPolicyManager()
 	var err error

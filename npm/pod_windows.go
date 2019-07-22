@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// AddPod handles adding pod ip to its label's ipset.
+// AddPod handles adding pod ip to its label's tag.
 func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
@@ -65,7 +65,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	return nil
 }
 
-// DeletePod handles deleting pod from its label's ipset.
+// DeletePod handles deleting pod from its label's tag.
 func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()

@@ -35,7 +35,7 @@ func newNs(name string) (*namespace, error) {
 	return ns, nil
 }
 
-// InitAllNsList syncs all-namespace ipset list.
+// InitAllNsList syncs all-namespace tag.
 func (npMgr *NetworkPolicyManager) InitAllNsList() error {
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 	for nsName := range npMgr.nsMap {
@@ -52,7 +52,7 @@ func (npMgr *NetworkPolicyManager) InitAllNsList() error {
 	return nil
 }
 
-// UninitAllNsList cleans all-namespace ipset list.
+// UninitAllNsList cleans all-namespace tag.
 func (npMgr *NetworkPolicyManager) UninitAllNsList() error {
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 	for nsName := range npMgr.nsMap {
@@ -69,7 +69,7 @@ func (npMgr *NetworkPolicyManager) UninitAllNsList() error {
 	return nil
 }
 
-// AddNamespace handles adding  namespace to ipset.
+// AddNamespace handles adding namespace to tag.
 func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
@@ -113,7 +113,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	return nil
 }
 
-// DeleteNamespace handles deleting namespace from ipset.
+// DeleteNamespace handles deleting namespace from tag.
 func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
