@@ -2,6 +2,7 @@ package npm
 
 import (
 	"testing"
+	"reflect"
 
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -19,10 +20,12 @@ func TestTranslateIngress(t *testing.T) {
 			"context": "dev",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			Key:      "testNotIn",
-			Operator: metav1.LabelSelectorOpNotIn,
-			Values: []string{
+			metav1.LabelSelectorRequirement{
+				Key:      "testNotIn",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values: []string{
 				"frontend",
+				},
 			},
 		},
 	}
@@ -111,20 +114,29 @@ func TestTranslateIngress(t *testing.T) {
 		"testIn:frontend",
 	}
 
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedIngress failed @ sets comparison")
+		t.Errorf("sets: %v\nexpectedSets: %v", sets, expectedSets)
+	}
+
 	expectedLists := []string{
 		"ns:dev",
 		"ns-testIn:frontendns",
 	}
 
-	iptEntries := []*iptm.IptEntry{
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedIngress failed @ lists comparison")
+	}
+
+	expectedIptEntries := []*iptm.IptEntry{
 		&iptm.IptEntry{
 			Name:  "allow-tcp:6783-to-context:dev",
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesProtFlag,
-				v1.ProtocolTCP,
+				string(v1.ProtocolTCP),
 				util.IptablesDstPortFlag,
-				intstr.FromInt(6783),
+				"6783",
 				util.IptablesMatchFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
@@ -211,9 +223,9 @@ func TestTranslateIngress(t *testing.T) {
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesProtFlag,
-				v1.ProtocolTCP,
+				string(v1.ProtocolTCP),
 				util.IptablesDstPortFlag,
-				intstr.FromInt(6783),
+				"6783",
 				util.IptablesMatchFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
@@ -335,5 +347,9 @@ func TestTranslateIngress(t *testing.T) {
 			Chain: "TODO",
 			Specs: []string{},
 		},
+	}
+
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedIngress failed @ iptEntries comparison")
 	}
 }

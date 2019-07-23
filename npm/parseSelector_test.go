@@ -57,6 +57,7 @@ func TestParseSelector(t *testing.T) {
 	selector, expectedSelector = nil, nil
 	labels, keys, vals := ParseSelector(selector)
 	expectedLabels, expectedKeys, expectedVals := []string{}, []string{}, []string{}
+
 	if len(labels) != len(expectedLabels) {
 		t.Errorf("TestparseSelector failed @ labels length comparison")
 	}

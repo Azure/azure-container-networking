@@ -152,3 +152,32 @@ func SetIsNewNwPolicyVerFlag(ver *version.Info) error {
 
 	return nil
 }
+
+// GetOperatorAndLabel returns the operator associated with the label and the label without operator.
+func GetOperatorAndLabel(label string) (string, string) {
+	if len(label) == 0 {
+		return "", ""
+	}
+
+	if string(label[0]) == IptablesNotFlag {
+		return IptablesNotFlag, label[1:]
+	}
+
+	return "", label
+}
+
+// GetLabelsWithoutOperators returns labels without operators.
+func GetLabelsWithoutOperators(labels []string) []string {
+	var res []string
+	for _, label := range labels {
+		if len(label) > 0 {
+			if string(label[0]) == IptablesNotFlag {
+				res = append(res, label[1:])
+			} else {
+				res = append(res, label)
+			}
+		}
+	}
+
+	return res
+}

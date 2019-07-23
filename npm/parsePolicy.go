@@ -46,15 +46,15 @@ func addPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolic
 	// if namespace matches && podSelector matches, then merge
 	// else return as is.
 	if !reflect.DeepEqual(old.TypeMeta, new.TypeMeta) {
-		return nil, fmt.Errorf("Old and new networkpolicy don't have the same TypeMeta")
+		return nil, fmt.Errorf("Old and new networkpolicies don't have the same TypeMeta")
 	}
 
 	if old.ObjectMeta.Namespace != new.ObjectMeta.Namespace {
-		return nil, fmt.Errorf("Old and new networkpolicy don't have the same namespace")
+		return nil, fmt.Errorf("Old and new networkpolicies don't have the same namespace")
 	}
 
 	if len(old.Spec.PodSelector.MatchLabels) != 1 || !reflect.DeepEqual(old.Spec.PodSelector, new.Spec.PodSelector) {
-		return nil, fmt.Errorf("Old and new networkpolicy don't have apply to the same set of target pods")
+		return nil, fmt.Errorf("Old and new networkpolicies don't have apply to the same set of target pods")
 	}
 
 	addedPolicy := &networkingv1.NetworkPolicy{

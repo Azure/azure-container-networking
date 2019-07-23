@@ -2,6 +2,7 @@ package util
 
 import (
 	"testing"
+	"reflect"
 
 	"k8s.io/apimachinery/pkg/version"
 )
@@ -103,5 +104,65 @@ func TestIsNewNwPolicyVer(t *testing.T) {
 	isNew, err = IsNewNwPolicyVer(ver)
 	if !isNew || err != nil {
 		t.Errorf("TestIsNewNwPolicyVer failed @ newer version test")
+	}
+}
+
+func TestGetOperatorAndLabel(t *testing.T) {
+	testLabels := []string{
+		"a",
+		"k:v",
+		"",
+		"!a:b",
+		"!a",
+	}
+
+	resultOperators, resultLabels := []string{}, []string{}
+	for _, testLabel := range testLabels {
+		resultOperator, resultLabel := GetOperatorAndLabel(testLabel)
+		resultOperators = append(resultOperators, resultOperator)
+		resultLabels = append(resultLabels, resultLabel)
+	}
+
+	expectedOperators := []string{
+		"",
+		"",
+		"",
+		IptablesNotFlag,
+		IptablesNotFlag,
+	}
+
+	expectedLabels := []string{
+		"a",
+		"k:v",
+		"",
+		"a:b",
+		"a",
+	}
+
+	if !reflect.DeepEqual(resultOperators, expectedOperators) {
+		t.Errorf("TestGetOperatorAndLabel failed @ operator comparison")
+	}
+
+
+	if !reflect.DeepEqual(resultLabels, expectedLabels) {
+		t.Errorf("TestGetOperatorAndLabel failed @ label comparison")
+	}
+}
+
+func TestGetLabelsWithoutOperators(t *testing.T) {
+	testLabels := []string{
+		"k:v",
+		"",
+		"!a:b",
+	}
+
+	resultLabels := GetLabelsWithoutOperators(testLabels)
+	expectedLabels := []string{
+		"k:v",
+		"a:b",
+	}
+
+	if !reflect.DeepEqual(resultLabels, expectedLabels) {
+		t.Errorf("TestGetLabelsWithoutOperators failed @ label comparision")
 	}
 }
