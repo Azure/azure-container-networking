@@ -44,7 +44,7 @@ func (npMgr *NetworkPolicyManager) InitAllNsList() error {
 		}
 
 		if err := allNs.tMgr.AddToNLTag(util.KubeAllNamespacesFlag, nsName); err != nil {
-			log.Errorf("Error: failed to add namespace set %s to list %s", nsName, util.KubeAllNamespacesFlag)
+			log.Errorf("Error: failed to add Tag %s to NLTag %s", nsName, util.KubeAllNamespacesFlag)
 			return err
 		}
 	}
@@ -61,7 +61,7 @@ func (npMgr *NetworkPolicyManager) UninitAllNsList() error {
 		}
 
 		if err := allNs.tMgr.DeleteFromNLTag(util.KubeAllNamespacesFlag, nsName); err != nil {
-			log.Errorf("Error: failed to delete namespace set %s from list %s", nsName, util.KubeAllNamespacesFlag)
+			log.Errorf("Error: failed to delete Tag %s from NLTag %s", nsName, util.KubeAllNamespacesFlag)
 			return err
 		}
 	}

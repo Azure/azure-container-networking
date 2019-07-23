@@ -234,25 +234,54 @@ func (tMgr *TagManager) Restore(configFile string) error {
 
 // Exists checks if the given ACL policy exists in HNS.
 func (aclMgr *ACLPolicyManager) Exists(policy *hns.ACLPolicy) (bool, error) {
+	// TODO: Query HNS to see if the provided policy exists.
 	return false, nil
 }
 
 // Add applies an ACLPolicy through HNS.
 func (aclMgr *ACLPolicyManager) Add(policy *hns.ACLPolicy) error {
+	log.Printf("Add ACLPolicy: %+v.", policy)
+
+	exists, err := aclMgr.Exists(policy)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		return nil
+	}
+
+	// TODO: Call into HNS to add policy.
+
 	return nil
 }
 
 // Delete removes an ACLPolicy through HNS.
 func (aclMgr *ACLPolicyManager) Delete(policy *hns.ACLPolicy) error {
+	log.Printf("Deleting ACLPolicy: %+v", policy)
+
+	exists, err := aclMgr.Exists(policy)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return nil
+	}
+
+	// TODO: Call into HNS to delete policy.
+
 	return nil
 }
 
 // Save saves active ACL policies to a file.
 func (aclMgr *ACLPolicyManager) Save(configFile string) error {
+	// TODO: Query HNS for ACL policies and store them in a file.
 	return nil
 }
 
 // Restore applies ACL policies from a file.
 func (aclMgr *ACLPolicyManager) Restore(configFile string) error {
+	// TODO: Gather ACL policies from a file and apply them through HNS.
 	return nil
 }
