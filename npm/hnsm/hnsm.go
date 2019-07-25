@@ -3,7 +3,7 @@
 package hnsm
 
 import (
-	hns "github.com/Microsoft/hcsshim"
+	"github.com/Microsoft/hcsshim/hcn"
 )
 
 // Tag represents one HNS tag.
@@ -162,7 +162,9 @@ func (tMgr *TagManager) AddToTag(tagName string, ip string) error {
 		return err
 	}
 
-	// TODO: Add ip to tag through HNS.
+	if err := hcn.AddIPToTag(ip); err != nil {
+		return err
+	}
 
 	tMgr.tagMap[tagName].elements = append(tMgr.tagMap[tagName].elements, ip)
 
@@ -182,7 +184,9 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, ip string) error {
 		}
 	}
 
-	// TODO: Remove ip from tag through HNS.
+	if err := hcn.RemoveIPFromTag(ip); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -233,13 +237,35 @@ func (tMgr *TagManager) Restore(configFile string) error {
 }
 
 // Exists checks if the given ACL policy exists in HNS.
-func (aclMgr *ACLPolicyManager) Exists(policy *hns.ACLPolicy) (bool, error) {
-	// TODO: Query HNS to see if the provided policy exists.
+func (aclMgr *ACLPolicyManager) Exists(policy *hcn.AclPolicySetting) (bool, error) {
+	endpoints, err := hcn.ListEndpoints()
+	if err != nil {
+		return false, err
+	}
+
+	policyJson, err := json.Marshal(*policy)
+	if err != nil {
+		return false, err
+	}
+
+	for _, endpoint := range endpoints {
+		for _, otherPolicy := range endpoint.Policies {
+			if otherPolicy.Type != hcn.ACL {
+				continue
+			}
+
+			otherPolicyJson := otherPolicy.Settings
+			if bytes.Equal(byte[](policyJson), byte[](otherPolicyJson)) {
+				return true, nil
+			}
+		}
+	}
+
 	return false, nil
 }
 
 // Add applies an ACLPolicy through HNS.
-func (aclMgr *ACLPolicyManager) Add(policy *hns.ACLPolicy) error {
+func (aclMgr *ACLPolicyManager) Add(policy *hcn.AclPolicySetting) error {
 	log.Printf("Add ACLPolicy: %+v.", policy)
 
 	exists, err := aclMgr.Exists(policy)
@@ -251,13 +277,39 @@ func (aclMgr *ACLPolicyManager) Add(policy *hns.ACLPolicy) error {
 		return nil
 	}
 
-	// TODO: Call into HNS to add policy.
+	policyJson, err := json.Marshal(*policy)
+	if err != nil {
+		return err
+	}
+
+	endpointPolicy := hcn.EndpointPolicy{
+		Type:     hcn.ACL,
+		Settings: policyJson,
+	}
+
+	endpoints, err := hcn.ListEndpoints()
+	if err != nil {
+		return err
+	}
+
+	for _, endpoint := range endpoints {
+		endpoint.Policies := append(endpoint.Policies, endpointPolicy)
+
+		policyEndpointRequest := hcn.PolicyEndpointRequest{
+			Policies: endpoint.Policies,
+		}
+
+		err = endpoint.ApplyPolicy(policyEndpointRequest)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
 
 // Delete removes an ACLPolicy through HNS.
-func (aclMgr *ACLPolicyManager) Delete(policy *hns.ACLPolicy) error {
+func (aclMgr *ACLPolicyManager) Delete(policy *hcn.AclPolicySetting) error {
 	log.Printf("Deleting ACLPolicy: %+v", policy)
 
 	exists, err := aclMgr.Exists(policy)
@@ -269,7 +321,41 @@ func (aclMgr *ACLPolicyManager) Delete(policy *hns.ACLPolicy) error {
 		return nil
 	}
 
-	// TODO: Call into HNS to delete policy.
+	policyJson, err := json.Marshal(*policy)
+	if err != nil {
+		return err
+	}
+
+	endpointPolicy := hcn.EndpointPolicy{
+		Type:     hcn.ACL,
+		Settings: policyJson,
+	}
+
+	endpoints, err := hcn.ListEndpoints()
+	if err != nil {
+		return err
+	}
+
+	for _, endpoint := range endpoints {
+		for i, otherPolicy := range endpoint.Policies {
+			if otherPolicy.Type != hcn.ACL {
+				continue
+			}
+
+			otherPolicyJson := otherPolicy.Settings
+			if bytes.Equal(byte[](policyJson), byte[](otherPolicyJson)) {
+				endpoint.Policies = append(endpoint.Policies[:i], endpoint.Policies[i+1:]...)
+			}
+		}
+		policyEndpointRequest := hcn.PolicyEndpointRequest{
+			Policies: endpoint.Policies,
+		}
+
+		err = endpoint.ApplyPolicy(policyEndpointRequest)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
