@@ -107,3 +107,13 @@ const (
 	UpdateNetworkPolicyEvent string = "Update network policy"
 	DeleteNetworkPolicyEvent string = "Delete network policy"
 )
+
+//HCN related constants.
+const (
+	HCNTagFlag        string = "tag"
+	HCNNLTagFlag      string = "nltag"
+	TagConfigFile     string = "/var/log/tag.conf"
+	TagTestConfigFile string = "/var/log/tag-test.conf"
+	ACLConfigFile     string = "/var/log/acl.conf"
+	ACLTestConfigFile string = "/var/log/acl-test.conf"
+)
