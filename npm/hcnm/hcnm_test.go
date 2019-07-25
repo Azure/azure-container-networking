@@ -1,12 +1,12 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package hnsm
+package hcnm
 
 import (
 	"testing"
 
-	"github.com/Azure/azure-container-networking/npm/util"
-	hns "github.com/Microsoft/hcsshim"
+	"github.com/kalebmorris/azure-container-networking/npm/util"
+	"github.com/Microsoft/hcsshim/hcn"
 )
 
 func TestTagSave(t *testing.T) {
@@ -251,8 +251,16 @@ func TestACLExists(t *testing.T) {
 		}
 	}()
 
-	policy := &hns.ACLPolicy{
-		Id: "test-acl",
+	policy := &hcn.AclPolicySetting{
+		Protocols:       "6",
+		Action:          hcn.ActionTypeAllow,
+		Direction:       hcn.DirectionTypeIn,
+		LocalAddresses:  "192.168.100.0/24,10.0.0.21",
+		RemoteAddresses: "192.168.100.0/24,10.0.0.21",
+		LocalPorts:      "80,8080",
+		RemotePorts:     "80,8080",
+		RuleType:        hcn.RuleTypeSwitch,
+		Priority:        200,
 	}
 	if _, err := aclMgr.Exists(policy); err != nil {
 		t.Errorf("TestACLExists failed @ aclMgr.Exists")
@@ -271,8 +279,16 @@ func TestAdd(t *testing.T) {
 		}
 	}()
 
-	policy := &hns.ACLPolicy{
-		Id: "test-acl",
+	policy := &hcn.AclPolicySetting{
+		Protocols:       "6",
+		Action:          hcn.ActionTypeAllow,
+		Direction:       hcn.DirectionTypeIn,
+		LocalAddresses:  "192.168.100.0/24,10.0.0.21",
+		RemoteAddresses: "192.168.100.0/24,10.0.0.21",
+		LocalPorts:      "80,8080",
+		RemotePorts:     "80,8080",
+		RuleType:        hcn.RuleTypeSwitch,
+		Priority:        200,
 	}
 	if err := aclMgr.Add(policy); err != nil {
 		t.Errorf("TestAdd failed @ aclMgr.Add")
@@ -291,8 +307,16 @@ func TestDelete(t *testing.T) {
 		}
 	}()
 
-	policy := &hns.ACLPolicy{
-		Id: "test-acl",
+	policy := &hcn.AclPolicySetting{
+		Protocols:       "6",
+		Action:          hcn.ActionTypeAllow,
+		Direction:       hcn.DirectionTypeIn,
+		LocalAddresses:  "192.168.100.0/24,10.0.0.21",
+		RemoteAddresses: "192.168.100.0/24,10.0.0.21",
+		LocalPorts:      "80,8080",
+		RemotePorts:     "80,8080",
+		RuleType:        hcn.RuleTypeSwitch,
+		Priority:        200,
 	}
 	if err := aclMgr.Add(policy); err != nil {
 		t.Errorf("TestDelete failed @ aclMgr.Add")

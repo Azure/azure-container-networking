@@ -3,10 +3,10 @@
 package npm
 
 import (
-	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/ipsm"
-	"github.com/Azure/azure-container-networking/npm/iptm"
-	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/log"
+	"github.com/kalebmorris/azure-container-networking/npm/ipsm"
+	"github.com/kalebmorris/azure-container-networking/npm/iptm"
+	"github.com/kalebmorris/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/types"
 
 	corev1 "k8s.io/api/core/v1"

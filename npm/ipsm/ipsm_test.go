@@ -5,7 +5,7 @@ package ipsm
 import (
 	"testing"
 
-	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/npm/util"
 )
 
 func TestSave(t *testing.T) {

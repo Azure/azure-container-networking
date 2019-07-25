@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/Azure/azure-container-networking/telemetry"
+	"github.com/kalebmorris/azure-container-networking/log"
+	"github.com/kalebmorris/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

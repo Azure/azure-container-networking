@@ -14,8 +14,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/log"
+	"github.com/kalebmorris/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 

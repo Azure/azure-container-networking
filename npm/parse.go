@@ -5,9 +5,9 @@ package npm
 import (
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/iptm"
-	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/log"
+	"github.com/kalebmorris/azure-container-networking/npm/iptm"
+	"github.com/kalebmorris/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
