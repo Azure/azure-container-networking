@@ -112,8 +112,8 @@ const (
 const (
 	HCNTagFlag        string = "tag"
 	HCNNLTagFlag      string = "nltag"
-	TagConfigFile     string = "/var/log/tag.conf"
-	TagTestConfigFile string = "/var/log/tag-test.conf"
-	ACLConfigFile     string = "/var/log/acl.conf"
-	ACLTestConfigFile string = "/var/log/acl-test.conf"
+	TagConfigFile     string = "C:\\k\\tag.conf"
+	TagTestConfigFile string = "C:\\k\\tag-test.conf"
+	ACLConfigFile     string = "C:\\k\\acl.conf"
+	ACLTestConfigFile string = "C:\\k\\acl-test.conf"
 )

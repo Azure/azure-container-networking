@@ -5,7 +5,6 @@ package npm
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"sync"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/kalebmorris/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"

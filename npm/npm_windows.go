@@ -53,7 +53,7 @@ type NetworkPolicyManager struct {
 
 // restore restores ACL policies from backup file
 func (npMgr *NetworkPolicyManager) restore() {
-	aclMgr := hnsm.NewACLPolicyManager()
+	aclMgr := hcnm.NewACLPolicyManager()
 	var err error
 	for i := 0; i < restoreMaxRetries; i++ {
 		if err = aclMgr.Restore(util.ACLPolicyConfigFile); err == nil {
@@ -69,7 +69,7 @@ func (npMgr *NetworkPolicyManager) restore() {
 
 // backup takes snapshots of ACL policies and saves them periodically.
 func (npMgr *NetworkPolicyManager) backup() {
-	aclMgr := hnsm.NewACLPolicyManager()
+	aclMgr := hcnm.NewACLPolicyManager()
 	var err error
 	for {
 		time.Sleep(backupWaitTimeInSeconds * time.Second)

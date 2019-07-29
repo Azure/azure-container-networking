@@ -4,28 +4,17 @@ package npm
 
 import (
 	"fmt"
-	"os"
 	"reflect"
-	"sync"
 	"time"
 
 	"github.com/kalebmorris/azure-container-networking/log"
-	"github.com/kalebmorris/azure-container-networking/npm/util"
 	"github.com/kalebmorris/azure-container-networking/telemetry"
-	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/informers"
-	coreinformers "k8s.io/client-go/informers/core/v1"
-	networkinginformers "k8s.io/client-go/informers/networking/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 )
 
 const (
-	telemetryRetryTimeInSeconds   = 60
-	heartbeatIntervalInMinutes    = 30
+	telemetryRetryTimeInSeconds = 60
+	heartbeatIntervalInMinutes  = 30
 )
 
 // GetClusterState returns current cluster state.

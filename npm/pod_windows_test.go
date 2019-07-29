@@ -28,7 +28,7 @@ func TestAddPod(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hnsm.NewTagManager()
+	tMgr := hcnm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestAddPod failed @ tMgr.Save")
 	}
@@ -72,7 +72,7 @@ func TestUpdatePod(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hnsm.NewTagManager()
+	tMgr := hcnm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestUpdatePod failed @ tMgr.Save")
 	}
@@ -134,7 +134,7 @@ func TestDeletePod(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hnsm.NewTagManager()
+	tMgr := hcnm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestDeletePod failed @ tMgr.Save")
 	}

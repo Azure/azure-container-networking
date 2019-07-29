@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/kalebmorris/azure-container-networking/npm/hcnm"
-	"github.com/kalebmorris/azure-container-networking/telemetry"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -15,7 +15,7 @@ import (
 func TestAllNsList(t *testing.T) {
 	npMgr := &NetworkPolicyManager{}
 
-	tMgr := hnsm.NewTagManager()
+	tMgr := hcnm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestAllNsList failed @ tMgr.Save")
 	}
@@ -51,7 +51,7 @@ func TestAddNamespace(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hnsm.NewTagManager()
+	tMgr := hcnm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestAddNamespace failed @ tMgr.Save")
 	}
@@ -92,7 +92,7 @@ func TestUpdateNamespace(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hnsm.NewTagManager()
+	tMgr := hcnm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestUpdateNamespace failed @ tMgr.Save")
 	}
@@ -146,7 +146,7 @@ func TestDeleteNamespace(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hnsm.NewTagManager()
+	tMgr := hcnm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestDeleteNamespace failed @ tMgr.Save")
 	}
@@ -176,10 +176,10 @@ func TestDeleteNamespace(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	aclMgr := hnsm.NewACLPolicyManager()
+	aclMgr := hcnm.NewACLPolicyManager()
 	aclMgr.Save(util.ACLConfigFile)
 
-	tMgr := hnsm.NewTagManager()
+	tMgr := hcnm.NewTagManager()
 	tMgr.Save(util.TagConfigFile)
 
 	m.Run()

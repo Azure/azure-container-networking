@@ -17,8 +17,8 @@ type namespace struct {
 	setMap map[string]string
 	podMap map[types.UID]*corev1.Pod
 	npMap  map[string]*networkingv1.NetworkPolicy
-	tMgr   *hnsm.TagManager
-	aclMgr *hnsm.ACLPolicyManager
+	tMgr   *hcnm.TagManager
+	aclMgr *hcnm.ACLPolicyManager
 }
 
 // newNS constructs a new namespace object.
@@ -28,8 +28,8 @@ func newNs(name string) (*namespace, error) {
 		setMap: make(map[string]string),
 		podMap: make(map[types.UID]*corev1.Pod),
 		npMap:  make(map[string]*networkingv1.NetworkPolicy),
-		tMgr:   hnsm.NewTagManager(),
-		aclMgr: hnsm.NewACLPolicyManager(),
+		tMgr:   hcnm.NewTagManager(),
+		aclMgr: hcnm.NewACLPolicyManager(),
 	}
 
 	return ns, nil

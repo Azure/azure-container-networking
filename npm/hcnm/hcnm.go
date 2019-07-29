@@ -187,10 +187,10 @@ func (tMgr *TagManager) AddToTag(tagName string, ip string) error {
 		return err
 	}
 
-	if err := hcn.AddIPToTag(ip); err != nil {
-		log.Errorf("Error: failed to add ip %s to tag %s through HCN.", ip, tagName)
-		return err
-	}
+	// if err := hcn.AddIPToTag(ip); err != nil {
+	// 	log.Errorf("Error: failed to add ip %s to tag %s through HCN.", ip, tagName)
+	// 	return err
+	// }
 
 	tMgr.tagMap[tagName].elements = append(tMgr.tagMap[tagName].elements, ip)
 
@@ -212,10 +212,10 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, ip string) error {
 		}
 	}
 
-	if err := hcn.RemoveIPFromTag(ip); err != nil {
-		log.Errorf("Error: failed to remove ip %s from tag %s through HCN.", ip, tagName)
-		return err
-	}
+	// if err := hcn.RemoveIPFromTag(ip); err != nil {
+	// 	log.Errorf("Error: failed to remove ip %s from tag %s through HCN.", ip, tagName)
+	// 	return err
+	// }
 
 	return nil
 }
