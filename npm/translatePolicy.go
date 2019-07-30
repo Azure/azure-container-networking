@@ -20,15 +20,13 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 		portRuleExists    = false
 		fromRuleExists    = false
 		protPortPairSlice []*portsInfo
-		//podNsRuleSets     []string // pod sets listed in one ingress rules.
-		//nsRuleLists       []string // namespace sets listed in one ingress rule
-		policyRuleSets  []string // policy-wise pod sets
-		policyRuleLists []string // policy-wise namespace sets
+		sets  []string // ipsets with type: net:hash
+		lists []string // ipsets with type: list:set
 		entries         []*iptm.IptEntry
 	)
 
 	labels, _, _ := ParseSelector(&targetSelector)
-	policyRuleSets = append(policyRuleSets, labels...)
+	sets = append(sets, labels...)
 	for i := range labels {
 		op, label := util.GetOperatorAndLabel(labels[i])
 		log.Printf("Parsing iptables for label %s", label)
@@ -256,6 +254,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 					if fromRule.PodSelector == nil && fromRule.NamespaceSelector != nil {
 						selectorLabels, _, _ := ParseSelector(fromRule.NamespaceSelector)
+						lists = append(lists, selectorLabels...)
 						for _, sLabel := range selectorLabels {
 							selectorOp, selectorLabel := util.GetOperatorAndLabel(sLabel)
 							hashedSelectorLabelName := util.GetHashedName(selectorLabel)
@@ -366,6 +365,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 					if fromRule.PodSelector != nil && fromRule.NamespaceSelector == nil {
 						selectorLabels, _, _ := ParseSelector(fromRule.NamespaceSelector)
+						sets = append(sets, selectorLabels...)
 						for _, sLabel := range selectorLabels {
 							selectorOp, selectorLabel := util.GetOperatorAndLabel(sLabel)
 							hashedSelectorLabelName := util.GetHashedName(selectorLabel)
@@ -476,14 +476,39 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 					// fromRule has both namespaceSelector and podSelector set.
 					// We should match the selected pods in the selected namespaces.
-					
+					// This allows traffic from podSelector intersects namespaceSelector
+					// This is only supported in kubernetes version >= 1.11
+					if !util.IsNewNwPolicyVerFlag {
+						continue
+					}
+
+					nsSelectorLabels, _, _ := ParseSelector(fromRule.NamespaceSelector)
+					lists = append(lists, nsSelectorLabels...)
+					for _, nsLabel := range nsSelectorLabels {
+						nsSelectorOp, nsSelectorLabel := util.GetOperatorAndLabel(nsLabel)
+						hashedNsSelectorLabelName := util.GetHashedName(nsSelectorLabel)
+
+						podSelectorLabels, _, _ := ParseSelector(fromRule.PodSelector)
+						sets = append(sets, podSelectorLabels...)
+						for _, podLabel := range podSelectorLabels {
+							podSelectorOp, podSelectorLabel := util.GetOperatorAndLabel(podLabel)
+							hashedPodSelectorLabelName := util.GetHashedName(podSelectorLabel)
+
+							var entry *iptm.IptEntry
+							if op != util.IptablesNotFlag && 
+							nsSelectorOp != util.IptablesNotFlag && 
+							podSelectorOp != util.IptablesNotFlag {
+								
+							}
+						}
+					}
 				}
 			}
 		}
 	}
 
 	log.Printf("finished parsing ingress rule")
-	return policyRuleSets, policyRuleLists, entries
+	return sets, lists, entries
 }
 
 func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry) {
