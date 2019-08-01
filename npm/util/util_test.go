@@ -166,3 +166,35 @@ func TestGetLabelsWithoutOperators(t *testing.T) {
 		t.Errorf("TestGetLabelsWithoutOperators failed @ label comparision")
 	}
 }
+
+func TestDropEmptyFields(t *testing.T) {
+	testSlice := []string{
+		"",
+		"a:b",
+		"",
+		"!",
+		"-m",
+		"--match-set",
+		"",
+	}
+
+	resultSlice := DropEmptyFields(testSlice)
+	expectedSlice := []string{
+		"a:b",
+		"!",
+		"-m",
+		"--match-set",
+	}
+
+	if !reflect.DeepEqual(resultSlice, expectedSlice) {
+		t.Errorf("TestDropEmptyFields failed @ slice comparison")
+	}
+
+	testSlice = []string{""}
+	resultSlice = DropEmptyFields(testSlice)
+	expectedSlice = []string{}
+
+	if !reflect.DeepEqual(resultSlice, expectedSlice) {
+		t.Errorf("TestDropEmptyFields failed @ slice comparison")
+	}
+}

@@ -176,3 +176,22 @@ func GetLabelsWithoutOperators(labels []string) []string {
 
 	return res
 }
+
+// DropEmptyFields deletes empty entries from a slice.
+func DropEmptyFields(s []string) []string {
+	i := 0
+	for {
+		if i == len(s) {
+			break
+		}
+
+		if s[i] == "" {
+			s = append(s[:i], s[i+1:]...)
+			continue
+		}
+
+		i++
+	}
+
+	return s
+}
