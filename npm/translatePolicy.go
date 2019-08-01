@@ -60,14 +60,14 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					entry = &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressFromChain,
 						Specs: []string{
-							util.IptablesMatchFlag,
+							util.IptablesModuleFlag,
 							util.IptablesSetModuleFlag,
 							util.IptablesMatchSetFlag,
 							hashedLabelName,
 							util.IptablesDstFlag,
 							util.IptablesJumpFlag,
 							util.IptablesAccept,
-							util.IptablesMatchFlag,
+							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
 							"allow-all-to-" + op + label,
@@ -77,7 +77,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					entry = &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressFromChain,
 						Specs: []string{
-							util.IptablesMatchFlag,
+							util.IptablesModuleFlag,
 							util.IptablesSetModuleFlag,
 							util.IptablesNotFlag,
 							util.IptablesMatchSetFlag,
@@ -85,7 +85,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							util.IptablesDstFlag,
 							util.IptablesJumpFlag,
 							util.IptablesAccept,
-							util.IptablesMatchFlag,
+							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
 							"allow-all-to-" + op + label,
@@ -107,14 +107,14 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 								protPortPair.protocol,
 								util.IptablesDstPortFlag,
 								protPortPair.port,
-								util.IptablesMatchFlag,
+								util.IptablesModuleFlag,
 								util.IptablesSetModuleFlag,
 								util.IptablesMatchSetFlag,
 								hashedLabelName,
 								util.IptablesDstFlag,
 								util.IptablesJumpFlag,
-								util.IptablesAzureIngressFromNsChain,
-								util.IptablesMatchFlag,
+								util.IptablesAccept,
+								util.IptablesModuleFlag,
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"allow-to-ports-of-" + op + label,
@@ -128,15 +128,15 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 								protPortPair.protocol,
 								util.IptablesDstPortFlag,
 								protPortPair.port,
-								util.IptablesMatchFlag,
+								util.IptablesModuleFlag,
 								util.IptablesSetModuleFlag,
 								util.IptablesNotFlag,
 								util.IptablesMatchSetFlag,
 								hashedLabelName,
 								util.IptablesDstFlag,
 								util.IptablesJumpFlag,
-								util.IptablesAzureIngressFromNsChain,
-								util.IptablesMatchFlag,
+								util.IptablesAccept,
+								util.IptablesModuleFlag,
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"allow-to-ports-of-" + op + label,
@@ -158,7 +158,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 								cidrEntry = &iptm.IptEntry{
 									Chain: util.IptablesAzureIngressFromChain,
 									Specs: []string{
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedLabelName,
@@ -167,17 +167,18 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 										fromRule.IPBlock.CIDR,
 										util.IptablesJumpFlag,
 										util.IptablesAccept,
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesCommentModuleFlag,
 										util.IptablesCommentFlag,
-										"allow-" + fromRule.IPBlock.CIDR + "-to-" + op + label,
+										"allow-" + fromRule.IPBlock.CIDR +
+										"-to-" + op + label,
 									},
 								}
 							} else {
 								cidrEntry = &iptm.IptEntry{
 									Chain: util.IptablesAzureIngressFromChain,
 									Specs: []string{
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesNotFlag,
 										util.IptablesMatchSetFlag,
@@ -187,10 +188,11 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 										fromRule.IPBlock.CIDR,
 										util.IptablesJumpFlag,
 										util.IptablesAccept,
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesCommentModuleFlag,
 										util.IptablesCommentFlag,
-										"allow-" + fromRule.IPBlock.CIDR + "-to-" + op + label,
+										"allow-" + fromRule.IPBlock.CIDR +
+										"-to-" + op + label,
 									},
 								}								
 							}
@@ -204,7 +206,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 									entry = &iptm.IptEntry{
 										Chain: util.IptablesAzureIngressFromChain,
 										Specs: []string{
-											util.IptablesMatchFlag,
+											util.IptablesModuleFlag,
 											util.IptablesSetModuleFlag,
 											util.IptablesMatchSetFlag,
 											hashedLabelName,
@@ -213,17 +215,18 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 											except,
 											util.IptablesJumpFlag,
 											util.IptablesDrop,
-											util.IptablesMatchFlag,
+											util.IptablesModuleFlag,
 											util.IptablesCommentModuleFlag,
 											util.IptablesCommentFlag,
-											"block-" + except + "-to-" + op + label,
+											"block-" + except +
+											"-to-" + op + label,
 										},
 									}
 								} else {
 									entry = &iptm.IptEntry{
 										Chain: util.IptablesAzureIngressFromChain,
 										Specs: []string{
-											util.IptablesMatchFlag,
+											util.IptablesModuleFlag,
 											util.IptablesSetModuleFlag,
 											util.IptablesNotFlag,
 											util.IptablesMatchSetFlag,
@@ -233,10 +236,11 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 											except,
 											util.IptablesJumpFlag,
 											util.IptablesDrop,
-											util.IptablesMatchFlag,
+											util.IptablesModuleFlag,
 											util.IptablesCommentModuleFlag,
 											util.IptablesCommentFlag,
-											"block-" + except + "-to-" + op + label,
+											"block-" + except +
+											"-to-" + op + label,
 										},
 									}
 								}
@@ -261,23 +265,25 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							var entry *iptm.IptEntry
 							if op != util.IptablesNotFlag && selectorOp != util.IptablesNotFlag {
 								entry = &iptm.IptEntry{
-									Chain: util.IptablesAzureIngressFromNsChain,
+									Chain: util.IptablesAzureIngressFromChain,
 									Specs: []string{
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedSelectorLabelName,
 										util.IptablesSrcFlag,
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedLabelName,
 										util.IptablesDstFlag,
 										util.IptablesJumpFlag,
-										util.IptablesMatchFlag,
+										util.IptablesAccept,
+										util.IptablesModuleFlag,
 										util.IptablesCommentModuleFlag,
 										util.IptablesCommentFlag,
-										"allow-" + selectorOp + selectorLabel + "-to-" + op + label,
+										"allow-" + selectorOp + selectorLabel +
+										"-to-" + op + label,
 									},
 								}
 								entries = append(entries, entry)
@@ -286,24 +292,26 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							
 							if op != util.IptablesNotFlag && selectorOp == util.IptablesNotFlag {
 								entry = &iptm.IptEntry{
-									Chain: util.IptablesAzureIngressFromNsChain,
+									Chain: util.IptablesAzureIngressFromChain,
 									Specs: []string{
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesNotFlag,
 										util.IptablesMatchSetFlag,
 										hashedSelectorLabelName,
 										util.IptablesSrcFlag,
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedLabelName,
 										util.IptablesDstFlag,
 										util.IptablesJumpFlag,
-										util.IptablesMatchFlag,
+										util.IptablesAccept,
+										util.IptablesModuleFlag,
 										util.IptablesCommentModuleFlag,
 										util.IptablesCommentFlag,
-										"allow-" + selectorOp + selectorLabel + "-to-" + op + label,
+										"allow-" + selectorOp + selectorLabel +
+										"-to-" + op + label,
 									},
 								}
 								entries = append(entries, entry)
@@ -312,24 +320,26 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							
 							if op == util.IptablesNotFlag && selectorOp != util.IptablesNotFlag {
 								entry = &iptm.IptEntry{
-									Chain: util.IptablesAzureIngressFromNsChain,
+									Chain: util.IptablesAzureIngressFromChain,
 									Specs: []string{
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedSelectorLabelName,
 										util.IptablesSrcFlag,
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesNotFlag,
 										util.IptablesMatchSetFlag,
 										hashedLabelName,
 										util.IptablesDstFlag,
 										util.IptablesJumpFlag,
-										util.IptablesMatchFlag,
+										util.IptablesAccept,
+										util.IptablesModuleFlag,
 										util.IptablesCommentModuleFlag,
 										util.IptablesCommentFlag,
-										"allow-" + selectorOp + selectorLabel + "-to-" + op + label,
+										"allow-" + selectorOp + selectorLabel +
+										"-to-" + op + label,
 									},
 								}
 								entries = append(entries, entry)
@@ -337,25 +347,27 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							}
 							
 							entry = &iptm.IptEntry{
-								Chain: util.IptablesAzureIngressFromNsChain,
+								Chain: util.IptablesAzureIngressFromChain,
 								Specs: []string{
-									util.IptablesMatchFlag,
+									util.IptablesModuleFlag,
 									util.IptablesSetModuleFlag,
 									util.IptablesNotFlag,
 									util.IptablesMatchSetFlag,
 									hashedSelectorLabelName,
 									util.IptablesSrcFlag,
-									util.IptablesMatchFlag,
+									util.IptablesModuleFlag,
 									util.IptablesSetModuleFlag,
 									util.IptablesNotFlag,
 									util.IptablesMatchSetFlag,
 									hashedLabelName,
 									util.IptablesDstFlag,
 									util.IptablesJumpFlag,
-									util.IptablesMatchFlag,
+									util.IptablesAccept,
+									util.IptablesModuleFlag,
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
-									"allow-" + selectorOp + selectorLabel + "-to-" + op + label,
+									"allow-" + selectorOp + selectorLabel +
+									"-to-" + op + label,
 								},
 							}
 							entries = append(entries, entry)
@@ -372,23 +384,25 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							var entry *iptm.IptEntry
 							if op != util.IptablesNotFlag && selectorOp != util.IptablesNotFlag {
 								entry = &iptm.IptEntry{
-									Chain: util.IptablesAzureIngressFromPodChain,
+									Chain: util.IptablesAzureIngressFromChain,
 									Specs: []string{
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedSelectorLabelName,
 										util.IptablesSrcFlag,
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedLabelName,
 										util.IptablesDstFlag,
 										util.IptablesJumpFlag,
-										util.IptablesMatchFlag,
+										util.IptablesAccept,
+										util.IptablesModuleFlag,
 										util.IptablesCommentModuleFlag,
 										util.IptablesCommentFlag,
-										"allow-" + selectorOp + selectorLabel + "-to-" + op + label,
+										"allow-" + selectorOp + selectorLabel +
+										"-to-" + op + label,
 									},
 								}
 								entries = append(entries, entry)
@@ -397,24 +411,26 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 							if op != util.IptablesNotFlag && selectorOp == util.IptablesNotFlag {
 								entry = &iptm.IptEntry{
-									Chain: util.IptablesAzureIngressFromPodChain,
+									Chain: util.IptablesAzureIngressFromChain,
 									Specs: []string{
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesNotFlag,
 										util.IptablesMatchSetFlag,
 										hashedSelectorLabelName,
 										util.IptablesSrcFlag,
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedLabelName,
 										util.IptablesDstFlag,
 										util.IptablesJumpFlag,
-										util.IptablesMatchFlag,
+										util.IptablesAccept,
+										util.IptablesModuleFlag,
 										util.IptablesCommentModuleFlag,
 										util.IptablesCommentFlag,
-										"allow-" + selectorOp + selectorLabel + "-to-" + op + label,
+										"allow-" + selectorOp + selectorLabel +
+										"-to-" + op + label,
 									},
 								}
 								entries = append(entries, entry)
@@ -423,24 +439,26 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 							if op == util.IptablesNotFlag && selectorOp != util.IptablesNotFlag {
 								entry = &iptm.IptEntry{
-									Chain: util.IptablesAzureIngressFromPodChain,
+									Chain: util.IptablesAzureIngressFromChain,
 									Specs: []string{
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesMatchSetFlag,
 										hashedSelectorLabelName,
 										util.IptablesSrcFlag,
-										util.IptablesMatchFlag,
+										util.IptablesModuleFlag,
 										util.IptablesSetModuleFlag,
 										util.IptablesNotFlag,
 										util.IptablesMatchSetFlag,
 										hashedLabelName,
 										util.IptablesDstFlag,
 										util.IptablesJumpFlag,
-										util.IptablesMatchFlag,
+										util.IptablesAccept,
+										util.IptablesModuleFlag,
 										util.IptablesCommentModuleFlag,
 										util.IptablesCommentFlag,
-										"allow-" + selectorOp + selectorLabel + "-to-" + op + label,
+										"allow-" + selectorOp + selectorLabel +
+										"-to-" + op + label,
 									},
 								}
 								entries = append(entries, entry)
@@ -448,25 +466,27 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							}
 
 							entry = &iptm.IptEntry{
-								Chain: util.IptablesAzureIngressFromPodChain,
+								Chain: util.IptablesAzureIngressFromChain,
 								Specs: []string{
-									util.IptablesMatchFlag,
+									util.IptablesModuleFlag,
 									util.IptablesSetModuleFlag,
 									util.IptablesNotFlag,
 									util.IptablesMatchSetFlag,
 									hashedSelectorLabelName,
 									util.IptablesSrcFlag,
-									util.IptablesMatchFlag,
+									util.IptablesModuleFlag,
 									util.IptablesSetModuleFlag,
 									util.IptablesNotFlag,
 									util.IptablesMatchSetFlag,
 									hashedLabelName,
 									util.IptablesDstFlag,
 									util.IptablesJumpFlag,
-									util.IptablesMatchFlag,
+									util.IptablesAccept,
+									util.IptablesModuleFlag,
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
-									"allow-" + selectorOp + selectorLabel + "-to-" + op + label,
+									"allow-" + selectorOp + selectorLabel +
+									"-to-" + op + label,
 								},
 							}
 							entries = append(entries, entry)
@@ -494,11 +514,75 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							podSelectorOp, podSelectorLabel := util.GetOperatorAndLabel(podLabel)
 							hashedPodSelectorLabelName := util.GetHashedName(podSelectorLabel)
 
-							var entry *iptm.IptEntry
 							if op != util.IptablesNotFlag && 
 							nsSelectorOp != util.IptablesNotFlag && 
 							podSelectorOp != util.IptablesNotFlag {
-								
+								entry := &iptm.IptEntry{
+									Chain: util.IptablesAzureIngressFromChain,
+									Specs: []string{
+										util.IptablesModuleFlag,
+										util.IptablesSetModuleFlag,
+										util.IptablesMatchSetFlag,
+										hashedNsSelectorLabelName,
+										util.IptablesSrcFlag,
+										util.IptablesModuleFlag,
+										util.IptablesSetModuleFlag,
+										util.IptablesMatchSetFlag,
+										hashedPodSelectorLabelName,
+										util.IptablesSrcFlag,
+										util.IptablesModuleFlag,
+										util.IptablesSetModuleFlag,
+										util.IptablesMatchSetFlag,
+										hashedLabelName,
+										util.IptablesDstFlag,
+										util.IptablesJumpFlag,
+										util.IptablesAzureIngressFromChain,
+										util.IptablesModuleFlag,
+										util.IptablesCommentModuleFlag,
+										util.IptablesCommentFlag,
+										"allow-" + nsSelectorOp + nsSelectorLabel +
+										"-AND-" + podSelectorOp + podSelectorLabel +
+										"-to-" + op + label,
+									},
+								}
+								entries = append(entries, entry)
+								continue					
+							}
+
+							if op != util.IptablesNotFlag && 
+							nsSelectorOp != util.IptablesNotFlag && 
+							podSelectorOp == util.IptablesNotFlag {
+								entry := &iptm.IptEntry{
+									Chain: util.IptablesAzureIngressFromChain,
+									Specs: []string{
+										util.IptablesModuleFlag,
+										util.IptablesSetModuleFlag,
+										util.IptablesMatchSetFlag,
+										hashedNsSelectorLabelName,
+										util.IptablesSrcFlag,
+										util.IptablesModuleFlag,
+										util.IptablesSetModuleFlag,
+										util.IptablesNotFlag,
+										util.IptablesMatchSetFlag,
+										hashedPodSelectorLabelName,
+										util.IptablesSrcFlag,
+										util.IptablesModuleFlag,
+										util.IptablesSetModuleFlag,
+										util.IptablesMatchSetFlag,
+										hashedLabelName,
+										util.IptablesDstFlag,
+										util.IptablesJumpFlag,
+										util.IptablesAzureIngressFromChain,
+										util.IptablesModuleFlag,
+										util.IptablesCommentModuleFlag,
+										util.IptablesCommentFlag,
+										"allow-" + nsSelectorOp + nsSelectorLabel +
+										"-AND-" + podSelectorOp + podSelectorLabel +
+										"-to-" + op + label,
+									},
+								}
+								entries = append(entries, entry)
+								continue
 							}
 						}
 					}
@@ -527,12 +611,12 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 			Name:  util.KubeSystemFlag,
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
-				util.IptablesMatchFlag,
+				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
 				hashedKubeSystemSet,
 				util.IptablesSrcFlag,
-				util.IptablesMatchFlag,
+				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
 				hashedLabelName,
@@ -547,12 +631,12 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 			Name:  util.KubeSystemFlag,
 			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
-				util.IptablesMatchFlag,
+				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
 				hashedLabelName,
 				util.IptablesSrcFlag,
-				util.IptablesMatchFlag,
+				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
 				hashedKubeSystemSet,

@@ -112,7 +112,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	var labelKeys []string
 	nsLabels := nsObj.ObjectMeta.Labels
 	for nsLabelKey, nsLabelVal := range nsLabels {
-		labelKey := util.GetNsIpsetName(nsLabelKey, nsLabelVal)
+		labelKey := util.GetHashedName(nsLabelKey + ":" + nsLabelVal)
 		log.Printf("Adding namespace %s to ipset list %s", nsName, labelKey)
 		if err = ipsMgr.AddToList(labelKey, nsName); err != nil {
 			log.Errorf("Error: failed to add namespace %s to ipset list %s", nsName, labelKey)
@@ -174,7 +174,7 @@ func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) erro
 	var labelKeys []string
 	nsLabels := nsObj.ObjectMeta.Labels
 	for nsLabelKey, nsLabelVal := range nsLabels {
-		labelKey := util.GetNsIpsetName(nsLabelKey, nsLabelVal)
+		labelKey := util.GetHashedName(nsLabelKey + ":" + nsLabelVal)
 		log.Printf("Deleting namespace %s from ipset list %s", nsName, labelKey)
 		if err = ipsMgr.DeleteFromList(labelKey, nsName); err != nil {
 			log.Errorf("Error: failed to delete namespace %s from ipset list %s", nsName, labelKey)

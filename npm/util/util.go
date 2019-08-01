@@ -36,11 +36,6 @@ func GetClusterID(nodeName string) string {
 	return s[2]
 }
 
-// GetNsIpsetName returns ipset name from namespaceSelector.
-func GetNsIpsetName(k, v string) string {
-	return "ns-" + k + ":" + v
-}
-
 // Hash hashes a string to another string with length <= 32.
 func Hash(s string) string {
 	h := fnv.New32a()
