@@ -417,6 +417,7 @@ func (aclMgr *ACLPolicyManager) Save(configFile string) error {
 	endpoints, err := hcn.ListEndpoints()
 	if err != nil {
 		log.Errorf("Error: failed to retrieve endpoints from hcn.")
+		log.Errorf(err.Error())
 		return err
 	} else if len(endpoints) == 0 {
 		log.Printf("No endpoints returned from hcn.")
@@ -462,7 +463,7 @@ func (aclMgr *ACLPolicyManager) Restore(configFile string) error {
 
 	// Unmarshal the policies.
 	var policies []hcn.EndpointPolicy
-	if err := json.Unmarshal(jsonString, &policies); err != nil {
+	if err := json.Unmarshal(jsonString, &policies); err != nil && len(jsonString) != 0 {
 		log.Errorf("Error: failed to unmarshal json from file: %s.", configFile)
 		return err
 	}
