@@ -52,6 +52,76 @@ func TestParseLabel(t *testing.T) {
 	}
 }
 
+func TestGetOperatorAndLabel(t *testing.T) {
+	testLabels := []string{
+		"a",
+		"k:v",
+		"",
+		"!a:b",
+		"!a",
+	}
+
+	resultOperators, resultLabels := []string{}, []string{}
+	for _, testLabel := range testLabels {
+		resultOperator, resultLabel := GetOperatorAndLabel(testLabel)
+		resultOperators = append(resultOperators, resultOperator)
+		resultLabels = append(resultLabels, resultLabel)
+	}
+
+	expectedOperators := []string{
+		"",
+		"",
+		"",
+		util.IptablesNotFlag,
+		util.IptablesNotFlag,
+	}
+
+	expectedLabels := []string{
+		"a",
+		"k:v",
+		"",
+		"a:b",
+		"a",
+	}
+
+	if !reflect.DeepEqual(resultOperators, expectedOperators) {
+		t.Errorf("TestGetOperatorAndLabel failed @ operator comparison")
+	}
+
+
+	if !reflect.DeepEqual(resultLabels, expectedLabels) {
+		t.Errorf("TestGetOperatorAndLabel failed @ label comparison")
+	}
+}
+
+func TestGetOperatorsAndLabels(t *testing.T) {
+	testLabels := []string{
+		"k:v",
+		"",
+		"!a:b",
+	}
+
+	resultOps, resultLabels := GetOperatorsAndLabels(testLabels)
+	expectedOps := []string{
+		"",
+		"",
+		"!",
+	}
+	expectedLabels := []string{
+		"k:v",
+		"",
+		"a:b",
+	}
+
+	if !reflect.DeepEqual(resultOps, expectedOps) {
+		t.Errorf("TestGetOperatorsAndLabels failed @ op comparision")
+	}
+
+	if !reflect.DeepEqual(resultLabels, expectedLabels) {
+		t.Errorf("TestGetOperatorsAndLabels failed @ label comparision")
+	}
+}
+
 func TestParseSelector(t *testing.T) {
 	var selector, expectedSelector *metav1.LabelSelector
 	selector, expectedSelector = nil, nil

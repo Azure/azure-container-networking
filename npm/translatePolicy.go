@@ -15,6 +15,29 @@ type portsInfo struct {
 	port     string
 }
 
+func craftPartialIptEntrySpecFromOpAndLabel(op, label, srcOrDstFlag string) []string {
+	partialSpec := []string{
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		op,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName(label),
+		srcOrDstFlag,
+	}
+
+	return util.DropEmptyFields(partialSpec)
+}
+
+func craftPartialIptEntrySpecFromOpsAndLabels(ops, labels []string, srcOrDstFlag string) []string {
+	var spec []string
+
+	for i, _ := range ops {
+		spec = append(spec, craftPartialIptEntrySpecFromOpAndLabel(ops[i], labels[i], srcOrDstFlag)...)
+	}
+
+	return spec
+}
+
 func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
 		portRuleExists    = false
@@ -26,9 +49,9 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 	)
 
 	labels, _, _ := ParseSelector(&targetSelector)
-	sets = append(sets, labels...)
 	for i := range labels {
 		op, label := util.GetOperatorAndLabel(labels[i])
+		sets = append(sets, label)
 		log.Printf("Parsing iptables for label %s", label)
 
 		hashedLabelName := util.GetHashedName(label)
@@ -96,7 +119,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
-							"allow-to-ports-of-" + op + label,
+							"allow-to-" + protPortPair.port + "-port-of-" +
+							op + label,
 						},
 					}
 					entries = append(entries, entry)

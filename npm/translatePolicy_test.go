@@ -12,6 +12,147 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+func TestCraftPartialIptEntrySpecFromOpAndLabel(t *testing.T) {
+	srcOp, srcLabel := "", "src"
+	iptEntry := craftPartialIptEntrySpecFromOpAndLabel(srcOp, srcLabel, util.IptablesSrcFlag)
+	expectedIptEntry := []string{
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName(srcLabel),
+		util.IptablesSrcFlag,
+	}
+	
+	if !reflect.DeepEqual(iptEntry, expectedIptEntry) {
+		t.Errorf("TestCraftIptEntrySpecFromOpAndLabel failed @ src iptEntry comparison")
+	}
+
+	dstOp, dstLabel := "!", "dst"
+	iptEntry = craftPartialIptEntrySpecFromOpAndLabel(dstOp, dstLabel, util.IptablesDstFlag)
+	expectedIptEntry = []string{
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesNotFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName(dstLabel),
+		util.IptablesDstFlag,
+	}
+	
+	if !reflect.DeepEqual(iptEntry, expectedIptEntry) {
+		t.Errorf("TestCraftIptEntrySpecFromOpAndLabel failed @ dst iptEntry comparison")
+	}
+}
+
+func TestCraftPartialIptEntrySpecFromOpsAndLabels(t *testing.T) {
+	srcOps := []string{
+		"",
+		"",
+		"!",
+	}
+	srcLabels := []string{
+		"src",
+		"src:firstLabel",
+		"src:secondLabel",
+	}
+
+	dstOps := []string{
+		"!",
+		"!",
+		"",
+	}
+	dstLabels := []string{
+		"dst",
+		"dst:firstLabel",
+		"dst:secondLabel",
+	}
+
+
+	srcIptEntry := craftPartialIptEntrySpecFromOpsAndLabels(srcOps, srcLabels, util.IptablesSrcFlag)
+	dstIptEntry := craftPartialIptEntrySpecFromOpsAndLabels(dstOps, dstLabels, util.IptablesDstFlag)
+	iptEntrySpec := append(srcIptEntry, dstIptEntry...)
+	expectedIptEntrySpec := []string{
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("src"),
+		util.IptablesSrcFlag,
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("src:firstLabel"),
+		util.IptablesSrcFlag,
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesNotFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("src:secondLabel"),
+		util.IptablesSrcFlag,
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesNotFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("dst"),
+		util.IptablesDstFlag,
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesNotFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("dst:firstLabel"),
+		util.IptablesDstFlag,
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("dst:secondLabel"),
+		util.IptablesDstFlag,
+	}
+
+	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
+		t.Errorf("TestCraftIptEntrySpecFromOpsAndLabels failed @ iptEntrySpec comparison")
+		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	}
+}
+
+func TestCraftPartialIptEntryFromSelector(t *testing.T) {
+	srcSelector := metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"label": "src",
+		},
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			metav1.LabelSelectorRequirement{
+				Key:      "labelNotIn",
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values: []string{
+					"src",
+				},
+			},
+		},
+	}
+
+	labelsWithOps, _, _ := ParseSelector(&srcSelector)
+	ops, labelsWithoutOps := GetOperatorsAndLabels(labelsWithOps)
+	iptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ops, labelsWithoutOps, util.IptablesSrcFlag)
+	expectedIptEntrySpec := []string{
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("label:src"),
+		util.IptablesSrcFlag,
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesNotFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("labelNotIn:src"),
+		util.IptablesSrcFlag,
+	}
+
+	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
+		t.Errorf("TestCraftPartialIptEntryFromSelector failed @ iptEntrySpec comparison")
+		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	}
+}
+
 func TestTranslateIngress(t *testing.T) {
 	ns := "testnamespace"
 
@@ -130,7 +271,6 @@ func TestTranslateIngress(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{
 		&iptm.IptEntry{
-			Name:  "allow-tcp:6783-to-context:dev",
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesProtFlag,
@@ -142,210 +282,126 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesMatchSetFlag,
 				util.GetHashedName("context:dev"),
 				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAzureIngressFromNsChain,
-			},
-		},
-		&iptm.IptEntry{
-			Name:  "allow-app:db-to-context:dev",
-			Chain: util.IptablesAzureIngressFromPodChain,
-			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
+				util.IptablesNotFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("app:db"),
-				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("context:dev"),
+				util.GetHashedName("testNotIn:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAccept,
+				util.IptablesAzureIngressFromChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-TO-6783-PORT-OF-context:dev-AND-!testNotIn:frontend",
 			},
 		},
 		&iptm.IptEntry{
-			Name:  "allow-testIn:frontend-to-context:dev",
-			Chain: util.IptablesAzureIngressFromPodChain,
-			Specs: []string{
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("testIn:frontend"),
-				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("context:dev"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAccept,
-			},
-		},
-		&iptm.IptEntry{
-			Name:  "allow-ns-ns:dev-to-context:dev",
-			Chain: util.IptablesAzureIngressFromNsChain,
-			Specs: []string{
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-ns:dev"),
-				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("context:dev"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAccept,
-			},
-		},
-		&iptm.IptEntry{
-			Name:  "allow-ns-testIn:frontendns-to-context:dev",
-			Chain: util.IptablesAzureIngressFromNsChain,
-			Specs: []string{
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-testIn:frontends"),
-				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("context:dev"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAccept,
-			},
-		},
-		&iptm.IptEntry{
-			Name:  "allow-tcp:6783-to-testNotIn:frontend",
-			Chain: util.IptablesAzureIngressPortChain,
-			Specs: []string{
-				util.IptablesProtFlag,
-				string(v1.ProtocolTCP),
-				util.IptablesDstPortFlag,
-				"6783",
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("!testNotIn:frontend"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAzureIngressFromNsChain,
-			},
-		},
-		&iptm.IptEntry{
-			Name:  "allow-app:db-to-testNotIn:frontend",
-			Chain: util.IptablesAzureIngressFromPodChain,
-			Specs: []string{
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("app:db"),
-				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("!testNotIn:frontend"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAccept,
-			},
-		},
-		&iptm.IptEntry{
-			Name:  "allow-testIn:frontend-to-testNotIn:frontend",
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:db"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
 				util.GetHashedName("testIn:frontend"),
 				util.IptablesSrcFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("!testNotIn:frontend"),
+				util.GetHashedName("context:dev"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesNotFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("testNotIn:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-app:db-AND-testIn:frontend-TO-context:dev-AND-testNotIn:frontend",
 			},
 		},
 		&iptm.IptEntry{
-			Name:  "allow-ns-ns:dev-to-testNotIn:frontend",
-			Chain: util.IptablesAzureIngressFromNsChain,
+			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-ns:dev"),
+				util.GetHashedName("ns:dev"),
 				util.IptablesSrcFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("!testNotIn:frontend"),
+				util.GetHashedName("testIn:frontendns"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("context:dev"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesNotFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("testNotIn:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ns:dev-AND-testIn:frontendns-TO-context:dev-AND-!testNotIn:frontend",
 			},
 		},
 		&iptm.IptEntry{
-			Name:  "allow-ns-testIn:frontendns-to-testNotIn:frontend",
-			Chain: util.IptablesAzureIngressFromNsChain,
+			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-testIn:frontendns"),
+				util.GetHashedName("planet:earth"),
 				util.IptablesSrcFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("!testNotIn:frontend"),
+				util.GetHashedName("keyExists"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("region:northpole"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesNotFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("k"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("context:dev"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesNotFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("testNotIn:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-planet:earth-AND-keyExists-AND-region:northpole-AND-!k-TO-context:dev-AND-!testNotIn:frontend",
 			},
-		},
-		&iptm.IptEntry{
-			Name:  "TODO",
-			Chain: "TODO",
-			Specs: []string{},
-		},
-		&iptm.IptEntry{
-			Name:  "TODO",
-			Chain: "TODO",
-			Specs: []string{},
-		},
-		&iptm.IptEntry{
-			Name:  "TODO",
-			Chain: "TODO",
-			Specs: []string{},
-		},
-		&iptm.IptEntry{
-			Name:  "TODO",
-			Chain: "TODO",
-			Specs: []string{},
-		},
-		&iptm.IptEntry{
-			Name:  "TODO",
-			Chain: "TODO",
-			Specs: []string{},
-		},
-		&iptm.IptEntry{
-			Name:  "TODO",
-			Chain: "TODO",
-			Specs: []string{},
-		},
-		&iptm.IptEntry{
-			Name:  "TODO",
-			Chain: "TODO",
-			Specs: []string{},
-		},
-		&iptm.IptEntry{
-			Name:  "TODO",
-			Chain: "TODO",
-			Specs: []string{},
 		},
 	}
 

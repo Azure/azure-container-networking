@@ -18,6 +18,31 @@ func ParseLabel(label string) (string, bool) {
 	return label, false
 }
 
+// GetOperatorAndLabel returns the operator associated with the label and the label without operator.
+func GetOperatorAndLabel(label string) (string, string) {
+	if len(label) == 0 {
+		return "", ""
+	}
+
+	if string(label[0]) == util.IptablesNotFlag {
+		return util.IptablesNotFlag, label[1:]
+	}
+
+	return "", label
+}
+
+// GetOperatorsAndLabels returns the operators along with the associated labels.
+func GetOperatorsAndLabels(labelsWithOps []string) ([]string, []string) {
+	var ops, labelsWithoutOps []string
+	for _, labelWithOp := range labelsWithOps {
+		op, labelWithoutOp := GetOperatorAndLabel(labelWithOp)
+		ops = append(ops, op)
+		labelsWithoutOps = append(labelsWithoutOps, labelWithoutOp)
+	}
+
+	return ops, labelsWithoutOps
+}
+
 // ParseSelector takes a LabelSelector and returns a slice of processed labels, keys and values.
 func ParseSelector(selector *metav1.LabelSelector) ([]string, []string, []string) {
 	var (

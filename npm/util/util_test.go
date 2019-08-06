@@ -107,66 +107,6 @@ func TestIsNewNwPolicyVer(t *testing.T) {
 	}
 }
 
-func TestGetOperatorAndLabel(t *testing.T) {
-	testLabels := []string{
-		"a",
-		"k:v",
-		"",
-		"!a:b",
-		"!a",
-	}
-
-	resultOperators, resultLabels := []string{}, []string{}
-	for _, testLabel := range testLabels {
-		resultOperator, resultLabel := GetOperatorAndLabel(testLabel)
-		resultOperators = append(resultOperators, resultOperator)
-		resultLabels = append(resultLabels, resultLabel)
-	}
-
-	expectedOperators := []string{
-		"",
-		"",
-		"",
-		IptablesNotFlag,
-		IptablesNotFlag,
-	}
-
-	expectedLabels := []string{
-		"a",
-		"k:v",
-		"",
-		"a:b",
-		"a",
-	}
-
-	if !reflect.DeepEqual(resultOperators, expectedOperators) {
-		t.Errorf("TestGetOperatorAndLabel failed @ operator comparison")
-	}
-
-
-	if !reflect.DeepEqual(resultLabels, expectedLabels) {
-		t.Errorf("TestGetOperatorAndLabel failed @ label comparison")
-	}
-}
-
-func TestGetLabelsWithoutOperators(t *testing.T) {
-	testLabels := []string{
-		"k:v",
-		"",
-		"!a:b",
-	}
-
-	resultLabels := GetLabelsWithoutOperators(testLabels)
-	expectedLabels := []string{
-		"k:v",
-		"a:b",
-	}
-
-	if !reflect.DeepEqual(resultLabels, expectedLabels) {
-		t.Errorf("TestGetLabelsWithoutOperators failed @ label comparision")
-	}
-}
-
 func TestDropEmptyFields(t *testing.T) {
 	testSlice := []string{
 		"",
