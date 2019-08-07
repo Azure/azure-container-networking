@@ -7,7 +7,7 @@ const (
 	KubeSystemFlag             string = "kube-system"
 	KubePodTemplateHashFlag    string = "pod-template-hash"
 	KubeAllPodsFlag            string = "all-pod"
-	KubeAllNamespacesFlag      string = "all-namespace"
+	KubeAllNamespacesFlag      string = "all-namespaces"
 	KubeAppFlag                string = "k8s-app"
 	KubeProxyFlag              string = "kube-proxy"
 	KubePodStatusFailedFlag    string = "Failed"

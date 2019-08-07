@@ -3,6 +3,7 @@ package npm
 import (
 	"testing"
 	"reflect"
+	"encoding/json"
 
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -114,7 +115,7 @@ func TestCraftPartialIptEntrySpecFromOpsAndLabels(t *testing.T) {
 }
 
 func TestCraftPartialIptEntryFromSelector(t *testing.T) {
-	srcSelector := metav1.LabelSelector{
+	srcSelector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"label": "src",
 		},
@@ -129,9 +130,7 @@ func TestCraftPartialIptEntryFromSelector(t *testing.T) {
 		},
 	}
 
-	labelsWithOps, _, _ := ParseSelector(&srcSelector)
-	ops, labelsWithoutOps := GetOperatorsAndLabels(labelsWithOps)
-	iptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ops, labelsWithoutOps, util.IptablesSrcFlag)
+	iptEntrySpec := craftPartialIptEntrySpecFromSelector(srcSelector, util.IptablesSrcFlag)
 	expectedIptEntrySpec := []string{
 		util.IptablesModuleFlag,
 		util.IptablesSetModuleFlag,
@@ -150,6 +149,55 @@ func TestCraftPartialIptEntryFromSelector(t *testing.T) {
 		t.Errorf("TestCraftPartialIptEntryFromSelector failed @ iptEntrySpec comparison")
 		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
 		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	}
+}
+
+func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
+	var selector *metav1.LabelSelector
+	selector = nil
+	comment := craftPartialIptablesCommentFromSelector(selector)
+	expectedComment := "none"
+	if comment != expectedComment {
+		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ nil selector comparison")
+		t.Errorf("comment:\n%v", comment)
+		t.Errorf("expectedComment:\n%v", expectedComment)
+	}
+
+	selector = &metav1.LabelSelector{}
+	comment = craftPartialIptablesCommentFromSelector(selector)
+	expectedComment = util.KubeAllNamespacesFlag
+	if comment != expectedComment {
+		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ empty selector comparison")
+		t.Errorf("comment:\n%v", comment)
+		t.Errorf("expectedComment:\n%v", expectedComment)
+	}
+
+	selector = &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"k0": "v0",
+		},
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			metav1.LabelSelectorRequirement{
+				Key: "k1",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"v10",
+					"v11",
+				},
+			},
+			metav1.LabelSelectorRequirement{
+				Key: "k2",
+				Operator: metav1.LabelSelectorOpDoesNotExist,
+				Values: []string{},
+			},
+		},
+	}
+	comment = craftPartialIptablesCommentFromSelector(selector)
+	expectedComment = "k0:v0-AND-k1:v10-AND-k1:v11-AND-!k2"
+	if comment != expectedComment {
+		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ normal selector comparison")
+		t.Errorf("comment:\n%v", comment)
+		t.Errorf("expectedComment:\n%v", expectedComment)
 	}
 }
 
@@ -240,33 +288,41 @@ func TestTranslateIngress(t *testing.T) {
 					PodSelector: ingressPodSelector,
 				},
 				networkingv1.NetworkPolicyPeer{
-					PodSelector: ingressNamespaceSelector,
+					NamespaceSelector: ingressNamespaceSelector,
 				},
 				compositeNetworkPolicyPeer,
 			},
 		},
 	}
 
+	util.IsNewNwPolicyVerFlag = true
 	sets, lists, iptEntries := translateIngress(ns, targetSelector, rules)
 	expectedSets := []string{
 		"context:dev",
-		"!testNotIn:frontend",
+		"testNotIn:frontend",
 		"app:db",
 		"testIn:frontend",
+		"region:northpole",
+		"k",
 	}
 
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedIngress failed @ sets comparison")
-		t.Errorf("sets: %v\nexpectedSets: %v", sets, expectedSets)
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
 	}
 
 	expectedLists := []string{
 		"ns:dev",
-		"ns-testIn:frontendns",
+		"testIn:frontendns",
+		"planet:earth",
+		"keyExists",
 	}
 
 	if !reflect.DeepEqual(lists, expectedLists) {
 		t.Errorf("translatedIngress failed @ lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
 	}
 
 	expectedIptEntries := []*iptm.IptEntry{
@@ -293,7 +349,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-TO-6783-PORT-OF-context:dev-AND-!testNotIn:frontend",
+				"ALLOW-ALL-TO-6783-PORT-OF-context:dev-AND-!testNotIn:frontend",
 			},
 		},
 		&iptm.IptEntry{
@@ -325,7 +381,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-app:db-AND-testIn:frontend-TO-context:dev-AND-testNotIn:frontend",
+				"ALLOW-app:db-AND-testIn:frontend-TO-context:dev-AND-!testNotIn:frontend",
 			},
 		},
 		&iptm.IptEntry{
@@ -407,5 +463,9 @@ func TestTranslateIngress(t *testing.T) {
 
 	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
 		t.Errorf("translatedIngress failed @ iptEntries comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
 	}
 }
