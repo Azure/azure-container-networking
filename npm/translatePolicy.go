@@ -39,7 +39,7 @@ func craftPartialIptEntrySpecFromOpsAndLabels(ops, labels []string, srcOrDstFlag
 }
 
 func craftPartialIptEntrySpecFromSelector(selector *metav1.LabelSelector, srcOrDstFlag string) []string {
-	labelsWithOps, _, _ := ParseSelector(selector)
+	labelsWithOps, _, _ := parseSelector(selector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
 	return craftPartialIptEntrySpecFromOpsAndLabels(ops, labels, srcOrDstFlag)
 }
@@ -53,7 +53,7 @@ func craftPartialIptablesCommentFromSelector(selector *metav1.LabelSelector) str
 		return util.KubeAllNamespacesFlag
 	}
 
-	labelsWithOps, _, _ := ParseSelector(selector)
+	labelsWithOps, _, _ := parseSelector(selector)
 	var comment string
 	for _, labelWithOp := range labelsWithOps {
 		comment += labelWithOp
@@ -75,7 +75,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 	log.Printf("started parsing ingress rule")
 
-	labelsWithOps, _, _ := ParseSelector(&targetSelector)
+	labelsWithOps, _, _ := parseSelector(&targetSelector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
 	sets = append(sets, labels...)
 	targetSelectorIptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ops, labels, util.IptablesDstFlag)
@@ -234,7 +234,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			}
 
 			if fromRule.PodSelector == nil && fromRule.NamespaceSelector != nil {
-				nsLabelsWithOps, _, _ := ParseSelector(fromRule.NamespaceSelector)
+				nsLabelsWithOps, _, _ := parseSelector(fromRule.NamespaceSelector)
 				_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 				lists = append(lists, nsLabelsWithoutOps...)
 
@@ -264,7 +264,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			}
 
 			if fromRule.PodSelector != nil && fromRule.NamespaceSelector == nil {
-				podLabelsWithOps, _, _ := ParseSelector(fromRule.PodSelector)
+				podLabelsWithOps, _, _ := parseSelector(fromRule.PodSelector)
 				_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
 				sets = append(sets, podLabelsWithoutOps...)
 
@@ -300,11 +300,11 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			if !util.IsNewNwPolicyVerFlag {
 				continue
 			}
-			nsLabelsWithOps, _, _ := ParseSelector(fromRule.NamespaceSelector)
+			nsLabelsWithOps, _, _ := parseSelector(fromRule.NamespaceSelector)
 			_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 			lists = append(lists, nsLabelsWithoutOps...)
 
-			podLabelsWithOps, _, _ := ParseSelector(fromRule.PodSelector)
+			podLabelsWithOps, _, _ := parseSelector(fromRule.PodSelector)
 			_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
 			sets = append(sets, podLabelsWithoutOps...)
 
@@ -353,7 +353,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) []*iptm.IptEntry {
 	var entries []*iptm.IptEntry
 
-	labels, _, _ := ParseSelector(&targetSelector)
+	labels, _, _ := parseSelector(&targetSelector)
 	hashedKubeSystemSet := util.GetHashedName(util.KubeSystemFlag)
 	for _, label := range labels {
 		hashedLabelName := util.GetHashedName(label)

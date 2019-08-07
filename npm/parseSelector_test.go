@@ -125,7 +125,7 @@ func TestGetOperatorsAndLabels(t *testing.T) {
 func TestParseSelector(t *testing.T) {
 	var selector, expectedSelector *metav1.LabelSelector
 	selector, expectedSelector = nil, nil
-	labels, keys, vals := ParseSelector(selector)
+	labels, keys, vals := parseSelector(selector)
 	expectedLabels, expectedKeys, expectedVals := []string{}, []string{}, []string{}
 
 	if len(labels) != len(expectedLabels) {
@@ -145,7 +145,7 @@ func TestParseSelector(t *testing.T) {
 	}
 
 	selector = &metav1.LabelSelector{}
-	labels, keys, vals = ParseSelector(selector)
+	labels, keys, vals = parseSelector(selector)
 	expectedLabels = []string{util.KubeAllNamespacesFlag}
 	expectedKeys = []string{util.KubeAllNamespacesFlag}
 	expectedVals = []string{""}
@@ -174,7 +174,7 @@ func TestParseSelector(t *testing.T) {
 		},
 	}
 
-	labels, keys, vals = ParseSelector(selector)
+	labels, keys, vals = parseSelector(selector)
 	expectedLabels = []string{
 		"testIn:frontend",
 		"testIn:backend",
@@ -222,7 +222,7 @@ func TestParseSelector(t *testing.T) {
 	me := &selector.MatchExpressions
 	*me = append(*me, notIn)
 
-	labels, keys, vals = ParseSelector(selector)
+	labels, keys, vals = parseSelector(selector)
 	addedLabels := []string{
 		"!testNotIn:frontend",
 		"!testNotIn:backend",
@@ -269,7 +269,7 @@ func TestParseSelector(t *testing.T) {
 
 	*me = append(*me, exists)
 
-	labels, keys, vals = ParseSelector(selector)
+	labels, keys, vals = parseSelector(selector)
 	addedLabels = []string{
 		"testExists",
 	}
@@ -313,7 +313,7 @@ func TestParseSelector(t *testing.T) {
 
 	*me = append(*me, doesNotExist)
 
-	labels, keys, vals = ParseSelector(selector)
+	labels, keys, vals = parseSelector(selector)
 	addedLabels = []string{
 		"!testDoesNotExist",
 	}

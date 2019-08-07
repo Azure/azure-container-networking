@@ -11,7 +11,7 @@ import (
 // and if so, returns the original set as well.
 func ParseLabel(label string) (string, bool) {
 	//The input label is guaranteed to have a non-zero length validated by k8s.
-	//For label definition, see below ParseSelector() function.
+	//For label definition, see below parseSelector() function.
 	if label[0:1] == util.IptablesNotFlag {
 		return label[1:], true
 	}
@@ -43,8 +43,8 @@ func GetOperatorsAndLabels(labelsWithOps []string) ([]string, []string) {
 	return ops, labelsWithoutOps
 }
 
-// ParseSelector takes a LabelSelector and returns a slice of processed labels, keys and values.
-func ParseSelector(selector *metav1.LabelSelector) ([]string, []string, []string) {
+// parseSelector takes a LabelSelector and returns a slice of processed labels, keys and values.
+func parseSelector(selector *metav1.LabelSelector) ([]string, []string, []string) {
 	var (
 		labels []string
 		keys   []string

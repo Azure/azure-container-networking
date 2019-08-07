@@ -29,7 +29,7 @@ func isSamePolicy(old, new *networkingv1.NetworkPolicy) bool {
 func splitPolicy(npObj *networkingv1.NetworkPolicy) ([]string, []*networkingv1.NetworkPolicy) {
 	var policies []*networkingv1.NetworkPolicy
 
-	labels, keys, vals := ParseSelector(&(npObj.Spec.PodSelector))
+	labels, keys, vals := parseSelector(&(npObj.Spec.PodSelector))
 	for i := range keys {
 		policy := *npObj
 		policy.ObjectMeta.Name = labels[i]
