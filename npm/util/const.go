@@ -117,3 +117,36 @@ const (
 	ACLConfigFile     string = "C:\\k\\acl.conf"
 	ACLTestConfigFile string = "C:\\k\\acl-test.conf"
 )
+	VFPError           string = "ERROR"
+	// Port related
+	Port               string = "/port"
+	ListPortCmd        string = "/list-vmswitch-port"
+	PortSplit          string = "Port name"
+	GUIDLength         int    = 36
+	// Layer related
+	Layer              string = "/layer"
+	ListLayerCmd       string = "/list-layer"
+	AddLayerCmd        string = "/add-layer"
+	NPMLayer           string = "NPM_LAYER"
+	StatefulLayer      string = "stateful"
+	StatelessLayer     string = "stateless"
+	NPMLayerPriority   string = "10"
+	RemoveLayerCmd     string = "/remove-layer"
+	// Tag related
+	Tag                string = "/tag"
+	ListTagCmd         string = "/list-tag"
+	AddTagCmd          string = "/add-tag"
+	IPV4               string = "ipv4"
+	IPV6               string = "ipv6"
+	ReplaceTagCmd      string = "/replace-tag"
+	RemoveTagCmd       string = "/remove-tag"
+	RemoveAllTagCmd    string = "/remove-all-tag"
+	TagLabel           string = "TAG : "
+	TagIPLabel         string = "Tag IP : "
+	// Rule related
+	ListRuleCmd        string = "/list-rule"
+	AddRuleCmd         string = "/add-rule"
+	AddTagRuleCmd      string = "/add-tag-rule"
+	RemoveRuleCmd      string = "/remove-rule"
+	RemoveAllRuleCmd   string = "/remove-all-rule"
+)
