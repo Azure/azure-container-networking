@@ -1,12 +1,12 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package hcnm
+package vfpm
 
 import (
 	"testing"
 
-	"github.com/kalebmorris/azure-container-networking/npm/util"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/kalebmorris/azure-container-networking/npm/util"
 )
 
 func TestTagSave(t *testing.T) {

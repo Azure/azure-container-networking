@@ -1,6 +1,6 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package hcnm
+package vfpm
 
 import (
 	"os"
