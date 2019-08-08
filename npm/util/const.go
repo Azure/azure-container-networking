@@ -108,7 +108,7 @@ const (
 	DeleteNetworkPolicyEvent string = "Delete network policy"
 )
 
-//HCN related constants.
+//VFP related constants.
 const (
 	VFPTagFlag         string = "tag"
 	VFPNLTagFlag       string = "nltag"
