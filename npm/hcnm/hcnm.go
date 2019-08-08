@@ -3,14 +3,10 @@
 package hcnm
 
 import (
-	"bytes"
-	"encoding/json"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
 
-	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/kalebmorris/azure-container-networking/log"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
 )
@@ -41,6 +37,20 @@ func NewTagManager() *TagManager {
 		tagMap:   make(map[string]*Tag),
 		nlTagMap: make(map[string]*NLTag),
 	}
+}
+
+// Rule represents a single VFP rule.
+type Rule struct {
+	name     string
+	group    string
+	srcTags  string
+	dstTags  string
+	srcIPs   string
+	srcPrts  string
+	dstIPs   string
+	dstPrts  string
+	priority string
+	action   string
 }
 
 // RuleManager stores ACL policy states.
@@ -160,8 +170,20 @@ func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 		return nil
 	}
 
-	// Empty tags cannot exist in VFP.
+	// Add an empty tag into vfp.
+	params := "\"" + tagName + " " + tagName + " " + util.IPV4 + " *\""
+	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.AddTagCmd, params)
+	out, err := addCmd.Output()
+	if err != nil {
+		log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
+		return err
+	}
+	outStr := string(out)
+	if strings.Index(outStr, util.VFPError) != -1 {
+		log.Errorf("%s", outStr)
+	}
 
+	// Update tag map.
 	tMgr.tagMap[key] = &Tag{
 		name: tagName,
 		port: portName,
@@ -425,11 +447,11 @@ func (tMgr *TagManager) Save(configFile string) error {
 
 	// Create file we are saving to.
 	file, err := os.Create(configFile)
-	defer file.Close()
 	if err != nil {
 		log.Errorf("Error: failed to create tags config file %s.", configFile)
 		return err
 	}
+	defer file.Close()
 
 	// Retrieve the ports from VFP.
 	ports, err := getPorts()
@@ -536,48 +558,107 @@ func (tMgr *TagManager) Restore(configFile string) error {
 			}
 		}
 	}
+	return nil
+}
+
+// InitAzureNPMLayer adds a layer to VFP for NPM and populates it with relevant groups.
+func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
+	// Initialize the layer first.
+	params := "\"" + util.NPMLayer + " " + util.NPMLayer + " " + util.StatefulLayer + " " + util.NPMLayerPriority + " 0\""
+	addLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.AddLayerCmd, params)
+	out, err := addLayerCmd.Output()
+	if err != nil {
+		log.Errorf("Error: failed to add NPM layer to VFP on port %s.", portName)
+		return err
+	}
+	outStr := string(out)
+	if strings.Index(outStr, util.VFPError) != -1 {
+		log.Errorf("%s", outStr)
+	}
+
+	groupsList := []string{
+		util.NPMIngressGroup,
+		util.NPMIngressNsGroup,
+		util.NPMIngressPodGroup,
+		util.NPMEgressGroup,
+		util.NPMEgressNsGroup,
+		util.NPMEgressPodGroup,
+		util.NPMDefaultInGroup,
+		util.NPMDefaultOutGroup,
+	}
+
+	prioritiesList := []string{
+		util.NPMIngressPriority,
+		util.NPMIngressNsPriority,
+		util.NPMIngressPodPriority,
+		util.NPMEgressPriority,
+		util.NPMEgressNsPriority,
+		util.NPMEgressPodPriority,
+		util.NPMDefaultInPriority,
+		util.NPMDefaultOutPriority,
+	}
+
+	// Add all of the NPM groups.
+	for i := 0; i < len(groupsList); i++ {
+		var dir string
+		if i < 3 || i == 6 {
+			dir = util.DirectionIn
+		} else if i < 6 || i == 7 {
+			dir = util.DirectionOut
+		}
+		params := "\"" + groupsList[i] + " " + groupsList[i] + " " + dir + " " + prioritiesList[i] + " priority_based VfxConditionNone\""
+		addGroupCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.AddGroupCmd, params)
+		out, err := addGroupCmd.Output()
+		if err != nil {
+			log.Errorf("Error: failed to add group %s on port %s in VFP.", groupsList[i], portName)
+			return err
+		}
+		outStr := string(out)
+		if strings.Index(outStr, util.VFPError) != -1 {
+			log.Errorf("%s", outStr)
+		}
+	}
 
 	return nil
 }
 
-// Exists checks if the given ACL policy exists in VFP.
-func (aclMgr *RuleManager) Exists(policy *hcn.AclPolicySetting) (bool, error) {
-	// Get the policy ready for comparison.
-	policyJSON, err := json.Marshal(*policy)
+// UnInitAzureNPMLayer undoes the work of InitAzureNPMLayer.
+func (rMgr *RuleManager) UnInitAzureNPMLayer(portName string) error {
+	// Remove the NPM layer.
+	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.RemoveLayerCmd)
+	out, err := removeCmd.Output()
 	if err != nil {
-		log.Errorf("Error: failed to marshal policy: %+v", policy)
+		log.Errorf("Error: failed to remove NPM layer.")
+		return err
+	}
+	outStr := string(out)
+	if strings.Index(outStr, util.VFPError) != -1 {
+		log.Errorf("%s", outStr)
+	}
+
+	return nil
+}
+
+// Exists checks if the given rule exists in VFP.
+func (rMgr *RuleManager) Exists(rule *Rule, portName string) (bool, error) {
+	// Find rules with the name specified.
+	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Rule, rule.name, util.ListRuleCmd)
+	out, err := listCmd.Output()
+	if err != nil {
+		log.Errorf("Error: failed to list rules in rMgr.Exists")
 		return false, err
 	}
+	outStr := string(out)
 
-	// Get the endpoints from VFP and search for the policy.
-	endpoints, err := hcn.ListEndpoints()
-	if err != nil {
-		log.Errorf("Error: failed to retrieve endpoints from VFP.")
-		return false, err
-	}
-
-	for _, endpoint := range endpoints {
-		for _, otherPolicy := range endpoint.Policies {
-			if otherPolicy.Type != hcn.ACL {
-				continue
-			}
-
-			otherPolicyJSON := otherPolicy.Settings
-			if bytes.Equal(policyJSON, otherPolicyJSON) {
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
+	return strings.Index(outStr, util.RuleLabel) >= 0, nil
 }
 
 // Add applies a Rule through VFP.
-func (aclMgr *RuleManager) Add(policy *hcn.AclPolicySetting) error {
-	log.Printf("Add Rule: %+v.", policy)
+func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
+	log.Printf("Add Rule: %+v.", rule)
 
-	// Check first if the policy already exists.
-	exists, err := aclMgr.Exists(policy)
+	// Check first if the rule already exists.
+	exists, err := rMgr.Exists(rule, portName)
 	if err != nil {
 		return err
 	}
@@ -586,47 +667,57 @@ func (aclMgr *RuleManager) Add(policy *hcn.AclPolicySetting) error {
 		return nil
 	}
 
-	// Get the policy ready to apply to endpoints.
-	policyJSON, err := json.Marshal(*policy)
+	// Prepare parameters and execute add-tag-rule command.
+	srcTags := rule.srcTags
+	if srcTags == "" {
+		srcTags = "*"
+	}
+	dstTags := rule.dstTags
+	if dstTags == "" {
+		dstTags = "*"
+	}
+	srcIPs := rule.srcIPs
+	if srcIPs == "" {
+		srcIPs = "*"
+	}
+	dstIPs := rule.dstIPs
+	if dstIPs == "" {
+		dstIPs = "*"
+	}
+	srcPrts := rule.srcPrts
+	if srcPrts == "" {
+		srcPrts = "*"
+	}
+	dstPrts := rule.dstPrts
+	if dstPrts == "" {
+		dstPrts = "*"
+	}
+
+	params := "\"" + rule.name + " " + rule.name +
+		" " + srcTags + " " + dstTags +
+		" 6 " + srcIPs + " " + srcPrts +
+		" " + dstIPs + " " + dstPrts +
+		" 0 0 " + rule.priority + " " + rule.action + "\""
+	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.group, util.AddTagRuleCmd, params)
+	out, err := addCmd.Output()
 	if err != nil {
+		log.Errorf("Error: failed to add tags rule in rMgr.Add")
 		return err
 	}
-
-	endpointPolicy := hcn.EndpointPolicy{
-		Type:     hcn.ACL,
-		Settings: policyJSON,
-	}
-
-	// Get the endpoints from VFP and apply the policy to each.
-	endpoints, err := hcn.ListEndpoints()
-	if err != nil {
-		log.Errorf("Error: failed to retrieve endpoints from VFP.")
-		return err
-	}
-
-	for _, endpoint := range endpoints {
-		endpoint.Policies = append(endpoint.Policies, endpointPolicy)
-
-		policyEndpointRequest := hcn.PolicyEndpointRequest{
-			Policies: endpoint.Policies,
-		}
-
-		err = endpoint.ApplyPolicy(policyEndpointRequest)
-		if err != nil {
-			log.Errorf("Error: failed to apply policy through VFP.")
-			return err
-		}
+	outStr := string(out)
+	if strings.Index(outStr, util.VFPError) != -1 {
+		log.Errorf("%s", outStr)
 	}
 
 	return nil
 }
 
-// Delete removes an Rule through VFP.
-func (aclMgr *RuleManager) Delete(policy *hcn.AclPolicySetting) error {
-	log.Printf("Deleting Rule: %+v", policy)
+// Delete removes a Rule through VFP.
+func (rMgr *RuleManager) Delete(rule *Rule, portName string) error {
+	log.Printf("Deleting Rule: %+v", rule)
 
-	// Check first if the policy exists.
-	exists, err := aclMgr.Exists(policy)
+	// Check first if the rule exists.
+	exists, err := rMgr.Exists(rule, portName)
 	if err != nil {
 		return err
 	}
@@ -635,47 +726,25 @@ func (aclMgr *RuleManager) Delete(policy *hcn.AclPolicySetting) error {
 		return nil
 	}
 
-	// Get policy ready for comparison so we can find it.
-	policyJSON, err := json.Marshal(*policy)
+	// Remove rule through VFP.
+	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Rule, rule.name, util.RemoveRuleCmd)
+	out, err := removeCmd.Output()
 	if err != nil {
+		log.Errorf("Error: failed to remove rule in rMgr.Delete")
 		return err
 	}
-
-	// Get endpoints from VFP and delete matching policy.
-	endpoints, err := hcn.ListEndpoints()
-	if err != nil {
-		log.Errorf("Error: failed to retrieve endpoints from VFP.")
-		return err
-	}
-
-	for _, endpoint := range endpoints {
-		for i, otherPolicy := range endpoint.Policies {
-			if otherPolicy.Type != hcn.ACL {
-				continue
-			}
-
-			if bytes.Equal(policyJSON, otherPolicy.Settings) {
-				endpoint.Policies = append(endpoint.Policies[:i], endpoint.Policies[i+1:]...)
-			}
-		}
-		policyEndpointRequest := hcn.PolicyEndpointRequest{
-			Policies: endpoint.Policies,
-		}
-
-		err = endpoint.ApplyPolicy(policyEndpointRequest)
-		if err != nil {
-			log.Errorf("Error: failed to apply policy through VFP.")
-			return err
-		}
+	outStr := string(out)
+	if strings.Index(outStr, util.VFPError) != -1 {
+		log.Errorf("%s", outStr)
 	}
 
 	return nil
 }
 
-// Save saves active ACL policies to a file.
-func (aclMgr *RuleManager) Save(configFile string) error {
+// Save saves active VFP rules to a file.
+func (rMgr *RuleManager) Save(configFile string) error {
 	if len(configFile) == 0 {
-		configFile = util.ACLConfigFile
+		configFile = util.RuleConfigFile
 	}
 
 	// Create file.
@@ -686,36 +755,131 @@ func (aclMgr *RuleManager) Save(configFile string) error {
 	}
 	defer f.Close()
 
-	// Retrieve endpoints from VFP.
-	endpoints, err := hcn.ListEndpoints()
+	// Get list of ports.
+	ports, err := getPorts()
 	if err != nil {
-		log.Errorf("Error: failed to retrieve endpoints from hcn.")
-		log.Errorf(err.Error())
-		return err
-	} else if len(endpoints) == 0 {
-		log.Printf("No endpoints returned from hcn.")
-		return nil
-	}
-
-	// Policies should be uniform across endpoints, so only need first one.
-	jsonString, err := json.Marshal(endpoints[0].Policies)
-	if err != nil {
-		log.Errorf("Error: failed to marshal acl policies.")
 		return err
 	}
 
-	// Write to file.
-	_, err = f.Write(jsonString)
-	if err != nil {
-		log.Errorf("Error: failed to write to file: %s.", configFile)
-		return err
+	// Write ports to file.
+	for _, portName := range ports {
+		f.WriteString("Port: " + portName + "\n")
+		listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.ListRuleCmd)
+		out, err := listCmd.Output()
+		if err != nil {
+			log.Errorf("Error: failed to get rules for NPM layer.")
+			return err
+		}
+		outStr := string(out)
+		if strings.Index(outStr, util.VFPError) != -1 {
+			log.Errorf("%s", outStr)
+		}
+
+		// Write groups to file.
+		groupsSeparated := strings.Split(outStr, util.GroupLabel)
+		if len(groupsSeparated) >= 1 {
+			groupsSeparated = groupsSeparated[1:]
+		}
+		for _, groupStr := range groupsSeparated {
+			idx := strings.IndexAny(groupStr, " \n\t")
+			if idx == -1 {
+				continue
+			}
+
+			groupName := groupStr[:idx]
+			f.WriteString("\tGroup: " + groupName + "\n")
+
+			// Write rules to file.
+			rulesSeparated := strings.Split(groupStr, util.RuleLabel)
+			if len(rulesSeparated) >= 1 {
+				rulesSeparated = rulesSeparated[1:]
+			}
+			for _, ruleStr := range rulesSeparated {
+				idx = strings.IndexAny(ruleStr, " \n\t")
+				if idx == -1 {
+					continue
+				}
+
+				// Write rule name.
+				ruleName := ruleStr[:idx]
+				f.WriteString("\t\tRule: " + ruleName + "\n")
+
+				// Write rule priority.
+				idx = strings.Index(ruleStr, "Priority : ")
+				priority := ruleStr[idx+len("Priority : "):]
+				idx = strings.Index(priority, " \t\n")
+				priority = priority[:idx]
+				f.WriteString("\t\t\tPriority: " + priority + "\n")
+
+				// Write rule type.
+				idx = strings.Index(ruleStr, "Type : ")
+				typ := ruleStr[idx+len("Type : "):]
+				idx = strings.Index(typ, " \t\n")
+				typ = typ[:idx]
+				f.WriteString("\t\t\tType: " + typ + "\n")
+
+				// Write rule source tags.
+				idx = strings.Index(ruleStr, "Source Tag : ")
+				if idx != -1 {
+					srcTags := ruleStr[idx+len("Source Tag : "):]
+					idx = strings.Index(srcTags, " \t\n")
+					srcTags = srcTags[:idx]
+					f.WriteString("\t\t\tSource Tags: " + srcTags + "\n")
+				}
+
+				// Write rule destination tags.
+				idx = strings.Index(ruleStr, "Destination Tag : ")
+				if idx != -1 {
+					dstTags := ruleStr[idx+len("Destination Tag : "):]
+					idx = strings.Index(dstTags, " \t\n")
+					dstTags = dstTags[:idx]
+					f.WriteString("\t\t\tDestination Tags: " + dstTags + "\n")
+				}
+
+				// Write rule source IPs.
+				idx = strings.Index(ruleStr, "Source IP : ")
+				if idx != -1 {
+					srcIPs := ruleStr[idx+len("Source IP : "):]
+					idx = strings.Index(srcIPs, " \t\n")
+					srcIPs = srcIPs[:idx]
+					f.WriteString("\t\t\tSource IPs: " + srcIPs + "\n")
+				}
+
+				// Write rule destination IPs.
+				idx = strings.Index(ruleStr, "Destination IP : ")
+				if idx != -1 {
+					dstIPs := ruleStr[idx+len("Destination IP : "):]
+					idx = strings.Index(dstIPs, " \t\n")
+					dstIPs = dstIPs[:idx]
+					f.WriteString("\t\t\tDestination IPs: " + dstIPs + "\n")
+				}
+
+				// Write rule source ports.
+				idx = strings.Index(ruleStr, "Source ports : ")
+				if idx != -1 {
+					srcPorts := ruleStr[idx+len("Source ports : "):]
+					idx = strings.Index(srcPorts, " \t\n")
+					srcPorts = srcPorts[:idx]
+					f.WriteString("\t\t\tSource Ports: " + srcPorts + "\n")
+				}
+
+				// Write rule destination ports.
+				idx = strings.Index(ruleStr, "Destination ports : ")
+				if idx != -1 {
+					dstPorts := ruleStr[idx+len("Destination ports : "):]
+					idx = strings.Index(dstPorts, " \t\n")
+					dstPorts = dstPorts[:idx]
+					f.WriteString("\t\t\tDestination Ports: " + dstPorts + "\n")
+				}
+			}
+		}
 	}
 
 	return nil
 }
 
-// Restore applies ACL policies from a file.
-func (aclMgr *RuleManager) Restore(configFile string) error {
+// Restore applies VFP rules from a file.
+func (rMgr *RuleManager) Restore(configFile string) error {
 	if len(configFile) == 0 {
 		configFile = util.ACLConfigFile
 	}
@@ -727,41 +891,121 @@ func (aclMgr *RuleManager) Restore(configFile string) error {
 		return err
 	}
 	defer f.Close()
-
-	jsonString, err := ioutil.ReadAll(f)
+	info, err := f.Stat()
 	if err != nil {
-		log.Errorf("Error: failed to read file: %s.", configFile)
+		log.Errorf("Error: failed to get file info.")
 		return err
 	}
+	size := info.Size()
 
-	// Unmarshal the policies.
-	var policies []hcn.EndpointPolicy
-	if err := json.Unmarshal(jsonString, &policies); err != nil && len(jsonString) != 0 {
-		log.Errorf("Error: failed to unmarshal json from file: %s.", configFile)
-		return err
-	}
-
-	// Retrieve endpoints from VFP.
-	endpoints, err := hcn.ListEndpoints()
+	// Read file.
+	data := make([]byte, size)
+	_, err = f.Read(data)
 	if err != nil {
-		log.Errorf("Error: failed to retrieve endpoints from hcn.")
+		log.Errorf("Error: failed to read from file %s.", configFile)
 		return err
-	} else if len(endpoints) == 0 {
-		log.Printf("No endpoints returned from hcn.")
-		return nil
 	}
+	dataStr := string(data)
 
-	// Apply recovered policies to all endpoints.
-	for _, endpoint := range endpoints {
-		endpoint.Policies = append([]hcn.EndpointPolicy(nil), policies...)
-		policyEndpointRequest := hcn.PolicyEndpointRequest{
-			Policies: endpoint.Policies,
+	// Restore rules for each port.
+	separatedPorts := strings.Split(dataStr, "Port: ")
+	if len(separatedPorts) >= 1 {
+		separatedPorts = separatedPorts[1:]
+	}
+	for _, portStr := range separatedPorts {
+		// Get port name.
+		idx := strings.Index(portStr, "\n")
+		portName := portStr[:idx]
+
+		// Initialize NPM on port.
+		rMgr.InitAzureNPMLayer(portName)
+
+		// Restore rules for each group.
+		separatedGroups := strings.Split(portStr, "\tGroup: ")
+		if len(separatedGroups) >= 1 {
+			separatedGroups = separatedGroups[1:]
 		}
+		for _, groupStr := range separatedGroups {
+			// Get group name.
+			idx := strings.Index(groupStr, "\n")
+			groupName := groupStr[:idx]
 
-		err = endpoint.ApplyPolicy(policyEndpointRequest)
-		if err != nil {
-			log.Errorf("Error: failed to apply policy through VFP.")
-			return err
+			// Restore rules in group.
+			separatedRules := strings.Split(groupStr, "\t\tRule: ")
+			if len(separatedRules) >= 1 {
+				separatedRules = separatedRules[1:]
+			}
+			for _, ruleStr := range separatedRules {
+				var rule *Rule
+				rule.group = groupName
+
+				// Get rule name.
+				idx := strings.Index(ruleStr, "\n")
+				rule.name = ruleStr[:idx]
+
+				// Get rule priority.
+				idx = strings.Index(ruleStr, "\t\t\tPriority: ")
+				rule.priority = ruleStr[idx+len("\t\t\tPriority: "):]
+				idx = strings.Index(rule.priority, "\n")
+				rule.priority = rule.priority[:idx]
+
+				// Get rule type.
+				idx = strings.Index(ruleStr, "\t\t\tType: ")
+				rule.action = ruleStr[idx+len("\t\t\tType: "):]
+				idx = strings.Index(rule.action, "\n")
+				rule.action = rule.action[:idx]
+
+				// Get rule source tags.
+				idx = strings.Index(ruleStr, "\t\t\tSource Tags: ")
+				if idx != -1 {
+					rule.srcTags = ruleStr[idx+len("\t\t\tSource Tags: "):]
+					idx = strings.Index(rule.srcTags, "\n")
+					rule.srcTags = rule.srcTags[:idx]
+				}
+
+				// Get rule destination tags.
+				idx = strings.Index(ruleStr, "\t\t\tDestination Tags: ")
+				if idx != -1 {
+					rule.dstTags = ruleStr[idx+len("\t\t\tDestination Tags: "):]
+					idx = strings.Index(rule.dstTags, "\n")
+					rule.dstTags = rule.dstTags[:idx]
+				}
+
+				// Get rule source IPs.
+				idx = strings.Index(ruleStr, "\t\t\tSource IPs: ")
+				if idx != -1 {
+					rule.srcIPs = ruleStr[idx+len("\t\t\tSource IPs: "):]
+					idx = strings.Index(rule.srcIPs, "\n")
+					rule.srcIPs = rule.srcIPs[:idx]
+				}
+
+				// Get rule destination IPs.
+				idx = strings.Index(ruleStr, "\t\t\tDestination IPs: ")
+				if idx != -1 {
+					rule.dstIPs = ruleStr[idx+len("\t\t\tDestination IPs: "):]
+					idx = strings.Index(rule.dstIPs, "\n")
+					rule.dstIPs = rule.dstIPs[:idx]
+				}
+
+				// Get rule source ports.
+				idx = strings.Index(ruleStr, "\t\t\tSource Ports: ")
+				if idx != -1 {
+					rule.srcPrts = ruleStr[idx+len("\t\t\tSource Ports: "):]
+					idx = strings.Index(rule.srcPrts, "\n")
+					rule.srcPrts = rule.srcPrts[:idx]
+				}
+
+				// Get rule destination ports.
+				idx = strings.Index(ruleStr, "\t\t\tDestination Ports: ")
+				if idx != -1 {
+					rule.dstPrts = ruleStr[idx+len("\t\t\tDestination Ports: "):]
+					idx = strings.Index(rule.dstPrts, "\n")
+					rule.dstPrts = rule.dstPrts[:idx]
+				}
+
+				// Apply rule.
+				rMgr.Add(rule, portName)
+			}
 		}
 	}
 
