@@ -110,13 +110,13 @@ const (
 
 //HCN related constants.
 const (
-	HCNTagFlag        string = "tag"
-	HCNNLTagFlag      string = "nltag"
-	TagConfigFile     string = "C:\\k\\tag.conf"
-	TagTestConfigFile string = "C:\\k\\tag-test.conf"
-	ACLConfigFile     string = "C:\\k\\acl.conf"
-	ACLTestConfigFile string = "C:\\k\\acl-test.conf"
-)
+	VFPTagFlag         string = "tag"
+	VFPNLTagFlag       string = "nltag"
+	TagConfigFile      string = "C:\\k\\tag.conf"
+	TagTestConfigFile  string = "C:\\k\\tag-test.conf"
+	RuleConfigFile     string = "C:\\k\\rule.conf"
+	RuleTestConfigFile string = "C:\\k\\rule-test.conf"
+	VFPCmd             string = "vfpctrl"
 	// Port related
 	Port        string = "/port"
 	ListPortCmd string = "/list-vmswitch-port"
