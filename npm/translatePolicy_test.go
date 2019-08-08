@@ -15,7 +15,7 @@ import (
 
 func TestCraftPartialIptEntrySpecFromOpAndLabel(t *testing.T) {
 	srcOp, srcLabel := "", "src"
-	iptEntry := craftPartialIptEntrySpecFromOpAndLabel(srcOp, srcLabel, util.IptablesSrcFlag)
+	iptEntry := craftPartialIptEntrySpecFromOpAndLabel(srcOp, srcLabel, util.IptablesSrcFlag, false)
 	expectedIptEntry := []string{
 		util.IptablesModuleFlag,
 		util.IptablesSetModuleFlag,
@@ -29,7 +29,7 @@ func TestCraftPartialIptEntrySpecFromOpAndLabel(t *testing.T) {
 	}
 
 	dstOp, dstLabel := "!", "dst"
-	iptEntry = craftPartialIptEntrySpecFromOpAndLabel(dstOp, dstLabel, util.IptablesDstFlag)
+	iptEntry = craftPartialIptEntrySpecFromOpAndLabel(dstOp, dstLabel, util.IptablesDstFlag, false)
 	expectedIptEntry = []string{
 		util.IptablesModuleFlag,
 		util.IptablesSetModuleFlag,
@@ -68,8 +68,8 @@ func TestCraftPartialIptEntrySpecFromOpsAndLabels(t *testing.T) {
 	}
 
 
-	srcIptEntry := craftPartialIptEntrySpecFromOpsAndLabels(srcOps, srcLabels, util.IptablesSrcFlag)
-	dstIptEntry := craftPartialIptEntrySpecFromOpsAndLabels(dstOps, dstLabels, util.IptablesDstFlag)
+	srcIptEntry := craftPartialIptEntrySpecFromOpsAndLabels(srcOps, srcLabels, util.IptablesSrcFlag, false)
+	dstIptEntry := craftPartialIptEntrySpecFromOpsAndLabels(dstOps, dstLabels, util.IptablesDstFlag, false)
 	iptEntrySpec := append(srcIptEntry, dstIptEntry...)
 	expectedIptEntrySpec := []string{
 		util.IptablesModuleFlag,
@@ -130,7 +130,7 @@ func TestCraftPartialIptEntryFromSelector(t *testing.T) {
 		},
 	}
 
-	iptEntrySpec := craftPartialIptEntrySpecFromSelector(srcSelector, util.IptablesSrcFlag)
+	iptEntrySpec := craftPartialIptEntrySpecFromSelector(srcSelector, util.IptablesSrcFlag, false)
 	expectedIptEntrySpec := []string{
 		util.IptablesModuleFlag,
 		util.IptablesSetModuleFlag,
@@ -155,7 +155,7 @@ func TestCraftPartialIptEntryFromSelector(t *testing.T) {
 func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 	var selector *metav1.LabelSelector
 	selector = nil
-	comment := craftPartialIptablesCommentFromSelector(selector)
+	comment := craftPartialIptablesCommentFromSelector(selector, false)
 	expectedComment := "none"
 	if comment != expectedComment {
 		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ nil selector comparison")
@@ -164,7 +164,7 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 	}
 
 	selector = &metav1.LabelSelector{}
-	comment = craftPartialIptablesCommentFromSelector(selector)
+	comment = craftPartialIptablesCommentFromSelector(selector, false)
 	expectedComment = util.KubeAllNamespacesFlag
 	if comment != expectedComment {
 		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ empty selector comparison")
@@ -192,13 +192,42 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 			},
 		},
 	}
-	comment = craftPartialIptablesCommentFromSelector(selector)
+	comment = craftPartialIptablesCommentFromSelector(selector, false)
 	expectedComment = "k0:v0-AND-k1:v10-AND-k1:v11-AND-!k2"
 	if comment != expectedComment {
 		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ normal selector comparison")
 		t.Errorf("comment:\n%v", comment)
 		t.Errorf("expectedComment:\n%v", expectedComment)
 	}
+
+	nsSelector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"k0": "v0",
+		},
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			metav1.LabelSelectorRequirement{
+				Key: "k1",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"v10",
+					"v11",
+				},
+			},
+			metav1.LabelSelectorRequirement{
+				Key: "k2",
+				Operator: metav1.LabelSelectorOpDoesNotExist,
+				Values: []string{},
+			},
+		},
+	}
+	comment = craftPartialIptablesCommentFromSelector(nsSelector, true)
+	expectedComment = "ns-k0:v0-AND-ns-k1:v10-AND-ns-k1:v11-AND-ns-!k2"
+	if comment != expectedComment {
+		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ namespace selector comparison")
+		t.Errorf("comment:\n%v", comment)
+		t.Errorf("expectedComment:\n%v", expectedComment)
+	}
+
 }
 
 func TestTranslateIngress(t *testing.T) {
@@ -313,10 +342,10 @@ func TestTranslateIngress(t *testing.T) {
 	}
 
 	expectedLists := []string{
-		"ns:dev",
-		"testIn:frontendns",
-		"planet:earth",
-		"keyExists",
+		"ns-ns:dev",
+		"ns-testIn:frontendns",
+		"ns-planet:earth",
+		"ns-keyExists",
 	}
 
 	if !reflect.DeepEqual(lists, expectedLists) {
@@ -391,12 +420,12 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns:dev"),
+				util.GetHashedName("ns-ns:dev"),
 				util.IptablesSrcFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("testIn:frontendns"),
+				util.GetHashedName("ns-testIn:frontendns"),
 				util.IptablesSrcFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -414,7 +443,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns:dev-AND-testIn:frontendns-TO-context:dev-AND-!testNotIn:frontend",
+				"ALLOW-ns-ns:dev-AND-ns-testIn:frontendns-TO-context:dev-AND-!testNotIn:frontend",
 			},
 		},
 		&iptm.IptEntry{
@@ -423,12 +452,12 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("planet:earth"),
+				util.GetHashedName("ns-planet:earth"),
 				util.IptablesSrcFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("keyExists"),
+				util.GetHashedName("ns-keyExists"),
 				util.IptablesSrcFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -457,7 +486,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-planet:earth-AND-keyExists-AND-region:northpole-AND-!k-TO-context:dev-AND-!testNotIn:frontend",
+				"ALLOW-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-TO-context:dev-AND-!testNotIn:frontend",
 			},
 		},
 	}
@@ -583,10 +612,10 @@ func TestTranslateEgress(t *testing.T) {
 	}
 
 	expectedLists := []string{
-		"ns:dev",
-		"testIn:frontendns",
-		"planet:earth",
-		"keyExists",
+		"ns-ns:dev",
+		"ns-testIn:frontendns",
+		"ns-planet:earth",
+		"ns-keyExists",
 	}
 
 	if !reflect.DeepEqual(lists, expectedLists) {
@@ -672,19 +701,19 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns:dev"),
+				util.GetHashedName("ns-ns:dev"),
 				util.IptablesDstFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("testIn:frontendns"),
+				util.GetHashedName("ns-testIn:frontendns"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesAccept,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-context:dev-AND-!testNotIn:frontend-TO-ns:dev-AND-testIn:frontendns",
+				"ALLOW-context:dev-AND-!testNotIn:frontend-TO-ns-ns:dev-AND-ns-testIn:frontendns",
 			},
 		},
 		&iptm.IptEntry{
@@ -704,12 +733,12 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("planet:earth"),
+				util.GetHashedName("ns-planet:earth"),
 				util.IptablesDstFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("keyExists"),
+				util.GetHashedName("ns-keyExists"),
 				util.IptablesDstFlag,
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -727,7 +756,7 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-context:dev-AND-!testNotIn:frontend-TO-planet:earth-AND-keyExists-AND-region:northpole-AND-!k",
+				"ALLOW-context:dev-AND-!testNotIn:frontend-TO-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k",
 			},
 		},
 	}
@@ -740,3 +769,27 @@ func TestTranslateEgress(t *testing.T) {
 		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
 	}
 }
+
+/*
+func TestTranslatePolicy(t *testing.T) {
+	denyAllPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "denyall-policy",
+			Namespace: "testnamespace",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{}
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{},
+		}
+	}
+
+	sets, lists, iptEntries := translatePolicy(denyAllPolicy)
+	expectedSets := []string{
+		"test"
+	}
+	if !reflect.DeepEqual(sets, )
+}
+*/

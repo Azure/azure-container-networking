@@ -146,9 +146,7 @@ func TestParseSelector(t *testing.T) {
 
 	selector = &metav1.LabelSelector{}
 	labels, keys, vals = parseSelector(selector)
-	expectedLabels = []string{util.KubeAllNamespacesFlag}
-	expectedKeys = []string{util.KubeAllNamespacesFlag}
-	expectedVals = []string{""}
+	expectedLabels, expectedKeys, expectedVals = []string{}, []string{}, []string{}
 	if len(labels) != len(expectedLabels) {
 		t.Errorf("TestparseSelector failed @ labels length comparison")
 	}

@@ -51,14 +51,8 @@ func parseSelector(selector *metav1.LabelSelector) ([]string, []string, []string
 		vals   []string
 	)
 
-	if selector == nil {
+	if selector == nil || (len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0) {
 		return labels, keys, vals
-	}
-
-	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
-		labels = append(labels, util.KubeAllNamespacesFlag)
-		keys = append(keys, util.KubeAllNamespacesFlag)
-		vals = append(vals, "")
 	}
 
 	for k, v := range selector.MatchLabels {
