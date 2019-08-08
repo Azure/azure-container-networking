@@ -16,7 +16,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
-	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	acncommon "github.com/Azure/azure-container-networking/common"
 )
 
@@ -92,9 +91,9 @@ func TestMain(m *testing.M) {
 	}
 
 	// Configure test mode.
-	service.(*httpRestService).Name = "cns-test-server"
-	service.(*httpRestService).imdsClient.HostQueryURL = imdsclient.HostQueryURL
-	service.(*httpRestService).imdsClient.HostQueryURLForProgrammedVersion = imdsclient.HostQueryURLForProgrammedVersion
+	service.(*HTTPRestService).Name = "cns-test-server"
+	//service.(*HTTPRestService).imdsClient.HostQueryURL = imdsclient.HostQueryURL
+	//service.(*HTTPRestService).imdsClient.HostQueryURLForProgrammedVersion = imdsclient.HostQueryURLForProgrammedVersion
 	// Following HostQueryURL and HostQueryURLForProgrammedVersion are only for mock environment.
 	// service.(*httpRestService).imdsClient.HostQueryURL = "http://localhost:9000/getInterface"
 	// service.(*httpRestService).imdsClient.HostQueryURLForProgrammedVersion = "http://localhost:9000/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/%s"
@@ -107,7 +106,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// Get the internal http mux as test hook.
-	mux = service.(*httpRestService).Listener.GetMux()
+	mux = service.(*HTTPRestService).Listener.GetMux()
 
 	// Setup mock nmagent server
 	u, err := url.Parse("tcp://localhost:9000")
@@ -430,7 +429,7 @@ func deleteNetworkAdapterWithName(t *testing.T, name string) error {
 	var resp cns.DeleteNetworkContainerResponse
 
 	deleteInfo := &cns.DeleteNetworkContainerRequest{
-		NetworkContainerid: "ethWebApp",
+		NetworkContainerid: name,
 	}
 
 	json.NewEncoder(&body).Encode(deleteInfo)
@@ -452,7 +451,7 @@ func deleteNetworkAdapterWithName(t *testing.T, name string) error {
 	return nil
 }
 
-func getNetworkCotnainerByContext(t *testing.T, name string) error {
+func getNetworkContainerByContext(t *testing.T, name string) error {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerResponse
 
@@ -479,7 +478,7 @@ func getNetworkCotnainerByContext(t *testing.T, name string) error {
 	return nil
 }
 
-func getNonExistNetworkCotnainerByContext(t *testing.T, name string) error {
+func getNonExistNetworkContainerByContext(t *testing.T, name string) error {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerResponse
 
@@ -506,7 +505,7 @@ func getNonExistNetworkCotnainerByContext(t *testing.T, name string) error {
 	return nil
 }
 
-func getNetworkCotnainerStatus(t *testing.T, name string) error {
+func getNetworkContainerStatus(t *testing.T, name string) error {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerStatusResponse
 
@@ -577,8 +576,27 @@ func TestCreateNetworkContainer(t *testing.T) {
 	fmt.Println("Test: TestCreateNetworkContainer")
 
 	setEnv(t)
+	setOrchestratorType(t, cns.ServiceFabric)
 
-	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
+	// Test create network container of type JobObject
+	fmt.Println("TestCreateNetworkContainer: JobObject")
+	err := creatOrUpdateNetworkContainerWithName(t, "testJobObject", "11.0.0.5", "JobObject")
+	if err != nil {
+		t.Errorf("Failed to save the goal state for network container of type JobObject "+
+			" due to error: %+v", err)
+		t.Fatal(err)
+	}
+
+	fmt.Println("Deleting the saved goal state for network container of type JobObject")
+	err = deleteNetworkAdapterWithName(t, "testJobObject")
+	if err != nil {
+		t.Errorf("Failed to delete the saved goal state due to error: %+v", err)
+		t.Fatal(err)
+	}
+
+	// Test create network container of type WebApps
+	fmt.Println("TestCreateNetworkContainer: WebApps")
+	err = creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
 		t.Fatal(err)
@@ -597,6 +615,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
 	}
+
 }
 
 func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
@@ -612,8 +631,8 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println("Now calling getNetworkCotnainerStatus")
-	err = getNetworkCotnainerByContext(t, "ethWebApp")
+	fmt.Println("Now calling getNetworkContainerStatus")
+	err = getNetworkContainerByContext(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
 		t.Fatal(err)
@@ -627,7 +646,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = getNonExistNetworkCotnainerByContext(t, "ethWebApp")
+	err = getNonExistNetworkContainerByContext(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
 		t.Fatal(err)
@@ -646,10 +665,10 @@ func TestGetNetworkContainerStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println("Now calling getNetworkCotnainerStatus")
-	err = getNetworkCotnainerStatus(t, "ethWebApp")
+	fmt.Println("Now calling getNetworkContainerStatus")
+	err = getNetworkContainerStatus(t, "ethWebApp")
 	if err != nil {
-		t.Errorf("getNetworkCotnainerStatus failed Err:%+v", err)
+		t.Errorf("getNetworkContainerStatus failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
