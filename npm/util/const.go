@@ -117,6 +117,7 @@ const (
 	RuleConfigFile     string = "C:\\k\\rule.conf"
 	RuleTestConfigFile string = "C:\\k\\rule-test.conf"
 	VFPCmd             string = "vfpctrl"
+	VFPError           string = "ERROR"
 	// Port related
 	Port        string = "/port"
 	ListPortCmd string = "/list-vmswitch-port"
