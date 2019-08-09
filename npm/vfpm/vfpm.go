@@ -270,6 +270,9 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, portName string, ip string
 		}
 	}
 	newElements := builder.String()
+	if newElements == "" {
+		newElements = "*"
+	}
 
 	// Replace the ips in the vfp tag.
 	params := "\"" + tagName + " " + tagName + " " + util.IPV4 + " " + newElements + "\""
@@ -284,7 +287,11 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, portName string, ip string
 	}
 
 	// Update elements string
-	tMgr.tagMap[key].elements = newElements
+	if newElements == "*" {
+		tMgr.tagMap[key].elements = ""
+	} else {
+		tMgr.tagMap[key].elements = newElements
+	}
 
 	return nil
 }
@@ -327,7 +334,7 @@ func (tMgr *TagManager) Clean() error {
 }
 
 // Destroy completely removes all Tags/NLTags.
-func (tMgr *TagManager) Destroy(portName string) error {
+func (tMgr *TagManager) Destroy() error {
 	// Delete all Tags.
 	for key := range tMgr.tagMap {
 		tagPort := strings.Split(key, " ")
@@ -398,7 +405,7 @@ func getTags(portName string) ([]string, []string, error) {
 	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ListTagCmd)
 	out, err := listCmd.Output()
 	if err != nil {
-		log.Errorf("Error: failed to retrieve tags from port %s.", portName)
+		log.Errorf("Error: failed to retrieve tags from port %s. %+v", portName, listCmd)
 		return nil, nil, err
 	}
 	outStr := string(out)
@@ -881,7 +888,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 // Restore applies VFP rules from a file.
 func (rMgr *RuleManager) Restore(configFile string) error {
 	if len(configFile) == 0 {
-		configFile = util.ACLConfigFile
+		configFile = util.RuleConfigFile
 	}
 
 	// Open and read from file.
