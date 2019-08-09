@@ -1059,12 +1059,14 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			break
 
 		default:
-			log.Printf("Invalid orchestrator type %v", service.state.OrchestratorType)
-			return UnsupportedOrchestratorType, fmt.Sprintf("Unsupported orchestrator type")
+			errMsg := fmt.Sprintf("Unsupported orchestrator type: %s", service.state.OrchestratorType)
+			log.Errorf(errMsg)
+			return UnsupportedOrchestratorType, errMsg
 		}
 	default:
-		log.Printf("Invalid network container type %s", req.NetworkContainerType)
-		return UnsupportedNetworkContainerType, fmt.Sprintf("Unsupported network container type")
+		errMsg := fmt.Sprintf("Unsupported network container type %s", req.NetworkContainerType)
+		log.Errorf(errMsg)
+		return UnsupportedNetworkContainerType, errMsg
 	}
 
 	service.saveState()
