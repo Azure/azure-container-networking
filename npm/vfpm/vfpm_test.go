@@ -42,6 +42,10 @@ func TestCreateNLTag(t *testing.T) {
 	if err != nil {
 		t.Errorf("TestCreateNLTag failed @ getPorts")
 	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
+	}
 
 	if err := tMgr.CreateNLTag("test-nl-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestCreateNLTag failed @ tMgr.CreateNLTag")
@@ -63,6 +67,10 @@ func TestDeleteNLTag(t *testing.T) {
 	ports, err := getPorts()
 	if err != nil {
 		t.Errorf("TestDeleteNLTag failed @ getPorts")
+	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
 	}
 
 	if err := tMgr.CreateNLTag("test-nl-tag", ports[len(ports)-1]); err != nil {
@@ -90,6 +98,10 @@ func TestAddToNLTag(t *testing.T) {
 	if err != nil {
 		t.Errorf("TestAddToNLTag failed @ getPorts")
 	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
+	}
 
 	if err := tMgr.AddToNLTag("test-nl-tag", "test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestAddToNLTag failed @ tMgr.AddToNLTag")
@@ -111,6 +123,10 @@ func TestDeleteFromNLTag(t *testing.T) {
 	ports, err := getPorts()
 	if err != nil {
 		t.Errorf("TestDeleteFromTag failed @ getPorts")
+	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
 	}
 
 	if err := tMgr.AddToNLTag("test-nl-tag", "test-tag", ports[len(ports)-1]); err != nil {
@@ -138,6 +154,10 @@ func TestCreateTag(t *testing.T) {
 	if err != nil {
 		t.Errorf("TestCreateTag failed @ getPorts")
 	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
+	}
 
 	if err := tMgr.CreateTag("test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestCreateTag failed @ tMgr.CreateTag")
@@ -159,6 +179,10 @@ func TestDeleteTag(t *testing.T) {
 	ports, err := getPorts()
 	if err != nil {
 		t.Errorf("TestDeleteTag failed @ getPorts")
+	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
 	}
 
 	if err := tMgr.CreateTag("test-tag", ports[len(ports)-1]); err != nil {
@@ -186,6 +210,10 @@ func TestAddToTag(t *testing.T) {
 	if err != nil {
 		t.Errorf("TestAddToTag failed @ getPorts")
 	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
+	}
 
 	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestAddToTag failed @ tMgr.AddToTag")
@@ -207,6 +235,10 @@ func TestDeleteFromTag(t *testing.T) {
 	ports, err := getPorts()
 	if err != nil {
 		t.Errorf("TestDeleteFromTag failed @ getPorts")
+	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
 	}
 
 	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[len(ports)-1]); err != nil {
@@ -234,6 +266,10 @@ func TestTagClean(t *testing.T) {
 	if err != nil {
 		t.Errorf("TestTagClean failed @ getPorts")
 	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
+	}
 
 	if err := tMgr.CreateTag("test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestTagClean failed @ tMgr.CreateTag")
@@ -259,6 +295,10 @@ func TestTagDestroy(t *testing.T) {
 	ports, err := getPorts()
 	if err != nil {
 		t.Errorf("TestTagDestroy failed @ getPorts")
+	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
 	}
 
 	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[len(ports)-1]); err != nil {
@@ -304,6 +344,10 @@ func TestRuleExists(t *testing.T) {
 	if err != nil {
 		t.Errorf("TestRuleExists failed @ getPorts")
 	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
+	}
 
 	rule := &Rule{
 		name:     "test",
@@ -334,6 +378,10 @@ func TestAdd(t *testing.T) {
 	ports, err := getPorts()
 	if err != nil {
 		t.Errorf("TestAdd failed @ getPorts")
+	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
 	}
 
 	if err = rMgr.InitAzureNPMLayer(ports[len(ports)-1]); err != nil {
@@ -373,6 +421,10 @@ func TestDelete(t *testing.T) {
 	ports, err := getPorts()
 	if err != nil {
 		t.Errorf("TestDelete failed @ getPorts")
+	}
+	if len(ports) == 0 {
+		t.Logf("No container ports found.")
+		return
 	}
 
 	if err = rMgr.InitAzureNPMLayer(ports[len(ports)-1]); err != nil {

@@ -119,10 +119,11 @@ const (
 	VFPCmd             string = "vfpctrl.exe"
 	VFPError           string = "ERROR"
 	// Port related
-	Port        string = "/port"
-	ListPortCmd string = "/list-vmswitch-port"
-	PortSplit   string = "Port name"
-	GUIDLength  int    = 36
+	Port         string = "/port"
+	ListPortCmd  string = "/list-vmswitch-port"
+	PortSplit    string = "Port name"
+	PortFriendly string = "Port Friendly name"
+	GUIDLength   int    = 36
 	// Layer related
 	Layer            string = "/layer"
 	ListLayerCmd     string = "/list-layer"

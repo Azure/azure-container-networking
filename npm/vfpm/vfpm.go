@@ -393,7 +393,28 @@ func getPorts() ([]string, error) {
 		}
 
 		portName := val[idx+2 : idx+2+util.GUIDLength]
-		ports = append(ports, portName)
+
+		// Get friendly name to confirm that port is container port.
+		idx = strings.Index(val, util.PortFriendly)
+		for idx != -1 && idx < len(val) && val[idx] != ':' {
+			idx++
+		}
+		if idx == -1 || idx == len(val) {
+			continue
+		}
+		// Go to start of friendly name.
+		idx += 2
+
+		var builder strings.Builder
+		for idx < len(val) && val[idx] != ' ' && val[idx] != '\n' {
+			builder.WriteByte(val[idx])
+			idx++
+		}
+		friendlyName := builder.String()
+
+		if len(portName) == len(friendlyName) {
+			ports = append(ports, portName)
+		}
 	}
 
 	return ports, nil
