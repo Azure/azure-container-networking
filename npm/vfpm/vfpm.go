@@ -405,7 +405,7 @@ func getTags(portName string) ([]string, []string, error) {
 	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ListTagCmd)
 	out, err := listCmd.Output()
 	if err != nil {
-		log.Errorf("Error: failed to retrieve tags from port %s. %+v", portName, listCmd)
+		log.Errorf("Error: failed to retrieve tags from port %s.", portName)
 		return nil, nil, err
 	}
 	outStr := string(out)

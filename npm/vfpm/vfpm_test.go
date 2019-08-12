@@ -43,7 +43,7 @@ func TestCreateNLTag(t *testing.T) {
 		t.Errorf("TestCreateNLTag failed @ getPorts")
 	}
 
-	if err := tMgr.CreateNLTag("test-nl-tag", ports[0]); err != nil {
+	if err := tMgr.CreateNLTag("test-nl-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestCreateNLTag failed @ tMgr.CreateNLTag")
 	}
 }
@@ -65,11 +65,11 @@ func TestDeleteNLTag(t *testing.T) {
 		t.Errorf("TestDeleteNLTag failed @ getPorts")
 	}
 
-	if err := tMgr.CreateNLTag("test-nl-tag", ports[0]); err != nil {
+	if err := tMgr.CreateNLTag("test-nl-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDeleteNLTag failed @ tMgr.CreateNLTag")
 	}
 
-	if err := tMgr.DeleteNLTag("test-nl-tag", ports[0]); err != nil {
+	if err := tMgr.DeleteNLTag("test-nl-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDeleteNLTag failed @ tMgr.DeleteNLTag")
 	}
 }
@@ -91,7 +91,7 @@ func TestAddToNLTag(t *testing.T) {
 		t.Errorf("TestAddToNLTag failed @ getPorts")
 	}
 
-	if err := tMgr.AddToNLTag("test-nl-tag", "test-tag", ports[0]); err != nil {
+	if err := tMgr.AddToNLTag("test-nl-tag", "test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestAddToNLTag failed @ tMgr.AddToNLTag")
 	}
 }
@@ -113,11 +113,11 @@ func TestDeleteFromNLTag(t *testing.T) {
 		t.Errorf("TestDeleteFromTag failed @ getPorts")
 	}
 
-	if err := tMgr.AddToNLTag("test-nl-tag", "test-tag", ports[0]); err != nil {
+	if err := tMgr.AddToNLTag("test-nl-tag", "test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDeleteFromNLTag failed @ tMgr.AddToNLTag")
 	}
 
-	if err := tMgr.DeleteFromNLTag("test-nl-tag", "test-tag", ports[0]); err != nil {
+	if err := tMgr.DeleteFromNLTag("test-nl-tag", "test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDeleteFromNLTag failed @ tMgr.DeleteFromNLTag")
 	}
 }
@@ -139,7 +139,7 @@ func TestCreateTag(t *testing.T) {
 		t.Errorf("TestCreateTag failed @ getPorts")
 	}
 
-	if err := tMgr.CreateTag("test-tag", ports[0]); err != nil {
+	if err := tMgr.CreateTag("test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestCreateTag failed @ tMgr.CreateTag")
 	}
 }
@@ -161,11 +161,11 @@ func TestDeleteTag(t *testing.T) {
 		t.Errorf("TestDeleteTag failed @ getPorts")
 	}
 
-	if err := tMgr.CreateTag("test-tag", ports[0]); err != nil {
+	if err := tMgr.CreateTag("test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDeleteTag failed @ tMgr.CreateTag")
 	}
 
-	if err := tMgr.DeleteTag("test-tag", ports[0]); err != nil {
+	if err := tMgr.DeleteTag("test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDeleteTag failed @ tMgr.DeleteTag")
 	}
 }
@@ -187,7 +187,7 @@ func TestAddToTag(t *testing.T) {
 		t.Errorf("TestAddToTag failed @ getPorts")
 	}
 
-	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[0]); err != nil {
+	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestAddToTag failed @ tMgr.AddToTag")
 	}
 }
@@ -209,11 +209,11 @@ func TestDeleteFromTag(t *testing.T) {
 		t.Errorf("TestDeleteFromTag failed @ getPorts")
 	}
 
-	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[0]); err != nil {
+	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDeleteFromTag failed @ tMgr.AddToTag")
 	}
 
-	if err := tMgr.DeleteFromTag("test-tag", "1.2.3.4", ports[0]); err != nil {
+	if err := tMgr.DeleteFromTag("test-tag", "1.2.3.4", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDeleteFromTag failed @ tMgr.DeleteFromTag")
 	}
 }
@@ -235,7 +235,7 @@ func TestTagClean(t *testing.T) {
 		t.Errorf("TestTagClean failed @ getPorts")
 	}
 
-	if err := tMgr.CreateTag("test-tag", ports[0]); err != nil {
+	if err := tMgr.CreateTag("test-tag", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestTagClean failed @ tMgr.CreateTag")
 	}
 
@@ -261,7 +261,7 @@ func TestTagDestroy(t *testing.T) {
 		t.Errorf("TestTagDestroy failed @ getPorts")
 	}
 
-	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[0]); err != nil {
+	if err := tMgr.AddToTag("test-tag", "1.2.3.4", ports[len(ports)-1]); err != nil {
 		t.Errorf("TestTagDestroy failed @ tMgr.AddToTag")
 	}
 
@@ -306,15 +306,15 @@ func TestRuleExists(t *testing.T) {
 	}
 
 	rule := &Rule{
-		name: "test",
-		group: util.NPMIngressGroup,
-		srcIPs: "1.1.1.1",
-		dstIPs: "2.2.2.2",
+		name:     "test",
+		group:    util.NPMIngressGroup,
+		srcIPs:   "1.1.1.1",
+		dstIPs:   "2.2.2.2",
 		priority: "0",
-		action: "allow",
+		action:   "allow",
 	}
 
-	if _, err := rMgr.Exists(rule, ports[0]); err != nil {
+	if _, err := rMgr.Exists(rule, ports[len(ports)-1]); err != nil {
 		t.Errorf("TestRuleExists failed @ rMgr.Exists")
 	}
 }
@@ -336,24 +336,24 @@ func TestAdd(t *testing.T) {
 		t.Errorf("TestAdd failed @ getPorts")
 	}
 
-	if err = rMgr.InitAzureNPMLayer(ports[0]); err != nil {
+	if err = rMgr.InitAzureNPMLayer(ports[len(ports)-1]); err != nil {
 		t.Errorf("TestAdd failed @ rMgr.InitAzureNPMLayer")
 	}
 
 	rule := &Rule{
-		name: "test",
-		group: util.NPMIngressGroup,
-		srcIPs: "1.1.1.1",
-		dstIPs: "2.2.2.2",
+		name:     "test",
+		group:    util.NPMIngressGroup,
+		srcIPs:   "1.1.1.1",
+		dstIPs:   "2.2.2.2",
 		priority: "0",
-		action: "allow",
+		action:   "allow",
 	}
 
-	if err := rMgr.Add(rule, ports[0]); err != nil {
+	if err := rMgr.Add(rule, ports[len(ports)-1]); err != nil {
 		t.Errorf("TestAdd failed @ rMgr.Add")
 	}
 
-	if err = rMgr.UnInitAzureNPMLayer(ports[0]); err != nil {
+	if err = rMgr.UnInitAzureNPMLayer(ports[len(ports)-1]); err != nil {
 		t.Errorf("TestAdd failed @ rMgr.UnInitAzureNPMLayer")
 	}
 }
@@ -375,28 +375,28 @@ func TestDelete(t *testing.T) {
 		t.Errorf("TestDelete failed @ getPorts")
 	}
 
-	if err = rMgr.InitAzureNPMLayer(ports[0]); err != nil {
+	if err = rMgr.InitAzureNPMLayer(ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDelete failed @ rMgr.InitAzureNPMLayer")
 	}
 
 	rule := &Rule{
-		name: "test",
-		group: util.NPMIngressGroup,
-		srcIPs: "1.1.1.1",
-		dstIPs: "2.2.2.2",
+		name:     "test",
+		group:    util.NPMIngressGroup,
+		srcIPs:   "1.1.1.1",
+		dstIPs:   "2.2.2.2",
 		priority: "0",
-		action: "allow",
+		action:   "allow",
 	}
 
-	if err := rMgr.Add(rule, ports[0]); err != nil {
+	if err := rMgr.Add(rule, ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDelete failed @ rMgr.Add")
 	}
 
-	if err := rMgr.Delete(rule, ports[0]); err != nil {
+	if err := rMgr.Delete(rule, ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDelete failed @ rMgr.Delete")
 	}
-	
-	if err = rMgr.UnInitAzureNPMLayer(ports[0]); err != nil {
+
+	if err = rMgr.UnInitAzureNPMLayer(ports[len(ports)-1]); err != nil {
 		t.Errorf("TestDelete failed @ rMgr.UnInitAzureNPMLayer")
 	}
 }
