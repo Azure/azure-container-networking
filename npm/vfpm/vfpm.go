@@ -460,7 +460,8 @@ func getTags(portName string) ([]string, []string, error) {
 		// Find and extract tag's ips.
 		idx = strings.Index(val, util.TagIPLabel)
 		if idx == -1 {
-			log.Errorf("Error: failed to find ips associated with tag %s.", tagName)
+			ips = append(ips, "")
+			continue
 		}
 		val = val[idx+len(util.TagIPLabel):]
 		idx = strings.IndexFunc(val, unicode.IsSpace)
