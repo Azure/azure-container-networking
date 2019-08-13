@@ -381,7 +381,6 @@ func getPorts() ([]string, error) {
 
 	// Parse the ports.
 	separated := strings.Split(outStr, util.PortSplit)
-	log.Logf("%+v", separated)
 	var ports []string
 	for _, val := range separated {
 		if val == "" {
@@ -413,7 +412,6 @@ func getPorts() ([]string, error) {
 			idx++
 		}
 		friendlyName := builder.String()
-		log.Logf("%s:%s:%d:%d", portName, friendlyName, len(portName), len(friendlyName))
 
 		if len(portName) == len(friendlyName) {
 			ports = append(ports, portName)
@@ -449,7 +447,7 @@ func getTags(portName string) ([]string, []string, error) {
 		}
 
 		// Find and extract tag name.
-		idx := strings.IndexAny(val, " \n\t")
+		idx := strings.IndexFunc(val, unicode.IsSpace)
 		if idx == -1 {
 			continue
 		}
@@ -462,7 +460,7 @@ func getTags(portName string) ([]string, []string, error) {
 			log.Errorf("Error: failed to find ips associated with tag %s.", tagName)
 		}
 		val = val[idx+len(util.TagIPLabel):]
-		idx = strings.IndexAny(val, " \n\t")
+		idx = strings.IndexFunc(val, unicode.IsSpace)
 		ipStr := val[0:idx]
 		ips = append(ips, ipStr)
 	}
@@ -812,7 +810,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 			groupsSeparated = groupsSeparated[1:]
 		}
 		for _, groupStr := range groupsSeparated {
-			idx := strings.IndexAny(groupStr, " \n\t")
+			idx := strings.IndexFunc(groupStr, unicode.IsSpace)
 			if idx == -1 {
 				continue
 			}
@@ -826,7 +824,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 				rulesSeparated = rulesSeparated[1:]
 			}
 			for _, ruleStr := range rulesSeparated {
-				idx = strings.IndexAny(ruleStr, " \n\t")
+				idx = strings.IndexFunc(ruleStr, unicode.IsSpace)
 				if idx == -1 {
 					continue
 				}
@@ -838,14 +836,14 @@ func (rMgr *RuleManager) Save(configFile string) error {
 				// Write rule priority.
 				idx = strings.Index(ruleStr, "Priority : ")
 				priority := ruleStr[idx+len("Priority : "):]
-				idx = strings.Index(priority, " \t\n")
+				idx = strings.IndexFunc(priority, unicode.IsSpace)
 				priority = priority[:idx]
 				f.WriteString("\t\t\tPriority: " + priority + "\n")
 
 				// Write rule type.
 				idx = strings.Index(ruleStr, "Type : ")
 				typ := ruleStr[idx+len("Type : "):]
-				idx = strings.Index(typ, " \t\n")
+				idx = strings.IndexFunc(typ, unicode.IsSpace)
 				typ = typ[:idx]
 				f.WriteString("\t\t\tType: " + typ + "\n")
 
@@ -853,7 +851,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 				idx = strings.Index(ruleStr, "Source Tag : ")
 				if idx != -1 {
 					srcTags := ruleStr[idx+len("Source Tag : "):]
-					idx = strings.Index(srcTags, " \t\n")
+					idx = strings.IndexFunc(srcTags, unicode.IsSpace)
 					srcTags = srcTags[:idx]
 					f.WriteString("\t\t\tSource Tags: " + srcTags + "\n")
 				}
@@ -862,7 +860,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 				idx = strings.Index(ruleStr, "Destination Tag : ")
 				if idx != -1 {
 					dstTags := ruleStr[idx+len("Destination Tag : "):]
-					idx = strings.Index(dstTags, " \t\n")
+					idx = strings.IndexFunc(dstTags, unicode.IsSpace)
 					dstTags = dstTags[:idx]
 					f.WriteString("\t\t\tDestination Tags: " + dstTags + "\n")
 				}
@@ -871,7 +869,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 				idx = strings.Index(ruleStr, "Source IP : ")
 				if idx != -1 {
 					srcIPs := ruleStr[idx+len("Source IP : "):]
-					idx = strings.Index(srcIPs, " \t\n")
+					idx = strings.IndexFunc(srcIPs, unicode.IsSpace)
 					srcIPs = srcIPs[:idx]
 					f.WriteString("\t\t\tSource IPs: " + srcIPs + "\n")
 				}
@@ -880,7 +878,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 				idx = strings.Index(ruleStr, "Destination IP : ")
 				if idx != -1 {
 					dstIPs := ruleStr[idx+len("Destination IP : "):]
-					idx = strings.Index(dstIPs, " \t\n")
+					idx = strings.IndexFunc(dstIPs, unicode.IsSpace)
 					dstIPs = dstIPs[:idx]
 					f.WriteString("\t\t\tDestination IPs: " + dstIPs + "\n")
 				}
@@ -889,7 +887,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 				idx = strings.Index(ruleStr, "Source ports : ")
 				if idx != -1 {
 					srcPorts := ruleStr[idx+len("Source ports : "):]
-					idx = strings.Index(srcPorts, " \t\n")
+					idx = strings.IndexFunc(srcPorts, unicode.IsSpace)
 					srcPorts = srcPorts[:idx]
 					f.WriteString("\t\t\tSource Ports: " + srcPorts + "\n")
 				}
@@ -898,7 +896,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 				idx = strings.Index(ruleStr, "Destination ports : ")
 				if idx != -1 {
 					dstPorts := ruleStr[idx+len("Destination ports : "):]
-					idx = strings.Index(dstPorts, " \t\n")
+					idx = strings.IndexFunc(dstPorts, unicode.IsSpace)
 					dstPorts = dstPorts[:idx]
 					f.WriteString("\t\t\tDestination Ports: " + dstPorts + "\n")
 				}
