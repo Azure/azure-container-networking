@@ -599,15 +599,27 @@ func (tMgr *TagManager) Restore(configFile string) error {
 
 // InitAzureNPMLayer adds a layer to VFP for NPM and populates it with relevant groups.
 func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
+	// Check if layer already exists.
+	listLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.ListLayerCmd)
+	out, err := listLayerCmd.Output()
+	if err != nil {
+		log.Errorf("Error: failed to list layers on port %s.", portName)
+		return err
+	}
+	outStr := string(out)
+	if strings.Contains(outStr, util.NPMLayer) {
+		return nil
+	}
+
 	// Initialize the layer first.
 	params := util.NPMLayer + " " + util.NPMLayer + " " + util.StatefulLayer + " " + util.NPMLayerPriority + " 0"
 	addLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.AddLayerCmd, params)
-	out, err := addLayerCmd.Output()
+	out, err = addLayerCmd.Output()
 	if err != nil {
 		log.Errorf("Error: failed to add NPM layer to VFP on port %s.", portName)
 		return err
 	}
-	outStr := string(out)
+	outStr = string(out)
 	if strings.Index(outStr, util.VFPError) != -1 {
 		log.Errorf("%s", outStr)
 	}
@@ -660,14 +672,26 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 
 // UnInitAzureNPMLayer undoes the work of InitAzureNPMLayer.
 func (rMgr *RuleManager) UnInitAzureNPMLayer(portName string) error {
+	// Check if layer exists.
+	listLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.ListLayerCmd)
+	out, err := listLayerCmd.Output()
+	if err != nil {
+		log.Errorf("Error: failed to list layers on port %s.", portName)
+		return err
+	}
+	outStr := string(out)
+	if !strings.Contains(outStr, util.NPMLayer) {
+		return nil
+	}
+
 	// Remove the NPM layer.
 	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.RemoveLayerCmd)
-	out, err := removeCmd.Output()
+	out, err = removeCmd.Output()
 	if err != nil {
 		log.Errorf("Error: failed to remove NPM layer.")
 		return err
 	}
-	outStr := string(out)
+	outStr = string(out)
 	if strings.Index(outStr, util.VFPError) != -1 {
 		log.Errorf("%s", outStr)
 	}
