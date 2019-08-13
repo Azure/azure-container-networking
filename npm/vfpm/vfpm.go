@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"unicode"
 
 	"github.com/kalebmorris/azure-container-networking/log"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
@@ -407,12 +408,12 @@ func getPorts() ([]string, error) {
 		idx += 2
 
 		var builder strings.Builder
-		for idx < len(val) && val[idx] != ' ' && val[idx] != '\n' {
+		for idx < len(val) && !unicode.IsSpace(rune(val[idx])) {
 			builder.WriteByte(val[idx])
 			idx++
 		}
 		friendlyName := builder.String()
-		log.Logf("%s:%s", portName, friendlyName)
+		log.Logf("%s:%s:%d:%d", portName, friendlyName, len(portName), len(friendlyName))
 
 		if len(portName) == len(friendlyName) {
 			ports = append(ports, portName)
