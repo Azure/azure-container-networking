@@ -174,14 +174,10 @@ func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 	// Add an empty tag into vfp.
 	params := tagName + " " + tagName + " " + util.IPV4 + " *"
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
-	out, err := addCmd.Output()
+	err := addCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
 		return err
-	}
-	outStr := string(out)
-	if strings.Index(outStr, util.VFPError) != -1 {
-		log.Errorf("%s", outStr)
 	}
 
 	// Update tag map.
@@ -207,13 +203,9 @@ func (tMgr *TagManager) DeleteTag(tagName string, portName string) error {
 
 	// Delete tag using vfpctrl.
 	deleteCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Tag, tagName, util.RemoveTagCmd)
-	out, err := deleteCmd.Output()
+	err := deleteCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to remove tag in VFP.")
-	}
-	outStr := string(out)
-	if strings.Index(outStr, util.VFPError) != -1 {
-		log.Errorf("%s", outStr)
 	}
 
 	delete(tMgr.tagMap, key)
@@ -238,13 +230,9 @@ func (tMgr *TagManager) AddToTag(tagName string, ip string, portName string) err
 	// Add the ip to a tag.
 	params := tagName + " " + tagName + " " + util.IPV4 + " " + tMgr.tagMap[key].elements + ip + ","
 	replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
-	out, err := replaceCmd.Output()
+	err := replaceCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to update tag %s on port %s from VFP.", tagName, portName)
-	}
-	tagStr := string(out)
-	if strings.Index(tagStr, util.VFPError) != -1 {
-		log.Errorf("%s", tagStr)
 	}
 
 	// Update elements string.
@@ -278,13 +266,9 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, ip string, portName string
 	// Replace the ips in the vfp tag.
 	params := tagName + " " + tagName + " " + util.IPV4 + " " + newElements
 	replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
-	out, err := replaceCmd.Output()
+	err := replaceCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to update tag %s on port %s from VFP.", tagName, portName)
-	}
-	tagStr := string(out)
-	if strings.Index(tagStr, util.VFPError) != -1 {
-		log.Errorf("%s", tagStr)
 	}
 
 	// Update elements string
@@ -375,9 +359,6 @@ func getPorts() ([]string, error) {
 		return nil, err
 	}
 	outStr := string(out)
-	if strings.Index(outStr, util.VFPError) != -1 {
-		log.Errorf("%s", outStr)
-	}
 
 	// Parse the ports.
 	separated := strings.Split(outStr, util.PortSplit)
@@ -431,9 +412,6 @@ func getTags(portName string) ([]string, []string, error) {
 		return nil, nil, err
 	}
 	outStr := string(out)
-	if strings.Index(outStr, util.VFPError) != -1 {
-		log.Errorf("%s", outStr)
-	}
 
 	// Parse the tags.
 	separated := strings.Split(outStr, util.TagLabel)
@@ -589,14 +567,10 @@ func (tMgr *TagManager) Restore(configFile string) error {
 			// Restore the tag through VFP.
 			params := tagName + " " + tagName + " " + util.IPV4 + " " + ipStr
 			replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
-			out, err := replaceCmd.Output()
+			err := replaceCmd.Run()
 			if err != nil {
 				log.Errorf("Error: failed to replace tag %s on port %s", tagName, portName)
 				return err
-			}
-			outStr := string(out)
-			if strings.Index(outStr, util.VFPError) != -1 {
-				log.Errorf("%s", outStr)
 			}
 		}
 	}
@@ -620,14 +594,10 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 	// Initialize the layer first.
 	params := util.NPMLayer + " " + util.NPMLayer + " " + util.StatefulLayer + " " + util.NPMLayerPriority + " 0"
 	addLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.AddLayerCmd, params)
-	out, err = addLayerCmd.Output()
+	err = addLayerCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to add NPM layer to VFP on port %s.", portName)
 		return err
-	}
-	outStr = string(out)
-	if strings.Index(outStr, util.VFPError) != -1 {
-		log.Errorf("%s", outStr)
 	}
 
 	groupsList := []string{
@@ -662,14 +632,10 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 		}
 		params := groupsList[i] + " " + groupsList[i] + " " + dir + " " + prioritiesList[i] + " priority_based VfxConditionNone"
 		addGroupCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.AddGroupCmd, params)
-		out, err := addGroupCmd.Output()
+		err := addGroupCmd.Run()
 		if err != nil {
 			log.Errorf("Error: failed to add group %s on port %s in VFP.", groupsList[i], portName)
 			return err
-		}
-		outStr := string(out)
-		if strings.Index(outStr, util.VFPError) != -1 {
-			log.Errorf("%s", outStr)
 		}
 	}
 
@@ -692,14 +658,10 @@ func (rMgr *RuleManager) UnInitAzureNPMLayer(portName string) error {
 
 	// Remove the NPM layer.
 	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.RemoveLayerCmd)
-	out, err = removeCmd.Output()
+	err = removeCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to remove NPM layer.")
 		return err
-	}
-	outStr = string(out)
-	if strings.Index(outStr, util.VFPError) != -1 {
-		log.Errorf("%s", outStr)
 	}
 
 	return nil
@@ -761,14 +723,10 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 		" 6 " + srcIPs + " " + srcPrts + " " + dstIPs + " " + dstPrts +
 		" 0 0 " + rule.priority + " " + rule.action
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.group, util.AddTagRuleCmd, params)
-	out, err := addCmd.Output()
+	err := addCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to add tags rule in rMgr.Add")
 		return err
-	}
-	outStr := string(out)
-	if strings.Index(outStr, util.VFPError) != -1 {
-		log.Errorf("%s", outStr)
 	}
 
 	return nil
@@ -788,14 +746,10 @@ func (rMgr *RuleManager) Delete(rule *Rule, portName string) error {
 
 	// Remove rule through VFP.
 	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Rule, rule.name, util.RemoveRuleCmd)
-	out, err := removeCmd.Output()
+	err = removeCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to remove rule in rMgr.Delete")
 		return err
-	}
-	outStr := string(out)
-	if strings.Index(outStr, util.VFPError) != -1 {
-		log.Errorf("%s", outStr)
 	}
 
 	return nil
@@ -831,9 +785,6 @@ func (rMgr *RuleManager) Save(configFile string) error {
 			return err
 		}
 		outStr := string(out)
-		if strings.Index(outStr, util.VFPError) != -1 {
-			log.Errorf("%s", outStr)
-		}
 
 		// Write groups to file.
 		groupsSeparated := strings.Split(outStr, util.GroupLabel)
