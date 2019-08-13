@@ -222,7 +222,7 @@ func (tMgr *TagManager) DeleteTag(tagName string, portName string) error {
 }
 
 // AddToTag adds an ip to a tag.
-func (tMgr *TagManager) AddToTag(tagName string, portName string, ip string) error {
+func (tMgr *TagManager) AddToTag(tagName string, ip string, portName string) error {
 	key := tagName + " " + portName
 	// First check if ip already exists in tag.
 	if tMgr.Exists(key, ip, util.VFPTagFlag) {
@@ -254,7 +254,7 @@ func (tMgr *TagManager) AddToTag(tagName string, portName string, ip string) err
 }
 
 // DeleteFromTag removes an ip from a tag.
-func (tMgr *TagManager) DeleteFromTag(tagName string, portName string, ip string) error {
+func (tMgr *TagManager) DeleteFromTag(tagName string, ip string, portName string) error {
 	key := tagName + " " + portName
 	// Check first if the tag exists.
 	if _, exists := tMgr.tagMap[key]; !exists {
