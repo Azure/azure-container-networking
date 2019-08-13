@@ -337,10 +337,11 @@ func (tMgr *TagManager) Destroy() error {
 		}
 
 		// Delete tag using vfpctrl.
-		deleteCmd := exec.Command(util.VFPCmd, util.Port, tagPort[0], util.Tag, tagPort[1], util.RemoveTagCmd)
+		deleteCmd := exec.Command(util.VFPCmd, util.Port, tagPort[1], util.Tag, tagPort[0], util.RemoveTagCmd)
 		err := deleteCmd.Run()
 		if err != nil {
 			log.Errorf("Error: failed to remove tag in VFP.")
+			return err
 		}
 
 		delete(tMgr.tagMap, key)
