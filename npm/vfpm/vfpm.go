@@ -723,7 +723,7 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 		" 6 " + srcIPs + " " + srcPrts + " " + dstIPs + " " + dstPrts +
 		" 0 0 " + rule.priority + " " + rule.action
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.group, util.AddTagRuleCmd, params)
-	err := addCmd.Run()
+	err = addCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to add tags rule in rMgr.Add")
 		return err
