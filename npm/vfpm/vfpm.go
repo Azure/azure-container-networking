@@ -382,8 +382,8 @@ func getPorts() ([]string, error) {
 	// Parse the ports.
 	separated := strings.Split(outStr, util.PortSplit)
 	var ports []string
-	for _, val := range separated {
-		if val == "" {
+	for i, val := range separated {
+		if i == 0 || val == "" {
 			continue
 		}
 
@@ -439,7 +439,10 @@ func getTags(portName string) ([]string, []string, error) {
 	separated := strings.Split(outStr, util.TagLabel)
 	var tags []string
 	var ips []string
-	for _, val := range separated {
+	for i, val := range separated {
+		if i == 0 {
+			continue
+		}
 		// Clear initial white space.
 		val = strings.TrimLeft(val, " ")
 		if val == "" {
@@ -541,8 +544,8 @@ func (tMgr *TagManager) Restore(configFile string) error {
 	separatedPorts := strings.Split(dataStr, "Port: ")
 
 	// Iterate through ports.
-	for _, portStr := range separatedPorts {
-		if portStr == "" {
+	for i, portStr := range separatedPorts {
+		if i == 0 || portStr == "" {
 			continue
 		}
 
@@ -559,8 +562,8 @@ func (tMgr *TagManager) Restore(configFile string) error {
 		separatedTags := strings.Split(portStr, "\tTag: ")
 
 		// Iterate through tags on ports.
-		for _, tagStr := range separatedTags {
-			if tagStr == "" {
+		for i, tagStr := range separatedTags {
+			if i == 0 || tagStr == "" {
 				continue
 			}
 
@@ -806,10 +809,11 @@ func (rMgr *RuleManager) Save(configFile string) error {
 
 		// Write groups to file.
 		groupsSeparated := strings.Split(outStr, util.GroupLabel)
-		if len(groupsSeparated) >= 1 {
-			groupsSeparated = groupsSeparated[1:]
-		}
-		for _, groupStr := range groupsSeparated {
+		for i, groupStr := range groupsSeparated {
+			if i == 0 {
+				continue
+			}
+
 			idx := strings.IndexFunc(groupStr, unicode.IsSpace)
 			if idx == -1 {
 				continue
@@ -820,10 +824,11 @@ func (rMgr *RuleManager) Save(configFile string) error {
 
 			// Write rules to file.
 			rulesSeparated := strings.Split(groupStr, util.RuleLabel)
-			if len(rulesSeparated) >= 1 {
-				rulesSeparated = rulesSeparated[1:]
-			}
-			for _, ruleStr := range rulesSeparated {
+			for i, ruleStr := range rulesSeparated {
+				if i == 0 {
+					continue
+				}
+
 				idx = strings.IndexFunc(ruleStr, unicode.IsSpace)
 				if idx == -1 {
 					continue
@@ -938,10 +943,11 @@ func (rMgr *RuleManager) Restore(configFile string) error {
 
 	// Restore rules for each port.
 	separatedPorts := strings.Split(dataStr, "Port: ")
-	if len(separatedPorts) >= 1 {
-		separatedPorts = separatedPorts[1:]
-	}
-	for _, portStr := range separatedPorts {
+	for i, portStr := range separatedPorts {
+		if i == 0 {
+			continue
+		}
+
 		// Get port name.
 		idx := strings.Index(portStr, "\n")
 		portName := portStr[:idx]
@@ -951,20 +957,22 @@ func (rMgr *RuleManager) Restore(configFile string) error {
 
 		// Restore rules for each group.
 		separatedGroups := strings.Split(portStr, "\tGroup: ")
-		if len(separatedGroups) >= 1 {
-			separatedGroups = separatedGroups[1:]
-		}
-		for _, groupStr := range separatedGroups {
+		for i, groupStr := range separatedGroups {
+			if i == 0 {
+				continue
+			}
+
 			// Get group name.
 			idx := strings.Index(groupStr, "\n")
 			groupName := groupStr[:idx]
 
 			// Restore rules in group.
 			separatedRules := strings.Split(groupStr, "\t\tRule: ")
-			if len(separatedRules) >= 1 {
-				separatedRules = separatedRules[1:]
-			}
-			for _, ruleStr := range separatedRules {
+			for i, ruleStr := range separatedRules {
+				if i == 0 {
+					continue
+				}
+
 				var rule *Rule
 				rule.group = groupName
 
