@@ -111,6 +111,15 @@ func (tMgr *TagManager) CreateNLTag(tagName string, portName string) error {
 // DeleteNLTag deletes an NLTag.
 func (tMgr *TagManager) DeleteNLTag(tagName string, portName string) error {
 	key := tagName + " " + portName
+	if _, exists := tMgr.nlTagMap[key]; !exists {
+		log.Printf("nlTag with name %s on port %s not found", tagName, portName)
+		return nil
+	}
+
+	if len(tMgr.nlTagMap[key].elements) > 0 {
+		return nil
+	}
+
 	delete(tMgr.nlTagMap, key)
 
 	return nil
@@ -327,24 +336,18 @@ func (tMgr *TagManager) Destroy() error {
 			log.Errorf("Error: invalid key in tagMap")
 		}
 
-		if err := tMgr.DeleteTag(tagPort[0], tagPort[1]); err != nil {
-			log.Errorf("Error: failed to destroy Tags")
-			return err
+		// Delete tag using vfpctrl.
+		deleteCmd := exec.Command(util.VFPCmd, util.Port, tagPort[0], util.Tag, tagPort[1], util.RemoveTagCmd)
+		err := deleteCmd.Run()
+		if err != nil {
+			log.Errorf("Error: failed to remove tag in VFP.")
 		}
+
+		delete(tMgr.tagMap, key)
 	}
 
 	// Delete all NLTags.
-	for nlKey := range tMgr.nlTagMap {
-		tagPort := strings.Split(nlKey, " ")
-		if len(tagPort) != 2 {
-			log.Errorf("Error: invalid key in nlTagMap")
-		}
-
-		if err := tMgr.DeleteNLTag(tagPort[0], tagPort[1]); err != nil {
-			log.Errorf("Error: failed to clean NLTags")
-			return err
-		}
-	}
+	tMgr.nlTagMap = make(map[string]*NLTag)
 
 	return nil
 }
