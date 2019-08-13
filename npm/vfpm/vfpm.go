@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/kalebmorris/azure-container-networking/log"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
 )
@@ -381,6 +380,7 @@ func getPorts() ([]string, error) {
 
 	// Parse the ports.
 	separated := strings.Split(outStr, util.PortSplit)
+	log.Logf("%+v", separated)
 	var ports []string
 	for _, val := range separated {
 		if val == "" {
@@ -466,10 +466,6 @@ func getTags(portName string) ([]string, []string, error) {
 	}
 
 	return tags, ips, nil
-}
-
-func listEndpoints() ([]hcn.HostComputeEndpoint, error) {
-	return hcn.ListEndpoints()
 }
 
 // Save saves VFP tags to a file.

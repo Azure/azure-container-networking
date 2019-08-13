@@ -8,19 +8,6 @@ import (
 	"github.com/kalebmorris/azure-container-networking/npm/util"
 )
 
-func TestListEndpoints(t *testing.T) {
-	endpoints, err := listEndpoints()
-	if err != nil {
-		t.Errorf("TestListEndpoints failed @ listEndpoints")
-	}
-	if len(endpoints) == 0 {
-		t.Logf("No endpoints found.")
-	}
-	for _, endpoint := range endpoints {
-		t.Logf("%+v\n", endpoint)
-	}
-}
-
 func TestTagSave(t *testing.T) {
 	tMgr := NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
