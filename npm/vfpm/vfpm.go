@@ -172,7 +172,7 @@ func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 	}
 
 	// Add an empty tag into vfp.
-	params := "\"" + tagName + " " + tagName + " " + util.IPV4 + " *\""
+	params := tagName + " " + tagName + " " + util.IPV4 + " *"
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.AddTagCmd, params)
 	out, err := addCmd.Output()
 	if err != nil {
@@ -236,7 +236,7 @@ func (tMgr *TagManager) AddToTag(tagName string, portName string, ip string) err
 	}
 
 	// Add the ip to a tag.
-	params := "\"" + tagName + " " + tagName + " " + util.IPV4 + " " + tMgr.tagMap[key].elements + ip + ",\""
+	params := tagName + " " + tagName + " " + util.IPV4 + " " + tMgr.tagMap[key].elements + ip + ","
 	replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
 	out, err := replaceCmd.Output()
 	if err != nil {
@@ -276,7 +276,7 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, portName string, ip string
 	}
 
 	// Replace the ips in the vfp tag.
-	params := "\"" + tagName + " " + tagName + " " + util.IPV4 + " " + newElements + "\""
+	params := tagName + " " + tagName + " " + util.IPV4 + " " + newElements
 	replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
 	out, err := replaceCmd.Output()
 	if err != nil {
@@ -577,7 +577,7 @@ func (tMgr *TagManager) Restore(configFile string) error {
 			ipStr := tagStr[:idx]
 
 			// Restore the tag through VFP.
-			params := "\"" + tagName + " " + tagName + " " + util.IPV4 + " " + ipStr + "\""
+			params := tagName + " " + tagName + " " + util.IPV4 + " " + ipStr
 			replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, params)
 			out, err := replaceCmd.Output()
 			if err != nil {
@@ -596,7 +596,7 @@ func (tMgr *TagManager) Restore(configFile string) error {
 // InitAzureNPMLayer adds a layer to VFP for NPM and populates it with relevant groups.
 func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 	// Initialize the layer first.
-	params := "\"" + util.NPMLayer + " " + util.NPMLayer + " " + util.StatefulLayer + " " + util.NPMLayerPriority + " 0\""
+	params := util.NPMLayer + " " + util.NPMLayer + " " + util.StatefulLayer + " " + util.NPMLayerPriority + " 0"
 	addLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.AddLayerCmd, params)
 	out, err := addLayerCmd.Output()
 	if err != nil {
@@ -638,7 +638,7 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 		} else if i < 6 || i == 7 {
 			dir = util.DirectionOut
 		}
-		params := "\"" + groupsList[i] + " " + groupsList[i] + " " + dir + " " + prioritiesList[i] + " priority_based VfxConditionNone\""
+		params := groupsList[i] + " " + groupsList[i] + " " + dir + " " + prioritiesList[i] + " priority_based VfxConditionNone"
 		addGroupCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.AddGroupCmd, params)
 		out, err := addGroupCmd.Output()
 		if err != nil {
@@ -725,11 +725,9 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 		dstPrts = "*"
 	}
 
-	params := "\"" + rule.name + " " + rule.name +
-		" " + srcTags + " " + dstTags +
-		" 6 " + srcIPs + " " + srcPrts +
-		" " + dstIPs + " " + dstPrts +
-		" 0 0 " + rule.priority + " " + rule.action + "\""
+	params := rule.name + " " + rule.name + " " + srcTags + " " + dstTags +
+		" 6 " + srcIPs + " " + srcPrts + " " + dstIPs + " " + dstPrts +
+		" 0 0 " + rule.priority + " " + rule.action
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.group, util.AddTagRuleCmd, params)
 	out, err := addCmd.Output()
 	if err != nil {
