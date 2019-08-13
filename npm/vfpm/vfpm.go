@@ -670,7 +670,7 @@ func (rMgr *RuleManager) UnInitAzureNPMLayer(portName string) error {
 // Exists checks if the given rule exists in VFP.
 func (rMgr *RuleManager) Exists(rule *Rule, portName string) (bool, error) {
 	// Find rules with the name specified.
-	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Rule, rule.name, util.ListRuleCmd)
+	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.group, util.Rule, rule.name, util.ListRuleCmd)
 	out, err := listCmd.Output()
 	if err != nil {
 		log.Errorf("Error: failed to list rules in rMgr.Exists")
@@ -932,7 +932,12 @@ func (rMgr *RuleManager) Restore(configFile string) error {
 		portName := portStr[:idx]
 
 		// Initialize NPM on port.
-		rMgr.InitAzureNPMLayer(portName)
+		if strings.Contains(portStr, "\tGroup: ") {
+			rMgr.InitAzureNPMLayer(portName)
+		} else {
+			rMgr.UnInitAzureNPMLayer(portName)
+			continue
+		}
 
 		// Restore rules for each group.
 		separatedGroups := strings.Split(portStr, "\tGroup: ")
