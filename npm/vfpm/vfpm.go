@@ -412,6 +412,7 @@ func getPorts() ([]string, error) {
 			idx++
 		}
 		friendlyName := builder.String()
+		log.Logf("%s:%s", portName, friendlyName)
 
 		if len(portName) == len(friendlyName) {
 			ports = append(ports, portName)
