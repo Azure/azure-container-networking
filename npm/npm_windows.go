@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/kalebmorris/azure-container-networking/log"
-	"github.com/kalebmorris/azure-container-networking/npm/hcnm"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/npm/vfpm"
 	"github.com/kalebmorris/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -41,8 +41,9 @@ type NetworkPolicyManager struct {
 	nsInformer      coreinformers.NamespaceInformer
 	npInformer      networkinginformers.NetworkPolicyInformer
 
-	nodeName               string
-	nsMap                  map[string]*namespace
+	nodeName  string
+	nsMap     map[string]*namespace
+	ipPortMap map[string]string
 
 	clusterState  telemetry.ClusterState
 	reportManager *telemetry.ReportManager
@@ -51,12 +52,12 @@ type NetworkPolicyManager struct {
 	TelemetryEnabled bool
 }
 
-// restore restores ACL policies from backup file
+// restore restores VFP rules from backup file
 func (npMgr *NetworkPolicyManager) restore() {
-	aclMgr := hcnm.NewACLPolicyManager()
+	rMgr := vfpm.NewRuleManager()
 	var err error
 	for i := 0; i < restoreMaxRetries; i++ {
-		if err = aclMgr.Restore(util.ACLPolicyConfigFile); err == nil {
+		if err = rMgr.Restore(util.RuleConfigFile); err == nil {
 			return
 		}
 
@@ -67,14 +68,14 @@ func (npMgr *NetworkPolicyManager) restore() {
 	panic(err.Error)
 }
 
-// backup takes snapshots of ACL policies and saves them periodically.
+// backup takes snapshots of VFP rules and saves them periodically.
 func (npMgr *NetworkPolicyManager) backup() {
-	aclMgr := hcnm.NewACLPolicyManager()
+	rMgr := vfpm.NewRuleManager()
 	var err error
 	for {
 		time.Sleep(backupWaitTimeInSeconds * time.Second)
 
-		if err = aclMgr.Save(util.ACLPolicyConfigFile); err != nil {
+		if err = rMgr.Save(util.RuleConfigFile); err != nil {
 			log.Logf("Error: failed to back up Azure-NPM states")
 		}
 	}
@@ -85,8 +86,8 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	// Starts all informers manufactured by npMgr's informerFactory.
 	npMgr.informerFactory.Start(stopCh)
 
-	// Failure detected. Needs to restore Azure-NPM related ACL policies.
-	if util.Exists(util.ACLPolicyConfigFile) {
+	// Failure detected. Needs to restore Azure-NPM related VFP rules.
+	if util.Exists(util.RuleConfigFile) {
 		npMgr.restore()
 	}
 
@@ -128,13 +129,14 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	}
 
 	npMgr := &NetworkPolicyManager{
-		clientset:              clientset,
-		informerFactory:        informerFactory,
-		podInformer:            podInformer,
-		nsInformer:             nsInformer,
-		npInformer:             npInformer,
-		nodeName:               os.Getenv("COMPUTERNAME"),
-		nsMap:                  make(map[string]*namespace),
+		clientset:       clientset,
+		informerFactory: informerFactory,
+		podInformer:     podInformer,
+		nsInformer:      nsInformer,
+		npInformer:      npInformer,
+		nodeName:        os.Getenv("COMPUTERNAME"),
+		nsMap:           make(map[string]*namespace),
+		ipPortMap:       make(map[string]string),
 		clusterState: telemetry.ClusterState{
 			PodCount:      0,
 			NsCount:       0,
