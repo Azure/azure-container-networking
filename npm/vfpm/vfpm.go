@@ -173,7 +173,7 @@ func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 
 	// Add an empty tag into vfp.
 	params := tagName + " " + tagName + " " + util.IPV4 + " *"
-	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.AddTagCmd, params)
+	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
 	out, err := addCmd.Output()
 	if err != nil {
 		log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
@@ -582,7 +582,7 @@ func (tMgr *TagManager) Restore(configFile string) error {
 
 			// Restore the tag through VFP.
 			params := tagName + " " + tagName + " " + util.IPV4 + " " + ipStr
-			replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, params)
+			replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
 			out, err := replaceCmd.Output()
 			if err != nil {
 				log.Errorf("Error: failed to replace tag %s on port %s", tagName, portName)
