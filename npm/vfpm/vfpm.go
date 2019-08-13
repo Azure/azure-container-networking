@@ -542,6 +542,12 @@ func (tMgr *TagManager) Restore(configFile string) error {
 	}
 	dataStr := string(data)
 
+	// Remove existing tags.
+	if err = tMgr.Destroy(); err != nil {
+		log.Errorf("Error: failed to destroy existing tags.")
+		return err
+	}
+
 	separatedPorts := strings.Split(dataStr, "Port: ")
 
 	// Iterate through ports.
@@ -715,8 +721,6 @@ func (rMgr *RuleManager) Exists(rule *Rule, portName string) (bool, error) {
 
 // Add applies a Rule through VFP.
 func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
-	log.Printf("Add Rule: %+v.", rule)
-
 	// Check first if the rule already exists.
 	exists, err := rMgr.Exists(rule, portName)
 	if err != nil {
@@ -772,8 +776,6 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 
 // Delete removes a Rule through VFP.
 func (rMgr *RuleManager) Delete(rule *Rule, portName string) error {
-	log.Printf("Deleting Rule: %+v", rule)
-
 	// Check first if the rule exists.
 	exists, err := rMgr.Exists(rule, portName)
 	if err != nil {
