@@ -576,6 +576,9 @@ func (tMgr *TagManager) Restore(configFile string) error {
 			tagStr = tagStr[idx+1+len("\t\tIP: "):]
 			idx = strings.Index(tagStr, "\n")
 			ipStr := tagStr[:idx]
+			if ipStr == "" {
+				ipStr = "*"
+			}
 
 			// Restore the tag through VFP.
 			params := tagName + " " + tagName + " " + util.IPV4 + " " + ipStr
