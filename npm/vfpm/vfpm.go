@@ -353,8 +353,8 @@ func (tMgr *TagManager) Destroy() error {
 	return nil
 }
 
-// getPorts returns a slice of all port names in VFP.
-func getPorts() ([]string, error) {
+// GetPorts returns a slice of all port names in VFP.
+func GetPorts() ([]string, error) {
 	// List all of the ports.
 	listCmd := exec.Command(util.VFPCmd, util.ListPortCmd)
 	out, err := listCmd.Output()
@@ -406,8 +406,8 @@ func getPorts() ([]string, error) {
 	return ports, nil
 }
 
-// getTags returns a slice of all tag names and a slice of all tag ip strings on a given port.
-func getTags(portName string) ([]string, []string, error) {
+// GetTags returns a slice of all tag names and a slice of all tag ip strings on a given port.
+func GetTags(portName string) ([]string, []string, error) {
 	// List all of the tags.
 	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ListTagCmd)
 	out, err := listCmd.Output()
