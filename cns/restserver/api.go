@@ -26,6 +26,7 @@ const (
 	UnexpectedError                 = 99
 )
 
+// ReturnCodeToString - Converts an error code to appropriate string.
 func ReturnCodeToString(returnCode int) (s string) {
 	switch returnCode {
 	case Success:
