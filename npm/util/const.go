@@ -123,6 +123,7 @@ const (
 	ListPortCmd  string = "/list-vmswitch-port"
 	PortSplit    string = "Port name"
 	PortFriendly string = "Port Friendly name"
+	MACAddress   string = "MAC address"
 	GUIDLength   int    = 36
 	// Layer related
 	Layer            string = "/layer"
@@ -175,4 +176,6 @@ const (
 	RemoveRuleCmd    string = "/remove-rule"
 	RemoveAllRuleCmd string = "/remove-all-rule"
 	RuleLabel        string = "RULE : "
+)
+)
 )

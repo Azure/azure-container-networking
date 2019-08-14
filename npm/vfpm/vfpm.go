@@ -3,6 +3,7 @@
 package vfpm
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
@@ -353,6 +354,58 @@ func (tMgr *TagManager) Destroy() error {
 	return nil
 }
 
+func GetPortByMAC(MAC string) (string, error) {
+	// List all of the ports.
+	listCmd := exec.Command(util.VFPCmd, util.ListPortCmd)
+	out, err := listCmd.Output()
+	if err != nil {
+		log.Errorf("Error: failed to retrieve list of ports from VFP")
+		return "", err
+	}
+	outStr := string(out)
+
+	// Split the output and find the desired port.
+	separated := strings.Split(outStr, util.PortSplit)
+	for i, val := range separated {
+		if i == 0 || val == "" {
+			continue
+		}
+
+		// First colon is right before port name.
+		idx := strings.Index(val, ":")
+		if idx == -1 {
+			continue
+		}
+
+		portName := val[idx+2 : idx+2+util.GUIDLength]
+
+		// Retrieve MAC address for current port.
+		idx = strings.Index(val, util.MACAddress)
+		for idx != -1 && idx < len(val) && val[idx] != ':' {
+			idx++
+		}
+		if idx == -1 || idx == len(val) {
+			continue
+		}
+		// Go to start of MAC address.
+		idx += 2
+
+		// Extract MAC address.
+		var builder strings.Builder
+		for idx < len(val) && !unicode.IsSpace(rune(val[idx])) {
+			builder.WriteByte(val[idx])
+			idx++
+		}
+		MACAddress := builder.String()
+
+		if MACAddress == MAC {
+			return portName, nil
+		}
+	}
+
+	return "", errors.New("port not found")
+}
+
 // GetPorts returns a slice of all port names in VFP.
 func GetPorts() ([]string, error) {
 	// List all of the ports.
@@ -469,7 +522,7 @@ func (tMgr *TagManager) Save(configFile string) error {
 	defer file.Close()
 
 	// Retrieve the ports from VFP.
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
 		return err
 	}
@@ -479,7 +532,7 @@ func (tMgr *TagManager) Save(configFile string) error {
 		file.WriteString("Port: " + portName + "\n")
 
 		// Retrieve tags from VFP.
-		tags, ips, err := getTags(portName)
+		tags, ips, err := GetTags(portName)
 		if err != nil {
 			return err
 		}
@@ -774,7 +827,7 @@ func (rMgr *RuleManager) Save(configFile string) error {
 	defer f.Close()
 
 	// Get list of ports.
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
 		return err
 	}
