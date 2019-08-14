@@ -580,7 +580,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 
 	// Test create network container of type JobObject
 	fmt.Println("TestCreateNetworkContainer: JobObject")
-	err := creatOrUpdateNetworkContainerWithName(t, "testJobObject", "11.0.0.5", "JobObject")
+	err := creatOrUpdateNetworkContainerWithName(t, "testJobObject", "10.1.0.5", "JobObject")
 	if err != nil {
 		t.Errorf("Failed to save the goal state for network container of type JobObject "+
 			" due to error: %+v", err)
@@ -616,16 +616,8 @@ func TestCreateNetworkContainer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-}
-
-func TestCreateCOWContainer(t *testing.T) {
-	fmt.Println("Test: TestCreateCOWContainer")
-
-	setEnv(t)
-	setOrchestratorType(t, cns.ServiceFabric)
-
-	fmt.Println("TestCreateNetworkContainer: COW")
-	err := creatOrUpdateNetworkContainerWithName(t, "testContainer", "10.0.0.5", "COW")
+	// Test create network container of type COW
+	err = creatOrUpdateNetworkContainerWithName(t, "testCOWContainer", "10.0.0.5", "COW")
 	if err != nil {
 		t.Errorf("Failed to save the goal state for network container of type COW"+
 			" due to error: %+v", err)
@@ -633,7 +625,7 @@ func TestCreateCOWContainer(t *testing.T) {
 	}
 
 	fmt.Println("Deleting the saved goal state for network container of type COW")
-	err = deleteNetworkAdapterWithName(t, "testContainer")
+	err = deleteNetworkAdapterWithName(t, "testCOWContainer")
 	if err != nil {
 		t.Errorf("Failed to delete the saved goal state due to error: %+v", err)
 		t.Fatal(err)
