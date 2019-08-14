@@ -36,24 +36,17 @@ func newNs(name string) (*namespace, error) {
 }
 
 // InitAllNsList syncs all-namespace tag.
-func (npMgr *NetworkPolicyManager) InitAllNsList() error {
+func (npMgr *NetworkPolicyManager) InitAllNsList(portName string) error {
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
-	ports, err := vfpm.GetPorts()
-	if err != nil {
-		log.Errorf("Error: failed to retrieve ports.")
-		return err
-	}
 
 	for nsName := range npMgr.nsMap {
 		if nsName == util.KubeAllNamespacesFlag {
 			continue
 		}
 
-		for _, portName := range ports {
-			if err := allNs.tMgr.AddToNLTag(util.KubeAllNamespacesFlag, nsName, portName); err != nil {
-				log.Errorf("Error: failed to add Tag %s to NLTag %s on port %s", nsName, util.KubeAllNamespacesFlag, portName)
-				return err
-			}
+		if err := allNs.tMgr.AddToNLTag(util.KubeAllNamespacesFlag, nsName, portName); err != nil {
+			log.Errorf("Error: failed to add Tag %s to NLTag %s on port %s", nsName, util.KubeAllNamespacesFlag, portName)
+			return err
 		}
 	}
 
@@ -61,24 +54,17 @@ func (npMgr *NetworkPolicyManager) InitAllNsList() error {
 }
 
 // UninitAllNsList cleans all-namespace tag.
-func (npMgr *NetworkPolicyManager) UninitAllNsList() error {
+func (npMgr *NetworkPolicyManager) UninitAllNsList(portName string) error {
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
-	ports, err := vfpm.GetPorts()
-	if err != nil {
-		log.Errorf("Error: failed to retrieve ports.")
-		return err
-	}
 
 	for nsName := range npMgr.nsMap {
 		if nsName == util.KubeAllNamespacesFlag {
 			continue
 		}
 
-		for _, portName := range ports {
-			if err := allNs.tMgr.DeleteFromNLTag(util.KubeAllNamespacesFlag, nsName, portName); err != nil {
-				log.Errorf("Error: failed to delete Tag %s from NLTag %s on port %s", nsName, util.KubeAllNamespacesFlag, portName)
-				return err
-			}
+		if err := allNs.tMgr.DeleteFromNLTag(util.KubeAllNamespacesFlag, nsName, portName); err != nil {
+			log.Errorf("Error: failed to delete Tag %s from NLTag %s on port %s", nsName, util.KubeAllNamespacesFlag, portName)
+			return err
 		}
 	}
 

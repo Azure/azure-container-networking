@@ -5,10 +5,11 @@ package npm
 import (
 	"github.com/kalebmorris/azure-container-networking/log"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/npm/vfpm"
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
-// AddNetworkPolicy handles adding network policy to hcn.
+// AddNetworkPolicy handles adding network policy to vfp.
 func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
@@ -20,38 +21,49 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
-	if err = allNs.tMgr.CreateTag(util.KubeSystemFlag); err != nil {
-		log.Errorf("Error: failed to initialize kube-system tag.")
+	ports, err := vfpm.GetPorts()
+	if err != nil {
+		log.Errorf("Error: failed to retrieve ports.")
 		return err
 	}
 
-	podTags, nsLists, aclPolicies := parsePolicy(npObj)
+	for _, portName := range ports {
+		if err = allNs.tMgr.CreateTag(util.KubeSystemFlag, portName); err != nil {
+			log.Errorf("Error: failed to initialize kube-system tag.")
+			return err
+		}
+	}
+
+	podTags, nsLists, vfpRules := parsePolicy(npObj)
 
 	tMgr := allNs.tMgr
-	for _, tag := range podTags {
-		if err = tMgr.CreateTag(tag); err != nil {
-			log.Errorf("Error: failed to create tag %s-%s", npNs, tag)
+	rMgr := allNs.rMgr
+
+	for _, portName := range ports {
+		for _, tag := range podTags {
+			if err = tMgr.CreateTag(tag, portName); err != nil {
+				log.Errorf("Error: failed to create tag %s-%s on port %s.", npNs, tag, portName)
+				return err
+			}
+		}
+
+		for _, nlTag := range nsLists {
+			if err = tMgr.CreateNLTag(nlTag, portName); err != nil {
+				log.Errorf("Error: failed to create NLTag %s-%s on port %s.", npNs, nlTag, portName)
+				return err
+			}
+		}
+
+		if err = npMgr.InitAllNsList(portName); err != nil {
+			log.Errorf("Error: failed to initialize all-namespace NLTag on port %s.", portName)
 			return err
 		}
-	}
 
-	for _, nlTag := range nsLists {
-		if err = tMgr.CreateNLTag(nlTag); err != nil {
-			log.Errorf("Error: failed to create NLTag %s-%s", npNs, nlTag)
-			return err
-		}
-	}
-
-	if err = npMgr.InitAllNsList(); err != nil {
-		log.Errorf("Error: failed to initialize all-namespace NLTag.")
-		return err
-	}
-
-	aclMgr := allNs.aclMgr
-	for _, aclPolicy := range aclPolicies {
-		if err = aclMgr.Add(aclPolicy); err != nil {
-			log.Errorf("Error: failed to apply ACL policy. Policy: %+v", aclPolicy)
-			return err
+		for _, rule := range vfpRules {
+			if err = rMgr.Add(rule, portName); err != nil {
+				log.Errorf("Error: failed to apply rule on port %s. Rule: %+v", portName, rule)
+				return err
+			}
 		}
 	}
 
@@ -78,13 +90,22 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
-	_, _, aclPolicies := parsePolicy(npObj)
+	ports, err := vfpm.GetPorts()
+	if err != nil {
+		log.Errorf("Error: failed to retrieve ports.")
+		return err
+	}
 
-	aclMgr := allNs.aclMgr
-	for _, aclPolicy := range aclPolicies {
-		if err = aclMgr.Delete(aclPolicy); err != nil {
-			log.Errorf("Error: failed to delete ACL policy. Policy: %+v", aclPolicy)
-			return err
+	_, _, rules := parsePolicy(npObj)
+
+	rMgr := allNs.rMgr
+
+	for _, portName := range ports {
+		for _, rule := range rules {
+			if err = rMgr.Delete(rule, portName); err != nil {
+				log.Errorf("Error: failed to delete rule. Rule: %+v", rule)
+				return err
+			}
 		}
 	}
 
