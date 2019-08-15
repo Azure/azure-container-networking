@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sort"
 
 	"k8s.io/apimachinery/pkg/version"
 )
@@ -41,6 +42,23 @@ func Hash(s string) string {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return fmt.Sprint(h.Sum32())
+}
+
+// SortMap sorts the map by key in alphabetical order.
+// Note: even though the map is sorted, accessing it through range will still result in random order.
+func SortMap(m *map[string]string) {
+	var sortedKeys []string
+	for k := range *m {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	sortedMap := &map[string]string{}
+	for _, k := range sortedKeys {
+		(*sortedMap)[k] = (*m)[k]
+	}
+
+	m = sortedMap
 }
 
 // UniqueStrSlice removes duplicate elements from the input string.

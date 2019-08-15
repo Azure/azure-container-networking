@@ -3,6 +3,7 @@ package npm
 import (
 	"reflect"
 	"testing"
+	"container/heap"
 
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -119,6 +120,182 @@ func TestGetOperatorsAndLabels(t *testing.T) {
 
 	if !reflect.DeepEqual(resultLabels, expectedLabels) {
 		t.Errorf("TestGetOperatorsAndLabels failed @ label comparision")
+	}
+}
+
+func TestReqHeap(t *testing.T) {
+	reqHeap := &ReqHeap{
+		metav1.LabelSelectorRequirement{
+			Key:      "testIn",
+			Operator: metav1.LabelSelectorOpIn,
+			Values: []string{
+				"frontend",
+				"backend",
+			},
+		},
+		metav1.LabelSelectorRequirement{
+			Key:      "a",
+			Operator: metav1.LabelSelectorOpIn,
+			Values: []string{},
+		},
+		metav1.LabelSelectorRequirement{
+			Key:      "testIn",
+			Operator: metav1.LabelSelectorOpIn,
+			Values: []string{
+				"b",
+				"a",
+			},
+		},
+	}
+
+	heap.Init(reqHeap)
+	heap.Push(
+		reqHeap,
+		metav1.LabelSelectorRequirement{
+			Key:      "testIn",
+			Operator: metav1.LabelSelectorOpIn,
+			Values: []string{
+				"a",
+			},
+		},
+	)
+
+	expectedReqHeap := &ReqHeap{
+		metav1.LabelSelectorRequirement{
+			Key:      "a",
+			Operator: metav1.LabelSelectorOpIn,
+			Values: []string{},
+		},
+		metav1.LabelSelectorRequirement{
+			Key:      "testIn",
+			Operator: metav1.LabelSelectorOpIn,
+			Values: []string{
+				"a",
+			},
+		},
+		metav1.LabelSelectorRequirement{
+			Key:      "testIn",
+			Operator: metav1.LabelSelectorOpIn,
+			Values: []string{
+				"a",
+				"b",
+			},
+		},
+		metav1.LabelSelectorRequirement{
+			Key:      "testIn",
+			Operator: metav1.LabelSelectorOpIn,
+			Values: []string{
+				"backend",
+				"frontend",
+			},
+		},
+	}
+
+	if !reflect.DeepEqual(reqHeap, expectedReqHeap) {
+		t.Errorf("TestReqHeap failed @ heap comparison")
+		t.Errorf("reqHeap: %v", reqHeap)
+		t.Errorf("expectedReqHeap: %v", expectedReqHeap)
+	}
+}
+
+func TestSortSelector(t *testing.T) {
+	selector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			metav1.LabelSelectorRequirement{
+				Key:      "testIn",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"frontend",
+					"backend",
+				},
+			},
+			metav1.LabelSelectorRequirement{
+				Key:      "a",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"b",
+				},
+			},
+		},
+		MatchLabels: map[string]string{
+			"c": "d",
+			"a": "b",
+		},
+	}
+
+	sortSelector(selector)
+	expectedSelector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			metav1.LabelSelectorRequirement{
+				Key:      "a",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"b",
+				},
+			},
+			metav1.LabelSelectorRequirement{
+				Key:      "testIn",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"backend",
+					"frontend",
+				},
+			},
+		},
+		MatchLabels: map[string]string{
+			"a": "b",
+			"c": "d",
+		},
+	}
+
+	if !reflect.DeepEqual(selector, expectedSelector) {
+		t.Errorf("TestSortSelector failed @ sort selector comparison")
+		t.Errorf("selector: %v", selector)
+		t.Errorf("expectedSelector: %v", expectedSelector)
+	}
+}
+
+func TestHashSelector(t *testing.T) {
+	firstSelector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			metav1.LabelSelectorRequirement{
+				Key:      "testIn",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"frontend",
+					"backend",
+				},
+			},
+		},
+		MatchLabels: map[string]string{
+			"a": "b",
+			"c": "d",
+		},
+	}
+	
+	secondSelector := &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			metav1.LabelSelectorRequirement{
+				Key:      "testIn",
+				Operator: metav1.LabelSelectorOpIn,
+				Values: []string{
+					"backend",
+					"frontend",
+				},
+			},
+		},
+		MatchLabels: map[string]string{
+			"c": "d",
+			"a": "b",
+		},
+	}
+
+	hashedFirstSelector := HashSelector(firstSelector)
+	hashedSecondSelector := HashSelector(secondSelector)
+	if hashedFirstSelector != hashedSecondSelector {
+		t.Errorf("TestHashSelector failed @ hashed selector comparison")
+		t.Errorf("hashedFirstSelector: %v", hashedFirstSelector)
+		t.Errorf("hashedSecondSelector: %v", hashedSecondSelector)
 	}
 }
 

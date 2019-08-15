@@ -7,6 +7,26 @@ import (
 	"k8s.io/apimachinery/pkg/version"
 )
 
+func TestSortMap(t *testing.T) {
+	m := &map[string]string{
+		"e": "f",
+		"c": "d",
+		"a": "b",
+	}
+
+	SortMap(m) 
+	expectedMap := &map[string]string{
+		"a": "b",
+		"c": "d",
+		"e": "f",
+	}
+	if !reflect.DeepEqual(m, expectedMap) {
+		t.Errorf("TestSortMap failed @ map comparison")
+		t.Errorf("m: %v", m)
+		t.Errorf("expectedMap: %v", expectedMap)
+	}
+}
+
 func TestCompareK8sVer(t *testing.T) {
 	firstVer := &version.Info{
 		Major: "!",

@@ -94,6 +94,28 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 	}
 	targetSelectorIptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ops, labels, util.IptablesDstFlag, false)
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(&targetSelector, false)
+	
+	// Allow all ingress
+	if len(rules) == 0 {
+		lists = append(lists, util.KubeAllNamespacesFlag)
+		
+		entry := &iptm.IptEntry{
+			Chain: util.IptablesAzureIngressPortChain,
+			Specs: targetSelectorIptEntrySpec,
+		}
+		entry.Specs = append(
+			entry.Specs,
+			util.IptablesJumpFlag,
+			util.IptablesAccept,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			"ALLOW-ALL-TO-" + targetSelectorComment,
+		)
+
+		entries = append(entries, entry)
+	}
+	
 	for _, rule := range rules {
 		// parse Ports field
 		for _, portRule := range rule.Ports {
@@ -119,7 +141,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 		if !portRuleExists && !fromRuleExists {
 			entry := &iptm.IptEntry{
-				Chain: util.IptablesAzureIngressFromChain,
+				Chain: util.IptablesAzureIngressPortChain,
 				Specs: targetSelectorIptEntrySpec,
 			}
 			entry.Specs = append(
@@ -275,7 +297,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
 				}
 				lists = append(lists, nsLabelsWithoutOps...)
-				
+
 				entry := &iptm.IptEntry{
 					Chain: util.IptablesAzureIngressFromChain,
 				}
@@ -438,7 +460,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 
 		if !portRuleExists && !toRuleExists {
 			entry := &iptm.IptEntry{
-				Chain: util.IptablesAzureEgressToChain,
+				Chain: util.IptablesAzureEgressPortChain,
 				Specs: targetSelectorIptEntrySpec,
 			}
 			entry.Specs = append(
@@ -762,9 +784,8 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 	log.Printf("Translating network policy:\n %+v", npObj)
 
 	npNs := npObj.ObjectMeta.Namespace
-	if len(npObj.Spec.Ingress) > 0 || len(npObj.Spec.Egress) > 0 {
-		entries = append(entries, getAllowKubeSystemEntries(npNs, npObj.Spec.PodSelector)...)
-	}
+	// Allow kube-system pods
+	entries = append(entries, getAllowKubeSystemEntries(npNs, npObj.Spec.PodSelector)...)
 
 	if len(npObj.Spec.PolicyTypes) == 0 {
 		ingressSets, ingressLists, ingressEntries := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
