@@ -34,7 +34,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		}
 	}
 
-	podTags, nsLists, vfpRules := parsePolicy(npObj)
+	podTags, nsLists, rules := parsePolicy(npObj)
 
 	tMgr := allNs.tMgr
 	rMgr := allNs.rMgr
@@ -59,7 +59,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 			return err
 		}
 
-		for _, rule := range vfpRules {
+		for _, rule := range rules {
 			if err = rMgr.Add(rule, portName); err != nil {
 				log.Errorf("Error: failed to apply rule on port %s. Rule: %+v", portName, rule)
 				return err

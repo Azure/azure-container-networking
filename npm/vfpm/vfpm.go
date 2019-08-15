@@ -43,16 +43,16 @@ func NewTagManager() *TagManager {
 
 // Rule represents a single VFP rule.
 type Rule struct {
-	name     string
-	group    string
-	srcTags  string
-	dstTags  string
-	srcIPs   string
-	srcPrts  string
-	dstIPs   string
-	dstPrts  string
-	priority string
-	action   string
+	Name     string
+	Group    string
+	SrcTags  string
+	DstTags  string
+	SrcIPs   string
+	SrcPrts  string
+	DstIPs   string
+	DstPrts  string
+	Priority uint16
+	Action   string
 }
 
 // RuleManager stores ACL policy states.
@@ -659,32 +659,28 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 
 	groupsList := []string{
 		util.NPMIngressGroup,
-		util.NPMIngressNsGroup,
-		util.NPMIngressPodGroup,
+		util.NPMIngressPortGroup,
+		util.NPMIngressFromGroup,
 		util.NPMEgressGroup,
-		util.NPMEgressNsGroup,
-		util.NPMEgressPodGroup,
-		util.NPMDefaultInGroup,
-		util.NPMDefaultOutGroup,
+		util.NPMEgressPortGroup,
+		util.NPMEgressToGroup,
 	}
 
 	prioritiesList := []string{
 		util.NPMIngressPriority,
-		util.NPMIngressNsPriority,
-		util.NPMIngressPodPriority,
+		util.NPMIngressPortPriority,
+		util.NPMIngressFromPriority,
 		util.NPMEgressPriority,
-		util.NPMEgressNsPriority,
-		util.NPMEgressPodPriority,
-		util.NPMDefaultInPriority,
-		util.NPMDefaultOutPriority,
+		util.NPMEgressPortPriority,
+		util.NPMEgressToPriority,
 	}
 
 	// Add all of the NPM groups.
 	for i := 0; i < len(groupsList); i++ {
 		var dir string
-		if i < 3 || i == 6 {
+		if i < 3 {
 			dir = util.DirectionIn
-		} else if i < 6 || i == 7 {
+		} else {
 			dir = util.DirectionOut
 		}
 		params := groupsList[i] + " " + groupsList[i] + " " + dir + " " + prioritiesList[i] + " priority_based VfxConditionNone"
@@ -727,7 +723,7 @@ func (rMgr *RuleManager) UnInitAzureNPMLayer(portName string) error {
 // Exists checks if the given rule exists in VFP.
 func (rMgr *RuleManager) Exists(rule *Rule, portName string) (bool, error) {
 	// Find rules with the name specified.
-	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.group, util.Rule, rule.name, util.ListRuleCmd)
+	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.Group, util.Rule, rule.Name, util.ListRuleCmd)
 	out, err := listCmd.Output()
 	if err != nil {
 		log.Errorf("Error: failed to list rules in rMgr.Exists")
@@ -751,35 +747,35 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 	}
 
 	// Prepare parameters and execute add-tag-rule command.
-	srcTags := rule.srcTags
+	srcTags := rule.SrcTags
 	if srcTags == "" {
 		srcTags = "*"
 	}
-	dstTags := rule.dstTags
+	dstTags := rule.DstTags
 	if dstTags == "" {
 		dstTags = "*"
 	}
-	srcIPs := rule.srcIPs
+	srcIPs := rule.SrcIPs
 	if srcIPs == "" {
 		srcIPs = "*"
 	}
-	dstIPs := rule.dstIPs
+	dstIPs := rule.DstIPs
 	if dstIPs == "" {
 		dstIPs = "*"
 	}
-	srcPrts := rule.srcPrts
+	srcPrts := rule.SrcPrts
 	if srcPrts == "" {
 		srcPrts = "*"
 	}
-	dstPrts := rule.dstPrts
+	dstPrts := rule.DstPrts
 	if dstPrts == "" {
 		dstPrts = "*"
 	}
 
-	params := rule.name + " " + rule.name + " " + srcTags + " " + dstTags +
+	params := rule.Name + " " + rule.Name + " " + srcTags + " " + dstTags +
 		" 6 " + srcIPs + " " + srcPrts + " " + dstIPs + " " + dstPrts +
-		" 0 0 " + rule.priority + " " + rule.action
-	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.group, util.AddTagRuleCmd, params)
+		" 0 0 " + rule.Priority + " " + rule.Action
+	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.Group, util.AddTagRuleCmd, params)
 	err = addCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to add tags rule in rMgr.Add")
@@ -802,7 +798,7 @@ func (rMgr *RuleManager) Delete(rule *Rule, portName string) error {
 	}
 
 	// Remove rule through VFP.
-	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Rule, rule.name, util.RemoveRuleCmd)
+	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Rule, rule.Name, util.RemoveRuleCmd)
 	err = removeCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to remove rule in rMgr.Delete")
@@ -1015,70 +1011,70 @@ func (rMgr *RuleManager) Restore(configFile string) error {
 				}
 
 				var rule *Rule
-				rule.group = groupName
+				rule.Group = groupName
 
 				// Get rule name.
 				idx := strings.Index(ruleStr, "\n")
-				rule.name = ruleStr[:idx]
+				rule.Name = ruleStr[:idx]
 
 				// Get rule priority.
 				idx = strings.Index(ruleStr, "\t\t\tPriority: ")
-				rule.priority = ruleStr[idx+len("\t\t\tPriority: "):]
-				idx = strings.Index(rule.priority, "\n")
-				rule.priority = rule.priority[:idx]
+				rule.Priority = ruleStr[idx+len("\t\t\tPriority: "):]
+				idx = strings.Index(rule.Priority, "\n")
+				rule.Priority = rule.Priority[:idx]
 
 				// Get rule type.
 				idx = strings.Index(ruleStr, "\t\t\tType: ")
-				rule.action = ruleStr[idx+len("\t\t\tType: "):]
-				idx = strings.Index(rule.action, "\n")
-				rule.action = rule.action[:idx]
+				rule.Action = ruleStr[idx+len("\t\t\tType: "):]
+				idx = strings.Index(rule.Action, "\n")
+				rule.Action = rule.Action[:idx]
 
 				// Get rule source tags.
 				idx = strings.Index(ruleStr, "\t\t\tSource Tags: ")
 				if idx != -1 {
-					rule.srcTags = ruleStr[idx+len("\t\t\tSource Tags: "):]
-					idx = strings.Index(rule.srcTags, "\n")
-					rule.srcTags = rule.srcTags[:idx]
+					rule.SrcTags = ruleStr[idx+len("\t\t\tSource Tags: "):]
+					idx = strings.Index(rule.SrcTags, "\n")
+					rule.SrcTags = rule.SrcTags[:idx]
 				}
 
 				// Get rule destination tags.
 				idx = strings.Index(ruleStr, "\t\t\tDestination Tags: ")
 				if idx != -1 {
-					rule.dstTags = ruleStr[idx+len("\t\t\tDestination Tags: "):]
-					idx = strings.Index(rule.dstTags, "\n")
-					rule.dstTags = rule.dstTags[:idx]
+					rule.DstTags = ruleStr[idx+len("\t\t\tDestination Tags: "):]
+					idx = strings.Index(rule.DstTags, "\n")
+					rule.DstTags = rule.DstTags[:idx]
 				}
 
 				// Get rule source IPs.
 				idx = strings.Index(ruleStr, "\t\t\tSource IPs: ")
 				if idx != -1 {
-					rule.srcIPs = ruleStr[idx+len("\t\t\tSource IPs: "):]
-					idx = strings.Index(rule.srcIPs, "\n")
-					rule.srcIPs = rule.srcIPs[:idx]
+					rule.SrcIPs = ruleStr[idx+len("\t\t\tSource IPs: "):]
+					idx = strings.Index(rule.SrcIPs, "\n")
+					rule.SrcIPs = rule.SrcIPs[:idx]
 				}
 
 				// Get rule destination IPs.
 				idx = strings.Index(ruleStr, "\t\t\tDestination IPs: ")
 				if idx != -1 {
-					rule.dstIPs = ruleStr[idx+len("\t\t\tDestination IPs: "):]
-					idx = strings.Index(rule.dstIPs, "\n")
-					rule.dstIPs = rule.dstIPs[:idx]
+					rule.DstIPs = ruleStr[idx+len("\t\t\tDestination IPs: "):]
+					idx = strings.Index(rule.DstIPs, "\n")
+					rule.DstIPs = rule.DstIPs[:idx]
 				}
 
 				// Get rule source ports.
 				idx = strings.Index(ruleStr, "\t\t\tSource Ports: ")
 				if idx != -1 {
-					rule.srcPrts = ruleStr[idx+len("\t\t\tSource Ports: "):]
-					idx = strings.Index(rule.srcPrts, "\n")
-					rule.srcPrts = rule.srcPrts[:idx]
+					rule.SrcPrts = ruleStr[idx+len("\t\t\tSource Ports: "):]
+					idx = strings.Index(rule.SrcPrts, "\n")
+					rule.SrcPrts = rule.SrcPrts[:idx]
 				}
 
 				// Get rule destination ports.
 				idx = strings.Index(ruleStr, "\t\t\tDestination Ports: ")
 				if idx != -1 {
-					rule.dstPrts = ruleStr[idx+len("\t\t\tDestination Ports: "):]
-					idx = strings.Index(rule.dstPrts, "\n")
-					rule.dstPrts = rule.dstPrts[:idx]
+					rule.DstPrts = ruleStr[idx+len("\t\t\tDestination Ports: "):]
+					idx = strings.Index(rule.DstPrts, "\n")
+					rule.DstPrts = rule.DstPrts[:idx]
 				}
 
 				// Apply rule.
