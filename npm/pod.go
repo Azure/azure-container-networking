@@ -44,7 +44,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Add the pod to its namespace's ipset.
 	log.Printf("Adding pod %s to ipset %s", podIP, podNs)
-	if err = ipsMgr.AddToSet(podNs, podIP); err != nil {
+	if err = ipsMgr.AddToSet("ns-" + podNs, podIP); err != nil {
 		log.Errorf("Error: failed to add pod to namespace ipset.")
 		return err
 	}
@@ -139,7 +139,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	// Delete pod from ipset
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Delete the pod from its namespace's ipset.
-	if err = ipsMgr.DeleteFromSet(podNs, podIP); err != nil {
+	if err = ipsMgr.DeleteFromSet("ns-" + podNs, podIP); err != nil {
 		log.Errorf("Error: failed to delete pod from namespace ipset.")
 		return err
 	}

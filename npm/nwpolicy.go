@@ -87,18 +87,18 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	ipsMgr := allNs.ipsMgr
 	for _, set := range sets {
 		if err = ipsMgr.CreateSet(set); err != nil {
-			log.Printf("Error creating ipset %s-%s\n", npNs, set)
+			log.Printf("Error creating ipset %s", set)
 			return err
 		}
 	}
 	for _, list := range lists {
 		if err = ipsMgr.CreateList(list); err != nil {
-			log.Printf("Error creating ipset list %s-%s\n", npNs, list)
+			log.Printf("Error creating ipset list %s", list)
 			return err
 		}
 	}
 	if err = npMgr.InitAllNsList(); err != nil {
-		log.Printf("Error initializing all-namespace ipset list.\n")
+		log.Printf("Error initializing all-namespace ipset list.")
 		return err
 	}
 	iptMgr := allNs.iptMgr
@@ -148,7 +148,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	if ns, exists = npMgr.nsMap[npName]; !exists {
 		ns, err = newNs(npName)
 		if err != nil {
-			log.Printf("Error creating namespace %s\n", npName)
+			log.Printf("Error creating namespace %s", npName)
 		}
 		npMgr.nsMap[npName] = ns
 	}
