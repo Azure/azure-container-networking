@@ -3,6 +3,7 @@
 package npm
 
 import (
+	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -60,64 +61,53 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		npMgr.isAzureNpmChainCreated = true
 	}
 
-	labels, newPolicies := splitPolicy(npObj)
-	var (
-		addedPolicy   *networkingv1.NetworkPolicy
-		oldPolicies   []*networkingv1.NetworkPolicy
-		addedPolicies []*networkingv1.NetworkPolicy
-	)
-	for i := range newPolicies {
-		label, newPolicy := labels[i], newPolicies[i]
-		if oldPolicy, exists := ns.processedNpMap[label]; exists {
-			addedPolicy, err = addPolicy(oldPolicy, newPolicy)
-			oldPolicies = append(oldPolicies, oldPolicy)
-			addedPolicies = append(addedPolicies, addedPolicy)
-		} else {
-			ns.processedNpMap[label] = newPolicy
-			addedPolicies = append(addedPolicies, newPolicy)
-		}
-	}
+	hashedSelector := HashSelector(&npObj.Spec.PodSelector)
 
-	npMgr.Unlock()
-	for _, oldPolicy := range oldPolicies {
+	var addedPolicy *networkingv1.NetworkPolicy
+	addedPolicy = nil
+	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
+		addedPolicy, err = addPolicy(oldPolicy, npObj)
+		if err != nil {
+			log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
+		}
+		npMgr.Unlock()
 		npMgr.DeleteNetworkPolicy(oldPolicy)
+		npMgr.Lock()
+	} else {
+		ns.processedNpMap[hashedSelector] = npObj
 	}
-	npMgr.Lock()
 
-	for _, addedPolicy = range addedPolicies {
-		sets, lists, iptEntries := translatePolicy(addedPolicy)
-
-		ipsMgr := allNs.ipsMgr
-		for _, set := range sets {
-			if err = ipsMgr.CreateSet(set); err != nil {
-				log.Printf("Error creating ipset %s-%s\n", npNs, set)
-				return err
-			}
-		}
-
-		for _, list := range lists {
-			if err = ipsMgr.CreateList(list); err != nil {
-				log.Printf("Error creating ipset list %s-%s\n", npNs, list)
-				return err
-			}
-		}
-
-		if err = npMgr.InitAllNsList(); err != nil {
-			log.Printf("Error initializing all-namespace ipset list.\n")
+	var sets, lists []string
+	var iptEntries []*iptm.IptEntry
+	if addedPolicy != nil {
+		sets, lists, iptEntries = translatePolicy(addedPolicy)
+	} else {
+		sets, lists, iptEntries = translatePolicy(npObj)
+	}
+	ipsMgr := allNs.ipsMgr
+	for _, set := range sets {
+		if err = ipsMgr.CreateSet(set); err != nil {
+			log.Printf("Error creating ipset %s-%s\n", npNs, set)
 			return err
 		}
-
-		iptMgr := allNs.iptMgr
-		for _, iptEntry := range iptEntries {
-			if err = iptMgr.Add(iptEntry); err != nil {
-				log.Printf("Error applying iptables rule\n. Rule: %+v", iptEntry)
-				return err
-			}
-		}
-
 	}
-
-	ns.rawNpMap[npName] = npObj
+	for _, list := range lists {
+		if err = ipsMgr.CreateList(list); err != nil {
+			log.Printf("Error creating ipset list %s-%s\n", npNs, list)
+			return err
+		}
+	}
+	if err = npMgr.InitAllNsList(); err != nil {
+		log.Printf("Error initializing all-namespace ipset list.\n")
+		return err
+	}
+	iptMgr := allNs.iptMgr
+	for _, iptEntry := range iptEntries {
+		if err = iptMgr.Add(iptEntry); err != nil {
+			log.Printf("Error applying iptables rule\n. Rule: %+v", iptEntry)
+			return err
+		}
+	}
 
 	return nil
 }
@@ -163,10 +153,6 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		npMgr.nsMap[npName] = ns
 	}
 
-	if !ns.policyExists(npObj) {
-		return nil
-	}
-
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
 	_, _, iptEntries := translatePolicy(npObj)
@@ -179,8 +165,14 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		}
 	}
 
-	delete(ns.rawNpMap, npName)
-
+	hashedSelector := HashSelector(&npObj.Spec.PodSelector)
+	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
+		ns.processedNpMap[hashedSelector], err = deductPolicy(oldPolicy, npObj)
+		if err != nil {
+			log.Printf("Error deducting policy %s from %s", npName, oldPolicy.ObjectMeta.Name)
+		}
+	}
+		
 	if npMgr.canCleanUpNpmChains() {
 		if err = iptMgr.UninitNpmChains(); err != nil {
 			log.Errorf("Error: failed to uninitialize azure-npm chains.")

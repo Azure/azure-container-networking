@@ -788,7 +788,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	sets, lists, iptEntries := translatePolicy(denyAllPolicy)
 
-	expectedSets := []string{}
+	expectedSets := []string{"ns-testnamespace"}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ deny-all-policy sets comparison")
 		t.Errorf("sets: %v", sets)
@@ -955,7 +955,9 @@ func TestTranslatePolicy(t *testing.T) {
 			PolicyTypes: []networkingv1.PolicyType{
 				networkingv1.PolicyTypeIngress,
 			},
-			Ingress: []networkingv1.NetworkPolicyIngressRule{},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				networkingv1.NetworkPolicyIngressRule{},
+			},
 		},
 	}
 
@@ -988,23 +990,6 @@ func TestTranslatePolicy(t *testing.T) {
 	nonKubeSystemEntries = []*iptm.IptEntry{
 		&iptm.IptEntry{
 			Chain: util.IptablesAzureIngressPortChain,
-			Specs: []string{
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("app:frontend"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAzureIngressFromChain,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-app:frontend-TO-JUMP-TO-" +
-				util.IptablesAzureIngressFromChain,
-			},
-		},
-		&iptm.IptEntry{
-			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,

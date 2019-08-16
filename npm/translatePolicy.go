@@ -86,35 +86,14 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 	labelsWithOps, _, _ := parseSelector(&targetSelector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
-	sets = append(sets, labels...)
 	// targetSelector is empty. Select all pods within the namespace
 	if len(ops) == 0 && len(labels) == 0 {
 		ops = append(ops, "")
 		labels = append(labels, "ns-" + ns)
 	}
+	sets = append(sets, labels...)
 	targetSelectorIptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ops, labels, util.IptablesDstFlag, false)
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(&targetSelector, false)
-	
-	// Allow all ingress
-	if len(rules) == 0 {
-		lists = append(lists, util.KubeAllNamespacesFlag)
-		
-		entry := &iptm.IptEntry{
-			Chain: util.IptablesAzureIngressPortChain,
-			Specs: targetSelectorIptEntrySpec,
-		}
-		entry.Specs = append(
-			entry.Specs,
-			util.IptablesJumpFlag,
-			util.IptablesAccept,
-			util.IptablesModuleFlag,
-			util.IptablesCommentModuleFlag,
-			util.IptablesCommentFlag,
-			"ALLOW-ALL-TO-" + targetSelectorComment,
-		)
-
-		entries = append(entries, entry)
-	}
 	
 	for _, rule := range rules {
 		// parse Ports field
@@ -155,6 +134,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			)
 
 			entries = append(entries, entry)
+			lists = append(lists, util.KubeAllNamespacesFlag)
 			continue
 		}
 
@@ -474,6 +454,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			)
 
 			entries = append(entries, entry)
+			lists = append(lists, util.KubeAllNamespacesFlag)
 			continue
 		}
 
