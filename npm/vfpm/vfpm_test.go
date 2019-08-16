@@ -38,9 +38,9 @@ func TestCreateNLTag(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestCreateNLTag failed @ getPorts")
+		t.Errorf("TestCreateNLTag failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -64,9 +64,9 @@ func TestDeleteNLTag(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestDeleteNLTag failed @ getPorts")
+		t.Errorf("TestDeleteNLTag failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -94,9 +94,9 @@ func TestAddToNLTag(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestAddToNLTag failed @ getPorts")
+		t.Errorf("TestAddToNLTag failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -120,9 +120,9 @@ func TestDeleteFromNLTag(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestDeleteFromTag failed @ getPorts")
+		t.Errorf("TestDeleteFromTag failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -150,9 +150,9 @@ func TestCreateTag(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestCreateTag failed @ getPorts")
+		t.Errorf("TestCreateTag failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -176,9 +176,9 @@ func TestDeleteTag(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestDeleteTag failed @ getPorts")
+		t.Errorf("TestDeleteTag failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -206,9 +206,9 @@ func TestAddToTag(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestAddToTag failed @ getPorts")
+		t.Errorf("TestAddToTag failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -232,9 +232,9 @@ func TestDeleteFromTag(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestDeleteFromTag failed @ getPorts")
+		t.Errorf("TestDeleteFromTag failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -262,9 +262,9 @@ func TestTagClean(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestTagClean failed @ getPorts")
+		t.Errorf("TestTagClean failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -292,9 +292,9 @@ func TestTagDestroy(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestTagDestroy failed @ getPorts")
+		t.Errorf("TestTagDestroy failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -340,9 +340,9 @@ func TestRuleExists(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestRuleExists failed @ getPorts")
+		t.Errorf("TestRuleExists failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -350,12 +350,12 @@ func TestRuleExists(t *testing.T) {
 	}
 
 	rule := &Rule{
-		name:     "test",
-		group:    util.NPMIngressGroup,
-		srcIPs:   "1.1.1.1",
-		dstIPs:   "2.2.2.2",
-		priority: "0",
-		action:   "allow",
+		Name:     "test",
+		Group:    util.NPMIngressGroup,
+		SrcIPs:   "1.1.1.1",
+		DstIPs:   "2.2.2.2",
+		Priority: 0,
+		Action:   "allow",
 	}
 
 	if _, err := rMgr.Exists(rule, ports[len(ports)-1]); err != nil {
@@ -375,9 +375,9 @@ func TestAdd(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestAdd failed @ getPorts")
+		t.Errorf("TestAdd failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -389,12 +389,12 @@ func TestAdd(t *testing.T) {
 	}
 
 	rule := &Rule{
-		name:     "test",
-		group:    util.NPMIngressGroup,
-		srcIPs:   "1.1.1.1",
-		dstIPs:   "2.2.2.2",
-		priority: "0",
-		action:   "allow",
+		Name:     "test",
+		Group:    util.NPMIngressGroup,
+		SrcIPs:   "1.1.1.1",
+		DstIPs:   "2.2.2.2",
+		Priority: 0,
+		Action:   "allow",
 	}
 
 	if err := rMgr.Add(rule, ports[len(ports)-1]); err != nil {
@@ -418,9 +418,9 @@ func TestDelete(t *testing.T) {
 		}
 	}()
 
-	ports, err := getPorts()
+	ports, err := GetPorts()
 	if err != nil {
-		t.Errorf("TestDelete failed @ getPorts")
+		t.Errorf("TestDelete failed @ GetPorts")
 	}
 	if len(ports) == 0 {
 		t.Logf("No container ports found.")
@@ -432,12 +432,12 @@ func TestDelete(t *testing.T) {
 	}
 
 	rule := &Rule{
-		name:     "test",
-		group:    util.NPMIngressGroup,
-		srcIPs:   "1.1.1.1",
-		dstIPs:   "2.2.2.2",
-		priority: "0",
-		action:   "allow",
+		Name:     "test",
+		Group:    util.NPMIngressGroup,
+		SrcIPs:   "1.1.1.1",
+		DstIPs:   "2.2.2.2",
+		Priority: 0,
+		Action:   "allow",
 	}
 
 	if err := rMgr.Add(rule, ports[len(ports)-1]); err != nil {

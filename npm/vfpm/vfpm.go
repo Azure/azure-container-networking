@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"strcnv"
 	"unicode"
 
 	"github.com/kalebmorris/azure-container-networking/log"
@@ -354,6 +355,7 @@ func (tMgr *TagManager) Destroy() error {
 	return nil
 }
 
+// GetPortByMAC retrieves the name of a port by its corresponding MAC address.
 func GetPortByMAC(MAC string) (string, error) {
 	// List all of the ports.
 	listCmd := exec.Command(util.VFPCmd, util.ListPortCmd)
@@ -774,7 +776,7 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 
 	params := rule.Name + " " + rule.Name + " " + srcTags + " " + dstTags +
 		" 6 " + srcIPs + " " + srcPrts + " " + dstIPs + " " + dstPrts +
-		" 0 0 " + rule.Priority + " " + rule.Action
+		" 0 0 " + strconv.Itoa(rule.Priority) + " " + rule.Action
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.Group, util.AddTagRuleCmd, params)
 	err = addCmd.Run()
 	if err != nil {
