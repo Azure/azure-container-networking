@@ -33,7 +33,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 
 	var err error
 
-	podNs := podObj.ObjectMeta.Namespace
+	podNs := "ns-" + podObj.ObjectMeta.Namespace
 	podName := podObj.ObjectMeta.Name
 	podNodeName := podObj.Spec.NodeName
 	podLabels := podObj.ObjectMeta.Labels
@@ -44,7 +44,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Add the pod to its namespace's ipset.
 	log.Printf("Adding pod %s to ipset %s", podIP, podNs)
-	if err = ipsMgr.AddToSet("ns-" + podNs, podIP); err != nil {
+	if err = ipsMgr.AddToSet(podNs, podIP); err != nil {
 		log.Errorf("Error: failed to add pod to namespace ipset.")
 		return err
 	}
@@ -129,7 +129,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 
 	var err error
 
-	podNs := podObj.ObjectMeta.Namespace
+	podNs := "ns-" + podObj.ObjectMeta.Namespace
 	podName := podObj.ObjectMeta.Name
 	podNodeName := podObj.Spec.NodeName
 	podLabels := podObj.ObjectMeta.Labels

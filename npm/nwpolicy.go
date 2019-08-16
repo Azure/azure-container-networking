@@ -29,7 +29,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		ns  *namespace
 	)
 
-	npNs, npName := npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
+	npNs, npName := "ns-" + npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY CREATING: %v", npObj)
 
 	var exists bool
