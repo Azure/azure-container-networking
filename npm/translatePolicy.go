@@ -715,8 +715,9 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 
 // Allow traffic from/to kube-system pods
 func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) []*iptm.IptEntry {
-	var entries []*iptm.IptEntry	
-	hashedKubeSystemSet := util.GetHashedName(util.KubeSystemFlag)
+	var entries []*iptm.IptEntry
+	hashedKubeSystemSet := util.GetHashedName("ns-" + util.KubeSystemFlag)
+	targetSelectorComment := craftPartialIptablesCommentFromSelector(&targetSelector, false)
 	allowKubeSystemIngress := &iptm.IptEntry{
 		Chain: util.IptablesAzureChain,
 		Specs: []string{
@@ -727,6 +728,11 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 			util.IptablesSrcFlag,
 			util.IptablesJumpFlag,
 			util.IptablesAccept,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			"ALLOW-" + "ns-" + util.KubeSystemFlag + 
+			"-TO-" + targetSelectorComment,
 		},
 	}
 	entries = append(entries, allowKubeSystemIngress)
@@ -741,6 +747,11 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 			util.IptablesDstFlag,
 			util.IptablesJumpFlag,
 			util.IptablesAccept,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			"ALLOW-" + targetSelectorComment +
+			"-TO-" + "ns-" + util.KubeSystemFlag,
 		},
 	}
 	entries = append(entries, allowKubeSystemEgress)

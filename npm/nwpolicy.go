@@ -10,8 +10,12 @@ import (
 )
 
 func (npMgr *NetworkPolicyManager) canCleanUpNpmChains() bool {
+	if !npMgr.isSafeToCleanUpAzureNpmChain {
+		return false
+	}
+
 	for _, ns := range npMgr.nsMap {
-		if len(ns.rawNpMap) > 0 {
+		if len(ns.processedNpMap) > 0 {
 			return false
 		}
 	}
@@ -70,9 +74,11 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		if err != nil {
 			log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
 		}
+		npMgr.isSafeToCleanUpAzureNpmChain = false
 		npMgr.Unlock()
 		npMgr.DeleteNetworkPolicy(oldPolicy)
 		npMgr.Lock()
+		npMgr.isSafeToCleanUpAzureNpmChain = true
 	} else {
 		ns.processedNpMap[hashedSelector] = npObj
 	}
@@ -141,16 +147,16 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		ns  *namespace
 	)
 
-	npName := npObj.ObjectMeta.Name
+	npNs, npName := "ns-" + npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY DELETING: %v", npObj)
 
 	var exists bool
-	if ns, exists = npMgr.nsMap[npName]; !exists {
+	if ns, exists = npMgr.nsMap[npNs]; !exists {
 		ns, err = newNs(npName)
 		if err != nil {
-			log.Printf("Error creating namespace %s", npName)
+			log.Printf("Error creating namespace %s", npNs)
 		}
-		npMgr.nsMap[npName] = ns
+		npMgr.nsMap[npNs] = ns
 	}
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
@@ -167,12 +173,18 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 
 	hashedSelector := HashSelector(&npObj.Spec.PodSelector)
 	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
-		ns.processedNpMap[hashedSelector], err = deductPolicy(oldPolicy, npObj)
+		deductedPolicy, err := deductPolicy(oldPolicy, npObj)
 		if err != nil {
 			log.Printf("Error deducting policy %s from %s", npName, oldPolicy.ObjectMeta.Name)
 		}
-	}
 		
+		if deductedPolicy == nil {
+			delete(ns.processedNpMap, hashedSelector)
+		} else {
+			ns.processedNpMap[hashedSelector] = deductedPolicy
+		}
+	}
+	
 	if npMgr.canCleanUpNpmChains() {
 		if err = iptMgr.UninitNpmChains(); err != nil {
 			log.Errorf("Error: failed to uninitialize azure-npm chains.")

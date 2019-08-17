@@ -48,6 +48,7 @@ type NetworkPolicyManager struct {
 	nodeName               string
 	nsMap                  map[string]*namespace
 	isAzureNpmChainCreated bool
+	isSafeToCleanUpAzureNpmChain bool
 
 	clusterState  telemetry.ClusterState
 	reportManager *telemetry.ReportManager
@@ -219,6 +220,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		nodeName:               os.Getenv("HOSTNAME"),
 		nsMap:                  make(map[string]*namespace),
 		isAzureNpmChainCreated: false,
+		isSafeToCleanUpAzureNpmChain: false,
 		clusterState: telemetry.ClusterState{
 			PodCount:      0,
 			NsCount:       0,

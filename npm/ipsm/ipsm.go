@@ -119,6 +119,10 @@ func (ipsMgr *IpsetManager) DeleteList(listName string) error {
 
 // AddToList inserts an ipset to an ipset list.
 func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
+	if listName == setName {
+		return nil
+	}
+
 	if ipsMgr.Exists(listName, setName, util.IpsetSetListFlag) {
 		return nil
 	}

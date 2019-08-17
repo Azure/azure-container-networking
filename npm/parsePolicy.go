@@ -103,6 +103,10 @@ func deductPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPo
 		return nil, fmt.Errorf("Old and new networkpolicy don't have apply to the same set of target pods")
 	}
 
+	if reflect.DeepEqual(old.Spec, new.Spec) {
+		return nil, nil
+	}
+
 	deductedPolicy := &networkingv1.NetworkPolicy{
 		TypeMeta: old.TypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
@@ -134,9 +138,11 @@ func deductPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPo
 		}
 	}
 
+	/*
 	if len(deductedIngress) == 0 && len(deductedEgress) == 0 {
 		return nil, nil
 	}
+	*/
 
 	deductedPolicy.Spec.Ingress = deductedIngress
 	deductedPolicy.Spec.Egress = deductedEgress
