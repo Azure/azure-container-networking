@@ -513,13 +513,13 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			}
 		} else {
 			entry := &iptm.IptEntry{
-				Chain: util.IptablesAzureEgressToChain,
+				Chain: util.IptablesAzureEgressPortChain,
 			}
 			entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
 			entry.Specs = append(
 				entry.Specs,
 				util.IptablesJumpFlag,
-				util.IptablesAzureEgressToChain,
+				util.IptablesAzureEgressPortChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
