@@ -120,7 +120,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	delete(allNs.npMap, npName)
 
 	if len(allNs.npMap) == 0 {
-		if err = rMgr.UninitNPMLayer(); err != nil {
+		if err = rMgr.UnInitAzureNPMLayer(); err != nil {
 			log.Errorf("Error: failed to uninitialize azure-npm vfp layer.")
 			return err
 		}
