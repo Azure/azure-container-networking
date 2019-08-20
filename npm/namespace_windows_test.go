@@ -26,12 +26,21 @@ func TestAllNsList(t *testing.T) {
 		}
 	}()
 
-	if err := npMgr.InitAllNsList(); err != nil {
-		t.Errorf("TestAllNsList failed @ InitAllNsList")
+	ports, err := vfpm.GetPorts()
+	if err != nil {
+		t.Errorf("TestAllNsList failed @ GetPorts")
 	}
 
-	if err := npMgr.UninitAllNsList(); err != nil {
-		t.Errorf("TestAllNsList failed @ UninitAllNsList")
+	for _, port := range ports {
+		if err := npMgr.InitAllNsList(port); err != nil {
+			t.Errorf("TestAllNsList failed @ InitAllNsList")
+		}
+	}
+
+	for _, port := range ports {
+		if err := npMgr.UninitAllNsList(); err != nil {
+			t.Errorf("TestAllNsList failed @ UninitAllNsList")
+		}
 	}
 }
 
