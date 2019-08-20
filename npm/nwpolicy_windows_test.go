@@ -5,7 +5,7 @@ package npm
 import (
 	"testing"
 
-	"github.com/kalebmorris/azure-container-networking/npm/hcnm"
+	"github.com/kalebmorris/azure-container-networking/npm/vfpm"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
 	"github.com/kalebmorris/azure-container-networking/telemetry"
 
@@ -31,19 +31,19 @@ func TestAddNetworkPolicy(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	aclMgr := hcnm.NewACLPolicyManager()
-	if err := aclMgr.Save(util.ACLTestConfigFile); err != nil {
-		t.Errorf("TestAddNetworkPolicy failed @ aclMgr.Save")
+	rMgr := vfpm.NewRuleManager()
+	if err := rMgr.Save(util.RuleTestConfigFile); err != nil {
+		t.Errorf("TestAddNetworkPolicy failed @ rMgr.Save")
 	}
 
-	tMgr := hcnm.NewTagManager()
+	tMgr := vfpm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestAddNetworkPolicy failed @ tMgr.Save")
 	}
 
 	defer func() {
-		if err := aclMgr.Restore(util.ACLTestConfigFile); err != nil {
-			t.Errorf("TestAddNetworkPolicy failed @ aclMgr.Restore")
+		if err := rMgr.Restore(util.RuleTestConfigFile); err != nil {
+			t.Errorf("TestAddNetworkPolicy failed @ rMgr.Restore")
 		}
 
 		if err := tMgr.Restore(util.TagTestConfigFile); err != nil {
@@ -110,23 +110,23 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	aclMgr := hcnm.NewACLPolicyManager()
-	if err := aclMgr.Save(util.ACLTestConfigFile); err != nil {
-		t.Errorf("UpdateAddNetworkPolicy failed @ aclMgr.Save")
+	rMgr := vfpm.NewRuleManager()
+	if err := rMgr.Save(util.RuleTestConfigFile); err != nil {
+		t.Errorf("TestUpdateNetworkPolicy failed @ rMgr.Save")
 	}
 
-	tMgr := hcnm.NewTagManager()
+	tMgr := vfpm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
-		t.Errorf("UpdateAddNetworkPolicy failed @ tMgr.Save")
+		t.Errorf("TestUpdateNetworkPolicy failed @ tMgr.Save")
 	}
 
 	defer func() {
-		if err := aclMgr.Restore(util.ACLTestConfigFile); err != nil {
-			t.Errorf("UpdateAddNetworkPolicy failed @ aclMgr.Restore")
+		if err := rMgr.Restore(util.RuleTestConfigFile); err != nil {
+			t.Errorf("TestUpdateNetworkPolicy failed @ rMgr.Restore")
 		}
 
 		if err := tMgr.Restore(util.TagTestConfigFile); err != nil {
-			t.Errorf("UpdateAddNetworkPolicy failed @ tMgr.Restore")
+			t.Errorf("TestUpdateNetworkPolicy failed @ tMgr.Restore")
 		}
 	}()
 
@@ -140,7 +140,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	}
 
 	if err := npMgr.AddNamespace(nsObj); err != nil {
-		t.Errorf("TestAddNetworkPolicy @ npMgr.AddNamespace")
+		t.Errorf("TestUpdateNetworkPolicy @ npMgr.AddNamespace")
 	}
 
 	tcp, udp := corev1.ProtocolTCP, corev1.ProtocolUDP
@@ -217,19 +217,19 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	aclMgr := hcnm.NewACLPolicyManager()
-	if err := aclMgr.Save(util.ACLTestConfigFile); err != nil {
-		t.Errorf("TestDeleteNetworkPolicy failed @ aclMgr.Save")
+	rMgr := vfpm.NewRuleManager()
+	if err := rMgr.Save(util.RuleTestConfigFile); err != nil {
+		t.Errorf("TestDeleteNetworkPolicy failed @ rMgr.Save")
 	}
 
-	tMgr := hcnm.NewTagManager()
+	tMgr := vfpm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestDeleteNetworkPolicy failed @ tMgr.Save")
 	}
 
 	defer func() {
-		if err := aclMgr.Restore(util.ACLTestConfigFile); err != nil {
-			t.Errorf("TestDeleteNetworkPolicy failed @ aclMgr.Restore")
+		if err := rMgr.Restore(util.RuleTestConfigFile); err != nil {
+			t.Errorf("TestDeleteNetworkPolicy failed @ rMgr.Restore")
 		}
 
 		if err := tMgr.Restore(util.TagTestConfigFile); err != nil {
