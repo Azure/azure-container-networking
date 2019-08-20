@@ -96,7 +96,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 				return err
 			}
 
-			labelKey := podNs + "-" + podLabelKey + ":" + podLabelVal
+			labelKey = podNs + "-" + podLabelKey + ":" + podLabelVal
 			if err = tMgr.AddToTag(labelKey, podIP, portName); err != nil {
 				log.Errorf("Error: failed to add pod %s to tag %s on port %s.", podIP, labelKey, portName)
 				return err
@@ -162,7 +162,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 				return err
 			}
 
-			labelKey := podNs + "-" + podLabelKey + ":" + podLabelVal
+			labelKey = podNs + "-" + podLabelKey + ":" + podLabelVal
 			if err = tMgr.DeleteFromTag(labelKey, podIP, portName); err != nil {
 				log.Errorf("Error: failed to delete pod %s from tag %s on port %s.", podIP, labelKey, portName)
 				return err
