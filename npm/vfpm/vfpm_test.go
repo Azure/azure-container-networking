@@ -308,6 +308,14 @@ func TestTagDestroy(t *testing.T) {
 	if err := tMgr.Destroy(); err != nil {
 		t.Errorf("TestTagDestroy failed @ tMgr.Destroy")
 	}
+
+	tags, _, err := GetTags(ports[len(ports)-1])
+	if err != nil {
+		t.Errorf("TestTagDestroy failed @ GetTags")
+	}
+	if len(tags) != 0 {
+		t.Errorf("TestTagDestroy failed @ tMgr.Destroy")
+	}
 }
 
 func TestRuleSave(t *testing.T) {

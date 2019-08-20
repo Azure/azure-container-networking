@@ -5,7 +5,6 @@ package npm
 import (
 	"testing"
 
-	"github.com/kalebmorris/azure-container-networking/npm/vfpm"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
 	"github.com/kalebmorris/azure-container-networking/telemetry"
 
@@ -31,12 +30,12 @@ func TestAddNetworkPolicy(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	rMgr := vfpm.NewRuleManager()
+	rMgr := allNs.rMgr
 	if err := rMgr.Save(util.RuleTestConfigFile); err != nil {
 		t.Errorf("TestAddNetworkPolicy failed @ rMgr.Save")
 	}
 
-	tMgr := vfpm.NewTagManager()
+	tMgr := allNs.tMgr
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestAddNetworkPolicy failed @ tMgr.Save")
 	}
@@ -110,12 +109,12 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	rMgr := vfpm.NewRuleManager()
+	rMgr := allNs.rMgr
 	if err := rMgr.Save(util.RuleTestConfigFile); err != nil {
 		t.Errorf("TestUpdateNetworkPolicy failed @ rMgr.Save")
 	}
 
-	tMgr := vfpm.NewTagManager()
+	tMgr := allNs.tMgr
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestUpdateNetworkPolicy failed @ tMgr.Save")
 	}
@@ -217,12 +216,12 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	rMgr := vfpm.NewRuleManager()
+	rMgr := allNs.rMgr
 	if err := rMgr.Save(util.RuleTestConfigFile); err != nil {
 		t.Errorf("TestDeleteNetworkPolicy failed @ rMgr.Save")
 	}
 
-	tMgr := vfpm.NewTagManager()
+	tMgr := allNs.tMgr
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestDeleteNetworkPolicy failed @ tMgr.Save")
 	}

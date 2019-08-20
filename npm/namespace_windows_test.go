@@ -5,8 +5,8 @@ package npm
 import (
 	"testing"
 
-	"github.com/kalebmorris/azure-container-networking/npm/vfpm"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/npm/vfpm"
 	"github.com/kalebmorris/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,7 +60,7 @@ func TestAddNamespace(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := vfpm.NewTagManager()
+	tMgr := allNs.tMgr
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestAddNamespace failed @ tMgr.Save")
 	}
@@ -101,7 +101,7 @@ func TestUpdateNamespace(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := vfpm.NewTagManager()
+	tMgr := allNs.tMgr
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestUpdateNamespace failed @ tMgr.Save")
 	}
@@ -155,7 +155,7 @@ func TestDeleteNamespace(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := vfpm.NewTagManager()
+	tMgr := allNs.tMgr
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestDeleteNamespace failed @ tMgr.Save")
 	}
