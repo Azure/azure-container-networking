@@ -6,8 +6,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
-	"strcnv"
 	"unicode"
 
 	"github.com/kalebmorris/azure-container-networking/log"
@@ -175,7 +175,7 @@ func (tMgr *TagManager) DeleteFromNLTag(nlTagName string, tagName string, portNa
 	return nil
 }
 
-// GetFromNLTag retrieves the elements from the provided nlTag. 
+// GetFromNLTag retrieves the elements from the provided nlTag.
 func (tMgr *TagManager) GetFromNLTag(nlTagName, portName string) string {
 	key := nlTagName + " " + portName
 	nlTag, exists := tMgr.nlTagMap[key]
@@ -671,26 +671,22 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 
 	groupsList := []string{
 		util.NPMIngressGroup,
-		util.NPMIngressPortGroup,
-		util.NPMIngressFromGroup,
+		util.NPMIngressDefaultGroup,
 		util.NPMEgressGroup,
-		util.NPMEgressPortGroup,
-		util.NPMEgressToGroup,
+		util.NPMEgressDefaultGroup,
 	}
 
 	prioritiesList := []string{
 		util.NPMIngressPriority,
-		util.NPMIngressPortPriority,
-		util.NPMIngressFromPriority,
+		util.NPMIngressDefaultPriority,
 		util.NPMEgressPriority,
-		util.NPMEgressPortPriority,
-		util.NPMEgressToPriority,
+		util.NPMEgressDefaultPriority,
 	}
 
 	// Add all of the NPM groups.
 	for i := 0; i < len(groupsList); i++ {
 		var dir string
-		if i < 3 {
+		if i < 2 {
 			dir = util.DirectionIn
 		} else {
 			dir = util.DirectionOut
@@ -786,7 +782,7 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 
 	params := rule.Name + " " + rule.Name + " " + srcTags + " " + dstTags +
 		" 6 " + srcIPs + " " + srcPrts + " " + dstIPs + " " + dstPrts +
-		" 0 0 " + strconv.Itoa(rule.Priority) + " " + rule.Action
+		" 0 0 " + strconv.FormatUint(uint64(rule.Priority), 10) + " " + rule.Action
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.Group, util.AddTagRuleCmd, params)
 	err = addCmd.Run()
 	if err != nil {
@@ -1031,9 +1027,14 @@ func (rMgr *RuleManager) Restore(configFile string) error {
 
 				// Get rule priority.
 				idx = strings.Index(ruleStr, "\t\t\tPriority: ")
-				rule.Priority = ruleStr[idx+len("\t\t\tPriority: "):]
-				idx = strings.Index(rule.Priority, "\n")
-				rule.Priority = rule.Priority[:idx]
+				priorityStr := ruleStr[idx+len("\t\t\tPriority: "):]
+				idx = strings.Index(priorityStr, "\n")
+				priority, err := strconv.ParseUint(priorityStr[:idx], 10, 16)
+				if err != nil {
+					log.Errorf("Error: failed to parse rule priority.")
+					return err
+				}
+				rule.Priority = uint16(priority)
 
 				// Get rule type.
 				idx = strings.Index(ruleStr, "\t\t\tType: ")
