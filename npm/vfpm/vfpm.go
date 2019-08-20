@@ -175,6 +175,16 @@ func (tMgr *TagManager) DeleteFromNLTag(nlTagName string, tagName string, portNa
 	return nil
 }
 
+// GetFromNLTag retrieves the elements from the provided nlTag. 
+func (tMgr *TagManager) GetFromNLTag(nlTagName, portName string) string {
+	key := nlTagName + " " + portName
+	nlTag, exists := tMgr.nlTagMap[key]
+	if exists {
+		return nlTag.elements
+	}
+	return ""
+}
+
 // CreateTag creates a tag. npm manages one Tag per pod label and one tag per namespace.
 func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 	key := tagName + " " + portName

@@ -55,8 +55,8 @@ func getPolicyTypes(npObj *networkingv1.NetworkPolicy) (bool, bool) {
 	return ingressExists, egressExists
 }
 
-// ipToInt takes a string of the form "x.y.z.w", and returns the corresponding 
-// uint32, where the 8 greatest bits represent the number x, the next 8 greatest 
+// ipToInt takes a string of the form "x.y.z.w", and returns the corresponding
+// uint32, where the 8 greatest bits represent the number x, the next 8 greatest
 // represent the number y, and so on.
 func ipToInt(ip string) (uint32, error) {
 	result := uint32(0)
@@ -72,8 +72,8 @@ func ipToInt(ip string) (uint32, error) {
 	return result, nil
 }
 
-// getRanges takes an IPBlock and returns two uint32 slices of the same length. 
-// The first contains the starts of the IP ranges that the IPBlock represents, 
+// getRanges takes an IPBlock and returns two uint32 slices of the same length.
+// The first contains the starts of the IP ranges that the IPBlock represents,
 // and the second contains the end of those ranges.
 func getRanges(ipb *networkingv1.IPBlock) ([]uint32, []uint32) {
 	idx := strings.Index(ipb.CIDR, "/")
@@ -153,14 +153,14 @@ func getRanges(ipb *networkingv1.IPBlock) ([]uint32, []uint32) {
 	return starts, ends
 }
 
-// getStrCIDR takes an ip (as a uint32) and a CIDR mask and returns 
-// the string version of that CIDR in the usual format. 
+// getStrCIDR takes an ip (as a uint32) and a CIDR mask and returns
+// the string version of that CIDR in the usual format.
 // ex: getStrCIDR(1,32) would return "0.0.0.1/32"
 func getStrCIDR(start uint32, maskNum int) string {
 	result := ""
 	for i := 3; i >= 0; i-- {
 		byteMask := (uint32(1) << 8) - 1
-		isolated := (start >> uint32(8 * i)) & byteMask
+		isolated := (start >> uint32(8*i)) & byteMask
 		result += strconv.FormatUint(uint64(isolated), 10)
 		if i != 0 {
 			result += "."
@@ -172,7 +172,7 @@ func getStrCIDR(start uint32, maskNum int) string {
 	return result
 }
 
-// getCIDRs takes an IPBlock and returns a comma-separated string 
+// getCIDRs takes an IPBlock and returns a comma-separated string
 // of the CIDRS it represents.
 func getCIDRs(ipb *networkingv1.IPBlock) string {
 	var cidrs []string
@@ -181,7 +181,7 @@ func getCIDRs(ipb *networkingv1.IPBlock) string {
 		for {
 			needToGo := ends[i] - starts[i] + 1
 			maskNum := 32 - bits.TrailingZeros32(starts[i])
-			canGo := uint32(1) << uint32(32 - maskNum)
+			canGo := uint32(1) << uint32(32-maskNum)
 			for canGo > needToGo {
 				canGo /= 2
 				maskNum++
@@ -200,7 +200,171 @@ func getCIDRs(ipb *networkingv1.IPBlock) string {
 	return strings.Join(cidrs, ",")
 }
 
-func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string) ([]string, []string, []*vfpm.Rule) {
+// getAffectedNamespaces gathers the namespaces selected by matchLabels, and also returns the NLTags affected.
+func getAffectedNamespaces(matchLabels map[string]string, tMgr *vfpm.TagManager) ([]string, []string) {
+	var affectedNamespaces []string
+	var NLTags []string
+	for key, val := range matchLabels {
+		labelNLTag := util.GetNsIpsetName(key, val)
+		NLTags = append(NLTags, labelNLTag)
+		ports, err := vfpm.GetPorts()
+		if err != nil {
+			return nil, nil
+		}
+		for _, port := range ports {
+			elementStr := tMgr.GetFromNLTag(labelNLTag, port)
+			elements := strings.Split(elementStr, ",")
+			for _, element := range elements {
+				if element == "" {
+					continue
+				}
+				affectedNamespaces = append(affectedNamespaces, element)
+			}
+		}
+	}
+	return util.UniqueStrSlice(affectedNamespaces), util.UniqueStrSlice(NLTags)
+}
+
+// getSourceRules gets rules according to the from rules in "from".
+func getSourceRules(from []networkingv1.NetworkPolicyPeer, ns string, dest string, tMgr *vfpm.TagManager) ([]string, []string, []*vfpm.Rule) {
+	var (
+		ingressTags   []string
+		ingressNLTags []string
+		ingressRules  []*vfpm.Rule
+	)
+	for _, source := range from {
+		if source.IPBlock != nil {
+			// Add IPBlock rules.
+			cidrs := getCIDRs(source.IPBlock)
+			cidrsRule := &vfpm.Rule{
+				Name:     util.GetHashedName(dest + "-ip-" + cidrs),
+				Group:    util.NPMIngressGroup,
+				DstTags:  dest,
+				SrcIPs:   cidrs,
+				Priority: 0,
+				Action:   util.Allow,
+			}
+			ingressRules = append(ingressRules, cidrsRule)
+		} else {
+			// Add namespace and pod selector rules.
+			var allNamespaces, allPods bool
+			if source.NamespaceSelector != nil && source.PodSelector != nil {
+				if len(source.NamespaceSelector.MatchLabels) == 0 {
+					allNamespaces = true
+				}
+				if len(source.PodSelector.MatchLabels) == 0 {
+					allPods = true
+				}
+
+				if allNamespaces && allPods {
+					// Add a rule to allow all ingress traffic to the target tag.
+					allowAllRule := &vfpm.Rule{
+						Name:     util.GetHashedName(dest + "-allow-all"),
+						Group:    util.NPMIngressGroup,
+						DstTags:  dest,
+						Priority: 0,
+						Action:   util.Allow,
+					}
+					ingressRules = append(ingressRules, allowAllRule)
+				} else if allNamespaces {
+					// Add rules to allow ingress traffic from select labels.
+					for key, val := range source.PodSelector.MatchLabels {
+						labelTag := util.KubeAllNamespacesFlag + "-" + key + ":" + val
+						hashedLabelTag := util.GetHashedName(labelTag)
+						allowLabelRule := &vfpm.Rule{
+							Name:     util.GetHashedName(dest + "-" + labelTag),
+							Group:    util.NPMIngressGroup,
+							DstTags:  dest,
+							SrcTags:  hashedLabelTag,
+							Priority: 0,
+							Action:   util.Allow,
+						}
+						ingressRules = append(ingressRules, allowLabelRule)
+						ingressTags = append(ingressTags, labelTag)
+					}
+				} else if allPods {
+					// Add rules to allow ingress traffic from select namespaces.
+					var newNLTags []string
+					affectedNamespaces, newNLTags := getAffectedNamespaces(source.NamespaceSelector.MatchLabels, tMgr)
+					for _, ns := range affectedNamespaces {
+						hashedNs := util.GetHashedName(ns)
+						allowNsRule := &vfpm.Rule{
+							Name:     util.GetHashedName(dest + "-" + ns),
+							Group:    util.NPMIngressGroup,
+							DstTags:  dest,
+							SrcTags:  hashedNs,
+							Priority: 0,
+							Action:   util.Allow,
+						}
+						ingressRules = append(ingressRules, allowNsRule)
+					}
+					ingressNLTags = append(ingressNLTags, newNLTags...)
+				} else {
+					// Add rules to allow ingress traffic from select namespaces and select pod label groups.
+					var newNLTags []string
+					affectedNamespaces, newNLTags := getAffectedNamespaces(source.NamespaceSelector.MatchLabels, tMgr)
+					for key, val := range source.PodSelector.MatchLabels {
+						for _, ns := range affectedNamespaces {
+							labelTag := ns + "-" + key + ":" + val
+							hashedLabelTag := util.GetHashedName(labelTag)
+							allowLabelRule := &vfpm.Rule{
+								Name:     util.GetHashedName(dest + "-" + labelTag),
+								Group:    util.NPMIngressGroup,
+								DstTags:  dest,
+								SrcTags:  hashedLabelTag,
+								Priority: 0,
+								Action:   util.Allow,
+							}
+							ingressRules = append(ingressRules, allowLabelRule)
+							ingressTags = append(ingressTags, labelTag)
+						}
+					}
+					ingressNLTags = append(ingressNLTags, newNLTags...)
+				}
+			} else if source.NamespaceSelector != nil {
+				// Add rules to allow ingress traffic from select namespaces.
+				var newNLTags []string
+				affectedNamespaces, newNLTags := getAffectedNamespaces(source.NamespaceSelector.MatchLabels, tMgr)
+				for _, ns := range affectedNamespaces {
+					hashedNs := util.GetHashedName(ns)
+					allowNsRule := &vfpm.Rule{
+						Name:     util.GetHashedName(dest + "-" + ns),
+						Group:    util.NPMIngressGroup,
+						DstTags:  dest,
+						SrcTags:  hashedNs,
+						Priority: 0,
+						Action:   util.Allow,
+					}
+					ingressRules = append(ingressRules, allowNsRule)
+				}
+				ingressNLTags = append(ingressNLTags, newNLTags...)
+				ingressNLTags = append(ingressNLTags, util.KubeAllNamespacesFlag)
+			} else if source.PodSelector != nil {
+				// Add rules to allow ingress traffic from select pods in the network policy's namespace.
+				for key, val := range source.PodSelector.MatchLabels {
+					labelTag := ns + "-" + key + ":" + val
+					hashedLabelTag := util.GetHashedName(labelTag)
+					allowLabelRule := &vfpm.Rule{
+						Name:     util.GetHashedName(dest + "-" + labelTag),
+						Group:    util.NPMIngressGroup,
+						DstTags:  dest,
+						SrcTags:  hashedLabelTag,
+						Priority: 0,
+						Action:   util.Allow,
+					}
+					ingressRules = append(ingressRules, allowLabelRule)
+					ingressTags = append(ingressTags, labelTag)
+				}
+				ingressTags = append(ingressTags, ns)
+			}
+		}
+	}
+
+	return ingressTags, ingressNLTags, ingressRules
+}
+
+// parseIngress parses npObj for ingress rules.
+func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string, tMgr *vfpm.TagManager) ([]string, []string, []*vfpm.Rule) {
 	var (
 		ingressTags   []string
 		ingressNLTags []string
@@ -213,7 +377,7 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string) ([]str
 
 		// Add default deny rule.
 		drop := &vfpm.Rule{
-			Name:     hashedTag + "-drop",
+			Name:     util.GetHashedName(targetTag + "-drop"),
 			Group:    util.NPMIngressDefaultGroup,
 			DstTags:  hashedTag,
 			Priority: ^uint16(0), // max uint16
@@ -223,7 +387,7 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string) ([]str
 
 		// Add kube-system allow rule.
 		kubeSysAllow := &vfpm.Rule{
-			Name:     hashedTag + "-kube-system-allow",
+			Name:     util.GetHashedName(targetTag + "-kube-system-allow"),
 			Group:    util.NPMIngressDefaultGroup,
 			DstTags:  hashedTag,
 			SrcTags:  hashedKubeSys,
@@ -231,6 +395,7 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string) ([]str
 			Action:   util.Allow,
 		}
 		ingressRules = append(ingressRules, kubeSysAllow)
+		ingressTags = append(ingressTags, util.KubeSystemFlag)
 
 		// Process all rules.
 		for _, rule := range npObj.Spec.Ingress {
@@ -246,7 +411,7 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string) ([]str
 			if allSources && allPorts {
 				// Add allow rule.
 				allow := &vfpm.Rule{
-					Name:     hashedTag + "-allow",
+					Name:     util.GetHashedName(targetTag + "-allow"),
 					Group:    util.NPMIngressGroup,
 					DstTags:  hashedTag,
 					Priority: 0,
@@ -257,7 +422,7 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string) ([]str
 				// Add port rules.
 				for _, port := range rule.Ports {
 					portAllow := &vfpm.Rule{
-						Name:     hashedTag + "-port-" + port.Port.String(),
+						Name:     util.GetHashedName(targetTag + "-port-" + port.Port.String()),
 						Group:    util.NPMIngressGroup,
 						DstTags:  hashedTag,
 						SrcPrts:  port.Port.String(),
@@ -268,25 +433,33 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string) ([]str
 				}
 			} else if allPorts {
 				// Add source rules.
-				for _, source := range rule.From {
-					if source.IPBlock != nil {
-						// Add IPBlock rules.
-						cidrs := getCIDRs(source.IPBlock)
-						cidrsRule := &vfpm.Rule{
-							Name:     hashedTag + "-ip-" + cidrs,
-							Group:    util.NPMIngressGroup,
-							DstTags:  hashedTag,
-							SrcIPs:   cidrs,
-							Priority: 0,
-							Action:   util.Allow,
-						}
-						ingressRules = append(ingressRules, cidrsRule)
-					} else {
-
+				var (
+					newTags []string
+					newNLTags []string
+					newRules []*vfpm.Rule
+				)
+				newTags, newNLTags, newRules = getSourceRules(rule.From, npObj.ObjectMeta.Namespace, hashedTag, tMgr)
+				ingressTags = append(ingressTags, newTags...)
+				ingressNLTags = append(ingressNLTags, newNLTags...)
+				ingressRules = append(ingressRules, newRules...)
+			} else {
+				// Add rules to allow ingress traffic on the provided ports from the provided sources.
+				var (
+					newTags []string
+					newNLTags []string
+					newRules []*vfpm.Rule
+				)
+				newTags, newNLTags, newRules = getSourceRules(rule.From, npObj.ObjectMeta.Namespace, hashedTag, tMgr)
+				for _, port := range rule.Ports {
+					for _, sourceRule := range newRules {
+						allowRule := *sourceRule
+						allowRule.SrcPrts = port.Port.String()
+						allowRule.Name = util.GetHashedName(allowRule.Name + "-port-" + port.Port.String())
+						ingressRules = append(ingressRules, &allowRule)
 					}
 				}
-			} else {
-
+				ingressTags = append(ingressTags, newTags...)
+				ingressNLTags = append(ingressNLTags, newNLTags...)
 			}
 		}
 	}
@@ -294,8 +467,250 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string) ([]str
 	return ingressTags, ingressNLTags, ingressRules
 }
 
+// getDestinationRules gets rules according to the to rules in "to".
+func getDestinationRules(to []networkingv1.NetworkPolicyPeer, ns string, src string, tMgr *vfpm.TagManager) ([]string, []string, []*vfpm.Rule) {
+	var (
+		egressTags   []string
+		egressNLTags []string
+		egressRules  []*vfpm.Rule
+	)
+	for _, dest := range to {
+		if dest.IPBlock != nil {
+			// Add IPBlock rules.
+			cidrs := getCIDRs(dest.IPBlock)
+			cidrsRule := &vfpm.Rule{
+				Name:     util.GetHashedName(src + "-ip-" + cidrs),
+				Group:    util.NPMEgressGroup,
+				SrcTags:  src,
+				DstIPs:   cidrs,
+				Priority: 0,
+				Action:   util.Allow,
+			}
+			egressRules = append(egressRules, cidrsRule)
+		} else {
+			// Add namespace and pod selector rules.
+			var allNamespaces, allPods bool
+			if dest.NamespaceSelector != nil && dest.PodSelector != nil {
+				if len(dest.NamespaceSelector.MatchLabels) == 0 {
+					allNamespaces = true
+				}
+				if len(dest.PodSelector.MatchLabels) == 0 {
+					allPods = true
+				}
+
+				if allNamespaces && allPods {
+					// Add a rule to allow all egress traffic to the target tag.
+					allowAllRule := &vfpm.Rule{
+						Name:     util.GetHashedName(src + "-allow-all"),
+						Group:    util.NPMEgressGroup,
+						SrcTags:  src,
+						Priority: 0,
+						Action:   util.Allow,
+					}
+					egressRules = append(egressRules, allowAllRule)
+				} else if allNamespaces {
+					// Add rules to allow egress traffic to select labels.
+					for key, val := range dest.PodSelector.MatchLabels {
+						labelTag := util.KubeAllNamespacesFlag + "-" + key + ":" + val
+						hashedLabelTag := util.GetHashedName(labelTag)
+						allowLabelRule := &vfpm.Rule{
+							Name:     util.GetHashedName(src + "-" + labelTag),
+							Group:    util.NPMEgressGroup,
+							SrcTags:  src,
+							DstTags:  hashedLabelTag,
+							Priority: 0,
+							Action:   util.Allow,
+						}
+						egressRules = append(egressRules, allowLabelRule)
+						egressTags = append(egressTags, labelTag)
+					}
+				} else if allPods {
+					// Add rules to allow egress traffic to select namespaces.
+					var newNLTags []string
+					affectedNamespaces, newNLTags := getAffectedNamespaces(dest.NamespaceSelector.MatchLabels, tMgr)
+					for _, ns := range affectedNamespaces {
+						hashedNs := util.GetHashedName(ns)
+						allowNsRule := &vfpm.Rule{
+							Name:     util.GetHashedName(src + "-" + ns),
+							Group:    util.NPMEgressGroup,
+							SrcTags:  src,
+							DstTags:  hashedNs,
+							Priority: 0,
+							Action:   util.Allow,
+						}
+						egressRules = append(egressRules, allowNsRule)
+					}
+					egressNLTags = append(egressNLTags, newNLTags...)
+				} else {
+					// Add rules to allow egress traffic to select namespaces and select pod label groups.
+					var newNLTags []string
+					affectedNamespaces, newNLTags := getAffectedNamespaces(dest.NamespaceSelector.MatchLabels, tMgr)
+					for key, val := range dest.PodSelector.MatchLabels {
+						for _, ns := range affectedNamespaces {
+							labelTag := ns + "-" + key + ":" + val
+							hashedLabelTag := util.GetHashedName(labelTag)
+							allowLabelRule := &vfpm.Rule{
+								Name:     util.GetHashedName(src + "-" + labelTag),
+								Group:    util.NPMEgressGroup,
+								SrcTags:  src,
+								DstTags:  hashedLabelTag,
+								Priority: 0,
+								Action:   util.Allow,
+							}
+							egressRules = append(egressRules, allowLabelRule)
+							egressTags = append(egressTags, labelTag)
+						}
+					}
+					egressNLTags = append(egressNLTags, newNLTags...)
+				}
+			} else if dest.NamespaceSelector != nil {
+				// Add rules to allow egress traffic from select namespaces.
+				var newNLTags []string
+				affectedNamespaces, newNLTags := getAffectedNamespaces(dest.NamespaceSelector.MatchLabels, tMgr)
+				for _, ns := range affectedNamespaces {
+					hashedNs := util.GetHashedName(ns)
+					allowNsRule := &vfpm.Rule{
+						Name:     util.GetHashedName(src + "-" + ns),
+						Group:    util.NPMEgressGroup,
+						SrcTags:  src,
+						DstTags:  hashedNs,
+						Priority: 0,
+						Action:   util.Allow,
+					}
+					egressRules = append(egressRules, allowNsRule)
+				}
+				egressNLTags = append(egressNLTags, newNLTags...)
+				egressNLTags = append(egressNLTags, util.KubeAllNamespacesFlag)
+			} else if dest.PodSelector != nil {
+				// Add rules to allow egress traffic to select pods in the network policy's namespace.
+				for key, val := range dest.PodSelector.MatchLabels {
+					labelTag := ns + "-" + key + ":" + val
+					hashedLabelTag := util.GetHashedName(labelTag)
+					allowLabelRule := &vfpm.Rule{
+						Name:     util.GetHashedName(src + "-" + labelTag),
+						Group:    util.NPMEgressGroup,
+						SrcTags:  src,
+						DstTags:  hashedLabelTag,
+						Priority: 0,
+						Action:   util.Allow,
+					}
+					egressRules = append(egressRules, allowLabelRule)
+					egressTags = append(egressTags, labelTag)
+				}
+				egressTags = append(egressTags, ns)
+			}
+		}
+	}
+
+	return egressTags, egressNLTags, egressRules
+}
+
+// parseEgress parses npObj for Egress rules.
+func parseEgress(npObj *networkingv1.NetworkPolicy, targetTags []string, tMgr *vfpm.TagManager) ([]string, []string, []*vfpm.Rule) {
+	var (
+		egressTags   []string
+		egressNLTags []string
+		egressRules  []*vfpm.Rule
+	)
+
+	for _, targetTag := range targetTags {
+		hashedTag := util.GetHashedName(targetTag)
+		hashedKubeSys := util.GetHashedName(util.KubeSystemFlag)
+
+		// Add default deny rule.
+		drop := &vfpm.Rule{
+			Name:     util.GetHashedName(targetTag + "-drop"),
+			Group:    util.NPMEgressDefaultGroup,
+			SrcTags:  hashedTag,
+			Priority: ^uint16(0), // max uint16
+			Action:   util.Block,
+		}
+		egressRules = append(egressRules, drop)
+
+		// Add kube-system allow rule.
+		kubeSysAllow := &vfpm.Rule{
+			Name:     util.GetHashedName(targetTag + "-kube-system-allow"),
+			Group:    util.NPMEgressDefaultGroup,
+			SrcTags:  hashedTag,
+			DstTags:  hashedKubeSys,
+			Priority: 0,
+			Action:   util.Allow,
+		}
+		egressRules = append(egressRules, kubeSysAllow)
+		egressTags = append(egressTags, util.KubeSystemFlag)
+
+		// Process all rules.
+		for _, rule := range npObj.Spec.Egress {
+			// Identify special cases on destinations and ports.
+			var allDestinations, allPorts bool
+			if rule.To == nil || len(rule.To) == 0 {
+				allDestinations = true
+			}
+			if rule.Ports == nil || len(rule.Ports) == 0 {
+				allPorts = true
+			}
+
+			if allDestinations && allPorts {
+				// Add allow rule.
+				allow := &vfpm.Rule{
+					Name:     util.GetHashedName(targetTag + "-allow"),
+					Group:    util.NPMEgressGroup,
+					SrcTags:  hashedTag,
+					Priority: 0,
+					Action:   util.Allow,
+				}
+				egressRules = append(egressRules, allow)
+			} else if allDestinations {
+				// Add port rules.
+				for _, port := range rule.Ports {
+					portAllow := &vfpm.Rule{
+						Name:     util.GetHashedName(targetTag + "-port-" + port.Port.String()),
+						Group:    util.NPMEgressGroup,
+						SrcTags:  hashedTag,
+						DstPrts:  port.Port.String(),
+						Priority: 0,
+						Action:   util.Allow,
+					}
+					egressRules = append(egressRules, portAllow)
+				}
+			} else if allPorts {
+				// Add destination rules.
+				var (
+					newTags []string
+					newNLTags []string
+					newRules []*vfpm.Rule
+				)
+				newTags, newNLTags, newRules = getDestinationRules(rule.To, npObj.ObjectMeta.Namespace, hashedTag, tMgr)
+				egressTags = append(egressTags, newTags...)
+				egressNLTags = append(egressNLTags, newNLTags...)
+				egressRules = append(egressRules, newRules...)
+			} else {
+				// Add rules to allow egress traffic on the provided ports to the provided destinations.
+				var (
+					newTags []string
+					newNLTags []string
+					newRules []*vfpm.Rule
+				)
+				newTags, newNLTags, newRules = getDestinationRules(rule.To, npObj.ObjectMeta.Namespace, hashedTag, tMgr)
+				for _, port := range rule.Ports {
+					for _, destinationRule := range newRules {
+						allowRule := *destinationRule
+						allowRule.DstPrts = port.Port.String()
+						allowRule.Name = util.GetHashedName(allowRule.Name + "-port-" + port.Port.String())
+						egressRules = append(egressRules, &allowRule)
+					}
+				}
+				egressTags = append(egressTags, newTags...)
+				egressNLTags = append(egressNLTags, newNLTags...)
+			}
+		}
+	}
+
+	return egressTags, egressNLTags, egressRules
+}
+
 // parsePolicy parses network policy.
-func parsePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*vfpm.Rule) {
+func parsePolicy(npObj *networkingv1.NetworkPolicy, tMgr *vfpm.TagManager) ([]string, []string, []*vfpm.Rule) {
 	var (
 		resultTags   []string
 		resultNLTags []string
@@ -310,7 +725,7 @@ func parsePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*vfpm
 
 	// Parse ingress rules.
 	if ingressExists {
-		ingressTags, ingressNLTags, ingressRules := parseIngress(npObj, targetTags)
+		ingressTags, ingressNLTags, ingressRules := parseIngress(npObj, targetTags, tMgr)
 		resultTags = append(resultTags, ingressTags...)
 		resultNLTags = append(resultNLTags, ingressNLTags...)
 		resultRules = append(resultRules, ingressRules...)
@@ -318,7 +733,7 @@ func parsePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*vfpm
 
 	// Parse egress rules.
 	if egressExists {
-		egressTags, egressNLTags, egressRules := parseEgress(npObj, targetTags)
+		egressTags, egressNLTags, egressRules := parseEgress(npObj, targetTags, tMgr)
 		resultTags = append(resultTags, egressTags...)
 		resultNLTags = append(resultNLTags, egressNLTags...)
 		resultRules = append(resultRules, egressRules...)

@@ -34,7 +34,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		}
 	}
 
-	podTags, nsLists, rules := parsePolicy(npObj)
+	podTags, nsLists, rules := parsePolicy(npObj, allNs.tMgr)
 
 	tMgr := allNs.tMgr
 	rMgr := allNs.rMgr
@@ -78,7 +78,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	return nil
 }
 
-// DeleteNetworkPolicy handles deleting network policy from hcn.
+// DeleteNetworkPolicy handles deleting network policy from vfp.
 func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	npMgr.Lock()
 	defer npMgr.Unlock()
@@ -96,7 +96,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		return err
 	}
 
-	_, _, rules := parsePolicy(npObj)
+	_, _, rules := parsePolicy(npObj, allNs.tMgr)
 
 	rMgr := allNs.rMgr
 
