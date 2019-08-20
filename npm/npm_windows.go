@@ -41,9 +41,10 @@ type NetworkPolicyManager struct {
 	nsInformer      coreinformers.NamespaceInformer
 	npInformer      networkinginformers.NetworkPolicyInformer
 
-	nodeName  string
-	nsMap     map[string]*namespace
-	ipPortMap map[string]string
+	nodeName               string
+	nsMap                  map[string]*namespace
+	isAzureNPMLayerCreated bool
+	ipPortMap              map[string]string
 
 	clusterState  telemetry.ClusterState
 	reportManager *telemetry.ReportManager

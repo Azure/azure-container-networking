@@ -27,11 +27,19 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		return err
 	}
 
-	for _, portName := range ports {
-		if err = allNs.tMgr.CreateTag(util.KubeSystemFlag, portName); err != nil {
-			log.Errorf("Error: failed to initialize kube-system tag.")
-			return err
+	if !npMgr.isAzureNPMLayerCreated {
+		for _, portName := range ports {
+			if err = allNs.tMgr.CreateTag(util.KubeSystemFlag, portName); err != nil {
+				log.Errorf("Error: failed to initialize kube-system tag on port %s.", portName)
+				return err
+			}
+
+			if err = allNs.rMgr.InitAzureNPMLayer(portName); err != nil {
+				log.Errorf("Error: failed to initialize Azure NPM VFP layer on port %s.", portName)
+				return err
+			}
 		}
+		npMgr.isAzureNPMLayerCreated = true
 	}
 
 	podTags, nsLists, rules := parsePolicy(npObj, allNs.tMgr)
@@ -110,6 +118,14 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	}
 
 	delete(allNs.npMap, npName)
+
+	if len(allNs.npMap) == 0 {
+		if err = rMgr.UninitNPMLayer(); err != nil {
+			log.Errorf("Error: failed to uninitialize azure-npm vfp layer.")
+			return err
+		}
+		npMgr.isAzureNPMLayerCreated = false
+	}
 
 	return nil
 }

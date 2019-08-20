@@ -96,3 +96,7 @@ func TestIpToInt(t *testing.T) {
 		t.Errorf("TestIpToInt failed @ ipToInt")
 	}
 }
+
+// func TestGetRanges(t *testing.T) {
+// 	ipblock :=
+// }
