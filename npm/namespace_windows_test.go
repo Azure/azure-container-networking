@@ -38,7 +38,7 @@ func TestAllNsList(t *testing.T) {
 	}
 
 	for _, port := range ports {
-		if err := npMgr.UninitAllNsList(); err != nil {
+		if err := npMgr.UninitAllNsList(port); err != nil {
 			t.Errorf("TestAllNsList failed @ UninitAllNsList")
 		}
 	}
