@@ -193,7 +193,8 @@ func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 	}
 
 	// Add an empty tag into vfp.
-	params := tagName + " " + tagName + " " + util.IPV4 + " *"
+	hashedTag := util.GetHashedName(tagName)
+	params := hashedTag + " " + hashedTag + " " + util.IPV4 + " *"
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
 	err := addCmd.Run()
 	if err != nil {
@@ -223,7 +224,7 @@ func (tMgr *TagManager) DeleteTag(tagName string, portName string) error {
 	}
 
 	// Delete tag using vfpctrl.
-	deleteCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Tag, tagName, util.RemoveTagCmd)
+	deleteCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Tag, util.GetHashedName(tagName), util.RemoveTagCmd)
 	err := deleteCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to remove tag in VFP.")
@@ -249,7 +250,8 @@ func (tMgr *TagManager) AddToTag(tagName string, ip string, portName string) err
 	}
 
 	// Add the ip to a tag.
-	params := tagName + " " + tagName + " " + util.IPV4 + " " + tMgr.tagMap[key].elements + ip + ","
+	hashedTag := util.GetHashedName(tagName)
+	params := hashedTag + " " + hashedTag + " " + util.IPV4 + " " + tMgr.tagMap[key].elements + ip + ","
 	replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
 	err := replaceCmd.Run()
 	if err != nil {
@@ -285,7 +287,8 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, ip string, portName string
 	}
 
 	// Replace the ips in the vfp tag.
-	params := tagName + " " + tagName + " " + util.IPV4 + " " + newElements
+	hashedTag := util.GetHashedName(tagName)
+	params := hashedTag + " " + hashedTag + " " + util.IPV4 + " " + newElements
 	replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
 	err := replaceCmd.Run()
 	if err != nil {
@@ -349,7 +352,7 @@ func (tMgr *TagManager) Destroy() error {
 		}
 
 		// Delete tag using vfpctrl.
-		deleteCmd := exec.Command(util.VFPCmd, util.Port, tagPort[1], util.Tag, tagPort[0], util.RemoveTagCmd)
+		deleteCmd := exec.Command(util.VFPCmd, util.Port, tagPort[1], util.Tag, util.GetHashedName(tagPort[0]), util.RemoveTagCmd)
 		err := deleteCmd.Run()
 		if err != nil {
 			log.Errorf("Error: failed to remove tag in VFP.")
