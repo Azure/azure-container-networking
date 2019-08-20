@@ -5,7 +5,7 @@ package npm
 import (
 	"testing"
 
-	"github.com/kalebmorris/azure-container-networking/npm/hcnm"
+	"github.com/kalebmorris/azure-container-networking/npm/vfpm"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
 	"github.com/kalebmorris/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
@@ -28,7 +28,7 @@ func TestAddPod(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hcnm.NewTagManager()
+	tMgr := vfpm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestAddPod failed @ tMgr.Save")
 	}
@@ -72,7 +72,7 @@ func TestUpdatePod(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hcnm.NewTagManager()
+	tMgr := vfpm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestUpdatePod failed @ tMgr.Save")
 	}
@@ -134,7 +134,7 @@ func TestDeletePod(t *testing.T) {
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
-	tMgr := hcnm.NewTagManager()
+	tMgr := vfpm.NewTagManager()
 	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
 		t.Errorf("TestDeletePod failed @ tMgr.Save")
 	}
