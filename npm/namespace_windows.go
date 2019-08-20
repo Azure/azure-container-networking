@@ -92,7 +92,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	for _, portName := range ports {
 		// Create tag for the namespace.
 		if err = tMgr.CreateTag(nsName, portName); err != nil {
-			log.Errorf("Error: failed to create tag for namespace %s on port %s.", nsName)
+			log.Errorf("Error: failed to create tag for namespace %s on port %s.", nsName, portName)
 			return err
 		}
 
