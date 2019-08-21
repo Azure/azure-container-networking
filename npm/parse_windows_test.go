@@ -161,7 +161,10 @@ func TestGetStrCIDR(t *testing.T) {
 	var reconstructed []string
 	for _, strCIDR := range strCIDRs {
 		arrCIDR := strings.Split(strCIDR, "/")
-		ip := ipToInt(arrCIDR[0])
+		ip, err := ipToInt(arrCIDR[0])
+		if err != nil {
+			t.Errorf("TestGetStrCIDR failed @ ipToInt")
+		}
 		maskNum64, err := strconv.ParseInt(arrCIDR[1], 10, 6)
 		if err != nil {
 			t.Errorf("TestGetStrCIDR failed @ strconv.ParseUint")
