@@ -109,15 +109,33 @@ func TestGetRanges(t *testing.T) {
 	}
 
 	starts, ends := getRanges(ipblock)
-	startsTruth := []uint32{
-		ipToInt("10.240.0.0"),
-		ipToInt("10.240.12.0"),
-		ipToInt("10.240.224.0"),
+
+	startsIPs := []string{
+		"10.240.0.0",
+		"10.240.12.0",
+		"10.240.224.0",
 	}
-	endsTruth := []uint32{
-		ipToInt("10.240.9.255"),
-		ipToInt("10.240.219.255"),
-		ipToInt("10.240.255.255"),
+	startsTruth := make([]uint32, len(startsIPs))
+	for i, ip := range startsIPs {
+		converted, err := ipToInt(ip)
+		if err != nil {
+			t.Errorf("TestGetRanges failed @ ipToInt")
+		}
+		startsTruth[i] = converted
+	}
+
+	endsIPs := []string{
+		"10.240.9.255",
+		"10.240.219.255",
+		"10.240.255.255",
+	}
+	endsTruth := make([]uint32, len(endsIPs))
+	for i, ip := range endsIPs {
+		converted, err := ipToInt(ip)
+		if err != nil {
+			t.Errorf("TestGetRanges failed @ ipToInt")
+		}
+		endsTruth[i] = converted
 	}
 
 	if !reflect.DeepEqual(starts, startsTruth) {
