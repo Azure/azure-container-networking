@@ -155,7 +155,7 @@ const (
 	AddTagCmd       string = "/add-tag"
 	IPV4            string = "ipv4"
 	IPV6            string = "ipv6"
-	ReplaceTagCmd   string = "/replace-tag"
+	ReplaceTagCmd   string = "/force-add-tag"
 	RemoveTagCmd    string = "/remove-tag"
 	RemoveAllTagCmd string = "/remove-all-tag"
 	TagLabel        string = "TAG : "

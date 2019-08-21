@@ -43,9 +43,6 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	podTags, nsLists, rules := parsePolicy(npObj, allNs.tMgr)
-	for _, podTag := range podTags {
-		log.Logf("podTag:<%s>", podTag)
-	}
 
 	tMgr := allNs.tMgr
 	rMgr := allNs.rMgr
