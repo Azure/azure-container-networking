@@ -28,7 +28,7 @@ func TestGetTargetTags(t *testing.T) {
 		},
 	}
 
-	var reconstructed map[string]string
+	reconstructed := make(map[string]string)
 	targetTags := getTargetTags(netPol)
 	for _, tag := range targetTags {
 		idx := strings.Index(tag, util.KubeAllNamespacesFlag)
