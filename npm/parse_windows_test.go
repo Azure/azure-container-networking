@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/kalebmorris/azure-container-networking/npm/util"
+	"github.com/kalebmorris/azure-container-networking/telemetry"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -193,5 +195,79 @@ func TestGetCIDRs(t *testing.T) {
 	CIDRsTruth := "10.240.0.0/21,10.240.8.0/23,10.240.12.0/22,10.240.16.0/20,10.240.32.0/19,10.240.64.0/18,10.240.128.0/18,10.240.192.0/20,10.240.208.0/21,10.240.216.0/22,10.240.224.0/19"
 	if CIDRs != CIDRsTruth {
 		t.Errorf("TestGetCIDRs failed @ CIDRs comparison")
+	}
+}
+
+func TestGetAffectedNamespaces(t *testing.T) {
+	npMgr := &NetworkPolicyManager{
+		nsMap:            make(map[string]*namespace),
+		TelemetryEnabled: false,
+		reportManager: &telemetry.ReportManager{
+			ContentType: telemetry.ContentType,
+			Report:      &telemetry.NPMReport{},
+		},
+	}
+
+	allNs, err := newNs(util.KubeAllNamespacesFlag)
+	if err != nil {
+		panic(err.Error)
+	}
+	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+
+	tMgr := allNs.tMgr
+	if err := tMgr.Save(util.TagTestConfigFile); err != nil {
+		t.Errorf("TestAddNamespace failed @ tMgr.Save")
+	}
+
+	defer func() {
+		if err := tMgr.Restore(util.TagTestConfigFile); err != nil {
+			t.Errorf("TestAddNamespace failed @ tMgr.Restore")
+		}
+	}()
+
+	nsObjOne := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-namespace-one",
+			Labels: map[string]string{
+				"app": "test-namespace-one",
+			},
+		},
+	}
+
+	if err := npMgr.AddNamespace(nsObjOne); err != nil {
+		t.Errorf("TestAddNamespace @ npMgr.AddNamespace")
+	}
+
+	nsObjTwo := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-namespace-two",
+			Labels: map[string]string{
+				"app": "test-namespace-two",
+			},
+		},
+	}
+
+	if err := npMgr.AddNamespace(nsObjTwo); err != nil {
+		t.Errorf("TestAddNamespace @ npMgr.AddNamespace")
+	}
+
+	matchLabels := map[string]string{
+		"app": "test-namespace-one",
+	}
+
+	affectedNamespaces, NLTags := getAffectedNamespaces(matchLabels, tMgr)
+	affectedNamespacesTruth := []string{
+		"test-namespace-two",
+	}
+	NLTagsTruth := []string{
+		util.GetNsIpsetName("app", "test-namespace-one")
+	}
+
+	if !reflect.DeepEqual(affectedNamespaces, affectedNamespacesTruth) {
+		t.Errorf("TestGetAffectedNamespaces failed @ affectedNamespaces comparison")
+	}
+
+	if !reflect.DeepEqual(NLTags, NLTagsTruth) {
+		t.Errorf("TestGetAffectedNamespaces failed @ NLTags comparison")
 	}
 }
