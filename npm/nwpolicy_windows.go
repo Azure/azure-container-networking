@@ -28,6 +28,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	if !npMgr.isAzureNPMLayerCreated {
+		log.Logf("INITING")
 		for _, portName := range ports {
 			if err = allNs.tMgr.CreateTag(util.KubeSystemFlag, portName); err != nil {
 				log.Errorf("Error: failed to initialize kube-system tag on port %s.", portName)

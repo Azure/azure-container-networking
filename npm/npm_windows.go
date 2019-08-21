@@ -130,14 +130,15 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	}
 
 	npMgr := &NetworkPolicyManager{
-		clientset:       clientset,
-		informerFactory: informerFactory,
-		podInformer:     podInformer,
-		nsInformer:      nsInformer,
-		npInformer:      npInformer,
-		nodeName:        os.Getenv("COMPUTERNAME"),
-		nsMap:           make(map[string]*namespace),
-		ipPortMap:       make(map[string]string),
+		clientset:              clientset,
+		informerFactory:        informerFactory,
+		podInformer:            podInformer,
+		nsInformer:             nsInformer,
+		npInformer:             npInformer,
+		nodeName:               os.Getenv("COMPUTERNAME"),
+		nsMap:                  make(map[string]*namespace),
+		ipPortMap:              make(map[string]string),
+		isAzureNPMLayerCreated: false,
 		clusterState: telemetry.ClusterState{
 			PodCount:      0,
 			NsCount:       0,
