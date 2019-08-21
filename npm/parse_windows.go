@@ -123,12 +123,11 @@ func getRanges(ipb *networkingv1.IPBlock) ([]uint32, []uint32) {
 		// Cut out parts of the ranges that overlap with except.
 		var tmpStarts, tmpEnds []uint32
 		for i := range starts {
-			if starts[i] < start && ends[i] > end {
-				// Ranges don't overlap.
-				continue
-			}
-
-			if start <= starts[i] && end >= ends[i] {
+			if start > ends[i] || end < starts[i] {
+				// Case 0: Ranges don't overlap.
+				tmpStarts = append(tmpStarts, starts[i])
+				tmpEnds = append(tmpEnds, ends[i])
+			} else if start <= starts[i] && end >= ends[i] {
 				// Case 1: Range is covered by except entirely.
 				continue
 			} else if start <= starts[i] {
