@@ -201,6 +201,7 @@ func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 		log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
 		return err
 	}
+	log.Logf("Created tag<%s> on port<%s>", hashedTag, portName)
 
 	// Update tag map.
 	tMgr.tagMap[key] = &Tag{
@@ -781,11 +782,6 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 	dstPrts := rule.DstPrts
 	if dstPrts == "" {
 		dstPrts = "*"
-	}
-
-	tags, _, _ := GetTags(portName)
-	for _, tag := range tags {
-		log.Logf("Tag:<%s>", tag)
 	}
 
 	params := rule.Name + " " + rule.Name + " " + srcTags + " " + dstTags +
