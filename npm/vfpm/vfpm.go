@@ -809,7 +809,7 @@ func (rMgr *RuleManager) Delete(rule *Rule, portName string) error {
 	}
 
 	// Remove rule through VFP.
-	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Rule, rule.Name, util.RemoveRuleCmd)
+	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.Group, util.Rule, rule.Name, util.RemoveRuleCmd)
 	err = removeCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to remove rule in rMgr.Delete")
