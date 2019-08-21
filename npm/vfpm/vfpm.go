@@ -754,7 +754,6 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 	}
 
 	if exists {
-		log.Logf("Already exists.")
 		return nil
 	}
 
@@ -782,6 +781,11 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 	dstPrts := rule.DstPrts
 	if dstPrts == "" {
 		dstPrts = "*"
+	}
+
+	tags, _, _ = GetTags(portName)
+	for _, tag := range tags {
+		log.Logf("Tag:<%s>", tag)
 	}
 
 	params := rule.Name + " " + rule.Name + " " + srcTags + " " + dstTags +
