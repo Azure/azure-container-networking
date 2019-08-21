@@ -177,3 +177,21 @@ func TestGetStrCIDR(t *testing.T) {
 		t.Errorf("TestGetStrCIDR failed @ strCIDRs comparison")
 	}
 }
+
+func TestGetCIDRs(t *testing.T) {
+	ipblock := &networkingv1.IPBlock{
+		CIDR: "10.240.6.6/16",
+		Except: []string{
+			"10.240.10.2/24",
+			"10.240.11.4/24",
+			"10.240.221.0/22",
+			"10.235.0.0/30",
+		},
+	}
+
+	CIDRs := getCIDRs(ipblock)
+	CIDRsTruth := "10.240.0.0/21,10.240.8.0/23,10.240.12.0/22,10.240.16.0/20,10.240.32.0/19,10.240.64.0/18,10.240.128.0/18,10.240.192.0/20,10.240.208.0/21,10.240.216.0/22,10.240.224.0/19"
+	if CIDRs != CIDRsTruth {
+		t.Errorf("TestGetCIDRs failed @ CIDRs comparison")
+	}
+}
