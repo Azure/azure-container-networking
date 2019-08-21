@@ -783,7 +783,7 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 		dstPrts = "*"
 	}
 
-	tags, _, _ = GetTags(portName)
+	tags, _, _ := GetTags(portName)
 	for _, tag := range tags {
 		log.Logf("Tag:<%s>", tag)
 	}
