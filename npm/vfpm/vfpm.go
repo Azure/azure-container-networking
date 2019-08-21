@@ -754,6 +754,7 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 	}
 
 	if exists {
+		log.Logf("Already exists.")
 		return nil
 	}
 
