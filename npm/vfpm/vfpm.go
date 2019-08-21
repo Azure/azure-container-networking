@@ -201,15 +201,12 @@ func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 		log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
 		return err
 	}
-	log.Logf("output:<%s>", string(out))
 
 	// Update tag map.
 	tMgr.tagMap[key] = &Tag{
 		name: tagName,
 		port: portName,
 	}
-
-	log.Logf("Created tag<%s> on port<%s>", hashedTag, portName)
 
 	return nil
 }
@@ -234,7 +231,6 @@ func (tMgr *TagManager) DeleteTag(tagName string, portName string) error {
 	}
 
 	delete(tMgr.tagMap, key)
-	log.Logf("Deleted tag<%s> on port<%s>", util.GetHashedName(tagName), portName)
 
 	return nil
 }
@@ -364,7 +360,6 @@ func (tMgr *TagManager) Destroy() error {
 		}
 
 		delete(tMgr.tagMap, key)
-		log.Logf("Deleted tag<%s> on port<%s>", util.GetHashedName(tagPort[0]), tagPort[1])
 	}
 
 	// Delete all NLTags.
