@@ -260,7 +260,7 @@ func TestGetAffectedNamespaces(t *testing.T) {
 		"test-namespace-two",
 	}
 	NLTagsTruth := []string{
-		util.GetNsIpsetName("app", "test-namespace-one")
+		util.GetNsIpsetName("app", "test-namespace-one"),
 	}
 
 	if !reflect.DeepEqual(affectedNamespaces, affectedNamespacesTruth) {
