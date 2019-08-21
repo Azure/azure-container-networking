@@ -196,11 +196,12 @@ func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
 	hashedTag := util.GetHashedName(tagName)
 	params := hashedTag + " " + hashedTag + " " + util.IPV4 + " *"
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
-	err := addCmd.Run()
+	out, err := addCmd.Output()
 	if err != nil {
 		log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
 		return err
 	}
+	log.Logf("output:<%s>", string(out))
 
 	// Update tag map.
 	tMgr.tagMap[key] = &Tag{
