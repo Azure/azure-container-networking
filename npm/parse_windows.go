@@ -193,7 +193,7 @@ func getCIDRs(ipb *networkingv1.IPBlock) string {
 			cidrs = append(cidrs, cidr)
 			starts[i] += canGo
 
-			if starts[i] == ends[i] {
+			if starts[i] >= ends[i] {
 				break
 			}
 		}
