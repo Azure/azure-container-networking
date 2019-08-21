@@ -257,7 +257,7 @@ func TestGetAffectedNamespaces(t *testing.T) {
 
 	affectedNamespaces, NLTags := getAffectedNamespaces(matchLabels, tMgr)
 	affectedNamespacesTruth := []string{
-		"test-namespace-two",
+		"test-namespace-one",
 	}
 	NLTagsTruth := []string{
 		util.GetNsIpsetName("app", "test-namespace-one"),
