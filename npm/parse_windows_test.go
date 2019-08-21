@@ -4,6 +4,7 @@ package npm
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -144,5 +145,32 @@ func TestGetRanges(t *testing.T) {
 
 	if !reflect.DeepEqual(ends, endsTruth) {
 		t.Errorf("TestGetRanges failed @ ends comparison")
+	}
+}
+
+func TestGetStrCIDR(t *testing.T) {
+	strCIDRs := []string{
+		"0.0.0.0/16",
+		"255.0.1.16/20",
+		"10.240.0.0/24",
+		"12.144.2.1/31",
+		"240.220.10.6/18",
+		"11.82.80.0/21",
+	}
+
+	var reconstructed []string
+	for _, strCIDR := range strCIDRs {
+		arrCIDR := strings.Split(strCIDR, "/")
+		ip := ipToInt(arrCIDR[0])
+		maskNum64, err := strconv.ParseInt(arrCIDR[1], 10, 6)
+		if err != nil {
+			t.Errorf("TestGetStrCIDR failed @ strconv.ParseUint")
+		}
+		maskNum := int(maskNum64)
+		reconstructed = append(reconstructed, getStrCIDR(ip, maskNum))
+	}
+
+	if !reflect.DeepEqual(strCIDRs, reconstructed) {
+		t.Errorf("TestGetStrCIDR failed @ strCIDRs comparison")
 	}
 }
