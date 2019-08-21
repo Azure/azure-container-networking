@@ -97,6 +97,34 @@ func TestIpToInt(t *testing.T) {
 	}
 }
 
-// func TestGetRanges(t *testing.T) {
-// 	ipblock :=
-// }
+func TestGetRanges(t *testing.T) {
+	ipblock := &networkingv1.IPBlock{
+		CIDR: "10.240.6.6/16",
+		Except: []string{
+			"10.240.10.2/24",
+			"10.240.11.4/24",
+			"10.240.221.0/22",
+			"10.235.0.0/30",
+		},
+	}
+
+	starts, ends := getRanges(ipblock)
+	startsTruth := []uint32{
+		ipToInt("10.240.0.0"),
+		ipToInt("10.240.12.0"),
+		ipToInt("10.240.224.0"),
+	}
+	endsTruth := []uint32{
+		ipToInt("10.240.9.255"),
+		ipToInt("10.240.219.255"),
+		ipToInt("10.240.255.255"),
+	}
+
+	if !reflect.DeepEqual(starts, startsTruth) {
+		t.Errorf("TestGetRanges failed @ starts comparison")
+	}
+
+	if !reflect.DeepEqual(ends, endsTruth) {
+		t.Errorf("TestGetRanges failed @ ends comparison")
+	}
+}

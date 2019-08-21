@@ -4,6 +4,7 @@ package npm
 
 import (
 	"math/bits"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -150,6 +151,8 @@ func getRanges(ipb *networkingv1.IPBlock) ([]uint32, []uint32) {
 		ends = tmpEnds
 	}
 
+	sort.Slice(starts, func(i, j int) bool { return starts[i] < starts[j] })
+	sort.Slice(ends, func(i, j int) bool { return ends[i] < ends[j] })
 	return starts, ends
 }
 
@@ -434,9 +437,9 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string, tMgr *
 			} else if allPorts {
 				// Add source rules.
 				var (
-					newTags []string
+					newTags   []string
 					newNLTags []string
-					newRules []*vfpm.Rule
+					newRules  []*vfpm.Rule
 				)
 				newTags, newNLTags, newRules = getSourceRules(rule.From, npObj.ObjectMeta.Namespace, hashedTag, tMgr)
 				ingressTags = append(ingressTags, newTags...)
@@ -445,9 +448,9 @@ func parseIngress(npObj *networkingv1.NetworkPolicy, targetTags []string, tMgr *
 			} else {
 				// Add rules to allow ingress traffic on the provided ports from the provided sources.
 				var (
-					newTags []string
+					newTags   []string
 					newNLTags []string
-					newRules []*vfpm.Rule
+					newRules  []*vfpm.Rule
 				)
 				newTags, newNLTags, newRules = getSourceRules(rule.From, npObj.ObjectMeta.Namespace, hashedTag, tMgr)
 				for _, port := range rule.Ports {
@@ -676,9 +679,9 @@ func parseEgress(npObj *networkingv1.NetworkPolicy, targetTags []string, tMgr *v
 			} else if allPorts {
 				// Add destination rules.
 				var (
-					newTags []string
+					newTags   []string
 					newNLTags []string
-					newRules []*vfpm.Rule
+					newRules  []*vfpm.Rule
 				)
 				newTags, newNLTags, newRules = getDestinationRules(rule.To, npObj.ObjectMeta.Namespace, hashedTag, tMgr)
 				egressTags = append(egressTags, newTags...)
@@ -687,9 +690,9 @@ func parseEgress(npObj *networkingv1.NetworkPolicy, targetTags []string, tMgr *v
 			} else {
 				// Add rules to allow egress traffic on the provided ports to the provided destinations.
 				var (
-					newTags []string
+					newTags   []string
 					newNLTags []string
-					newRules []*vfpm.Rule
+					newRules  []*vfpm.Rule
 				)
 				newTags, newNLTags, newRules = getDestinationRules(rule.To, npObj.ObjectMeta.Namespace, hashedTag, tMgr)
 				for _, port := range rule.Ports {
