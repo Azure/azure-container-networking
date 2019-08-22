@@ -47,7 +47,7 @@ func TestAddPod(t *testing.T) {
 		},
 		Status: corev1.PodStatus{
 			Phase: "Running",
-			PodIP: "1.2.3.4",
+			PodIP: "10.240.0.55",
 		},
 	}
 	if err := npMgr.AddPod(podObj); err != nil {
@@ -91,7 +91,7 @@ func TestUpdatePod(t *testing.T) {
 		},
 		Status: corev1.PodStatus{
 			Phase: "Running",
-			PodIP: "1.2.3.4",
+			PodIP: "10.240.0.55",
 		},
 	}
 
@@ -104,7 +104,7 @@ func TestUpdatePod(t *testing.T) {
 		},
 		Status: corev1.PodStatus{
 			Phase: "Running",
-			PodIP: "4.3.2.1",
+			PodIP: "10.240.0.50",
 		},
 	}
 
@@ -153,7 +153,7 @@ func TestDeletePod(t *testing.T) {
 		},
 		Status: corev1.PodStatus{
 			Phase: "Running",
-			PodIP: "1.2.3.4",
+			PodIP: "10.240.0.50",
 		},
 	}
 	if err := npMgr.AddPod(podObj); err != nil {

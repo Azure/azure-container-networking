@@ -59,11 +59,11 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	podNodeName := podObj.Spec.NodeName
 	podLabels := podObj.ObjectMeta.Labels
 	podIP := podObj.Status.PodIP
-	//podPort, err := findPort(podIP)
-	//if err != nil {
-	//	return err
-	//}
-	//npMgr.ipPortMap[podIP] = podPort
+	podPort, err := findPort(podIP)
+	if err != nil {
+		return err
+	}
+	npMgr.ipPortMap[podIP] = podPort
 
 	log.Printf("POD CREATING: [%s/%s/%s%+v%s]", podNs, podName, podNodeName, podLabels, podIP)
 
@@ -130,7 +130,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	podNodeName := podObj.Spec.NodeName
 	podLabels := podObj.ObjectMeta.Labels
 	podIP := podObj.Status.PodIP
-	//delete(npMgr.ipPortMap, podIP)
+	delete(npMgr.ipPortMap, podIP)
 
 	log.Printf("POD DELETING: [%s/%s/%s%+v%s]", podNs, podName, podNodeName, podLabels, podIP)
 
