@@ -3,6 +3,8 @@
 package vfpm
 
 import (
+	"exec"
+	"strings"
 	"testing"
 
 	"github.com/kalebmorris/azure-container-networking/npm/util"
@@ -315,6 +317,51 @@ func TestTagDestroy(t *testing.T) {
 	}
 	if len(tags) != 0 {
 		t.Errorf("TestTagDestroy failed @ tMgr.Destroy")
+	}
+}
+
+func TestGetPortByMAC(t *testing.T) {
+	// First, get MAC address and port name.
+	listPortCmd := exec.Command(util.VFPCmd, util.ListPortCmd)
+	out, err := listPortCmd.Output()
+	if err != nil {
+		t.Errorf("TestGetPortByMAC failed @ listing ports")
+	}
+	outStr := string(out)
+
+	separated := strings.Split(outStr, util.PortSplit)
+	if len(separated) == 0 {
+		t.Errorf("TestGetPortByMAC failed because list ports returned empty")
+	}
+	portStr := separated[len(separated)-1]
+
+	idx := strings.Index(portStr, ":")
+	if idx == -1 {
+		continue
+	}
+
+	portName := portStr[idx+2 : idx+2+util.GUIDLength]
+
+	idx = strings.Index(portStr, util.MACAddress)
+	for idx != -1 && idx < len(portStr) && portStr[idx] != ':' {
+		idx++
+	}
+	if idx == -1 || idx == len(portStr) {
+		continue
+	}
+	idx += 2
+
+	var builder strings.Builder
+	for idx < len(portStr) && !unicode.IsSpace(rune(portStr[idx])) {
+		builder.WriteByte(portStr[idx])
+		idx++
+	}
+	MACAddress := builder.String()
+
+	// Test GetPortByMAC
+	port, err := GetPortByMAC(MACAddress)
+	if err != nil || port != portName {
+		t.Errorf("TestGetPortByMAC failed @ GetPortByMAC")
 	}
 }
 
