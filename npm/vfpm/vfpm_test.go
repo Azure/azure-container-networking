@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/kalebmorris/azure-container-networking/npm/util"
 )
@@ -337,7 +338,7 @@ func TestGetPortByMAC(t *testing.T) {
 
 	idx := strings.Index(portStr, ":")
 	if idx == -1 {
-		continue
+		t.Errorf("TestGetPortByMAC failed @ finding start of portName")
 	}
 
 	portName := portStr[idx+2 : idx+2+util.GUIDLength]
@@ -347,7 +348,7 @@ func TestGetPortByMAC(t *testing.T) {
 		idx++
 	}
 	if idx == -1 || idx == len(portStr) {
-		continue
+		t.Errorf("TestGetPortByMAC failed @ finding start of MAC address")
 	}
 	idx += 2
 
