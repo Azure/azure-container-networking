@@ -14,6 +14,7 @@ import (
 func TestAddPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
+		ipPortMap:        make(map[string]string),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
 			ContentType: telemetry.ContentType,
@@ -58,6 +59,7 @@ func TestAddPod(t *testing.T) {
 func TestUpdatePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
+		ipPortMap:        make(map[string]string),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
 			ContentType: telemetry.ContentType,
@@ -120,6 +122,7 @@ func TestUpdatePod(t *testing.T) {
 func TestDeletePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
+		ipPortMap:        make(map[string]string),
 		TelemetryEnabled: false,
 		reportManager: &telemetry.ReportManager{
 			ContentType: telemetry.ContentType,
