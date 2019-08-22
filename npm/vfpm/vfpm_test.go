@@ -3,7 +3,7 @@
 package vfpm
 
 import (
-	"exec"
+	"os/exec"
 	"strings"
 	"testing"
 
