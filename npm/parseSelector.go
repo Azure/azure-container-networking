@@ -135,7 +135,15 @@ func parseSelector(selector *metav1.LabelSelector) ([]string, []string, []string
 		vals   []string
 	)
 
-	if selector == nil || (len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0) {
+	if selector == nil {
+		return labels, keys, vals
+	}
+
+	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
+		labels = append(labels, "")
+		keys = append(keys, "")
+		vals = append(vals, "")
+
 		return labels, keys, vals
 	}
 
