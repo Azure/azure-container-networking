@@ -118,6 +118,13 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 	labelsWithOps, _, _ := parseSelector(&targetSelector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
+	if len(ops) == 1 && len(labels) == 1 {
+		if ops[0] == "" && labels[0] == "" {
+			// targetSelector is empty. Select all pods within the namespace
+			ops = append(ops, "")
+			labels = append(labels, "ns-" + ns)
+		}
+	}
 	sets = append(sets, labels...)
 	targetSelectorIptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labels, util.IptablesDstFlag, false)
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
@@ -299,9 +306,16 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			if fromRule.PodSelector == nil && fromRule.NamespaceSelector != nil {
 				nsLabelsWithOps, _, _ := parseSelector(fromRule.NamespaceSelector)
 				_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
-				// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
-				for i, _ := range nsLabelsWithoutOps {
-					nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
+				if len(nsLabelsWithoutOps) == 1 {
+					if nsLabelsWithoutOps[0] == "" {
+						// Empty namespaceSelector. This selects all namespaces
+						nsLabelsWithoutOps[0] = util.KubeAllNamespacesFlag
+					}
+				} else {
+					for i, _ := range nsLabelsWithoutOps {
+						// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
+						nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
+					}
 				}
 				lists = append(lists, nsLabelsWithoutOps...)
 
@@ -335,6 +349,11 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			if fromRule.PodSelector != nil && fromRule.NamespaceSelector == nil {
 				podLabelsWithOps, _, _ := parseSelector(fromRule.PodSelector)
 				_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
+				if len(podLabelsWithoutOps) == 1 {
+					if podLabelsWithoutOps[0] == "" {
+						podLabelsWithoutOps[0] = "ns-" + ns
+					}
+				}
 				sets = append(sets, podLabelsWithoutOps...)
 
 				entry := &iptm.IptEntry{
@@ -623,7 +642,6 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			if toRule.PodSelector == nil && toRule.NamespaceSelector != nil {
 				nsLabelsWithOps, _, _ := parseSelector(toRule.NamespaceSelector)
 				_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
-				log.Printf("len: %d", len(nsLabelsWithOps))
 				if len(nsLabelsWithoutOps) == 1 {
 					if nsLabelsWithoutOps[0] == "" {
 						// Empty namespaceSelector. This selects all namespaces

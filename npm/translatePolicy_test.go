@@ -1103,6 +1103,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:frontend",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-ns-testnamespace-TO-app:frontend-policy sets comparison")
@@ -1152,14 +1153,14 @@ func TestTranslatePolicy(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("app:backend"),
+				util.GetHashedName("app:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesAccept,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-testnamespace-TO-app:backend",
+				"ALLOW-ns-testnamespace-TO-app:frontend",
 			},
 		},
 	}
