@@ -26,21 +26,6 @@ func isSamePolicy(old, new *networkingv1.NetworkPolicy) bool {
 	return true
 }
 
-func splitPolicy(npObj *networkingv1.NetworkPolicy) ([]string, []*networkingv1.NetworkPolicy) {
-	var policies []*networkingv1.NetworkPolicy
-
-	labels, keys, vals := parseSelector(&(npObj.Spec.PodSelector))
-	for i := range keys {
-		policy := *npObj
-		policy.ObjectMeta.Name = labels[i]
-		policy.Spec.PodSelector.MatchExpressions = []metav1.LabelSelectorRequirement{}
-		policy.Spec.PodSelector.MatchLabels = map[string]string{keys[i]: vals[i]}
-		policies = append(policies, &policy)
-	}
-
-	return labels, policies
-}
-
 // addPolicy merges policies based on labels.
 func addPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error) {
 	// if namespace matches && podSelector matches, then merge
