@@ -726,6 +726,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			if !util.IsNewNwPolicyVerFlag {
 				continue
 			}
+			
 			nsLabelsWithOps, _, _ := parseSelector(toRule.NamespaceSelector)
 			_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 			// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
