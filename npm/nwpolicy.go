@@ -92,6 +92,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 	ipsMgr := allNs.ipsMgr
 	for _, set := range sets {
+		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = ipsMgr.CreateSet(set); err != nil {
 			log.Printf("Error creating ipset %s", set)
 			return err

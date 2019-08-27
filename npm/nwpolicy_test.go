@@ -66,6 +66,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 	}
 
 	tcp := corev1.ProtocolTCP
+	port8000 := intstr.FromInt(8000)
 	allowIngress := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "allow-ingress",
@@ -81,9 +82,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 					}},
 					Ports: []networkingv1.NetworkPolicyPort{{
 						Protocol: &tcp,
-						Port: &intstr.IntOrString{
-							StrVal: "8000",
-						},
+						Port: &port8000,
 					}},
 				},
 			},
@@ -92,6 +91,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 
 	if err := npMgr.AddNetworkPolicy(allowIngress); err != nil {
 		t.Errorf("TestAddNetworkPolicy failed @ allowIngress AddNetworkPolicy")
+		t.Errorf("Error: %v", err)
 	}
 
 	allowEgress := &networkingv1.NetworkPolicy{
@@ -109,9 +109,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 					}},
 					Ports: []networkingv1.NetworkPolicyPort{{
 						Protocol: &tcp,
-						Port: &intstr.IntOrString{
-							StrVal: "8000",
-						},
+						Port: &port8000,
 					}},
 				},
 			},
@@ -120,6 +118,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 
 	if err := npMgr.AddNetworkPolicy(allowEgress); err != nil {
 		t.Errorf("TestAddNetworkPolicy failed @ allowEgress AddNetworkPolicy")
+		t.Errorf("Error: %v", err)
 	}
 }
 

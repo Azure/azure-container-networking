@@ -104,7 +104,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		return err
 	}
 
-	// Insert AZURE-NPM-INGRESS-PORT chain to AZURE-NPM chain.
+	// Append AZURE-NPM-INGRESS-PORT chain to AZURE-NPM chain.
 	entry.Chain = util.IptablesAzureChain
 	entry.Specs = []string{util.IptablesJumpFlag, util.IptablesAzureIngressPortChain}
 	exists, err = iptMgr.Exists(entry)
@@ -151,9 +151,14 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		return err
 	}
 
-	// Add default DROP rule to AZURE-NPM chain.
+	// Create AZURE-NPM-TARGET-SETS chain.
+	if err := iptMgr.AddChain(util.IptablesAzureTargetSetsChain); err != nil {
+		return err
+	}
+
+	// Append AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.
 	entry.Chain = util.IptablesAzureChain
-	entry.Specs = []string{util.IptablesJumpFlag, util.IptablesDrop}
+	entry.Specs = []string{util.IptablesJumpFlag, util.IptablesAzureTargetSetsChain}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
 		return err
@@ -162,7 +167,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	if !exists {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
-			log.Errorf("Error: failed to add default DROP rule to AZURE-NPM chain.")
+			log.Errorf("Error: failed to add AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -178,6 +183,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		util.IptablesAzureIngressFromChain,
 		util.IptablesAzureEgressPortChain,
 		util.IptablesAzureEgressToChain,
+		util.IptablesAzureTargetSetsChain,
 	}
 
 	// Remove AZURE-NPM chain from FORWARD chain.
@@ -272,7 +278,7 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 
 // Add adds a rule in iptables.
 func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
-	log.Printf("Add iptables entry: %+v.", entry)
+	log.Printf("Adding iptables entry: %+v.", entry)
 
 	exists, err := iptMgr.Exists(entry)
 	if err != nil {
