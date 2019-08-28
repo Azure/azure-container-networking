@@ -122,6 +122,8 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 		return "none"
 	}
 
+	sortSelector(selector)
+
 	if len(selector.MatchExpressions) == 0 && len(selector.MatchLabels) == 0 {
 		if isNamespaceSelector {
 			return util.KubeAllNamespacesFlag
@@ -158,6 +160,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 	log.Printf("started parsing ingress rule")
 
+	sortSelector(&targetSelector)
 	labelsWithOps, _, _ := parseSelector(&targetSelector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
 	if len(ops) == 1 && len(labels) == 1 {
@@ -365,6 +368,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			}
 
 			if fromRule.PodSelector == nil && fromRule.NamespaceSelector != nil {
+				sortSelector(fromRule.NamespaceSelector)
 				nsLabelsWithOps, _, _ := parseSelector(fromRule.NamespaceSelector)
 				_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 				if len(nsLabelsWithoutOps) == 1 {
@@ -408,6 +412,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			}
 
 			if fromRule.PodSelector != nil && fromRule.NamespaceSelector == nil {
+				sortSelector(fromRule.PodSelector)
 				podLabelsWithOps, _, _ := parseSelector(fromRule.PodSelector)
 				_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
 				if len(podLabelsWithoutOps) == 1 {
@@ -451,6 +456,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			if !util.IsNewNwPolicyVerFlag {
 				continue
 			}
+
+			sortSelector(fromRule.NamespaceSelector)
 			nsLabelsWithOps, _, _ := parseSelector(fromRule.NamespaceSelector)
 			_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 			// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
@@ -459,6 +466,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			}
 			lists = append(lists, nsLabelsWithoutOps...)
 
+			sortSelector(fromRule.PodSelector)
 			podLabelsWithOps, _, _ := parseSelector(fromRule.PodSelector)
 			_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
 			sets = append(sets, podLabelsWithoutOps...)
@@ -516,6 +524,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 
 	log.Printf("started parsing egress rule")
 
+	sortSelector(&targetSelector)
 	labelsWithOps, _, _ := parseSelector(&targetSelector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
 	if len(ops) == 1 && len(labels) == 1 {
@@ -718,6 +727,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			}
 
 			if toRule.PodSelector == nil && toRule.NamespaceSelector != nil {
+				sortSelector(toRule.NamespaceSelector)
 				nsLabelsWithOps, _, _ := parseSelector(toRule.NamespaceSelector)
 				_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 				if len(nsLabelsWithoutOps) == 1 {
@@ -761,6 +771,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			}
 
 			if toRule.PodSelector != nil && toRule.NamespaceSelector == nil {
+				sortSelector(toRule.PodSelector)
 				podLabelsWithOps, _, _ := parseSelector(toRule.PodSelector)
 				_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
 				if len(podLabelsWithoutOps) == 1 {
@@ -805,6 +816,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 				continue
 			}
 			
+			sortSelector(toRule.NamespaceSelector)
 			nsLabelsWithOps, _, _ := parseSelector(toRule.NamespaceSelector)
 			_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 			// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
@@ -813,6 +825,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			}
 			lists = append(lists, nsLabelsWithoutOps...)
 
+			sortSelector(toRule.PodSelector)
 			podLabelsWithOps, _, _ := parseSelector(toRule.PodSelector)
 			_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
 			sets = append(sets, podLabelsWithoutOps...)

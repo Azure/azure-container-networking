@@ -119,6 +119,8 @@ func sortSelector(selector *metav1.LabelSelector) {
 
 	}
 	selector.MatchExpressions = sortedReqs
+
+	log.Printf("sortedReqs: %v", sortedReqs)
 }
 
 // HashSelector returns the hash value of the selector.

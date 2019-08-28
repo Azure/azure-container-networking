@@ -2094,4 +2094,171 @@ func TestTranslatePolicy(t *testing.T) {
 		t.Errorf("iptEntries: %s", marshalledIptEntries)
 		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
 	}
+
+	targetSelector = metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"app": "k8s",
+			"team": "aks",
+		},
+	}
+	allowCniOrCnsToK8sPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ALLOW-program:cni-AND-team:acn-OR-binary:cns-AND-group:container-TO-app:k8s-AND-team:aks-policy",
+			Namespace: "acn",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: targetSelector,
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				networkingv1.NetworkPolicyIngressRule{
+					From: []networkingv1.NetworkPolicyPeer{
+						networkingv1.NetworkPolicyPeer{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"program": "cni",
+									"team": "acn",
+								},
+							},
+						},
+						networkingv1.NetworkPolicyPeer{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"binary": "cns",
+									"group": "container",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	sets, lists, iptEntries = translatePolicy(allowCniOrCnsToK8sPolicy)
+
+	expectedSets = []string{
+		"app:k8s",
+		"team:aks",
+		"program:cni",
+		"team:acn",
+		"binary:cns",
+		"group:container",
+	}
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ ALLOW-program:cni-AND-team:acn-OR-binary:cns-AND-group:container-TO-app:k8s-AND-team:aks-policy sets comparison")
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
+	}
+
+	expectedLists = []string{}
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ ALLOW-program:cni-AND-team:acn-OR-binary:cns-AND-group:container-TO-app:k8s-AND-team:aks-policy lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
+	}
+
+	expectedIptEntries = []*iptm.IptEntry{}
+	expectedIptEntries = append(
+		expectedIptEntries,
+		getAllowKubeSystemEntries("acn", targetSelector)...,
+	)
+
+	nonKubeSystemEntries = []*iptm.IptEntry{
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressPortChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:k8s"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("team:aks"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureIngressFromChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-TO-app:k8s-AND-team:aks-TO-JUMP-TO-" +
+				util.IptablesAzureIngressFromChain,
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("program:cni"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("team:acn"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:k8s"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("team:aks"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-program:cni-AND-team:acn-TO-app:k8s-AND-team:aks",
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("binary:cns"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("group:container"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:k8s"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("team:aks"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-binary:cns-AND-group:container-TO-app:k8s-AND-team:aks",
+			},
+		},
+	}
+
+	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
+	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("acn", targetSelector)...)
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedPolicy failed @ ALLOW-program:cni-AND-team:acn-OR-binary:cns-AND-group:container-TO-app:k8s-AND-team:aks-policy policy comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	}
 }
