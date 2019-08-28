@@ -106,6 +106,7 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 
 func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
+		allowExternal = false
 		portRuleExists    = false
 		fromRuleExists    = false
 		protPortPairSlice []*portsInfo
@@ -144,7 +145,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 		if rule.From != nil {
 			if len(rule.From) == 0 {
-				break
+				fromRuleExists = true
+				allowExternal = true
 			}
 
 			for _, fromRule := range rule.From {
@@ -156,7 +158,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			}
 		}
 
-		if !portRuleExists && !fromRuleExists {
+		if !portRuleExists && !fromRuleExists && !allowExternal {
 			entry := &iptm.IptEntry{
 				Chain: util.IptablesAzureIngressPortChain,
 			}
@@ -186,7 +188,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 		}
 
 		// Only Ports rules exist
-		if !fromRuleExists && portRuleExists {
+		if portRuleExists && !fromRuleExists && !allowExternal {
 			for _, protPortPair := range protPortPairSlice {
 				entry := &iptm.IptEntry{
 					Chain: util.IptablesAzureIngressPortChain,
@@ -213,6 +215,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			continue
 		}
 
+		// fromRuleExists
 		if portRuleExists {
 			for _, protPortPair := range protPortPairSlice {
 				entry := &iptm.IptEntry{
@@ -255,6 +258,26 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				"-TO-JUMP-TO-" + util.IptablesAzureIngressFromChain,
 			)
 			entries = append(entries, entry)
+		}
+
+		if allowExternal {
+			entry := &iptm.IptEntry{
+				Chain: util.IptablesAzureIngressFromChain,
+			}
+			entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
+			entry.Specs = append(
+				entry.Specs,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-TO-" +
+				targetSelectorComment,
+			)
+			entries = append(entries, entry)
+
+			continue
 		}
 
 		for _, fromRule := range rule.From {
@@ -458,6 +481,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
+		allowExternal = false
 		portRuleExists    = false
 		toRuleExists    = false
 		protPortPairSlice []*portsInfo
@@ -494,7 +518,8 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 
 		if rule.To != nil {
 			if len(rule.To) == 0 {
-				break
+				toRuleExists = true
+				allowExternal = true
 			}
 
 			for _, toRule := range rule.To {
@@ -506,7 +531,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			}
 		}
 
-		if !portRuleExists && !toRuleExists {
+		if !portRuleExists && !toRuleExists && !allowExternal {
 			entry := &iptm.IptEntry{
 				Chain: util.IptablesAzureEgressPortChain,
 				Specs: targetSelectorIptEntrySpec,
@@ -533,7 +558,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 		}
 
 		// Only Ports rules exist
-		if !toRuleExists && portRuleExists {
+		if portRuleExists && !toRuleExists && !allowExternal {
 			for _, protPortPair := range protPortPairSlice {
 				entry := &iptm.IptEntry{
 					Chain: util.IptablesAzureEgressPortChain,
@@ -560,6 +585,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			continue
 		}
 
+		// toRuleExists
 		if portRuleExists {
 			for _, protPortPair := range protPortPairSlice {
 				entry := &iptm.IptEntry{
@@ -602,6 +628,26 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 				"-TO-JUMP-TO-" + util.IptablesAzureEgressToChain,
 			)
 			entries = append(entries, entry)
+		}
+
+		if allowExternal {
+			entry := &iptm.IptEntry{
+				Chain: util.IptablesAzureEgressToChain,
+			}
+			entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
+			entry.Specs = append(
+				entry.Specs,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-TO-" +
+				targetSelectorComment,
+			)
+			entries = append(entries, entry)
+
+			continue
 		}
 
 		for _, toRule := range rule.To {

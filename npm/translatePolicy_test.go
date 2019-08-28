@@ -1760,7 +1760,7 @@ func TestTranslatePolicy(t *testing.T) {
 		t.Errorf("iptEntries: %s", marshalledIptEntries)
 		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
 	}
-	/*
+	
 	targetSelector = metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"app": "backdoor",
@@ -1788,7 +1788,69 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:backdoor",
-		
 	}
-	*/
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ ALLOW-ALL-TO-app:backdoor-policy sets comparison")
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
+	}
+
+	expectedLists = []string{}
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ ALLOW-ALL-TO-app:backdoor-policy lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
+	}
+
+	expectedIptEntries = []*iptm.IptEntry{}
+	expectedIptEntries = append(
+		expectedIptEntries,
+		getAllowKubeSystemEntries("testnamespace", targetSelector)...,
+	)
+
+	nonKubeSystemEntries = []*iptm.IptEntry{
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressPortChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:backdoor"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureIngressFromChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-TO-app:backdoor-TO-JUMP-TO-" +
+				util.IptablesAzureIngressFromChain,
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:backdoor"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-TO-app:backdoor",
+			},
+		},
+	}
+
+	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
+	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("dangerous", targetSelector)...)
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedPolicy failed @ ALLOW-ALL-TO-app:backdoor-policy policy comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	}
 }
