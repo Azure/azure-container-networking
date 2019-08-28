@@ -13,10 +13,131 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+func TestCraftPartialIptEntrySpecFromPort(t *testing.T) {
+	portRule := networkingv1.NetworkPolicyPort{}
+
+	iptEntrySpec := craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
+	expectedIptEntrySpec := []string{}
+
+	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
+		t.Errorf("TestCraftPartialIptEntrySpecFromPort failed @ empty iptEntrySpec comparison")
+		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	}
+	
+	tcp := v1.ProtocolTCP
+	portRule = networkingv1.NetworkPolicyPort{
+		Protocol: &tcp,
+	}
+
+	iptEntrySpec = craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
+	expectedIptEntrySpec = []string{
+		util.IptablesProtFlag,
+		"TCP",
+	}
+
+	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
+		t.Errorf("TestCraftPartialIptEntrySpecFromPort failed @ tcp iptEntrySpec comparison")
+		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	}
+	
+	port8000 := intstr.FromInt(8000)
+	portRule = networkingv1.NetworkPolicyPort{
+		Port: &port8000,
+	}
+
+	iptEntrySpec = craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
+	expectedIptEntrySpec = []string{
+		util.IptablesDstPortFlag,
+		"8000",
+	}
+
+	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
+		t.Errorf("TestCraftPartialIptEntrySpecFromPort failed @ port 8000 iptEntrySpec comparison")
+		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	}
+
+	portRule = networkingv1.NetworkPolicyPort{
+		Protocol: &tcp,
+		Port: &port8000,
+	}
+
+	iptEntrySpec = craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
+	expectedIptEntrySpec = []string{
+		util.IptablesProtFlag,
+		"TCP",
+		util.IptablesDstPortFlag,
+		"8000",
+	}
+
+	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
+		t.Errorf("TestCraftPartialIptEntrySpecFromPort failed @ tcp port 8000 iptEntrySpec comparison")
+		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	}
+}
+
+func TestCraftPartialIptablesCommentFromPort(t *testing.T) {
+	portRule := networkingv1.NetworkPolicyPort{}
+
+	comment := craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
+	expectedComment := ""
+
+	if !reflect.DeepEqual(comment, expectedComment) {
+		t.Errorf("TestCraftPartialIptablesCommentFromPort failed @ empty comment comparison")
+		t.Errorf("comment:\n%v", comment)
+		t.Errorf("expectedComment:\n%v", expectedComment)
+	}
+	
+	tcp := v1.ProtocolTCP
+	portRule = networkingv1.NetworkPolicyPort{
+		Protocol: &tcp,
+	}
+
+	comment = craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
+	expectedComment = "TCP-OF-"
+
+	if !reflect.DeepEqual(comment, expectedComment) {
+		t.Errorf("TestCraftPartialIptablesCommentFromPort failed @ tcp comment comparison")
+		t.Errorf("comment:\n%v", comment)
+		t.Errorf("expectedComment:\n%v", expectedComment)
+	}
+	
+	port8000 := intstr.FromInt(8000)
+	portRule = networkingv1.NetworkPolicyPort{
+		Port: &port8000,
+	}
+
+	comment = craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
+	expectedComment = "PORT-8000-OF-"
+
+	if !reflect.DeepEqual(comment, expectedComment) {
+		t.Errorf("TestCraftPartialIptablesCommentFromPort failed @ port 8000 comment comparison")
+		t.Errorf("comment:\n%v", comment)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedComment)
+	}
+
+	portRule = networkingv1.NetworkPolicyPort{
+		Protocol: &tcp,
+		Port: &port8000,
+	}
+
+	comment = craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
+	expectedComment = "TCP-PORT-8000-OF-"
+
+	if !reflect.DeepEqual(comment, expectedComment) {
+		t.Errorf("TestCraftPartialIptablesCommentFromPort failed @ tcp port 8000 comment comparison")
+		t.Errorf("comment:\n%v", comment)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedComment)
+	}
+}
+
 func TestCraftPartialIptEntrySpecFromOpAndLabel(t *testing.T) {
 	srcOp, srcLabel := "", "src"
-	iptEntry := craftPartialIptEntrySpecFromOpAndLabel(srcOp, srcLabel, util.IptablesSrcFlag, false)
-	expectedIptEntry := []string{
+	iptEntrySpec := craftPartialIptEntrySpecFromOpAndLabel(srcOp, srcLabel, util.IptablesSrcFlag, false)
+	expectedIptEntrySpec := []string{
 		util.IptablesModuleFlag,
 		util.IptablesSetModuleFlag,
 		util.IptablesMatchSetFlag,
@@ -24,13 +145,15 @@ func TestCraftPartialIptEntrySpecFromOpAndLabel(t *testing.T) {
 		util.IptablesSrcFlag,
 	}
 	
-	if !reflect.DeepEqual(iptEntry, expectedIptEntry) {
-		t.Errorf("TestCraftIptEntrySpecFromOpAndLabel failed @ src iptEntry comparison")
+	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
+		t.Errorf("TestCraftIptEntrySpecFromOpAndLabel failed @ src iptEntrySpec comparison")
+		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
 	}
 
 	dstOp, dstLabel := "!", "dst"
-	iptEntry = craftPartialIptEntrySpecFromOpAndLabel(dstOp, dstLabel, util.IptablesDstFlag, false)
-	expectedIptEntry = []string{
+	iptEntrySpec = craftPartialIptEntrySpecFromOpAndLabel(dstOp, dstLabel, util.IptablesDstFlag, false)
+	expectedIptEntrySpec = []string{
 		util.IptablesModuleFlag,
 		util.IptablesSetModuleFlag,
 		util.IptablesNotFlag,
@@ -39,8 +162,10 @@ func TestCraftPartialIptEntrySpecFromOpAndLabel(t *testing.T) {
 		util.IptablesDstFlag,
 	}
 	
-	if !reflect.DeepEqual(iptEntry, expectedIptEntry) {
-		t.Errorf("TestCraftIptEntrySpecFromOpAndLabel failed @ dst iptEntry comparison")
+	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
+		t.Errorf("TestCraftIptEntrySpecFromOpAndLabel failed @ dst iptEntrySpec comparison")
+		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
+		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
 	}
 }
 
@@ -462,7 +587,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-6783-PORT-OF-context:dev-AND-!testNotIn:frontend-TO-JUMP-TO-" +
+				"ALLOW-ALL-TO-TCP-PORT-6783-OF-context:dev-AND-!testNotIn:frontend-TO-JUMP-TO-" +
 				util.IptablesAzureIngressFromChain,
 			},
 		},
@@ -732,7 +857,7 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-6783-PORT-OF-context:dev-AND-!testNotIn:frontend-TO-JUMP-TO-" +
+				"ALLOW-ALL-FROM-TCP-PORT-6783-OF-context:dev-AND-!testNotIn:frontend-TO-JUMP-TO-" +
 				util.IptablesAzureEgressToChain,
 			},
 		},
@@ -1844,6 +1969,122 @@ func TestTranslatePolicy(t *testing.T) {
 		},
 	}
 
+	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
+	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("dangerous", targetSelector)...)
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedPolicy failed @ ALLOW-ALL-TO-app:backdoor-policy policy comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	}
+
+	targetSelector = metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"app": "frontend",
+		},
+	}
+
+	port8000 := intstr.FromInt(8000)
+	allowBackendToFrontendPort8000Policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ALLOW-app:backend-TO-app:frontend-port-8000-policy",
+			Namespace: "testnamespace",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: targetSelector,
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				networkingv1.NetworkPolicyIngressRule{
+					Ports: []networkingv1.NetworkPolicyPort{
+						networkingv1.NetworkPolicyPort{
+							Port: &port8000,
+						},
+					},	
+					From: []networkingv1.NetworkPolicyPeer{
+						networkingv1.NetworkPolicyPeer{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"app": "backend",
+								},
+							},
+						},
+					},
+				},
+			},	
+		},
+	}
+
+	sets, lists, iptEntries = translatePolicy(allowBackendToFrontendPort8000Policy)
+
+	expectedSets = []string{
+		"app:frontend",
+		"app:backend",
+	}
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ ALLOW-app:backend-TO-app:frontend-port-8000-policy sets comparison")
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
+	}
+
+	expectedLists = []string{}
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ ALLOW-app:backend-TO-app:frontend-port-8000-policy lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
+	}
+
+	expectedIptEntries = []*iptm.IptEntry{}
+	expectedIptEntries = append(
+		expectedIptEntries,
+		getAllowKubeSystemEntries("testnamespace", targetSelector)...,
+	)
+	
+	nonKubeSystemEntries = []*iptm.IptEntry{
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressPortChain,
+			Specs: []string{
+				util.IptablesDstPortFlag,
+				"8000",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureIngressFromChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-TO-PORT-8000-OF-app:frontend-TO-JUMP-TO-" +
+				util.IptablesAzureIngressFromChain,
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:backend"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-app:backend-TO-app:frontend",
+			},
+		},
+	}
+	
 	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
 	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("dangerous", targetSelector)...)
 	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
