@@ -96,6 +96,9 @@ func main() {
 
 	log.SetName(azureVnetTelemetry)
 	log.SetLevel(logLevel)
+	if runtime.GOOS == "windows" {
+		logDirectory = "/var/log/"
+	}
 	if logDirectory != "" {
 		log.SetLogDirectory(logDirectory)
 	}

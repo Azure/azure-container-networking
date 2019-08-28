@@ -116,7 +116,7 @@ const (
 	TagTestConfigFile  string = "C:\\k\\tag-test.conf"
 	RuleConfigFile     string = "C:\\k\\rule.conf"
 	RuleTestConfigFile string = "C:\\k\\rule-test.conf"
-	VFPCmd             string = "vfpctrl.exe"
+	VFPCmd             string = "C:\\vfp-dir\\Windows\\System32\\vfpctrl.exe"
 	VFPError           string = "ERROR"
 	// Port related
 	Port         string = "/port"

@@ -1,0 +1,14 @@
+# Use a minimal image as a parent image
+FROM mcr.microsoft.com/windows/nanoserver:1809
+ARG NPM_BUILD_DIR
+
+# Install dependencies.
+COPY npm/netapi32.dll /Windows/System32
+
+# Install plugin.
+COPY $NPM_BUILD_DIR/azure-npm.exe /Windows/System32
+
+WORKDIR /Windows/System32
+
+# Run the npm command by default when the container starts.
+ENTRYPOINT ["/Windows/System32/azure-npm.exe"]

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/kalebmorris/azure-container-networking/log"
@@ -22,6 +23,9 @@ var version string
 func initLogging() error {
 	log.SetName("azure-npm")
 	log.SetLevel(log.LevelInfo)
+	if runtime.GOOS == "windows" {
+		log.SetLogDirectory("/var/log/")
+	}
 	if err := log.SetTarget(log.TargetLogfile); err != nil {
 		log.Logf("Failed to configure logging, err:%v.", err)
 		return err
@@ -60,7 +64,7 @@ func main() {
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
 
-	go npMgr.SendNpmTelemetry()
+	//go npMgr.SendNpmTelemetry()
 
 	time.Sleep(time.Second * waitForTelemetryInSeconds)
 
