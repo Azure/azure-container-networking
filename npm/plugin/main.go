@@ -64,8 +64,7 @@ func main() {
 
 	time.Sleep(time.Second * waitForTelemetryInSeconds)
 
-	err = npMgr.Start(wait.NeverStop)
-	if err != nil {
+	if err = npMgr.Start(wait.NeverStop); err != nil {
 		log.Logf("npm failed with error %v.", err)
 		panic(err.Error)
 	}

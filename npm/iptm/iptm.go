@@ -269,6 +269,7 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 			log.Printf("Chain doesn't exist %s.", entry.Chain)
 			return nil
 		}
+		
 		log.Errorf("Error: failed to delete iptables chain %s.", entry.Chain)
 		return err
 	}

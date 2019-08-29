@@ -123,12 +123,6 @@ func deductPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPo
 		}
 	}
 
-	/*
-	if len(deductedIngress) == 0 && len(deductedEgress) == 0 {
-		return nil, nil
-	}
-	*/
-
 	deductedPolicy.Spec.Ingress = deductedIngress
 	deductedPolicy.Spec.Egress = deductedEgress
 

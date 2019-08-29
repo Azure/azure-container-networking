@@ -187,6 +187,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					fromRule.NamespaceSelector != nil ||
 					fromRule.IPBlock != nil {
 					fromRuleExists = true
+					break
 				}
 			}
 		}
@@ -542,6 +543,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 					toRule.NamespaceSelector != nil ||
 					toRule.IPBlock != nil {
 					toRuleExists = true
+					break
 				}
 			}
 		}
