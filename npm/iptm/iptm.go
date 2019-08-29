@@ -289,7 +289,7 @@ func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 		return nil
 	}
 
-	iptMgr.OperationFlag = util.IptablesInsertionFlag
+	iptMgr.OperationFlag = util.IptablesAppendFlag
 	if _, err := iptMgr.Run(entry); err != nil {
 		log.Errorf("Error: failed to create iptables rules.")
 		return err

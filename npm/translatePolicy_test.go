@@ -2501,4 +2501,254 @@ func TestTranslatePolicy(t *testing.T) {
 		t.Errorf("iptEntries: %s", marshalledIptEntries)
 		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
 	}
+
+	targetSelector = metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"role": "db",
+		},
+	}
+
+	tcp = v1.ProtocolTCP
+	port6379, port5978 := intstr.FromInt(6379), intstr.FromInt(5978)
+	k8sExamplePolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "k8s-example-policy",
+			Namespace: "default",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: targetSelector,
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				networkingv1.NetworkPolicyIngressRule{
+					From: []networkingv1.NetworkPolicyPeer{
+						networkingv1.NetworkPolicyPeer{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "172.17.0.0/16",
+								Except: []string{
+									"172.17.1.0/24",
+								},
+							},	
+						},
+						networkingv1.NetworkPolicyPeer{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"project": "myproject",
+								},
+							},
+						},
+						networkingv1.NetworkPolicyPeer{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"role": "frontend",
+								},
+							},
+						},
+					},
+					Ports: []networkingv1.NetworkPolicyPort{
+						networkingv1.NetworkPolicyPort{
+							Protocol: &tcp,
+							Port: &port6379,
+						},
+					},
+				},
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				networkingv1.NetworkPolicyEgressRule{
+					To: []networkingv1.NetworkPolicyPeer{
+						networkingv1.NetworkPolicyPeer{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "10.0.0.0/24",
+							},
+						},
+					},
+					Ports: []networkingv1.NetworkPolicyPort{
+						networkingv1.NetworkPolicyPort{
+							Protocol: &tcp,
+							Port: &port5978,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	sets, lists, iptEntries = translatePolicy(k8sExamplePolicy)
+
+	expectedSets = []string{
+		"role:db",
+		"role:frontend",
+	}
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ k8s-example-policy sets comparison")
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
+	}
+
+	expectedLists = []string{
+		"ns-project:myproject",
+	}
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ k8s-example-policy lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
+	}
+
+	expectedIptEntries = []*iptm.IptEntry{}
+	expectedIptEntries = append(
+		expectedIptEntries,
+		getAllowKubeSystemEntries("testnamespace", targetSelector)...,
+	)
+
+	nonKubeSystemEntries = []*iptm.IptEntry{
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressPortChain,
+			Specs: []string{
+				util.IptablesProtFlag,
+				"TCP",
+				util.IptablesDstPortFlag,
+				"6379",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:db"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureIngressFromChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-TO-TCP-PORT-6379-OF-role:db-TO-JUMP-TO-" +
+				util.IptablesAzureIngressFromChain,
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: []string{
+				util.IptablesSFlag,
+				"172.17.0.0/16",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:db"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-172.17.0.0/16-TO-role:db",
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: []string{
+				util.IptablesSFlag,
+				"172.17.1.0/24",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:db"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesDrop,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"DROP-172.17.1.0/24-TO-role:db",
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("ns-project:myproject"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:db"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ns-project:myproject-TO-role:db",
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:frontend"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:db"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-role:frontend-TO-role:db",
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureEgressPortChain,
+			Specs: []string{
+				util.IptablesProtFlag,
+				"TCP",
+				util.IptablesDstPortFlag,
+				"5978",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:db"),
+				util.IptablesSrcFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureEgressToChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-FROM-TCP-PORT-5978-OF-role:db-TO-JUMP-TO-" +
+				util.IptablesAzureEgressToChain,
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureEgressToChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:db"),
+				util.IptablesSrcFlag,
+				util.IptablesDFlag,
+				"10.0.0.0/24",
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-10.0.0.0/24-FROM-role:db",
+			},
+		},
+	}
+	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
+	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("testnamespace", targetSelector)...)
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedPolicy failed @ k8s-example-policy policy comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	}
 }

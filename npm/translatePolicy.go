@@ -367,14 +367,12 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			if fromRule.PodSelector == nil && fromRule.NamespaceSelector != nil {
 				nsLabelsWithOps, _, _ := parseSelector(fromRule.NamespaceSelector)
 				_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
-				if len(nsLabelsWithoutOps) == 1 {
-					if nsLabelsWithoutOps[0] == "" {
-						// Empty namespaceSelector. This selects all namespaces
-						nsLabelsWithoutOps[0] = util.KubeAllNamespacesFlag
-					}
+				if len(nsLabelsWithoutOps) == 1 && nsLabelsWithoutOps[0] == "" {
+					// Empty namespaceSelector. This selects all namespaces
+					nsLabelsWithoutOps[0] = util.KubeAllNamespacesFlag
 				} else {
 					for i, _ := range nsLabelsWithoutOps {
-						// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
+						// Add namespaces prefix to distinguish namespace ipset lists and pod ipsets
 						nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
 					}
 				}
@@ -721,14 +719,12 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			if toRule.PodSelector == nil && toRule.NamespaceSelector != nil {
 				nsLabelsWithOps, _, _ := parseSelector(toRule.NamespaceSelector)
 				_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
-				if len(nsLabelsWithoutOps) == 1 {
-					if nsLabelsWithoutOps[0] == "" {
-						// Empty namespaceSelector. This selects all namespaces
-						nsLabelsWithoutOps[0] = util.KubeAllNamespacesFlag
-					}
+				if len(nsLabelsWithoutOps) == 1 && nsLabelsWithoutOps[0] == "" {
+					// Empty namespaceSelector. This selects all namespaces
+					nsLabelsWithoutOps[0] = util.KubeAllNamespacesFlag
 				} else {
 					for i, _ := range nsLabelsWithoutOps {
-						// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
+						// Add namespaces prefix to distinguish namespace ipset lists and pod ipsets
 						nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
 					}
 				}
