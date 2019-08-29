@@ -105,7 +105,7 @@ func GetOperatorsAndLabels(labelsWithOps []string) ([]string, []string) {
 
 // sortSelector sorts the member fields of the selector in an alphebatical order.
 func sortSelector(selector *metav1.LabelSelector) {
-	util.SortMap(&selector.MatchLabels)
+	_, _ = util.SortMap(&selector.MatchLabels)
 
 	reqHeap := &ReqHeap{}
 	heap.Init(reqHeap)
@@ -119,8 +119,6 @@ func sortSelector(selector *metav1.LabelSelector) {
 
 	}
 	selector.MatchExpressions = sortedReqs
-
-	log.Printf("sortedReqs: %v", sortedReqs)
 }
 
 // HashSelector returns the hash value of the selector.
@@ -149,11 +147,13 @@ func parseSelector(selector *metav1.LabelSelector) ([]string, []string, []string
 		return labels, keys, vals
 	}
 
-	for k, v := range selector.MatchLabels {
-		labels = append(labels, k+":"+v)
-		keys = append(keys, k)
-		vals = append(vals, v)
+	sortedKeys, sortedVals := util.SortMap(&selector.MatchLabels)
+
+	for i := range sortedKeys {
+		labels = append(labels, sortedKeys[i]+":"+sortedVals[i])
 	}
+	keys = append(keys, sortedKeys...)
+	vals = append(vals, sortedVals...)
 
 	for _, req := range selector.MatchExpressions {
 		var k string

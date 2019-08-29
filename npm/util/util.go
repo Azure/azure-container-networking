@@ -46,8 +46,8 @@ func Hash(s string) string {
 
 // SortMap sorts the map by key in alphabetical order.
 // Note: even though the map is sorted, accessing it through range will still result in random order.
-func SortMap(m *map[string]string) {
-	var sortedKeys []string
+func SortMap(m *map[string]string) ([]string, []string) {
+	var sortedKeys, sortedVals []string
 	for k := range *m {
 		sortedKeys = append(sortedKeys, k)
 	}
@@ -55,10 +55,14 @@ func SortMap(m *map[string]string) {
 
 	sortedMap := &map[string]string{}
 	for _, k := range sortedKeys {
-		(*sortedMap)[k] = (*m)[k]
+		v := (*m)[k]
+		(*sortedMap)[k] = v
+		sortedVals = append(sortedVals, v)
 	}
 
 	m = sortedMap
+
+	return sortedKeys, sortedVals
 }
 
 // UniqueStrSlice removes duplicate elements from the input string.

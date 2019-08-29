@@ -14,16 +14,30 @@ func TestSortMap(t *testing.T) {
 		"a": "b",
 	}
 
-	SortMap(m) 
-	expectedMap := &map[string]string{
-		"a": "b",
-		"c": "d",
-		"e": "f",
+	sortedKeys, sortedVals := SortMap(m)
+	
+	expectedKeys := []string{
+		"a",
+		"c",
+		"e",
 	}
-	if !reflect.DeepEqual(m, expectedMap) {
-		t.Errorf("TestSortMap failed @ map comparison")
-		t.Errorf("m: %v", m)
-		t.Errorf("expectedMap: %v", expectedMap)
+
+	expectedVals := []string{
+		"b",
+		"d",
+		"f",
+	}
+
+	if !reflect.DeepEqual(sortedKeys, expectedKeys) {
+		t.Errorf("TestSortMap failed @ key comparison")
+		t.Errorf("sortedKeys: %v", sortedKeys)
+		t.Errorf("expectedKeys: %v", expectedKeys)
+	}
+
+	if !reflect.DeepEqual(sortedVals, expectedVals) {
+		t.Errorf("TestSortMap failed @ val comparison")
+		t.Errorf("sortedVals: %v", sortedVals)
+		t.Errorf("expectedVals: %v", expectedVals)
 	}
 }
 
