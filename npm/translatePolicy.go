@@ -142,9 +142,7 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 		comment += prefix + ops[i] + labelsWithoutOps[i]
 		comment += "-AND-"
 	}
-
-	log.Printf("%s", comment[:len(comment)-len("-AND-")])
-
+	
 	return comment[:len(comment)-len("-AND-")]
 }
 

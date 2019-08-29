@@ -2261,4 +2261,244 @@ func TestTranslatePolicy(t *testing.T) {
 		t.Errorf("iptEntries: %s", marshalledIptEntries)
 		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
 	}
+
+	targetSelector = metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"app": "backend",
+		},
+	}
+	denyAllFromBackendPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ALLOW-none-FROM-app:backend-policy",
+			Namespace: "testnamespace",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: targetSelector,
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeEgress,
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{},
+		},
+	}
+
+	sets, lists, iptEntries = translatePolicy(denyAllFromBackendPolicy)
+
+	expectedSets = []string{
+		"app:backend",
+	}
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ ALLOW-none-FROM-app:backend-policy sets comparison")
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
+	}
+
+	expectedLists = []string{}
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ ALLOW-none-FROM-app:backend-policy lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
+	}
+
+	expectedIptEntries = []*iptm.IptEntry{}
+	expectedIptEntries = append(
+		expectedIptEntries,
+		getAllowKubeSystemEntries("testnamespace", targetSelector)...,
+	)
+	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("testnamespace", targetSelector)...)
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedPolicy failed @ ALLOW-none-FROM-app:backend-policy policy comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	}
+
+
+	targetSelector = metav1.LabelSelector{}
+	denyAllFromNsUnsafePolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ALLOW-none-FROM-ns-unsafe-policy",
+			Namespace: "unsafe",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: targetSelector,
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeEgress,
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{},
+		},
+	}
+
+	sets, lists, iptEntries = translatePolicy(denyAllFromNsUnsafePolicy)
+
+	expectedSets = []string{
+		"ns-unsafe",
+	}
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ ALLOW-none-FROM-ns-unsafe-policy sets comparison")
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
+	}
+	expectedLists = []string{}
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ ALLOW-none-FROM-app:backend-policy lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
+	}
+
+	expectedIptEntries = []*iptm.IptEntry{}
+	expectedIptEntries = append(
+		expectedIptEntries,
+		getAllowKubeSystemEntries("unsafe", targetSelector)...,
+	)
+	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("unsafe", targetSelector)...)
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedPolicy failed @ ALLOW-none-FROM-app:backend-policy policy comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	}
+
+	targetSelector = metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"app": "frontend",
+		},
+	}
+
+	tcp, udp := v1.ProtocolTCP, v1.ProtocolUDP
+	port53 := intstr.FromInt(53)
+	allowFrontendToTCPPort80UDPPOrt443Policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ALLOW-ALL-FROM-app:frontend-TCP-PORT-53-OR-UDP-PORT-53-policy",
+			Namespace: "testnamespace",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: targetSelector,
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeEgress,
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				networkingv1.NetworkPolicyEgressRule{
+					Ports: []networkingv1.NetworkPolicyPort{
+						networkingv1.NetworkPolicyPort{
+							Protocol: &tcp,
+							Port: &port53,
+						},
+						networkingv1.NetworkPolicyPort{
+							Protocol: &udp,
+							Port: &port53,
+						},
+					},
+				},
+				networkingv1.NetworkPolicyEgressRule{
+					To: []networkingv1.NetworkPolicyPeer{
+						networkingv1.NetworkPolicyPeer{
+							NamespaceSelector: &metav1.LabelSelector{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	sets, lists, iptEntries = translatePolicy(allowFrontendToTCPPort80UDPPOrt443Policy)
+
+	expectedSets = []string{
+		"app:frontend",
+	}
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ ALLOW-ALL-FROM-app:frontend-TCP-PORT-53-OR-UDP-PORT-53-policy sets comparison")
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
+	}
+
+	expectedLists = []string{
+		util.KubeAllNamespacesFlag,
+	}
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ ALLOW-ALL-FROM-app:frontend-TCP-PORT-53-OR-UDP-PORT-53-policy lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
+	}
+
+	expectedIptEntries = []*iptm.IptEntry{}
+	expectedIptEntries = append(
+		expectedIptEntries,
+		getAllowKubeSystemEntries("testnamespace", targetSelector)...,
+	)
+
+	nonKubeSystemEntries = []*iptm.IptEntry{
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureEgressPortChain,
+			Specs: []string{
+				util.IptablesProtFlag,
+				"TCP",
+				util.IptablesDstPortFlag,
+				"53",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesSrcFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-FROM-TCP-PORT-53-OF-app:frontend",
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureEgressPortChain,
+			Specs: []string{
+				util.IptablesProtFlag,
+				"UDP",
+				util.IptablesDstPortFlag,
+				"53",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesSrcFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-FROM-UDP-PORT-53-OF-app:frontend",
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureEgressToChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName(util.KubeAllNamespacesFlag),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-app:frontend-TO-" +
+				util.KubeAllNamespacesFlag,
+			},
+		},
+	}
+	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
+	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("testnamespace", targetSelector)...)
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedPolicy failed @ ALLOW-ALL-FROM-app:frontend-TCP-PORT-53-OR-UDP-PORT-53-policy policy comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	}
 }
