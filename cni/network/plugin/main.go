@@ -27,6 +27,7 @@ const (
 	pluginName                      = "CNI"
 	telemetryNumRetries             = 5
 	telemetryWaitTimeInMilliseconds = 200
+	name                            = "azure-vnet"
 )
 
 // Version is populated by make during build.
@@ -48,26 +49,13 @@ func printVersion() {
 	fmt.Printf("Azure CNI Version %v\n", version)
 }
 
-// If report write succeeded, mark the report flag state to false.
-func markSendReport(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer) {
-	if err := reportManager.SetReportState(telemetry.CNITelemetryFile); err != nil {
-		log.Printf("SetReportState failed due to %v", err)
-		reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
-
-		if err := reportManager.SendReport(tb); err != nil {
-			log.Printf("SendReport failed due to %v", err)
-		}
-	}
-}
-
 // send error report to hostnetagent if CNI encounters any error.
 func reportPluginError(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer, err error) {
 	log.Printf("Report plugin error")
-	reportManager.Report.(*telemetry.CNIReport).GetReport(pluginName, version, ipamQueryURL)
 	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
 
 	if err := reportManager.SendReport(tb); err != nil {
-		log.Printf("SendReport failed due to %v", err)
+		log.Errorf("SendReport failed due to %v", err)
 	}
 }
 
@@ -152,6 +140,15 @@ func main() {
 		err    error
 	)
 
+	log.SetName(name)
+	log.SetLevel(log.LevelInfo)
+	if err = log.SetTarget(log.TargetLogfile); err != nil {
+		fmt.Printf("Failed to setup cni logging: %v\n", err)
+		return
+	}
+
+	defer log.Close()
+
 	config.Version = version
 	reportManager := &telemetry.ReportManager{
 		HostNetAgentURL: hostNetAgentURL,
@@ -171,45 +168,40 @@ func main() {
 		cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 	}
 
+	cniReport.GetReport(pluginName, version, ipamQueryURL)
+	startTime := time.Now().UnixNano() / int64(time.Millisecond)
+
+	netPlugin, err := network.NewPlugin(name, &config)
+	if err != nil {
+		log.Printf("Failed to create network plugin, err:%v.\n", err)
+		return
+	}
+
+	netPlugin.SetCNIReport(cniReport)
+
+	// CNI Acquires lock
+	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
+		log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
+		tb := telemetry.NewTelemetryBuffer("")
+		if tberr := tb.Connect(); tberr == nil {
+			reportPluginError(reportManager, tb, err)
+			tb.Close()
+		}
+		return
+	}
+
+	// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
+	// end up creating/killing telemetry process results in undesired state.
 	tb := telemetry.NewTelemetryBuffer("")
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 
 	t := time.Now()
 	cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
-	cniReport.GetReport(pluginName, version, ipamQueryURL)
-
-	if !reportManager.GetReportState(telemetry.CNITelemetryFile) {
-		log.Printf("GetReport state file didn't exist. Setting flag to true")
-
-		err = reportManager.SendReport(tb)
-		if err != nil {
-			log.Printf("SendReport failed due to %v", err)
-		} else {
-			markSendReport(reportManager, tb)
-		}
-	}
-
-	startTime := time.Now().UnixNano() / int64(time.Millisecond)
-
-	netPlugin, err := network.NewPlugin(&config)
-	if err != nil {
-		log.Printf("Failed to create network plugin, err:%v.\n", err)
-		reportPluginError(reportManager, tb, err)
-		return
-	}
-
-	netPlugin.SetCNIReport(cniReport)
-
-	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
-		log.Printf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
-		reportPluginError(reportManager, tb, err)
-		return
-	}
 
 	defer func() {
 		if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
-			log.Printf("Failed to uninitialize key-value store of network plugin, err:%v.\n", err)
+			log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
 		}
 
 		if recover() != nil {
@@ -218,7 +210,7 @@ func main() {
 	}()
 
 	if err = netPlugin.Start(&config); err != nil {
-		log.Printf("Failed to start network plugin, err:%v.\n", err)
+		log.Errorf("Failed to start network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, tb, err)
 		panic("network plugin start fatal error")
 	}
@@ -227,13 +219,18 @@ func main() {
 	if handled == true {
 		log.Printf("CNI UPDATE finished.")
 	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
-		log.Printf("Failed to execute network plugin, err:%v.\n", err)
+		log.Errorf("Failed to execute network plugin, err:%v.\n", err)
 	}
 
 	endTime := time.Now().UnixNano() / int64(time.Millisecond)
 	reflect.ValueOf(reportManager.Report).Elem().FieldByName("OperationDuration").SetInt(int64(endTime - startTime))
 
 	netPlugin.Stop()
+
+	// release cni lock
+	if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
+		log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
+	}
 
 	if err != nil {
 		reportPluginError(reportManager, tb, err)
@@ -244,9 +241,9 @@ func main() {
 	reflect.ValueOf(reportManager.Report).Elem().FieldByName("CniSucceeded").SetBool(true)
 
 	if err = reportManager.SendReport(tb); err != nil {
-		log.Printf("SendReport failed due to %v", err)
+		log.Errorf("SendReport failed due to %v", err)
 	} else {
 		log.Printf("Sending report succeeded")
-		markSendReport(reportManager, tb)
 	}
+
 }

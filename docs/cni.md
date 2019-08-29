@@ -110,3 +110,9 @@ $ kubectl get nodes -o name | cut -d / -f 2 | xargs -I{}  -n1 ssh -tt {} -t 'wge
 ```bash
 $ kubectl get nodes -o name | cut -d / -f 2 |  xargs -I{} -n1 kubectl uncordon  {}
 ```
+
+## Outbound Connectivity from pods
+If you have deployed kubernetes cluster via other sources(not using aks/aks-engine), you have to add following iptable command to allow outbound(internet) connectivity from pod
+```bash
+iptables -t nat -A POSTROUTING -m addrtype ! --dst-type local ! -d <vnet_address_space> -j MASQUERADE
+```

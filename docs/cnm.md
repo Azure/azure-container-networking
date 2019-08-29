@@ -87,3 +87,9 @@ Finally, once all containers on the network exit, you can delete the network.
 ```bash
 $ docker network rm azure
 ```
+
+## Outbound Connectivity from container
+You have to add following iptable command to allow outbound(internet) connectivity from container
+```bash
+iptables -t nat -A POSTROUTING -m addrtype ! --dst-type local ! -d <vnet_address_space> -j MASQUERADE
+```

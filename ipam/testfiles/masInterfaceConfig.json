@@ -1,0 +1,31 @@
+{
+  "Interfaces": [
+    {
+      "MacAddress": "000D3A6E1825",
+      "IsPrimary": true,
+      "IPSubnets": [
+        {
+          "Prefix": "1.0.0.0/12",
+          "IPAddresses": [
+            {
+              "Address": "1.0.0.4",
+              "IsPrimary": true
+            },
+            {
+              "Address": "1.0.0.5",
+              "IsPrimary": false
+            },
+            {
+              "Address": "1.0.0.6",
+              "IsPrimary": false
+            },
+            {
+              "Address": "1.0.0.7",
+              "IsPrimary": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

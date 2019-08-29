@@ -18,6 +18,7 @@ const (
 	GetIPAddressUtilizationPath = "/network/ip/utilization"
 	GetUnhealthyIPAddressesPath = "/network/ipaddresses/unhealthy"
 	GetHealthReportPath         = "/network/health"
+	NumberOfCPUCoresPath        = "/hostcpucores"
 	V1Prefix                    = "/v0.1"
 	V2Prefix                    = "/v0.2"
 )
@@ -137,6 +138,12 @@ type NodeConfiguration struct {
 type Response struct {
 	ReturnCode int
 	Message    string
+}
+
+// NumOfCPUCoresResponse describes num of cpu cores present on host.
+type NumOfCPUCoresResponse struct {
+	Response      Response
+	NumOfCPUCores int
 }
 
 // OptionMap describes generic options that can be passed to CNS.

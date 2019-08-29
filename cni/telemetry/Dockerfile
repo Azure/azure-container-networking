@@ -1,5 +1,5 @@
 # Use a minimal image as a parent image
-FROM ubuntu:18.04
+FROM ubuntu:19.10
 ARG TELEMETRY_BUILD_DIR
 ARG TELEMETRY_CONF_DIR
 

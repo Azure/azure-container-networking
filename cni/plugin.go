@@ -35,18 +35,6 @@ func NewPlugin(name, version string) (*Plugin, error) {
 		return nil, err
 	}
 
-	// Initialize logging.
-	log.SetName(plugin.Name)
-	log.SetLevel(log.LevelInfo)
-	err = log.SetTarget(log.TargetLogfile)
-	if err != nil {
-		log.Printf("[cni] Failed to configure logging, err:%v.\n", err)
-		return &Plugin{
-			Plugin:  plugin,
-			version: version,
-		}, err
-	}
-
 	return &Plugin{
 		Plugin:  plugin,
 		version: version,

@@ -8,11 +8,12 @@ COREFILES = \
 	$(wildcard network/*.go) \
 	$(wildcard telemetry/*.go) \
 	$(wildcard network/epcommon/*.go) \
-	$(wildcard network/ovsnfravnet/*.go) \
-	$(wildcard network/ovssnat/*.go) \
 	$(wildcard network/policy/*.go) \
 	$(wildcard platform/*.go) \
-	$(wildcard store/*.go)
+	$(wildcard store/*.go) \
+	$(wildcard ovsctl/*.go) \
+	$(wildcard network/ovssnat*.go) \
+	$(wildcard network/ovsinfravnet*.go)
 
 # Source files for building CNM plugin.
 CNMFILES = \

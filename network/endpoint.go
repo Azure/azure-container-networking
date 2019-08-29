@@ -17,50 +17,55 @@ const (
 
 // Endpoint represents a container network interface.
 type endpoint struct {
-	Id                    string
-	HnsId                 string `json:",omitempty"`
-	SandboxKey            string
-	IfName                string
-	HostIfName            string
-	MacAddress            net.HardwareAddr
-	InfraVnetIP           net.IPNet
-	IPAddresses           []net.IPNet
-	Gateways              []net.IP
-	DNS                   DNSInfo
-	Routes                []RouteInfo
-	VlanID                int
-	EnableSnatOnHost      bool
-	EnableInfraVnet       bool
-	EnableMultitenancy    bool
-	NetworkNameSpace      string `json:",omitempty"`
-	ContainerID           string
-	PODName               string `json:",omitempty"`
-	PODNameSpace          string `json:",omitempty"`
-	InfraVnetAddressSpace string `json:",omitempty"`
+	Id                       string
+	HnsId                    string `json:",omitempty"`
+	SandboxKey               string
+	IfName                   string
+	HostIfName               string
+	MacAddress               net.HardwareAddr
+	InfraVnetIP              net.IPNet
+	LocalIP                  string
+	IPAddresses              []net.IPNet
+	Gateways                 []net.IP
+	DNS                      DNSInfo
+	Routes                   []RouteInfo
+	VlanID                   int
+	EnableSnatOnHost         bool
+	EnableInfraVnet          bool
+	EnableMultitenancy       bool
+	AllowInboundFromHostToNC bool
+	AllowInboundFromNCToHost bool
+	NetworkNameSpace         string `json:",omitempty"`
+	ContainerID              string
+	PODName                  string `json:",omitempty"`
+	PODNameSpace             string `json:",omitempty"`
+	InfraVnetAddressSpace    string `json:",omitempty"`
 }
 
 // EndpointInfo contains read-only information about an endpoint.
 type EndpointInfo struct {
-	Id                    string
-	ContainerID           string
-	NetNsPath             string
-	IfName                string
-	SandboxKey            string
-	IfIndex               int
-	MacAddress            net.HardwareAddr
-	DNS                   DNSInfo
-	IPAddresses           []net.IPNet
-	InfraVnetIP           net.IPNet
-	Routes                []RouteInfo
-	Policies              []policy.Policy
-	Gateways              []net.IP
-	EnableSnatOnHost      bool
-	EnableInfraVnet       bool
-	EnableMultiTenancy    bool
-	PODName               string
-	PODNameSpace          string
-	Data                  map[string]interface{}
-	InfraVnetAddressSpace string
+	Id                       string
+	ContainerID              string
+	NetNsPath                string
+	IfName                   string
+	SandboxKey               string
+	IfIndex                  int
+	MacAddress               net.HardwareAddr
+	DNS                      DNSInfo
+	IPAddresses              []net.IPNet
+	InfraVnetIP              net.IPNet
+	Routes                   []RouteInfo
+	Policies                 []policy.Policy
+	Gateways                 []net.IP
+	EnableSnatOnHost         bool
+	EnableInfraVnet          bool
+	EnableMultiTenancy       bool
+	AllowInboundFromHostToNC bool
+	AllowInboundFromNCToHost bool
+	PODName                  string
+	PODNameSpace             string
+	Data                     map[string]interface{}
+	InfraVnetAddressSpace    string
 	SkipHotAttachEp       bool
 }
 
@@ -183,22 +188,24 @@ func podNameMatches(source string, actualValue string, doExactMatch bool) bool {
 // GetInfo returns information about the endpoint.
 func (ep *endpoint) getInfo() *EndpointInfo {
 	info := &EndpointInfo{
-		Id:                 ep.Id,
-		IPAddresses:        ep.IPAddresses,
-		InfraVnetIP:        ep.InfraVnetIP,
-		Data:               make(map[string]interface{}),
-		MacAddress:         ep.MacAddress,
-		SandboxKey:         ep.SandboxKey,
-		IfIndex:            0, // Azure CNI supports only one interface
-		DNS:                ep.DNS,
-		EnableSnatOnHost:   ep.EnableSnatOnHost,
-		EnableInfraVnet:    ep.EnableInfraVnet,
-		EnableMultiTenancy: ep.EnableMultitenancy,
-		IfName:             ep.IfName,
-		ContainerID:        ep.ContainerID,
-		NetNsPath:          ep.NetworkNameSpace,
-		PODName:            ep.PODName,
-		PODNameSpace:       ep.PODNameSpace,
+		Id:                       ep.Id,
+		IPAddresses:              ep.IPAddresses,
+		InfraVnetIP:              ep.InfraVnetIP,
+		Data:                     make(map[string]interface{}),
+		MacAddress:               ep.MacAddress,
+		SandboxKey:               ep.SandboxKey,
+		IfIndex:                  0, // Azure CNI supports only one interface
+		DNS:                      ep.DNS,
+		EnableSnatOnHost:         ep.EnableSnatOnHost,
+		EnableInfraVnet:          ep.EnableInfraVnet,
+		EnableMultiTenancy:       ep.EnableMultitenancy,
+		AllowInboundFromHostToNC: ep.AllowInboundFromHostToNC,
+		AllowInboundFromNCToHost: ep.AllowInboundFromNCToHost,
+		IfName:       ep.IfName,
+		ContainerID:  ep.ContainerID,
+		NetNsPath:    ep.NetworkNameSpace,
+		PODName:      ep.PODName,
+		PODNameSpace: ep.PODNameSpace,
 	}
 
 	for _, route := range ep.Routes {

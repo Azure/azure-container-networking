@@ -111,9 +111,9 @@ var args = acn.ArgumentList{
 		DefaultValue: "",
 	},
 	{
-		Name:         acn.OptStopAzureVnet,
-		Shorthand:    acn.OptStopAzureVnetAlias,
-		Description:  "Stop Azure-CNM if flag is true",
+		Name:         acn.OptStartAzureCNM,
+		Shorthand:    acn.OptStartAzureCNMAlias,
+		Description:  "Start Azure-CNM if flag is set",
 		Type:         "bool",
 		DefaultValue: false,
 	},
@@ -162,7 +162,6 @@ func printVersion() {
 
 // Main is the entry point for CNS.
 func main() {
-	var stopcnm = false
 	// Initialize and parse command line arguments.
 	acn.ParseArgs(&args, printVersion)
 
@@ -176,7 +175,7 @@ func main() {
 	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
 	ipamQueryUrl, _ := acn.GetArg(acn.OptIpamQueryUrl).(string)
 	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
-	stopcnm = acn.GetArg(acn.OptStopAzureVnet).(bool)
+	startCNM := acn.GetArg(acn.OptStartAzureCNM).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 	createDefaultExtNetworkType := acn.GetArg(acn.OptCreateDefaultExtNetworkType).(string)
 	telemetryEnabled := acn.GetArg(acn.OptTelemetry).(bool)
@@ -271,7 +270,7 @@ func main() {
 	var netPlugin network.NetPlugin
 	var ipamPlugin ipam.IpamPlugin
 
-	if !stopcnm {
+	if startCNM {
 		var pluginConfig acn.PluginConfig
 		pluginConfig.Version = version
 
@@ -344,7 +343,7 @@ func main() {
 
 	telemetryStopProcessing <- true
 
-	if !stopcnm {
+	if startCNM {
 		if netPlugin != nil {
 			netPlugin.Stop()
 		}

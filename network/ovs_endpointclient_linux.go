@@ -12,17 +12,19 @@ import (
 )
 
 type OVSEndpointClient struct {
-	bridgeName        string
-	hostPrimaryIfName string
-	hostVethName      string
-	hostPrimaryMac    string
-	containerVethName string
-	containerMac      string
-	snatClient        ovssnat.OVSSnatClient
-	infraVnetClient   ovsinfravnet.OVSInfraVnetClient
-	vlanID            int
-	enableSnatOnHost  bool
-	enableInfraVnet   bool
+	bridgeName               string
+	hostPrimaryIfName        string
+	hostVethName             string
+	hostPrimaryMac           string
+	containerVethName        string
+	containerMac             string
+	snatClient               ovssnat.OVSSnatClient
+	infraVnetClient          ovsinfravnet.OVSInfraVnetClient
+	vlanID                   int
+	enableSnatOnHost         bool
+	enableInfraVnet          bool
+	allowInboundFromHostToNC bool
+	allowInboundFromNCToHost bool
 }
 
 const (
@@ -31,26 +33,28 @@ const (
 )
 
 func NewOVSEndpointClient(
-	extIf *externalInterface,
+	nw *network,
 	epInfo *EndpointInfo,
 	hostVethName string,
 	containerVethName string,
 	vlanid int,
-) *OVSEndpointClient {
+	localIP string) *OVSEndpointClient {
 
 	client := &OVSEndpointClient{
-		bridgeName:        extIf.BridgeName,
-		hostPrimaryIfName: extIf.Name,
-		hostVethName:      hostVethName,
-		hostPrimaryMac:    extIf.MacAddress.String(),
-		containerVethName: containerVethName,
-		vlanID:            vlanid,
-		enableSnatOnHost:  epInfo.EnableSnatOnHost,
-		enableInfraVnet:   epInfo.EnableInfraVnet,
+		bridgeName:               nw.extIf.BridgeName,
+		hostPrimaryIfName:        nw.extIf.Name,
+		hostVethName:             hostVethName,
+		hostPrimaryMac:           nw.extIf.MacAddress.String(),
+		containerVethName:        containerVethName,
+		vlanID:                   vlanid,
+		enableSnatOnHost:         epInfo.EnableSnatOnHost,
+		enableInfraVnet:          epInfo.EnableInfraVnet,
+		allowInboundFromHostToNC: epInfo.AllowInboundFromHostToNC,
+		allowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
 	}
 
 	NewInfraVnetClient(client, epInfo.Id[:7])
-	NewSnatClient(client, epInfo)
+	NewSnatClient(client, nw.SnatBridgeIP, localIP, epInfo)
 
 	return client
 }
@@ -86,7 +90,7 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 	}
 
 	log.Printf("[ovs] Get ovs port for interface %v.", client.hostVethName)
-	containerPort, err := ovsctl.GetOVSPortNumber(client.hostVethName)
+	containerOVSPort, err := ovsctl.GetOVSPortNumber(client.hostVethName)
 	if err != nil {
 		log.Printf("[ovs] Get ofport failed with error %v", err)
 		return err
@@ -99,12 +103,6 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 		return err
 	}
 
-	// IP SNAT Rule
-	log.Printf("[ovs] Adding IP SNAT rule for egress traffic on %v.", containerPort)
-	if err := ovsctl.AddIpSnatRule(client.bridgeName, containerPort, client.hostPrimaryMac, ""); err != nil {
-		return err
-	}
-
 	for _, ipAddr := range epInfo.IPAddresses {
 		// Add Arp Reply Rules
 		// Set Vlan id on arp request packet and forward it to table 1
@@ -112,9 +110,18 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 			return err
 		}
 
-		// Add IP DNAT rule based on dst ip and vlanid
-		log.Printf("[ovs] Adding MAC DNAT rule for IP address %v on %v.", ipAddr.IP.String(), hostPort)
-		if err := ovsctl.AddMacDnatRule(client.bridgeName, hostPort, ipAddr.IP, client.containerMac, client.vlanID); err != nil {
+		// IP SNAT Rule - Change src mac to VM Mac for packets coming from container host veth port.
+		// This rule also checks if packets coming from right source ip based on the ovs port to prevent ip spoofing.
+		// Otherwise it drops the packet.
+		log.Printf("[ovs] Adding IP SNAT rule for egress traffic on %v.", containerOVSPort)
+		if err := ovsctl.AddIpSnatRule(client.bridgeName, ipAddr.IP, client.vlanID, containerOVSPort, client.hostPrimaryMac, hostPort); err != nil {
+			return err
+		}
+
+		// Add IP DNAT rule based on dst ip and vlanid - This rule changes the destination mac to corresponding container mac based on the ip and
+		// forwards the packet to corresponding container hostveth port
+		log.Printf("[ovs] Adding MAC DNAT rule for IP address %v on hostport %v, containerport: %v", ipAddr.IP.String(), hostPort, containerOVSPort)
+		if err := ovsctl.AddMacDnatRule(client.bridgeName, hostPort, ipAddr.IP, client.containerMac, client.vlanID, containerOVSPort); err != nil {
 			return err
 		}
 	}
@@ -155,6 +162,7 @@ func (client *OVSEndpointClient) DeleteEndpointRules(ep *endpoint) {
 	log.Printf("[ovs] Deleting interface %v from bridge %v", client.hostVethName, client.bridgeName)
 	ovsctl.DeletePortFromOVS(client.bridgeName, client.hostVethName)
 
+	DeleteSnatEndpointRules(client)
 	DeleteInfraVnetEndpointRules(client, ep, hostPort)
 }
 
@@ -212,5 +220,6 @@ func (client *OVSEndpointClient) DeleteEndpoints(ep *endpoint) error {
 		return err
 	}
 
+	DeleteSnatEndpoint(client)
 	return DeleteInfraVnetEndpoint(client, ep.Id[:7])
 }

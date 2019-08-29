@@ -75,8 +75,7 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 
 		if client.mode != opModeTunnel {
 			log.Printf("[net] Adding static arp for IP address %v and MAC %v in VM", ipAddr.String(), client.containerMac.String())
-			netlink.AddOrRemoveStaticArp(netlink.ADD, client.bridgeName, ipAddr.IP, client.containerMac)
-			if err != nil {
+			if err := netlink.AddOrRemoveStaticArp(netlink.ADD, client.bridgeName, ipAddr.IP, client.containerMac); err != nil {
 				log.Printf("Failed setting arp in vm: %v", err)
 			}
 		}

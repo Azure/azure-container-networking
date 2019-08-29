@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -157,6 +158,7 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.CreateHnsNetworkPath, service.createHnsNetwork)
 	listener.AddHandler(cns.DeleteHnsNetworkPath, service.deleteHnsNetwork)
+	listener.AddHandler(cns.NumberOfCPUCoresPath, service.getNumberOfCPUCores)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
@@ -177,6 +179,7 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.CreateHnsNetworkPath, service.createHnsNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DeleteHnsNetworkPath, service.deleteHnsNetwork)
+	listener.AddHandler(cns.V2Prefix+cns.NumberOfCPUCoresPath, service.getNumberOfCPUCores)
 
 	log.Printf("[Azure CNS]  Listening.")
 	return nil
@@ -188,7 +191,7 @@ func (service *HTTPRestService) Stop() {
 	log.Printf("[Azure CNS]  Service stopped.")
 }
 
-// Get dnc/service partition key
+// GetPartitionKey - Get dnc/service partition key
 func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
 	service.lock.Lock()
 	dncPartitionKey = service.dncPartitionKey
@@ -1022,11 +1025,13 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	switch req.NetworkContainerType {
 	case cns.AzureContainerInstance:
 		fallthrough
-	case cns.ClearContainer:
-		fallthrough
 	case cns.Docker:
 		fallthrough
 	case cns.Basic:
+		fallthrough
+	case cns.JobObject:
+		fallthrough
+	case cns.COW:
 		switch service.state.OrchestratorType {
 		case cns.Kubernetes:
 			fallthrough
@@ -1054,8 +1059,14 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			break
 
 		default:
-			log.Printf("Invalid orchestrator type %v", service.state.OrchestratorType)
+			errMsg := fmt.Sprintf("Unsupported orchestrator type: %s", service.state.OrchestratorType)
+			log.Errorf(errMsg)
+			return UnsupportedOrchestratorType, errMsg
 		}
+	default:
+		errMsg := fmt.Sprintf("Unsupported network container type %s", req.NetworkContainerType)
+		log.Errorf(errMsg)
+		return UnsupportedNetworkContainerType, errMsg
 	}
 
 	service.saveState()
@@ -1207,6 +1218,8 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		MultiTenancyInfo:           savedReq.MultiTenancyInfo,
 		PrimaryInterfaceIdentifier: savedReq.PrimaryInterfaceIdentifier,
 		LocalIPConfiguration:       savedReq.LocalIPConfiguration,
+		AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
+		AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
 	}
 
 	return getNetworkContainerResponse
@@ -1570,4 +1583,35 @@ func (service *HTTPRestService) getNetPluginDetails() *networkcontainers.NetPlug
 	pluginBinPath, _ := service.GetOption(acn.OptNetPluginPath).(string)
 	configPath, _ := service.GetOption(acn.OptNetPluginConfigFile).(string)
 	return networkcontainers.NewNetPluginConfiguration(pluginBinPath, configPath)
+}
+
+// Retrieves the number of logic processors on a node. It will be primarily
+// used to enforce per VM delegated NIC limit by DNC.
+func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[Azure-CNS] getNumberOfCPUCores")
+	log.Request(service.Name, "getNumberOfCPUCores", nil)
+
+	var (
+		num        int
+		returnCode int
+		errMsg     string
+	)
+
+	switch r.Method {
+	case "GET":
+		num = runtime.NumCPU()
+	default:
+		errMsg = "[Azure-CNS] getNumberOfCPUCores API expects a GET."
+		returnCode = UnsupportedVerb
+	}
+
+	resp := cns.Response{ReturnCode: returnCode, Message: errMsg}
+	numOfCPUCoresResp := cns.NumOfCPUCoresResponse{
+		Response:      resp,
+		NumOfCPUCores: num,
+	}
+
+	err := service.Listener.Encode(w, &numOfCPUCoresResp)
+
+	log.Response(service.Name, numOfCPUCoresResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }

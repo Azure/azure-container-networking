@@ -5,25 +5,28 @@ package restserver
 
 // Container Network Service remote API Contract.
 const (
-	Success                      = 0
-	UnsupportedNetworkType       = 1
-	InvalidParameter             = 2
-	UnsupportedEnvironment       = 3
-	UnreachableHost              = 4
-	ReservationNotFound          = 5
-	MalformedSubnet              = 8
-	UnreachableDockerDaemon      = 9
-	UnspecifiedNetworkName       = 10
-	NotFound                     = 14
-	AddressUnavailable           = 15
-	NetworkContainerNotSpecified = 16
-	CallToHostFailed             = 17
-	UnknownContainerID           = 18
-	UnsupportedOrchestratorType  = 19
-	DockerContainerNotSpecified  = 20
-	UnexpectedError              = 99
+	Success                         = 0
+	UnsupportedNetworkType          = 1
+	InvalidParameter                = 2
+	UnsupportedEnvironment          = 3
+	UnreachableHost                 = 4
+	ReservationNotFound             = 5
+	MalformedSubnet                 = 8
+	UnreachableDockerDaemon         = 9
+	UnspecifiedNetworkName          = 10
+	NotFound                        = 14
+	AddressUnavailable              = 15
+	NetworkContainerNotSpecified    = 16
+	CallToHostFailed                = 17
+	UnknownContainerID              = 18
+	UnsupportedOrchestratorType     = 19
+	DockerContainerNotSpecified     = 20
+	UnsupportedVerb                 = 21
+	UnsupportedNetworkContainerType = 22
+	UnexpectedError                 = 99
 )
 
+// ReturnCodeToString - Converts an error code to appropriate string.
 func ReturnCodeToString(returnCode int) (s string) {
 	switch returnCode {
 	case Success:

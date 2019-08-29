@@ -3,50 +3,67 @@ package network
 import (
 	"fmt"
 
+	"github.com/Azure/azure-container-networking/network/epcommon"
 	"github.com/Azure/azure-container-networking/network/ovssnat"
 )
 
-func NewSnatClient(client *OVSEndpointClient, epInfo *EndpointInfo) {
-	if client.enableSnatOnHost {
-		var localIP, snatBridgeIP string
+func NewSnatClient(client *OVSEndpointClient, snatBridgeIP string, localIP string, epInfo *EndpointInfo) {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC {
 
 		hostIfName := fmt.Sprintf("%s%s", snatVethInterfacePrefix, epInfo.Id[:7])
 		contIfName := fmt.Sprintf("%s%s-2", snatVethInterfacePrefix, epInfo.Id[:7])
-
-		if _, ok := epInfo.Data[LocalIPKey]; ok {
-			localIP = epInfo.Data[LocalIPKey].(string)
-		}
-
-		if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
-			snatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
-		}
 
 		client.snatClient = ovssnat.NewSnatClient(hostIfName, contIfName, localIP, snatBridgeIP, epInfo.DNS.Servers)
 	}
 }
 
 func AddSnatEndpoint(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost {
-		return client.snatClient.CreateSnatEndpoint(client.bridgeName)
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
+		if err := client.snatClient.CreateSnatEndpoint(client.bridgeName); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func AddSnatEndpointRules(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost {
-		if err := client.snatClient.AddPrivateIPBlockRule(); err != nil {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
+		// Allow specific Private IPs via Snat Bridge
+		if err := client.snatClient.AllowIPAddressesOnSnatBrdige(); err != nil {
 			return err
 		}
 
-		return AddStaticRoute(ovssnat.ImdsIP, client.bridgeName)
+		// Block Private IPs via Snat Bridge
+		if err := client.snatClient.BlockIPAddressesOnSnatBrdige(); err != nil {
+			return err
+		}
+
+		// Add route for 169.254.169.54 in host via azure0, otherwise it will route via snat bridge
+		if err := AddStaticRoute(ovssnat.ImdsIP, client.bridgeName); err != nil {
+			return err
+		}
+
+		if err := epcommon.EnableIPForwarding(ovssnat.SnatBridgeName); err != nil {
+			return err
+		}
+
+		if client.allowInboundFromHostToNC {
+			if err := client.snatClient.AllowInboundFromHostToNC(); err != nil {
+				return err
+			}
+		}
+
+		if client.allowInboundFromNCToHost {
+			return client.snatClient.AllowInboundFromNCToHost()
+		}
 	}
 
 	return nil
 }
 
 func MoveSnatEndpointToContainerNS(client *OVSEndpointClient, netnsPath string, nsID uintptr) error {
-	if client.enableSnatOnHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
 		return client.snatClient.MoveSnatEndpointToContainerNS(netnsPath, nsID)
 	}
 
@@ -54,7 +71,7 @@ func MoveSnatEndpointToContainerNS(client *OVSEndpointClient, netnsPath string, 
 }
 
 func SetupSnatContainerInterface(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
 		return client.snatClient.SetupSnatContainerInterface()
 	}
 
@@ -62,7 +79,7 @@ func SetupSnatContainerInterface(client *OVSEndpointClient) error {
 }
 
 func ConfigureSnatContainerInterface(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
 		return client.snatClient.ConfigureSnatContainerInterface()
 	}
 
@@ -70,9 +87,19 @@ func ConfigureSnatContainerInterface(client *OVSEndpointClient) error {
 }
 
 func DeleteSnatEndpoint(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
 		return client.snatClient.DeleteSnatEndpoint()
 	}
 
 	return nil
+}
+
+func DeleteSnatEndpointRules(client *OVSEndpointClient) {
+	if client.allowInboundFromHostToNC {
+		client.snatClient.DeleteInboundFromHostToNC()
+	}
+
+	if client.allowInboundFromNCToHost {
+		client.snatClient.DeleteInboundFromNCToHost()
+	}
 }

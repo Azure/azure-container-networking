@@ -52,6 +52,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	var err error
 	var hostIfName string
 	var contIfName string
+	var localIP string
 	var epClient EndpointClient
 	var vlanid int = 0
 
@@ -64,6 +65,10 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 	if epInfo.Data != nil {
 		if _, ok := epInfo.Data[VlanIDKey]; ok {
 			vlanid = epInfo.Data[VlanIDKey].(int)
+		}
+
+		if _, ok := epInfo.Data[LocalIPKey]; ok {
+			localIP = epInfo.Data[LocalIPKey].(string)
 		}
 	}
 
@@ -82,12 +87,17 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 
 	if vlanid != 0 {
 		log.Printf("OVS client")
+		if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
+			nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
+		}
+
 		epClient = NewOVSEndpointClient(
-			nw.extIf,
+			nw,
 			epInfo,
 			hostIfName,
 			contIfName,
-			vlanid)
+			vlanid,
+			localIP)
 	} else if nw.Mode != opModeTransparent {
 		log.Printf("Bridge client")
 		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode)
@@ -101,15 +111,18 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		if err != nil {
 			log.Printf("CNI error. Delete Endpoint %v and rules that are created.", contIfName)
 			endpt := &endpoint{
-				Id:                 epInfo.Id,
-				IfName:             contIfName,
-				HostIfName:         hostIfName,
-				IPAddresses:        epInfo.IPAddresses,
-				Gateways:           []net.IP{nw.extIf.IPv4Gateway},
-				DNS:                epInfo.DNS,
-				VlanID:             vlanid,
-				EnableSnatOnHost:   epInfo.EnableSnatOnHost,
-				EnableMultitenancy: epInfo.EnableMultiTenancy,
+				Id:                       epInfo.Id,
+				IfName:                   contIfName,
+				HostIfName:               hostIfName,
+				LocalIP:                  localIP,
+				IPAddresses:              epInfo.IPAddresses,
+				Gateways:                 []net.IP{nw.extIf.IPv4Gateway},
+				DNS:                      epInfo.DNS,
+				VlanID:                   vlanid,
+				EnableSnatOnHost:         epInfo.EnableSnatOnHost,
+				EnableMultitenancy:       epInfo.EnableMultiTenancy,
+				AllowInboundFromHostToNC: epInfo.AllowInboundFromHostToNC,
+				AllowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
 			}
 
 			if containerIf != nil {
@@ -177,22 +190,25 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 
 	// Create the endpoint object.
 	ep = &endpoint{
-		Id:                 epInfo.Id,
-		IfName:             epInfo.IfName,
-		HostIfName:         hostIfName,
-		MacAddress:         containerIf.HardwareAddr,
-		InfraVnetIP:        epInfo.InfraVnetIP,
-		IPAddresses:        epInfo.IPAddresses,
-		Gateways:           []net.IP{nw.extIf.IPv4Gateway},
-		DNS:                epInfo.DNS,
-		VlanID:             vlanid,
-		EnableSnatOnHost:   epInfo.EnableSnatOnHost,
-		EnableInfraVnet:    epInfo.EnableInfraVnet,
-		EnableMultitenancy: epInfo.EnableMultiTenancy,
-		NetworkNameSpace:   epInfo.NetNsPath,
-		ContainerID:        epInfo.ContainerID,
-		PODName:            epInfo.PODName,
-		PODNameSpace:       epInfo.PODNameSpace,
+		Id:                       epInfo.Id,
+		IfName:                   contIfName, // container veth pair name. In cnm, we won't rename this and docker expects veth name.
+		HostIfName:               hostIfName,
+		MacAddress:               containerIf.HardwareAddr,
+		InfraVnetIP:              epInfo.InfraVnetIP,
+		LocalIP:                  localIP,
+		IPAddresses:              epInfo.IPAddresses,
+		Gateways:                 []net.IP{nw.extIf.IPv4Gateway},
+		DNS:                      epInfo.DNS,
+		VlanID:                   vlanid,
+		EnableSnatOnHost:         epInfo.EnableSnatOnHost,
+		EnableInfraVnet:          epInfo.EnableInfraVnet,
+		EnableMultitenancy:       epInfo.EnableMultiTenancy,
+		AllowInboundFromHostToNC: epInfo.AllowInboundFromHostToNC,
+		AllowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
+		NetworkNameSpace:         epInfo.NetNsPath,
+		ContainerID:              epInfo.ContainerID,
+		PODName:                  epInfo.PODName,
+		PODNameSpace:             epInfo.PODNameSpace,
 	}
 
 	for _, route := range epInfo.Routes {
@@ -211,7 +227,7 @@ func (nw *network) deleteEndpointImpl(ep *endpoint) error {
 	// entering the container netns and hence works both for CNI and CNM.
 	if ep.VlanID != 0 {
 		epInfo := ep.getInfo()
-		epClient = NewOVSEndpointClient(nw.extIf, epInfo, ep.HostIfName, "", ep.VlanID)
+		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP)
 	} else if nw.Mode != opModeTransparent {
 		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode)
 	} else {

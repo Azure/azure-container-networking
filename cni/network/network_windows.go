@@ -116,6 +116,11 @@ func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (ne
 	networkName = nwCfg.Name
 	err = nil
 	if nwCfg.MultiTenancy {
+		if len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
+			err = fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s", podName, podNs)
+			return
+		}
+
 		_, cnsNetworkConfig, _, err := getContainerNetworkConfiguration(nwCfg, podName, podNs, ifName)
 		if err != nil {
 			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", podName, podNs, err)

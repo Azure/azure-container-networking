@@ -152,8 +152,9 @@ func pluginErr(err error, output []byte) error {
 			return &emsg
 		}
 	} else if len(output) > 0 {
+		// If plugin err is nil, we will only return error if we successfully unmarshal Error struct from CNI and Code != 0
 		var cniError cniTypes.Error
-		if err = json.Unmarshal(output, &cniError); err == nil && cniError.Code != 0 {
+		if unmarshalErr := json.Unmarshal(output, &cniError); unmarshalErr == nil && cniError.Code != 0 {
 			return fmt.Errorf("netplugin completed with error: %+v", cniError)
 		}
 	}

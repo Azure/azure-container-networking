@@ -23,9 +23,10 @@ const (
 const (
 	AzureContainerInstance = "AzureContainerInstance"
 	WebApps                = "WebApps"
-	ClearContainer         = "ClearContainer"
 	Docker                 = "Docker"
 	Basic                  = "Basic"
+	JobObject              = "JobObject"
+	COW                    = "COW" // Container on Windows
 )
 
 // Orchestrator Types
@@ -56,6 +57,8 @@ type CreateNetworkContainerRequest struct {
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
 	Routes                     []Route
+	AllowHostToNCCommunication bool
+	AllowNCToHostCommunication bool
 }
 
 // ConfigureContainerNetworkingRequest - specifies request to attach/detach container to network.
@@ -135,6 +138,8 @@ type GetNetworkContainerResponse struct {
 	PrimaryInterfaceIdentifier string
 	LocalIPConfiguration       IPConfiguration
 	Response                   Response
+	AllowHostToNCCommunication bool
+	AllowNCToHostCommunication bool
 }
 
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
@@ -166,7 +171,7 @@ type AttachContainerToNetworkResponse struct {
 	Response Response
 }
 
-// DetachNetworkContainerToNetworkResponse specifies response of detaching network container from network.
+// DetachContainerFromNetworkResponse specifies response of detaching network container from network.
 type DetachContainerFromNetworkResponse struct {
 	Response Response
 }

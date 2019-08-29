@@ -45,6 +45,7 @@ type network struct {
 	extIf            *externalInterface
 	DNS              DNSInfo
 	EnableSnatOnHost bool
+	SnatBridgeIP     string
 }
 
 // NetworkInfo contains read-only information about a container network.

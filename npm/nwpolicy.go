@@ -111,7 +111,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
 		if err = iptMgr.Add(iptEntry); err != nil {
-			log.Printf("Error applying iptables rule\n. Rule: %+v", iptEntry)
+			log.Errorf("Error: failed to apply iptables rule. Rule: %+v", iptEntry)
 			return err
 		}
 	}

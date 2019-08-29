@@ -62,6 +62,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		if opt != nil && opt[VlanIDKey] != nil {
 			vlanid, _ = strconv.Atoi(opt[VlanIDKey].(string))
 		}
+
 	case opModeTransparent:
 		break
 	default:
@@ -87,7 +88,7 @@ func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 	var networkClient NetworkClient
 
 	if nw.VlanId != 0 {
-		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name, "", nw.DNS.Servers, nw.EnableSnatOnHost)
+		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name)
 	} else {
 		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, nw.Mode)
 	}
@@ -306,13 +307,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 	opt, _ := nwInfo.Options[genericData].(map[string]interface{})
 	if opt != nil && opt[VlanIDKey] != nil {
-		snatBridgeIP := ""
-
-		if opt != nil && opt[SnatBridgeIPKey] != nil {
-			snatBridgeIP, _ = opt[SnatBridgeIPKey].(string)
-		}
-
-		networkClient = NewOVSClient(bridgeName, extIf.Name, snatBridgeIP, nwInfo.DNS.Servers, nwInfo.EnableSnatOnHost)
+		networkClient = NewOVSClient(bridgeName, extIf.Name)
 	} else {
 		networkClient = NewLinuxBridgeClient(bridgeName, extIf.Name, nwInfo.Mode)
 	}
