@@ -3,8 +3,6 @@
 package npm
 
 import (
-	"strings"
-
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
 
@@ -51,11 +49,6 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 
 	// Add the pod to its label's ipset.
 	for podLabelKey, podLabelVal := range podLabels {
-		//Ignore pod-template-hash label.
-		if strings.Contains(podLabelKey, util.KubePodTemplateHashFlag) {
-			continue
-		}
-
 		log.Printf("Adding pod %s to ipset %s", podIP, podLabelKey)
 		if err = ipsMgr.AddToSet(podLabelKey, podIP); err != nil {
 			log.Errorf("Error: failed to add pod to label ipset.")
@@ -139,17 +132,12 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	// Delete pod from ipset
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Delete the pod from its namespace's ipset.
-	if err = ipsMgr.DeleteFromSet("ns-" + podNs, podIP); err != nil {
+	if err = ipsMgr.DeleteFromSet(podNs, podIP); err != nil {
 		log.Errorf("Error: failed to delete pod from namespace ipset.")
 		return err
 	}
 	// Delete the pod from its label's ipset.
 	for podLabelKey, podLabelVal := range podLabels {
-		//Ignore pod-template-hash label.
-		if strings.Contains(podLabelKey, "pod-template-hash") {
-			continue
-		}
-
 		log.Printf("Deleting pod %s from ipset %s", podIP, podLabelKey)
 		if err = ipsMgr.DeleteFromSet(podLabelKey, podIP); err != nil {
 			log.Errorf("Error: failed to delete pod from label ipset.")
