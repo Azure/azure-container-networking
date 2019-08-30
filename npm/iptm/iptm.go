@@ -99,6 +99,32 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		}
 	}
 
+	// Create AZURE-NPM-KUBE-SYSTEM chain.
+	if err := iptMgr.AddChain(util.IptablesAzureKubeSystemChain); err != nil {
+		return err
+	}
+
+	// Append AZURE-NPM-KUBE-SYSTEM chain to AZURE-NPM chain.
+	entry = &IptEntry{
+		Chain: util.IptablesAzureChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesAzureKubeSystemChain,
+		},
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesAppendFlag
+		if _, err = iptMgr.Run(entry); err != nil {
+			log.Errorf("Error: failed to add AZURE-NPM-KUBE-SYSTEM chain to AZURE-NPM chain.")
+			return err
+		}
+	}
+
 	// Create AZURE-NPM-INGRESS-PORT chain.
 	if err := iptMgr.AddChain(util.IptablesAzureIngressPortChain); err != nil {
 		return err
@@ -179,6 +205,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 func (iptMgr *IptablesManager) UninitNpmChains() error {
 	IptablesAzureChainList := []string{
 		util.IptablesAzureChain,
+		util.IptablesAzureKubeSystemChain,
 		util.IptablesAzureIngressPortChain,
 		util.IptablesAzureIngressFromChain,
 		util.IptablesAzureEgressPortChain,
@@ -269,7 +296,7 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 			log.Printf("Chain doesn't exist %s.", entry.Chain)
 			return nil
 		}
-		
+
 		log.Errorf("Error: failed to delete iptables chain %s.", entry.Chain)
 		return err
 	}

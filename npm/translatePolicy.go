@@ -913,7 +913,7 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 	hashedKubeSystemSet := util.GetHashedName("ns-" + util.KubeSystemFlag)
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
 	allowKubeSystemIngress := &iptm.IptEntry{
-		Chain: util.IptablesAzureChain,
+		Chain: util.IptablesAzureKubeSystemChain,
 		Specs: []string{
 			util.IptablesModuleFlag,
 			util.IptablesSetModuleFlag,
@@ -932,7 +932,7 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 	entries = append(entries, allowKubeSystemIngress)
 
 	allowKubeSystemEgress := &iptm.IptEntry{
-		Chain: util.IptablesAzureChain,
+		Chain: util.IptablesAzureKubeSystemChain,
 		Specs: []string{
 			util.IptablesModuleFlag,
 			util.IptablesSetModuleFlag,

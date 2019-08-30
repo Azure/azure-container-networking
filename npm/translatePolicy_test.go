@@ -1011,26 +1011,6 @@ func TestTranslatePolicy(t *testing.T) {
 		t.Errorf("expectedLists: %v", expectedLists)
 	}
 
-	/*
-	expectedIptEntries = []*iptm.IptEntry{
-		&iptm.IptEntry{
-			Chain: util.IptablesAzureIngressPortChain,
-			Specs: []string{
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-testnamespace"),
-				util.IptablesSrcFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAccept,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-ns-testnamespace",
-			},
-		},
-	}
-	*/
 	expectedIptEntries := []*iptm.IptEntry{}
 	expectedIptEntries = append(
 		expectedIptEntries,

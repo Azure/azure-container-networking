@@ -61,6 +61,7 @@ const (
 	IptablesCommentFlag       string = "--comment"
 	IptablesAddCommentFlag
 	IptablesAzureChain               string = "AZURE-NPM"
+	IptablesAzureKubeSystemChain     string = "AZURE-NPM-KUBE-SYSTEM"
 	IptablesAzureIngressPortChain    string = "AZURE-NPM-INGRESS-PORT"
 	IptablesAzureIngressFromChain    string = "AZURE-NPM-INGRESS-FROM"
 	IptablesAzureEgressPortChain     string = "AZURE-NPM-EGRESS-PORT"
