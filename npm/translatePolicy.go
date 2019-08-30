@@ -148,9 +148,6 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 
 func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
-		allowExternal = false
-		portRuleExists    = false
-		fromRuleExists    = false
 		sets  []string // ipsets with type: net:hash
 		lists []string // ipsets with type: list:set
 		entries         []*iptm.IptEntry
@@ -172,6 +169,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
 	
 	for _, rule := range rules {
+		allowExternal, portRuleExists, fromRuleExists := false, false, false
+
 		if len(rule.Ports) > 0 {
 			portRuleExists = true
 		}
@@ -506,9 +505,6 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
-		allowExternal = false
-		portRuleExists    = false
-		toRuleExists    = false
 		sets  []string // ipsets with type: net:hash
 		lists []string // ipsets with type: list:set
 		entries         []*iptm.IptEntry
@@ -528,6 +524,8 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 	targetSelectorIptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labels, util.IptablesSrcFlag, false)
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
 	for _, rule := range rules {
+		allowExternal, portRuleExists, toRuleExists := false, false, false
+		
 		if len(rule.Ports) > 0 {
 			portRuleExists = true
 		}
@@ -628,7 +626,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			entry.Specs = append(
 				entry.Specs,
 				util.IptablesJumpFlag,
-				util.IptablesAzureEgressPortChain,
+				util.IptablesAzureEgressToChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,

@@ -2450,6 +2450,23 @@ func TestTranslatePolicy(t *testing.T) {
 			},
 		},
 		&iptm.IptEntry{
+			Chain: util.IptablesAzureEgressPortChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesSrcFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureEgressToChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-FROM-app:frontend-TO-JUMP-TO-" +
+				util.IptablesAzureEgressToChain,
+			},
+		},
+		&iptm.IptEntry{
 			Chain: util.IptablesAzureEgressToChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
