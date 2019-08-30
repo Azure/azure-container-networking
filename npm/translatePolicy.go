@@ -967,6 +967,16 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 
 	log.Printf("Translating network policy:\n %+v", npObj)
 
+	defer func() {
+		log.Printf("Finished translatePolicy")
+		log.Printf("sets: %v", resultSets)
+		log.Printf("lists: %v", resultLists)
+		log.Printf("entries: ")
+		for _, entry := range entries {
+			log.Printf("entry: %+v", entry)
+		}	
+	}()
+
 	npNs := npObj.ObjectMeta.Namespace
 	// Allow kube-system pods
 	entries = append(entries, getAllowKubeSystemEntries(npNs, npObj.Spec.PodSelector)...)
@@ -1006,14 +1016,6 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector)...)
 
 	resultSets, resultLists = util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists)
-
-	log.Printf("Finished translatePolicy")
-	log.Printf("sets: %v", resultSets)
-	log.Printf("lists: %v", resultLists)
-	log.Printf("entries: ")
-	for _, entry := range entries {
-		log.Printf("entry: %+v", entry)
-	}
 
 	return resultSets, resultLists, entries
 }
