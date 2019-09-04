@@ -3,7 +3,7 @@
 package npm
 
 import (
-	"github.com/kalebmorris/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/log"
 	networkingv1 "k8s.io/api/networking/v1"
 )
 

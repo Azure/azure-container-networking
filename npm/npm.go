@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/kalebmorris/azure-container-networking/log"
-	"github.com/kalebmorris/azure-container-networking/telemetry"
+	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/telemetry"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

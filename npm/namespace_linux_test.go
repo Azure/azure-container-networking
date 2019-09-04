@@ -5,10 +5,10 @@ package npm
 import (
 	"testing"
 
-	"github.com/kalebmorris/azure-container-networking/npm/iptm"
-	"github.com/kalebmorris/azure-container-networking/telemetry"
-	"github.com/kalebmorris/azure-container-networking/npm/ipsm"
-	"github.com/kalebmorris/azure-container-networking/npm/util"
+	"github.com/Azure/azure-container-networking/npm/iptm"
+	"github.com/Azure/azure-container-networking/telemetry"
+	"github.com/Azure/azure-container-networking/npm/ipsm"
+	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/kalebmorris/azure-container-networking/log"
-	"github.com/kalebmorris/azure-container-networking/npm"
+	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
