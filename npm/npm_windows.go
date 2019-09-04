@@ -44,7 +44,6 @@ type NetworkPolicyManager struct {
 	nodeName               string
 	nsMap                  map[string]*namespace
 	isAzureNPMLayerCreated bool
-	ipPortMap              map[string]string
 
 	clusterState  telemetry.ClusterState
 	reportManager *telemetry.ReportManager
@@ -65,7 +64,7 @@ func (npMgr *NetworkPolicyManager) restore() {
 		time.Sleep(restoreRetryWaitTimeInSeconds * time.Second)
 	}
 
-	log.Logf("Error: timeout restoring Azure-NPM states")
+	log.Logf("Error: timeout restoring Azure-NPM VFP rules")
 	panic(err.Error)
 }
 
@@ -86,11 +85,6 @@ func (npMgr *NetworkPolicyManager) backup() {
 func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	// Starts all informers manufactured by npMgr's informerFactory.
 	npMgr.informerFactory.Start(stopCh)
-
-	// Failure detected. Needs to restore Azure-NPM related VFP rules.
-	if util.Exists(util.RuleConfigFile) {
-		npMgr.restore()
-	}
 
 	// Wait for the initial sync of local cache.
 	if !cache.WaitForCacheSync(stopCh, npMgr.podInformer.Informer().HasSynced) {
@@ -137,7 +131,6 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		npInformer:             npInformer,
 		nodeName:               os.Getenv("COMPUTERNAME"),
 		nsMap:                  make(map[string]*namespace),
-		ipPortMap:              make(map[string]string),
 		isAzureNPMLayerCreated: false,
 		clusterState: telemetry.ClusterState{
 			PodCount:      0,

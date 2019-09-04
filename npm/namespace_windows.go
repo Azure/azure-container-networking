@@ -36,7 +36,7 @@ func newNs(name string) (*namespace, error) {
 }
 
 // InitAllNsList syncs all-namespace tag.
-func (npMgr *NetworkPolicyManager) InitAllNsList(portName string) error {
+func (npMgr *NetworkPolicyManager) InitAllNsList() error {
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
 	for nsName := range npMgr.nsMap {
@@ -44,8 +44,8 @@ func (npMgr *NetworkPolicyManager) InitAllNsList(portName string) error {
 			continue
 		}
 
-		if err := allNs.tMgr.AddToNLTag(util.KubeAllNamespacesFlag, nsName, portName); err != nil {
-			log.Errorf("Error: failed to add Tag %s to NLTag %s on port %s", nsName, util.KubeAllNamespacesFlag, portName)
+		if err := allNs.tMgr.AddToNLTag(util.KubeAllNamespacesFlag, nsName); err != nil {
+			log.Errorf("Error: failed to add Tag %s to NLTag %s.", nsName, util.KubeAllNamespacesFlag)
 			return err
 		}
 	}
@@ -54,7 +54,7 @@ func (npMgr *NetworkPolicyManager) InitAllNsList(portName string) error {
 }
 
 // UninitAllNsList cleans all-namespace tag.
-func (npMgr *NetworkPolicyManager) UninitAllNsList(portName string) error {
+func (npMgr *NetworkPolicyManager) UninitAllNsList() error {
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
 	for nsName := range npMgr.nsMap {
@@ -62,8 +62,8 @@ func (npMgr *NetworkPolicyManager) UninitAllNsList(portName string) error {
 			continue
 		}
 
-		if err := allNs.tMgr.DeleteFromNLTag(util.KubeAllNamespacesFlag, nsName, portName); err != nil {
-			log.Errorf("Error: failed to delete Tag %s from NLTag %s on port %s", nsName, util.KubeAllNamespacesFlag, portName)
+		if err := allNs.tMgr.DeleteFromNLTag(util.KubeAllNamespacesFlag, nsName); err != nil {
+			log.Errorf("Error: failed to delete Tag %s from NLTag %s.", nsName, util.KubeAllNamespacesFlag)
 			return err
 		}
 	}
@@ -83,32 +83,24 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 
 	tMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].tMgr
 
-	ports, err := vfpm.GetPorts()
-	if err != nil {
-		log.Errorf("Error: failed to retrieve ports.")
+	// Create tag for the namespace.
+	if err = tMgr.CreateTag(nsName); err != nil {
+		log.Errorf("Error: failed to create tag for namespace %s.", nsName)
 		return err
 	}
 
-	for _, portName := range ports {
-		// Create tag for the namespace.
-		if err = tMgr.CreateTag(nsName, portName); err != nil {
-			log.Errorf("Error: failed to create tag for namespace %s on port %s.", nsName, portName)
-			return err
-		}
+	if err = tMgr.AddToNLTag(util.KubeAllNamespacesFlag, nsName); err != nil {
+		log.Errorf("Error: failed to add %s to all-namespace tag.", nsName)
+		return err
+	}
 
-		if err = tMgr.AddToNLTag(util.KubeAllNamespacesFlag, nsName, portName); err != nil {
-			log.Errorf("Error: failed to add %s to all-namespace tag on port %s.", nsName, portName)
+	// Add the namespace to its label's tag.
+	nsLabels := nsObj.ObjectMeta.Labels
+	for nsLabelKey, nsLabelVal := range nsLabels {
+		labelKey := util.GetNsIpsetName(nsLabelKey, nsLabelVal)
+		if err = tMgr.AddToNLTag(labelKey, nsName); err != nil {
+			log.Errorf("Error: failed to add namespace %s to tag %s.", nsName, labelKey)
 			return err
-		}
-
-		// Add the namespace to its label's tag.
-		nsLabels := nsObj.ObjectMeta.Labels
-		for nsLabelKey, nsLabelVal := range nsLabels {
-			labelKey := util.GetNsIpsetName(nsLabelKey, nsLabelVal)
-			if err = tMgr.AddToNLTag(labelKey, nsName, portName); err != nil {
-				log.Errorf("Error: failed to add namespace %s to tag %s on port %s.", nsName, labelKey, portName)
-				return err
-			}
 		}
 	}
 
@@ -136,36 +128,28 @@ func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) erro
 		return nil
 	}
 
-	ports, err := vfpm.GetPorts()
-	if err != nil {
-		log.Errorf("Error: failed to retrieve ports.")
+	// Delete the namespace from its label's tag.
+	tMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].tMgr
+	nsLabels := nsObj.ObjectMeta.Labels
+	for nsLabelKey, nsLabelVal := range nsLabels {
+		labelKey := util.GetNsIpsetName(nsLabelKey, nsLabelVal)
+		log.Printf("Deleting namespace %s from tag %s.", nsName, labelKey)
+		if err = tMgr.DeleteFromNLTag(labelKey, nsName); err != nil {
+			log.Errorf("Error: failed to delete namespace %s from tag %s.", nsName, labelKey)
+			return err
+		}
+	}
+
+	// Delete the namespace from all-namespace tag.
+	if err = tMgr.DeleteFromNLTag(util.KubeAllNamespacesFlag, nsName); err != nil {
+		log.Errorf("Error: failed to delete namespace %s from tag %s.", nsName, util.KubeAllNamespacesFlag)
 		return err
 	}
 
-	for _, portName := range ports {
-		// Delete the namespace from its label's tag.
-		tMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].tMgr
-		nsLabels := nsObj.ObjectMeta.Labels
-		for nsLabelKey, nsLabelVal := range nsLabels {
-			labelKey := util.GetNsIpsetName(nsLabelKey, nsLabelVal)
-			log.Printf("Deleting namespace %s from tag %s on port %s.", nsName, labelKey, portName)
-			if err = tMgr.DeleteFromNLTag(labelKey, nsName, portName); err != nil {
-				log.Errorf("Error: failed to delete namespace %s from tag %s on port %s.", nsName, labelKey, portName)
-				return err
-			}
-		}
-
-		// Delete the namespace from all-namespace tag.
-		if err = tMgr.DeleteFromNLTag(util.KubeAllNamespacesFlag, nsName, portName); err != nil {
-			log.Errorf("Error: failed to delete namespace %s from tag %s on port %s.", nsName, util.KubeAllNamespacesFlag, portName)
-			return err
-		}
-
-		// Delete tag for the namespace.
-		if err = tMgr.DeleteTag(nsName, portName); err != nil {
-			log.Errorf("Error: failed to delete tag for namespace %s on port %s.", nsName, portName)
-			return err
-		}
+	// Delete tag for the namespace.
+	if err = tMgr.DeleteTag(nsName); err != nil {
+		log.Errorf("Error: failed to delete tag for namespace %s.", nsName)
+		return err
 	}
 
 	delete(npMgr.nsMap, nsName)

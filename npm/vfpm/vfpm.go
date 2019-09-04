@@ -4,27 +4,28 @@ package vfpm
 
 import (
 	"errors"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"unicode"
 
+	"github.com/Microsoft/hcsshim"
 	"github.com/kalebmorris/azure-container-networking/log"
 	"github.com/kalebmorris/azure-container-networking/npm/util"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // Tag represents one VFP tag.
 type Tag struct {
 	name     string
-	port     string
 	elements string
 }
 
 // NLTag represents a set of VFP tags associated with a namespace label.
 type NLTag struct {
 	name     string
-	port     string
 	elements string
 }
 
@@ -58,11 +59,19 @@ type Rule struct {
 
 // RuleManager stores ACL policy states.
 type RuleManager struct {
+	ruleMap   map[string][]*Rule // map from tagName to associated rules
+	ruleSet   map[string]uint32  // set of all rule names (and ref counts)
+	ipPortMap map[string]string  // map from ips to vfp ports
+	ipRules   []*Rule            // list of IPBlock rules
 }
 
 // NewRuleManager creates a new instance of the RuleManager object.
 func NewRuleManager() *RuleManager {
-	return &RuleManager{}
+	return &RuleManager{
+		ruleMap:   make(map[string][]*Rule),
+		ruleSet:   make(map[string]uint32),
+		ipPortMap: make(map[string]string),
+	}
 }
 
 // Exists checks if a tag-ip or nltag-tag pair exists in the VFP tags.
@@ -95,79 +104,74 @@ func (tMgr *TagManager) Exists(key string, val string, kind string) bool {
 }
 
 // CreateNLTag creates an NLTag. npm manages one NLTag per namespace label.
-func (tMgr *TagManager) CreateNLTag(tagName string, portName string) error {
-	key := tagName + " " + portName
+func (tMgr *TagManager) CreateNLTag(tagName string) error {
 	// Check first if the NLTag already exists.
-	if _, exists := tMgr.nlTagMap[key]; exists {
+	if _, exists := tMgr.nlTagMap[tagName]; exists {
 		return nil
 	}
 
-	tMgr.nlTagMap[key] = &NLTag{
+	tMgr.nlTagMap[tagName] = &NLTag{
 		name: tagName,
-		port: portName,
 	}
 
 	return nil
 }
 
 // DeleteNLTag deletes an NLTag.
-func (tMgr *TagManager) DeleteNLTag(tagName string, portName string) error {
-	key := tagName + " " + portName
-	if _, exists := tMgr.nlTagMap[key]; !exists {
-		log.Printf("nlTag with name %s on port %s not found", tagName, portName)
+func (tMgr *TagManager) DeleteNLTag(tagName string) error {
+	if _, exists := tMgr.nlTagMap[tagName]; !exists {
+		log.Printf("nlTag with name %s not found", tagName)
 		return nil
 	}
 
-	if len(tMgr.nlTagMap[key].elements) > 0 {
+	if len(tMgr.nlTagMap[tagName].elements) > 0 {
 		return nil
 	}
 
-	delete(tMgr.nlTagMap, key)
+	delete(tMgr.nlTagMap, tagName)
 
 	return nil
 }
 
 // AddToNLTag adds a namespace tag to an NLTag.
-func (tMgr *TagManager) AddToNLTag(nlTagName string, tagName string, portName string) error {
-	key := nlTagName + " " + portName
+func (tMgr *TagManager) AddToNLTag(nlTagName string, tagName string) error {
 	// Check first if NLTag exists.
-	if tMgr.Exists(key, tagName, util.VFPNLTagFlag) {
+	if tMgr.Exists(nlTagName, tagName, util.VFPNLTagFlag) {
 		return nil
 	}
 
 	// Create the NLTag if it doesn't exist, and add tag to it.
-	if err := tMgr.CreateNLTag(nlTagName, portName); err != nil {
+	if err := tMgr.CreateNLTag(nlTagName); err != nil {
 		return err
 	}
 
-	tMgr.nlTagMap[key].elements += tagName + ","
+	tMgr.nlTagMap[nlTagName].elements += tagName + ","
 
 	return nil
 }
 
 // DeleteFromNLTag removes a namespace tag from an NLTag.
-func (tMgr *TagManager) DeleteFromNLTag(nlTagName string, tagName string, portName string) error {
-	key := nlTagName + " " + portName
+func (tMgr *TagManager) DeleteFromNLTag(nlTagName string, tagName string) error {
 	// Check first if NLTag exists.
-	if _, exists := tMgr.nlTagMap[key]; !exists {
-		log.Printf("NLTag with name %s on port %s not found", nlTagName, portName)
+	if _, exists := tMgr.nlTagMap[nlTagName]; !exists {
+		log.Printf("NLTag with name %s not found", nlTagName)
 		return nil
 	}
 
 	// Search for Tag in NLTag, and delete if found.
 	var builder strings.Builder
-	for _, val := range strings.Split(tMgr.nlTagMap[key].elements, ",") {
+	for _, val := range strings.Split(tMgr.nlTagMap[nlTagName].elements, ",") {
 		if val != tagName && val != "" {
 			builder.WriteString(val)
 			builder.WriteByte(',')
 		}
 	}
-	tMgr.nlTagMap[key].elements = builder.String()
+	tMgr.nlTagMap[nlTagName].elements = builder.String()
 
 	// If NLTag becomes empty, delete NLTag.
-	if len(tMgr.nlTagMap[key].elements) == 0 {
-		if err := tMgr.DeleteNLTag(nlTagName, portName); err != nil {
-			log.Errorf("Error: failed to delete NLTag %s on port %s.", nlTagName, portName)
+	if len(tMgr.nlTagMap[nlTagName].elements) == 0 {
+		if err := tMgr.DeleteNLTag(nlTagName); err != nil {
+			log.Errorf("Error: failed to delete NLTag %s.", nlTagName)
 			return err
 		}
 	}
@@ -176,9 +180,8 @@ func (tMgr *TagManager) DeleteFromNLTag(nlTagName string, tagName string, portNa
 }
 
 // GetFromNLTag retrieves the elements from the provided nlTag.
-func (tMgr *TagManager) GetFromNLTag(nlTagName, portName string) string {
-	key := nlTagName + " " + portName
-	nlTag, exists := tMgr.nlTagMap[key]
+func (tMgr *TagManager) GetFromNLTag(nlTagName string) string {
+	nlTag, exists := tMgr.nlTagMap[nlTagName]
 	if exists {
 		return nlTag.elements
 	}
@@ -186,96 +189,116 @@ func (tMgr *TagManager) GetFromNLTag(nlTagName, portName string) string {
 }
 
 // CreateTag creates a tag. npm manages one Tag per pod label and one tag per namespace.
-func (tMgr *TagManager) CreateTag(tagName string, portName string) error {
-	key := tagName + " " + portName
-	if _, exists := tMgr.tagMap[key]; exists {
+func (tMgr *TagManager) CreateTag(tagName string) error {
+	if _, exists := tMgr.tagMap[tagName]; exists {
 		return nil
 	}
 
-	// Add an empty tag into vfp.
-	hashedTag := util.GetHashedName(tagName)
-	params := hashedTag + " " + hashedTag + " " + util.IPV4 + " *"
-	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
-	err := addCmd.Run()
+	// Retrieve ports.
+	ports, err := GetPorts()
 	if err != nil {
-		log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
 		return err
 	}
 
+	// Add empty tags to all ports.
+	for _, portName := range ports {
+		hashedTag := util.GetHashedName(tagName)
+		params := hashedTag + " " + tagName + " " + util.IPV4 + " *"
+		addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
+		err := addCmd.Run()
+		if err != nil {
+			log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
+			return err
+		}
+	}
+
 	// Update tag map.
-	tMgr.tagMap[key] = &Tag{
+	tMgr.tagMap[tagName] = &Tag{
 		name: tagName,
-		port: portName,
 	}
 
 	return nil
 }
 
 // DeleteTag removes a tag through VFP.
-func (tMgr *TagManager) DeleteTag(tagName string, portName string) error {
-	key := tagName + " " + portName
-	if _, exists := tMgr.tagMap[key]; !exists {
-		log.Printf("tag with name %s on port %s not found", tagName, portName)
+func (tMgr *TagManager) DeleteTag(tagName string) error {
+	if _, exists := tMgr.tagMap[tagName]; !exists {
+		log.Printf("tag with name %s not found", tagName)
 		return nil
 	}
 
-	if len(tMgr.tagMap[key].elements) > 0 {
+	if len(tMgr.tagMap[tagName].elements) > 0 {
 		return nil
 	}
 
-	// Delete tag using vfpctrl.
-	deleteCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Tag, util.GetHashedName(tagName), util.RemoveTagCmd)
-	err := deleteCmd.Run()
+	// Retrieve ports.
+	ports, err := GetPorts()
 	if err != nil {
-		log.Errorf("Error: failed to remove tag in VFP.")
+		return err
 	}
 
-	delete(tMgr.tagMap, key)
+	// Delete tag on all ports.
+	for _, portName := range ports {
+		deleteCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Tag, util.GetHashedName(tagName), util.RemoveTagCmd)
+		err := deleteCmd.Run()
+		if err != nil {
+			log.Errorf("Error: failed to remove tag %s from port %s in VFP.", tagName, portName)
+		}
+	}
+
+	delete(tMgr.tagMap, tagName)
 
 	return nil
 }
 
 // AddToTag adds an ip to a tag.
-func (tMgr *TagManager) AddToTag(tagName string, ip string, portName string) error {
-	key := tagName + " " + portName
+func (tMgr *TagManager) AddToTag(tagName string, ip string) error {
 	// First check if ip already exists in tag.
-	if tMgr.Exists(key, ip, util.VFPTagFlag) {
+	if tMgr.Exists(tagName, ip, util.VFPTagFlag) {
 		return nil
 	}
 
 	// Create the tag if it doesn't exist.
-	if err := tMgr.CreateTag(tagName, portName); err != nil {
-		log.Errorf("Error: failed to create tag %s on port %s.", tagName, portName)
+	if err := tMgr.CreateTag(tagName); err != nil {
+		log.Errorf("Error: failed to create tag %s.", tagName)
 		return err
 	}
 
-	// Add the ip to a tag.
-	hashedTag := util.GetHashedName(tagName)
-	params := hashedTag + " " + hashedTag + " " + util.IPV4 + " " + tMgr.tagMap[key].elements + ip + ","
-	replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
-	err := replaceCmd.Run()
+	// Retrieve ports.
+	ports, err := GetPorts()
 	if err != nil {
-		log.Errorf("Error: failed to update tag %s on port %s from VFP.", tagName, portName)
+		return err
+	}
+
+	// Add ip to all of the ports.
+	for _, portName := range ports {
+		// Add the ip to a tag.
+		hashedTag := util.GetHashedName(tagName)
+		params := hashedTag + " " + tagName + " " + util.IPV4 + " " + tMgr.tagMap[tagName].elements + ip + ","
+		replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
+		err := replaceCmd.Run()
+		if err != nil {
+			log.Errorf("Error: failed to update tag %s on port %s in VFP.", tagName, portName)
+		}
 	}
 
 	// Update elements string.
-	tMgr.tagMap[key].elements = tMgr.tagMap[key].elements + ip + ","
+	tMgr.tagMap[tagName].elements = tMgr.tagMap[tagName].elements + ip + ","
 
 	return nil
 }
 
 // DeleteFromTag removes an ip from a tag.
-func (tMgr *TagManager) DeleteFromTag(tagName string, ip string, portName string) error {
-	key := tagName + " " + portName
+func (tMgr *TagManager) DeleteFromTag(tagName string, ip string) error {
 	// Check first if the tag exists.
-	if _, exists := tMgr.tagMap[key]; !exists {
-		log.Printf("tag with name %s on port %s not found", tagName, portName)
+	if _, exists := tMgr.tagMap[tagName]; !exists {
+		log.Printf("tag with name %s not found", tagName)
 		return nil
 	}
 
 	// Search for ip in the tag and delete it if found.
 	var builder strings.Builder
-	for _, val := range strings.Split(tMgr.tagMap[key].elements, ",") {
+	for _, val := range strings.Split(tMgr.tagMap[tagName].elements, ",") {
 		if val != ip && val != "" {
 			builder.WriteString(val)
 			builder.WriteByte(',')
@@ -286,20 +309,29 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, ip string, portName string
 		newElements = "*"
 	}
 
-	// Replace the ips in the vfp tag.
-	hashedTag := util.GetHashedName(tagName)
-	params := hashedTag + " " + hashedTag + " " + util.IPV4 + " " + newElements
-	replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
-	err := replaceCmd.Run()
+	// Retrieve ports.
+	ports, err := GetPorts()
 	if err != nil {
-		log.Errorf("Error: failed to update tag %s on port %s from VFP.", tagName, portName)
+		return err
+	}
+
+	// Replace ips on all of the ports.
+	for _, portName := range ports {
+		// Replace the ips in the vfp tag.
+		hashedTag := util.GetHashedName(tagName)
+		params := hashedTag + " " + tagName + " " + util.IPV4 + " " + newElements
+		replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
+		err := replaceCmd.Run()
+		if err != nil {
+			log.Errorf("Error: failed to update tag %s on port %s from VFP.", tagName, portName)
+		}
 	}
 
 	// Update elements string
 	if newElements == "*" {
-		tMgr.tagMap[key].elements = ""
+		tMgr.tagMap[tagName].elements = ""
 	} else {
-		tMgr.tagMap[key].elements = newElements
+		tMgr.tagMap[tagName].elements = newElements
 	}
 
 	return nil
@@ -308,32 +340,24 @@ func (tMgr *TagManager) DeleteFromTag(tagName string, ip string, portName string
 // Clean removes empty Tags and NLTags.
 func (tMgr *TagManager) Clean() error {
 	// Search for empty Tags and delete them.
-	for key, tag := range tMgr.tagMap {
+	for tagName, tag := range tMgr.tagMap {
 		if len(tag.elements) > 0 {
 			continue
 		}
-		tagPort := strings.Split(key, " ")
-		if len(tagPort) != 2 {
-			log.Errorf("Error: invalid key in tagMap")
-		}
 
-		if err := tMgr.DeleteTag(tagPort[0], tagPort[1]); err != nil {
+		if err := tMgr.DeleteTag(tagName); err != nil {
 			log.Errorf("Error: failed to clean Tags")
 			return err
 		}
 	}
 
 	// Search for empty NLTags and delete them.
-	for nlKey, nlTag := range tMgr.nlTagMap {
+	for nlTagName, nlTag := range tMgr.nlTagMap {
 		if len(nlTag.elements) > 0 {
 			continue
 		}
-		tagPort := strings.Split(nlKey, " ")
-		if len(tagPort) != 2 {
-			log.Errorf("Error: invalid key in nlTagMap")
-		}
 
-		if err := tMgr.DeleteNLTag(tagPort[0], tagPort[1]); err != nil {
+		if err := tMgr.DeleteNLTag(nlTagName); err != nil {
 			log.Errorf("Error: failed to clean NLTags")
 			return err
 		}
@@ -345,25 +369,18 @@ func (tMgr *TagManager) Clean() error {
 // Destroy completely removes all Tags/NLTags.
 func (tMgr *TagManager) Destroy() error {
 	// Delete all Tags.
-	for key := range tMgr.tagMap {
-		tagPort := strings.Split(key, " ")
-		if len(tagPort) != 2 {
-			log.Errorf("Error: invalid key in tagMap")
+	for tagName := range tMgr.tagMap {
+		if err := tMgr.DeleteTag(tagName); err != nil {
+			log.Errorf("Error: failed to delete tag %s in tMgr.Destroy.", tagName)
 		}
-
-		// Delete tag using vfpctrl.
-		deleteCmd := exec.Command(util.VFPCmd, util.Port, tagPort[1], util.Tag, util.GetHashedName(tagPort[0]), util.RemoveTagCmd)
-		err := deleteCmd.Run()
-		if err != nil {
-			log.Errorf("Error: failed to remove tag in VFP.")
-			return err
-		}
-
-		delete(tMgr.tagMap, key)
 	}
 
 	// Delete all NLTags.
-	tMgr.nlTagMap = make(map[string]*NLTag)
+	for tagName := range tMgr.nlTagMap {
+		if err := tMgr.DeleteNLTag(tagName); err != nil {
+			log.Errorf("Error: failed to delete nlTag %s in tMgr.Destroy.", tagName)
+		}
+	}
 
 	return nil
 }
@@ -474,20 +491,21 @@ func GetPorts() ([]string, error) {
 	return ports, nil
 }
 
-// GetTags returns a slice of all tag names and a slice of all tag ip strings on a given port.
-func GetTags(portName string) ([]string, []string, error) {
+// GetTags returns a slice of all tag names, all friendly names, and a slice of all tag ip strings on a given port.
+func GetTags(portName string) ([]string, []string, []string, error) {
 	// List all of the tags.
 	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ListTagCmd)
 	out, err := listCmd.Output()
 	if err != nil {
 		log.Errorf("Error: failed to retrieve tags from port %s.", portName)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	outStr := string(out)
 
 	// Parse the tags.
 	separated := strings.Split(outStr, util.TagLabel)
 	var tags []string
+	var friendlies []string
 	var ips []string
 	for i, val := range separated {
 		if i == 0 {
@@ -507,6 +525,18 @@ func GetTags(portName string) ([]string, []string, error) {
 		tagName := val[0:idx]
 		tags = append(tags, tagName)
 
+		// Find and extract tag's friendly name.
+		idx = strings.Index(val, util.TagFriendlyLabel)
+		if idx == -1 {
+			log.Errorf("Error: tag name present, but no tag friendly name present.")
+			friendlies = append(friendlies, "")
+			continue
+		}
+		val = val[idx+len(util.TagFriendlyLabel):]
+		idx = strings.IndexFunc(val, unicode.IsSpace)
+		friendly := val[:idx]
+		friendlies = append(friendlies, friendly)
+
 		// Find and extract tag's ips.
 		idx = strings.Index(val, util.TagIPLabel)
 		if idx == -1 {
@@ -519,7 +549,65 @@ func GetTags(portName string) ([]string, []string, error) {
 		ips = append(ips, ipStr)
 	}
 
-	return tags, ips, nil
+	return tags, friendlies, ips, nil
+}
+
+// getHNSEndpointByIP gets the endpoint corresponding to the given ip.
+func getHNSEndpointByIP(endpointIP string) (*hcsshim.HNSEndpoint, error) {
+	hnsResponse, err := hcsshim.HNSListEndpointRequest()
+	if err != nil {
+		return nil, err
+	}
+	for _, hnsEndpoint := range hnsResponse {
+		if hnsEndpoint.IPAddress.String() == endpointIP {
+			return &hnsEndpoint, nil
+		}
+	}
+	return nil, hcsshim.EndpointNotFoundError{EndpointName: endpointIP}
+}
+
+// findPort retrieves the name of the VFP port associated with the given pod IP.
+func findPort(podIP string) (string, error) {
+	endpoint, err := getHNSEndpointByIP(podIP)
+	if err != nil {
+		log.Errorf("Error: failed to retrieve endpoint corresponding to pod ip %s.", podIP)
+		return "", err
+	}
+
+	portName, err := GetPortByMAC(endpoint.MacAddress)
+	if err != nil {
+		log.Errorf("Error: failed to find port for MAC %s.", endpoint.MacAddress)
+		return "", err
+	}
+
+	return portName, nil
+}
+
+// ApplyTags takes a new podIP and applies existing tags to its corresponding VFP port.
+func (tMgr *TagManager) ApplyTags(podObj *corev1.Pod) error {
+	portName, err := findPort(podObj.Status.PodIP)
+	if err != nil {
+		log.Errorf("Error: failed to find vfp port for pod with ip %s.", podObj.Status.PodIP)
+		return err
+	}
+
+	// Add all of the existing tags.
+	for tagName, tag := range tMgr.tagMap {
+		hashedTag := util.GetHashedName(tagName)
+		elements := tag.elements
+		if elements == "" {
+			elements = "*"
+		}
+		params := hashedTag + " " + tagName + " " + util.IPV4 + " " + elements
+		addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
+		err := addCmd.Run()
+		if err != nil {
+			log.Errorf("Error: failed to add tag %s on port %s.", tagName, portName)
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Save saves VFP tags to a file.
@@ -547,7 +635,7 @@ func (tMgr *TagManager) Save(configFile string) error {
 		file.WriteString("Port: " + portName + "\n")
 
 		// Retrieve tags from VFP.
-		tags, ips, err := GetTags(portName)
+		tags, friendlies, ips, err := GetTags(portName)
 		if err != nil {
 			return err
 		}
@@ -555,8 +643,10 @@ func (tMgr *TagManager) Save(configFile string) error {
 		// Write tag information to file.
 		for i := 0; i < len(tags); i++ {
 			tagName := tags[i]
+			friendlyName := friendlies[i]
 			ipStr := ips[i]
 			file.WriteString("\tTag: " + tagName + "\n")
+			file.WriteString("\t\tFriendly Name: " + friendlyName + "\n")
 			file.WriteString("\t\tIP: " + ipStr + "\n")
 		}
 	}
@@ -628,6 +718,11 @@ func (tMgr *TagManager) Restore(configFile string) error {
 			idx = strings.Index(tagStr, "\n")
 			tagName := tagStr[:idx]
 
+			// Find friendly name.
+			tagStr = tagStr[idx+1+len("\t\tFriendly Name: "):]
+			idx = strings.Index(tagStr, "\n")
+			friendlyName := tagStr[:idx]
+
 			// Find tag ips.
 			tagStr = tagStr[idx+1+len("\t\tIP: "):]
 			idx = strings.Index(tagStr, "\n")
@@ -637,7 +732,7 @@ func (tMgr *TagManager) Restore(configFile string) error {
 			}
 
 			// Restore the tag through VFP.
-			params := tagName + " " + tagName + " " + util.IPV4 + " " + ipStr
+			params := tagName + " " + friendlyName + " " + util.IPV4 + " " + ipStr
 			replaceCmd := exec.Command(util.VFPCmd, util.Port, portName, util.ReplaceTagCmd, params)
 			err := replaceCmd.Run()
 			if err != nil {
@@ -649,8 +744,8 @@ func (tMgr *TagManager) Restore(configFile string) error {
 	return nil
 }
 
-// InitAzureNPMLayer adds a layer to VFP for NPM and populates it with relevant groups.
-func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
+// initAzureNPMLayer initializes the NPM layer in VFP for a single port.
+func initAzureNPMLayer(portName string) error {
 	// Check if layer already exists.
 	listLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.ListLayerCmd)
 	out, err := listLayerCmd.Output()
@@ -664,7 +759,7 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 	}
 
 	// Initialize the layer first.
-	params := util.NPMLayer + " " + util.NPMLayer + " " + util.StatefulLayer + " " + util.NPMLayerPriority + " 0"
+	params := util.NPMLayer + " " + util.NPMLayer + " " + util.StatelessLayer + " " + util.NPMLayerPriority + " 0"
 	addLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.AddLayerCmd, params)
 	err = addLayerCmd.Run()
 	if err != nil {
@@ -674,22 +769,18 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 
 	groupsList := []string{
 		util.NPMIngressGroup,
-		util.NPMIngressDefaultGroup,
 		util.NPMEgressGroup,
-		util.NPMEgressDefaultGroup,
 	}
 
 	prioritiesList := []string{
 		util.NPMIngressPriority,
-		util.NPMIngressDefaultPriority,
 		util.NPMEgressPriority,
-		util.NPMEgressDefaultPriority,
 	}
 
 	// Add all of the NPM groups.
 	for i := 0; i < len(groupsList); i++ {
 		var dir string
-		if i < 2 {
+		if i < 1 {
 			dir = util.DirectionIn
 		} else {
 			dir = util.DirectionOut
@@ -701,13 +792,41 @@ func (rMgr *RuleManager) InitAzureNPMLayer(portName string) error {
 			log.Errorf("Error: failed to add group %s on port %s in VFP.", groupsList[i], portName)
 			return err
 		}
+
+		// Add default allow.
+		params = "allow-all allow-all * * * * * 1 0 60000 allow"
+		addRuleCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, groupsList[i], util.AddRuleCmd, params)
+		err = addRuleCmd.Run()
+		if err != nil {
+			log.Errorf("Error: failed to add allow-all rule for group %s on port %s in VFP.", groupsList[i], portName)
+			return err
+		}
 	}
 
 	return nil
 }
 
-// UnInitAzureNPMLayer undoes the work of InitAzureNPMLayer.
-func (rMgr *RuleManager) UnInitAzureNPMLayer(portName string) error {
+// InitAzureNPMLayer adds a layer to VFP for NPM and populates it with relevant groups.
+func (rMgr *RuleManager) InitAzureNPMLayer() error {
+	// Retrieve ports.
+	ports, err := GetPorts()
+	if err != nil {
+		return err
+	}
+
+	// Initialize the NPM layer for each port.
+	for _, portName := range ports {
+		err = initAzureNPMLayer(portName)
+		if err != nil {
+			log.Errorf("Error: failed to initialize NPM layer on port %s.", portName)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func unInitAzureNPMLayer(portName string) error {
 	// Check if layer exists.
 	listLayerCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.ListLayerCmd)
 	out, err := listLayerCmd.Output()
@@ -731,40 +850,65 @@ func (rMgr *RuleManager) UnInitAzureNPMLayer(portName string) error {
 	return nil
 }
 
-// Exists checks if the given rule exists in VFP.
-func (rMgr *RuleManager) Exists(rule *Rule, portName string) (bool, error) {
-	// Find rules with the name specified.
-	listCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.Group, util.Rule, rule.Name, util.ListRuleCmd)
-	out, err := listCmd.Output()
-	if err != nil {
-		log.Errorf("Error: failed to list rules in rMgr.Exists")
-		return false, err
-	}
-	outStr := string(out)
-
-	return strings.Index(outStr, util.RuleLabel) >= 0, nil
-}
-
-// Add applies a Rule through VFP.
-func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
-	// Check first if the rule already exists.
-	exists, err := rMgr.Exists(rule, portName)
+// UnInitAzureNPMLayer undoes the work of InitAzureNPMLayer.
+func (rMgr *RuleManager) UnInitAzureNPMLayer() error {
+	// Retrieve ports.
+	ports, err := GetPorts()
 	if err != nil {
 		return err
 	}
 
-	if exists {
-		return nil
+	// Uninitialize the NPM layer for each port.
+	for _, portName := range ports {
+		err = unInitAzureNPMLayer(portName)
+		if err != nil {
+			log.Errorf("Error: failed to uninitialize NPM layer on port %s.", portName)
+			return err
+		}
 	}
 
+	return nil
+}
+
+// Exists checks if the given rule exists in VFP.
+func (rMgr *RuleManager) Exists(rule *Rule) (bool, error) {
+	if _, exists := rMgr.ruleSet[rule.Name]; exists {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// hashTags takes a tag string of the form "a,b,c..." and returns a corresponding
+// string "x,y,z..." where x = hash(a), y = hash(b), and so on.
+func hashTags(tagStr string) string {
+	tags := strings.Split(tagStr, ",")
+	var hashedTags []string
+	for _, tag := range tags {
+		if tag == "" {
+			continue
+		}
+
+		hashedTags = append(hashedTags, util.GetHashedName(tag))
+	}
+
+	return strings.Join(hashedTags, ",")
+}
+
+// add applies the given rule to the specified port.
+func (rMgr *RuleManager) add(rule *Rule, portName string) error {
 	// Prepare parameters and execute add-tag-rule command.
 	srcTags := rule.SrcTags
 	if srcTags == "" {
 		srcTags = "*"
+	} else {
+		srcTags = hashTags(srcTags)
 	}
 	dstTags := rule.DstTags
 	if dstTags == "" {
 		dstTags = "*"
+	} else {
+		dstTags = hashTags(dstTags)
 	}
 	srcIPs := rule.SrcIPs
 	if srcIPs == "" {
@@ -783,11 +927,12 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 		dstPrts = "*"
 	}
 
-	params := rule.Name + " " + rule.Name + " " + srcTags + " " + dstTags +
+	// Apply rule through vfp.
+	params := util.GetHashedName(rule.Name) + " " + rule.Name + " " + srcTags + " " + dstTags +
 		" 6 " + srcIPs + " " + srcPrts + " " + dstIPs + " " + dstPrts +
-		" 0 0 " + strconv.FormatUint(uint64(rule.Priority), 10) + " " + rule.Action
+		" 1 0 " + strconv.FormatUint(uint64(rule.Priority), 10) + " " + rule.Action
 	addCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.Group, util.AddTagRuleCmd, params)
-	err = addCmd.Run()
+	err := addCmd.Run()
 	if err != nil {
 		log.Errorf("Error: failed to add tags rule in rMgr.Add")
 		return err
@@ -796,10 +941,121 @@ func (rMgr *RuleManager) Add(rule *Rule, portName string) error {
 	return nil
 }
 
+// Add applies a Rule through VFP.
+func (rMgr *RuleManager) Add(rule *Rule, tMgr *TagManager) error {
+	// Check first if the rule already exists.
+	exists, err := rMgr.Exists(rule)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		rMgr.ruleSet[rule.Name]++
+		return nil
+	}
+
+	// Identify if all ports are affected by the given rule.
+	allPorts := false
+	if rule.Group == util.NPMIngressGroup {
+		// Ingress rule.
+		if rule.DstTags == "" {
+			allPorts = true
+		}
+	} else {
+		// Egress rule.
+		if rule.SrcTags == "" {
+			allPorts = true
+		}
+	}
+
+	if allPorts {
+		// Apply rule to all ports on this node.
+		ports, err := GetPorts()
+		if err != nil {
+			return err
+		}
+
+		for _, portName := range ports {
+			rMgr.add(rule, portName)
+		}
+
+		// Update ruleMap because this rule affects all tags.
+		for tagName := range tMgr.tagMap {
+			rMgr.ruleMap[tagName] = append(rMgr.ruleMap[tagName], rule)
+		}
+	} else {
+		// Identify what tags are affected by this rule.
+		tags := strings.Split(rule.SrcTags, ",")
+		tags = append(tags, strings.Split(rule.DstTags, ",")...)
+		tags = util.UniqueStrSlice(tags)
+
+		// Apply rule only to relevant ports on this node.
+		appliedIPs := make(map[string]bool)
+		for _, tagName := range tags {
+			if tagName == "" {
+				continue
+			}
+
+			tag, ok := tMgr.tagMap[tagName]
+			if !ok {
+				log.Errorf("Error: tag %s not in tagMap.", tagName)
+				continue
+			}
+
+			// Get all of the possible ips.
+			ips := strings.Split(tag.elements, ",")
+			for _, ip := range ips {
+				// If we've applied to this ip already, we don't need to add the rule again.
+				if _, ok := appliedIPs[ip]; ok {
+					continue
+				}
+
+				if portName, exists := rMgr.ipPortMap[ip]; exists {
+					// Add rule through vfp on the specified port.
+					err = rMgr.add(rule, portName)
+					if err != nil {
+						log.Errorf("Error: failed to add rule %s to port %s.", rule.Name, portName)
+						return err
+					}
+
+					// Mark ip as seen.
+					appliedIPs[ip] = true
+				}
+			}
+
+			// Update ruleMap based on which tags this rule affects.
+			rMgr.ruleMap[tagName] = append(rMgr.ruleMap[tagName], rule)
+		}
+	}
+
+	// Update ipRules if rule is IP based.
+	if rule.SrcIPs != "" || rule.DstIPs != "" {
+		rMgr.ipRules = append(rMgr.ipRules, rule)
+	}
+
+	// Add the applied rule to ruleSet.
+	rMgr.ruleSet[rule.Name] = 1
+
+	return nil
+}
+
+func (rMgr *RuleManager) delete(rule *Rule, portName string) error {
+	// Remove rule through VFP.
+	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group,
+		rule.Group, util.Rule, util.GetHashedName(rule.Name), util.RemoveRuleCmd)
+	err := removeCmd.Run()
+	if err != nil {
+		log.Errorf("Error: failed to remove rule in rMgr.Delete")
+		return err
+	}
+
+	return nil
+}
+
 // Delete removes a Rule through VFP.
-func (rMgr *RuleManager) Delete(rule *Rule, portName string) error {
+func (rMgr *RuleManager) Delete(rule *Rule, tMgr *TagManager) error {
 	// Check first if the rule exists.
-	exists, err := rMgr.Exists(rule, portName)
+	exists, err := rMgr.Exists(rule)
 	if err != nil {
 		return err
 	}
@@ -808,15 +1064,223 @@ func (rMgr *RuleManager) Delete(rule *Rule, portName string) error {
 		return nil
 	}
 
-	// Remove rule through VFP.
-	removeCmd := exec.Command(util.VFPCmd, util.Port, portName, util.Layer, util.NPMLayer, util.Group, rule.Group, util.Rule, rule.Name, util.RemoveRuleCmd)
-	err = removeCmd.Run()
+	if rMgr.ruleSet[rule.Name] > 1 {
+		rMgr.ruleSet[rule.Name]--
+		return nil
+	}
+
+	// Identify if all ports are affected by the given rule.
+	allPorts := false
+	if rule.Group == util.NPMIngressGroup {
+		// Ingress rule.
+		if rule.DstTags == "" {
+			allPorts = true
+		}
+	} else {
+		// Egress rule.
+		if rule.SrcTags == "" {
+			allPorts = true
+		}
+	}
+
+	if allPorts {
+		// Apply rule to all ports on this node.
+		ports, err := GetPorts()
+		if err != nil {
+			return err
+		}
+
+		for _, portName := range ports {
+			rMgr.delete(rule, portName)
+		}
+
+		// Update ruleMap.
+		for tagName := range tMgr.tagMap {
+			for i, r := range rMgr.ruleMap[tagName] {
+				if r.Name == rule.Name {
+					// Delete rule from the array.
+					rMgr.ruleMap[tagName][i] = rMgr.ruleMap[tagName][len(rMgr.ruleMap[tagName])-1]
+					rMgr.ruleMap[tagName] = rMgr.ruleMap[tagName][:len(rMgr.ruleMap[tagName])-1]
+					break
+				}
+			}
+		}
+	} else {
+		// Identify what tags are affected by this rule.
+		tags := strings.Split(rule.SrcTags, ",")
+		tags = append(tags, strings.Split(rule.DstTags, ",")...)
+
+		// Apply rule only to relevant ports on this node.
+		for _, tagName := range tags {
+			if tagName == "" {
+				continue
+			}
+
+			tag := tMgr.tagMap[tagName]
+			ips := strings.Split(tag.elements, ",")
+			for _, ip := range ips {
+				if portName, exists := rMgr.ipPortMap[ip]; exists {
+					rMgr.delete(rule, portName)
+				}
+			}
+
+			for i, r := range rMgr.ruleMap[tagName] {
+				if r.Name == rule.Name {
+					// Delete rule from the array.
+					rMgr.ruleMap[tagName][i] = rMgr.ruleMap[tagName][len(rMgr.ruleMap[tagName])-1]
+					rMgr.ruleMap[tagName] = rMgr.ruleMap[tagName][:len(rMgr.ruleMap[tagName])-1]
+					break
+				}
+			}
+		}
+	}
+
+	// Update ipRules if the rule is IP based.
+	if rule.SrcIPs != "" || rule.DstIPs != "" {
+		for i, r := range rMgr.ipRules {
+			if r.Name == rule.Name {
+				// Delete rule from array.
+				rMgr.ipRules[i] = rMgr.ipRules[len(rMgr.ipRules)-1]
+				rMgr.ipRules = rMgr.ipRules[:len(rMgr.ipRules)-1]
+			}
+		}
+	}
+
+	// Update ruleSet.
+	delete(rMgr.ruleSet, rule.Name)
+
+	return nil
+}
+
+// ipToInt takes a string of the form "x.y.z.w", and returns the corresponding
+// uint32, where the 8 greatest bits represent the number x, the next 8 greatest
+// represent the number y, and so on.
+func ipToInt(ip string) (uint32, error) {
+	result := uint32(0)
+	bytes := strings.Split(ip, ".")
+	for _, strByte := range bytes {
+		result = result << 8
+		converted, err := strconv.ParseUint(strByte, 10, 8)
+		if err != nil {
+			return 0, err
+		}
+		result += uint32(converted)
+	}
+	return result, nil
+}
+
+// cidrContains returns true if the given cidr contains the given ip
+func cidrContains(cidr string, ip string) bool {
+	// Get start and end of cidr range.
+	cidrSplit := strings.Split(cidr, "/")
+	if len(cidrSplit) != 2 {
+		log.Errorf("Error: invalid cidr <%s> in cidrContains.", cidr)
+		return false
+	}
+
+	maskNum, err := strconv.ParseUint(cidrSplit[1], 10, 6)
 	if err != nil {
-		log.Errorf("Error: failed to remove rule in rMgr.Delete")
+		log.Errorf("Error: failed to parse integer from %s in cidrContains.", cidrSplit[1])
+		return false
+	}
+
+	cidrIP := net.ParseIP(cidrSplit[0])
+	if cidrIP == nil {
+		log.Errorf("Error: failed to parse %s as IP in cidrContains.", cidrSplit[0])
+	}
+
+	mask := net.CIDRMask(int(maskNum), 32)
+
+	start, _ := ipToInt(cidrIP.Mask(mask).String())
+	end := start + (1 << (32 - maskNum)) - 1
+	
+	// Compare given ip to the start and end of the cidr range.
+	curr, err := ipToInt(ip)
+	if err != nil {
+		log.Errorf("Error: failed to parse ip %s in cidrContains", ip)
+		return false
+	}
+
+	if curr >= start && curr <= end {
+		return true
+	}
+	return false
+}
+
+// ApplyRules applies existing rules to a pod's port.
+func (rMgr *RuleManager) ApplyRules(podObj *corev1.Pod, tMgr *TagManager) error {
+	// Get tags that pod is in.
+	var tags []string
+	podLabels := podObj.ObjectMeta.Labels
+	podNs := podObj.ObjectMeta.Namespace
+	for key, val := range podLabels {
+		// Ignore pod-template-hash label.
+		if strings.Contains(key, util.KubePodTemplateHashFlag) {
+			continue
+		}
+
+		tags = append(tags, util.KubeAllNamespacesFlag+"-"+key+":"+val)
+		tags = append(tags, podNs+"-"+key+":"+val)
+	}
+	tags = append(tags, podNs)
+
+	// Get rules corresponding to tags.
+	var rules []*Rule
+	for _, tag := range tags {
+		rules = append(rules, rMgr.ruleMap[tag]...)
+	}
+
+	// Get rules corresponding to ip.
+	for _, rule := range rMgr.ipRules {
+		var cidrs []string
+		if rule.SrcIPs != "" {
+			cidrs = strings.Split(rule.SrcIPs, ",")
+		}
+		if rule.DstIPs != "" {
+			cidrs = append(cidrs, strings.Split(rule.DstIPs, ",")...)
+		}
+
+		for _, cidr := range cidrs {
+			if cidr == "" {
+				continue
+			}
+
+			if cidrContains(cidr, podObj.Status.PodIP) {
+				rules = append(rules, rule)
+			}
+		}
+	}
+
+	// Find port to apply rules to.
+	portName, err := findPort(podObj.Status.PodIP)
+	if err != nil {
+		log.Errorf("Error: failed to find vfp port for pod with ip %s.", podObj.Status.PodIP)
 		return err
+	}
+	rMgr.ipPortMap[podObj.Status.PodIP] = portName
+
+	// Apply rules.
+	seen := make(map[string]bool)
+	for _, rule := range rules {
+		if _, ok := seen[rule.Name]; ok {
+			continue
+		}
+
+		err = rMgr.add(rule, portName)
+		if err != nil {
+			log.Errorf("Error: failed to add rule %+v on port %s in rMgr.ApplyRules.", rule, portName)
+			return err
+		}
+
+		seen[rule.Name] = true
 	}
 
 	return nil
+}
+
+// HandlePodDeletion updates rMgr state after a pod is deleted.
+func (rMgr *RuleManager) HandlePodDeletion(podObj *corev1.Pod) {
+	delete(rMgr.ipPortMap, podObj.Status.PodIP)
 }
 
 // Save saves active VFP rules to a file.
@@ -961,7 +1425,7 @@ func (rMgr *RuleManager) Restore(configFile string) error {
 		configFile = util.RuleConfigFile
 	}
 
-	// Open and read from file.
+	// Open file.
 	f, err := os.Open(configFile)
 	if err != nil {
 		log.Errorf("Error: failed to open file: %s.", configFile)
@@ -997,9 +1461,9 @@ func (rMgr *RuleManager) Restore(configFile string) error {
 
 		// Initialize NPM on port.
 		if strings.Contains(portStr, "\tGroup: ") {
-			rMgr.InitAzureNPMLayer(portName)
+			initAzureNPMLayer(portName)
 		} else {
-			rMgr.UnInitAzureNPMLayer(portName)
+			unInitAzureNPMLayer(portName)
 			continue
 		}
 
@@ -1094,7 +1558,7 @@ func (rMgr *RuleManager) Restore(configFile string) error {
 				}
 
 				// Apply rule.
-				rMgr.Add(rule, portName)
+				rMgr.add(rule, portName)
 			}
 		}
 	}

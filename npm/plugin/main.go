@@ -3,6 +3,7 @@
 package main
 
 import (
+	"flag"
 	"runtime"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const waitForTelemetryInSeconds = 60
@@ -47,8 +49,18 @@ func main() {
 		panic(err.Error())
 	}
 
-	// Creates the in-cluster config
-	config, err := rest.InClusterConfig()
+	var config *rest.Config
+	if runtime.GOOS == "windows" {
+		// Creates the out-of-cluster config
+		kubeconfig := flag.String("kubeconfig", "C:\\k\\config", "(optional) absolute path to the kubeconfig file")
+		flag.Parse()
+
+		// use the current context in kubeconfig
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	} else {
+		// Creates the in-cluster config
+		config, err = rest.InClusterConfig()
+	}
 	if err != nil {
 		panic(err.Error())
 	}
@@ -66,7 +78,7 @@ func main() {
 
 	//go npMgr.SendNpmTelemetry()
 
-	time.Sleep(time.Second * waitForTelemetryInSeconds)
+	//time.Sleep(time.Second * waitForTelemetryInSeconds)
 
 	err = npMgr.Start(wait.NeverStop)
 	if err != nil {
