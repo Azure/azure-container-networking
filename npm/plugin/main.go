@@ -3,15 +3,18 @@
 package main
 
 import (
+	"flag"
+	"runtime"
 	"time"
 
-	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm"
+	"github.com/kalebmorris/azure-container-networking/log"
+	"github.com/kalebmorris/azure-container-networking/npm"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const waitForTelemetryInSeconds = 60
@@ -22,6 +25,9 @@ var version string
 func initLogging() error {
 	log.SetName("azure-npm")
 	log.SetLevel(log.LevelInfo)
+	if runtime.GOOS == "windows" {
+		log.SetLogDirectory("/var/log/")
+	}
 	if err := log.SetTarget(log.TargetLogfile); err != nil {
 		log.Logf("Failed to configure logging, err:%v.", err)
 		return err
@@ -43,8 +49,18 @@ func main() {
 		panic(err.Error())
 	}
 
-	// Creates the in-cluster config
-	config, err := rest.InClusterConfig()
+	var config *rest.Config
+	if runtime.GOOS == "windows" {
+		// Creates the out-of-cluster config
+		kubeconfig := flag.String("kubeconfig", "C:\\k\\config", "(optional) absolute path to the kubeconfig file")
+		flag.Parse()
+
+		// use the current context in kubeconfig
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	} else {
+		// Creates the in-cluster config
+		config, err = rest.InClusterConfig()
+	}
 	if err != nil {
 		panic(err.Error())
 	}
@@ -60,9 +76,9 @@ func main() {
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
 
-	go npMgr.SendNpmTelemetry()
+	//go npMgr.SendNpmTelemetry()
 
-	time.Sleep(time.Second * waitForTelemetryInSeconds)
+	//time.Sleep(time.Second * waitForTelemetryInSeconds)
 
 	err = npMgr.Start(wait.NeverStop)
 	if err != nil {
