@@ -6,7 +6,11 @@ package network
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"os"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -35,11 +39,22 @@ const (
 	CNI_UPDATE = "UPDATE"
 )
 
+const (
+	// URL to query NMAgent version and determine whether we snat on host
+	nmAgentVersionURL = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis"
+	newNMAgentAPI     = "NetworkManagementSnatSupport"
+)
+
 // NetPlugin represents the CNI network plugin.
 type netPlugin struct {
 	*cni.Plugin
 	nm     network.NetworkManager
 	report *telemetry.CNIReport
+}
+
+// snatOnHostConfiguration contains a bool that determines whether CNI disables snat on host
+type snatOnHostConfiguration struct {
+	DisableSnatOnHost bool
 }
 
 // NewPlugin creates a new netPlugin object.
@@ -204,6 +219,51 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
+
+	var (
+		snatOnHostConfig      snatOnHostConfiguration
+		retrieveSnatConfigErr error
+		jsonFile              *os.File
+	)
+
+	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
+	if jsonFile, retrieveSnatConfigErr = os.Open(snatOnHostConfigFile); retrieveSnatConfigErr == nil {
+		bytes, _ := ioutil.ReadAll(jsonFile)
+		retrieveSnatConfigErr = json.Unmarshal(bytes, &snatOnHostConfig)
+	}
+
+	// If we weren't able to retrieve snatOnHostConfiguration, query NMAgent
+	if retrieveSnatConfigErr != nil {
+		var resp *http.Response
+		resp, retrieveSnatConfigErr = http.Get(nmAgentVersionURL)
+		if retrieveSnatConfigErr == nil {
+			defer resp.Body.Close()
+
+			if resp.StatusCode == http.StatusOK {
+				var bodyBytes []byte
+				// if the list of APIs (strings) contains the newNMAgentAPI we will disable snat on host
+				if bodyBytes, retrieveSnatConfigErr = ioutil.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
+					if strings.Contains(string(bodyBytes), newNMAgentAPI) {
+						snatOnHostConfig.DisableSnatOnHost = true
+					}
+					ioutil.WriteFile(snatOnHostConfigFile, []byte(fmt.Sprintf("%+v", snatOnHostConfig)), 0644)
+				}
+			} else {
+				retrieveSnatConfigErr = fmt.Errorf("nmagent request status code %d", resp.StatusCode)
+			}
+		}
+	}
+
+	// Log and return the error when we fail to determine whether to disable snat on host
+	if retrieveSnatConfigErr != nil {
+		log.Errorf("[cni-net] failed to determine whether to disable snat on host with error %v",
+			retrieveSnatConfigErr)
+		return retrieveSnatConfigErr
+	}
+
+	nwCfg.EnableSnatOnHost = !snatOnHostConfig.DisableSnatOnHost
+
+	log.Printf("[cni-net] EnableSnatOnHost set to %t", nwCfg.EnableSnatOnHost)
 
 	plugin.setCNIReportDetails(nwCfg, CNI_ADD, "")
 

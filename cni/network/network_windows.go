@@ -19,6 +19,10 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
+const (
+	snatOnHostConfigFile = "C:\\Windows\\Temp\\disableSnatOnHost.json"
+)
+
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
  * This is a temporary work around for issue #57253 of Kubernetes.
  * We can delete this if statement once they fix it.
