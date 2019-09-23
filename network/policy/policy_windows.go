@@ -46,7 +46,7 @@ type KVPairRoute struct {
 }
 
 // SerializePolicies serializes policies to json.
-func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}) []json.RawMessage {
+func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatOnHost bool) []json.RawMessage {
 	var jsonPolicies []json.RawMessage
 	for _, policy := range policies {
 		if policy.Type == policyType {
