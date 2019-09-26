@@ -91,7 +91,8 @@ func setWeakHostOnInterface(ipAddress, ncID string) error {
 	bytes, err := c.Output()
 
 	if err == nil {
-		log.Printf("[Azure CNS] Successfully updated weak host send/receive for NC: %s on interface %v", ncID, string(bytes))
+		log.Printf("[Azure CNS] Successfully updated weak host send/receive for NC: %s on interface %v",
+			ncID, string(bytes))
 	} else {
 		log.Printf("[Azure CNS] Failed to update weak host send/receive for NC: %s. Error: %v. Output: %v",
 			ncID, err.Error(), string(bytes))
@@ -142,8 +143,8 @@ func createOrUpdateWithOperation(createNetworkContainerRequest cns.CreateNetwork
 	log.Printf("[Azure CNS] Going to create/update network loopback adapter: %v", args)
 	bytes, err := c.Output()
 	if err == nil {
-		err = setWeakHostOnInterface(
-			createNetworkContainerRequest.PrimaryInterfaceIdentifier, createNetworkContainerRequest.NetworkContainerid)
+		err = setWeakHostOnInterface(createNetworkContainerRequest.PrimaryInterfaceIdentifier,
+			createNetworkContainerRequest.NetworkContainerid)
 	}
 	loopbackOperationLock.Unlock()
 
