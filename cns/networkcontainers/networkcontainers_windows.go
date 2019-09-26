@@ -27,9 +27,7 @@ func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkCont
 		return nil
 	}
 
-	exists, _ := interfaceExists(createNetworkContainerRequest.NetworkContainerid)
-
-	if !exists {
+	if exists, _ := interfaceExists(createNetworkContainerRequest.NetworkContainerid); !exists {
 		return createOrUpdateWithOperation(createNetworkContainerRequest, "CREATE")
 	}
 
@@ -40,7 +38,7 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 	return nil
 }
 
-func setWeakHostOnInterface(ipAddress string) error {
+func setWeakHostOnInterface(ipAddress, ncID string) error {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		log.Printf("[Azure CNS] Unable to retrieve interfaces on machine. %+v", err)
@@ -76,7 +74,6 @@ func setWeakHostOnInterface(ipAddress string) error {
 	}
 
 	ethIndexString := strconv.Itoa(targetIface.Index)
-	log.Printf("[Azure CNS] Going to setup weak host routing for interface with index[%v, %v]\n", targetIface.Index, ethIndexString)
 
 	args := []string{"/C", "AzureNetworkContainer.exe", "/logpath", log.GetLogDirectory(),
 		"/index",
@@ -88,17 +85,16 @@ func setWeakHostOnInterface(ipAddress string) error {
 		"/weakhostreceive",
 		"true"}
 
-	log.Printf("[Azure CNS] Going to enable weak host send/receive on interface: %v", args)
+	log.Printf("[Azure CNS] Going to enable weak host send/receive on interface: %v for NC: %s", args, ncID)
 	c := exec.Command("cmd", args...)
 
-	loopbackOperationLock.Lock()
 	bytes, err := c.Output()
-	loopbackOperationLock.Unlock()
 
 	if err == nil {
-		log.Printf("[Azure CNS] Successfully updated weak host send/receive on interface %v.\n", string(bytes))
+		log.Printf("[Azure CNS] Successfully updated weak host send/receive for NC: %s on interface %v", ncID, string(bytes))
 	} else {
-		log.Printf("[Azure CNS] Received error while enable weak host send/receive on interface. %v - %v", err.Error(), string(bytes))
+		log.Printf("[Azure CNS] Failed to update weak host send/receive for NC: %s. Error: %v. Output: %v",
+			ncID, err.Error(), string(bytes))
 		return err
 	}
 
@@ -140,17 +136,23 @@ func createOrUpdateWithOperation(createNetworkContainerRequest cns.CreateNetwork
 		"/weakhostreceive",
 		"true"}
 
-	log.Printf("[Azure CNS] Going to create/update network loopback adapter: %v", args)
 	c := exec.Command("cmd", args...)
 
 	loopbackOperationLock.Lock()
+	log.Printf("[Azure CNS] Going to create/update network loopback adapter: %v", args)
 	bytes, err := c.Output()
+	if err == nil {
+		err = setWeakHostOnInterface(
+			createNetworkContainerRequest.PrimaryInterfaceIdentifier, createNetworkContainerRequest.NetworkContainerid)
+	}
 	loopbackOperationLock.Unlock()
 
 	if err == nil {
-		log.Printf("[Azure CNS] Successfully created network loopback adapter %v.\n", string(bytes))
+		log.Printf("[Azure CNS] Successfully created network loopback adapter for NC: %s. Output:%v.",
+			createNetworkContainerRequest.NetworkContainerid, string(bytes))
 	} else {
-		log.Printf("Received error while Creating a Network Container %v %v", err.Error(), string(bytes))
+		log.Printf("Failed to create/update Network Container: %s. Error: %v. Output: %v",
+			createNetworkContainerRequest.NetworkContainerid, err.Error(), string(bytes))
 	}
 
 	return err
@@ -174,17 +176,19 @@ func deleteInterface(networkContainerID string) error {
 		"/operation",
 		"DELETE"}
 
-	log.Printf("[Azure CNS] Going to delete network loopback adapter: %v", args)
 	c := exec.Command("cmd", args...)
 
 	loopbackOperationLock.Lock()
+	log.Printf("[Azure CNS] Going to delete network loopback adapter: %v", args)
 	bytes, err := c.Output()
 	loopbackOperationLock.Unlock()
 
 	if err == nil {
-		log.Printf("[Azure CNS] Successfully deleted network container %v.\n", string(bytes))
+		log.Printf("[Azure CNS] Successfully deleted network container: %s. Output: %v.",
+			networkContainerID, string(bytes))
 	} else {
-		log.Printf("Received error while deleting a Network Container %v %v", err.Error(), string(bytes))
+		log.Printf("Failed to delete Network Container: %s. Error:%v. Output:%v",
+			networkContainerID, err.Error(), string(bytes))
 		return err
 	}
 	return nil

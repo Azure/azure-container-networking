@@ -18,7 +18,7 @@ func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkCont
 	return nil
 }
 
-func setWeakHostOnInterface(ipAddress string) error {
+func setWeakHostOnInterface(ipAddress, ncID string) error {
 	return nil
 }
 

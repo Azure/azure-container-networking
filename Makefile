@@ -43,6 +43,7 @@ CNSFILES = \
 	$(wildcard cns/restserver/*.go) \
 	$(wildcard cns/routes/*.go) \
 	$(wildcard cns/service/*.go) \
+	$(wildcard cns/networkcontainers/*.go) \
 	$(COREFILES) \
 	$(CNMFILES)
 
