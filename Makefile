@@ -107,10 +107,10 @@ CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
 CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 
 # Azure network policy manager parameters.
-AZURE_NPM_IMAGE = containernetworking/azure-npm
+AZURE_NPM_IMAGE = containernetworking.azurecr.io/azure-npm
 
 # Azure vnet telemetry image parameters.
-AZURE_VNET_TELEMETRY_IMAGE = containernetworking/azure-vnet-telemetry
+AZURE_VNET_TELEMETRY_IMAGE = containernetworking.azurecr.io/azure-vnet-telemetry
 
 VERSION ?= $(shell git describe --tags --always --dirty)
 
