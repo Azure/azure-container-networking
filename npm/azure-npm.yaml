@@ -76,7 +76,7 @@ spec:
         beta.kubernetes.io/os: linux
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.0.27
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.0.28
           securityContext:
             privileged: true
           env:
@@ -95,7 +95,7 @@ spec:
           - name: tmp
             mountPath: /tmp
         - name: azure-vnet-telemetry
-          image: containernetworking/azure-vnet-telemetry:v1.0.23
+          image: containernetworking/azure-vnet-telemetry:v1.0.28
           volumeMounts:
           - name: socket-dir
             mountPath: /var/run
