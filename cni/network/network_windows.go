@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	snatOnHostConfigFile = "C:\\Windows\\Temp\\disableSnatOnHost.json"
+	snatOnHostConfigFileName = "C:\\Windows\\Temp\\disableSnatOnHost"
 )
 
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
