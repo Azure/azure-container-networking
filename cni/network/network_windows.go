@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -19,8 +21,8 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
-const (
-	snatOnHostConfigFileName = "C:\\Windows\\Temp\\disableSnatOnHost"
+var (
+	snatOnHostConfigFileName = filepath.FromSlash(os.Getenv("TEMP")) + "\\enableSnatOnHost"
 )
 
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.

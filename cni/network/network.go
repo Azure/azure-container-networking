@@ -42,8 +42,8 @@ const (
 
 const (
 	// URL to query NMAgent version and determine whether we snat on host
-	nmAgentVersionURL = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis"
-	newNMAgentAPI     = "NetworkManagementSnatSupport"
+	nmAgentSupportedApisURL = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis"
+	nmAgentSnatSupportAPI   = "NetworkManagementSnatSupport"
 )
 
 // temporary consts related func determineSnatOnHost() which is to be deleted after
@@ -61,9 +61,9 @@ type netPlugin struct {
 	report *telemetry.CNIReport
 }
 
-// snatOnHostConfiguration contains a bool that determines whether CNI disables snat on host
+// snatOnHostConfiguration contains a bool that determines whether CNI enables snat on host
 type snatOnHostConfiguration struct {
-	DisableSnatOnHost bool
+	EnableSnatOnHost bool
 }
 
 // NewPlugin creates a new netPlugin object.
@@ -891,35 +891,39 @@ func determineSnatOnHost(nwCfg *cni.NetworkConfig) error {
 		snatOnHostConfig      snatOnHostConfiguration
 		retrieveSnatConfigErr error
 		jsonFile              *os.File
+		httpClient            = &http.Client{Timeout: time.Second * 5}
+		snatOnHostConfigFile  = snatOnHostConfigFileName + jsonFileExtension
 	)
-
-	snatOnHostConfigFile := snatOnHostConfigFileName + jsonFileExtension
 
 	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
 	if jsonFile, retrieveSnatConfigErr = os.Open(snatOnHostConfigFile); retrieveSnatConfigErr == nil {
 		bytes, _ := ioutil.ReadAll(jsonFile)
-		retrieveSnatConfigErr = json.Unmarshal(bytes, &snatOnHostConfig)
 		jsonFile.Close()
+		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatOnHostConfig); retrieveSnatConfigErr != nil {
+			log.Errorf("[cni-net] failed to unmarshal to snatOnHostConfig with error %v",
+				retrieveSnatConfigErr)
+		}
+
 	}
 
 	// If we weren't able to retrieve snatOnHostConfiguration, query NMAgent
 	if retrieveSnatConfigErr != nil {
 		var resp *http.Response
-		resp, retrieveSnatConfigErr = http.Get(nmAgentVersionURL)
+		resp, retrieveSnatConfigErr = httpClient.Get(nmAgentSupportedApisURL)
 		if retrieveSnatConfigErr == nil {
 			defer resp.Body.Close()
 
 			if resp.StatusCode == http.StatusOK {
 				var bodyBytes []byte
-				// if the list of APIs (strings) contains the newNMAgentAPI we will disable snat on host
+				// if the list of APIs (strings) contains the nmAgentSnatSupportAPI we will disable snat on host
 				if bodyBytes, retrieveSnatConfigErr = ioutil.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
-					if strings.Contains(string(bodyBytes), newNMAgentAPI) {
-						snatOnHostConfig.DisableSnatOnHost = true
+					if !strings.Contains(string(bodyBytes), nmAgentSnatSupportAPI) {
+						snatOnHostConfig.EnableSnatOnHost = true
 					}
 
-					if retrieveSnatConfigErr = determineSnatOnHostLock(); retrieveSnatConfigErr == nil {
+					if retrieveSnatConfigErr = acquireSnatOnHostLock(); retrieveSnatConfigErr == nil {
 						ioutil.WriteFile(snatOnHostConfigFile, []byte(fmt.Sprintf("%+v", snatOnHostConfig)), 0644)
-						os.Remove(snatOnHostConfigFileName + lockFileExtension)
+						releaseSnatOnHostLock()
 					}
 				}
 			} else {
@@ -935,18 +939,19 @@ func determineSnatOnHost(nwCfg *cni.NetworkConfig) error {
 		return retrieveSnatConfigErr
 	}
 
-	nwCfg.EnableSnatOnHost = !snatOnHostConfig.DisableSnatOnHost
+	nwCfg.EnableSnatOnHost = snatOnHostConfig.EnableSnatOnHost
 
 	log.Printf("[cni-net] EnableSnatOnHost set to %t", nwCfg.EnableSnatOnHost)
 
 	return nil
 }
 
-// determineSnatOnHostLock acquires lock for write access to disableSnatOnHost.json
-func determineSnatOnHostLock() error {
+// acquireSnatOnHostLock acquires lock for write access to disableSnatOnHost.json
+func acquireSnatOnHostLock() error {
 	var (
 		lockFile *os.File
 		lockName = snatOnHostConfigFileName + lockFileExtension
+		lockPerm = os.FileMode(0664) + os.FileMode(os.ModeExclusive)
 		err      error
 
 		// Try to acquire the lock file.
@@ -956,7 +961,7 @@ func determineSnatOnHostLock() error {
 	)
 
 	for lockRetryCount < maxLockRetries {
-		lockFile, err = os.OpenFile(lockName, os.O_CREATE|os.O_EXCL|os.O_RDWR, os.FileMode(0664)+os.FileMode(os.ModeExclusive))
+		lockFile, err = os.OpenFile(lockName, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
 		if err == nil {
 			break
 		}
@@ -976,10 +981,14 @@ func determineSnatOnHostLock() error {
 	}
 
 	if lockRetryCount == maxLockRetries {
-		return fmt.Errorf("timed out acquiring disableSnatOnHost.lock")
+		return fmt.Errorf("timed out acquiring %s", lockName)
 	}
 
 	defer lockFile.Close()
 
 	return nil
+}
+
+func releaseSnatOnHostLock() {
+	os.Remove(snatOnHostConfigFileName + lockFileExtension)
 }

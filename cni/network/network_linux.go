@@ -21,7 +21,7 @@ const (
 )
 
 const (
-	snatOnHostConfigFileName = "/tmp/disableSnatOnHost"
+	snatOnHostConfigFileName = "/tmp/enableSnatOnHost"
 )
 
 // handleConsecutiveAdd is a dummy function for Linux platform.
