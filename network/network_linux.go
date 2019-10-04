@@ -230,7 +230,13 @@ func saveDnsConfig(extIf *externalInterface) error {
 	dnsInfo, err := readDnsInfo(extIf.Name)
 	if err != nil || len(dnsInfo.Servers) == 0 || dnsInfo.Suffix == "" {
 		log.Printf("[net] Failed to read dns info %+v from interface %v: %v", dnsInfo, extIf.Name, err)
-		return err
+
+		// Retry reading from the global settings
+		dnsInfo, err := readDnsInfo("")
+		if err != nil || len(dnsInfo.Servers) == 0 || dnsInfo.Suffix == "" {
+			log.Printf("[net] Failed also to read dns info %+v from global: %v", dnsInfo, err)
+			return err
+		}
 	}
 
 	extIf.DNSInfo = dnsInfo
