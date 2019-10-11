@@ -8,8 +8,7 @@ import (
 )
 
 func NewSnatClient(client *OVSEndpointClient, snatBridgeIP string, localIP string, epInfo *EndpointInfo) {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC {
-
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.enableSnatForDns {
 		hostIfName := fmt.Sprintf("%s%s", snatVethInterfacePrefix, epInfo.Id[:7])
 		contIfName := fmt.Sprintf("%s%s-2", snatVethInterfacePrefix, epInfo.Id[:7])
 
@@ -18,7 +17,7 @@ func NewSnatClient(client *OVSEndpointClient, snatBridgeIP string, localIP strin
 }
 
 func AddSnatEndpoint(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
 		if err := client.snatClient.CreateSnatEndpoint(client.bridgeName); err != nil {
 			return err
 		}
@@ -28,7 +27,7 @@ func AddSnatEndpoint(client *OVSEndpointClient) error {
 }
 
 func AddSnatEndpointRules(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
 		// Allow specific Private IPs via Snat Bridge
 		if err := client.snatClient.AllowIPAddressesOnSnatBrdige(); err != nil {
 			return err
@@ -63,7 +62,7 @@ func AddSnatEndpointRules(client *OVSEndpointClient) error {
 }
 
 func MoveSnatEndpointToContainerNS(client *OVSEndpointClient, netnsPath string, nsID uintptr) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
 		return client.snatClient.MoveSnatEndpointToContainerNS(netnsPath, nsID)
 	}
 
@@ -71,7 +70,7 @@ func MoveSnatEndpointToContainerNS(client *OVSEndpointClient, netnsPath string, 
 }
 
 func SetupSnatContainerInterface(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
 		return client.snatClient.SetupSnatContainerInterface()
 	}
 
@@ -79,7 +78,7 @@ func SetupSnatContainerInterface(client *OVSEndpointClient) error {
 }
 
 func ConfigureSnatContainerInterface(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
 		return client.snatClient.ConfigureSnatContainerInterface()
 	}
 
@@ -87,7 +86,7 @@ func ConfigureSnatContainerInterface(client *OVSEndpointClient) error {
 }
 
 func DeleteSnatEndpoint(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost {
+	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
 		return client.snatClient.DeleteSnatEndpoint()
 	}
 

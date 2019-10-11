@@ -26,7 +26,7 @@ func SetupRoutingForMultitenancy(
 	result *cniTypesCurr.Result) {
 	// Adding default gateway
 	if nwCfg.MultiTenancy {
-		// if snat enabled, add 169.254.0.1 as default gateway
+		// if snat enabled, add 169.254.128.1 as default gateway
 		if nwCfg.EnableSnatOnHost {
 			log.Printf("add default route for multitenancy.snat on host enabled")
 			addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
@@ -36,6 +36,11 @@ func SetupRoutingForMultitenancy(
 			gwIP := net.ParseIP(cnsNetworkConfig.IPConfiguration.GatewayIPAddress)
 			epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
 			result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
+
+			if epInfo.EnableSnatForDns {
+				log.Printf("add SNAT for DNS enabled")
+				addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
+			}
 		}
 
 		setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo, result)

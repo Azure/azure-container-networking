@@ -21,7 +21,7 @@ const (
 )
 
 const (
-	snatOnHostConfigFileName = "/tmp/enableSnatOnHost"
+	snatConfigFileName = "/tmp/snatConfig"
 )
 
 // handleConsecutiveAdd is a dummy function for Linux platform.
@@ -35,6 +35,13 @@ func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *cn
 	gwIP := net.ParseIP(gwIPString)
 	epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP, DevName: snatInterface})
 	result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
+}
+
+func addSnatForDNS(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
+	_, dnsIPNet, _ := net.ParseCIDR("168.63.129.16/32")
+	gwIP := net.ParseIP(gwIPString)
+	epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: *dnsIPNet, Gw: gwIP, DevName: snatInterface})
+	result.Routes = append(result.Routes, &cniTypes.Route{Dst: *dnsIPNet, GW: gwIP})
 }
 
 func addInfraRoutes(azIpamResult *cniTypesCurr.Result, result *cniTypesCurr.Result, epInfo *network.EndpointInfo) {

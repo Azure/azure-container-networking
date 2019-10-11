@@ -62,6 +62,7 @@ type EndpointInfo struct {
 	EnableSnatOnHost         bool
 	EnableInfraVnet          bool
 	EnableMultiTenancy       bool
+	EnableSnatForDns         bool
 	AllowInboundFromHostToNC bool
 	AllowInboundFromNCToHost bool
 	NetworkContainerID       string

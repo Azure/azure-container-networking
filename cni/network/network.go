@@ -43,7 +43,10 @@ const (
 const (
 	// URL to query NMAgent version and determine whether we snat on host
 	nmAgentSupportedApisURL = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis"
-	nmAgentSnatSupportAPI   = "NetworkManagementSnatSupport"
+	// Only SNAT support (no DNS support)
+	nmAgentSnatSupportAPI = "NetworkManagementSnatSupport"
+	// SNAT and DNS are both supported
+	nmAgentSnatAndDnsSupportAPI = "NetworkManagementDnsSupport"
 )
 
 // temporary consts related func determineSnatOnHost() which is to be deleted after
@@ -61,9 +64,10 @@ type netPlugin struct {
 	report *telemetry.CNIReport
 }
 
-// snatOnHostConfiguration contains a bool that determines whether CNI enables snat on host
-type snatOnHostConfiguration struct {
+// snatConfiguration contains a bool that determines whether CNI enables snat on host and snat for dns
+type snatConfiguration struct {
 	EnableSnatOnHost bool
+	EnableSnatForDns bool
 }
 
 // NewPlugin creates a new netPlugin object.
@@ -214,6 +218,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		subnetPrefix     net.IPNet
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
 		enableInfraVnet  bool
+		enableSnatForDns bool
 		nwDNSInfo        network.DNSInfo
 	)
 
@@ -230,7 +235,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
 
 	// Temporary if block to determing whether we disable SNAT on host
-	if err = determineSnatOnHost(nwCfg); err != nil {
+	if enableSnatForDns, err = determineSnat(nwCfg); err != nil {
 		return err
 	}
 
@@ -482,6 +487,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		EnableSnatOnHost:   nwCfg.EnableSnatOnHost,
 		EnableMultiTenancy: nwCfg.MultiTenancy,
 		EnableInfraVnet:    enableInfraVnet,
+		EnableSnatForDns:   enableSnatForDns,
 		PODName:            k8sPodName,
 		PODNameSpace:       k8sNamespace,
 		SkipHotAttachEp:    false, // Hot attach at the time of endpoint creation
@@ -886,27 +892,27 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 }
 
 // Temporary function to determine whether we need to disable SNAT due to NMAgent support
-func determineSnatOnHost(nwCfg *cni.NetworkConfig) error {
+func determineSnat(nwCfg *cni.NetworkConfig) (bool, error) {
 	var (
-		snatOnHostConfig      snatOnHostConfiguration
+		snatConfig            snatConfiguration
 		retrieveSnatConfigErr error
 		jsonFile              *os.File
 		httpClient            = &http.Client{Timeout: time.Second * 5}
-		snatOnHostConfigFile  = snatOnHostConfigFileName + jsonFileExtension
+		snatConfigFile        = snatConfigFileName + jsonFileExtension
 	)
 
 	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
-	if jsonFile, retrieveSnatConfigErr = os.Open(snatOnHostConfigFile); retrieveSnatConfigErr == nil {
+	if jsonFile, retrieveSnatConfigErr = os.Open(snatConfigFile); retrieveSnatConfigErr == nil {
 		bytes, _ := ioutil.ReadAll(jsonFile)
 		jsonFile.Close()
-		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatOnHostConfig); retrieveSnatConfigErr != nil {
-			log.Errorf("[cni-net] failed to unmarshal to snatOnHostConfig with error %v",
+		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
+			log.Errorf("[cni-net] failed to unmarshal to snatConfig with error %v",
 				retrieveSnatConfigErr)
 		}
 
 	}
 
-	// If we weren't able to retrieve snatOnHostConfiguration, query NMAgent
+	// If we weren't able to retrieve snatConfiguration, query NMAgent
 	if retrieveSnatConfigErr != nil {
 		var resp *http.Response
 		resp, retrieveSnatConfigErr = httpClient.Get(nmAgentSupportedApisURL)
@@ -917,13 +923,22 @@ func determineSnatOnHost(nwCfg *cni.NetworkConfig) error {
 				var bodyBytes []byte
 				// if the list of APIs (strings) contains the nmAgentSnatSupportAPI we will disable snat on host
 				if bodyBytes, retrieveSnatConfigErr = ioutil.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
-					if !strings.Contains(string(bodyBytes), nmAgentSnatSupportAPI) {
-						snatOnHostConfig.EnableSnatOnHost = true
+					bodyStr := string(bodyBytes)
+					if !strings.Contains(bodyStr, nmAgentSnatAndDnsSupportAPI) {
+						snatConfig.EnableSnatForDns = true
+						snatConfig.EnableSnatOnHost = !strings.Contains(string(bodyBytes), nmAgentSnatSupportAPI)
 					}
 
-					if retrieveSnatConfigErr = acquireSnatOnHostLock(); retrieveSnatConfigErr == nil {
-						ioutil.WriteFile(snatOnHostConfigFile, []byte(fmt.Sprintf("%+v", snatOnHostConfig)), 0644)
-						releaseSnatOnHostLock()
+					if retrieveSnatConfigErr = acquireSnatConfigLock(); retrieveSnatConfigErr == nil {
+						jsonStr, _ := json.Marshal(snatConfig)
+						fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0664))
+						if err == nil {
+							fp.Write(jsonStr)
+							fp.Close()
+						} else {
+							log.Printf("[cni-net] failed to save snatConfig")
+						}
+						releaseSnatConfigLock()
 					}
 				}
 			} else {
@@ -932,25 +947,25 @@ func determineSnatOnHost(nwCfg *cni.NetworkConfig) error {
 		}
 	}
 
-	// Log and return the error when we fail to determine whether to disable snat on host
+	// Log and return the error when we fail acquire snat configuration for host and dns
 	if retrieveSnatConfigErr != nil {
-		log.Errorf("[cni-net] failed to determine whether to disable snat on host with error %v",
+		log.Errorf("[cni-net] failed to acquire SNAT configuration with error %v",
 			retrieveSnatConfigErr)
-		return retrieveSnatConfigErr
+		return snatConfig.EnableSnatForDns, retrieveSnatConfigErr
 	}
 
-	nwCfg.EnableSnatOnHost = snatOnHostConfig.EnableSnatOnHost
+	nwCfg.EnableSnatOnHost = snatConfig.EnableSnatOnHost
 
 	log.Printf("[cni-net] EnableSnatOnHost set to %t", nwCfg.EnableSnatOnHost)
 
-	return nil
+	return snatConfig.EnableSnatForDns, nil
 }
 
-// acquireSnatOnHostLock acquires lock for write access to disableSnatOnHost.json
-func acquireSnatOnHostLock() error {
+// acquireSnatConfigLock acquires lock for write access to snatConfig.json
+func acquireSnatConfigLock() error {
 	var (
 		lockFile *os.File
-		lockName = snatOnHostConfigFileName + lockFileExtension
+		lockName = snatConfigFileName + lockFileExtension
 		lockPerm = os.FileMode(0664) + os.FileMode(os.ModeExclusive)
 		err      error
 
@@ -989,6 +1004,6 @@ func acquireSnatOnHostLock() error {
 	return nil
 }
 
-func releaseSnatOnHostLock() {
-	os.Remove(snatOnHostConfigFileName + lockFileExtension)
+func releaseSnatConfigLock() {
+	os.Remove(snatConfigFileName + lockFileExtension)
 }

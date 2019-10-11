@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	snatOnHostConfigFileName = filepath.FromSlash(os.Getenv("TEMP")) + "\\enableSnatOnHost"
+	snatConfigFileName = filepath.FromSlash(os.Getenv("TEMP")) + "\\snatConfig"
 )
 
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
