@@ -55,7 +55,7 @@
 
 [[constraint]]
   name = "github.com/Microsoft/hcsshim"
-  version = "0.8.6"
+  revision = "2a08d6fcd23883573a39ba32ab7ed2b197a9a9eb"
 
 [[constraint]]
   name = "github.com/containernetworking/cni"

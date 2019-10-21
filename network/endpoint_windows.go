@@ -90,6 +90,14 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error)
 		Policies:       policy.SerializePolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data, epInfo.EnableSnatOnHost),
 	}
 
+	if epInfo.EnableSnatForDns {
+		if serializedDnsNatPolicy, err := policy.AddDnsNATPolicy(); err != nil {
+			log.Errorf("Failed to serialize DnsNAT policy")
+		} else {
+			hnsEndpoint.Policies = append(hnsEndpoint.Policies, serializedDnsNatPolicy)
+		}
+	}
+
 	// HNS currently supports only one IP address per endpoint.
 	if epInfo.IPAddresses != nil {
 		hnsEndpoint.IPAddress = epInfo.IPAddresses[0].IP

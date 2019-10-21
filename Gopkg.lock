@@ -30,6 +30,7 @@
     "internal/hcserror",
     "internal/hns",
     "internal/interop",
+    "internal/log",
     "internal/logfields",
     "internal/longpath",
     "internal/mergemaps",
