@@ -926,7 +926,7 @@ func determineSnat(nwCfg *cni.NetworkConfig) (bool, error) {
 					bodyStr := string(bodyBytes)
 					if !strings.Contains(bodyStr, nmAgentSnatAndDnsSupportAPI) {
 						snatConfig.EnableSnatForDns = true
-						snatConfig.EnableSnatOnHost = !strings.Contains(string(bodyBytes), nmAgentSnatSupportAPI)
+						snatConfig.EnableSnatOnHost = !strings.Contains(bodyStr, nmAgentSnatSupportAPI)
 					}
 
 					if retrieveSnatConfigErr = acquireSnatConfigLock(); retrieveSnatConfigErr == nil {
