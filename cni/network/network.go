@@ -54,7 +54,6 @@ const (
 const (
 	maxLockRetries    = 200
 	jsonFileExtension = ".json"
-	lockFileExtension = ".lock"
 )
 
 // NetPlugin represents the CNI network plugin.
@@ -929,16 +928,13 @@ func determineSnat(nwCfg *cni.NetworkConfig) (bool, error) {
 						snatConfig.EnableSnatOnHost = !strings.Contains(bodyStr, nmAgentSnatSupportAPI)
 					}
 
-					if retrieveSnatConfigErr = acquireSnatConfigLock(); retrieveSnatConfigErr == nil {
-						jsonStr, _ := json.Marshal(snatConfig)
-						fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0664))
-						if err == nil {
-							fp.Write(jsonStr)
-							fp.Close()
-						} else {
-							log.Printf("[cni-net] failed to save snatConfig")
-						}
-						releaseSnatConfigLock()
+					jsonStr, _ := json.Marshal(snatConfig)
+					fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0664))
+					if err == nil {
+						fp.Write(jsonStr)
+						fp.Close()
+					} else {
+						log.Printf("[cni-net] failed to save snatConfig")
 					}
 				}
 			} else {
@@ -959,51 +955,4 @@ func determineSnat(nwCfg *cni.NetworkConfig) (bool, error) {
 	log.Printf("[cni-net] EnableSnatOnHost set to %t", nwCfg.EnableSnatOnHost)
 
 	return snatConfig.EnableSnatForDns, nil
-}
-
-// acquireSnatConfigLock acquires lock for write access to snatConfig.json
-func acquireSnatConfigLock() error {
-	var (
-		lockFile *os.File
-		lockName = snatConfigFileName + lockFileExtension
-		lockPerm = os.FileMode(0664) + os.FileMode(os.ModeExclusive)
-		err      error
-
-		// Try to acquire the lock file.
-		lockRetryCount uint
-		modTimeCur     time.Time
-		modTimePrev    time.Time
-	)
-
-	for lockRetryCount < maxLockRetries {
-		lockFile, err = os.OpenFile(lockName, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
-		if err == nil {
-			break
-		}
-
-		// Reset the lock retry count if the timestamp for the lock file changes.
-		if fileInfo, err := os.Stat(lockName); err == nil {
-			modTimeCur = fileInfo.ModTime()
-			if !modTimeCur.Equal(modTimePrev) {
-				lockRetryCount = 0
-			}
-			modTimePrev = modTimeCur
-		}
-
-		time.Sleep(time.Second * 1)
-
-		lockRetryCount++
-	}
-
-	if lockRetryCount == maxLockRetries {
-		return fmt.Errorf("timed out acquiring %s", lockName)
-	}
-
-	defer lockFile.Close()
-
-	return nil
-}
-
-func releaseSnatConfigLock() {
-	os.Remove(snatConfigFileName + lockFileExtension)
 }
