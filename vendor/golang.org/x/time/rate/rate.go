@@ -387,5 +387,9 @@ func (limit Limit) durationFromTokens(tokens float64) time.Duration {
 // tokensFromDuration is a unit conversion function from a time duration to the number of tokens
 // which could be accumulated during that duration at a rate of limit tokens per second.
 func (limit Limit) tokensFromDuration(d time.Duration) float64 {
-	return d.Seconds() * float64(limit)
+	// Split the integer and fractional parts ourself to minimize rounding errors.
+	// See golang.org/issues/34861.
+	sec := float64(d/time.Second) * float64(limit)
+	nsec := float64(d%time.Second) * float64(limit)
+	return sec + nsec/1e9
 }

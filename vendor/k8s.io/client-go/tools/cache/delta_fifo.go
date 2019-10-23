@@ -466,7 +466,6 @@ func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 
 	if f.knownObjects == nil {
 		// Do deletion detection against our own list.
-		queuedDeletions := 0
 		for k, oldItem := range f.items {
 			if keys.Has(k) {
 				continue
@@ -475,7 +474,6 @@ func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 			if n := oldItem.Newest(); n != nil {
 				deletedObj = n.Object
 			}
-			queuedDeletions++
 			if err := f.queueActionLocked(Deleted, DeletedFinalStateUnknown{k, deletedObj}); err != nil {
 				return err
 			}
@@ -483,9 +481,7 @@ func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 
 		if !f.populated {
 			f.populated = true
-			// While there shouldn't be any queued deletions in the initial
-			// population of the queue, it's better to be on the safe side.
-			f.initialPopulationCount = len(list) + queuedDeletions
+			f.initialPopulationCount = len(list)
 		}
 
 		return nil

@@ -107,6 +107,14 @@
   version = "v1.3.1"
 
 [[projects]]
+  digest = "1:0bfbe13936953a98ae3cfe8ed6670d396ad81edf069a806d2f6515d7bb6950df"
+  name = "github.com/google/btree"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "4030bb1f1f0c35b30ca7009e9ebd06849dd45306"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:a6181aca1fd5e27103f9a920876f29ac72854df7345a39f3b01e61c8c94cc8af"
   name = "github.com/google/gofuzz"
   packages = ["."]
@@ -186,6 +194,22 @@
   pruneopts = "UT"
   revision = "4b7aa43c6742a2c18fdef89dd197aaae7dac7ccd"
   version = "1.0.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:89da0f0574bc94cfd0ac8b59af67bf76cdd110d503df2721006b9f0492394333"
+  name = "github.com/petar/GoLLRB"
+  packages = ["llrb"]
+  pruneopts = "UT"
+  revision = "33fb24c13b99c46c93183c291836c573ac382536"
+
+[[projects]]
+  digest = "1:a8c2725121694dfbf6d552fb86fe6b46e3e7135ea05db580c28695b916162aad"
+  name = "github.com/peterbourgon/diskv"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "0be1b92a6df0e4f5cb0a5d15fb7f643d0ad93ce6"
+  version = "v3.0.0"
 
 [[projects]]
   digest = "1:274f67cb6fed9588ea2521ecdac05a6d62a8c51c074c1fccc6a49a40ba80e925"
@@ -319,6 +343,7 @@
   digest = "1:3d206da0c5871a719863cbf3a2d44fa5c0a77670491c19e2274b05799e84879a"
   name = "k8s.io/api"
   packages = [
+    "admissionregistration/v1alpha1",
     "admissionregistration/v1beta1",
     "apps/v1",
     "apps/v1beta1",
@@ -335,20 +360,15 @@
     "batch/v1beta1",
     "batch/v2alpha1",
     "certificates/v1beta1",
-    "coordination/v1",
     "coordination/v1beta1",
     "core/v1",
     "events/v1beta1",
     "extensions/v1beta1",
     "networking/v1",
-    "networking/v1beta1",
-    "node/v1alpha1",
-    "node/v1beta1",
     "policy/v1beta1",
     "rbac/v1",
     "rbac/v1alpha1",
     "rbac/v1beta1",
-    "scheduling/v1",
     "scheduling/v1alpha1",
     "scheduling/v1beta1",
     "settings/v1alpha1",
@@ -360,7 +380,7 @@
   revision = "61630f889b3c3efb8c3a4ba377da1a421d9ff6ce"
 
 [[projects]]
-  digest = "1:d43bb672b3e811c5ea37b48a0a73bea7fcbcb348a45ce7ba349006145c76418d"
+  digest = "1:4003aa5b6ca0bd01a0dfd368a141f8db82ab71bbe0d55164b92ab5c251832ffb"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
@@ -404,15 +424,16 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "UT"
-  revision = "d7deff9243b165ee192f5551710ea4285dcfd615"
+  revision = "kubernetes-1.13.6"
 
 [[projects]]
-  digest = "1:a3712b06370e1f92902bc22151b31bbfef00f520945bd51716fe498375923864"
+  digest = "1:d9cb85ce2b0a93482ac1ab864ebffe5d7db9e79b4d8b396b80f0d7a9c10a51c6"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
     "informers",
     "informers/admissionregistration",
+    "informers/admissionregistration/v1alpha1",
     "informers/admissionregistration/v1beta1",
     "informers/apps",
     "informers/apps/v1",
@@ -431,7 +452,6 @@
     "informers/certificates",
     "informers/certificates/v1beta1",
     "informers/coordination",
-    "informers/coordination/v1",
     "informers/coordination/v1beta1",
     "informers/core",
     "informers/core/v1",
@@ -442,10 +462,6 @@
     "informers/internalinterfaces",
     "informers/networking",
     "informers/networking/v1",
-    "informers/networking/v1beta1",
-    "informers/node",
-    "informers/node/v1alpha1",
-    "informers/node/v1beta1",
     "informers/policy",
     "informers/policy/v1beta1",
     "informers/rbac",
@@ -453,7 +469,6 @@
     "informers/rbac/v1alpha1",
     "informers/rbac/v1beta1",
     "informers/scheduling",
-    "informers/scheduling/v1",
     "informers/scheduling/v1alpha1",
     "informers/scheduling/v1beta1",
     "informers/settings",
@@ -464,6 +479,7 @@
     "informers/storage/v1beta1",
     "kubernetes",
     "kubernetes/scheme",
+    "kubernetes/typed/admissionregistration/v1alpha1",
     "kubernetes/typed/admissionregistration/v1beta1",
     "kubernetes/typed/apps/v1",
     "kubernetes/typed/apps/v1beta1",
@@ -480,26 +496,22 @@
     "kubernetes/typed/batch/v1beta1",
     "kubernetes/typed/batch/v2alpha1",
     "kubernetes/typed/certificates/v1beta1",
-    "kubernetes/typed/coordination/v1",
     "kubernetes/typed/coordination/v1beta1",
     "kubernetes/typed/core/v1",
     "kubernetes/typed/events/v1beta1",
     "kubernetes/typed/extensions/v1beta1",
     "kubernetes/typed/networking/v1",
-    "kubernetes/typed/networking/v1beta1",
-    "kubernetes/typed/node/v1alpha1",
-    "kubernetes/typed/node/v1beta1",
     "kubernetes/typed/policy/v1beta1",
     "kubernetes/typed/rbac/v1",
     "kubernetes/typed/rbac/v1alpha1",
     "kubernetes/typed/rbac/v1beta1",
-    "kubernetes/typed/scheduling/v1",
     "kubernetes/typed/scheduling/v1alpha1",
     "kubernetes/typed/scheduling/v1beta1",
     "kubernetes/typed/settings/v1alpha1",
     "kubernetes/typed/storage/v1",
     "kubernetes/typed/storage/v1alpha1",
     "kubernetes/typed/storage/v1beta1",
+    "listers/admissionregistration/v1alpha1",
     "listers/admissionregistration/v1beta1",
     "listers/apps/v1",
     "listers/apps/v1beta1",
@@ -512,20 +524,15 @@
     "listers/batch/v1beta1",
     "listers/batch/v2alpha1",
     "listers/certificates/v1beta1",
-    "listers/coordination/v1",
     "listers/coordination/v1beta1",
     "listers/core/v1",
     "listers/events/v1beta1",
     "listers/extensions/v1beta1",
     "listers/networking/v1",
-    "listers/networking/v1beta1",
-    "listers/node/v1alpha1",
-    "listers/node/v1beta1",
     "listers/policy/v1beta1",
     "listers/rbac/v1",
     "listers/rbac/v1alpha1",
     "listers/rbac/v1beta1",
-    "listers/scheduling/v1",
     "listers/scheduling/v1alpha1",
     "listers/scheduling/v1beta1",
     "listers/settings/v1alpha1",
@@ -545,15 +552,16 @@
     "tools/pager",
     "tools/reference",
     "transport",
+    "util/buffer",
     "util/cert",
     "util/connrotation",
     "util/flowcontrol",
-    "util/keyutil",
+    "util/integer",
     "util/retry",
   ]
   pruneopts = "UT"
-  revision = "6ee68ca5fd8355d024d02f9db0b3b667e8357a0f"
-  version = "v11.0.0"
+  revision = "65905f29c17c1f14e6485158af1072d74ddb4e9d"
+  version = "kubernetes-1.13.6"
 
 [[projects]]
   digest = "1:c696379ad201c1e86591785579e16bf6cf886c362e9a7534e8eb0d1028b20582"

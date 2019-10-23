@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 // +k8s:deepcopy-gen=package
-// +k8s:protobuf-gen=package
 // +groupName=storage.k8s.io
 // +k8s:openapi-gen=true
 
