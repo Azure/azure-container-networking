@@ -358,3 +358,22 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 
 	return hcnEndPointPolicies, nil
 }
+
+// AddDnsNATPolicyV1 adds DNS NAT policy and returns serialized json
+func AddDnsNATPolicyV1() (json.RawMessage, error) {
+	outBoundNatPolicy := hcsshim.OutboundNatPolicy{
+		Policy:       hcsshim.Policy{Type: hcsshim.OutboundNat},
+		Destinations: []string{"168.63.129.16"}}
+	serializedPolicy, err := json.Marshal(outBoundNatPolicy)
+	return serializedPolicy, err
+}
+
+// AddDnsNATPolicyV2 adds DNS NAT policy and returns serialized json
+func AddDnsNATPolicyV2() (hcn.EndpointPolicy, error) {
+	outBoundNatPolicySettings := hcn.OutboundNatPolicySetting{Destinations: []string{"168.63.129.16"}}
+	outBoundNatPolicySettingsBytes, err := json.Marshal(outBoundNatPolicySettings)
+	endpointPolicy := hcn.EndpointPolicy{
+		Type:     hcn.OutBoundNAT,
+		Settings: outBoundNatPolicySettingsBytes}
+	return endpointPolicy, err
+}

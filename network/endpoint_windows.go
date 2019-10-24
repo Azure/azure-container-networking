@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
@@ -14,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -25,7 +27,32 @@ const (
 
 	// hcnIpamTypeStatic indicates the static type of ipam
 	hcnIpamTypeStatic = "Static"
+
+	// windows version for build 1903
+	win1903Version = 18362
 )
+
+var validWinVerForDnsNat bool
+
+func init() {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE)
+	if err == nil {
+		defer k.Close()
+
+		cb, _, err := k.GetStringValue("CurrentBuild")
+		if err == nil {
+			winVer, err := strconv.Atoi(cb)
+			if err == nil {
+				validWinVerForDnsNat = winVer >= win1903Version
+			}
+		}
+	}
+
+	if err != nil {
+		log.Errorf(err.Error())
+		panic(err)
+	}
+}
 
 // HotAttachEndpoint is a wrapper of hcsshim's HotAttachEndpoint.
 func (endpoint *EndpointInfo) HotAttachEndpoint(containerID string) error {
@@ -90,8 +117,8 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error)
 		Policies:       policy.SerializePolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data),
 	}
 
-	if epInfo.EnableSnatForDns {
-		if serializedDnsNatPolicy, err := policy.AddDnsNATPolicy(); err != nil {
+	if epInfo.EnableSnatForDns && validWinVerForDnsNat {
+		if serializedDnsNatPolicy, err := policy.AddDnsNATPolicyV1(); err != nil {
 			log.Errorf("Failed to serialize DnsNAT policy")
 		} else {
 			hnsEndpoint.Policies = append(hnsEndpoint.Policies, serializedDnsNatPolicy)
@@ -277,6 +304,14 @@ func (nw *network) newEndpointImplHnsV2(epInfo *EndpointInfo) (*endpoint, error)
 	if err != nil {
 		log.Printf("[net] Failed to configure hcn endpoint due to error: %v", err)
 		return nil, err
+	}
+
+	if epInfo.EnableSnatForDns && validWinVerForDnsNat {
+		if dnsNatPolicy, err := policy.AddDnsNATPolicyV2(); err != nil {
+			log.Errorf("Failed to serialize DnsNAT policy")
+		} else {
+			hcnEndpoint.Policies = append(hcnEndpoint.Policies, dnsNatPolicy)
+		}
 	}
 
 	// Create the HCN endpoint.
