@@ -61,7 +61,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 		Name:               nwInfo.Id,
 		NetworkAdapterName: networkAdapterName,
 		DNSServerList:      strings.Join(nwInfo.DNS.Servers, ","),
-		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.Policies, nil),
+		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.Policies, nil, false, false),
 	}
 
 	// Set the VLAN and OutboundNAT policies

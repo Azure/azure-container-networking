@@ -46,13 +46,12 @@ const (
 	// Only SNAT support (no DNS support)
 	nmAgentSnatSupportAPI = "NetworkManagementSnatSupport"
 	// SNAT and DNS are both supported
-	nmAgentSnatAndDnsSupportAPI = "NetworkManagementDnsSupport"
+	nmAgentSnatAndDnsSupportAPI = "NetworkManagementDNSSupport"
 )
 
 // temporary consts related func determineSnatOnHost() which is to be deleted after
 // a baking period with newest NMAgent changes
 const (
-	maxLockRetries    = 200
 	jsonFileExtension = ".json"
 )
 
@@ -233,9 +232,11 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
 
-	// Temporary if block to determing whether we disable SNAT on host
-	if enableSnatForDns, err = determineSnat(nwCfg); err != nil {
-		return err
+	// Temporary if block to determing whether we disable SNAT on host (for multi-tenant scenario only)
+	if nwCfg.MultiTenancy {
+		if enableSnatForDns, err = determineSnat(nwCfg); err != nil {
+			return err
+		}
 	}
 
 	plugin.setCNIReportDetails(nwCfg, CNI_ADD, "")
