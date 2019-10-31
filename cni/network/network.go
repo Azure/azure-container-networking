@@ -49,7 +49,7 @@ const (
 	nmAgentSnatAndDnsSupportAPI = "NetworkManagementDNSSupport"
 )
 
-// temporary consts related func determineSnatOnHost() which is to be deleted after
+// temporary consts related func determineSnat() which is to be deleted after
 // a baking period with newest NMAgent changes
 const (
 	jsonFileExtension = ".json"
@@ -234,7 +234,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// Temporary if block to determing whether we disable SNAT on host (for multi-tenant scenario only)
 	if nwCfg.MultiTenancy {
-		if enableSnatForDns, err = determineSnat(nwCfg); err != nil {
+		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = determineSnat(); err != nil {
 			return err
 		}
 	}
@@ -892,7 +892,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 }
 
 // Temporary function to determine whether we need to disable SNAT due to NMAgent support
-func determineSnat(nwCfg *cni.NetworkConfig) (bool, error) {
+func determineSnat() (bool, bool, error) {
 	var (
 		snatConfig            snatConfiguration
 		retrieveSnatConfigErr error
@@ -948,12 +948,10 @@ func determineSnat(nwCfg *cni.NetworkConfig) (bool, error) {
 	if retrieveSnatConfigErr != nil {
 		log.Errorf("[cni-net] failed to acquire SNAT configuration with error %v",
 			retrieveSnatConfigErr)
-		return snatConfig.EnableSnatForDns, retrieveSnatConfigErr
+		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
 	}
 
-	nwCfg.EnableSnatOnHost = snatConfig.EnableSnatOnHost
+	log.Printf("[cni-net] EnableSnatOnHost set to %t", snatConfig.EnableSnatForDns)
 
-	log.Printf("[cni-net] EnableSnatOnHost set to %t", nwCfg.EnableSnatOnHost)
-
-	return snatConfig.EnableSnatForDns, nil
+	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
 }

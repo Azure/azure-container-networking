@@ -3,13 +3,11 @@ package policy
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
-	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -21,9 +19,6 @@ const (
 
 	// CnetAddressSpace indicates constant for the key string
 	CnetAddressSpace = "cnetAddressSpace"
-
-	// windows build for version 1903
-	win1903Version = 18362
 )
 
 type KVPairRoutePolicy struct {
@@ -52,45 +47,17 @@ type KVPairRoute struct {
 
 var ValidWinVerForDnsNat bool
 
-func init() {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE)
-	if err == nil {
-		defer k.Close()
-
-		cb, _, err := k.GetStringValue("CurrentBuild")
-		if err == nil {
-			winVer, err := strconv.Atoi(cb)
-			if err == nil {
-				ValidWinVerForDnsNat = winVer >= win1903Version
-			}
-		}
-	}
-
-	if err != nil {
-		log.Errorf(err.Error())
-		panic(err)
-	}
-}
-
 // SerializePolicies serializes policies to json.
 func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatForDns, enableMultiTenancy bool) []json.RawMessage {
 	var (
-		jsonPolicies    []json.RawMessage
-		addDnsNatPolicy bool
+		jsonPolicies     []json.RawMessage
+		snatAndSerialize = enableMultiTenancy && enableSnatForDns
 	)
+
 	for _, policy := range policies {
 		if policy.Type == policyType {
 			if isPolicyTypeOutBoundNAT := IsPolicyTypeOutBoundNAT(policy); isPolicyTypeOutBoundNAT {
-				if enableMultiTenancy {
-					if enableSnatForDns {
-						addDnsNatPolicy = ValidWinVerForDnsNat
-						if serializedOutboundNatPolicy, err := SerializeOutBoundNATPolicy(policy, epInfoData); err != nil {
-							log.Printf("Failed to serialize OutBoundNAT policy")
-						} else {
-							jsonPolicies = append(jsonPolicies, serializedOutboundNatPolicy)
-						}
-					}
-				} else {
+				if snatAndSerialize || !enableMultiTenancy {
 					if serializedOutboundNatPolicy, err := SerializeOutBoundNATPolicy(policy, epInfoData); err != nil {
 						log.Printf("Failed to serialize OutBoundNAT policy")
 					} else {
@@ -103,7 +70,7 @@ func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData m
 		}
 	}
 
-	if addDnsNatPolicy {
+	if snatAndSerialize && ValidWinVerForDnsNat {
 		// SerializePolicies is only called for HnsV1 operations
 		if serializedDnsNatPolicy, err := AddDnsNATPolicyV1(); err != nil {
 			log.Printf("Failed to serialize DnsNAT policy")
@@ -380,7 +347,7 @@ func GetHcnPortMappingPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatForDns, enableMultiTenancy bool) ([]hcn.EndpointPolicy, error) {
 	var (
 		hcnEndPointPolicies []hcn.EndpointPolicy
-		addDnsNatPolicy     bool
+		snatAndSerialize    = enableMultiTenancy && enableSnatForDns
 	)
 	for _, policy := range policies {
 		if policy.Type == policyType {
@@ -389,14 +356,7 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 
 			switch GetPolicyType(policy) {
 			case OutBoundNatPolicy:
-				if enableMultiTenancy {
-					if enableSnatForDns {
-						addDnsNatPolicy = ValidWinVerForDnsNat
-						endpointPolicy, err = GetHcnOutBoundNATPolicy(policy, epInfoData)
-					}
-				} else {
-					endpointPolicy, err = GetHcnOutBoundNATPolicy(policy, epInfoData)
-				}
+				endpointPolicy, err = GetHcnOutBoundNATPolicy(policy, epInfoData)
 			case RoutePolicy:
 				endpointPolicy, err = GetHcnRoutePolicy(policy)
 			case PortMappingPolicy:
@@ -416,7 +376,7 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 		}
 	}
 
-	if addDnsNatPolicy {
+	if snatAndSerialize && ValidWinVerForDnsNat {
 		dnsNatPolicy, err := AddDnsNATPolicyV2()
 		if err != nil {
 			log.Printf("Failed to retrieve DnsNAT endpoint policy due to error: %v", err)
