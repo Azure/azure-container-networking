@@ -951,7 +951,7 @@ func determineSnat() (bool, bool, error) {
 		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
 	}
 
-	log.Printf("[cni-net] EnableSnatOnHost set to %t", snatConfig.EnableSnatForDns)
+	log.Printf("[cni-net] EnableSnatOnHost set to %t; EnableSnatForDns set to %t", snatConfig.EnableSnatOnHost, snatConfig.EnableSnatForDns)
 
 	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
 }
