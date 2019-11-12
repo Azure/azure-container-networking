@@ -503,7 +503,7 @@ func (tags CloudContextTags) SetRoleInstance(value string) {
 }
 
 // SDK version. See
-// https://github.com/microsoft/ApplicationInsights-Home/blob/master/SDK-AUTHORING.md#sdk-version-specification
+// https://github.com/Microsoft/ApplicationInsights-Home/blob/master/SDK-AUTHORING.md#sdk-version-specification
 // for information.
 func (tags InternalContextTags) GetSdkVersion() string {
 	if result, ok := tags["ai.internal.sdkVersion"]; ok {
@@ -514,7 +514,7 @@ func (tags InternalContextTags) GetSdkVersion() string {
 }
 
 // SDK version. See
-// https://github.com/microsoft/ApplicationInsights-Home/blob/master/SDK-AUTHORING.md#sdk-version-specification
+// https://github.com/Microsoft/ApplicationInsights-Home/blob/master/SDK-AUTHORING.md#sdk-version-specification
 // for information.
 func (tags InternalContextTags) SetSdkVersion(value string) {
 	if value != "" {

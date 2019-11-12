@@ -99,7 +99,7 @@ const (
 	CloudRoleInstance string = "ai.cloud.roleInstance"
 
 	// SDK version. See
-	// https://github.com/microsoft/ApplicationInsights-Home/blob/master/SDK-AUTHORING.md#sdk-version-specification
+	// https://github.com/Microsoft/ApplicationInsights-Home/blob/master/SDK-AUTHORING.md#sdk-version-specification
 	// for information.
 	InternalSdkVersion string = "ai.internal.sdkVersion"
 
