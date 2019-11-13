@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +18,10 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/containernetworking/cni/libcni"
+)
+
+const (
+	binaryAzureNetworkContainer = "AzureNetworkContainer.exe"
 )
 
 var loopbackOperationLock = &sync.Mutex{}
@@ -49,6 +55,11 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 }
 
 func setWeakHostOnInterface(ipAddress, ncID string) error {
+	acnBinaryPath, err := getAzureNetworkContainerBinaryPath()
+	if err != nil {
+		return err
+	}
+
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		log.Printf("[Azure CNS] Unable to retrieve interfaces on machine. %+v", err)
@@ -85,7 +96,7 @@ func setWeakHostOnInterface(ipAddress, ncID string) error {
 
 	ethIndexString := strconv.Itoa(targetIface.Index)
 
-	args := []string{"/C", "AzureNetworkContainer.exe", "/logpath", log.GetLogDirectory(),
+	args := []string{"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
 		"/index",
 		ethIndexString,
 		"/operation",
@@ -118,8 +129,9 @@ func createOrUpdateWithOperation(
 	setWeakHost bool,
 	primaryInterfaceIdentifier string,
 	operation string) error {
-	if _, err := os.Stat("./AzureNetworkContainer.exe"); err != nil {
-		return fmt.Errorf("[Azure CNS] Unable to find AzureNetworkContainer.exe. Cannot continue")
+	acnBinaryPath, err := getAzureNetworkContainerBinaryPath()
+	if err != nil {
+		return err
 	}
 
 	if ipConfig.IPSubnet.IPAddress == "" {
@@ -134,7 +146,7 @@ func createOrUpdateWithOperation(
 	ipv4NetStr := fmt.Sprintf("%d.%d.%d.%d", ipv4NetInt[0], ipv4NetInt[1], ipv4NetInt[2], ipv4NetInt[3])
 	log.Printf("[Azure CNS] Created netmask in string format %v", ipv4NetStr)
 
-	args := []string{"/C", "AzureNetworkContainer.exe", "/logpath", log.GetLogDirectory(),
+	args := []string{"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
 		"/name",
 		adapterName,
 		"/operation",
@@ -172,15 +184,16 @@ func createOrUpdateWithOperation(
 }
 
 func deleteInterface(interfaceName string) error {
-	if _, err := os.Stat("./AzureNetworkContainer.exe"); err != nil {
-		return fmt.Errorf("[Azure CNS] Unable to find AzureNetworkContainer.exe. Cannot continue")
+	acnBinaryPath, err := getAzureNetworkContainerBinaryPath()
+	if err != nil {
+		return err
 	}
 
 	if interfaceName == "" {
 		return fmt.Errorf("[Azure CNS] Interface name is nil")
 	}
 
-	args := []string{"/C", "AzureNetworkContainer.exe", "/logpath", log.GetLogDirectory(),
+	args := []string{"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
 		"/name",
 		interfaceName,
 		"/operation",
@@ -227,4 +240,26 @@ func configureNetworkContainerNetworking(operation, podName, podNamespace, docke
 	}
 
 	return err
+}
+
+func getAzureNetworkContainerBinaryPath() (string, error) {
+	var (
+		binaryPath string
+		workingDir string
+		err        error
+	)
+
+	if workingDir, err = filepath.Abs(filepath.Dir(os.Args[0])); err != nil {
+		return binaryPath,
+			fmt.Errorf("[Azure CNS] Unable to find working directory. Error: %v. Cannot continue", err)
+	}
+
+	binaryPath = path.Join(workingDir, binaryAzureNetworkContainer)
+
+	if _, err = os.Stat(binaryPath); err != nil {
+		return binaryPath,
+			fmt.Errorf("[Azure CNS] Unable to find AzureNetworkContainer.exe. Error: %v. Cannot continue", err)
+	}
+
+	return binaryPath, nil
 }
