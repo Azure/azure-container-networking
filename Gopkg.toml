@@ -65,6 +65,10 @@
   name = "github.com/microsoft/ApplicationInsights-Go"
   revision = "d813d7725313000ad1b71627b8951323635f0572"
 
+[[constraint]]
+  name = "github.com/Masterminds/semver"
+  version = "3.0.2"
+
 [prune]
   go-tests = true
   unused-packages = true

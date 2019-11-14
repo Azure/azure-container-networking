@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
-	"strconv"
 	"strings"
 	"sort"
 
+	"github.com/Masterminds/semver"
 	"k8s.io/apimachinery/pkg/version"
 )
 
@@ -98,43 +98,16 @@ func GetHashedName(name string) string {
 // returns -1, 0, 1 if firstVer smaller, equals, bigger than secondVer respectively.
 // returns -2 for error.
 func CompareK8sVer(firstVer *version.Info, secondVer *version.Info) int {
-	firstMajor, err := strconv.Atoi(firstVer.Major)
+	v1, err := semver.NewVersion(firstVer.Major+firstVer.Minor)
+	if err != nil {
+		return -2
+	}
+	v2, err := semver.NewVersion(secondVer.Major+secondVer.Minor)
 	if err != nil {
 		return -2
 	}
 
-	firstMinor, err := strconv.Atoi(firstVer.Minor)
-	if err != nil {
-		return -2
-	}
-
-	secondMajor, err := strconv.Atoi(secondVer.Major)
-	if err != nil {
-		return -2
-	}
-
-	secondMinor, err := strconv.Atoi(secondVer.Minor)
-	if err != nil {
-		return -2
-	}
-
-	if firstMajor < secondMajor {
-		return -1
-	}
-
-	if firstMajor > secondMajor {
-		return 1
-	}
-
-	if firstMinor < secondMinor {
-		return -1
-	}
-
-	if firstMinor > secondMinor {
-		return 1
-	}
-
-	return 0
+	return v1.Compare(v2)
 }
 
 // IsNewNwPolicyVer checks if the current k8s version >= 1.11,

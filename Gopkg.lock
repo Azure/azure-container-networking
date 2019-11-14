@@ -10,6 +10,14 @@
   version = "1.0.0"
 
 [[projects]]
+  digest = "1:a5f0485ed2aad9b9c6a730815d1f2bc92b0acc126d7ee8e36c1a51882fc284f5"
+  name = "github.com/Masterminds/semver"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "25911d36c978be5eb3e81847734874fd4e1dc6c7"
+  version = "v3.0.2"
+
+[[projects]]
   digest = "1:156b9a17f1a961da9ec3e11e31bace3ed8cd69c2e987a3d2fd2e4562ab4cecd1"
   name = "github.com/Microsoft/ApplicationInsights-Go"
   packages = [
@@ -308,7 +316,7 @@
     "windows/registry",
   ]
   pruneopts = "UT"
-  revision = "59a1497f0cead4659791683f1514d15ae8cf3934"
+  revision = "4c7a9d0fe056d9d1de37e1409ca8a5c17accb46a"
 
 [[projects]]
   digest = "1:8d8faad6b12a3a4c819a3f9618cb6ee1fa1cfc33253abeeea8b55336721e3405"
@@ -620,6 +628,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/Masterminds/semver",
     "github.com/Microsoft/ApplicationInsights-Go/appinsights",
     "github.com/Microsoft/go-winio",
     "github.com/Microsoft/hcsshim",
