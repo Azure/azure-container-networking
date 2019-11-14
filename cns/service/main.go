@@ -152,6 +152,20 @@ var args = acn.ArgumentList{
 		Type:         "bool",
 		DefaultValue: true,
 	},
+	{
+		Name:         acn.OptHttpConnectionTimeout,
+		Shorthand:    acn.OptHttpConnectionTimeoutAlias,
+		Description:  "Set HTTP connection timeout in seconds to be used by http client in CNS",
+		Type:         "int",
+		DefaultValue: "5",
+	},
+	{
+		Name:         acn.OptHttpResponseHeaderTimeout,
+		Shorthand:    acn.OptHttpResponseHeaderTimeoutAlias,
+		Description:  "Set HTTP response header timeout in seconds to be used by http client in CNS",
+		Type:         "int",
+		DefaultValue: "120",
+	},
 }
 
 // Prints description and version information.
@@ -179,6 +193,8 @@ func main() {
 	vers := acn.GetArg(acn.OptVersion).(bool)
 	createDefaultExtNetworkType := acn.GetArg(acn.OptCreateDefaultExtNetworkType).(string)
 	telemetryEnabled := acn.GetArg(acn.OptTelemetry).(bool)
+	httpConnectionTimeout := acn.GetArg(acn.OptHttpConnectionTimeout).(int)
+	httpResponseHeaderTimeout := acn.GetArg(acn.OptHttpResponseHeaderTimeout).(int)
 
 	if vers {
 		printVersion()
@@ -240,6 +256,8 @@ func main() {
 	httpRestService.SetOption(acn.OptNetPluginPath, cniPath)
 	httpRestService.SetOption(acn.OptNetPluginConfigFile, cniConfigFile)
 	httpRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
+	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
+	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {

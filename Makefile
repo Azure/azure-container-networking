@@ -42,6 +42,7 @@ CNSFILES = \
 	$(wildcard cns/imdsclient/*.go) \
 	$(wildcard cns/ipamclient/*.go) \
 	$(wildcard cns/hnsclient/*.go) \
+	$(wildcard cns/nmagentclient/*.go) \
 	$(wildcard cns/restserver/*.go) \
 	$(wildcard cns/routes/*.go) \
 	$(wildcard cns/service/*.go) \

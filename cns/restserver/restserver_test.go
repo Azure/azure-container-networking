@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -66,16 +67,23 @@ var (
 	}
 )
 
+const (
+	nmagentEndpoint = "localhost:9000"
+)
+
 func getInterfaceInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml")
 	output, _ := xml.Marshal(hostQueryResponse)
 	w.Write(output)
 }
 
-func getContainerInfo(w http.ResponseWriter, r *http.Request) {
+func nmagentHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(hostQueryForProgrammedVersionResponse))
+
+	if strings.Contains(r.RequestURI, "networkContainers") {
+		w.Write([]byte(hostQueryForProgrammedVersionResponse))
+	}
 }
 
 // Wraps the test run with service setup and teardown.
@@ -109,7 +117,7 @@ func TestMain(m *testing.M) {
 	mux = service.(*HTTPRestService).Listener.GetMux()
 
 	// Setup mock nmagent server
-	u, err := url.Parse("tcp://localhost:9000")
+	u, err := url.Parse("tcp://" + nmagentEndpoint)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -120,7 +128,7 @@ func TestMain(m *testing.M) {
 	}
 
 	nmAgentServer.AddHandler("/getInterface", getInterfaceInfo)
-	nmAgentServer.AddHandler("machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/{interface}/networkContainers/{networkContainer}/authenticationToken/{authToken}/api-version/{version}", getContainerInfo)
+	nmAgentServer.AddHandler("/", nmagentHandler)
 
 	err = nmAgentServer.Start(make(chan error, 1))
 	if err != nil {
@@ -133,6 +141,7 @@ func TestMain(m *testing.M) {
 
 	// Cleanup.
 	service.Stop()
+	nmAgentServer.Stop()
 
 	os.Exit(exitCode)
 }
@@ -748,4 +757,81 @@ func TestGetNumOfCPUCores(t *testing.T) {
 	} else {
 		fmt.Printf("getNumberOfCPUCores Responded with %+v\n", numOfCoresResponse)
 	}
+}
+
+func TestPublishNCViaCNS(t *testing.T) {
+	fmt.Println("Test: publishNetworkContainer")
+
+	var (
+		body bytes.Buffer
+		resp cns.PublishNetworkContainerResponse
+	)
+
+	networkID := "vnet1"
+	networkContainerID := "ethWebApp"
+	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
+	createNetworkContainerURL := "http://" + nmagentEndpoint + "/networkContainers/dummyNCURL"
+
+	publishNCRequest := &cns.PublishNetworkContainerRequest{
+		NetworkID:                         networkID,
+		NetworkContainerID:                networkContainerID,
+		JoinNetworkURL:                    joinNetworkURL,
+		CreateNetworkContainerURL:         createNetworkContainerURL,
+		CreateNetworkContainerRequestBody: make([]byte, 0),
+	}
+
+	json.NewEncoder(&body).Encode(publishNCRequest)
+	req, err := http.NewRequest(http.MethodPost, cns.PublishNetworkContainer, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+	if err != nil || resp.Response.ReturnCode != 0 {
+		t.Errorf("PublishNetworkContainer failed with response %+v Err:%+v", resp, err)
+		t.Fatal(err)
+	}
+
+	fmt.Printf("PublishNetworkContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
+}
+
+func TestUnpublishNCViaCNS(t *testing.T) {
+	fmt.Println("Test: unpublishNetworkContainer")
+
+	var (
+		body bytes.Buffer
+		resp cns.UnpublishNetworkContainerResponse
+	)
+
+	networkID := "vnet1"
+	networkContainerID := "ethWebApp"
+	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
+	deleteNetworkContainerURL := "http://" + nmagentEndpoint + "/networkContainers/dummyNCURL"
+
+	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
+		NetworkID:                 networkID,
+		NetworkContainerID:        networkContainerID,
+		JoinNetworkURL:            joinNetworkURL,
+		DeleteNetworkContainerURL: deleteNetworkContainerURL,
+	}
+
+	json.NewEncoder(&body).Encode(unpublishNCRequest)
+	req, err := http.NewRequest(http.MethodPost, cns.UnpublishNetworkContainer, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	err = decodeResponse(w, &resp)
+	if err != nil || resp.Response.ReturnCode != 0 {
+		t.Errorf("UnpublishNetworkContainer failed with response %+v Err:%+v", resp, err)
+		t.Fatal(err)
+	}
+
+	fmt.Printf("UnpublishNetworkContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
 }

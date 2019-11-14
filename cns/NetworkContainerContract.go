@@ -1,6 +1,8 @@
 package cns
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 // Container Network Service DNC Contract
 const (
@@ -8,6 +10,8 @@ const (
 	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
 	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
 	GetNetworkContainerStatus                = "/network/getnetworkcontainerstatus"
+	PublishNetworkContainer                  = "/network/publishnetworkcontainer"
+	UnpublishNetworkContainer                = "/network/unpublishnetworkcontainer"
 	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
 	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
 	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
@@ -181,4 +185,37 @@ type DetachContainerFromNetworkResponse struct {
 type NetworkInterface struct {
 	Name      string
 	IPAddress string
+}
+
+// PublishNetworkContainerRequest specifies request to publish network container via NMAgent.
+type PublishNetworkContainerRequest struct {
+	NetworkID                         string
+	NetworkContainerID                string
+	JoinNetworkURL                    string
+	CreateNetworkContainerURL         string
+	CreateNetworkContainerRequestBody []byte
+}
+
+// PublishNetworkContainerResponse specifies the response to publish network container request.
+type PublishNetworkContainerResponse struct {
+	Response            Response
+	PublishErrorStr     string
+	PublishStatusCode   int
+	PublishResponseBody []byte
+}
+
+// UnpublishNetworkContainerRequest specifies request to unpublish network container via NMAgent.
+type UnpublishNetworkContainerRequest struct {
+	NetworkID                 string
+	NetworkContainerID        string
+	JoinNetworkURL            string
+	DeleteNetworkContainerURL string
+}
+
+// UnpublishNetworkContainerResponse specifies the response to unpublish network container request.
+type UnpublishNetworkContainerResponse struct {
+	Response              Response
+	UnpublishErrorStr     string
+	UnpublishStatusCode   int
+	UnpublishResponseBody []byte
 }

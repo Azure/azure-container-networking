@@ -71,6 +71,36 @@ type metadataWrapper struct {
 	Metadata Metadata `json:"compute"`
 }
 
+var (
+	// Creating http client object to be reused instead of creating one every time.
+	// This helps make use of the cached tcp connections.
+	// Clients are safe for concurrent use by multiple goroutines.
+	httpClient *http.Client
+)
+
+// InitHttpClient initializes the httpClient object
+func InitHttpClient(
+	connectionTimeoutSec int,
+	responseHeaderTimeoutSec int) *http.Client {
+	log.Printf("[Utils] Initializing HTTP client with connection timeout: %d, response header timeout: %d",
+		connectionTimeoutSec, responseHeaderTimeoutSec)
+	httpClient = &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout: time.Duration(connectionTimeoutSec) * time.Second,
+			}).DialContext,
+			ResponseHeaderTimeout: time.Duration(responseHeaderTimeoutSec) * time.Second,
+		},
+	}
+
+	return httpClient
+}
+
+// GetHttpClient returns the singleton httpClient object
+func GetHttpClient() *http.Client {
+	return httpClient
+}
+
 // LogNetworkInterfaces logs the host's network interfaces in the default namespace.
 func LogNetworkInterfaces() {
 	interfaces, err := net.Interfaces()

@@ -79,4 +79,12 @@ const (
 	// Disable Telemetry
 	OptTelemetry      = "telemetry"
 	OptTelemetryAlias = "dt"
+
+	// HTTP connection timeout
+	OptHttpConnectionTimeout      = "http-connection-timeout"
+	OptHttpConnectionTimeoutAlias = "httpcontimeout"
+
+	// HTTP response header timeout
+	OptHttpResponseHeaderTimeout      = "http-response-header-timeout"
+	OptHttpResponseHeaderTimeoutAlias = "httprespheadertimeout"
 )
