@@ -107,6 +107,7 @@ type Route struct {
 type SetOrchestratorTypeRequest struct {
 	OrchestratorType string
 	DncPartitionKey  string
+	NodeID           string
 }
 
 // CreateNetworkContainerResponse specifies response of creating a network container.
