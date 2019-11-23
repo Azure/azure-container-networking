@@ -60,6 +60,13 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 		return err
 	}
 
+	// Add Broute redirect rule for the container interface
+	log.Printf("[net] Enable broute redirect rule for %v", client.hostVethName)
+	if err := ebtables.SetBrouteRedirect(client.hostVethName, ebtables.Append); err != nil {
+		log.Printf("[net] Failed to add broute direct rule for %v: %v", client.hostVethName, err)
+		return err
+	}
+
 	for _, ipAddr := range epInfo.IPAddresses {
 		// Add ARP reply rule.
 		log.Printf("[net] Adding ARP reply rule for IP address %v", ipAddr.String())
@@ -114,6 +121,12 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) {
 				log.Printf("Failed removing arp from vm: %v", err)
 			}
 		}
+	}
+
+	// Delete Broute redirect rule for the container interface
+	log.Printf("[net] Delete broute redirect rule for %v", client.hostVethName)
+	if err := ebtables.SetBrouteRedirect(client.hostVethName, ebtables.Delete); err != nil {
+		log.Printf("[net] Failed to delete broute direct rule for %v: %v", client.hostVethName, err)
 	}
 }
 

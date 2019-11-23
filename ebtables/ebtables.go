@@ -42,6 +42,15 @@ func SetSnatForInterface(interfaceName string, macAddress net.HardwareAddr, acti
 	return executeShellCommand(command)
 }
 
+// SetBrouteRedirect makes sure that all incoming packets from the specified interface get their MAC addresses modified to bridge mac
+func SetBrouteRedirect(incomingIf string, action string) error {
+	command := fmt.Sprintf(
+		"ebtables -t broute %s BROUTING -i %s -p IPv4 -j redirect --redirect-target ACCEPT",
+		action, incomingIf)
+
+	return executeShellCommand(command)
+}
+
 // SetArpReply sets an ARP reply rule for the given target IP address and MAC address.
 func SetArpReply(ipAddress net.IP, macAddress net.HardwareAddr, action string) error {
 	command := fmt.Sprintf(
