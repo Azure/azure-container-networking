@@ -146,11 +146,12 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 	return comment[:len(comment)-len("-AND-")]
 }
 
-func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
+func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry, bool) {
 	var (
 		sets    []string // ipsets with type: net:hash
 		lists   []string // ipsets with type: list:set
 		entries []*iptm.IptEntry
+		addDropEntry bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 	)
 
 	log.Printf("started parsing ingress rule")
@@ -293,6 +294,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							"-TO-"+targetSelectorComment,
 					)
 					entries = append(entries, cidrEntry)
+					addDropEntry = true
 				}
 				continue
 			}
@@ -342,6 +344,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						"-TO-"+targetSelectorComment,
 				)
 				entries = append(entries, entry)
+				addDropEntry = true
 				continue
 			}
 
@@ -379,6 +382,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						"-TO-"+targetSelectorComment,
 				)
 				entries = append(entries, entry)
+				addDropEntry = true
 				continue
 			}
 
@@ -436,6 +440,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					"-TO-"+targetSelectorComment,
 			)
 			entries = append(entries, entry)
+			addDropEntry = true
 		}
 
 		if portRuleExists {
@@ -499,15 +504,33 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 		}
 	}
 
+	if addDropEntry {
+		entry := &iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: targetSelectorIptEntrySpec,
+		}
+		entry.Specs = append(
+			entry.Specs,
+			util.IptablesJumpFlag,
+			util.IptablesDrop,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			"DROP-ALL-TO-"+targetSelectorComment,
+		)
+		entries = append(entries, entry)
+	}
+
 	log.Printf("finished parsing ingress rule")
-	return util.DropEmptyFields(sets), util.DropEmptyFields(lists), entries
+	return util.DropEmptyFields(sets), util.DropEmptyFields(lists), entries, addDropEntry
 }
 
-func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry) {
+func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry, bool) {
 	var (
 		sets    []string // ipsets with type: net:hash
 		lists   []string // ipsets with type: list:set
 		entries []*iptm.IptEntry
+		addDropEntry bool // add drop entry when there are non ALLOW-ALL* rules
 	)
 
 	log.Printf("started parsing egress rule")
@@ -645,6 +668,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 							"-FROM-"+targetSelectorComment,
 					)
 					entries = append(entries, cidrEntry)
+					addDropEntry = true
 				}
 				continue
 			}
@@ -694,6 +718,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 						"-TO-"+craftPartialIptablesCommentFromSelector(ns, toRule.NamespaceSelector, true),
 				)
 				entries = append(entries, entry)
+				addDropEntry = true
 				continue
 			}
 
@@ -731,6 +756,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 						"-TO-"+craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false),
 				)
 				entries = append(entries, entry)
+				addDropEntry = true
 				continue
 			}
 
@@ -788,6 +814,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 					"-AND-"+craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false),
 			)
 			entries = append(entries, entry)
+			addDropEntry = true
 		}
 
 		if portRuleExists {
@@ -849,8 +876,25 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 		}
 	}
 
+	if addDropEntry {
+		entry := &iptm.IptEntry{
+			Chain: util.IptablesAzureEgressToChain,
+			Specs: targetSelectorIptEntrySpec,
+		}
+		entry.Specs = append(
+			entry.Specs,
+			util.IptablesJumpFlag,
+			util.IptablesDrop,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			"DROP-ALL-FROM-"+targetSelectorComment,
+		)
+		entries = append(entries, entry)
+	}
+
 	log.Printf("finished parsing egress rule")
-	return util.DropEmptyFields(sets), util.DropEmptyFields(lists), entries
+	return util.DropEmptyFields(sets), util.DropEmptyFields(lists), entries, addDropEntry
 }
 
 // Drop all non-whitelisted packets.
@@ -912,6 +956,7 @@ func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) [
 	var entries []*iptm.IptEntry
 	hashedKubeSystemSet := util.GetHashedName("ns-" + util.KubeSystemFlag)
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
+
 	allowKubeSystemIngress := &iptm.IptEntry{
 		Chain: util.IptablesAzureKubeSystemChain,
 		Specs: []string{
@@ -965,7 +1010,7 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 		resultSets            []string
 		resultLists           []string
 		entries               []*iptm.IptEntry
-		hasIngress, hasEgress bool
+		hasIngress, hasEgress, addedIngressDrop, addedEgressDrop bool
 	)
 
 	log.Printf("Translating network policy:\n %+v", npObj)
@@ -981,33 +1026,34 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 	}()
 
 	npNs := npObj.ObjectMeta.Namespace
-	// Allow kube-system pods
-	entries = append(entries, getAllowKubeSystemEntries(npNs, npObj.Spec.PodSelector)...)
 
 	if len(npObj.Spec.PolicyTypes) == 0 {
-		ingressSets, ingressLists, ingressEntries := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
+		ingressSets, ingressLists, ingressEntries, addedDropEntry := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
 		resultSets = append(resultSets, ingressSets...)
 		resultLists = append(resultLists, ingressLists...)
 		entries = append(entries, ingressEntries...)
+		addedIngressDrop = addedDropEntry
 
-		egressSets, egressLists, egressEntries := translateEgress(npNs, npObj.Spec.PodSelector, npObj.Spec.Egress)
+		egressSets, egressLists, egressEntries, addedDropEntry := translateEgress(npNs, npObj.Spec.PodSelector, npObj.Spec.Egress)
 		resultSets = append(resultSets, egressSets...)
 		resultLists = append(resultLists, egressLists...)
 		entries = append(entries, egressEntries...)
+		addedEgressDrop = addedDropEntry
 
 		hasIngress = len(ingressSets) > 0
 		hasEgress = len(egressSets) > 0
-		entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
+		entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress && !addedIngressDrop, hasEgress && !addedEgressDrop)...)
 
 		return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists), entries
 	}
 
 	for _, ptype := range npObj.Spec.PolicyTypes {
 		if ptype == networkingv1.PolicyTypeIngress {
-			ingressSets, ingressLists, ingressEntries := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
+			ingressSets, ingressLists, ingressEntries, addedDropEntry := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
 			resultSets = append(resultSets, ingressSets...)
 			resultLists = append(resultLists, ingressLists...)
 			entries = append(entries, ingressEntries...)
+			addedIngressDrop = addedIngressDrop || addedDropEntry
 
 			if npObj.Spec.Ingress != nil &&
 				len(npObj.Spec.Ingress) == 1 &&
@@ -1020,10 +1066,11 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 		}
 
 		if ptype == networkingv1.PolicyTypeEgress {
-			egressSets, egressLists, egressEntries := translateEgress(npNs, npObj.Spec.PodSelector, npObj.Spec.Egress)
+			egressSets, egressLists, egressEntries, addedDropEntry := translateEgress(npNs, npObj.Spec.PodSelector, npObj.Spec.Egress)
 			resultSets = append(resultSets, egressSets...)
 			resultLists = append(resultLists, egressLists...)
 			entries = append(entries, egressEntries...)
+			addedEgressDrop = addedEgressDrop || addedDropEntry
 
 			if npObj.Spec.Egress != nil &&
 				len(npObj.Spec.Egress) == 1 &&
@@ -1036,7 +1083,8 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 		}
 	}
 
-	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
+	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress && !addedIngressDrop, hasEgress && !addedEgressDrop)...)
+	entries = append(entries, getAllowKubeSystemEntries(npNs, npObj.Spec.PodSelector)...)
 	log.Printf("Translating Policy: %+v", npObj)
 	resultSets, resultLists = util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists)
 

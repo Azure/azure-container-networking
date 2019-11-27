@@ -101,32 +101,6 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		}
 	}
 
-	// Create AZURE-NPM-KUBE-SYSTEM chain.
-	if err := iptMgr.AddChain(util.IptablesAzureKubeSystemChain); err != nil {
-		return err
-	}
-
-	// Append AZURE-NPM-KUBE-SYSTEM chain to AZURE-NPM chain.
-	entry = &IptEntry{
-		Chain: util.IptablesAzureChain,
-		Specs: []string{
-			util.IptablesJumpFlag,
-			util.IptablesAzureKubeSystemChain,
-		},
-	}
-	exists, err = iptMgr.Exists(entry)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		iptMgr.OperationFlag = util.IptablesAppendFlag
-		if _, err = iptMgr.Run(entry); err != nil {
-			log.Errorf("Error: failed to add AZURE-NPM-KUBE-SYSTEM chain to AZURE-NPM chain.")
-			return err
-		}
-	}
-
 	// Create AZURE-NPM-INGRESS-PORT chain.
 	if err := iptMgr.AddChain(util.IptablesAzureIngressPortChain); err != nil {
 		return err
@@ -177,6 +151,32 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	// Create AZURE-NPM-EGRESS-TO chain.
 	if err = iptMgr.AddChain(util.IptablesAzureEgressToChain); err != nil {
 		return err
+	}
+
+	// Create AZURE-NPM-KUBE-SYSTEM chain.
+	if err := iptMgr.AddChain(util.IptablesAzureKubeSystemChain); err != nil {
+		return err
+	}
+
+	// Append AZURE-NPM-KUBE-SYSTEM chain to AZURE-NPM chain.
+	entry = &IptEntry{
+		Chain: util.IptablesAzureChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesAzureKubeSystemChain,
+		},
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesAppendFlag
+		if _, err = iptMgr.Run(entry); err != nil {
+			log.Errorf("Error: failed to add AZURE-NPM-KUBE-SYSTEM chain to AZURE-NPM chain.")
+			return err
+		}
 	}
 
 	// Create AZURE-NPM-TARGET-SETS chain.
