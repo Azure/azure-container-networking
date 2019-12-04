@@ -76,7 +76,7 @@ spec:
         beta.kubernetes.io/os: linux
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.0.28
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.0.30
           securityContext:
             privileged: true
           env:
@@ -90,17 +90,6 @@ spec:
             mountPath: /run/xtables.lock
           - name: log
             mountPath: /var/log
-          - name: socket-dir
-            mountPath: /var/run
-          - name: tmp
-            mountPath: /tmp
-        - name: azure-vnet-telemetry
-          image: mcr.microsoft.com/containernetworking/azure-vnet-telemetry:v1.0.28
-          volumeMounts:
-          - name: socket-dir
-            mountPath: /var/run
-          - name: tmp
-            mountPath: /tmp
       hostNetwork: true
       volumes:
       - name: log
@@ -111,10 +100,4 @@ spec:
         hostPath:
           path: /run/xtables.lock
           type: File
-      - name: tmp
-        hostPath:
-          path: /tmp
-          type: Directory
-      - name: socket-dir
-        emptyDir: {}
       serviceAccountName: azure-npm

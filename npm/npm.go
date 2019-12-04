@@ -5,7 +5,6 @@ package npm
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"sync"
 	"time"
 
@@ -31,9 +30,6 @@ const (
 	telemetryRetryTimeInSeconds   = 60
 	heartbeatIntervalInMinutes    = 30
 )
-
-// reports channel
-var reports = make(chan interface{}, 1000)
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
@@ -79,60 +75,6 @@ func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 	npMgr.clusterState.NwPolicyCount = len(networkpolicies.Items)
 
 	return npMgr.clusterState
-}
-
-// SendNpmTelemetry updates the npm report then send it.
-func (npMgr *NetworkPolicyManager) SendNpmTelemetry() {
-	if !npMgr.TelemetryEnabled {
-		return
-	}
-
-CONNECT:
-	tb := telemetry.NewTelemetryBuffer("")
-	for {
-		tb.TryToConnectToTelemetryService()
-		if tb.Connected {
-			break
-		}
-
-		time.Sleep(time.Second * telemetryRetryTimeInSeconds)
-	}
-
-	heartbeat := time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
-	report := npMgr.reportManager.Report
-	for {
-		select {
-		case <-heartbeat:
-			clusterState := npMgr.GetClusterState()
-			v := reflect.ValueOf(report).Elem().FieldByName("ClusterState")
-			if v.CanSet() {
-				v.FieldByName("PodCount").SetInt(int64(clusterState.PodCount))
-				v.FieldByName("NsCount").SetInt(int64(clusterState.NsCount))
-				v.FieldByName("NwPolicyCount").SetInt(int64(clusterState.NwPolicyCount))
-			}
-			reflect.ValueOf(report).Elem().FieldByName("ErrorMessage").SetString("heartbeat")
-		case msg := <-reports:
-			reflect.ValueOf(report).Elem().FieldByName("ErrorMessage").SetString(msg.(string))
-			fmt.Println(msg.(string))
-		}
-
-		reflect.ValueOf(report).Elem().FieldByName("Timestamp").SetString(time.Now().UTC().String())
-		// TODO: Remove below line after the host change is rolled out
-		reflect.ValueOf(report).Elem().FieldByName("EventMessage").SetString(time.Now().UTC().String())
-
-		report, err := npMgr.reportManager.ReportToBytes()
-		if err != nil {
-			log.Logf("ReportToBytes failed: %v", err)
-			continue
-		}
-
-		// If write fails, try to re-establish connections as server/client
-		if _, err = tb.Write(report); err != nil {
-			log.Logf("Telemetry write failed: %v", err)
-			tb.Close()
-			goto CONNECT
-		}
-	}
 }
 
 // restore restores iptables from backup file
@@ -231,11 +173,6 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		},
 		serverVersion:    serverVersion,
 		TelemetryEnabled: true,
-	}
-
-	// Set-up channel for Azure-NPM telemetry if it's enabled (enabled by default)
-	if logger := log.GetStd(); logger != nil && npMgr.TelemetryEnabled {
-		logger.SetChannel(reports)
 	}
 
 	clusterID := util.GetClusterID(npMgr.nodeName)
