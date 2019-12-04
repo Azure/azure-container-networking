@@ -951,53 +951,6 @@ func getDefaultDropEntries(ns string, targetSelector metav1.LabelSelector, hasIn
 	return entries
 }
 
-// Allow traffic from/to kube-system pods
-func getAllowKubeSystemEntries(ns string, targetSelector metav1.LabelSelector) []*iptm.IptEntry {
-	var entries []*iptm.IptEntry
-	hashedKubeSystemSet := util.GetHashedName("ns-" + util.KubeSystemFlag)
-	targetSelectorComment := craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
-
-	allowKubeSystemIngress := &iptm.IptEntry{
-		Chain: util.IptablesAzureKubeSystemChain,
-		Specs: []string{
-			util.IptablesModuleFlag,
-			util.IptablesSetModuleFlag,
-			util.IptablesMatchSetFlag,
-			hashedKubeSystemSet,
-			util.IptablesSrcFlag,
-			util.IptablesJumpFlag,
-			util.IptablesAccept,
-			util.IptablesModuleFlag,
-			util.IptablesCommentModuleFlag,
-			util.IptablesCommentFlag,
-			"ALLOW-" + "ns-" + util.KubeSystemFlag +
-				"-TO-" + targetSelectorComment,
-		},
-	}
-	entries = append(entries, allowKubeSystemIngress)
-
-	allowKubeSystemEgress := &iptm.IptEntry{
-		Chain: util.IptablesAzureKubeSystemChain,
-		Specs: []string{
-			util.IptablesModuleFlag,
-			util.IptablesSetModuleFlag,
-			util.IptablesMatchSetFlag,
-			hashedKubeSystemSet,
-			util.IptablesDstFlag,
-			util.IptablesJumpFlag,
-			util.IptablesAccept,
-			util.IptablesModuleFlag,
-			util.IptablesCommentModuleFlag,
-			util.IptablesCommentFlag,
-			"ALLOW-" + targetSelectorComment +
-				"-TO-" + "ns-" + util.KubeSystemFlag,
-		},
-	}
-	entries = append(entries, allowKubeSystemEgress)
-
-	return entries
-}
-
 // translatePolicy translates network policy object into a set of iptables rules.
 // input:
 // kubernetes network policy project
@@ -1084,7 +1037,6 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 	}
 
 	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress && !addedIngressDrop, hasEgress && !addedEgressDrop)...)
-	entries = append(entries, getAllowKubeSystemEntries(npNs, npObj.Spec.PodSelector)...)
 	log.Printf("Translating Policy: %+v", npObj)
 	resultSets, resultLists = util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists)
 
