@@ -96,6 +96,13 @@ var args = common.ArgumentList{
 		Type:         "bool",
 		DefaultValue: false,
 	},
+	{
+		Name:         common.OptStoreFileLocation,
+		Shorthand:    common.OptStoreFileLocationAlias,
+		Description:  "Set store file absolute path",
+		Type:         "string",
+		DefaultValue: platform.CNMRuntimePath,
+	},
 }
 
 // Prints description and version information.
@@ -116,6 +123,7 @@ func main() {
 	ipamQueryUrl, _ := common.GetArg(common.OptIpamQueryUrl).(string)
 	ipamQueryInterval, _ := common.GetArg(common.OptIpamQueryInterval).(int)
 	vers := common.GetArg(common.OptVersion).(bool)
+	storeFileLocation := common.GetArg(common.OptStoreFileLocation).(string)
 
 	if vers {
 		printVersion()
@@ -143,16 +151,17 @@ func main() {
 		return
 	}
 
-	err = common.CreateDirectory(platform.CNMRuntimePath)
+	err = common.CreateDirectory(storeFileLocation)
 	if err != nil {
-		fmt.Printf("Failed to create File Store directory Error:%v", err.Error())
+		log.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
 		return
 	}
 
 	// Create the key value store.
-	config.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + name + ".json")
+	storeFileName := storeFileLocation + name + ".json"
+	config.Store, err = store.NewJsonFileStore(storeFileName)
 	if err != nil {
-		fmt.Printf("Failed to create store: %v\n", err)
+		log.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return
 	}
 

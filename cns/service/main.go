@@ -166,6 +166,13 @@ var args = acn.ArgumentList{
 		Type:         "int",
 		DefaultValue: "120",
 	},
+	{
+		Name:         acn.OptStoreFileLocation,
+		Shorthand:    acn.OptStoreFileLocationAlias,
+		Description:  "Set store file absolute path",
+		Type:         "string",
+		DefaultValue: platform.CNMRuntimePath,
+	},
 }
 
 // Prints description and version information.
@@ -195,6 +202,7 @@ func main() {
 	telemetryEnabled := acn.GetArg(acn.OptTelemetry).(bool)
 	httpConnectionTimeout := acn.GetArg(acn.OptHttpConnectionTimeout).(int)
 	httpResponseHeaderTimeout := acn.GetArg(acn.OptHttpResponseHeaderTimeout).(int)
+	storeFileLocation := acn.GetArg(acn.OptStoreFileLocation).(string)
 
 	if vers {
 		printVersion()
@@ -231,16 +239,17 @@ func main() {
 	// Log platform information.
 	log.Printf("Running on %v", platform.GetOSInfo())
 
-	err = acn.CreateDirectory(platform.CNMRuntimePath)
+	err = acn.CreateDirectory(storeFileLocation)
 	if err != nil {
-		log.Errorf("Failed to create File Store directory Error:%v", err.Error())
+		log.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
 		return
 	}
 
 	// Create the key value store.
-	config.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + name + ".json")
+	storeFileName := storeFileLocation + name + ".json"
+	config.Store, err = store.NewJsonFileStore(storeFileName)
 	if err != nil {
-		log.Errorf("Failed to create store: %v\n", err)
+		log.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return
 	}
 
@@ -310,9 +319,10 @@ func main() {
 		}
 
 		// Create the key value store.
-		pluginConfig.Store, err = store.NewJsonFileStore(platform.CNMRuntimePath + pluginName + ".json")
+		pluginStoreFile := storeFileLocation + pluginName + ".json"
+		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile)
 		if err != nil {
-			log.Errorf("Failed to create store: %v\n", err)
+			log.Errorf("Failed to create plugin store file %s, due to error : %v\n", pluginStoreFile, err)
 			return
 		}
 
