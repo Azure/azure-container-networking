@@ -22,7 +22,7 @@ var version string
 func initLogging() error {
 	log.SetName("azure-npm")
 	log.SetLevel(log.LevelInfo)
-	if err := log.SetTarget(log.TargetLogfile); err != nil {
+	if err := log.SetTarget(log.TargetStdOutAndLogFile); err != nil {
 		log.Logf("Failed to configure logging, err:%v.", err)
 		return err
 	}
