@@ -45,7 +45,6 @@ const (
 	IptablesNotFlag           string = "!"
 	IptablesProtFlag          string = "-p"
 	IptablesSFlag             string = "-s"
-	IptablesSrcPortFlag       string = "--sport"
 	IptablesDFlag             string = "-d"
 	IptablesDstPortFlag       string = "--dport"
 	IptablesModuleFlag        string = "-m"

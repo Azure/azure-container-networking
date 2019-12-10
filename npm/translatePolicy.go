@@ -50,10 +50,6 @@ func craftPartialIptablesCommentFromPort(portRule networkingv1.NetworkPolicyPort
 		partialComment += portRule.Port.String()
 	}
 
-	if portRule.Protocol != nil || portRule.Port != nil {
-		partialComment += "-OF-"
-	}
-
 	return partialComment
 }
 
@@ -146,12 +142,12 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 	return comment[:len(comment)-len("-AND-")]
 }
 
-func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry, bool) {
+func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
 		sets    []string // ipsets with type: net:hash
 		lists   []string // ipsets with type: list:set
 		entries []*iptm.IptEntry
-		addToDropEntry, addPortDropEntry bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
+		addedIngressToEntry, addedPortEntry bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 	)
 
 	log.Printf("started parsing ingress rule")
@@ -233,9 +229,9 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					util.IptablesModuleFlag,
 					util.IptablesCommentModuleFlag,
 					util.IptablesCommentFlag,
-					"ALLOW-ALL-TO-"+
+					"ALLOW-ALL-"+
 						craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-						targetSelectorComment,
+						"-TO-"+targetSelectorComment,
 				)
 				entries = append(entries, entry)
 			}
@@ -284,7 +280,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							)
 							entry.Specs = append(
 								entry.Specs,
-								craftPartialIptEntrySpecFromPort(portRule, util.IptablesSrcPortFlag)...,
+								craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 							)
 							entry.Specs = append(
 								entry.Specs,
@@ -294,22 +290,22 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"ALLOW-"+fromRule.IPBlock.CIDR+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesSrcPortFlag)+
-									targetSelectorComment,
+									"-:-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
 						}
-						addPortDropEntry = true
+						addedPortEntry = true
 					} else {
 						cidrEntry := &iptm.IptEntry{
 							Chain: util.IptablesAzureIngressFromChain,
+							Specs: targetSelectorIptEntrySpec,
 						}
 						cidrEntry.Specs = append(
 							cidrEntry.Specs,
 							util.IptablesSFlag,
 							fromRule.IPBlock.CIDR,
 						)
-						cidrEntry.Specs = append(cidrEntry.Specs, targetSelectorIptEntrySpec...)
 						cidrEntry.Specs = append(
 							cidrEntry.Specs,
 							util.IptablesJumpFlag,
@@ -321,7 +317,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 								"-TO-"+targetSelectorComment,
 						)
 						entries = append(entries, cidrEntry)
-						addToDropEntry = true
+						addedIngressToEntry = true
 					}
 				}
 				continue
@@ -349,7 +345,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				lists = append(lists, nsLabelsWithoutOps...)
 
 				iptPartialNsSpec := craftPartialIptEntrySpecFromSelector(ns, fromRule.NamespaceSelector, util.IptablesSrcFlag, true)
-				iptPartialComment := craftPartialIptablesCommentFromSelector(ns, fromRule.NamespaceSelector, true)
+				iptPartialNsComment := craftPartialIptablesCommentFromSelector(ns, fromRule.NamespaceSelector, true)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
@@ -362,7 +358,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						)
 						entry.Specs = append(
 							entry.Specs,
-							craftPartialIptEntrySpecFromPort(portRule, util.IptablesSrcPortFlag)...,
+							craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 						)
 						entry.Specs = append(
 							entry.Specs,
@@ -371,21 +367,21 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
-							"ALLOW-"+iptPartialComment+
-								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesSrcPortFlag)+
-								targetSelectorComment,
+							"ALLOW-"+iptPartialNsComment+
+								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+								"-TO-"+targetSelectorComment,
 						)
 						entries = append(entries, entry)
 					}
-					addPortDropEntry = true
+					addedPortEntry = true
 				} else {
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressFromChain,
-						Specs: targetSelectorIptEntrySpec,
+						Specs: iptPartialNsSpec,
 					}
 					entry.Specs = append(
 						entry.Specs,
-						iptPartialNsSpec...,
+						targetSelectorIptEntrySpec...,
 					)
 					entry.Specs = append(
 						entry.Specs,
@@ -394,12 +390,12 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						util.IptablesModuleFlag,
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
-						"ALLOW-"+iptPartialComment+
+						"ALLOW-"+iptPartialNsComment+
 							"-TO-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
 				}
-				addToDropEntry = true
+				addedIngressToEntry = true
 				continue
 			}
 
@@ -414,7 +410,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				sets = append(sets, podLabelsWithoutOps...)
 				
 				iptPartialPodSpec := craftPartialIptEntrySpecFromSelector(ns, fromRule.PodSelector, util.IptablesSrcFlag, false)
-				iptPartialComment := craftPartialIptablesCommentFromSelector(ns, fromRule.PodSelector, false)
+				iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, fromRule.PodSelector, false)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
@@ -427,7 +423,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						)
 						entry.Specs = append(
 							entry.Specs,
-							craftPartialIptEntrySpecFromPort(portRule, util.IptablesSrcPortFlag)...,
+							craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 						)
 						entry.Specs = append(
 							entry.Specs,
@@ -436,21 +432,21 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
-							"ALLOW-"+iptPartialComment+
-								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesSrcPortFlag)+
-								targetSelectorComment,
+							"ALLOW-"+iptPartialPodComment+
+								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+								"-TO-"+targetSelectorComment,
 						)
 						entries = append(entries, entry)
 					}
-					addPortDropEntry = true
+					addedPortEntry = true
 				} else {
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressFromChain,
-						Specs: targetSelectorIptEntrySpec,
+						Specs: iptPartialPodSpec,
 					}
 					entry.Specs = append(
 						entry.Specs,
-						iptPartialPodSpec...,
+						targetSelectorIptEntrySpec...,
 					)
 					entry.Specs = append(
 						entry.Specs,
@@ -459,12 +455,12 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						util.IptablesModuleFlag,
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
-						"ALLOW-"+iptPartialComment+
+						"ALLOW-"+iptPartialPodComment+
 							"-TO-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
 				}
-				addToDropEntry = true
+				addedIngressToEntry = true
 				continue
 			}
 
@@ -494,22 +490,22 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, fromRule.PodSelector, false)
 			if portRuleExists {
 				for _, portRule := range rule.Ports {
-					iptPartialPortComment := craftPartialIptablesCommentFromPort(portRule, util.IptablesSrcPortFlag)
+					iptPartialPortComment := craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressPortChain,
-						Specs: targetSelectorIptEntrySpec,
+						Specs: iptPartialNsSpec,
 					}
-					entry.Specs = append(
-						entry.Specs,
-						iptPartialNsSpec...,
-					)
 					entry.Specs = append(
 						entry.Specs,
 						iptPartialPodSpec...,
 					)
 					entry.Specs = append(
 						entry.Specs,
-						craftPartialIptEntrySpecFromPort(portRule, util.IptablesSrcPortFlag)...,
+						targetSelectorIptEntrySpec...,
+					)
+					entry.Specs = append(
+						entry.Specs,
+						craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 					)
 					entry.Specs = append(
 						entry.Specs,
@@ -519,15 +515,13 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
 						"ALLOW-"+iptPartialNsComment+
-							"-AND-"+iptPartialPortComment+
-							targetSelectorComment+
 							"-AND-"+iptPartialPodComment+
 							"-AND-"+iptPartialPortComment+
-							targetSelectorComment,
+							"-TO-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
 				}
-				addPortDropEntry = true
+				addedPortEntry = true
 			} else {
 				entry := &iptm.IptEntry{
 					Chain: util.IptablesAzureIngressFromChain,
@@ -554,7 +548,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				)
 				entries = append(entries, entry)
 			}
-			addToDropEntry = true
+			addedIngressToEntry = true
 		}
 
 		if !portRuleExists {
@@ -597,34 +591,54 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 		}
 	}
 
-	chain, addDropEntry := determinePortChain(addToDropEntry, addPortDropEntry, true)
-	if addDropEntry {
+	if addedPortEntry {
 		entry := &iptm.IptEntry{
-			Chain: chain,
+			Chain: util.IptablesAzureIngressPortChain,
 			Specs: targetSelectorIptEntrySpec,
 		}
 		entry.Specs = append(
 			entry.Specs,
 			util.IptablesJumpFlag,
-			util.IptablesDrop,
+			util.IptablesAzureIngressFromChain,
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			"DROP-ALL-TO-"+targetSelectorComment,
+			"ALLOW-ALL-TO-"+
+				targetSelectorComment+
+				"-TO-JUMP-TO-"+util.IptablesAzureIngressFromChain,
+		)
+		entries = append(entries, entry)
+	}
+
+	if addedIngressToEntry || addedPortEntry {
+		entry := &iptm.IptEntry{
+			Chain: util.IptablesAzureIngressFromChain,
+			Specs: targetSelectorIptEntrySpec,
+		}
+		entry.Specs = append(
+			entry.Specs,
+			util.IptablesJumpFlag,
+			util.IptablesAzureTargetSetsChain,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			"ALLOW-ALL-TO-"+
+				targetSelectorComment+
+				"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
 		)
 		entries = append(entries, entry)
 	}
 
 	log.Printf("finished parsing ingress rule")
-	return util.DropEmptyFields(sets), util.DropEmptyFields(lists), entries, addDropEntry
+	return util.DropEmptyFields(sets), util.DropEmptyFields(lists), entries
 }
 
-func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry, bool) {
+func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
 		sets    []string // ipsets with type: net:hash
 		lists   []string // ipsets with type: list:set
 		entries []*iptm.IptEntry
-		addFromDropEntry, addPortDropEntry bool // add drop entry when there are non ALLOW-ALL* rules
+		addedEgressFromEntry, addedPortEntry bool // add drop entry when there are non ALLOW-ALL* rules
 	)
 
 	log.Printf("started parsing egress rule")
@@ -701,9 +715,9 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 					util.IptablesModuleFlag,
 					util.IptablesCommentModuleFlag,
 					util.IptablesCommentFlag,
-					"ALLOW-ALL-FROM-"+
+					"ALLOW-ALL-TO-"+
 						craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-						targetSelectorComment,
+						"-FROM-"+targetSelectorComment,
 				)
 				entries = append(entries, entry)
 			}
@@ -743,16 +757,16 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 						for _, portRule := range rule.Ports {
 							entry := &iptm.IptEntry{
 								Chain: util.IptablesAzureEgressPortChain,
-								Specs: targetSelectorIptEntrySpec,
+								Specs: craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag),
 							}
+							entry.Specs = append(
+								entry.Specs,
+								targetSelectorIptEntrySpec...,
+							)
 							entry.Specs = append(
 								entry.Specs,
 								util.IptablesDFlag,
 								toRule.IPBlock.CIDR,
-							)
-							entry.Specs = append(
-								entry.Specs,
-								craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 							)
 							entry.Specs = append(
 								entry.Specs,
@@ -762,21 +776,24 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"ALLOW-"+toRule.IPBlock.CIDR+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-									targetSelectorComment,
+									"-:-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-FROM-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
 						}
-						addPortDropEntry = true
+						addedPortEntry = true
 					} else {
 						cidrEntry := &iptm.IptEntry{
 							Chain: util.IptablesAzureEgressToChain,
-							Specs: targetSelectorIptEntrySpec,
 						}
 						cidrEntry.Specs = append(
 							cidrEntry.Specs,
 							util.IptablesDFlag,
 							toRule.IPBlock.CIDR,
+						)
+						cidrEntry.Specs = append(
+							cidrEntry.Specs,
+							targetSelectorIptEntrySpec...,
 						)
 						cidrEntry.Specs = append(
 							cidrEntry.Specs,
@@ -790,7 +807,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 						)
 						entries = append(entries, cidrEntry)
 					}
-					addFromDropEntry = true
+					addedEgressFromEntry = true
 				}
 				continue
 			}
@@ -817,20 +834,20 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 				lists = append(lists, nsLabelsWithoutOps...)
 
 				iptPartialNsSpec := craftPartialIptEntrySpecFromSelector(ns, toRule.NamespaceSelector, util.IptablesDstFlag, true)
-				iptPartialComment := craftPartialIptablesCommentFromSelector(ns, toRule.NamespaceSelector, true)
+				iptPartialNsComment := craftPartialIptablesCommentFromSelector(ns, toRule.NamespaceSelector, true)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureEgressPortChain,
-							Specs: targetSelectorIptEntrySpec,
+							Specs: iptPartialNsSpec,
 						}
 						entry.Specs = append(
 							entry.Specs,
-							iptPartialNsSpec...,
+							craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 						)
 						entry.Specs = append(
 							entry.Specs,
-							craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstFlag)...,
+							targetSelectorIptEntrySpec...,
 						)
 						entry.Specs = append(
 							entry.Specs,
@@ -839,9 +856,9 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
-							"ALLOW-"+iptPartialComment+
+							"ALLOW-"+iptPartialNsComment+
 								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-								targetSelectorComment,
+								"-FROM-"+targetSelectorComment,
 						)
 						entries = append(entries, entry)
 					}
@@ -862,11 +879,11 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
 						"ALLOW-"+targetSelectorComment+
-							"-TO-"+iptPartialComment,
+							"-TO-"+iptPartialNsComment,
 					)
 					entries = append(entries, entry)
 				}
-				addFromDropEntry = true
+				addedEgressFromEntry = true
 				continue
 			}
 
@@ -881,20 +898,20 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 				sets = append(sets, podLabelsWithoutOps...)
 
 				iptPartialPodSpec := craftPartialIptEntrySpecFromSelector(ns, toRule.PodSelector, util.IptablesDstFlag, false)
-				iptPartialComment := craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false)
+				iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureEgressPortChain,
-							Specs: targetSelectorIptEntrySpec,
+							Specs: iptPartialPodSpec,
 						}
 						entry.Specs = append(
 							entry.Specs,
-							iptPartialPodSpec...,
+							craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 						)
 						entry.Specs = append(
 							entry.Specs,
-							craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstFlag)...
+							targetSelectorIptEntrySpec...
 						)
 						entry.Specs = append(
 							entry.Specs,
@@ -903,9 +920,9 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
-							"ALLOW-"+targetSelectorComment+
+							"ALLOW-"+iptPartialPodComment+
 								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-								"-TO-"+craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false),
+								"-FROM-"+targetSelectorComment,
 						)
 						entries = append(entries, entry)
 					}
@@ -926,11 +943,11 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
 						"ALLOW-"+targetSelectorComment+
-							"-TO-"+iptPartialComment,
+							"-TO-"+iptPartialPodComment,
 					)
 					entries = append(entries, entry)
 				}
-				addFromDropEntry = true
+				addedEgressFromEntry = true
 				continue
 			}
 
@@ -962,7 +979,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 				for _, portRule := range rule.Ports {
 					iptPartialPortComment := craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
 					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureEgressToChain,
+						Chain: util.IptablesAzureEgressPortChain,
 						Specs: targetSelectorIptEntrySpec,
 					}
 					entry.Specs = append(
@@ -984,13 +1001,14 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 						util.IptablesModuleFlag,
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
-						"ALLOW-"+iptPartialPortComment+
-							targetSelectorComment+
+						"ALLOW-"+targetSelectorComment+
 							"-TO-"+iptPartialNsComment+
-							"-AND-"+iptPartialPodComment,
+							"-AND-"+iptPartialPodComment+
+							"-AND-"+iptPartialPortComment,
 					)
 					entries = append(entries, entry)
 				}
+				addedPortEntry = true
 			} else {
 				entry := &iptm.IptEntry{
 					Chain: util.IptablesAzureEgressToChain,
@@ -1012,19 +1030,19 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 					util.IptablesCommentModuleFlag,
 					util.IptablesCommentFlag,
 					"ALLOW-"+targetSelectorComment+
-						"-TO-"+craftPartialIptablesCommentFromSelector(ns, toRule.NamespaceSelector, true)+
-						"-AND-"+craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false),
+						"-TO-"+iptPartialNsComment+
+						"-AND-"+iptPartialPodComment,
 				)
 				entries = append(entries, entry)
 			}
-			addFromDropEntry = true
+			addedEgressFromEntry = true
 		}
 
 		if !portRuleExists {
 			entry := &iptm.IptEntry{
 				Chain: util.IptablesAzureEgressPortChain,
+				Specs: targetSelectorIptEntrySpec,
 			}
-			entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
 			entry.Specs = append(
 				entry.Specs,
 				util.IptablesJumpFlag,
@@ -1042,8 +1060,8 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 		if allowExternal {
 			entry := &iptm.IptEntry{
 				Chain: util.IptablesAzureEgressToChain,
+				Specs: targetSelectorIptEntrySpec,
 			}
-			entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
 			entry.Specs = append(
 				entry.Specs,
 				util.IptablesJumpFlag,
@@ -1058,26 +1076,46 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 		}
 	}
 
-	chain, addDropEntry := determinePortChain(addFromDropEntry, addPortDropEntry, false)
-	if addDropEntry {
+	if addedPortEntry {
 		entry := &iptm.IptEntry{
-			Chain: chain,
+			Chain: util.IptablesAzureEgressPortChain,
 			Specs: targetSelectorIptEntrySpec,
 		}
 		entry.Specs = append(
 			entry.Specs,
 			util.IptablesJumpFlag,
-			util.IptablesDrop,
+			util.IptablesAzureEgressToChain,
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			"DROP-ALL-FROM-"+targetSelectorComment,
+			"ALLOW-ALL-FROM-"+
+				targetSelectorComment+
+				"-TO-JUMP-TO-"+util.IptablesAzureEgressToChain,
+		)
+		entries = append(entries, entry)
+	}
+
+	if addedEgressFromEntry || addedPortEntry {
+		entry := &iptm.IptEntry{
+			Chain: util.IptablesAzureEgressToChain,
+			Specs: targetSelectorIptEntrySpec,
+		}
+		entry.Specs = append(
+			entry.Specs,
+			util.IptablesJumpFlag,
+			util.IptablesAzureTargetSetsChain,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			"ALLOW-ALL-FROM-"+
+				targetSelectorComment+
+				"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
 		)
 		entries = append(entries, entry)
 	}
 
 	log.Printf("finished parsing egress rule")
-	return util.DropEmptyFields(sets), util.DropEmptyFields(lists), entries, addDropEntry
+	return util.DropEmptyFields(sets), util.DropEmptyFields(lists), entries
 }
 
 // Drop all non-whitelisted packets.
@@ -1146,7 +1184,7 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 		resultSets            []string
 		resultLists           []string
 		entries               []*iptm.IptEntry
-		hasIngress, hasEgress, addedIngressDrop, addedEgressDrop bool
+		hasIngress, hasEgress bool
 	)
 
 	log.Printf("Translating network policy:\n %+v", npObj)
@@ -1164,32 +1202,29 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 	npNs := npObj.ObjectMeta.Namespace
 
 	if len(npObj.Spec.PolicyTypes) == 0 {
-		ingressSets, ingressLists, ingressEntries, addedDropEntry := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
+		ingressSets, ingressLists, ingressEntries := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
 		resultSets = append(resultSets, ingressSets...)
 		resultLists = append(resultLists, ingressLists...)
 		entries = append(entries, ingressEntries...)
-		addedIngressDrop = addedDropEntry
 
-		egressSets, egressLists, egressEntries, addedDropEntry := translateEgress(npNs, npObj.Spec.PodSelector, npObj.Spec.Egress)
+		egressSets, egressLists, egressEntries := translateEgress(npNs, npObj.Spec.PodSelector, npObj.Spec.Egress)
 		resultSets = append(resultSets, egressSets...)
 		resultLists = append(resultLists, egressLists...)
 		entries = append(entries, egressEntries...)
-		addedEgressDrop = addedDropEntry
 
 		hasIngress = len(ingressSets) > 0
 		hasEgress = len(egressSets) > 0
-		entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress && !addedIngressDrop, hasEgress && !addedEgressDrop)...)
+		entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
 
 		return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists), entries
 	}
 
 	for _, ptype := range npObj.Spec.PolicyTypes {
 		if ptype == networkingv1.PolicyTypeIngress {
-			ingressSets, ingressLists, ingressEntries, addedDropEntry := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
+			ingressSets, ingressLists, ingressEntries := translateIngress(npNs, npObj.Spec.PodSelector, npObj.Spec.Ingress)
 			resultSets = append(resultSets, ingressSets...)
 			resultLists = append(resultLists, ingressLists...)
 			entries = append(entries, ingressEntries...)
-			addedIngressDrop = addedIngressDrop || addedDropEntry
 
 			if npObj.Spec.Ingress != nil &&
 				len(npObj.Spec.Ingress) == 1 &&
@@ -1202,11 +1237,10 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 		}
 
 		if ptype == networkingv1.PolicyTypeEgress {
-			egressSets, egressLists, egressEntries, addedDropEntry := translateEgress(npNs, npObj.Spec.PodSelector, npObj.Spec.Egress)
+			egressSets, egressLists, egressEntries := translateEgress(npNs, npObj.Spec.PodSelector, npObj.Spec.Egress)
 			resultSets = append(resultSets, egressSets...)
 			resultLists = append(resultLists, egressLists...)
 			entries = append(entries, egressEntries...)
-			addedEgressDrop = addedEgressDrop || addedDropEntry
 
 			if npObj.Spec.Egress != nil &&
 				len(npObj.Spec.Egress) == 1 &&
@@ -1219,26 +1253,9 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []*
 		}
 	}
 
-	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress && !addedIngressDrop, hasEgress && !addedEgressDrop)...)
+	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
 	log.Printf("Translating Policy: %+v", npObj)
 	resultSets, resultLists = util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists)
 
 	return resultSets, resultLists, entries
-}
-
-func determinePortChain(addDropEntry, addPortDropEntry, ingress bool) (chain string, addedDropEntry bool) {
-	if addPortDropEntry {
-		if ingress {
-			chain = util.IptablesAzureIngressPortChain
-		} else {
-			chain = util.IptablesAzureEgressPortChain
-		}
-	} else {
-		if ingress {
-			chain = util.IptablesAzureIngressFromChain
-		} else {
-			chain = util.IptablesAzureEgressToChain
-		}
-	}
-	return chain, addDropEntry || addPortDropEntry
 }
