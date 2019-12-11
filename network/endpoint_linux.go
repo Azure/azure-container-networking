@@ -100,7 +100,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 			localIP)
 	} else if nw.Mode != opModeTransparent {
 		log.Printf("Bridge client")
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nw.EnableIpvs)
+		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nw.DisableIpvs)
 	} else {
 		log.Printf("Transparent client")
 		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode)
@@ -229,7 +229,7 @@ func (nw *network) deleteEndpointImpl(ep *endpoint) error {
 		epInfo := ep.getInfo()
 		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP)
 	} else if nw.Mode != opModeTransparent {
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nw.EnableIpvs)
+		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nw.DisableIpvs)
 	} else {
 		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode)
 	}

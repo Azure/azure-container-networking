@@ -17,7 +17,7 @@ type LinuxBridgeEndpointClient struct {
 	hostPrimaryMac    net.HardwareAddr
 	containerMac      net.HardwareAddr
 	mode              string
-	ipvsEnabled       bool
+	ipvsDisabled      bool
 }
 
 func NewLinuxBridgeEndpointClient(
@@ -25,7 +25,7 @@ func NewLinuxBridgeEndpointClient(
 	hostVethName string,
 	containerVethName string,
 	mode string,
-	ipvsEnabled bool,
+	ipvsDisabled bool,
 ) *LinuxBridgeEndpointClient {
 
 	client := &LinuxBridgeEndpointClient{
@@ -35,7 +35,7 @@ func NewLinuxBridgeEndpointClient(
 		containerVethName: containerVethName,
 		hostPrimaryMac:    extIf.MacAddress,
 		mode:              mode,
-		ipvsEnabled:       ipvsEnabled,
+		ipvsDisabled:      ipvsDisabled,
 	}
 
 	return client
@@ -64,7 +64,7 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 	}
 
 	// Add Broute redirect rule for the container interface
-	if client.ipvsEnabled {
+	if !client.ipvsDisabled {
 		log.Printf("[net] Enable broute redirect rule for %v", client.hostVethName)
 		if err := ebtables.SetBrouteRedirect(client.hostVethName, ebtables.Append); err != nil {
 			log.Printf("[net] Failed to add broute direct rule for %v: %v", client.hostVethName, err)
@@ -128,7 +128,7 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) {
 		}
 	}
 
-	if client.ipvsEnabled {
+	if !client.ipvsDisabled {
 		// Delete Broute redirect rule for the container interface
 		log.Printf("[net] Delete broute redirect rule for %v", client.hostVethName)
 		if err := ebtables.SetBrouteRedirect(client.hostVethName, ebtables.Delete); err != nil {

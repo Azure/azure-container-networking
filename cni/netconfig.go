@@ -56,7 +56,7 @@ type NetworkConfig struct {
 	EnableSnatOnHost           bool     `json:"enableSnatOnHost,omitempty"`
 	EnableExactMatchForPodName bool     `json:"enableExactMatchForPodName,omitempty"`
 	CNSUrl                     string   `json:"cnsurl,omitempty"`
-	EnableIpvs                 bool     `json:"enableIpvs,omitempty"`
+	DisableIpvs                bool     `json:"disableIpvs,omitempty"`
 	Ipam                       struct {
 		Type          string `json:"type"`
 		Environment   string `json:"environment,omitempty"`

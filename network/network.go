@@ -47,7 +47,7 @@ type network struct {
 	EnableSnatOnHost bool
 	NetNs            string
 	SnatBridgeIP     string
-	EnableIpvs       bool `json:",omitempty"`
+	DisableIpvs      bool `json:",omitempty"`
 }
 
 // NetworkInfo contains read-only information about a container network.
@@ -62,7 +62,7 @@ type NetworkInfo struct {
 	EnableSnatOnHost bool
 	NetNs            string
 	Options          map[string]interface{}
-	EnableIpvs       bool
+	DisableIpvs      bool
 }
 
 // SubnetInfo contains subnet information for a container network.
