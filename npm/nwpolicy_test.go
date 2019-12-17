@@ -66,7 +66,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 		},
 	}
 
-	if err := npMgr.AddNamespace(nsObj); err != nil {
+	if err := npMgr.AddNamespace(nsObj, false); err != nil {
 		t.Errorf("TestAddNetworkPolicy @ npMgr.AddNamespace")
 	}
 
@@ -177,7 +177,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 		},
 	}
 
-	if err := npMgr.AddNamespace(nsObj); err != nil {
+	if err := npMgr.AddNamespace(nsObj, false); err != nil {
 		t.Errorf("TestUpdateNetworkPolicy @ npMgr.AddNamespace")
 	}
 
@@ -289,7 +289,7 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 		},
 	}
 
-	if err := npMgr.AddNamespace(nsObj); err != nil {
+	if err := npMgr.AddNamespace(nsObj, false); err != nil {
 		t.Errorf("TestDeleteNetworkPolicy @ npMgr.AddNamespace")
 	}
 

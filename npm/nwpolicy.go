@@ -6,7 +6,10 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/util"
+
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func (npMgr *NetworkPolicyManager) canCleanUpNpmChains() bool {
@@ -36,13 +39,21 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	npNs, npName := "ns-"+npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY CREATING: %v", npObj)
 
+	// Add policy namespace if it doesn't exist
 	var exists bool
 	if ns, exists = npMgr.nsMap[npNs]; !exists {
-		ns, err = newNs(npNs)
-		if err != nil {
-			log.Printf("Error creating namespace %s\n", npNs)
+		nsObj := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   npObj.ObjectMeta.Namespace,
+				Labels: make(map[string]string),
+			},
 		}
-		npMgr.nsMap[npNs] = ns
+		
+		if err = npMgr.AddNamespace(nsObj, true); err != nil {
+			return err
+		}
+
+		ns = npMgr.nsMap[npNs]
 	}
 
 	if ns.policyExists(npObj) {

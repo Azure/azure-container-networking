@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func isValidPod(podObj *corev1.Pod) bool {
@@ -35,6 +36,20 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	podIP := podObj.Status.PodIP
 	log.Printf("POD CREATING: [%s/%s/%s%+v%s]", podNs, podName, podNodeName, podLabels, podIP)
 
+	// Add pod namespace if it doesn't exist
+	if _, exists := npMgr.nsMap[podNs]; !exists {
+		nsObj := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   podObj.ObjectMeta.Namespace,
+				Labels: make(map[string]string),
+			},
+		}
+		
+		if err = npMgr.AddNamespace(nsObj, true); err != nil {
+			return err
+		}
+	}
+
 	// Add the pod to ipset
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Add the pod to its namespace's ipset.
@@ -59,13 +74,6 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 			return err
 		}
 	}
-
-	ns, err := newNs(podNs)
-	if err != nil {
-		log.Errorf("Error: failed to create namespace %s", podNs)
-		return err
-	}
-	npMgr.nsMap[podNs] = ns
 
 	return nil
 }
