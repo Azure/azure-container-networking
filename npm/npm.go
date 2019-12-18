@@ -217,7 +217,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		// Namespace event handlers
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				npMgr.AddNamespace(obj.(*corev1.Namespace), false)
+				npMgr.AddNamespaceWithLock(obj.(*corev1.Namespace))
 			},
 			UpdateFunc: func(old, new interface{}) {
 				npMgr.UpdateNamespace(old.(*corev1.Namespace), new.(*corev1.Namespace))

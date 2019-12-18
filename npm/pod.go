@@ -45,7 +45,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 			},
 		}
 		
-		if err = npMgr.AddNamespace(nsObj, true); err != nil {
+		if err = npMgr.AddNamespace(nsObj); err != nil {
 			return err
 		}
 	}

@@ -49,7 +49,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 			},
 		}
 		
-		if err = npMgr.AddNamespace(nsObj, true); err != nil {
+		if err = npMgr.AddNamespace(nsObj); err != nil {
 			return err
 		}
 

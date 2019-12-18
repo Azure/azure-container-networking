@@ -80,7 +80,7 @@ func TestAddNamespace(t *testing.T) {
 		},
 	}
 
-	if err := npMgr.AddNamespace(nsObj, false); err != nil {
+	if err := npMgr.AddNamespaceWithLock(nsObj); err != nil {
 		t.Errorf("TestAddNamespace @ npMgr.AddNamespace")
 	}
 }
@@ -130,7 +130,7 @@ func TestUpdateNamespace(t *testing.T) {
 		},
 	}
 
-	if err := npMgr.AddNamespace(oldNsObj, false); err != nil {
+	if err := npMgr.AddNamespaceWithLock(oldNsObj); err != nil {
 		t.Errorf("TestUpdateNamespace failed @ npMgr.AddNamespace")
 	}
 
@@ -175,7 +175,7 @@ func TestDeleteNamespace(t *testing.T) {
 		},
 	}
 
-	if err := npMgr.AddNamespace(nsObj, false); err != nil {
+	if err := npMgr.AddNamespaceWithLock(nsObj); err != nil {
 		t.Errorf("TestDeleteNamespace @ npMgr.AddNamespace")
 	}
 
