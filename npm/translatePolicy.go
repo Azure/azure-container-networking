@@ -144,9 +144,10 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 
 func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
-		sets    []string // ipsets with type: net:hash
-		lists   []string // ipsets with type: list:set
-		entries []*iptm.IptEntry
+		sets                                  []string // ipsets with type: net:hash
+		lists                                 []string // ipsets with type: list:set
+		entries                               []*iptm.IptEntry
+		fromRuleEntries                       []*iptm.IptEntry
 		addedIngressFromEntry, addedPortEntry bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 	)
 
@@ -264,7 +265,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							"DROP-"+except+
 								"-TO-"+targetSelectorComment,
 						)
-						entries = append(entries, exceptEntry)
+						fromRuleEntries = append(fromRuleEntries, exceptEntry)
 					}
 					addedIngressFromEntry = true
 				}
@@ -295,7 +296,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 									"-:-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
 									"-TO-"+targetSelectorComment,
 							)
-							entries = append(entries, entry)
+							fromRuleEntries = append(fromRuleEntries, entry)
 						}
 					} else {
 						cidrEntry := &iptm.IptEntry{
@@ -317,7 +318,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 							"ALLOW-"+fromRule.IPBlock.CIDR+
 								"-TO-"+targetSelectorComment,
 						)
-						entries = append(entries, cidrEntry)
+						fromRuleEntries = append(fromRuleEntries, cidrEntry)
 						addedIngressFromEntry = true
 					}
 				}
@@ -569,6 +570,10 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 		}
 	}
 
+	if len(fromRuleEntries) > 0 {
+		entries = append(entries, fromRuleEntries...)
+	}
+
 	if addedPortEntry && !addedIngressFromEntry {
 		entry := &iptm.IptEntry{
 			Chain: util.IptablesAzureIngressPortChain,
@@ -627,9 +632,10 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 
 func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, []*iptm.IptEntry) {
 	var (
-		sets    []string // ipsets with type: net:hash
-		lists   []string // ipsets with type: list:set
-		entries []*iptm.IptEntry
+		sets                               []string // ipsets with type: net:hash
+		lists                              []string // ipsets with type: list:set
+		entries                            []*iptm.IptEntry
+		toRuleEntries                      []*iptm.IptEntry 
 		addedEgressToEntry, addedPortEntry bool // add drop entry when there are non ALLOW-ALL* rules
 	)
 
@@ -742,7 +748,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 							"DROP-"+except+
 								"-FROM-"+targetSelectorComment,
 						)
-						entries = append(entries, exceptEntry)
+						toRuleEntries = append(toRuleEntries, exceptEntry)
 					}
 					addedEgressToEntry = true
 				}
@@ -773,7 +779,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 									"-:-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
 									"-FROM-"+targetSelectorComment,
 							)
-							entries = append(entries, entry)
+							toRuleEntries = append(toRuleEntries, entry)
 						}
 					} else {
 						cidrEntry := &iptm.IptEntry{
@@ -798,7 +804,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 							"ALLOW-"+toRule.IPBlock.CIDR+
 								"-FROM-"+targetSelectorComment,
 						)
-						entries = append(entries, cidrEntry)
+						toRuleEntries = append(toRuleEntries, cidrEntry)
 						addedEgressToEntry = true
 					}
 				}
@@ -1049,6 +1055,10 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			// borrowing this var to add jump entry from port chain only
 			addedPortEntry = true
 		}
+	}
+
+	if len(toRuleEntries) > 0 {
+		entries = append(entries, toRuleEntries...)
 	}
 
 	if addedPortEntry && !addedEgressToEntry {
