@@ -136,11 +136,21 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	iptMgr := iptm.NewIptablesManager()
 	iptMgr.UninitNpmChains()
 
-	podInformer := informerFactory.Core().V1().Pods()
-	nsInformer := informerFactory.Core().V1().Namespaces()
-	npInformer := informerFactory.Networking().V1().NetworkPolicies()
+	var (
+		podInformer   = informerFactory.Core().V1().Pods()
+		nsInformer    = informerFactory.Core().V1().Namespaces()
+		npInformer    = informerFactory.Networking().V1().NetworkPolicies()
+		serverVersion *version.Info
+		err           error
+	)
 
-	serverVersion, err := clientset.ServerVersion()
+	for ticker, start := time.NewTicker(1 * time.Second).C, time.Now(); time.Since(start) < time.Minute * 1; {
+		<-ticker
+		serverVersion, err = clientset.ServerVersion()
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		log.Logf("Error: failed to retrieving kubernetes version")
 		panic(err.Error)
