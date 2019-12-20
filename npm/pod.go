@@ -37,6 +37,16 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 
 	// Add the pod to ipset
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
+
+	// Add pod namespace if it doesn't exist
+	if _, exists := npMgr.nsMap[podNs]; !exists {
+		log.Printf("Creating set: %v, hashedSet: %v", podNs, util.GetHashedName(podNs))
+		if err = ipsMgr.CreateSet(podNs); err != nil {
+			log.Printf("Error creating ipset %s", podNs)
+			return err
+		}
+	}
+
 	// Add the pod to its namespace's ipset.
 	log.Printf("Adding pod %s to ipset %s", podIP, podNs)
 	if err = ipsMgr.AddToSet(podNs, podIP); err != nil {
@@ -59,13 +69,6 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 			return err
 		}
 	}
-
-	ns, err := newNs(podNs)
-	if err != nil {
-		log.Errorf("Error: failed to create namespace %s", podNs)
-		return err
-	}
-	npMgr.nsMap[podNs] = ns
 
 	return nil
 }
