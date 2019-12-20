@@ -607,6 +607,7 @@ func TestTranslateIngress(t *testing.T) {
 	expectedSets := []string{
 		"context:dev",
 		"testNotIn:frontend",
+		"ns-testnamespace",
 		"app:db",
 		"testIn:frontend",
 		"region:northpole",
@@ -884,6 +885,7 @@ func TestTranslateEgress(t *testing.T) {
 	expectedSets := []string{
 		"context:dev",
 		"testNotIn:frontend",
+		"ns-testnamespace",
 		"app:db",
 		"testIn:frontend",
 		"region:northpole",
@@ -1139,6 +1141,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:backend",
+		"ns-testnamespace",
 		"app:frontend",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
@@ -1263,6 +1266,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:frontend",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-all-TO-app:frontend-FROM-all-namespaces-policy sets comparison")
@@ -1337,6 +1341,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:frontend",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-none-TO-app:frontend-policy sets comparison")
@@ -1521,6 +1526,7 @@ func TestTranslatePolicy(t *testing.T) {
 	sets, lists, iptEntries = translatePolicy(allowAllNsToFrontendPolicy)
 	expectedSets = []string{
 		"app:frontend",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-all-namespaces-TO-app:frontend-policy sets comparison")
@@ -1666,6 +1672,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:frontend",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-ns-namespace:dev-AND-!ns-namespace:test0-AND-!ns-namespace:test1-TO-app:frontend-policy sets comparison")
@@ -1827,6 +1834,7 @@ func TestTranslatePolicy(t *testing.T) {
 		"k0",
 		"k1:v0",
 		"k1:v1",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ AllOW-ALL-TO-k0-AND-k1:v0-AND-k1:v1-AND-app:frontend-policy sets comparison")
@@ -2031,6 +2039,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:frontend",
+		"ns-testnamespace",
 		"app:backend",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
@@ -2165,6 +2174,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:backdoor",
+		"ns-dangerous",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-ALL-TO-app:backdoor-policy sets comparison")
@@ -2251,6 +2261,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:frontend",
+		"ns-testnamespace",
 		"app:backend",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
@@ -2381,6 +2392,7 @@ func TestTranslatePolicy(t *testing.T) {
 	expectedSets = []string{
 		"app:k8s",
 		"team:aks",
+		"ns-acn",
 		"program:cni",
 		"team:acn",
 		"binary:cns",
@@ -2561,6 +2573,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:backend",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-none-FROM-app:backend-policy sets comparison")
@@ -2612,6 +2625,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:backend",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-all-FROM-app:backend-policy sets comparison")
@@ -2752,6 +2766,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"app:frontend",
+		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
 		t.Errorf("translatedPolicy failed @ ALLOW-ALL-FROM-app:frontend-TCP-PORT-53-OR-UDP-PORT-53-policy sets comparison")
@@ -2969,6 +2984,7 @@ func TestTranslatePolicy(t *testing.T) {
 
 	expectedSets = []string{
 		"role:db",
+		"ns-default",
 		"role:frontend",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
@@ -3303,6 +3319,7 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 	expectedSets = []string{
 		"app:test",
 		"testIn:pod-A",
+		"ns-default",
 		"testIn:pod-B",
 		"testIn:pod-C",
 	}
