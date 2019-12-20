@@ -1248,7 +1248,7 @@ func TestTranslatePolicy(t *testing.T) {
 	}
 	allowToFrontendPolicy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ALLOW-all-TO-app:frontend-FROM-all-namespaces-policy",
+			Name:      "ALLOW-all-TO-app:frontend-policy",
 			Namespace: "testnamespace",
 		},
 		Spec: networkingv1.NetworkPolicySpec{
@@ -1269,16 +1269,14 @@ func TestTranslatePolicy(t *testing.T) {
 		"ns-testnamespace",
 	}
 	if !reflect.DeepEqual(sets, expectedSets) {
-		t.Errorf("translatedPolicy failed @ ALLOW-all-TO-app:frontend-FROM-all-namespaces-policy sets comparison")
+		t.Errorf("translatedPolicy failed @ ALLOW-all-TO-app:frontend-policy sets comparison")
 		t.Errorf("sets: %v", sets)
 		t.Errorf("expectedSets: %v", expectedSets)
 	}
 
-	expectedLists = []string{
-		util.KubeAllNamespacesFlag,
-	}
+	expectedLists = []string{}
 	if !reflect.DeepEqual(lists, expectedLists) {
-		t.Errorf("translatedPolicy failed @ ALLOW-all-TO-app:frontend-FROM-all-namespaces-policy lists comparison")
+		t.Errorf("translatedPolicy failed @ ALLOW-all-TO-app:frontend-policy lists comparison")
 		t.Errorf("lists: %v", lists)
 		t.Errorf("expectedLists: %v", expectedLists)
 	}
@@ -1292,11 +1290,6 @@ func TestTranslatePolicy(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName(util.KubeAllNamespacesFlag),
-				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
 				util.GetHashedName("app:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
@@ -1304,14 +1297,14 @@ func TestTranslatePolicy(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-app:frontend-FROM-all-namespaces",
+				"ALLOW-ALL-TO-app:frontend",
 			},
 		},
 	}
 	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
 	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("testnamespace", targetSelector, false, false)...)
 	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
-		t.Errorf("translatedPolicy failed @ ALLOW-all-TO-app:frontend-FROM-all-namespaces-policy policy comparison")
+		t.Errorf("translatedPolicy failed @ ALLOW-all-TO-app:frontend-policy policy comparison")
 		marshalledIptEntries, _ := json.Marshal(iptEntries)
 		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
 		t.Errorf("iptEntries: %s", marshalledIptEntries)
@@ -2633,9 +2626,7 @@ func TestTranslatePolicy(t *testing.T) {
 		t.Errorf("expectedSets: %v", expectedSets)
 	}
 
-	expectedLists = []string{
-		util.KubeAllNamespacesFlag,
-	}
+	expectedLists = []string{}
 	if !reflect.DeepEqual(lists, expectedLists) {
 		t.Errorf("translatedPolicy failed @ ALLOW-all-FROM-app:backend-policy lists comparison")
 		t.Errorf("lists: %v", lists)
@@ -2652,18 +2643,28 @@ func TestTranslatePolicy(t *testing.T) {
 				util.IptablesMatchSetFlag,
 				util.GetHashedName("app:backend"),
 				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName(util.KubeAllNamespacesFlag),
-				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesAccept,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-app:backend-TO-" +
-					util.KubeAllNamespacesFlag,
+				"ALLOW-ALL-FROM-app:backend",
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureEgressPortChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:backend"),
+				util.IptablesSrcFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureTargetSetsChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-FROM-app:backend-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
 			},
 		},
 	}

@@ -162,8 +162,9 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
 
 	for _, rule := range rules {
-		allowExternal, portRuleExists, fromRuleExists := false, false, false
-		portRuleExists = rule.Ports != nil && len(rule.Ports) > 0
+		allowExternal  := false
+		portRuleExists := rule.Ports != nil && len(rule.Ports) > 0
+		fromRuleExists := false
 		addedPortEntry = addedPortEntry || portRuleExists
 
 		if rule.From != nil {
@@ -180,6 +181,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					break
 				}
 			}
+		} else if !portRuleExists {
+			allowExternal = true
 		}
 
 		if !portRuleExists && !fromRuleExists && !allowExternal {
@@ -644,8 +647,9 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 	targetSelectorIptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labels, util.IptablesSrcFlag, false)
 	targetSelectorComment := craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
 	for _, rule := range rules {
-		allowExternal, portRuleExists, toRuleExists := false, false, false
-		portRuleExists = rule.Ports != nil && len(rule.Ports) > 0
+		allowExternal  := false
+		portRuleExists := rule.Ports != nil && len(rule.Ports) > 0
+		toRuleExists   := false
 		addedPortEntry = addedPortEntry || portRuleExists
 
 		if rule.To != nil {
@@ -662,6 +666,8 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 					break
 				}
 			}
+		} else if !portRuleExists {
+			allowExternal = true
 		}
 
 		if !portRuleExists && !toRuleExists && !allowExternal {
