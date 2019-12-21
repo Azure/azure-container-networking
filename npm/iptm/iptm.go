@@ -32,6 +32,7 @@ type IptEntry struct {
 	Chain                 string
 	Flag                  string
 	LockWaitTimeInSeconds string
+	IsJumpEntry           bool
 	Specs                 []string
 }
 
@@ -300,7 +301,11 @@ func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 		return nil
 	}
 
-	iptMgr.OperationFlag = util.IptablesAppendFlag
+	if entry.IsJumpEntry {
+		iptMgr.OperationFlag = util.IptablesAppendFlag
+	} else {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+	}
 	if _, err := iptMgr.Run(entry); err != nil {
 		log.Errorf("Error: failed to create iptables rules.")
 		return err
