@@ -428,11 +428,12 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 					Gateway: gateway,
 				},
 			},
-			BridgeName:       nwCfg.Bridge,
-			EnableSnatOnHost: nwCfg.EnableSnatOnHost,
-			DNS:              nwDNSInfo,
-			Policies:         policies,
-			NetNs:            args.Netns,
+			BridgeName:                    nwCfg.Bridge,
+			EnableSnatOnHost:              nwCfg.EnableSnatOnHost,
+			DNS:                           nwDNSInfo,
+			Policies:                      policies,
+			NetNs:                         args.Netns,
+			DisableHairpinOnHostInterface: nwCfg.DisableHairpinOnHostInterface,
 		}
 
 		nwInfo.Options = make(map[string]interface{})

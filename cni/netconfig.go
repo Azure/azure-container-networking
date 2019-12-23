@@ -42,22 +42,23 @@ type RuntimeDNSConfig struct {
 
 // NetworkConfig represents Azure CNI plugin network configuration.
 type NetworkConfig struct {
-	CNIVersion                 string   `json:"cniVersion"`
-	Name                       string   `json:"name"`
-	Type                       string   `json:"type"`
-	Mode                       string   `json:"mode"`
-	Master                     string   `json:"master"`
-	Bridge                     string   `json:"bridge,omitempty"`
-	LogLevel                   string   `json:"logLevel,omitempty"`
-	LogTarget                  string   `json:"logTarget,omitempty"`
-	InfraVnetAddressSpace      string   `json:"infraVnetAddressSpace,omitempty"`
-	PodNamespaceForDualNetwork []string `json:"podNamespaceForDualNetwork,omitempty"`
-	MultiTenancy               bool     `json:"multiTenancy,omitempty"`
-	EnableSnatOnHost           bool     `json:"enableSnatOnHost,omitempty"`
-	EnableExactMatchForPodName bool     `json:"enableExactMatchForPodName,omitempty"`
-	DisableIPTableLock         bool     `json:"disableIPTableLock,omitempty"`
-	CNSUrl                     string   `json:"cnsurl,omitempty"`
-	Ipam                       struct {
+	CNIVersion                    string   `json:"cniVersion"`
+	Name                          string   `json:"name"`
+	Type                          string   `json:"type"`
+	Mode                          string   `json:"mode"`
+	Master                        string   `json:"master"`
+	Bridge                        string   `json:"bridge,omitempty"`
+	LogLevel                      string   `json:"logLevel,omitempty"`
+	LogTarget                     string   `json:"logTarget,omitempty"`
+	InfraVnetAddressSpace         string   `json:"infraVnetAddressSpace,omitempty"`
+	PodNamespaceForDualNetwork    []string `json:"podNamespaceForDualNetwork,omitempty"`
+	MultiTenancy                  bool     `json:"multiTenancy,omitempty"`
+	EnableSnatOnHost              bool     `json:"enableSnatOnHost,omitempty"`
+	EnableExactMatchForPodName    bool     `json:"enableExactMatchForPodName,omitempty"`
+	DisableHairpinOnHostInterface bool     `json:"disableHairpinOnHostInterface,omitempty"`
+	DisableIPTableLock            bool     `json:"disableIPTableLock,omitempty"`
+	CNSUrl                        string   `json:"cnsurl,omitempty"`
+	Ipam                          struct {
 		Type          string `json:"type"`
 		Environment   string `json:"environment,omitempty"`
 		AddrSpace     string `json:"addressSpace,omitempty"`

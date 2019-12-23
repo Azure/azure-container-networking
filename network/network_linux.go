@@ -391,9 +391,11 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	}
 
 	// External interface hairpin on.
-	log.Printf("[net] Setting link %v hairpin on.", hostIf.Name)
-	if err := networkClient.SetHairpinOnHostInterface(true); err != nil {
-		return err
+	if !nwInfo.DisableHairpinOnHostInterface {
+		log.Printf("[net] Setting link %v hairpin on.", hostIf.Name)
+		if err := networkClient.SetHairpinOnHostInterface(true); err != nil {
+			return err
+		}
 	}
 
 	// Apply IP configuration to the bridge for host traffic.
