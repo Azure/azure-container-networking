@@ -105,6 +105,7 @@ CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_IMAGE_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 TELEMETRY_IMAGE_ARCHIVE_NAME = azure-vnet-telemetry-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNS_IMAGE_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
@@ -115,6 +116,9 @@ AZURE_NPM_IMAGE = containernetworking.azurecr.io/public/containernetworking/azur
 
 # Azure vnet telemetry image parameters.
 AZURE_VNET_TELEMETRY_IMAGE = containernetworking.azurecr.io/public/containernetworking/azure-vnet-telemetry
+
+# Azure container networking service image paramters.
+AZURE_CNS_IMAGE = containernetworking.azurecr.io/public/containernetworking/azure-cns
 
 VERSION ?= $(shell git describe --tags --always --dirty)
 
@@ -267,6 +271,23 @@ azure-vnet-telemetry-image: azure-vnet-telemetry
 publish-azure-vnet-telemetry-image:
 	docker push $(AZURE_VNET_TELEMETRY_IMAGE):$(VERSION)
 
+# Build the Azure CNS image.
+.PHONY: azure-cns-image
+azure-cns-image: azure-cns
+ifeq ($(GOOS),linux)
+	docker build \
+	-f cns/Dockerfile \
+	-t $(AZURE_CNS_IMAGE):$(VERSION) \
+	--build-arg CNS_BUILD_ARCHIVE=$(CNS_BUILD_DIR)/$(CNS_IMAGE_ARCHIVE_NAME) \
+	.
+	docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(CNS_BUILD_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
+endif
+
+# Publish the Azure NPM image to a Docker registry
+.PHONY: publish-azure-cns-image
+publish-azure-cns-image:
+	docker push $(AZURE_CNS_IMAGE):$(VERSION)
+
 # Create a CNI archive for the target platform.
 .PHONY: cni-archive
 cni-archive:
@@ -301,9 +322,8 @@ cns-archive:
 .PHONY: npm-archive
 npm-archive:
 ifeq ($(GOOS),linux)
-	chmod 0755 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT)
-	cp telemetry/azure-vnet-telemetry.config $(NPM_BUILD_DIR)/azure-vnet-telemetry.config
-	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-vnet-telemetry.config
+	chmod 0755 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT)
+	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
 	chown $(BUILD_USER):$(BUILD_USER) $(NPM_BUILD_DIR)/$(NPM_ARCHIVE_NAME)
 endif
 
