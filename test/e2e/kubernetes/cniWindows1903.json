@@ -8,7 +8,11 @@
             "networkPlugin": "azure",
             "networkPolicy": "azure",
             "azureCNIVersion": "",
-            "azureCNIURLWindows": ""
+            "azureCNIURLWindows": "",
+            "kubeletConfig": {
+               "--tls-min-version": "VersionTLS12",
+               "--tls-cipher-suites": "ECDHE-ECDSA-AES256-GCM-SHA384,ECDHE-ECDSA-AES128-GCM-SHA256,ECDHE-RSA-AES256-GCM-SHA384,ECDHE-RSA-AES128-GCM-SHA256,ECDHE-ECDSA-AES256-SHA384,ECDHE-ECDSA-AES128-SHA256,ECDHE-RSA-AES256-SHA384,ECDHE-RSA-AES128-SHA256"
+            }
          }
       },
       "masterProfile": {
@@ -16,20 +20,16 @@
          "dnsPrefix": "cniWindows",
          "vmSize": "Standard_D2_v2"
       },
-      "agentPoolProfiles": [
-         {
-            "name": "windowspool2",
-            "count": 2,
-            "vmSize": "Standard_D2_v2",
-            "availabilityProfile": "AvailabilitySet",
-            "osType": "Windows",
-            "extensions": [
-               {
-                  "name": "windows-patches"
-               }
-            ]
-         }
-      ],
+      "agentPoolProfiles": [{
+         "name": "windowspool2",
+         "count": 2,
+         "vmSize": "Standard_D2_v2",
+         "availabilityProfile": "AvailabilitySet",
+         "osType": "Windows",
+         "extensions": [{
+            "name": "windows-patches"
+         }]
+      }],
       "windowsProfile": {
          "adminUsername": "azureuser",
          "adminPassword": "azureTest@!",
@@ -43,11 +43,9 @@
       "linuxProfile": {
          "adminUsername": "azureuser",
          "ssh": {
-            "publicKeys": [
-               {
-                  "keyData": ""
-               }
-            ]
+            "publicKeys": [{
+               "keyData": ""
+            }]
          }
       },
       "servicePrincipalProfile": {

@@ -8,7 +8,11 @@
             "networkPlugin": "azure",
             "networkPolicy": "azure",
             "azureCNIVersion": "",
-            "azureCNIURLLinux": ""
+            "azureCNIURLLinux": "",
+            "kubeletConfig": {
+               "--tls-min-version": "VersionTLS12",
+               "--tls-cipher-suites": "ECDHE-ECDSA-AES256-GCM-SHA384,ECDHE-ECDSA-AES128-GCM-SHA256,ECDHE-RSA-AES256-GCM-SHA384,ECDHE-RSA-AES128-GCM-SHA256,ECDHE-ECDSA-AES256-SHA384,ECDHE-ECDSA-AES128-SHA256,ECDHE-RSA-AES256-SHA384,ECDHE-RSA-AES128-SHA256"
+            }
          }
       },
       "masterProfile": {
@@ -16,24 +20,20 @@
          "dnsPrefix": "cniLinux",
          "vmSize": "Standard_D2_v2"
       },
-      "agentPoolProfiles": [
-         {
-            "name": "agentpool1",
-            "count": 3,
-            "vmSize": "Standard_D2_v2",
-            "availabilityProfile": "AvailabilitySet",
-            "osType": "Linux",
-            "distro": "aks-ubuntu-18.04"
-         }
-      ],
+      "agentPoolProfiles": [{
+         "name": "agentpool1",
+         "count": 3,
+         "vmSize": "Standard_D2_v2",
+         "availabilityProfile": "AvailabilitySet",
+         "osType": "Linux",
+         "distro": "aks-ubuntu-18.04"
+      }],
       "linuxProfile": {
          "adminUsername": "azureuser",
          "ssh": {
-            "publicKeys": [
-               {
-                  "keyData": ""
-               }
-            ]
+            "publicKeys": [{
+               "keyData": ""
+            }]
          }
       },
       "servicePrincipalProfile": {
