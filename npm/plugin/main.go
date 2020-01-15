@@ -60,6 +60,8 @@ func main() {
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
 
+	go npMgr.SendAiMetrics()
+
 	if err = npMgr.Start(wait.NeverStop); err != nil {
 		log.Logf("npm failed with error %v.", err)
 		panic(err.Error)

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -22,6 +23,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
+
+var aiMetadata string
 
 const (
 	restoreRetryWaitTimeInSeconds = 5
@@ -47,7 +50,7 @@ type NetworkPolicyManager struct {
 	isSafeToCleanUpAzureNpmChain bool
 
 	clusterState  telemetry.ClusterState
-	reportManager *telemetry.ReportManager
+	version    string
 
 	serverVersion    *version.Info
 	TelemetryEnabled bool
@@ -75,6 +78,58 @@ func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 	npMgr.clusterState.NwPolicyCount = len(networkpolicies.Items)
 
 	return npMgr.clusterState
+}
+
+// SendAiMetrics :- send NPM metrics using AppInsights
+func (npMgr *NetworkPolicyManager) SendAiMetrics() {
+	var (
+		aiConfig = aitelemetry.AIConfig{
+			AppName:                   util.AzureNpmFlag,
+			AppVersion:                npMgr.version,
+			BatchSize:                 32768,
+			BatchInterval:             30,
+			RefreshTimeout:            15,
+			DebugMode:                 true,
+			GetEnvRetryCount:          5,
+			GetEnvRetryWaitTimeInSecs: 3,
+		}
+		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+		heartbeat = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
+		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.nodeName),
+												"APIServer": npMgr.serverVersion.String()}
+		podCount = aitelemetry.Metric{
+			Name: "PodCount",
+			CustomDimensions: customDimensions,
+		}
+		nsCount = aitelemetry.Metric{
+			Name: "NsCount",
+			CustomDimensions: customDimensions,
+		}
+		nwPolicyCount = aitelemetry.Metric{
+			Name: "NwPolicyCount",
+			CustomDimensions: customDimensions,
+		}
+	)
+
+	for ; err != nil; {
+		log.Logf("Failed to init AppInsights with err: %+v", err)
+		time.Sleep(time.Minute * 5)
+		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+	}
+
+	defer th.Close(10)
+
+	for {	
+		<-heartbeat
+		clusterState := npMgr.GetClusterState()
+		podCount.Value = float64(clusterState.PodCount)
+		nsCount.Value = float64(clusterState.NsCount)
+		nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
+
+		th.TrackMetric(podCount)
+		th.TrackMetric(nsCount)
+		th.TrackMetric(nwPolicyCount)
+	}
 }
 
 // restore restores iptables from backup file
@@ -177,17 +232,10 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 			NsCount:       0,
 			NwPolicyCount: 0,
 		},
-		reportManager: &telemetry.ReportManager{
-			ContentType: telemetry.ContentType,
-			Report:      &telemetry.NPMReport{},
-		},
+		version: npmVersion,
 		serverVersion:    serverVersion,
 		TelemetryEnabled: true,
 	}
-
-	clusterID := util.GetClusterID(npMgr.nodeName)
-	clusterState := npMgr.GetClusterState()
-	npMgr.reportManager.Report.(*telemetry.NPMReport).GetReport(clusterID, npMgr.nodeName, npmVersion, serverVersion.GitVersion, clusterState)
 
 	allNs, _ := newNs(util.KubeAllNamespacesFlag)
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs

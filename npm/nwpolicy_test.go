@@ -8,7 +8,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/Azure/azure-container-networking/telemetry"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -20,10 +19,6 @@ func TestAddNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
-		reportManager: &telemetry.ReportManager{
-			ContentType:     telemetry.ContentType,
-			Report:          &telemetry.NPMReport{},
-		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
@@ -131,10 +126,6 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
-		reportManager: &telemetry.ReportManager{
-			ContentType:     telemetry.ContentType,
-			Report:          &telemetry.NPMReport{},
-		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
@@ -243,10 +234,6 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
 		TelemetryEnabled: false,
-		reportManager: &telemetry.ReportManager{
-			ContentType:     telemetry.ContentType,
-			Report:          &telemetry.NPMReport{},
-		},
 	}
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)

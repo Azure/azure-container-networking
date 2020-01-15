@@ -79,6 +79,7 @@ CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
 NPM_TELEMETRY_DIR = $(NPM_BUILD_DIR)/telemetry
 CNI_AI_ID = 5515a1eb-b2bc-406a-98eb-ba462e6f0411
+NPM_AI_ID = 014c22bd-4107-459e-8475-67909e96edcb
 ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
 
 # Containerized build parameters.
@@ -180,7 +181,7 @@ $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
 # Build the Azure NPM plugin.
 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT): $(NPMFILES)
 	go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_TELEMETRY_DIR)/*.go
-	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(NPM_DIR)/*.go
+	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/npm.aiMetadata=$(NPM_AI_ID) -s -w" $(NPM_DIR)/*.go
 
 # Build all binaries in a container.
 .PHONY: all-containerized
