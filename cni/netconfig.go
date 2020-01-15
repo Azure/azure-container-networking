@@ -57,6 +57,7 @@ type NetworkConfig struct {
 	EnableExactMatchForPodName bool     `json:"enableExactMatchForPodName,omitempty"`
 	DisableIPTableLock         bool     `json:"disableIPTableLock,omitempty"`
 	CNSUrl                     string   `json:"cnsurl,omitempty"`
+	DisableIpvs                bool     `json:"disableIpvs,omitempty"`
 	Ipam                       struct {
 		Type          string `json:"type"`
 		Environment   string `json:"environment,omitempty"`

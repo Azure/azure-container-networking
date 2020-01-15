@@ -471,6 +471,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			DNS:              nwDNSInfo,
 			Policies:         policies,
 			NetNs:            args.Netns,
+			DisableIpvs:      nwCfg.DisableIpvs,
 		}
 
 		nwInfo.Options = make(map[string]interface{})

@@ -17,6 +17,7 @@ type LinuxBridgeEndpointClient struct {
 	hostPrimaryMac    net.HardwareAddr
 	containerMac      net.HardwareAddr
 	mode              string
+	ipvsDisabled      bool
 }
 
 func NewLinuxBridgeEndpointClient(
@@ -24,6 +25,7 @@ func NewLinuxBridgeEndpointClient(
 	hostVethName string,
 	containerVethName string,
 	mode string,
+	ipvsDisabled bool,
 ) *LinuxBridgeEndpointClient {
 
 	client := &LinuxBridgeEndpointClient{
@@ -33,6 +35,7 @@ func NewLinuxBridgeEndpointClient(
 		containerVethName: containerVethName,
 		hostPrimaryMac:    extIf.MacAddress,
 		mode:              mode,
+		ipvsDisabled:      ipvsDisabled,
 	}
 
 	return client
@@ -58,6 +61,15 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 	log.Printf("[net] Setting link %v master %v.", client.hostVethName, client.bridgeName)
 	if err := netlink.SetLinkMaster(client.hostVethName, client.bridgeName); err != nil {
 		return err
+	}
+
+	// Add Broute redirect rule for the container interface
+	if !client.ipvsDisabled {
+		log.Printf("[net] Enable broute redirect rule for %v", client.hostVethName)
+		if err := ebtables.SetBrouteRedirect(client.hostVethName, ebtables.Append); err != nil {
+			log.Printf("[net] Failed to add broute direct rule for %v: %v", client.hostVethName, err)
+			return err
+		}
 	}
 
 	for _, ipAddr := range epInfo.IPAddresses {
@@ -113,6 +125,14 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) {
 			if err != nil {
 				log.Printf("Failed removing arp from vm: %v", err)
 			}
+		}
+	}
+
+	if !client.ipvsDisabled {
+		// Delete Broute redirect rule for the container interface
+		log.Printf("[net] Delete broute redirect rule for %v", client.hostVethName)
+		if err := ebtables.SetBrouteRedirect(client.hostVethName, ebtables.Delete); err != nil {
+			log.Printf("[net] Failed to delete broute direct rule for %v: %v", client.hostVethName, err)
 		}
 	}
 }

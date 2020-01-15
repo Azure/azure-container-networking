@@ -78,6 +78,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		VlanId:           vlanid,
 		DNS:              nwInfo.DNS,
 		EnableSnatOnHost: nwInfo.EnableSnatOnHost,
+		DisableIpvs:      nwInfo.DisableIpvs,
 	}
 
 	return nw, nil

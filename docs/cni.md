@@ -48,6 +48,7 @@ Network configuration for CNI plugins is described in JSON format. The default l
   "master": "eth0",
   "bridge": "azure0",
   "logLevel": "info",
+  "disableIpvs": false,
   "ipam": {
     "type": "azure-vnet-ipam",
     "environment": "azure"
@@ -65,6 +66,7 @@ Network plugin
 * `master`: Name of the host network interface that will be used to connect containers to a VNET. This field is optional. If omitted, the plugin will automatically pick a suitable host network interface. Typically, the primary host interface name is `"Ethernet"` on Windows and `"eth0"` on Linux.
 * `bridge`: Name of the bridge that will be used to connect containers to a VNET. This field is optional. If omitted, the plugin will automatically pick a unique name based on the master interface index.
 * `logLevel`: Log verbosity. Valid values are `info` and `debug`. This field is optional. If omitted, the plugin will log at `info` level.
+* `disableIpvs`: Whether to hard disable IPVS or not. Setting this to `true` prevents creation of those ebtables entries that ensure packets from container network go via the host network stack. This field is optional (defaults to false).
 
 IPAM plugin
 * `type`: Name of the IPAM plugin. This property should always be set to `azure-vnet-ipam`.
