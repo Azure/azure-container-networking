@@ -4,16 +4,17 @@
 package ipam
 
 import (
-	"fmt"
+	"encoding/json"
+	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/platform"
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"net/http"
 	"net/url"
-	"os"
 	"testing"
-
-	"github.com/Azure/azure-container-networking/common"
 )
-
-var plugin *ipamPlugin
 
 var ipamQueryUrl = "localhost:42424"
 var ipamQueryResponse = "" +
@@ -24,59 +25,17 @@ var ipamQueryResponse = "" +
 	"			<IPAddress Address=\"10.0.0.5\" IsPrimary=\"false\"/>" +
 	"			<IPAddress Address=\"10.0.0.6\" IsPrimary=\"false\"/>" +
 	"		</IPSubnet>" +
+	"		<IPSubnet Prefix=\"10.1.0.0/16\">" +
+	"			<IPAddress Address=\"10.1.0.4\" IsPrimary=\"false\"/>" +
+	"			<IPAddress Address=\"10.1.0.5\" IsPrimary=\"true\"/>" +
+	"			<IPAddress Address=\"10.1.0.6\" IsPrimary=\"false\"/>" +
+	"		</IPSubnet>" +
 	"	</Interface>" +
 	"</Interfaces>"
 
-var localAsId string
-var poolId1 string
-var address1 string
-
-// Wraps the test run with plugin setup and teardown.
-func TestMain(m *testing.M) {
-	var config common.PluginConfig
-
-	// Create a fake local agent to handle requests from IPAM plugin.
-	u, _ := url.Parse("tcp://" + ipamQueryUrl)
-	testAgent, err := common.NewListener(u)
-	if err != nil {
-		fmt.Printf("Failed to create agent, err:%v.\n", err)
-		return
-	}
-	testAgent.AddHandler("/", handleIpamQuery)
-
-	err = testAgent.Start(make(chan error, 1))
-	if err != nil {
-		fmt.Printf("Failed to start agent, err:%v.\n", err)
-		return
-	}
-
-	// Create the plugin.
-	plugin, err = NewPlugin("ipamtest", &config)
-	if err != nil {
-		fmt.Printf("Failed to create IPAM plugin, err:%v.\n", err)
-		return
-	}
-
-	// Configure test mode.
-	plugin.SetOption(common.OptEnvironment, common.OptEnvironmentAzure)
-	plugin.SetOption(common.OptAPIServerURL, "null")
-	plugin.SetOption(common.OptIpamQueryUrl, "http://"+ipamQueryUrl)
-
-	// Start the plugin.
-	err = plugin.Start(&config)
-	if err != nil {
-		fmt.Printf("Failed to start IPAM plugin, err:%v.\n", err)
-		return
-	}
-
-	// Run tests.
-	exitCode := m.Run()
-
-	// Cleanup.
-	plugin.Stop()
-	testAgent.Stop()
-
-	os.Exit(exitCode)
+func TestIpam(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Ipam Suite")
 }
 
 // Handles queries from IPAM source.
@@ -84,13 +43,160 @@ func handleIpamQuery(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(ipamQueryResponse))
 }
 
-//
-// CNI IPAM API compliance tests
-// https://github.com/containernetworking/cni/blob/master/SPEC.md
-//
-
-func TestAddSuccess(t *testing.T) {
+func parseResult(stdinData []byte) (*cniTypesCurr.Result, error) {
+	result := &cniTypesCurr.Result{}
+	err := json.Unmarshal(stdinData, result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
-func TestDelSuccess(t *testing.T) {
-}
+var (
+	_ = Describe("Test IPAM", func() {
+
+		var (
+			config common.PluginConfig
+			plugin *ipamPlugin
+			testAgent *common.Listener
+			arg *cniSkel.CmdArgs
+			err error
+		)
+
+		BeforeSuite(func() {
+			// Create a fake local agent to handle requests from IPAM plugin.
+			u, _ := url.Parse("tcp://" + ipamQueryUrl)
+			testAgent, err = common.NewListener(u)
+			Expect(err).NotTo(HaveOccurred())
+
+			testAgent.AddHandler("/", handleIpamQuery)
+
+			err = testAgent.Start(make(chan error, 1))
+			Expect(err).NotTo(HaveOccurred())
+
+			arg = &cniSkel.CmdArgs{IfName:"Ethernet"}
+		})
+
+		AfterSuite(func() {
+			// Cleanup.
+			plugin.Stop()
+			testAgent.Stop()
+		})
+
+		Context("IPAM start", func() {
+			It("Create IPAM plugin", func() {
+				// Create the plugin.
+				plugin, err = NewPlugin("ipamtest", &config)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("Start IPAM plugin", func() {
+				// Configure test mode.
+				plugin.SetOption(common.OptEnvironment, common.OptEnvironmentAzure)
+				plugin.SetOption(common.OptAPIServerURL, "null")
+				plugin.SetOption(common.OptIpamQueryUrl, "http://"+ipamQueryUrl)
+				// Start the plugin.
+				err = plugin.Start(&config)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		Describe("Test IPAM ADD", func() {
+
+			Context("When ADD with nothing", func() {
+				It("Request pool and ADD successfully", func() {
+					arg.StdinData = []byte(`{
+					"cniversion": "0.4.0",
+					"master": "vEthernet (DockerNAT)",
+					"ipam": {
+						"type": "internal"
+					}
+				}`)
+					err = plugin.Add(arg)
+					Expect(err).ShouldNot(HaveOccurred())
+					result, err := parseResult(arg.StdinData)
+					Expect(err).ShouldNot(HaveOccurred())
+					address1, _ := platform.ConvertStringToIPNet("10.0.0.5/16")
+					address2, _ := platform.ConvertStringToIPNet("10.0.0.6/16")
+					Expect(result.IPs[0].Address.IP).Should(Or(Equal(address1.IP), Equal(address2.IP)))
+					Expect(result.IPs[0].Address.Mask).Should(Equal(address1.Mask))
+				})
+			})
+
+			Context("When address and subnet is given", func() {
+				It("ADD address successfully with the given address", func() {
+					arg.StdinData = []byte(`{
+					"cniversion": "0.4.0",
+					"master": "vEthernet (DockerNAT)",
+					"ipam": {
+						"type": "internal",
+						"ipAddress": "10.1.0.4",
+						"subnet": "10.1.0.0/16"
+					}
+				}`)
+					err = plugin.Add(arg)
+					Expect(err).ShouldNot(HaveOccurred())
+					result, err := parseResult(arg.StdinData)
+					Expect(err).ShouldNot(HaveOccurred())
+					address, _ := platform.ConvertStringToIPNet("10.1.0.4/16")
+					Expect(result.IPs[0].Address.IP).Should(Equal(address.IP))
+					Expect(result.IPs[0].Address.Mask).Should(Equal(address.Mask))
+				})
+			})
+
+			Context("When subnet is given", func() {
+				It("ADD successfully with a usable address", func() {
+					arg.StdinData = []byte(`{
+					"cniversion": "0.4.0",
+					"master": "vEthernet (DockerNAT)",
+					"ipam": {
+						"type": "internal",
+						"subnet": "10.1.0.0/16"
+					}
+				}`)
+					err = plugin.Add(arg)
+					Expect(err).ShouldNot(HaveOccurred())
+					result, err := parseResult(arg.StdinData)
+					Expect(err).ShouldNot(HaveOccurred())
+					address, _ := platform.ConvertStringToIPNet("10.1.0.6/16")
+					Expect(result.IPs[0].Address.IP).Should(Equal(address.IP))
+					Expect(result.IPs[0].Address.Mask).Should(Equal(address.Mask))
+				})
+			})
+		})
+
+		Describe("Test IPAM DELETE", func() {
+
+			Context("When address and subnet is given", func() {
+				It("DELETE address successfully", func() {
+					arg.StdinData = []byte(`{
+					"cniversion": "0.4.0",
+					"master": "vEthernet (DockerNAT)",
+					"ipam": {
+						"type": "internal",
+						"ipAddress": "10.1.0.6",
+						"subnet": "10.1.0.0/16"
+					}
+				}`)
+					err = plugin.Delete(arg)
+					Expect(err).ShouldNot(HaveOccurred())
+				})
+			})
+
+			Context("When subnet is given", func() {
+				It("DELETE pool 10.0.0.0/16 successfully", func() {
+					arg.StdinData = []byte(`{
+					"cniversion": "0.4.0",
+					"master": "vEthernet (DockerNAT)",
+					"ipam": {
+						"type": "internal",
+						"subnet": "10.0.0.0/16"
+					}
+				}`)
+					err = plugin.Delete(arg)
+					Expect(err).ShouldNot(HaveOccurred())
+				})
+			})
+		})
+	})
+)
