@@ -5,6 +5,7 @@ package ipam
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -24,11 +25,6 @@ var ipamQueryResponse = "" +
 	"			<IPAddress Address=\"10.0.0.4\" IsPrimary=\"true\"/>" +
 	"			<IPAddress Address=\"10.0.0.5\" IsPrimary=\"false\"/>" +
 	"			<IPAddress Address=\"10.0.0.6\" IsPrimary=\"false\"/>" +
-	"		</IPSubnet>" +
-	"		<IPSubnet Prefix=\"10.1.0.0/16\">" +
-	"			<IPAddress Address=\"10.1.0.4\" IsPrimary=\"false\"/>" +
-	"			<IPAddress Address=\"10.1.0.5\" IsPrimary=\"true\"/>" +
-	"			<IPAddress Address=\"10.1.0.6\" IsPrimary=\"false\"/>" +
 	"		</IPSubnet>" +
 	"	</Interface>" +
 	"</Interfaces>"
@@ -101,20 +97,22 @@ var (
 			})
 		})
 
-		Describe("Test IPAM ADD", func() {
+		Describe("Test IPAM ADD and DELETE pool", func() {
 
-			Context("When ADD with nothing", func() {
+			var result *cniTypesCurr.Result
+
+			Context("When ADD with nothing (request pool)", func() {
 				It("Request pool and ADD successfully", func() {
 					arg.StdinData = []byte(`{
-					"cniversion": "0.4.0",
-					"master": "vEthernet (DockerNAT)",
-					"ipam": {
-						"type": "internal"
-					}
-				}`)
+						"cniversion": "0.4.0",
+						"master": "vEthernet (DockerNAT)",
+						"ipam": {
+							"type": "internal"
+						}
+					}`)
 					err = plugin.Add(arg)
 					Expect(err).ShouldNot(HaveOccurred())
-					result, err := parseResult(arg.StdinData)
+					result, err = parseResult(arg.StdinData)
 					Expect(err).ShouldNot(HaveOccurred())
 					address1, _ := platform.ConvertStringToIPNet("10.0.0.5/16")
 					address2, _ := platform.ConvertStringToIPNet("10.0.0.6/16")
@@ -123,22 +121,56 @@ var (
 				})
 			})
 
+			Context("When DELETE with subnet and address", func() {
+				It("DELETE address successfully", func() {
+					arg.StdinData = []byte(fmt.Sprintf(`{
+						"cniversion": "0.4.0",
+						"master": "vEthernet (DockerNAT)",
+						"ipam": {
+							"type": "internal",
+							"subnet": "10.0.0.0/16",
+							"ipAddress": "%s"
+						}
+					}`, result.IPs[0].Address.IP.String()))
+					err = plugin.Delete(arg)
+					Expect(err).ShouldNot(HaveOccurred())
+				})
+			})
+
+			Context("When DELETE with subnet (release pool)", func() {
+				It("DELETE pool successfully", func() {
+					arg.StdinData = []byte(`{
+						"cniversion": "0.4.0",
+						"master": "vEthernet (DockerNAT)",
+						"ipam": {
+							"type": "internal",
+							"subnet": "10.0.0.0/16"
+						}
+					}`)
+					err = plugin.Delete(arg)
+					Expect(err).ShouldNot(HaveOccurred())
+				})
+			})
+		})
+
+		Describe("Test IPAM ADD and DELETE pool", func() {
+
 			Context("When address and subnet is given", func() {
 				It("ADD address successfully with the given address", func() {
 					arg.StdinData = []byte(`{
-					"cniversion": "0.4.0",
-					"master": "vEthernet (DockerNAT)",
-					"ipam": {
-						"type": "internal",
-						"ipAddress": "10.1.0.4",
-						"subnet": "10.1.0.0/16"
-					}
-				}`)
+						"cniversion": "0.4.0",
+						"master": "vEthernet (DockerNAT)",
+						"ipam": {
+							"type": "internal",
+							"ipAddress": "10.0.0.6",
+							"subnet": "10.0.0.0/16"
+						}
+					}`)
 					err = plugin.Add(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 					result, err := parseResult(arg.StdinData)
 					Expect(err).ShouldNot(HaveOccurred())
-					address, _ := platform.ConvertStringToIPNet("10.1.0.4/16")
+					address, _ := platform.ConvertStringToIPNet("10.0.0.6/16")
 					Expect(result.IPs[0].Address.IP).Should(Equal(address.IP))
 					Expect(result.IPs[0].Address.Mask).Should(Equal(address.Mask))
 				})
@@ -147,18 +179,18 @@ var (
 			Context("When subnet is given", func() {
 				It("ADD successfully with a usable address", func() {
 					arg.StdinData = []byte(`{
-					"cniversion": "0.4.0",
-					"master": "vEthernet (DockerNAT)",
-					"ipam": {
-						"type": "internal",
-						"subnet": "10.1.0.0/16"
-					}
-				}`)
+						"cniversion": "0.4.0",
+						"master": "vEthernet (DockerNAT)",
+						"ipam": {
+							"type": "internal",
+							"subnet": "10.0.0.0/16"
+						}
+					}`)
 					err = plugin.Add(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 					result, err := parseResult(arg.StdinData)
 					Expect(err).ShouldNot(HaveOccurred())
-					address, _ := platform.ConvertStringToIPNet("10.1.0.6/16")
+					address, _ := platform.ConvertStringToIPNet("10.0.0.5/16")
 					Expect(result.IPs[0].Address.IP).Should(Equal(address.IP))
 					Expect(result.IPs[0].Address.Mask).Should(Equal(address.Mask))
 				})
@@ -170,29 +202,30 @@ var (
 			Context("When address and subnet is given", func() {
 				It("DELETE address successfully", func() {
 					arg.StdinData = []byte(`{
-					"cniversion": "0.4.0",
-					"master": "vEthernet (DockerNAT)",
-					"ipam": {
-						"type": "internal",
-						"ipAddress": "10.1.0.6",
-						"subnet": "10.1.0.0/16"
-					}
-				}`)
+						"cniversion": "0.4.0",
+						"master": "vEthernet (DockerNAT)",
+						"ipam": {
+							"type": "internal",
+							"ipAddress": "10.0.0.5",
+							"subnet": "10.0.0.0/16"
+						}
+					}`)
 					err = plugin.Delete(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 				})
 			})
 
-			Context("When subnet is given", func() {
-				It("DELETE pool 10.0.0.0/16 successfully", func() {
+			Context("When address and subnet is given", func() {
+				It("DELETE address successfully", func() {
 					arg.StdinData = []byte(`{
-					"cniversion": "0.4.0",
-					"master": "vEthernet (DockerNAT)",
-					"ipam": {
-						"type": "internal",
-						"subnet": "10.0.0.0/16"
-					}
-				}`)
+						"cniversion": "0.4.0",
+						"master": "vEthernet (DockerNAT)",
+						"ipam": {
+							"type": "internal",
+							"ipAddress": "10.0.0.6",
+							"subnet": "10.0.0.0/16"
+						}
+					}`)
 					err = plugin.Delete(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 				})
