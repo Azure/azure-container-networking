@@ -249,7 +249,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 						for _, portRule := range rule.Ports {
 							entry := &iptm.IptEntry{
 								Chain: util.IptablesAzureIngressPortChain,
-								Specs: targetSelectorIptEntrySpec,
+								Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 							}
 							entry.Specs = append(
 								entry.Specs,
@@ -276,7 +276,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					} else {
 						cidrEntry := &iptm.IptEntry{
 							Chain: util.IptablesAzureIngressFromChain,
-							Specs: targetSelectorIptEntrySpec,
+							Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 						}
 						cidrEntry.Specs = append(
 							cidrEntry.Specs,
@@ -352,7 +352,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureIngressPortChain,
-							Specs: targetSelectorIptEntrySpec,
+							Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 						}
 						entry.Specs = append(
 							entry.Specs,
@@ -378,7 +378,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				} else {
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressFromChain,
-						Specs: iptPartialNsSpec,
+						Specs: append([]string(nil), iptPartialNsSpec...),
 					}
 					entry.Specs = append(
 						entry.Specs,
@@ -416,7 +416,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureIngressPortChain,
-							Specs: targetSelectorIptEntrySpec,
+							Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 						}
 						entry.Specs = append(
 							entry.Specs,
@@ -442,7 +442,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				} else {
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressFromChain,
-						Specs: iptPartialPodSpec,
+						Specs: append([]string(nil), iptPartialPodSpec...),
 					}
 					entry.Specs = append(
 						entry.Specs,
@@ -493,7 +493,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 					iptPartialPortComment := craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressPortChain,
-						Specs: iptPartialNsSpec,
+						Specs: append([]string(nil), iptPartialNsSpec...),
 					}
 					entry.Specs = append(
 						entry.Specs,
@@ -524,7 +524,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			} else {
 				entry := &iptm.IptEntry{
 					Chain: util.IptablesAzureIngressFromChain,
-					Specs: targetSelectorIptEntrySpec,
+					Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 				}
 				entry.Specs = append(
 					entry.Specs,
@@ -553,7 +553,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 		if allowExternal {
 			entry := &iptm.IptEntry{
 				Chain: util.IptablesAzureIngressPortChain,
-				Specs: targetSelectorIptEntrySpec,
+				Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 			}
 			entry.Specs = append(
 				entry.Specs,
@@ -579,7 +579,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 	if addedPortEntry && !addedIngressFromEntry {
 		entry := &iptm.IptEntry{
 			Chain:       util.IptablesAzureIngressPortChain,
-			Specs:       targetSelectorIptEntrySpec,
+			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
 		entry.Specs = append(
@@ -597,7 +597,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 	} else if addedIngressFromEntry {
 		portEntry := &iptm.IptEntry{
 			Chain:       util.IptablesAzureIngressPortChain,
-			Specs:       targetSelectorIptEntrySpec,
+			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
 		portEntry.Specs = append(
@@ -680,7 +680,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 		if !portRuleExists && !toRuleExists && !allowExternal {
 			entry := &iptm.IptEntry{
 				Chain: util.IptablesAzureEgressPortChain,
-				Specs: targetSelectorIptEntrySpec,
+				Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 			}
 			entry.Specs = append(
 				entry.Specs,
@@ -790,7 +790,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 						for _, except := range toRule.IPBlock.Except {
 							exceptEntry := &iptm.IptEntry{
 								Chain: util.IptablesAzureEgressToChain,
-								Specs: targetSelectorIptEntrySpec,
+								Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 							}
 							exceptEntry.Specs = append(
 								exceptEntry.Specs,
@@ -842,7 +842,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureEgressPortChain,
-							Specs: iptPartialNsSpec,
+							Specs: append([]string(nil), iptPartialNsSpec...),
 						}
 						entry.Specs = append(
 							entry.Specs,
@@ -868,7 +868,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 				} else {
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureEgressToChain,
-						Specs: targetSelectorIptEntrySpec,
+						Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 					}
 					entry.Specs = append(
 						entry.Specs,
@@ -906,7 +906,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureEgressPortChain,
-							Specs: iptPartialPodSpec,
+							Specs: append([]string(nil), iptPartialPodSpec...),
 						}
 						entry.Specs = append(
 							entry.Specs,
@@ -932,7 +932,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 				} else {
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureEgressToChain,
-						Specs: targetSelectorIptEntrySpec,
+						Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 					}
 					entry.Specs = append(
 						entry.Specs,
@@ -983,7 +983,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 					iptPartialPortComment := craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureEgressPortChain,
-						Specs: targetSelectorIptEntrySpec,
+						Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 					}
 					entry.Specs = append(
 						entry.Specs,
@@ -1014,7 +1014,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			} else {
 				entry := &iptm.IptEntry{
 					Chain: util.IptablesAzureEgressToChain,
-					Specs: targetSelectorIptEntrySpec,
+					Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 				}
 				entry.Specs = append(
 					entry.Specs,
@@ -1043,7 +1043,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 		if allowExternal {
 			entry := &iptm.IptEntry{
 				Chain: util.IptablesAzureEgressPortChain,
-				Specs: targetSelectorIptEntrySpec,
+				Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 			}
 			entry.Specs = append(
 				entry.Specs,
@@ -1070,7 +1070,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 	if addedPortEntry && !addedEgressToEntry {
 		entry := &iptm.IptEntry{
 			Chain:       util.IptablesAzureEgressPortChain,
-			Specs:       targetSelectorIptEntrySpec,
+			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
 		entry.Specs = append(
@@ -1088,7 +1088,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 	} else if addedEgressToEntry {
 		portEntry := &iptm.IptEntry{
 			Chain:       util.IptablesAzureEgressPortChain,
-			Specs:       targetSelectorIptEntrySpec,
+			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
 		portEntry.Specs = append(
@@ -1140,7 +1140,7 @@ func getDefaultDropEntries(ns string, targetSelector metav1.LabelSelector, hasIn
 	if hasIngress {
 		entry := &iptm.IptEntry{
 			Chain: util.IptablesAzureTargetSetsChain,
-			Specs: targetSelectorIngressIptEntrySpec,
+			Specs: append([]string(nil), targetSelectorIngressIptEntrySpec...),
 		}
 		entry.Specs = append(
 			entry.Specs,
@@ -1157,7 +1157,7 @@ func getDefaultDropEntries(ns string, targetSelector metav1.LabelSelector, hasIn
 	if hasEgress {
 		entry := &iptm.IptEntry{
 			Chain: util.IptablesAzureTargetSetsChain,
-			Specs: targetSelectorEgressIptEntrySpec,
+			Specs: append([]string(nil), targetSelectorEgressIptEntrySpec...),
 		}
 		entry.Specs = append(
 			entry.Specs,
