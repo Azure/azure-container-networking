@@ -72,19 +72,19 @@ func craftPartialIptEntrySpecFromOpAndLabel(op, label, srcOrDstFlag string, isNa
 func craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, srcOrDstFlag string, isNamespaceSelector bool) []string {
 	var spec []string
 
+	if !isNamespaceSelector {
+		spec = []string{
+			util.IptablesModuleFlag,
+			util.IptablesSetModuleFlag,
+			util.IptablesMatchSetFlag,
+			util.GetHashedName("ns-" + ns),
+			srcOrDstFlag,
+		}
+	}
+
 	if len(ops) == 1 && len(labels) == 1 {
 		if ops[0] == "" && labels[0] == "" {
-			if !isNamespaceSelector {
-				// This is an empty podSelector,
-				// selecting all the pods within its namespace.
-				spec = []string{
-					util.IptablesModuleFlag,
-					util.IptablesSetModuleFlag,
-					util.IptablesMatchSetFlag,
-					util.GetHashedName("ns-" + ns),
-					srcOrDstFlag,
-				}
-			} else {
+			if isNamespaceSelector {
 				// This is an empty namespaceSelector,
 				// selecting all namespaces.
 				spec = []string{
@@ -129,9 +129,11 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 	labelsWithOps, _, _ := parseSelector(selector)
 	ops, labelsWithoutOps := GetOperatorsAndLabels(labelsWithOps)
 
-	var comment, prefix string
+	var comment, prefix, postfix string
 	if isNamespaceSelector {
 		prefix = "ns-"
+	} else {
+		postfix = "-IN-ns-" + ns
 	}
 
 	for i, _ := range labelsWithoutOps {
@@ -139,7 +141,7 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 		comment += "-AND-"
 	}
 
-	return comment[:len(comment)-len("-AND-")]
+	return comment[:len(comment)-len("-AND-")] + postfix
 }
 
 func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, []*iptm.IptEntry) {
@@ -612,7 +614,7 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 		entries = append(entries, portEntry)
 		entry := &iptm.IptEntry{
 			Chain:       util.IptablesAzureIngressFromChain,
-			Specs:       targetSelectorIptEntrySpec,
+			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
 		entry.Specs = append(
@@ -1103,7 +1105,7 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 		entries = append(entries, portEntry)
 		entry := &iptm.IptEntry{
 			Chain:       util.IptablesAzureEgressToChain,
-			Specs:       targetSelectorIptEntrySpec,
+			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
 		entry.Specs = append(
@@ -1130,12 +1132,6 @@ func getDefaultDropEntries(ns string, targetSelector metav1.LabelSelector, hasIn
 
 	labelsWithOps, _, _ := parseSelector(&targetSelector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
-	if len(ops) == 1 && len(labels) == 1 {
-		if ops[0] == "" && labels[0] == "" {
-			// targetSelector is empty. Select all pods within the namespace
-			labels[0] = "ns-" + ns
-		}
-	}
 
 	targetSelectorIngressIptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labels, util.IptablesDstFlag, false)
 	targetSelectorEgressIptEntrySpec := craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labels, util.IptablesSrcFlag, false)

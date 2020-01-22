@@ -5,7 +5,7 @@ metadata:
   namespace: testnamespace
 spec:
   policyTypes:
-    - Ingress
+  - Ingress
   podSelector:
     matchLabels:
       app: "frontend"
@@ -15,9 +15,9 @@ spec:
         values: []
       - key: k1
         operator: In
-        values:
+        values: 
           - v0
           - v1
   ingress:
-    - from:
-        - namespaceSelector: {}
+  - from:
+    - namespaceSelector: {}
