@@ -93,6 +93,7 @@ func (npMgr *NetworkPolicyManager) SendAiMetrics() {
 			GetEnvRetryCount:          5,
 			GetEnvRetryWaitTimeInSecs: 3,
 		}
+		
 		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
 		heartbeat = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
 		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.nodeName),
@@ -116,6 +117,8 @@ func (npMgr *NetworkPolicyManager) SendAiMetrics() {
 		time.Sleep(time.Minute * 5)
 		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
 	}
+
+	log.Logf("Initialized AppInsights handle")
 
 	defer th.Close(10)
 
