@@ -369,7 +369,7 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 			},
 		},
 	}
-	comment = craftPartialIptablesCommentFromSelector("testnamespace", nsSelector, true)
+	comment = craftPartialIptablesCommentFromSelector("", nsSelector, true)
 	expectedComment = "ns-k0:v0-AND-ns-k1:v10-AND-ns-k1:v11-AND-ns-!k2"
 	if comment != expectedComment {
 		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ namespace selector comparison")
@@ -774,11 +774,6 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-testnamespace"),
-				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
 				util.GetHashedName("region:northpole"),
 				util.IptablesSrcFlag,
 				util.IptablesModuleFlag,
@@ -812,7 +807,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-IN-ns-testnamespace-AND-TCP-PORT-6783-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"ALLOW-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-AND-TCP-PORT-6783-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -1099,11 +1094,6 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-testnamespace"),
-				util.IptablesDstFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
 				util.GetHashedName("region:northpole"),
 				util.IptablesDstFlag,
 				util.IptablesModuleFlag,
@@ -1121,7 +1111,7 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace-TO-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-IN-ns-testnamespace-AND-TCP-PORT-6783",
+				"ALLOW-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace-TO-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-AND-TCP-PORT-6783",
 			},
 		},
 		&iptm.IptEntry{
@@ -2109,11 +2099,6 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-testnamespace"),
-				util.IptablesSrcFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
 				util.GetHashedName("app:backend"),
 				util.IptablesSrcFlag,
 				util.IptablesJumpFlag,
@@ -2121,7 +2106,7 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-ns:dev-AND-app:backend-IN-ns-testnamespace-TO-app:frontend-IN-ns-testnamespace",
+				"ALLOW-ns-ns:dev-AND-app:backend-TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{

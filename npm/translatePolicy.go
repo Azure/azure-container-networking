@@ -69,10 +69,11 @@ func craftPartialIptEntrySpecFromOpAndLabel(op, label, srcOrDstFlag string, isNa
 	return util.DropEmptyFields(partialSpec)
 }
 
+// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
 func craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, srcOrDstFlag string, isNamespaceSelector bool) []string {
 	var spec []string
 
-	if !isNamespaceSelector {
+	if ns != "" {
 		spec = []string{
 			util.IptablesModuleFlag,
 			util.IptablesSetModuleFlag,
@@ -107,12 +108,14 @@ func craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, s
 	return spec
 }
 
+// craftPartialIptEntrySpecFromSelector :- ns must be "" for namespace selectors
 func craftPartialIptEntrySpecFromSelector(ns string, selector *metav1.LabelSelector, srcOrDstFlag string, isNamespaceSelector bool) []string {
 	labelsWithOps, _, _ := parseSelector(selector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
 	return craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labels, srcOrDstFlag, isNamespaceSelector)
 }
 
+// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
 func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSelector, isNamespaceSelector bool) string {
 	if selector == nil {
 		return "none"
@@ -133,7 +136,9 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 	if isNamespaceSelector {
 		prefix = "ns-"
 	} else {
-		postfix = "-IN-ns-" + ns
+		if ns != "" {
+			postfix = "-IN-ns-" + ns
+		}
 	}
 
 	for i, _ := range labelsWithoutOps {
@@ -346,8 +351,8 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 				}
 				lists = append(lists, nsLabelsWithoutOps...)
 
-				iptPartialNsSpec := craftPartialIptEntrySpecFromSelector(ns, fromRule.NamespaceSelector, util.IptablesSrcFlag, true)
-				iptPartialNsComment := craftPartialIptablesCommentFromSelector(ns, fromRule.NamespaceSelector, true)
+				iptPartialNsSpec := craftPartialIptEntrySpecFromSelector("", fromRule.NamespaceSelector, util.IptablesSrcFlag, true)
+				iptPartialNsComment := craftPartialIptablesCommentFromSelector("", fromRule.NamespaceSelector, true)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
@@ -484,10 +489,11 @@ func translateIngress(ns string, targetSelector metav1.LabelSelector, rules []ne
 			_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
 			sets = append(sets, podLabelsWithoutOps...)
 
-			iptPartialNsSpec := craftPartialIptEntrySpecFromSelector(ns, fromRule.NamespaceSelector, util.IptablesSrcFlag, true)
-			iptPartialPodSpec := craftPartialIptEntrySpecFromSelector(ns, fromRule.PodSelector, util.IptablesSrcFlag, false)
-			iptPartialNsComment := craftPartialIptablesCommentFromSelector(ns, fromRule.NamespaceSelector, true)
-			iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, fromRule.PodSelector, false)
+			// we pass empty ns for the podspec and comment here because it's a combo of both selectors and not limited to network policy namespace
+			iptPartialNsSpec := craftPartialIptEntrySpecFromSelector("", fromRule.NamespaceSelector, util.IptablesSrcFlag, true)
+			iptPartialPodSpec := craftPartialIptEntrySpecFromSelector("", fromRule.PodSelector, util.IptablesSrcFlag, false)
+			iptPartialNsComment := craftPartialIptablesCommentFromSelector("", fromRule.NamespaceSelector, true)
+			iptPartialPodComment := craftPartialIptablesCommentFromSelector("", fromRule.PodSelector, false)
 			if portRuleExists {
 				for _, portRule := range rule.Ports {
 					iptPartialPortComment := craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
@@ -836,8 +842,8 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 				}
 				lists = append(lists, nsLabelsWithoutOps...)
 
-				iptPartialNsSpec := craftPartialIptEntrySpecFromSelector(ns, toRule.NamespaceSelector, util.IptablesDstFlag, true)
-				iptPartialNsComment := craftPartialIptablesCommentFromSelector(ns, toRule.NamespaceSelector, true)
+				iptPartialNsSpec := craftPartialIptEntrySpecFromSelector("", toRule.NamespaceSelector, util.IptablesDstFlag, true)
+				iptPartialNsComment := craftPartialIptablesCommentFromSelector("", toRule.NamespaceSelector, true)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
 						entry := &iptm.IptEntry{
@@ -974,10 +980,11 @@ func translateEgress(ns string, targetSelector metav1.LabelSelector, rules []net
 			_, podLabelsWithoutOps := GetOperatorsAndLabels(podLabelsWithOps)
 			sets = append(sets, podLabelsWithoutOps...)
 
-			iptPartialNsSpec := craftPartialIptEntrySpecFromSelector(ns, toRule.NamespaceSelector, util.IptablesDstFlag, true)
-			iptPartialPodSpec := craftPartialIptEntrySpecFromSelector(ns, toRule.PodSelector, util.IptablesDstFlag, false)
-			iptPartialNsComment := craftPartialIptablesCommentFromSelector(ns, toRule.NamespaceSelector, true)
-			iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false)
+			// we pass true for the podspec and comment here because it's a combo of both selectors and not limited to network policy namespace
+			iptPartialNsSpec := craftPartialIptEntrySpecFromSelector("", toRule.NamespaceSelector, util.IptablesDstFlag, true)
+			iptPartialPodSpec := craftPartialIptEntrySpecFromSelector("", toRule.PodSelector, util.IptablesDstFlag, false)
+			iptPartialNsComment := craftPartialIptablesCommentFromSelector("", toRule.NamespaceSelector, true)
+			iptPartialPodComment := craftPartialIptablesCommentFromSelector("", toRule.PodSelector, false)
 			if portRuleExists {
 				for _, portRule := range rule.Ports {
 					iptPartialPortComment := craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
