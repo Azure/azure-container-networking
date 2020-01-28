@@ -7,6 +7,7 @@ COPY $CNS_BUILD_ARCHIVE azure-cns.tgz
 
 # Update and unzip cns archive
 RUN apt-get update && \
+    apt-get install -y ca-certificates && \
     tar -xvzf azure-cns.tgz && \
     rm azure-cns.tgz
 

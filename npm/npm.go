@@ -112,26 +112,30 @@ func (npMgr *NetworkPolicyManager) SendAiMetrics() {
 		}
 	)
 
-	for ; err != nil; {
+	for i := 0; err != nil && i < 5; i++{
 		log.Logf("Failed to init AppInsights with err: %+v", err)
 		time.Sleep(time.Minute * 5)
 		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
 	}
 
-	log.Logf("Initialized AppInsights handle")
+	if th != nil {
+		log.Logf("Initialized AppInsights handle")
 
-	defer th.Close(10)
+		defer th.Close(10)
 
-	for {	
-		<-heartbeat
-		clusterState := npMgr.GetClusterState()
-		podCount.Value = float64(clusterState.PodCount)
-		nsCount.Value = float64(clusterState.NsCount)
-		nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
+		for {	
+			<-heartbeat
+			clusterState := npMgr.GetClusterState()
+			podCount.Value = float64(clusterState.PodCount)
+			nsCount.Value = float64(clusterState.NsCount)
+			nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
 
-		th.TrackMetric(podCount)
-		th.TrackMetric(nsCount)
-		th.TrackMetric(nwPolicyCount)
+			th.TrackMetric(podCount)
+			th.TrackMetric(nsCount)
+			th.TrackMetric(nwPolicyCount)
+		}
+	} else {
+		log.Logf("Failed to initialize AppInsights handle with err: %+v", err)
 	}
 }
 
