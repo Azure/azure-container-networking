@@ -14,4 +14,4 @@ RUN apt-get update && \
 EXPOSE 10090
 
 # Run the cns command by default when the container starts.
-ENTRYPOINT ["/azure-cns", "-c", "tcp://localhost:10090"]
+ENTRYPOINT ["sh", "-c", "/azure-cns -c tcp://$CNSIpAddress:10090"]
