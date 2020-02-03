@@ -70,10 +70,15 @@ spec:
     spec:
       priorityClassName: system-node-critical
       tolerations:
+      - operator: "Exists"
+        effect: NoExecute
+      - operator: "Exists"
+        effect: NoSchedule
       - key: CriticalAddonsOnly
         operator: Exists
       nodeSelector:
         beta.kubernetes.io/os: linux
+        kubernetes.io/role: agent
       containers:
         - name: azure-npm
           image: mcr.microsoft.com/containernetworking/azure-npm:v1.0.30
