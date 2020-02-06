@@ -125,6 +125,20 @@ func TestCompareK8sVer(t *testing.T) {
 	if res := CompareK8sVer(firstVer, secondVer); res != 1 {
 		t.Errorf("TestCompareK8sVer failed @ firstVer > secondVer w/ minor+ release")
 	}
+
+	firstVer = &version.Info{
+		Major: "2",
+		Minor: "1",
+	}
+
+	secondVer = &version.Info{
+		Major: "1",
+		Minor: "11",
+	}
+
+	if res := CompareK8sVer(firstVer, secondVer); res != 1 {
+		t.Errorf("TestCompareK8sVer failed @ firstVer > secondVer w/ major version upgrade")
+	}
 }
 
 func TestIsNewNwPolicyVer(t *testing.T) {
