@@ -102,15 +102,19 @@ func GetHashedName(name string) string {
 // returns -1, 0, 1 if firstVer smaller, equals, bigger than secondVer respectively.
 // returns -2 for error.
 func CompareK8sVer(firstVer *version.Info, secondVer *version.Info) int {
-	minorVers := re.FindAllString(firstVer.Minor, -1)
-	if len(minorVers) < 1 {
+	v1Minor := re.FindAllString(firstVer.Minor, -1)
+	if len(v1Minor) < 1 {
 		return -2
 	}
-	v1, err := semver.NewVersion(firstVer.Major+"."+minorVers[0])
+	v1, err := semver.NewVersion(firstVer.Major+"."+v1Minor[0])
 	if err != nil {
 		return -2
 	}
-	v2, err := semver.NewVersion(secondVer.Major+"."+secondVer.Minor)
+	v2Minor := re.FindAllString(secondVer.Minor, -1)
+	if len(v2Minor) < 1 {
+		return -2
+	}
+	v2, err := semver.NewVersion(secondVer.Major+"."+v2Minor[0])
 	if err != nil {
 		return -2
 	}
