@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
-	"strings"
 	"sort"
+	"strings"
 
 	"github.com/Masterminds/semver"
 	"k8s.io/apimachinery/pkg/version"
@@ -98,11 +98,13 @@ func GetHashedName(name string) string {
 // returns -1, 0, 1 if firstVer smaller, equals, bigger than secondVer respectively.
 // returns -2 for error.
 func CompareK8sVer(firstVer *version.Info, secondVer *version.Info) int {
-	v1, err := semver.NewVersion(firstVer.Major+firstVer.Minor)
+	v1str := fmt.Sprintf("%s.%s", firstVer.Major, firstVer.Minor)
+	v1, err := semver.NewVersion(v1str)
 	if err != nil {
 		return -2
 	}
-	v2, err := semver.NewVersion(secondVer.Major+secondVer.Minor)
+	v2str := fmt.Sprintf("%s.%s", secondVer.Major, secondVer.Minor)
+	v2, err := semver.NewVersion(v2str)
 	if err != nil {
 		return -2
 	}

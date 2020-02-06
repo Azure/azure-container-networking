@@ -1,8 +1,8 @@
 package util
 
 import (
-	"testing"
 	"reflect"
+	"testing"
 
 	"k8s.io/apimachinery/pkg/version"
 )
@@ -15,7 +15,7 @@ func TestSortMap(t *testing.T) {
 	}
 
 	sortedKeys, sortedVals := SortMap(m)
-	
+
 	expectedKeys := []string{
 		"a",
 		"c",
@@ -102,14 +102,28 @@ func TestCompareK8sVer(t *testing.T) {
 		Major: "1",
 		Minor: "14.8-hotfix.20191113",
 	}
-	
+
 	secondVer = &version.Info{
 		Major: "1",
 		Minor: "11",
 	}
-	
+
 	if res := CompareK8sVer(firstVer, secondVer); res != 1 {
 		t.Errorf("TestCompareK8sVer failed @ firstVer > secondVer w/ hotfix tag/pre-release")
+	}
+
+	firstVer = &version.Info{
+		Major: "1",
+		Minor: "11",
+	}
+
+	secondVer = &version.Info{
+		Major: "2",
+		Minor: "1",
+	}
+
+	if res := CompareK8sVer(firstVer, secondVer); res != -1 {
+		t.Errorf("TestCompareK8sVer failed @ firstVer < secondVer w/ 2 major version")
 	}
 }
 
