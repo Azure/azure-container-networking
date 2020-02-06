@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"regexp"
 	"strings"
 	"sort"
 
@@ -15,6 +16,9 @@ import (
 
 // IsNewNwPolicyVerFlag indicates if the current kubernetes version is newer than 1.11 or not
 var IsNewNwPolicyVerFlag = false
+
+// regex to get minor version
+var re = regexp.MustCompile("[0-9]+")
 
 // Exists reports whether the named file or directory exists.
 func Exists(filePath string) bool {
@@ -98,11 +102,15 @@ func GetHashedName(name string) string {
 // returns -1, 0, 1 if firstVer smaller, equals, bigger than secondVer respectively.
 // returns -2 for error.
 func CompareK8sVer(firstVer *version.Info, secondVer *version.Info) int {
-	v1, err := semver.NewVersion(firstVer.Major+firstVer.Minor)
+	minorVers := re.FindAllString(firstVer.Minor, -1)
+	if len(minorVers) < 1 {
+		return -2
+	}
+	v1, err := semver.NewVersion(firstVer.Major+"."+minorVers[0])
 	if err != nil {
 		return -2
 	}
-	v2, err := semver.NewVersion(secondVer.Major+secondVer.Minor)
+	v2, err := semver.NewVersion(secondVer.Major+"."+secondVer.Minor)
 	if err != nil {
 		return -2
 	}
