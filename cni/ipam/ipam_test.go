@@ -12,6 +12,7 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"net"
 	"net/http"
 	"net/url"
 	"testing"
@@ -48,6 +49,38 @@ func parseResult(stdinData []byte) (*cniTypesCurr.Result, error) {
 	return result, nil
 }
 
+func getStdinData(cniversion, ifname, subnet, ipAddress string) []byte {
+	stdinData := fmt.Sprintf(
+`{
+			"cniversion": "%s",
+			"master": "%s",
+			"ipam": {
+				"type": "internal",
+				"subnet": "%s",
+				"ipAddress": "%s"
+			}
+		}`, cniversion, ifname, subnet, ipAddress)
+	return []byte(stdinData)
+}
+
+func getIfName() (string, error) {
+
+	ifName := ""
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ifName, err
+	}
+
+	for _, iface := range interfaces {
+		ifName = iface.Name
+		break
+	}
+
+	return ifName, err
+}
+
+
 var (
 	_ = Describe("Test IPAM", func() {
 
@@ -56,6 +89,7 @@ var (
 			plugin *ipamPlugin
 			testAgent *common.Listener
 			arg *cniSkel.CmdArgs
+			ifName string
 			err error
 		)
 
@@ -70,7 +104,10 @@ var (
 			err = testAgent.Start(make(chan error, 1))
 			Expect(err).NotTo(HaveOccurred())
 
-			arg = &cniSkel.CmdArgs{IfName:"Ethernet"}
+			ifName, err = getIfName()
+			Expect(err).NotTo(HaveOccurred())
+
+			arg = &cniSkel.CmdArgs{IfName:ifName}
 		})
 
 		AfterSuite(func() {
@@ -103,13 +140,7 @@ var (
 
 			Context("When ADD with nothing (request pool)", func() {
 				It("Request pool and ADD successfully", func() {
-					arg.StdinData = []byte(`{
-						"cniversion": "0.4.0",
-						"master": "vEthernet (DockerNAT)",
-						"ipam": {
-							"type": "internal"
-						}
-					}`)
+					arg.StdinData = getStdinData("0.4.0", ifName, "", "")
 					err = plugin.Add(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 					result, err = parseResult(arg.StdinData)
@@ -123,15 +154,7 @@ var (
 
 			Context("When DELETE with subnet and address", func() {
 				It("DELETE address successfully", func() {
-					arg.StdinData = []byte(fmt.Sprintf(`{
-						"cniversion": "0.4.0",
-						"master": "vEthernet (DockerNAT)",
-						"ipam": {
-							"type": "internal",
-							"subnet": "10.0.0.0/16",
-							"ipAddress": "%s"
-						}
-					}`, result.IPs[0].Address.IP.String()))
+					arg.StdinData = getStdinData("0.4.0", ifName, "10.0.0.0/16", result.IPs[0].Address.IP.String())
 					err = plugin.Delete(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 				})
@@ -139,14 +162,7 @@ var (
 
 			Context("When DELETE with subnet (release pool)", func() {
 				It("DELETE pool successfully", func() {
-					arg.StdinData = []byte(`{
-						"cniversion": "0.4.0",
-						"master": "vEthernet (DockerNAT)",
-						"ipam": {
-							"type": "internal",
-							"subnet": "10.0.0.0/16"
-						}
-					}`)
+					arg.StdinData = getStdinData("0.4.0", ifName, "10.0.0.0/16", "")
 					err = plugin.Delete(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 				})
@@ -157,15 +173,7 @@ var (
 
 			Context("When address and subnet is given", func() {
 				It("ADD address successfully with the given address", func() {
-					arg.StdinData = []byte(`{
-						"cniversion": "0.4.0",
-						"master": "vEthernet (DockerNAT)",
-						"ipam": {
-							"type": "internal",
-							"ipAddress": "10.0.0.6",
-							"subnet": "10.0.0.0/16"
-						}
-					}`)
+					arg.StdinData = getStdinData("0.4.0", ifName, "10.0.0.0/16", "10.0.0.6")
 					err = plugin.Add(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 					result, err := parseResult(arg.StdinData)
@@ -178,14 +186,7 @@ var (
 
 			Context("When subnet is given", func() {
 				It("ADD successfully with a usable address", func() {
-					arg.StdinData = []byte(`{
-						"cniversion": "0.4.0",
-						"master": "vEthernet (DockerNAT)",
-						"ipam": {
-							"type": "internal",
-							"subnet": "10.0.0.0/16"
-						}
-					}`)
+					arg.StdinData = getStdinData("0.4.0", ifName, "10.0.0.0/16", "")
 					err = plugin.Add(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 					result, err := parseResult(arg.StdinData)
@@ -201,15 +202,7 @@ var (
 
 			Context("When address and subnet is given", func() {
 				It("DELETE address successfully", func() {
-					arg.StdinData = []byte(`{
-						"cniversion": "0.4.0",
-						"master": "vEthernet (DockerNAT)",
-						"ipam": {
-							"type": "internal",
-							"ipAddress": "10.0.0.5",
-							"subnet": "10.0.0.0/16"
-						}
-					}`)
+					arg.StdinData = getStdinData("0.4.0", ifName, "10.0.0.0/16", "10.0.0.5")
 					err = plugin.Delete(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 				})
@@ -217,15 +210,7 @@ var (
 
 			Context("When address and subnet is given", func() {
 				It("DELETE address successfully", func() {
-					arg.StdinData = []byte(`{
-						"cniversion": "0.4.0",
-						"master": "vEthernet (DockerNAT)",
-						"ipam": {
-							"type": "internal",
-							"ipAddress": "10.0.0.6",
-							"subnet": "10.0.0.0/16"
-						}
-					}`)
+					arg.StdinData = getStdinData("0.4.0", ifName, "10.0.0.0/16", "10.0.0.6")
 					err = plugin.Delete(arg)
 					Expect(err).ShouldNot(HaveOccurred())
 				})
