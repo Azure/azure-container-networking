@@ -206,7 +206,7 @@ func main() {
 		}
 
 		if recover() != nil {
-			return
+			os.Exit(1)
 		}
 	}()
 

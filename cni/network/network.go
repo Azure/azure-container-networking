@@ -382,7 +382,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			if errConsAdd != nil {
 				log.Printf("handleConsecutiveAdd failed with error %v", errConsAdd)
 				result = resultConsAdd
-				return errConsAdd
+				err = errConsAdd
+				return err
 			}
 
 			if resultConsAdd != nil {
