@@ -67,10 +67,12 @@ var (
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(nm.ExternalInterfaces)).To(Equal(1))
 
-				nwkId := "test01"
+				nwId := "test01"
+				ns := "ns01"
+				bridgeName := "bridge0"
 
 				nwInfo := NetworkInfo{
-					Id:           nwkId,
+					Id:           nwId,
 					Mode:         "bridge",
 					MasterIfName: ifName,
 					Subnets: []SubnetInfo{
@@ -80,11 +82,11 @@ var (
 							Gateway: net.IPv4(10,0,0,1),
 						},
 					},
-					BridgeName:                    "bridge0",
+					BridgeName:                    bridgeName,
 					EnableSnatOnHost:              false,
 					//DNS:                           nil,
 					//Policies:                      nil,
-					NetNs:                         "args.Netns",
+					NetNs:                         ns,
 					DisableHairpinOnHostInterface: true,
 				}
 
@@ -92,19 +94,53 @@ var (
 
 				err = nm.CreateNetwork(&nwInfo)
 				Expect(err).NotTo(HaveOccurred())
-				_, ok := nm.ExternalInterfaces[ifName].Networks[nwkId]
+				_, ok := nm.ExternalInterfaces[ifName].Networks[nwId]
 				Expect(ok).To(Equal(true))
 
-				nwInfoGet, err := nm.GetNetworkInfo(nwkId)
+				nwInfoGet, err := nm.GetNetworkInfo(nwId)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(nwInfoGet.BridgeName).To(Equal("bridge0"))
 
-				err = nm.DeleteNetwork(nwkId)
+				endpointId := "endpoint01"
+				containerId := "container01"
+				podName := "podname01"
+				podNameSpace := "podns01"
+
+				epInfo := &EndpointInfo{
+					Id:                 endpointId,
+					ContainerID:        containerId,
+					NetNsPath:          "/var/run/netns/" + ns,
+					IfName:             ifName,
+					Data:               make(map[string]interface{}),
+					//DNS:                epDNSInfo,
+					//Policies:           policies,
+					EnableSnatOnHost:   false,
+					EnableMultiTenancy: false,
+					EnableInfraVnet:    false,
+					EnableSnatForDns:   false,
+					PODName:            podName,
+					PODNameSpace:       podNameSpace,
+					SkipHotAttachEp:    false, // Hot attach at the time of endpoint creation
+				}
+				err = nm.CreateEndpoint(nwId, epInfo)
 				Expect(err).NotTo(HaveOccurred())
-				_, ok = nm.ExternalInterfaces[ifName].Networks[nwkId]
+
+				epGet, err := nm.GetEndpointInfo(nwId, endpointId)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(epGet.Id).To(Equal(endpointId))
+
+				err = nm.DeleteEndpoint(nwId, endpointId)
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = nm.GetEndpointInfo(nwId, endpointId)
+				Expect(err).To(HaveOccurred())
+
+				err = nm.DeleteNetwork(nwId)
+				Expect(err).NotTo(HaveOccurred())
+				_, ok = nm.ExternalInterfaces[ifName].Networks[nwId]
 				Expect(ok).To(Equal(false))
 
-				nwInfoGet, err = nm.GetNetworkInfo(nwkId)
+				nwInfoGet, err = nm.GetNetworkInfo(nwId)
 				Expect(err).To(HaveOccurred())
 				Expect(nwInfoGet).To(BeNil())
 			})
