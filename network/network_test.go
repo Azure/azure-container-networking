@@ -129,11 +129,28 @@ var (
 				Expect(err).NotTo(HaveOccurred())
 				Expect(epGet.Id).To(Equal(endpointId))
 
+				sandboxkey := "sandboxkey"
+
+				_, err = nm.AttachEndpoint(nwId, endpointId, sandboxkey)
+				Expect(err).NotTo(HaveOccurred())
+
+				err = nm.DetachEndpoint(nwId, endpointId)
+				Expect(err).NotTo(HaveOccurred())
+
+				err = nm.UpdateEndpoint(nwId, epInfo, epInfo)
+				Expect(err).NotTo(HaveOccurred())
+
+				num := nm.GetNumberOfEndpoints(ifName, nwId)
+				Expect(num).To(Equal(1))
+
 				err = nm.DeleteEndpoint(nwId, endpointId)
 				Expect(err).NotTo(HaveOccurred())
 
 				_, err = nm.GetEndpointInfo(nwId, endpointId)
 				Expect(err).To(HaveOccurred())
+
+				num = nm.GetNumberOfEndpoints(ifName, nwId)
+				Expect(num).To(Equal(0))
 
 				err = nm.DeleteNetwork(nwId)
 				Expect(err).NotTo(HaveOccurred())
