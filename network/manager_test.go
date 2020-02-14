@@ -32,15 +32,31 @@ func getIfName() (string, error) {
 	return ifName, err
 }
 
+func testAddExternalInterface(subnet string) {
+	ifName, err = getIfName()
+	Expect(err).NotTo(HaveOccurred())
+	err = nm.AddExternalInterface(ifName, subnet)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(len(nm.ExternalInterfaces)).To(Equal(1))
+}
+
+func testCreateNetwork(nwInfo NetworkInfo) {
+	err = nm.CreateNetwork(&nwInfo)
+	Expect(err).NotTo(HaveOccurred())
+	_, ok = nm.ExternalInterfaces[ifName].Networks[nwInfo.Id]
+	Expect(ok).To(Equal(true))
+}
+
+var (
+	nm *networkManager
+	config common.PluginConfig
+	ifName string
+	err error
+	ok bool
+)
+
 var (
 	_ = Describe("Test Network", func() {
-
-		var (
-			nm *networkManager
-			config common.PluginConfig
-			ifName string
-			err error
-		)
 
 		BeforeSuite(func() {
 			//nm, err = NewNetworkManager()
@@ -61,11 +77,8 @@ var (
 
 		Context("", func() {
 			It("Add External Interface", func() {
-				ifName, err = getIfName()
-				Expect(err).NotTo(HaveOccurred())
-				err = nm.AddExternalInterface(ifName, "10.0.0.0/16")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(len(nm.ExternalInterfaces)).To(Equal(1))
+
+				testAddExternalInterface("10.0.0.0/16")
 
 				nwId := "test01"
 				ns := "ns01"
@@ -92,10 +105,7 @@ var (
 
 				nwInfo.Options = make(map[string]interface{})
 
-				err = nm.CreateNetwork(&nwInfo)
-				Expect(err).NotTo(HaveOccurred())
-				_, ok := nm.ExternalInterfaces[ifName].Networks[nwId]
-				Expect(ok).To(Equal(true))
+				testCreateNetwork(nwInfo)
 
 				nwInfoGet, err := nm.GetNetworkInfo(nwId)
 				Expect(err).NotTo(HaveOccurred())
