@@ -103,7 +103,8 @@ var (
 
 				endpointId := "endpoint01"
 				containerId := "container01"
-				podName := "podname01"
+				podName := "pod-name-test-01"
+				podNameSuffix := "pod-name"
 				podNameSpace := "podns01"
 
 				epInfo := &EndpointInfo{
@@ -126,6 +127,14 @@ var (
 				Expect(err).NotTo(HaveOccurred())
 
 				epGet, err := nm.GetEndpointInfo(nwId, endpointId)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(epGet.Id).To(Equal(endpointId))
+
+				epGet, err = nm.GetEndpointInfoBasedOnPODDetails(nwId, podName, podNameSpace, true)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(epGet.Id).To(Equal(endpointId))
+
+				epGet, err = nm.GetEndpointInfoBasedOnPODDetails(nwId, podNameSuffix, podNameSpace, false)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(epGet.Id).To(Equal(endpointId))
 
