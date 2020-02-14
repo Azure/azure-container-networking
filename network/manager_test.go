@@ -59,7 +59,6 @@ var (
 	_ = Describe("Test Network", func() {
 
 		BeforeSuite(func() {
-			//nm, err = NewNetworkManager()
 			nm = &networkManager{
 				ExternalInterfaces: make(map[string]*externalInterface),
 			}
