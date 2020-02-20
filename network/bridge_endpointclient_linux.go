@@ -99,6 +99,7 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 			// Add EB rule to route via host.
 			log.Printf("[net] Adding EB rule to route via host for IP address %v", ipAddr)
 			if err := ebtables.SetBrouteAccept(ipAddr, ebtables.Append); err != nil {
+				log.Printf("[net] Failed to add EB rule to route via host: %v" err)
 				return err
 			}
 		}
