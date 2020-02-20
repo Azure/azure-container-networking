@@ -53,16 +53,21 @@ func SetArpReply(ipAddress net.IP, macAddress net.HardwareAddr, action string) e
 }
 
 // SetBrouteAccept sets an EB rule.
-func SetBrouteAccept(ipAddress, action string) error {
+func SetBrouteAccept(ipAddress, action string) (string, error) {
 	command := fmt.Sprintf(
 		"ebtables -t broute %s BROUTING --ip-dst %s -p IPv4 -j redirect --redirect-target ACCEPT",
 		action, ipAddress)
 
-	return executeShellCommand(command)
+	return platform.ExecuteCommand(command)
 }
 
 // GetEbtableRules gets EB rules for a table and chain.
-func GetEbtableRules(tableName, chainName string) ([] string, error) {
+func GetEbtableRules(tableName, chainName string) ([]string, error) {
+	var (
+		inChain bool
+		rules   []string
+	)
+
 	command := fmt.Sprintf(
 		"ebtables -t %s -L %s --Lmac2",
 		tableName, chainName)
@@ -74,8 +79,7 @@ func GetEbtableRules(tableName, chainName string) ([] string, error) {
 	// Splits lines and finds rules.
 	lines := strings.Split(out, "\n")
 	chainTitle := fmt.Sprintf("Bridge chain: %s", chainName)
-	var inChain bool
-	var rules []string
+
 	for _, line := range lines {
 		if strings.HasPrefix(line, chainTitle) {
 			inChain = true
@@ -89,6 +93,7 @@ func GetEbtableRules(tableName, chainName string) ([] string, error) {
 			}
 		}
 	}
+
 	return rules, nil
 }
 
@@ -104,6 +109,7 @@ func EbTableRuleExists(tableName, chainName, matchSet string) (bool, error) {
 			return true, nil
 		}
 	}
+
 	return false, nil
 }
 

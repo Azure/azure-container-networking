@@ -95,10 +95,13 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 			return err
 		}
 
-		if !exists {
+		if exists {
+			// EB rule already exists.
+			log.Printf("[net] EB rule %s already exists in table %s chain %s.", rule, tableName, chainName)
+		} else {
 			// Add EB rule to route via host.
 			log.Printf("[net] Adding EB rule to route via host for IP address %v", ipAddr)
-			if err := ebtables.SetBrouteAccept(ipAddr, ebtables.Append); err != nil {
+			if _, err := ebtables.SetBrouteAccept(ipAddr, ebtables.Append); err != nil {
 				log.Printf("[net] Failed to add EB rule to route via host: %v", err)
 				return err
 			}
