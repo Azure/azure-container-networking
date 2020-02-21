@@ -39,25 +39,20 @@ func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo *netw
 		return nil, err
 	}
 
-	/*
-	 * Return in case of endpoint is already attached and consecutive add call doesn't need to be handled
-	 */
-	endpoint, err := GetHNSEndpointByID(endpointId)
-	isAttached, err := endpoint.IsAttached(args.ContainerID)
-	if isAttached {
-		log.Printf("No consecutive Add needed since endpoint is already attatched")
-		return nil, err
-	}
-
 	hnsEndpoint, err := hcsshim.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)
 		log.Printf("[net] Attaching ep %v to container %v", hnsEndpoint.Id, args.ContainerID)
 
-		err := hcsshim.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
-		if err != nil {
-			log.Printf("[cni-net] Failed to hot attach shared endpoint[%v] to container [%v], err:%v.", hnsEndpoint.Id, args.ContainerID, err)
-			return nil, err
+		endpoint, _ := hcsshim.GetHNSEndpointByID(hnsEndpoint.Id)
+		isAttached, _ := endpoint.IsAttached(args.ContainerID)
+		// Attach endpoint if it's not attached yet. If attached, populate result directly should be good enough.
+		if !isAttached {
+			err := hcsshim.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
+			if err != nil {
+				log.Printf("[cni-net] Failed to hot attach shared endpoint[%v] to container [%v], err:%v.", hnsEndpoint.Id, args.ContainerID, err)
+				return nil, err
+			}
 		}
 
 		// Populate result.
