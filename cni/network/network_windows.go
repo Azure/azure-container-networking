@@ -44,6 +44,15 @@ func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo *netw
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)
 		log.Printf("[net] Attaching ep %v to container %v", hnsEndpoint.Id, args.ContainerID)
 
+		/*
+		* Return in case of endpoint is already attached and consecutive add call doesn't need to be handled
+		 */
+		endpoint, _ := GetHNSEndpointByID(hnsEndpoint.Id)
+		isAttached, err := endpoint.IsAttached(args.ContainerID)
+		if isAttached {
+			return nil, err
+		}
+
 		err := hcsshim.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
 		if err != nil {
 			log.Printf("[cni-net] Failed to hot attach shared endpoint[%v] to container [%v], err:%v.", hnsEndpoint.Id, args.ContainerID, err)
