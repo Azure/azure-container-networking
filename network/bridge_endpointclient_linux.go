@@ -82,7 +82,7 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 		}
 	}
 
-	AddRuleToRouteViaHost(epInfo)
+	addRuleToRouteViaHost(epInfo)
 
 	log.Printf("[net] Setting hairpin for hostveth %v", client.hostVethName)
 	if err := netlink.SetLinkHairpin(client.hostVethName, true); err != nil {
@@ -178,7 +178,7 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	return nil
 }
 
-func AddRuleToRouteViaHost(epInfo *EndpointInfo) error {
+func addRuleToRouteViaHost(epInfo *EndpointInfo) error {
 	for _, ipAddr := range epInfo.IPsToRouteViaHost {
 		tableName := "broute"
 		chainName := "BROUTING"
