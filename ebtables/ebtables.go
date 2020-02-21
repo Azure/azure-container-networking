@@ -53,12 +53,13 @@ func SetArpReply(ipAddress net.IP, macAddress net.HardwareAddr, action string) e
 }
 
 // SetBrouteAccept sets an EB rule.
-func SetBrouteAccept(ipAddress, action string) (string, error) {
+func SetBrouteAccept(ipAddress, action string) error {
 	command := fmt.Sprintf(
 		"ebtables -t broute %s BROUTING --ip-dst %s -p IPv4 -j redirect --redirect-target ACCEPT",
 		action, ipAddress)
+	_, err := platform.ExecuteCommand(command)
 
-	return platform.ExecuteCommand(command)
+	return err
 }
 
 // GetEbtableRules gets EB rules for a table and chain.

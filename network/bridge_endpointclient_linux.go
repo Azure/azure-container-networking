@@ -82,31 +82,7 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 		}
 	}
 
-	for _, ipAddr := range epInfo.IPsToRouteViaHost {
-		tableName := "broute"
-		chainName := "BROUTING"
-		rule := fmt.Sprintf("-p IPv4 --ip-dst %s -j redirect", ipAddr)
-
-		// Check if EB rule exists
-		log.Printf("[net] Checking if EB rule %s already exists in table %s chain %s", rule, tableName, chainName)
-		exists, err := ebtables.EbTableRuleExists(tableName, chainName, rule)
-		if err != nil {
-			log.Printf("[net] Failed to check if EB table rule exists: %v", err)
-			return err
-		}
-
-		if exists {
-			// EB rule already exists.
-			log.Printf("[net] EB rule %s already exists in table %s chain %s.", rule, tableName, chainName)
-		} else {
-			// Add EB rule to route via host.
-			log.Printf("[net] Adding EB rule to route via host for IP address %v", ipAddr)
-			if _, err := ebtables.SetBrouteAccept(ipAddr, ebtables.Append); err != nil {
-				log.Printf("[net] Failed to add EB rule to route via host: %v", err)
-				return err
-			}
-		}
-	}
+	AddRuleToRouteViaHost(epInfo)
 
 	log.Printf("[net] Setting hairpin for hostveth %v", client.hostVethName)
 	if err := netlink.SetLinkHairpin(client.hostVethName, true); err != nil {
@@ -197,6 +173,36 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	if err != nil {
 		log.Printf("[net] Failed to delete veth pair %v: %v.", ep.HostIfName, err)
 		return err
+	}
+
+	return nil
+}
+
+func AddRuleToRouteViaHost(epInfo *EndpointInfo) error {
+	for _, ipAddr := range epInfo.IPsToRouteViaHost {
+		tableName := "broute"
+		chainName := "BROUTING"
+		rule := fmt.Sprintf("-p IPv4 --ip-dst %s -j redirect", ipAddr)
+
+		// Check if EB rule exists
+		log.Printf("[net] Checking if EB rule %s already exists in table %s chain %s", rule, tableName, chainName)
+		exists, err := ebtables.EbTableRuleExists(tableName, chainName, rule)
+		if err != nil {
+			log.Printf("[net] Failed to check if EB table rule exists: %v", err)
+			return err
+		}
+
+		if exists {
+			// EB rule already exists.
+			log.Printf("[net] EB rule %s already exists in table %s chain %s.", rule, tableName, chainName)
+		} else {
+			// Add EB rule to route via host.
+			log.Printf("[net] Adding EB rule to route via host for IP address %v", ipAddr)
+			if err := ebtables.SetBrouteAccept(ipAddr, ebtables.Append); err != nil {
+				log.Printf("[net] Failed to add EB rule to route via host: %v", err)
+				return err
+			}
+		}
 	}
 
 	return nil
