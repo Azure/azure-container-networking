@@ -10,6 +10,7 @@ RUN apt-get update && \
     apt-get install -y ca-certificates && \
     tar -xvzf azure-cns.tgz && \
     rm azure-cns.tgz
+RUN apt-get upgrade -y
 
 EXPOSE 10090
 

@@ -50,18 +50,15 @@ stages:
 
           - script: |
               echo "##vso[task.setvariable variable=CommitHash;isOutput=true]$(git rev-parse HEAD)"
+              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
               export BRANCH=$(Build.SourceBranchName)
               echo Building branch $BRANCH from $(Build.SourceBranch) 
               if [[ "$BRANCH" == "master" ]]; then
                 echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --abbrev=0)"
-                echo "Set tag to $(git describe --tags --abbrev=0)"
-              else
-                echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
-                echo "Set tag to $(git describe --tags --always --dirty)"
               fi
             workingDirectory: "$(modulePath)"
             name: "EnvironmentalVariables"
-            displayName: "Set build environmental variables"
+            displayName: "Set environmental variables"
             condition: always()
 
           - script: |
@@ -84,9 +81,9 @@ stages:
               export GOOS=linux
               make all-binaries VERSION=$(EnvironmentalVariables.Tag)
               sudo make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
-              echo '$(DOCKER_PASSWORD)' | docker login -u '$(DOCKER_USERNAME)' --password-stdin
-              docker tag containernetworking.azurecr.io/public/containernetworking/azure-npm:$(EnvironmentalVariables.Tag) containernetworking/azure-npm:$(EnvironmentalVariables.Tag)
-              docker push containernetworking/azure-npm:$(EnvironmentalVariables.Tag)
+              echo '$(DOCKER_PASSWORD)' | docker login containernetworking.azurecr.io -u '$(DOCKER_USERNAME)' --password-stdin
+              docker tag $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag) $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+              docker push $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
               cd output 
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
               sudo find . -mindepth 2 -type f -print -exec mv {} . \;
@@ -118,6 +115,21 @@ stages:
             name: "Coverage"
             displayName: "Generate Coverage Reports"
             condition: always()
+
+          - script: |
+              function auto-retry()
+              {
+                  export i="1"
+                  export attempts="300"
+                  false
+                  while [[ $? -ne 0 ]] && [[ $i -lt $attempts ]]; do
+                    printf "Attempt $i/$attempts - " && "$@" && break ||  sleep 3 &&  i=$[$i+1] && false
+                  done
+              }
+              auto-retry docker pull mcr.microsoft.com/containernetworking/azure-npm:$(EnvironmentalVariables.Tag)-test
+            workingDirectory: "$(modulePath)"
+            name: "mcrreplication"
+            displayName: "Wait for MCR"
 
           - task: PublishTestResults@2
             inputs:
@@ -151,6 +163,7 @@ stages:
               azureSubscription: $(ARTIFACT_SUBSCRIPTION)
               scriptLocation: "inlineScript"
               inlineScript: |
+                echo Creating storage container with name acn-$(EnvironmentalVariables.CommitHash) and account name $(STORAGE_ACCOUNT_NAME)
                 az storage container create -n acn-$(EnvironmentalVariables.CommitHash) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
                 az storage blob upload-batch -d acn-$(EnvironmentalVariables.CommitHash) -s ./output/  --account-name $(STORAGE_ACCOUNT_NAME)
               workingDirectory: "$(modulePath)"
@@ -201,17 +214,15 @@ stages:
           demands: agent.os -equals Linux
         container:
           image: containernetworking/pipeline-ci:1.0.6
-        variables:
-          Tag: $[ dependencies.unit_tests.outputs['EnvironmentalVariables.Tag'] ]
         condition: always()
         steps:
-          - checkout: none
           - task: AzureCLI@1
             inputs:
               azureSubscription: $(ARTIFACT_SUBSCRIPTION)
               scriptLocation: "inlineScript"
               inlineScript: |
-                export CommitHash=(git rev-parse HEAD)
+                export CommitHash=$(git rev-parse HEAD)
+                echo Deleting storage container with name acn-$CommitHash and account name $(STORAGE_ACCOUNT_NAME)
                 az storage container delete -n acn-$CommitHash --account-name $(STORAGE_ACCOUNT_NAME)
               workingDirectory: "$(modulePath)"
             displayName: Cleanup remote Azure storage container

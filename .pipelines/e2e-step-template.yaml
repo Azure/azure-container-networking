@@ -68,7 +68,7 @@ steps:
       echo CNI type is $CNI_TYPE
       cat '${{ parameters.clusterDefinition }}' | jq --arg cnikey $CNI_TYPE --arg cniurl $CNI_URL '.properties.orchestratorProfile.kubernetesConfig[$cnikey]= $cniurl' > '${{ parameters.clusterDefinition }}'.tmp	      #
       cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
-      cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage containernetworking/azure-npm:$(Tag) '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
+      cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage $PULL_CONTAINER_REGISTRY/azure-npm:$(Tag)-test '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
       mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
       echo "Running E2E tests against a cluster built with the following API model:"
       cat '${{ parameters.clusterDefinition }}'
@@ -101,9 +101,11 @@ steps:
       mkdir -p $(Build.ArtifactStagingDirectory)/kube-${{ parameters.name }}
       cp -r _output/k*/kubeconfig/kubeconfig.$REGIONS.json $(Build.ArtifactStagingDirectory)/kube-${{ parameters.name }}
       cp -r _output/kubernetes-*-ssh $(Build.ArtifactStagingDirectory)/kube-${{ parameters.name }}
+      cp -r test/e2e/kubernetes/junit.xml $(Build.ArtifactStagingDirectory)/kube-${{ parameters.name }}
     name: CopyKubeConfigsAKSEngine
     displayName: Save cluster configs
     workingDirectory: "$(modulePath)"
+    condition: always()
 
   - task: PublishBuildArtifacts@1
     inputs:
