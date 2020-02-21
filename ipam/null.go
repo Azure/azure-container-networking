@@ -59,7 +59,5 @@ func (s *nullSource) refresh() error {
 	}
 
 	// Set the local address space as active.
-	s.sink.setAddressSpace(local)
-
-	return nil
+	return s.sink.setAddressSpace(local)
 }

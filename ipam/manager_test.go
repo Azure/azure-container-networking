@@ -4,11 +4,19 @@
 package ipam
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"testing"
+	"time"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-container-networking/testutils"
 )
 
 var (
@@ -33,22 +41,19 @@ var (
 )
 
 // createAddressManager creates an address manager with a simple test configuration.
-func createAddressManager() (AddressManager, error) {
+func createAddressManager(options map[string]interface{}) (AddressManager, error) {
 	var config common.PluginConfig
-	var options map[string]interface{}
 
 	am, err := NewAddressManager()
 	if err != nil {
 		return nil, err
 	}
 
-	err = am.Initialize(&config, options)
-	if err != nil {
+	if err := am.Initialize(&config, options); err != nil {
 		return nil, err
 	}
 
-	err = setupTestAddressSpace(am)
-	if err != nil {
+	if err := setupTestAddressSpace(am); err != nil {
 		return nil, err
 	}
 
@@ -83,8 +88,7 @@ func setupTestAddressSpace(am AddressManager) error {
 		return err
 	}
 
-	err = amImpl.setAddressSpace(globalAs)
-	if err != nil {
+	if err := amImpl.setAddressSpace(globalAs); err != nil {
 		return err
 	}
 
@@ -118,8 +122,7 @@ func cleanupTestAddressSpace(am AddressManager) error {
 		return err
 	}
 
-	err = amImpl.setAddressSpace(localAs)
-	if err != nil {
+	if err := amImpl.setAddressSpace(localAs); err != nil {
 		return err
 	}
 
@@ -129,8 +132,7 @@ func cleanupTestAddressSpace(am AddressManager) error {
 		return err
 	}
 
-	err = amImpl.setAddressSpace(globalAs)
-	if err != nil {
+	if err := amImpl.setAddressSpace(globalAs); err != nil {
 		return err
 	}
 
@@ -141,233 +143,279 @@ func cleanupTestAddressSpace(am AddressManager) error {
 // Address manager tests.
 //
 
-// Tests address spaces are created and queried correctly.
-func TestAddressSpaceCreateAndGet(t *testing.T) {
-	// Start with the test address space.
-	am, err := createAddressManager()
-	if err != nil {
-		t.Fatalf("createAddressManager failed, err:%+v.", err)
-	}
-
-	// Test if the address spaces are returned correctly.
-	local, global := am.GetDefaultAddressSpaces()
-
-	if local != LocalDefaultAddressSpaceId {
-		t.Errorf("GetDefaultAddressSpaces returned invalid local address space.")
-	}
-
-	if global != GlobalDefaultAddressSpaceId {
-		t.Errorf("GetDefaultAddressSpaces returned invalid global address space.")
-	}
+func TestManager(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Manager Suite")
 }
 
-// Tests updating an existing address space adds new resources and removes stale ones.
-func TestAddressSpaceUpdate(t *testing.T) {
-	// Start with the test address space.
-	am, err := createAddressManager()
-	if err != nil {
-		t.Fatalf("createAddressManager failed, err:%+v.", err)
-	}
-	amImpl := am.(*addressManager)
+var (
+	_ = Describe("Test Manager", func() {
 
-	// Create a new local address space to update the existing one.
-	localAs, err := amImpl.newAddressSpace(LocalDefaultAddressSpaceId, LocalScope)
-	if err != nil {
-		t.Errorf("newAddressSpace failed, err:%+v.", err)
-	}
+		Describe("Test Initialize", func() {
+			Context("When store is nil", func() {
+				It("Initialize return nil", func() {
+					var config common.PluginConfig
+					config.Store = nil
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = ""
+					am, err := NewAddressManager()
+					Expect(am).NotTo(BeNil())
+					Expect(err).NotTo(HaveOccurred())
+					err = am.Initialize(&config, options)
+					Expect(err).To(BeNil())
+				})
+			})
 
-	// Remove addr12 and add addr13 in subnet1.
-	ap, err := localAs.newAddressPool(anyInterface, anyPriority, &subnet1)
-	ap.newAddressRecord(&addr11)
-	ap.newAddressRecord(&addr13)
+			Context("When restore key not found", func() {
+				It("Initialize return nil", func() {
+					var config common.PluginConfig
+					storeMock := &testutils.KeyValueStoreMock{}
+					storeMock.ReadError = store.ErrKeyNotFound
+					config.Store = storeMock
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = ""
+					am, err := NewAddressManager()
+					Expect(am).NotTo(BeNil())
+					Expect(err).NotTo(HaveOccurred())
+					err = am.Initialize(&config, options)
+					Expect(err).To(BeNil())
+				})
+			})
 
-	// Remove subnet2.
-	// Add subnet3 with addr31.
-	ap, err = localAs.newAddressPool(anyInterface, anyPriority, &subnet3)
-	ap.newAddressRecord(&addr31)
+			Context("When restore return error", func() {
+				It("Initialize return error", func() {
+					var config common.PluginConfig
+					storeMock := &testutils.KeyValueStoreMock{}
+					storeMock.ReadError = errors.New("Error")
+					config.Store = storeMock
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = ""
+					am, err := NewAddressManager()
+					Expect(am).NotTo(BeNil())
+					Expect(err).NotTo(HaveOccurred())
+					err = am.Initialize(&config, options)
+					Expect(err).To(HaveOccurred())
+				})
+			})
 
-	err = amImpl.setAddressSpace(localAs)
-	if err != nil {
-		t.Errorf("setAddressSpace failed, err:%+v.", err)
-	}
+			Context("When StartSource fail", func() {
+				It("Initialize return error", func() {
+					var config common.PluginConfig
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = "Invalid"
+					am, err := NewAddressManager()
+					Expect(am).NotTo(BeNil())
+					Expect(err).NotTo(HaveOccurred())
+					err = am.Initialize(&config, options)
+					Expect(err).To(HaveOccurred())
+				})
+			})
+		})
 
-	// Test that the address space was updated correctly.
-	localAs, err = amImpl.getAddressSpace(LocalDefaultAddressSpaceId)
-	if err != nil {
-		t.Errorf("getAddressSpace failed, err:%+v.", err)
-	}
+		Describe("Test restore", func() {
+			Context("When store is nil", func() {
+				It("restore return nil", func() {
+					am := &addressManager{
+						AddrSpaces: make(map[string]*addressSpace),
+					}
+					err := am.restore()
+					Expect(err).To(BeNil())
+				})
+			})
 
-	// Subnet1 should have addr11 and addr13, but not addr12.
-	ap, err = localAs.getAddressPool(subnet1.String())
-	if err != nil {
-		t.Errorf("Cannot find subnet1, err:%+v.", err)
-	}
+			Context("Test Populate pointers", func() {
+				It("Should build addrsByID successfully", func() {
+					am := &addressManager{
+						AddrSpaces: make(map[string]*addressSpace),
+					}
+					timeReboot, _ := platform.GetLastRebootTime()
+					am.store = &testutils.KeyValueStoreMock{
+						ModificationTime: timeReboot.Add(time.Hour),
+					}
+					ap := &addressPool{
+						Id:			"ap-test",
+						RefCount: 	1,
+						Addresses: 	make(map[string]*addressRecord),
+					}
+					ap.Addresses["ar-test"] = &addressRecord{
+						ID:		"ar-test",
+						InUse: 	true,
+					}
+					as := &addressSpace{
+						Id:		"as-test",
+						Pools: 	make(map[string]*addressPool),
+					}
+					as.Pools["ap-test"] = ap
+					am.AddrSpaces["as-test"] = as
+					err := am.restore()
+					Expect(err).To(BeNil())
+					as = am.AddrSpaces["as-test"]
+					ap = as.Pools["ap-test"]
+					ar := ap.addrsByID["ar-test"]
+					Expect(ar.ID).To(Equal("ar-test"))
+					Expect(ap.RefCount).To(Equal(1))
+					Expect(ar.InUse).To(BeTrue())
+				})
+			})
 
-	_, err = ap.requestAddress(addr11.String(), nil)
-	if err != nil {
-		t.Errorf("Cannot find addr11, err:%+v.", err)
-	}
+			Context("When GetModificationTime return error", func() {
+				It("Should not clear the RefCount and InUse", func() {
+					am := &addressManager{
+						AddrSpaces: make(map[string]*addressSpace),
+					}
+					am.store = &testutils.KeyValueStoreMock{
+						GetModificationTimeError: errors.New("Error"),
+					}
+					ap := &addressPool{
+						Id:			"ap-test",
+						RefCount: 	1,
+						Addresses: 	make(map[string]*addressRecord),
+					}
+					ap.Addresses["ar-test"] = &addressRecord{
+						ID:		"ar-test",
+						InUse: 	true,
+					}
+					as := &addressSpace{
+						Id:		"as-test",
+						Pools: 	make(map[string]*addressPool),
+					}
+					as.Pools["ap-test"] = ap
+					am.AddrSpaces["as-test"] = as
+					err := am.restore()
+					Expect(err).To(BeNil())
+					as = am.AddrSpaces["as-test"]
+					ap = as.Pools["ap-test"]
+					ar := ap.addrsByID["ar-test"]
+					Expect(ar.ID).To(Equal("ar-test"))
+					Expect(ap.RefCount).To(Equal(1))
+					Expect(ar.InUse).To(BeTrue())
+				})
+			})
 
-	_, err = ap.requestAddress(addr12.String(), nil)
-	if err == nil {
-		t.Errorf("Found addr12.")
-	}
+			Context("When rebooted", func() {
+				It("Should clear the RefCount and InUse", func() {
+					am := &addressManager{
+						AddrSpaces: make(map[string]*addressSpace),
+					}
+					am.store = &testutils.KeyValueStoreMock{}
+					ap := &addressPool{
+						Id:			"ap-test",
+						RefCount: 	1,
+						Addresses: 	make(map[string]*addressRecord),
+					}
+					ap.Addresses["ar-test"] = &addressRecord{
+						ID:		"ar-test",
+						InUse: 	true,
+					}
+					as := &addressSpace{
+						Id:		"as-test",
+						Pools: 	make(map[string]*addressPool),
+					}
+					as.Pools["ap-test"] = ap
+					am.AddrSpaces["as-test"] = as
+					err := am.restore()
+					Expect(err).To(BeNil())
+					as = am.AddrSpaces["as-test"]
+					ap = as.Pools["ap-test"]
+					ar := ap.addrsByID["ar-test"]
+					Expect(ar.ID).To(Equal("ar-test"))
+					Expect(ap.RefCount).To(Equal(0))
+					Expect(ar.InUse).To(BeFalse())
+				})
+			})
+		})
 
-	_, err = ap.requestAddress(addr13.String(), nil)
-	if err != nil {
-		t.Errorf("Cannot find addr13, err:%+v.", err)
-	}
+		Describe("Test save", func() {
+			Context("When store is nill", func() {
+				It("Should return nil", func() {
+					am := &addressManager{}
+					err := am.save()
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
+		})
 
-	// Subnet2 should not exist.
-	ap, err = localAs.getAddressPool(subnet2.String())
-	if err == nil {
-		t.Errorf("Found subnet2.")
-	}
+		Describe("Test StartSource", func() {
+			Context("When environment is azure", func() {
+				It("Should return azure source", func() {
+					am := &addressManager{}
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = common.OptEnvironmentAzure
+					err := am.StartSource(options)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(am.source).NotTo(BeNil())
+				})
+			})
 
-	// Subnet3 should have addr31 only.
-	ap, err = localAs.getAddressPool(subnet3.String())
-	if err != nil {
-		t.Errorf("Cannot find subnet3, err:%+v.", err)
-	}
+			Context("When environment is mas", func() {
+				It("Should return mas", func() {
+					am := &addressManager{}
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = common.OptEnvironmentMAS
+					err := am.StartSource(options)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(am.source).NotTo(BeNil())
+				})
+			})
 
-	_, err = ap.requestAddress(addr31.String(), nil)
-	if err != nil {
-		t.Errorf("Cannot find addr31, err:%+v.", err)
-	}
+			Context("When environment is null", func() {
+				It("Should return null source", func() {
+					am := &addressManager{}
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = "null"
+					err := am.StartSource(options)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(am.source).NotTo(BeNil())
+				})
+			})
 
-	_, err = ap.requestAddress(addr32.String(), nil)
-	if err == nil {
-		t.Errorf("Found addr32.")
-	}
-}
+			Context("When environment is nil", func() {
+				It("Should return nil", func() {
+					am := &addressManager{}
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = ""
+					err := am.StartSource(options)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(am.source).To(BeNil())
+				})
+			})
 
-// Tests multiple wildcard address pool requests return separate pools.
-func TestAddressPoolRequestsForSeparatePools(t *testing.T) {
-	// Start with the test address space.
-	am, err := createAddressManager()
-	if err != nil {
-		t.Fatalf("createAddressManager failed, err:%+v.", err)
-	}
+			Context("When environment is nil", func() {
+				It("Should return nil", func() {
+					am := &addressManager{}
+					options := map[string]interface{}{}
+					options[common.OptEnvironment] = "Invalid"
+					err := am.StartSource(options)
+					Expect(err).To(HaveOccurred())
+					Expect(am.source).To(BeNil())
+				})
+			})
+		})
 
-	// Request two separate address pools.
-	poolId1, subnet1, err := am.RequestPool(LocalDefaultAddressSpaceId, "", "", nil, false)
-	if err != nil {
-		t.Errorf("RequestPool failed, err:%v", err)
-	}
+		Describe("Test GetDefaultAddressSpaces", func() {
+			Context("When local and global are nil", func() {
+				It("Should return empty string", func() {
+					am := &addressManager{
+						AddrSpaces: make(map[string]*addressSpace),
+					}
+					localId, globalId := am.GetDefaultAddressSpaces()
+					Expect(localId).To(BeEmpty())
+					Expect(globalId).To(BeEmpty())
+				})
+			})
 
-	poolId2, subnet2, err := am.RequestPool(LocalDefaultAddressSpaceId, "", "", nil, false)
-	if err != nil {
-		t.Errorf("RequestPool failed, err:%v", err)
-	}
-
-	// Test the poolIds and subnets do not match.
-	if poolId1 == poolId2 || subnet1 == subnet2 {
-		t.Errorf("Pool requests returned the same pool.")
-	}
-
-	// Release the address pools.
-	err = am.ReleasePool(LocalDefaultAddressSpaceId, poolId1)
-	if err != nil {
-		t.Errorf("ReleasePool failed, err:%v", err)
-	}
-
-	err = am.ReleasePool(LocalDefaultAddressSpaceId, poolId2)
-	if err != nil {
-		t.Errorf("ReleasePool failed, err:%v", err)
-	}
-}
-
-// Tests multiple identical address pool requests return the same pool and pools are referenced correctly.
-func TestAddressPoolRequestsForSamePool(t *testing.T) {
-	// Start with the test address space.
-	am, err := createAddressManager()
-	if err != nil {
-		t.Fatalf("createAddressManager failed, err:%+v.", err)
-	}
-
-	// Request the same address pool twice.
-	poolId1, subnet1, err := am.RequestPool(LocalDefaultAddressSpaceId, "", "", nil, false)
-	if err != nil {
-		t.Errorf("RequestPool failed, err:%v", err)
-	}
-
-	poolId2, subnet2, err := am.RequestPool(LocalDefaultAddressSpaceId, poolId1, "", nil, false)
-	if err != nil {
-		t.Errorf("RequestPool failed, err:%v", err)
-	}
-
-	// Test the subnets do not match.
-	if poolId1 != poolId2 || subnet1 != subnet2 {
-		t.Errorf("Pool requests returned different pools.")
-	}
-
-	// Release the address pools.
-	err = am.ReleasePool(LocalDefaultAddressSpaceId, poolId1)
-	if err != nil {
-		t.Errorf("ReleasePool failed, err:%v", err)
-	}
-
-	err = am.ReleasePool(LocalDefaultAddressSpaceId, poolId2)
-	if err != nil {
-		t.Errorf("ReleasePool failed, err:%v", err)
-	}
-
-	// Third release should fail.
-	err = am.ReleasePool(LocalDefaultAddressSpaceId, poolId1)
-	if err == nil {
-		t.Errorf("ReleasePool succeeded extra, err:%v", err)
-	}
-}
-
-// Tests address requests from the same pool return separate addresses and releases work correctly.
-func TestAddressRequestsFromTheSamePool(t *testing.T) {
-	// Start with the test address space.
-	am, err := createAddressManager()
-	if err != nil {
-		t.Fatalf("createAddressManager failed, err:%+v.", err)
-	}
-
-	// Request a pool.
-	poolId, _, err := am.RequestPool(LocalDefaultAddressSpaceId, "", "", nil, false)
-	if err != nil {
-		t.Errorf("RequestPool failed, err:%v", err)
-	}
-
-	// Request two addresses from the pool.
-	address1, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolId, "", nil)
-	if err != nil {
-		t.Errorf("RequestAddress failed, err:%v", err)
-	}
-
-	addr, _, _ := net.ParseCIDR(address1)
-	address1 = addr.String()
-
-	address2, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolId, "", nil)
-	if err != nil {
-		t.Errorf("RequestAddress failed, err:%v", err)
-	}
-
-	addr, _, _ = net.ParseCIDR(address2)
-	address2 = addr.String()
-
-	// Test the addresses do not match.
-	if address1 == address2 {
-		t.Errorf("Address requests returned the same address %v.", address1)
-	}
-
-	// Release addresses and the pool.
-	err = am.ReleaseAddress(LocalDefaultAddressSpaceId, poolId, address1, nil)
-	if err != nil {
-		t.Errorf("ReleaseAddress failed, err:%v", err)
-	}
-
-	err = am.ReleaseAddress(LocalDefaultAddressSpaceId, poolId, address2, nil)
-	if err != nil {
-		t.Errorf("ReleaseAddress failed, err:%v", err)
-	}
-
-	err = am.ReleasePool(LocalDefaultAddressSpaceId, poolId)
-	if err != nil {
-		t.Errorf("ReleasePool failed, err:%v", err)
-	}
-}
+			Context("When local and global are nil", func() {
+				It("Should return empty string", func() {
+					am := &addressManager{
+						AddrSpaces: make(map[string]*addressSpace),
+					}
+					am.AddrSpaces[LocalDefaultAddressSpaceId] = &addressSpace{Id:"localId"}
+					am.AddrSpaces[GlobalDefaultAddressSpaceId] = &addressSpace{Id:"globalId"}
+					localId, globalId := am.GetDefaultAddressSpaces()
+					Expect(localId).To(Equal("localId"))
+					Expect(globalId).To(Equal("globalId"))
+				})
+			})
+		})
+	})
+)
