@@ -4,6 +4,7 @@
 package ipam
 
 import (
+	"errors"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"net"
@@ -17,30 +18,117 @@ func TestMAS(t *testing.T) {
 	RunSpecs(t, "MAS Suite")
 }
 
+type addressManagerMock struct {
+	newAddressSpaceSucc bool
+	setAddressSpaceSucc bool
+}
+
+func (sink *addressManagerMock) newAddressSpace(id string, scope int) (*addressSpace, error) {
+	if sink.newAddressSpaceSucc {
+		return &addressSpace{
+			Id:    id,
+			Scope: scope,
+			Pools: make(map[string]*addressPool),
+		}, nil
+	} else {
+		return nil, errors.New("newAddressSpace fail")
+	}
+
+}
+
+func (sink *addressManagerMock) setAddressSpace(*addressSpace) error {
+	if sink.setAddressSpaceSucc {
+		return nil
+	} else {
+		return errors.New("setAddressSpace fail")
+	}
+}
+
+
+const validFileName = "testfiles/masInterfaceConfig.json"
+const invalidFileName = "mas_test.go"
+const nonexistentFileName = "bad"
+
 var (
 	_ = Describe("Test MAS", func() {
 
-		Describe("Test create mas source", func() {
+		var (
+			mas *masSource
+			err error
+		)
+
+		Describe("Test masSource", func() {
 			Context("Create MAS with empty options", func() {
 				It("Should return as default", func() {
 					options := make(map[string]interface{})
-					mas, _ := newMasSource(options)
+					mas, err = newMasSource(options)
+					Expect(err).NotTo(HaveOccurred())
 					Expect(mas.name).Should(Equal("MAS"))
 					if runtime.GOOS == windows {
 						Expect(mas.filePath).Should(Equal(defaultWindowsFilePath))
 					} else {
 						Expect(mas.filePath).Should(Equal(defaultLinuxFilePath))
 					}
+					mas.filePath = validFileName
+				})
+			})
+
+			Context("When fileLoaded", func() {
+				It("refresh return with nil", func() {
+					mas.fileLoaded = true
+					err = mas.refresh()
+					Expect(err).To(BeNil())
+					mas.fileLoaded = false
+				})
+			})
+
+			Context("When getSDNInterfaces error", func() {
+				It("Error when refresh", func() {
+					filePath := mas.filePath
+					mas.filePath = invalidFileName
+					err = mas.refresh()
+					Expect(err).To(HaveOccurred())
+					mas.filePath = filePath
+				})
+			})
+
+			Context("When newAddressSpace err", func() {
+				It("Exit with error when refresh", func() {
+					sink := &addressManagerMock{false, true}
+					err = mas.start(sink)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(mas.sink).NotTo(BeNil())
+					err = mas.refresh()
+					Expect(err).To(HaveOccurred())
+				})
+			})
+
+			Context("When setAddressSpace err", func() {
+				It("Exit with error when refresh", func() {
+					sink := &addressManagerMock{true, false}
+					err = mas.start(sink)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(mas.sink).NotTo(BeNil())
+					err = mas.refresh()
+					Expect(err).To(HaveOccurred())
+				})
+			})
+
+			Context("With no error", func() {
+				It("refresh successfully", func() {
+					sink := &addressManagerMock{true, true}
+					err = mas.start(sink)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(mas.sink).NotTo(BeNil())
+					err = mas.refresh()
+					Expect(err).NotTo(HaveOccurred())
+					mas.stop()
+					Expect(mas.sink).To(BeNil())
 				})
 			})
 		})
 
 		Describe("Test GetSDNInterfaces", func() {
-
-			const validFileName = "testfiles/masInterfaceConfig.json"
-			const invalidFileName = "mas_test.go"
-			const nonexistentFileName = "bad"
-
 			Context("GetSDNInterfaces on interfaces", func() {
 				It("interfaces should be equaled", func() {
 
@@ -92,7 +180,6 @@ var (
 		})
 
 		Describe("Test PopulateAddressSpace", func() {
-
 			Context("Simple interface", func() {
 				It("Simple interface should run successfully", func() {
 
@@ -237,6 +324,29 @@ var (
 					Expect(ok).To(BeTrue())
 					Expect(pool.IfName).To(Equal("eth1"))
 					Expect(pool.Priority).To(Equal(1))
+				})
+			})
+		})
+
+		Describe("Test macAddressesEqual", func() {
+			var equal bool
+			macAddress := "abc"
+			macAddressCorrect := "A:b:C"
+			macAddressIncorrect := "a:B:d"
+			Context("When equal", func() {
+				It("return true", func() {
+					equal = macAddressesEqual(macAddress, macAddressCorrect)
+					Expect(equal).To(BeTrue())
+					equal = macAddressesEqual(macAddressCorrect, macAddress)
+					Expect(equal).To(BeTrue())
+				})
+			})
+			Context("When not equal", func() {
+				It("return false", func() {
+					equal = macAddressesEqual(macAddress, macAddressIncorrect)
+					Expect(equal).To(BeFalse())
+					equal = macAddressesEqual(macAddressIncorrect, macAddress)
+					Expect(equal).To(BeFalse())
 				})
 			})
 		})

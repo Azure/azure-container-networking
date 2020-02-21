@@ -177,7 +177,9 @@ func (s *azureSource) refresh() error {
 	}
 
 	// Set the local address space as active.
-	s.sink.setAddressSpace(local)
+	if err = s.sink.setAddressSpace(local); err != nil {
+		return err
+	}
 
 	return nil
 }

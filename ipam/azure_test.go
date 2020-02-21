@@ -53,6 +53,7 @@ var (
 
 		var (
 			testAgent *common.Listener
+			source *azureSource
 			err error
 		)
 
@@ -78,11 +79,11 @@ var (
 			Context("When create new azure source with empty options", func() {
 				It("Should return as default", func() {
 					options := make(map[string]interface{})
-					azure, err := newAzureSource(options)
+					source, err = newAzureSource(options)
 					Expect(err).ShouldNot(HaveOccurred())
-					Expect(azure.name).Should(Equal("Azure"))
-					Expect(azure.queryUrl).Should(Equal(azureQueryUrl))
-					Expect(azure.queryInterval).Should(Equal(azureQueryInterval))
+					Expect(source.name).Should(Equal("Azure"))
+					Expect(source.queryUrl).Should(Equal(azureQueryUrl))
+					Expect(source.queryInterval).Should(Equal(azureQueryInterval))
 				})
 			})
 
@@ -94,16 +95,62 @@ var (
 					queryUrl := "http://testqueryurl:12121/test"
 					options[common.OptIpamQueryInterval] = second
 					options[common.OptIpamQueryUrl] = queryUrl
-					azure, err := newAzureSource(options)
+					source, err = newAzureSource(options)
 					Expect(err).ShouldNot(HaveOccurred())
-					Expect(azure.name).Should(Equal("Azure"))
-					Expect(azure.queryUrl).Should(Equal(queryUrl))
-					Expect(azure.queryInterval).Should(Equal(queryInterval))
+					Expect(source.name).Should(Equal("Azure"))
+					Expect(source.queryUrl).Should(Equal(queryUrl))
+					Expect(source.queryInterval).Should(Equal(queryInterval))
 				})
 			})
 		})
 
 		Describe("Test Azure source refresh", func() {
+			Context("Create source for testing refresh", func() {
+				It("Should create successfully", func() {
+					options := make(map[string]interface{})
+					options[common.OptEnvironment] = common.OptEnvironmentAzure
+					options[common.OptAPIServerURL] = "null"
+					options[common.OptIpamQueryUrl] = "http://"+ipamQueryUrl
+					source, err = newAzureSource(options)
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(source.name).Should(Equal("Azure"))
+					Expect(source.queryUrl).Should(Equal("http://"+ipamQueryUrl))
+					Expect(source.queryInterval).Should(Equal(azureQueryInterval))
+				})
+			})
+
+			Context("When time interval is less", func() {
+				It("Should return nil", func() {
+					source.lastRefresh = time.Now()
+					source.queryInterval = time.Hour
+					err = source.refresh()
+					Expect(err).To(BeNil())
+					source.queryInterval = time.Nanosecond
+				})
+			})
+
+			Context("When newAddressSpace err", func() {
+				It("Exit with error when refresh", func() {
+					sink := &addressManagerMock{false, true}
+					err = source.start(sink)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(source.sink).NotTo(BeNil())
+					err = source.refresh()
+					Expect(err).To(HaveOccurred())
+				})
+			})
+
+			Context("When setAddressSpace err", func() {
+				It("Exit with error when refresh", func() {
+					sink := &addressManagerMock{true, false}
+					err = source.start(sink)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(source.sink).NotTo(BeNil())
+					err = source.refresh()
+					Expect(err).To(HaveOccurred())
+				})
+			})
+
 			Context("When create new azure source with options", func() {
 				It("Should return with default queryInterval", func() {
 					options := make(map[string]interface{})
