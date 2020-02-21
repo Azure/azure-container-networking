@@ -39,6 +39,15 @@ func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo *netw
 		return nil, err
 	}
 
+	/*
+	 * Return in case of endpoint is already attached and consecutive add call doesn't need to be handled
+	 */
+	endpoint, _ := GetHNSEndpointByID(endpointId)
+	isAttached, err := endpoint.IsAttached(args.ContainerID)
+	if isAttached {
+		return nil, err
+	}
+
 	hnsEndpoint, err := hcsshim.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)
