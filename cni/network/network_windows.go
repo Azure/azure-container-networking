@@ -42,9 +42,10 @@ func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo *netw
 	/*
 	 * Return in case of endpoint is already attached and consecutive add call doesn't need to be handled
 	 */
-	endpoint, _ := GetHNSEndpointByID(endpointId)
+	endpoint, err := GetHNSEndpointByID(endpointId)
 	isAttached, err := endpoint.IsAttached(args.ContainerID)
 	if isAttached {
+		log.Printf("No consecutive Add needed since endpoint is already attatched")
 		return nil, err
 	}
 
