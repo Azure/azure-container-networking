@@ -39,6 +39,10 @@ func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo *netw
 		return nil, err
 	}
 
+	/*
+	 * Going to add return early logic here.
+	 */
+
 	hnsEndpoint, err := hcsshim.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)
