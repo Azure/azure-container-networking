@@ -10,17 +10,17 @@ param(
     [string]
     [parameter(Mandatory=$true)]
     [ValidateNotNullOrEmpty()]
-    $PluginVersion = "v0.7",
+    $PluginVersion = "v1.0.33",
 
     [string]
     [parameter(Mandatory=$false)]
     [ValidateNotNullOrEmpty()]
-    $CniBinDir = "c:\cni\bin",
+    $CniBinDir = "c:\k\azurecni\bin",
 
     [string]
     [parameter(Mandatory=$false)]
     [ValidateNotNullOrEmpty()]
-    $CniNetConfDir = "c:\cni\netconf"
+    $CniNetConfDir = "c:\k\azurecni\netconf"
 )
 
 function
