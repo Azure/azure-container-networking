@@ -6,10 +6,10 @@ import (
 )
 
 func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[string]string, stateRules map[string]string) {
-	log.Printf("deleteRulesNotExistInMap function called\n")
-	table := "nat"
+
+	table := ebtables.Nat
 	action := ebtables.Delete
-	//Here I think
+
 	for rule, chain := range chainRules {
 		if _, ok := stateRules[rule]; !ok {
 			if itr, ok := networkMonitor.DeleteRulesToBeValidated[rule]; ok && itr > 0 {
@@ -28,8 +28,8 @@ func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[st
 }
 
 func deleteRulesExistInMap(originalChainRules map[string]string, stateRules map[string]string) {
-	log.Printf("deleteRulesExistinMap funciton called\n")
-	table := "nat"
+
+	table := ebtables.Nat
 	action := ebtables.Delete
 
 	for rule, chain := range originalChainRules {
@@ -45,9 +45,8 @@ func deleteRulesExistInMap(originalChainRules map[string]string, stateRules map[
 func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 	stateRules map[string]string,
 	chainRules map[string]string) {
-	log.Printf("addRulesNotExistInMap funciton called \n")
 
-	table := "nat"
+	table := ebtables.Nat
 	action := ebtables.Append
 
 	for rule, chain := range stateRules {
@@ -70,12 +69,11 @@ func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 func (networkMonitor *NetworkMonitor) CreateRequiredL2Rules(
 	currentEbtableRulesMap map[string]string,
 	currentStateRulesMap map[string]string) error {
-	log.Printf("CreateRequiredL2Rules function called\n")
 
 	for rule := range networkMonitor.AddRulesToBeValidated {
-		log.Printf("Rule in AddRulesToBeValidated %v", rule)
+		log.Printf("[monitor] Rule in AddRulesToBeValidated %v", rule)
 		if _, ok := currentStateRulesMap[rule]; !ok {
-			log.Printf("Deleting Rule")
+			log.Printf("[monitor] Deleting Rule from AddRulesToBeValidated %v", rule)
 			delete(networkMonitor.AddRulesToBeValidated, rule)
 		}
 	}
@@ -88,27 +86,14 @@ func (networkMonitor *NetworkMonitor) CreateRequiredL2Rules(
 func (networkMonitor *NetworkMonitor) RemoveInvalidL2Rules(
 	currentEbtableRulesMap map[string]string,
 	currentStateRulesMap map[string]string) error {
-	log.Printf("RemoveInvalidL2Rules function called\n")
 
 	for rule := range networkMonitor.DeleteRulesToBeValidated {
-		log.Printf("Checking DeleteRulesToBeValidated rule: %v", rule)
+		log.Printf("[monitor] Checking DeleteRulesToBeValidated rule: %v", rule)
 		if _, ok := currentEbtableRulesMap[rule]; !ok {
-			log.Printf("DeleteRulesToBeValidated deleting rule: %v", rule)
+			log.Printf("[monitor] DeleteRulesToBeValidated deleting rule: %v", rule)
 			delete(networkMonitor.DeleteRulesToBeValidated, rule)
 		}
 	}
-
-	// originalChainRules := make(map[string]string)
-
-	// if err := generateL2RulesMap(originalChainRules, ebtables.PreRouting); err != nil {
-	// 	return err
-	// }
-
-	// if err := generateL2RulesMap(originalChainRules, ebtables.PostRouting); err != nil {
-	// 	return err
-	// }
-
-	// deleteRulesExistInMap(originalChainRules, currentEbtableRulesMap)
 
 	networkMonitor.deleteRulesNotExistInMap(currentEbtableRulesMap, currentStateRulesMap)
 
@@ -116,8 +101,8 @@ func (networkMonitor *NetworkMonitor) RemoveInvalidL2Rules(
 }
 
 func generateL2RulesMap(currentEbtableRulesMap map[string]string, chainName string) error {
-	log.Printf("generateL2RulesMap funciton called\n")
-	table := "nat"
+
+	table := ebtables.Nat
 	rules, err := ebtables.GetEbtableRules(table, chainName)
 
 	if err != nil {
@@ -125,8 +110,6 @@ func generateL2RulesMap(currentEbtableRulesMap map[string]string, chainName stri
 			table, chainName, err)
 		return err
 	}
-
-	log.Printf("[monitor] Rules count : %v", len(rules))
 
 	for _, rule := range rules {
 		log.Printf("[monitor] Adding rule %s mapped to chainName %s.", rule, chainName)
@@ -137,7 +120,7 @@ func generateL2RulesMap(currentEbtableRulesMap map[string]string, chainName stri
 }
 
 func GetEbTableRulesInMap() (map[string]string, error) {
-	log.Printf("GetEbtableRulesInMap funciton called \n")
+
 	currentEbtableRulesMap := make(map[string]string)
 
 	if err := generateL2RulesMap(currentEbtableRulesMap, ebtables.PreRouting); err != nil {

@@ -90,8 +90,6 @@ func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 }
 
 func startMonitorIfNotRunning(nwCfg *cni.NetworkConfig) error {
-	log.Printf("startMonitorIfNotRunning function called")
-
 	if nwCfg != nil {
 
 		netmon := nwCfg.NetworkMonitor

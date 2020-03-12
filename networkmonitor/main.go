@@ -108,12 +108,12 @@ func main() {
 	log.SetName(name)
 	log.SetLevel(logLevel)
 	if err := log.SetTargetLogDirectory(logTarget, logDirectory); err != nil {
-		fmt.Printf("[netmon] Failed to configure logging: %v\n", err)
+		fmt.Printf("[monitor] Failed to configure logging: %v\n", err)
 		return
 	}
 
 	// Log platform information.
-	log.Printf("Running on %v", platform.GetOSInfo())
+	log.Printf("[monitor] Running on %v", platform.GetOSInfo())
 
 	netMonitor := &cnms.NetworkMonitor{
 		AddRulesToBeValidated:    make(map[string]int),
@@ -123,28 +123,28 @@ func main() {
 	for true {
 		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + pluginName + ".json")
 		if err != nil {
-			fmt.Printf("Failed to create store: %v\n", err)
+			fmt.Printf("[monitor] Failed to create store: %v\n", err)
 			return
 		}
 
 		nm, err := network.NewNetworkManager()
 		if err != nil {
-			log.Printf("Failed while creating network manager")
+			log.Printf("[monitor] Failed while creating network manager")
 			return
 		}
 
 		if err := nm.Initialize(&config); err != nil {
-			log.Printf("Failed while initializing network manager %+v", err)
+			log.Printf("[monitor] Failed while initializing network manager %+v", err)
 		}
 
-		log.Printf("network manager:%+v", nm)
+		log.Printf("[monitor] network manager:%+v", nm)
 
 		if err := nm.SetupNetworkUsingState(netMonitor); err != nil {
-			log.Printf("Failed while calling SetupNetworkUsingState with error %v", err)
+			log.Printf("[monitor] Failed while calling SetupNetworkUsingState with error %v", err)
 			return
 		}
 
-		log.Printf("Going to sleep for %v seconds", timeout)
+		log.Printf("[monitor] Going to sleep for %v seconds", timeout)
 		time.Sleep(time.Duration(timeout) * time.Second)
 		nm = nil
 	}

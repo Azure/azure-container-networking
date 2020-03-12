@@ -9,7 +9,7 @@ import (
 )
 
 func (nm *networkManager) monitorNetworkState(networkMonitor *cnms.NetworkMonitor) error {
-	log.Printf("monitorNetworkState function called\n")
+
 	currentEbtableRulesMap, err := cnms.GetEbTableRulesInMap()
 
 	if err != nil {
@@ -19,24 +19,14 @@ func (nm *networkManager) monitorNetworkState(networkMonitor *cnms.NetworkMonito
 
 	currentStateRulesMap := nm.AddStateRulesToMap()
 
-	log.Printf("CurrentEbtableRulesMap: \n%v\n", currentEbtableRulesMap)
-	log.Printf("currentStateRulesMap: \n%v\n", currentStateRulesMap)
-
 	networkMonitor.CreateRequiredL2Rules(currentEbtableRulesMap, currentStateRulesMap)
-
-	log.Printf("CurrentEbtableRulesMap after CreateRequiredl2rules: \n%v\n", currentEbtableRulesMap)
-	log.Printf("currentStateRulesMap after CreateRequiredL2Rules: \n%v\n", currentStateRulesMap)
-
 	networkMonitor.RemoveInvalidL2Rules(currentEbtableRulesMap, currentStateRulesMap)
-
-	log.Printf("CurrentEbtableRulesMap after RemoveInvalid: \n%v\n", currentEbtableRulesMap)
-	log.Printf("currentStateRulesMap after RemoveInvalid: \n%v\n", currentStateRulesMap)
 
 	return nil
 }
 
 func (nm *networkManager) AddStateRulesToMap() map[string]string {
-	log.Printf("AddStateRulesToMap funciton called\n")
+
 	rulesMap := make(map[string]string)
 
 	for _, extIf := range nm.ExternalInterfaces {
