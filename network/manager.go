@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
@@ -67,6 +68,7 @@ type NetworkManager interface {
 	DetachEndpoint(networkId string, endpointId string) error
 	UpdateEndpoint(networkId string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error
 	GetNumberOfEndpoints(ifName string, networkId string) int
+	SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error
 }
 
 // Creates a new network manager.
@@ -105,6 +107,9 @@ func (nm *networkManager) restore() error {
 	// Ignore the persisted state if it is older than the last reboot time.
 
 	// Read any persisted state.
+	nm.Lock()
+	defer nm.Unlock()
+
 	err := nm.store.Read(storeKey, nm)
 	if err != nil {
 		if err == store.ErrKeyNotFound {
@@ -486,4 +491,9 @@ func (nm *networkManager) GetNumberOfEndpoints(ifName string, networkId string) 
 	}
 
 	return 0
+}
+
+func (nm *networkManager) SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error {
+	log.Printf("SetupNetworkUsingState function called")
+	return nm.monitorNetworkState(networkMonitor)
 }

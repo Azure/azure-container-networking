@@ -1,7 +1,9 @@
 package network
 
 import (
+	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -9,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
+	"github.com/Azure/azure-container-networking/platform"
 
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -18,6 +21,7 @@ import (
 const (
 	snatInterface  = "eth1"
 	infraInterface = "eth2"
+	binPath        = "/opt/cni/bin"
 )
 
 const (
@@ -83,6 +87,45 @@ func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 
 		result.Interfaces = append(result.Interfaces, snatIface)
 	}
+}
+
+func startMonitorIfNotRunning(nwCfg *cni.NetworkConfig) error {
+	log.Printf("startMonitorIfNotRunning function called")
+
+	if nwCfg != nil {
+
+		netmon := nwCfg.NetworkMonitor
+		if netmon.Name == "" {
+			return fmt.Errorf("NetworkMonitor is not set in conflist")
+		}
+
+		if netmon.Disable == true {
+			log.Printf("Network Monitor is not enabled")
+			return nil
+		}
+
+		cmd := fmt.Sprintf("pgrep -x %v", netmon.Name)
+		_, err := platform.ExecuteCommand(cmd)
+		if err == nil {
+			log.Printf("Azure Network monitor is already running")
+		}
+
+		cmd = fmt.Sprintf(binPath+"/%v", netmon.Name)
+
+		if netmon.Interval != 0 {
+			cmd = fmt.Sprintf("%v -it %v", cmd, netmon.Interval)
+		}
+
+		startCmd := exec.Command("sh", "-c", cmd)
+		if err := startCmd.Start(); err != nil {
+			log.Printf("startcmd failed with error %v", err)
+			return err
+		}
+
+		log.Printf("Azure Network Monitor started")
+	}
+
+	return nil
 }
 
 func setupInfraVnetRoutingForMultitenancy(

@@ -67,6 +67,11 @@ type NetworkConfig struct {
 		Address       string `json:"ipAddress,omitempty"`
 		QueryInterval string `json:"queryInterval,omitempty"`
 	}
+	NetworkMonitor struct {
+		Name     string `json:"name"`
+		Interval int    `json:"interval,omitempty"`
+		Disable  bool   `json:"disable,omitempty"`
+	}
 	DNS            cniTypes.DNS  `json:"dns"`
 	RuntimeConfig  RuntimeConfig `json:"runtimeConfig"`
 	AdditionalArgs []KVPair

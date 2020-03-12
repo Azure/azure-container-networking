@@ -53,6 +53,11 @@ const (
 	OptReportToHostInterval      = "report-interval"
 	OptReportToHostIntervalAlias = "hostinterval"
 
+	// Periodic Interval Time
+	OptIntervalTime        = "interval"
+	OptIntervalTimeAlias   = "it"
+	OptDefaultIntervalTime = "defaultinterval"
+
 	// Version.
 	OptVersion      = "version"
 	OptVersionAlias = "v"

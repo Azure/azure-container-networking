@@ -118,6 +118,9 @@ func setEndpointOptions(cnsNwConfig *cns.GetNetworkContainerResponse, epInfo *ne
 func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 }
 
+func startMonitorIfNotRunning(nwCfg *cni.NetworkConfig) error {
+}
+
 func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPrefix *net.IPNet) error {
 	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
 		ipconfig := cnsNwConfig.IPConfiguration

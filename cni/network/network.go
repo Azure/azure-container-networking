@@ -263,6 +263,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
 
+	if err := startMonitorIfNotRunning(nwCfg); err != nil {
+		log.Printf("Starting network monitor failed with %v", err)
+	}
+
 	// Temporary if block to determing whether we disable SNAT on host (for multi-tenant scenario only)
 	if nwCfg.MultiTenancy {
 		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = determineSnat(); err != nil {
