@@ -494,6 +494,5 @@ func (nm *networkManager) GetNumberOfEndpoints(ifName string, networkId string) 
 }
 
 func (nm *networkManager) SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error {
-	log.Printf("SetupNetworkUsingState function called")
 	return nm.monitorNetworkState(networkMonitor)
 }

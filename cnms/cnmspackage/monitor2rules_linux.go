@@ -27,21 +27,6 @@ func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[st
 	}
 }
 
-func deleteRulesExistInMap(originalChainRules map[string]string, stateRules map[string]string) {
-
-	table := ebtables.Nat
-	action := ebtables.Delete
-
-	for rule, chain := range originalChainRules {
-		if _, ok := stateRules[rule]; ok {
-			log.Printf("[monitor] Deleting Ebtable rule which existed in map %v", rule)
-			if err := ebtables.SetEbRule(table, action, chain, rule); err != nil {
-				log.Printf("[monitor] Error while deleting ebtable rule %v", err)
-			}
-		}
-	}
-}
-
 func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 	stateRules map[string]string,
 	chainRules map[string]string) {
@@ -71,9 +56,7 @@ func (networkMonitor *NetworkMonitor) CreateRequiredL2Rules(
 	currentStateRulesMap map[string]string) error {
 
 	for rule := range networkMonitor.AddRulesToBeValidated {
-		log.Printf("[monitor] Rule in AddRulesToBeValidated %v", rule)
 		if _, ok := currentStateRulesMap[rule]; !ok {
-			log.Printf("[monitor] Deleting Rule from AddRulesToBeValidated %v", rule)
 			delete(networkMonitor.AddRulesToBeValidated, rule)
 		}
 	}
@@ -88,9 +71,7 @@ func (networkMonitor *NetworkMonitor) RemoveInvalidL2Rules(
 	currentStateRulesMap map[string]string) error {
 
 	for rule := range networkMonitor.DeleteRulesToBeValidated {
-		log.Printf("[monitor] Checking DeleteRulesToBeValidated rule: %v", rule)
 		if _, ok := currentEbtableRulesMap[rule]; !ok {
-			log.Printf("[monitor] DeleteRulesToBeValidated deleting rule: %v", rule)
 			delete(networkMonitor.DeleteRulesToBeValidated, rule)
 		}
 	}
@@ -112,7 +93,6 @@ func generateL2RulesMap(currentEbtableRulesMap map[string]string, chainName stri
 	}
 
 	for _, rule := range rules {
-		log.Printf("[monitor] Adding rule %s mapped to chainName %s.", rule, chainName)
 		currentEbtableRulesMap[rule] = chainName
 	}
 
