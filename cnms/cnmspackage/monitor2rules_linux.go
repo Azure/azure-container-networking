@@ -5,6 +5,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 )
 
+// deleteRulesNotExistInMap deletes rules from nat Ebtable if rule was not in stateRules after a certain number of iterations.
 func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[string]string, stateRules map[string]string) {
 
 	table := ebtables.Nat
@@ -27,6 +28,7 @@ func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[st
 	}
 }
 
+// addRulesNotExistInMap adds rules to nat Ebtable if rule was in stateRules and not in current chain rules after a certain number of iterations.
 func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 	stateRules map[string]string,
 	chainRules map[string]string) {
@@ -37,7 +39,7 @@ func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 	for rule, chain := range stateRules {
 		if _, ok := chainRules[rule]; !ok {
 			if itr, ok := networkMonitor.AddRulesToBeValidated[rule]; ok && itr > 0 {
-				log.Printf("[monitor] Adding Ebtable rule as it didn't exist in state for %d iterations chain %v rule %v", itr, chain, rule)
+				log.Printf("[monitor] Adding Ebtable rule as it existed in state rules but not in current chain rules for %d iterations chain %v rule %v", itr, chain, rule)
 				if err := ebtables.SetEbRule(table, action, chain, rule); err != nil {
 					log.Printf("[monitor] Error while adding ebtable rule %v", err)
 				}
@@ -51,6 +53,7 @@ func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 	}
 }
 
+// CreateRequiredL2Rules finds the rules that should be in nat ebtable based on state.
 func (networkMonitor *NetworkMonitor) CreateRequiredL2Rules(
 	currentEbtableRulesMap map[string]string,
 	currentStateRulesMap map[string]string) error {
@@ -60,12 +63,12 @@ func (networkMonitor *NetworkMonitor) CreateRequiredL2Rules(
 			delete(networkMonitor.AddRulesToBeValidated, rule)
 		}
 	}
-
 	networkMonitor.addRulesNotExistInMap(currentStateRulesMap, currentEbtableRulesMap)
 
 	return nil
 }
 
+// RemoveInvalidL2Rules removes rules that should not be in nat ebtable based on state.
 func (networkMonitor *NetworkMonitor) RemoveInvalidL2Rules(
 	currentEbtableRulesMap map[string]string,
 	currentStateRulesMap map[string]string) error {
@@ -75,17 +78,15 @@ func (networkMonitor *NetworkMonitor) RemoveInvalidL2Rules(
 			delete(networkMonitor.DeleteRulesToBeValidated, rule)
 		}
 	}
-
 	networkMonitor.deleteRulesNotExistInMap(currentEbtableRulesMap, currentStateRulesMap)
 
 	return nil
 }
 
+// generateL2RulesMap gets rules from chainName and puts them in currentEbtableRulesMap.
 func generateL2RulesMap(currentEbtableRulesMap map[string]string, chainName string) error {
-
 	table := ebtables.Nat
 	rules, err := ebtables.GetEbtableRules(table, chainName)
-
 	if err != nil {
 		log.Printf("[monitor] Error while getting rules list from table %v chain %v. Error: %v",
 			table, chainName, err)
@@ -99,14 +100,12 @@ func generateL2RulesMap(currentEbtableRulesMap map[string]string, chainName stri
 	return nil
 }
 
+// GetEbTableRulesInMap gathers prerouting and postrouting rules into a map.
 func GetEbTableRulesInMap() (map[string]string, error) {
-
 	currentEbtableRulesMap := make(map[string]string)
-
 	if err := generateL2RulesMap(currentEbtableRulesMap, ebtables.PreRouting); err != nil {
 		return nil, err
 	}
-
 	if err := generateL2RulesMap(currentEbtableRulesMap, ebtables.PostRouting); err != nil {
 		return nil, err
 	}

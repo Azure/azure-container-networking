@@ -84,13 +84,11 @@ func printVersion() {
 func main() {
 	// Initialize and parse command line arguments.
 	acn.ParseArgs(&args, printVersion)
-
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
 	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
 	timeout := acn.GetArg(acn.OptIntervalTime).(int)
 	vers := acn.GetArg(acn.OptVersion).(bool)
-
 	if vers {
 		printVersion()
 		os.Exit(0)

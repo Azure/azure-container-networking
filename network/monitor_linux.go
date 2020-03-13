@@ -8,25 +8,22 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 )
 
+// monitorNetworkState compares current ebtable nat rules with state rules and matches state.
 func (nm *networkManager) monitorNetworkState(networkMonitor *cnms.NetworkMonitor) error {
-
 	currentEbtableRulesMap, err := cnms.GetEbTableRulesInMap()
-
 	if err != nil {
 		log.Printf("GetEbTableRulesInMap failed with error %v", err)
 		return err
 	}
-
 	currentStateRulesMap := nm.AddStateRulesToMap()
-
 	networkMonitor.CreateRequiredL2Rules(currentEbtableRulesMap, currentStateRulesMap)
 	networkMonitor.RemoveInvalidL2Rules(currentEbtableRulesMap, currentStateRulesMap)
 
 	return nil
 }
 
+// AddStateRulesToMap adds rules to state based off network manager settings.
 func (nm *networkManager) AddStateRulesToMap() map[string]string {
-
 	rulesMap := make(map[string]string)
 
 	for _, extIf := range nm.ExternalInterfaces {

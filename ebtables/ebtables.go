@@ -15,10 +15,10 @@ const (
 	// Ebtables actions.
 	Append = "-A"
 	Delete = "-D"
-	// Ebtables
+	// Ebtables tables.
 	Nat    = "nat"
 	Broute = "broute"
-	// Ebtable chains
+	// Ebtable chains.
 	PreRouting  = "PREROUTING"
 	PostRouting = "POSTROUTING"
 	Brouting    = "BROUTING"
@@ -95,7 +95,6 @@ func SetDnatForIPAddress(interfaceName string, ipAddress net.IP, macAddress net.
 
 // SetEbRule sets any given eb rule
 func SetEbRule(table, action, chain, rule string) error {
-
 	return runEbCmd(table, action, chain, rule)
 }
 
