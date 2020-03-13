@@ -18,7 +18,6 @@ import (
 const (
 	snatInterface  = "eth1"
 	infraInterface = "eth2"
-	binPath        = "/opt/cni/bin"
 )
 
 const (

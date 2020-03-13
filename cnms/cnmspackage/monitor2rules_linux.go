@@ -63,6 +63,7 @@ func (networkMonitor *NetworkMonitor) CreateRequiredL2Rules(
 			delete(networkMonitor.AddRulesToBeValidated, rule)
 		}
 	}
+
 	networkMonitor.addRulesNotExistInMap(currentStateRulesMap, currentEbtableRulesMap)
 
 	return nil
@@ -78,6 +79,7 @@ func (networkMonitor *NetworkMonitor) RemoveInvalidL2Rules(
 			delete(networkMonitor.DeleteRulesToBeValidated, rule)
 		}
 	}
+
 	networkMonitor.deleteRulesNotExistInMap(currentEbtableRulesMap, currentStateRulesMap)
 
 	return nil
@@ -106,6 +108,7 @@ func GetEbTableRulesInMap() (map[string]string, error) {
 	if err := generateL2RulesMap(currentEbtableRulesMap, ebtables.PreRouting); err != nil {
 		return nil, err
 	}
+
 	if err := generateL2RulesMap(currentEbtableRulesMap, ebtables.PostRouting); err != nil {
 		return nil, err
 	}

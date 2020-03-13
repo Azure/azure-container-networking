@@ -15,6 +15,7 @@ func (nm *networkManager) monitorNetworkState(networkMonitor *cnms.NetworkMonito
 		log.Printf("GetEbTableRulesInMap failed with error %v", err)
 		return err
 	}
+
 	currentStateRulesMap := nm.AddStateRulesToMap()
 	networkMonitor.CreateRequiredL2Rules(currentEbtableRulesMap, currentStateRulesMap)
 	networkMonitor.RemoveInvalidL2Rules(currentEbtableRulesMap, currentStateRulesMap)

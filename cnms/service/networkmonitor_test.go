@@ -25,7 +25,6 @@ func TestMain(m *testing.M) {
 
 func addStateRulesToMap() map[string]string {
 	rulesMap := make(map[string]string)
-
 	for _, value := range stateMapkey {
 		rulesMap[value] = ebtables.PreRouting
 	}

@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	// Ebtables actions.
+	// Ebtable actions.
 	Append = "-A"
 	Delete = "-D"
-	// Ebtables tables.
+	// Ebtable tables.
 	Nat    = "nat"
 	Broute = "broute"
 	// Ebtable chains.
@@ -71,8 +71,7 @@ func SetVepaMode(bridgeName string, downstreamIfNamePrefix string, upstreamMacAd
 	if !strings.HasPrefix(bridgeName, downstreamIfNamePrefix) {
 		rule := fmt.Sprintf("-i %s -j dnat --to-dst %s --dnat-target ACCEPT", bridgeName, upstreamMacAddress)
 
-		err := runEbCmd(table, action, chain, rule)
-		if err != nil {
+		if err := runEbCmd(table, action, chain, rule); err != nil {
 			return err
 		}
 	}
