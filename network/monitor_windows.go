@@ -1,3 +1,3 @@
-func (nm *networkManager) monitorNetworkState() error {
+func (nm *networkManager) monitorNetworkState(networkMonitor *cnms.NetworkMonitor) error {
 	return nil
 }
