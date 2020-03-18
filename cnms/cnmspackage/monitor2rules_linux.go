@@ -21,7 +21,7 @@ func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[st
 
 				delete(networkMonitor.DeleteRulesToBeValidated, rule)
 			} else {
-				log.Printf("[DELETE] Found unmatched rule chain %v rule %v itr %d. Giving one more iteration", chain, rule, itr)
+				log.Printf("[DELETE] Found unmatched rule chain %v rule %v itr %d. Giving one more iteration.", chain, rule, itr)
 				networkMonitor.DeleteRulesToBeValidated[rule] = itr + 1
 			}
 		}
