@@ -6,6 +6,7 @@
          "type":"azure-vnet",
          "mode":"bridge",
          "bridge":"azure0",
+         "disableHairpinOnHostInterface":true,
          "ipsToRouteViaHost":["169.254.20.10"],
          "ipam":{
             "type":"azure-vnet-ipam"
