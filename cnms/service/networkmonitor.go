@@ -14,13 +14,16 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-container-networking/telemetry"
 )
 
 const (
 	// Service name.
-	name                    = "azure-cnimonitor"
-	pluginName              = "azure-vnet"
-	DEFAULT_TIMEOUT_IN_SECS = "10"
+	name                            = "azure-cnimonitor"
+	pluginName                      = "azure-vnet"
+	DEFAULT_TIMEOUT_IN_SECS         = "10"
+	telemetryNumRetries             = 5
+	telemetryWaitTimeInMilliseconds = 200
 )
 
 // Version is populated by make during build.
@@ -113,10 +116,28 @@ func main() {
 	// Log platform information.
 	log.Printf("[monitor] Running on %v", platform.GetOSInfo())
 
+	reportManager := &telemetry.ReportManager{
+		ContentType: telemetry.ContentType,
+		Report: &telemetry.CNIReport{
+			Context:          "AzureCNINetworkMonitor",
+			Version:          version,
+			SystemDetails:    telemetry.SystemInfo{},
+			InterfaceDetails: telemetry.InterfaceInfo{},
+			BridgeDetails:    telemetry.BridgeInfo{},
+		},
+	}
+
+	reportManager.Report.(*telemetry.CNIReport).GetOSDetails()
+
 	netMonitor := &cnms.NetworkMonitor{
 		AddRulesToBeValidated:    make(map[string]int),
 		DeleteRulesToBeValidated: make(map[string]int),
+		CNIReport:                reportManager.Report.(*telemetry.CNIReport),
 	}
+
+	tb := telemetry.NewTelemetryBuffer("")
+	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
+	defer tb.Close()
 
 	for true {
 		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + pluginName + ".json")
@@ -139,6 +160,18 @@ func main() {
 
 		if err := nm.SetupNetworkUsingState(netMonitor); err != nil {
 			log.Printf("[monitor] Failed while calling SetupNetworkUsingState with error %v", err)
+		}
+
+		if netMonitor.CNIReport.ErrorMessage != "" {
+			log.Printf("[monitor] Reporting discrepancy in rules")
+			netMonitor.CNIReport.Timestamp = time.Now().Format("2006-01-02 15:04:05")
+			if err := reportManager.SendReport(tb); err != nil {
+				log.Errorf("[monitor] SendReport failed due to %v", err)
+			} else {
+				log.Printf("[monitor] Reported successfully")
+			}
+
+			netMonitor.CNIReport.ErrorMessage = ""
 		}
 
 		log.Printf("[monitor] Going to sleep for %v seconds", timeout)

@@ -6,6 +6,7 @@ import (
 
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/ebtables"
+	"github.com/Azure/azure-container-networking/telemetry"
 )
 
 const (
@@ -35,9 +36,23 @@ func addStateRulesToMap() map[string]string {
 }
 
 func TestAddMissingRule(t *testing.T) {
+	reportManager := &telemetry.ReportManager{
+		ContentType: telemetry.ContentType,
+		Report: &telemetry.CNIReport{
+			Context:          "AzureCNINetworkMonitor",
+			Version:          version,
+			SystemDetails:    telemetry.SystemInfo{},
+			InterfaceDetails: telemetry.InterfaceInfo{},
+			BridgeDetails:    telemetry.BridgeInfo{},
+		},
+	}
+
+	reportManager.Report.(*telemetry.CNIReport).GetOSDetails()
+
 	netMonitor := &cnms.NetworkMonitor{
 		AddRulesToBeValidated:    make(map[string]int),
 		DeleteRulesToBeValidated: make(map[string]int),
+		CNIReport:                reportManager.Report.(*telemetry.CNIReport),
 	}
 
 	currentStateRulesMap := addStateRulesToMap()
@@ -75,9 +90,23 @@ func TestAddMissingRule(t *testing.T) {
 }
 
 func TestDeleteInvalidRule(t *testing.T) {
+	reportManager := &telemetry.ReportManager{
+		ContentType: telemetry.ContentType,
+		Report: &telemetry.CNIReport{
+			Context:          "AzureCNINetworkMonitor",
+			Version:          version,
+			SystemDetails:    telemetry.SystemInfo{},
+			InterfaceDetails: telemetry.InterfaceInfo{},
+			BridgeDetails:    telemetry.BridgeInfo{},
+		},
+	}
+
+	reportManager.Report.(*telemetry.CNIReport).GetOSDetails()
+
 	netMonitor := &cnms.NetworkMonitor{
 		AddRulesToBeValidated:    make(map[string]int),
 		DeleteRulesToBeValidated: make(map[string]int),
+		CNIReport:                reportManager.Report.(*telemetry.CNIReport),
 	}
 
 	currentStateRulesMap := addStateRulesToMap()

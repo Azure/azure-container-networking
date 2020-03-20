@@ -1,6 +1,8 @@
 package cnms
 
 import (
+	"fmt"
+
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
 )
@@ -14,11 +16,14 @@ func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[st
 	for rule, chain := range chainRules {
 		if _, ok := stateRules[rule]; !ok {
 			if itr, ok := networkMonitor.DeleteRulesToBeValidated[rule]; ok && itr > 0 {
-				log.Printf("[monitor] Deleting Ebtable rule as it didn't exist in state for %d iterations chain %v rule %v", itr, chain, rule)
+				buf := fmt.Sprintf("[monitor] Deleting Ebtable rule as it didn't exist in state for %d iterations chain %v rule %v\n", itr, chain, rule)
 				if err := ebtables.SetEbRule(table, action, chain, rule); err != nil {
-					log.Printf("[monitor] Error while deleting ebtable rule %v", err)
+					buf = fmt.Sprintf("[monitor] Error while deleting ebtable rule %v\n", err)
 				}
 
+				log.Printf(buf)
+				networkMonitor.CNIReport.ErrorMessage = buf
+				networkMonitor.CNIReport.OperationType = "EBTableDelete"
 				delete(networkMonitor.DeleteRulesToBeValidated, rule)
 			} else {
 				log.Printf("[DELETE] Found unmatched rule chain %v rule %v itr %d. Giving one more iteration.", chain, rule, itr)
@@ -39,11 +44,14 @@ func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 	for rule, chain := range stateRules {
 		if _, ok := chainRules[rule]; !ok {
 			if itr, ok := networkMonitor.AddRulesToBeValidated[rule]; ok && itr > 0 {
-				log.Printf("[monitor] Adding Ebtable rule as it existed in state rules but not in current chain rules for %d iterations chain %v rule %v", itr, chain, rule)
+				buf := fmt.Sprintf("[monitor] Adding Ebtable rule as it existed in state rules but not in current chain rules for %d iterations chain %v rule %v\n", itr, chain, rule)
 				if err := ebtables.SetEbRule(table, action, chain, rule); err != nil {
-					log.Printf("[monitor] Error while adding ebtable rule %v", err)
+					buf = fmt.Sprintf("[monitor] Error while adding ebtable rule %v\n", err)
 				}
 
+				log.Printf(buf)
+				networkMonitor.CNIReport.ErrorMessage = buf
+				networkMonitor.CNIReport.OperationType = "EBTableAdd"
 				delete(networkMonitor.AddRulesToBeValidated, rule)
 			} else {
 				log.Printf("[ADD] Found unmatched rule chain %v rule %v itr %d. Giving one more iteration", chain, rule, itr)
