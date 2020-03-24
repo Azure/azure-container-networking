@@ -16,9 +16,9 @@ func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[st
 	for rule, chain := range chainRules {
 		if _, ok := stateRules[rule]; !ok {
 			if itr, ok := networkMonitor.DeleteRulesToBeValidated[rule]; ok && itr > 0 {
-				buf := fmt.Sprintf("[monitor] Deleting Ebtable rule as it didn't exist in state for %d iterations chain %v rule %v\n", itr, chain, rule)
+				buf := fmt.Sprintf("[monitor] Deleting Ebtable rule as it didn't exist in state for %d iterations chain %v rule %v", itr, chain, rule)
 				if err := ebtables.SetEbRule(table, action, chain, rule); err != nil {
-					buf = fmt.Sprintf("[monitor] Error while deleting ebtable rule %v\n", err)
+					buf = fmt.Sprintf("[monitor] Error while deleting ebtable rule %v", err)
 				}
 
 				log.Printf(buf)
@@ -44,9 +44,9 @@ func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 	for rule, chain := range stateRules {
 		if _, ok := chainRules[rule]; !ok {
 			if itr, ok := networkMonitor.AddRulesToBeValidated[rule]; ok && itr > 0 {
-				buf := fmt.Sprintf("[monitor] Adding Ebtable rule as it existed in state rules but not in current chain rules for %d iterations chain %v rule %v\n", itr, chain, rule)
+				buf := fmt.Sprintf("[monitor] Adding Ebtable rule as it existed in state rules but not in current chain rules for %d iterations chain %v rule %v", itr, chain, rule)
 				if err := ebtables.SetEbRule(table, action, chain, rule); err != nil {
-					buf = fmt.Sprintf("[monitor] Error while adding ebtable rule %v\n", err)
+					buf = fmt.Sprintf("[monitor] Error while adding ebtable rule %v", err)
 				}
 
 				log.Printf(buf)
