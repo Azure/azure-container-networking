@@ -54,7 +54,7 @@ func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 				networkMonitor.CNIReport.OperationType = "EBTableAdd"
 				delete(networkMonitor.AddRulesToBeValidated, rule)
 			} else {
-				log.Printf("[ADD] Found unmatched rule chain %v rule %v itr %d. Giving one more iteration", chain, rule, itr)
+				log.Printf("[ADD] Found unmatched rule chain %v rule %v itr %d. Giving one more iteration.", chain, rule, itr)
 				networkMonitor.AddRulesToBeValidated[rule] = itr + 1
 			}
 		}
