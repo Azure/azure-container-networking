@@ -36,23 +36,10 @@ func addStateRulesToMap() map[string]string {
 }
 
 func TestAddMissingRule(t *testing.T) {
-	reportManager := &telemetry.ReportManager{
-		ContentType: telemetry.ContentType,
-		Report: &telemetry.CNIReport{
-			Context:          "AzureCNINetworkMonitor",
-			Version:          version,
-			SystemDetails:    telemetry.SystemInfo{},
-			InterfaceDetails: telemetry.InterfaceInfo{},
-			BridgeDetails:    telemetry.BridgeInfo{},
-		},
-	}
-
-	reportManager.Report.(*telemetry.CNIReport).GetOSDetails()
-
 	netMonitor := &cnms.NetworkMonitor{
 		AddRulesToBeValidated:    make(map[string]int),
 		DeleteRulesToBeValidated: make(map[string]int),
-		CNIReport:                reportManager.Report.(*telemetry.CNIReport),
+		CNIReport:                &telemetry.CNIReport{},
 	}
 
 	currentStateRulesMap := addStateRulesToMap()
@@ -90,23 +77,10 @@ func TestAddMissingRule(t *testing.T) {
 }
 
 func TestDeleteInvalidRule(t *testing.T) {
-	reportManager := &telemetry.ReportManager{
-		ContentType: telemetry.ContentType,
-		Report: &telemetry.CNIReport{
-			Context:          "AzureCNINetworkMonitor",
-			Version:          version,
-			SystemDetails:    telemetry.SystemInfo{},
-			InterfaceDetails: telemetry.InterfaceInfo{},
-			BridgeDetails:    telemetry.BridgeInfo{},
-		},
-	}
-
-	reportManager.Report.(*telemetry.CNIReport).GetOSDetails()
-
 	netMonitor := &cnms.NetworkMonitor{
 		AddRulesToBeValidated:    make(map[string]int),
 		DeleteRulesToBeValidated: make(map[string]int),
-		CNIReport:                reportManager.Report.(*telemetry.CNIReport),
+		CNIReport:                &telemetry.CNIReport{},
 	}
 
 	currentStateRulesMap := addStateRulesToMap()
