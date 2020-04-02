@@ -3,8 +3,8 @@
 package npm
 
 import (
-	"testing"
 	"os"
+	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/iptm"
 
@@ -75,9 +75,11 @@ func TestAddNamespace(t *testing.T) {
 		},
 	}
 
+	npMgr.Lock()
 	if err := npMgr.AddNamespace(nsObj); err != nil {
 		t.Errorf("TestAddNamespace @ npMgr.AddNamespace")
 	}
+	npMgr.Unlock()
 }
 
 func TestUpdateNamespace(t *testing.T) {
@@ -121,6 +123,7 @@ func TestUpdateNamespace(t *testing.T) {
 		},
 	}
 
+	npMgr.Lock()
 	if err := npMgr.AddNamespace(oldNsObj); err != nil {
 		t.Errorf("TestUpdateNamespace failed @ npMgr.AddNamespace")
 	}
@@ -128,6 +131,7 @@ func TestUpdateNamespace(t *testing.T) {
 	if err := npMgr.UpdateNamespace(oldNsObj, newNsObj); err != nil {
 		t.Errorf("TestUpdateNamespace failed @ npMgr.UpdateNamespace")
 	}
+	npMgr.Unlock()
 }
 
 func TestDeleteNamespace(t *testing.T) {
@@ -162,6 +166,7 @@ func TestDeleteNamespace(t *testing.T) {
 		},
 	}
 
+	npMgr.Lock()
 	if err := npMgr.AddNamespace(nsObj); err != nil {
 		t.Errorf("TestDeleteNamespace @ npMgr.AddNamespace")
 	}
@@ -169,6 +174,7 @@ func TestDeleteNamespace(t *testing.T) {
 	if err := npMgr.DeleteNamespace(nsObj); err != nil {
 		t.Errorf("TestDeleteNamespace @ npMgr.DeleteNamespace")
 	}
+	npMgr.Unlock()
 }
 
 func TestMain(m *testing.M) {

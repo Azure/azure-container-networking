@@ -69,9 +69,12 @@ func TestAddPod(t *testing.T) {
 			PodIP: "1.2.3.4",
 		},
 	}
+
+	npMgr.Lock()
 	if err := npMgr.AddPod(podObj); err != nil {
 		t.Errorf("TestAddPod failed @ AddPod")
 	}
+	npMgr.Unlock()
 }
 
 func TestUpdatePod(t *testing.T) {
@@ -123,6 +126,7 @@ func TestUpdatePod(t *testing.T) {
 		},
 	}
 
+	npMgr.Lock()
 	if err := npMgr.AddPod(oldPodObj); err != nil {
 		t.Errorf("TestUpdatePod failed @ AddPod")
 	}
@@ -130,6 +134,7 @@ func TestUpdatePod(t *testing.T) {
 	if err := npMgr.UpdatePod(oldPodObj, newPodObj); err != nil {
 		t.Errorf("TestUpdatePod failed @ UpdatePod")
 	}
+	npMgr.Unlock()
 }
 
 func TestDeletePod(t *testing.T) {
@@ -167,6 +172,8 @@ func TestDeletePod(t *testing.T) {
 			PodIP: "1.2.3.4",
 		},
 	}
+
+	npMgr.Lock()
 	if err := npMgr.AddPod(podObj); err != nil {
 		t.Errorf("TestDeletePod failed @ AddPod")
 	}
@@ -174,4 +181,5 @@ func TestDeletePod(t *testing.T) {
 	if err := npMgr.DeletePod(podObj); err != nil {
 		t.Errorf("TestDeletePod failed @ DeletePod")
 	}
+	npMgr.Unlock()
 }
