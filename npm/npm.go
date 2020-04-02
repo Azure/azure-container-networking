@@ -49,8 +49,8 @@ type NetworkPolicyManager struct {
 	isAzureNpmChainCreated       bool
 	isSafeToCleanUpAzureNpmChain bool
 
-	clusterState  telemetry.ClusterState
-	version    string
+	clusterState telemetry.ClusterState
+	version      string
 
 	serverVersion    *version.Info
 	TelemetryEnabled bool
@@ -93,26 +93,26 @@ func (npMgr *NetworkPolicyManager) SendAiMetrics() {
 			GetEnvRetryCount:          5,
 			GetEnvRetryWaitTimeInSecs: 3,
 		}
-		
-		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
-		heartbeat = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
+
+		th, err          = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
 		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.nodeName),
-												"APIServer": npMgr.serverVersion.String()}
+			"APIServer": npMgr.serverVersion.String()}
 		podCount = aitelemetry.Metric{
-			Name: "PodCount",
+			Name:             "PodCount",
 			CustomDimensions: customDimensions,
 		}
 		nsCount = aitelemetry.Metric{
-			Name: "NsCount",
+			Name:             "NsCount",
 			CustomDimensions: customDimensions,
 		}
 		nwPolicyCount = aitelemetry.Metric{
-			Name: "NwPolicyCount",
+			Name:             "NwPolicyCount",
 			CustomDimensions: customDimensions,
 		}
 	)
 
-	for i := 0; err != nil && i < 5; i++{
+	for i := 0; err != nil && i < 5; i++ {
 		log.Logf("Failed to init AppInsights with err: %+v", err)
 		time.Sleep(time.Minute * 5)
 		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
@@ -123,7 +123,7 @@ func (npMgr *NetworkPolicyManager) SendAiMetrics() {
 
 		defer th.Close(10)
 
-		for {	
+		for {
 			<-heartbeat
 			clusterState := npMgr.GetClusterState()
 			podCount.Value = float64(clusterState.PodCount)
@@ -206,7 +206,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		err           error
 	)
 
-	for ticker, start := time.NewTicker(1 * time.Second).C, time.Now(); time.Since(start) < time.Minute * 1; {
+	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
 		<-ticker
 		serverVersion, err = clientset.ServerVersion()
 		if err == nil {
@@ -239,7 +239,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 			NsCount:       0,
 			NwPolicyCount: 0,
 		},
-		version: npmVersion,
+		version:          npmVersion,
 		serverVersion:    serverVersion,
 		TelemetryEnabled: true,
 	}
@@ -257,13 +257,19 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		// Pod event handlers
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
+				npMgr.Lock()
 				npMgr.AddPod(obj.(*corev1.Pod))
+				npMgr.Unlock()
 			},
 			UpdateFunc: func(old, new interface{}) {
+				npMgr.Lock()
 				npMgr.UpdatePod(old.(*corev1.Pod), new.(*corev1.Pod))
+				npMgr.Unlock()
 			},
 			DeleteFunc: func(obj interface{}) {
+				npMgr.Lock()
 				npMgr.DeletePod(obj.(*corev1.Pod))
+				npMgr.Unlock()
 			},
 		},
 	)
@@ -272,13 +278,19 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		// Namespace event handlers
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
+				npMgr.Lock()
 				npMgr.AddNamespace(obj.(*corev1.Namespace))
+				npMgr.Unlock()
 			},
 			UpdateFunc: func(old, new interface{}) {
+				npMgr.Lock()
 				npMgr.UpdateNamespace(old.(*corev1.Namespace), new.(*corev1.Namespace))
+				npMgr.Unlock()
 			},
 			DeleteFunc: func(obj interface{}) {
+				npMgr.Lock()
 				npMgr.DeleteNamespace(obj.(*corev1.Namespace))
+				npMgr.Unlock()
 			},
 		},
 	)
@@ -287,13 +299,19 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		// Network policy event handlers
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
+				npMgr.Lock()
 				npMgr.AddNetworkPolicy(obj.(*networkingv1.NetworkPolicy))
+				npMgr.Unlock()
 			},
 			UpdateFunc: func(old, new interface{}) {
+				npMgr.Lock()
 				npMgr.UpdateNetworkPolicy(old.(*networkingv1.NetworkPolicy), new.(*networkingv1.NetworkPolicy))
+				npMgr.Unlock()
 			},
 			DeleteFunc: func(obj interface{}) {
+				npMgr.Lock()
 				npMgr.DeleteNetworkPolicy(obj.(*networkingv1.NetworkPolicy))
+				npMgr.Unlock()
 			},
 		},
 	)

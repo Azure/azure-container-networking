@@ -55,7 +55,7 @@ func (ns *namespace) policyExists(npObj *networkingv1.NetworkPolicy) bool {
 // InitAllNsList syncs all-namespace ipset list.
 func (npMgr *NetworkPolicyManager) InitAllNsList() error {
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
-	for ns:= range npMgr.nsMap {
+	for ns := range npMgr.nsMap {
 		if ns == util.KubeAllNamespacesFlag {
 			continue
 		}
@@ -88,12 +88,9 @@ func (npMgr *NetworkPolicyManager) UninitAllNsList() error {
 
 // AddNamespace handles adding namespace to ipset.
 func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
-	npMgr.Lock()
-	defer npMgr.Unlock()
-
 	var err error
 
-	nsName, nsLabel := "ns-" + nsObj.ObjectMeta.Name, nsObj.ObjectMeta.Labels
+	nsName, nsLabel := "ns-"+nsObj.ObjectMeta.Name, nsObj.ObjectMeta.Labels
 	log.Printf("NAMESPACE CREATING: [%s/%v]", nsName, nsLabel)
 
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
@@ -139,8 +136,8 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, newNsObj *corev1.Namespace) error {
 	var err error
 
-	oldNsNs, oldNsLabel := "ns-" + oldNsObj.ObjectMeta.Name, oldNsObj.ObjectMeta.Labels
-	newNsNs, newNsLabel := "ns-" + newNsObj.ObjectMeta.Name, newNsObj.ObjectMeta.Labels
+	oldNsNs, oldNsLabel := "ns-"+oldNsObj.ObjectMeta.Name, oldNsObj.ObjectMeta.Labels
+	newNsNs, newNsLabel := "ns-"+newNsObj.ObjectMeta.Name, newNsObj.ObjectMeta.Labels
 	log.Printf(
 		"NAMESPACE UPDATING:\n old namespace: [%s/%v]\n new namespace: [%s/%v]",
 		oldNsNs, oldNsLabel, newNsNs, newNsLabel,
@@ -161,12 +158,9 @@ func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, n
 
 // DeleteNamespace handles deleting namespace from ipset.
 func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) error {
-	npMgr.Lock()
-	defer npMgr.Unlock()
-
 	var err error
 
-	nsName, nsLabel := "ns-" + nsObj.ObjectMeta.Name, nsObj.ObjectMeta.Labels
+	nsName, nsLabel := "ns-"+nsObj.ObjectMeta.Name, nsObj.ObjectMeta.Labels
 	log.Printf("NAMESPACE DELETING: [%s/%v]", nsName, nsLabel)
 
 	_, exists := npMgr.nsMap[nsName]

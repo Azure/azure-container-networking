@@ -19,9 +19,6 @@ func isSystemPod(podObj *corev1.Pod) bool {
 
 // AddPod handles adding pod ip to its label's ipset.
 func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
-	npMgr.Lock()
-	defer npMgr.Unlock()
-
 	if !isValidPod(podObj) {
 		return nil
 	}
@@ -113,9 +110,6 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 
 // DeletePod handles deleting pod from its label's ipset.
 func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
-	npMgr.Lock()
-	defer npMgr.Unlock()
-
 	if !isValidPod(podObj) {
 		return nil
 	}

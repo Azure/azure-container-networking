@@ -25,9 +25,6 @@ func (npMgr *NetworkPolicyManager) canCleanUpNpmChains() bool {
 
 // AddNetworkPolicy handles adding network policy to iptables.
 func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
-	npMgr.Lock()
-	defer npMgr.Unlock()
-
 	var (
 		err error
 		ns  *namespace
@@ -140,9 +137,6 @@ func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.Ne
 
 // DeleteNetworkPolicy handles deleting network policy from iptables.
 func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
-	npMgr.Lock()
-	defer npMgr.Unlock()
-
 	var (
 		err error
 		ns  *namespace
