@@ -209,6 +209,8 @@ func main() {
 	httpConnectionTimeout := acn.GetArg(acn.OptHttpConnectionTimeout).(int)
 	httpResponseHeaderTimeout := acn.GetArg(acn.OptHttpResponseHeaderTimeout).(int)
 	storeFileLocation := acn.GetArg(acn.OptStoreFileLocation).(string)
+	privateEndpoint := acn.GetArg(acn.OptPrivateEndpoint).(string)
+	infravnet := acn.GetArg(acn.OptInfrastructureNetwork).(string)
 
 	if vers {
 		printVersion()
@@ -314,6 +316,13 @@ func main() {
 		go logger.SendToTelemetryService(reports, telemetryStopProcessing)
 		go logger.SendHeartBeat(cnsconfig.TelemetrySettings.HeartBeatIntervalInMins, stopheartbeat)
 		go httpRestService.SendNCSnapShotPeriodically(cnsconfig.TelemetrySettings.SnapshotIntervalInMins, stopSnapshots)
+	}
+
+	// If running on managed DNC mode
+	if privateEndpoint != "" && infravnet != "" {
+		// parse cnsurl for primary identifier
+
+		go httpRestService.RetrieveNodeStatus()
 	}
 
 	var netPlugin network.NetPlugin

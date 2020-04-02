@@ -98,4 +98,12 @@ const (
 	// Store file location
 	OptStoreFileLocation      = "store-file-path"
 	OptStoreFileLocationAlias = "storefilepath"
+
+	// Private Endpoint
+	OptPrivateEndpoint      = "private-endpoint"
+	OptPrivateEndpointAlias = "pe"
+
+	// Infrastructure Network
+	OptInfrastructureNetwork      = "infra-vnet"
+	OptInfrastructureNetworkAlias = "iv"
 )
