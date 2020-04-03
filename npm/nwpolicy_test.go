@@ -61,9 +61,11 @@ func TestAddNetworkPolicy(t *testing.T) {
 		},
 	}
 
+	npMgr.Lock()
 	if err := npMgr.AddNamespace(nsObj); err != nil {
 		t.Errorf("TestAddNetworkPolicy @ npMgr.AddNamespace")
 	}
+	npMgr.Unlock()
 
 	tcp := corev1.ProtocolTCP
 	port8000 := intstr.FromInt(8000)
@@ -172,9 +174,11 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 		},
 	}
 
+	npMgr.Lock()
 	if err := npMgr.AddNamespace(nsObj); err != nil {
 		t.Errorf("TestUpdateNetworkPolicy @ npMgr.AddNamespace")
 	}
+	npMgr.Unlock()
 
 	tcp, udp := corev1.ProtocolTCP, corev1.ProtocolUDP
 	allowIngress := &networkingv1.NetworkPolicy{
@@ -282,9 +286,11 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 		},
 	}
 
+	npMgr.Lock()
 	if err := npMgr.AddNamespace(nsObj); err != nil {
 		t.Errorf("TestDeleteNetworkPolicy @ npMgr.AddNamespace")
 	}
+	npMgr.Unlock()
 
 	tcp := corev1.ProtocolTCP
 	allow := &networkingv1.NetworkPolicy{

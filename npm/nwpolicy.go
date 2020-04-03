@@ -72,9 +72,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 			log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
 		}
 		npMgr.isSafeToCleanUpAzureNpmChain = false
-		npMgr.Unlock()
 		npMgr.DeleteNetworkPolicy(oldPolicy)
-		npMgr.Lock()
 		npMgr.isSafeToCleanUpAzureNpmChain = true
 	} else {
 		ns.processedNpMap[hashedSelector] = npObj
