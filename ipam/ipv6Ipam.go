@@ -245,7 +245,7 @@ func retrieveKubernetesPodIPs(node *v1.Node, subnetMaskBitSize string) (*Network
 	}
 
 	// skip the first address, explicitly save all IP's from the given subnet
-	for i := 1; i < len(addresses); i++ {
+	for i := 2; i < len(addresses); i++ {
 		ipaddress := IPAddress{
 			IsPrimary: false,
 			Address:   addresses[i].String(),

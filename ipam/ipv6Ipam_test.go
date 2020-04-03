@@ -56,7 +56,6 @@ func TestIPv6Ipam(t *testing.T) {
 					{
 						Prefix: "ace:cab:deca:deed::/126",
 						IPAddresses: []IPAddress{
-							{Address: "ace:cab:deca:deed::1", IsPrimary: false},
 							{Address: "ace:cab:deca:deed::2", IsPrimary: false},
 							{Address: "ace:cab:deca:deed::3", IsPrimary: false},
 						},

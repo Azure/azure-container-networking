@@ -13,7 +13,6 @@ var (
 
 	// Pools and addresses used by tests.
 	ipv6subnet1 = "ace:cab:deca:deed::" + testSubnetSize
-	ipv6addr1   = "ace:cab:deca:deed::1"
 	ipv6addr2   = "ace:cab:deca:deed::2"
 	ipv6addr3   = "ace:cab:deca:deed::3"
 )
@@ -73,16 +72,6 @@ func TestIPv6GetAddressPoolAndAddress(t *testing.T) {
 		t.Errorf("Mismatched retrieved subnet, expected:%+v, actual %+v", ipv6subnet1, subnet1)
 	}
 
-	// test with no specified address
-	address1, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolID1, ipv6addr1, nil)
-	if err != nil {
-		t.Errorf("RequestAddress failed, err:%v", err)
-	}
-
-	if address1 != ipv6addr1+testSubnetSize {
-		t.Errorf("RequestAddress failed, expected: %v, actual: %v", ipv6addr1+testSubnetSize, address1)
-	}
-
 	// test with a specified address
 	address2, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolID1, ipv6addr2, nil)
 	if err != nil {
@@ -101,12 +90,6 @@ func TestIPv6GetAddressPoolAndAddress(t *testing.T) {
 
 	if address3 != ipv6addr3+testSubnetSize {
 		t.Errorf("RequestAddress failed, expected: %v, actual: %v", ipv6addr3+testSubnetSize, address3)
-	}
-
-	// Release addresses and the pool.
-	err = am.ReleaseAddress(LocalDefaultAddressSpaceId, poolID1, address1, nil)
-	if err != nil {
-		t.Errorf("ReleaseAddress failed, err:%v", err)
 	}
 
 	// Release addresses and the pool.

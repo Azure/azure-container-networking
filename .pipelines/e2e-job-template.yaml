@@ -1,6 +1,6 @@
 parameters:
   name: ""
-  pipelineBuildImage: "containernetworking/pipeline-ci:1.0.6"
+  pipelineBuildImage: "$(BUILD_IMAGE)"
   clusterDefinition: ""
   clusterDefinitionCniTypeKey: ""
   clusterDefinitionCniBuildOS: ""
