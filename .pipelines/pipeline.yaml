@@ -62,7 +62,6 @@ stages:
             condition: always()
 
           - script: |
-              go get -v -t -d ./...
               go get github.com/docker/libnetwork/driverapi
               go get github.com/gorilla/mux
               go get github.com/jstemmer/go-junit-report
