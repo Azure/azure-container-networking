@@ -30,7 +30,7 @@ stages:
         steps:
           - bash: |
               sudo rm -rf $(System.DefaultWorkingDirectory)/*
-              displayName: "Clean workspace"
+            displayName: "Clean workspace"
             
           - checkout: self
         
