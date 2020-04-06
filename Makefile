@@ -371,6 +371,6 @@ test-all:
         ./cnm/network/ \
         ./cni/ipam/ \
         ./cns/ipamclient/ \
-        ./iptm/ \
-        ./ipsm/ \
+        ./npm/iptm/ \
+        ./npm/ipsm/ \
         ./
