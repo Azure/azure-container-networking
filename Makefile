@@ -198,9 +198,9 @@ $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT): $(CNMSFILES)
 
 # Build the Azure NPM plugin.
 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT): $(NPMFILES)
-	cd $(NPM_DIR)
-	cd $(CNI_TELEMETRY_DIR) && go build -v -o $(ROOT_DIR)/$(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" ./*.go
-	cd $(NPM_DIR) && go build -v -o $(ROOT_DIR)/$(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/npm.aiMetadata=$(NPM_AI_ID) -s -w" ./*.go
+	go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_TELEMETRY_DIR)/*.go
+	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/npm.aiMetadata=$(NPM_AI_ID) -s -w" $(NPM_DIR)/*.go
+
 # Build all binaries in a container.
 .PHONY: all-containerized
 all-containerized:
@@ -370,8 +370,7 @@ test-all:
 		./aitelemetry/ \
         ./cnm/network/ \
         ./cni/ipam/ \
-        ./cns/ipamclient/ 
-	cd npm/ && go test -v -covermode count -coverprofile=coverage-npm.out \
+        ./cns/ipamclient/ \
         ./iptm/ \
         ./ipsm/ \
         ./

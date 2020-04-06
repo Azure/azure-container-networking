@@ -3,6 +3,7 @@
 package npm
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -58,17 +59,17 @@ type NetworkPolicyManager struct {
 
 // GetClusterState returns current cluster state.
 func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
-	pods, err := npMgr.clientset.CoreV1().Pods("").List(metav1.ListOptions{})
+	pods, err := npMgr.clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		log.Logf("Error: Failed to list pods in GetClusterState")
 	}
 
-	namespaces, err := npMgr.clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
+	namespaces, err := npMgr.clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		log.Logf("Error: Failed to list namespaces in GetClusterState")
 	}
 
-	networkpolicies, err := npMgr.clientset.NetworkingV1().NetworkPolicies("").List(metav1.ListOptions{})
+	networkpolicies, err := npMgr.clientset.NetworkingV1().NetworkPolicies("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		log.Logf("Error: Failed to list networkpolicies in GetClusterState")
 	}
