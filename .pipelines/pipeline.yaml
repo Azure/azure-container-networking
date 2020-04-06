@@ -28,18 +28,16 @@ stages:
           modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking" # $(build.repository.name)' # Path to the module's code
 
         steps:
-          - bash: |
-              sudo rm -rf $(System.DefaultWorkingDirectory)/*
-            displayName: "Clean workspace"
-            
-          - checkout: self
         
           - bash: |
               echo $UID
+              sudo rm -rf $(System.DefaultWorkingDirectory)/*
               sudo rm /run/docker/plugins/test.sock || true
               sudo ip link del dev dummy || true
             displayName: "Set up OS environment"
-
+            
+          - checkout: self
+          
           - bash: |
               go version
               go env
