@@ -372,5 +372,4 @@ test-all:
         ./cni/ipam/ \
         ./cns/ipamclient/ \
         ./npm/iptm/ \
-        ./npm/ipsm/ \
-        ./
+        ./npm/ipsm/

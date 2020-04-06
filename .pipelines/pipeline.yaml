@@ -30,9 +30,12 @@ stages:
         steps:
           - bash: |
               echo $UID
+              sudo rm -rf $(System.DefaultWorkingDirectory)/*
               sudo rm /run/docker/plugins/test.sock || true
               sudo ip link del dev dummy || true
             displayName: "Set up OS environment"
+
+          - checkout: self
 
           - bash: |
               go version
@@ -79,18 +82,10 @@ stages:
               make all-binaries VERSION=$(EnvironmentalVariables.Tag)
               export GOOS=linux
               make all-binaries VERSION=$(EnvironmentalVariables.Tag)
+              sudo make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
             workingDirectory: "$(modulePath)"
             name: "Build"
             displayName: "Build"
-
-          - script: |
-              sudo make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
-              echo '$(DOCKER_PASSWORD)' | docker login containernetworking.azurecr.io -u '$(DOCKER_USERNAME)' --password-stdin
-              docker tag $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag) $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
-              docker push $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
-            workingDirectory: "$(modulePath)"
-            name: "PushImages"
-            displayName: "PushNPMImage"
 
           - bash: |
               cd ./output 
@@ -121,6 +116,10 @@ stages:
             condition: always()
 
           - script: |
+              echo '$(DOCKER_PASSWORD)' | docker login containernetworking.azurecr.io -u '$(DOCKER_USERNAME)' --password-stdin
+              docker tag $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag) $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+              docker push $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+
               function auto-retry()
               {
                   export i="1"
@@ -133,18 +132,20 @@ stages:
               auto-retry docker pull mcr.microsoft.com/containernetworking/azure-npm:$(EnvironmentalVariables.Tag)-test
             workingDirectory: "$(modulePath)"
             name: "mcrreplication"
-            displayName: "Wait for MCR"
+            displayName: "Push NPM Image and Wait for MCR"
 
           - task: PublishTestResults@2
             inputs:
               testRunner: JUnit
-              testResultsFiles: $(System.DefaultWorkingDirectory)/**/report.xml
+              testResultsFiles: $(modulePath)/report.xml
+            displayName: "Publish Test Results"
             condition: always()
 
           - task: PublishCodeCoverageResults@1
             inputs:
               codeCoverageTool: Cobertura
-              summaryFileLocation: $(System.DefaultWorkingDirectory)/**/coverage.xml
+              summaryFileLocation: $(modulePath)/coverage.xml
+            displayName: "Publish Code Coverage Results"
             condition: always()
 
           - task: CopyFiles@2
@@ -219,6 +220,7 @@ stages:
         container:
           image: "$(BUILD_IMAGE)"
         steps:
+          - checkout: none
           - task: AzureCLI@1
             inputs:
               azureSubscription: $(ARTIFACT_SUBSCRIPTION)
