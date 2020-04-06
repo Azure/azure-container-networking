@@ -29,8 +29,8 @@ stages:
 
         steps:
           - bash: |
-              rm -rf * $(System.DefaultWorkingDirectory)
-            displayName: "Clean workspace"
+              sudo rm -rf $(System.DefaultWorkingDirectory)/*
+              displayName: "Clean workspace"
             
           - checkout: self
         
