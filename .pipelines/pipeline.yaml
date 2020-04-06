@@ -29,6 +29,12 @@ stages:
 
         steps:
           - bash: |
+              rm -rf * $(System.DefaultWorkingDirectory)
+            displayName: "Clean workspace"
+            
+          - checkout: self
+        
+          - bash: |
               echo $UID
               sudo rm /run/docker/plugins/test.sock || true
               sudo ip link del dev dummy || true
