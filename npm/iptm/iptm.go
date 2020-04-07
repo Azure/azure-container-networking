@@ -182,18 +182,11 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 func (iptMgr *IptablesManager) UninitNpmChains() error {
 	IptablesAzureChainList := []string{
 		util.IptablesAzureChain,
-		util.IptablesAzureKubeSystemChain,
 		util.IptablesAzureIngressPortChain,
 		util.IptablesAzureIngressFromChain,
 		util.IptablesAzureEgressPortChain,
 		util.IptablesAzureEgressToChain,
 		util.IptablesAzureTargetSetsChain,
-		// Below chains exists only for before Azure-NPM:v1.0.27
-		// and should be removed after a baking period.
-		util.IptablesAzureIngressFromNsChain,
-		util.IptablesAzureIngressFromPodChain,
-		util.IptablesAzureEgressToNsChain,
-		util.IptablesAzureEgressToPodChain,
 	}
 
 	// Remove AZURE-NPM chain from FORWARD chain.

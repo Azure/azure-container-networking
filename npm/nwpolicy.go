@@ -179,11 +179,11 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	}
 
 	if npMgr.canCleanUpNpmChains() {
+		npMgr.isAzureNpmChainCreated = false
 		if err = iptMgr.UninitNpmChains(); err != nil {
 			log.Errorf("Error: failed to uninitialize azure-npm chains.")
 			return err
 		}
-		npMgr.isAzureNpmChainCreated = false
 	}
 
 	return nil
