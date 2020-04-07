@@ -322,3 +322,14 @@ func (networkContainerRequestPolicy *NetworkContainerRequestPolicies) Validate()
 	}
 	return nil
 }
+
+// NodeInfoResponse - Struct to hold the node info response.
+type NodeInfoResponse struct {
+	NetworkContainers []CreateNetworkContainerRequest
+}
+
+// JsonErr - Struct to hold err info
+type JsonErr struct {
+	Text       string `json:"Text"`
+	HTTPStatus int    `json:"HttpStatusCode"`
+}

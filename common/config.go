@@ -106,4 +106,8 @@ const (
 	// Infrastructure Network
 	OptInfrastructureNetwork      = "infra-vnet"
 	OptInfrastructureNetworkAlias = "iv"
+
+	// Node ID/Name
+	OptNodeID      = "node-id"
+	OptNodeIDAlias = "n"
 )
