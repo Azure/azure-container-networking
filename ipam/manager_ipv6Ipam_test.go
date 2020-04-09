@@ -6,16 +6,24 @@ package ipam
 import (
 	"testing"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/Azure/azure-container-networking/common"
 )
 
 var (
-
 	// Pools and addresses used by tests.
 	ipv6subnet1 = "ace:cab:deca:deed::" + testSubnetSize
 	ipv6addr2   = "ace:cab:deca:deed::2"
 	ipv6addr3   = "ace:cab:deca:deed::3"
 )
+
+func TestManagerIpv6Ipam(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Manager ipv6ipam Suite")
+}
+
 
 func createTestIpv6AddressManager() (AddressManager, error) {
 	var config common.PluginConfig
@@ -43,69 +51,74 @@ func createTestIpv6AddressManager() (AddressManager, error) {
 	return am, nil
 }
 
-//
-// Address manager tests.
-//
-// request pool, request address with no address specified, request address with address specified,
-// release both addresses, release pool
-func TestIPv6GetAddressPoolAndAddress(t *testing.T) {
-	// Start with the test address space.
-	am, err := createTestIpv6AddressManager()
-	if err != nil {
-		t.Fatalf("createAddressManager failed, err:%+v.", err)
-	}
+var (
+	_ = Describe("Test manager ipv6Ipam", func() {
 
-	// Test if the address spaces are returned correctly.
-	local, _ := am.GetDefaultAddressSpaces()
+		Describe("Test IPv6 get address pool and address", func() {
 
-	if local != LocalDefaultAddressSpaceId {
-		t.Errorf("GetDefaultAddressSpaces returned invalid local address space.")
-	}
+			var (
+				am  AddressManager
+				err  error
+				poolID1 string
+				subnet1 string
+				address2 string
+				address3 string
+			)
 
-	// Request two separate address pools.
-	poolID1, subnet1, err := am.RequestPool(LocalDefaultAddressSpaceId, "", "", nil, true)
-	if err != nil {
-		t.Errorf("RequestPool failed, err:%v", err)
-	}
+			Context("Start with the test address space", func() {
+				It("Should create AddressManager successfully", func() {
+					am, err = createTestIpv6AddressManager()
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
 
-	if subnet1 != ipv6subnet1 {
-		t.Errorf("Mismatched retrieved subnet, expected:%+v, actual %+v", ipv6subnet1, subnet1)
-	}
+			Context("When test if the address spaces are returned correctly", func() {
+				It("GetDefaultAddressSpaces returned valid local address space", func() {
+					local, _ := am.GetDefaultAddressSpaces()
+					Expect(local).To(Equal(LocalDefaultAddressSpaceId))
+				})
+			})
 
-	// test with a specified address
-	address2, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolID1, ipv6addr2, nil)
-	if err != nil {
-		t.Errorf("RequestAddress failed, err:%v", err)
-	}
+			Context("When request two separate address pools", func() {
+				It("Should request pool successfully and return subnet matched ipv6subnet1", func() {
+					poolID1, subnet1, err = am.RequestPool(LocalDefaultAddressSpaceId, "", "", nil, true)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(subnet1).To(Equal(ipv6subnet1))
 
-	if address2 != ipv6addr2+testSubnetSize {
-		t.Errorf("RequestAddress failed, expected: %v, actual: %v", ipv6addr2+testSubnetSize, address2)
-	}
+				})
+			})
 
-	// test with a specified address
-	address3, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolID1, "", nil)
-	if err != nil {
-		t.Errorf("RequestAddress failed, err:%v", err)
-	}
+			Context("When test with a specified address", func() {
+				It("Should request address successfully", func() {
+					address2, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolID1, ipv6addr2, nil)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(address2).To(Equal(ipv6addr2+testSubnetSize))
+				})
+			})
 
-	if address3 != ipv6addr3+testSubnetSize {
-		t.Errorf("RequestAddress failed, expected: %v, actual: %v", ipv6addr3+testSubnetSize, address3)
-	}
+			Context("When test without requesting address explicitly", func() {
+				It("Should request address successfully", func() {
+					address3, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolID1, "", nil)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(address3).To(Equal(ipv6addr3+testSubnetSize))
+				})
+			})
 
-	// Release addresses and the pool.
-	err = am.ReleaseAddress(LocalDefaultAddressSpaceId, poolID1, address2, nil)
-	if err != nil {
-		t.Errorf("ReleaseAddress failed, err:%v", err)
-	}
+			Context("When release address2", func() {
+				It("Should release successfully", func() {
+					err = am.ReleaseAddress(LocalDefaultAddressSpaceId, poolID1, address2, nil)
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
 
-	// Release addresses and the pool.
-	err = am.ReleaseAddress(LocalDefaultAddressSpaceId, poolID1, address3, nil)
-	if err != nil {
-		t.Errorf("ReleaseAddress failed, err:%v", err)
-	}
-
-	err = am.ReleasePool(LocalDefaultAddressSpaceId, poolID1)
-	if err != nil {
-		t.Errorf("ReleasePool failed, err:%v", err)
-	}
-}
+			Context("When release address3 and the pool", func() {
+				It("Should release successfully", func() {
+					err = am.ReleaseAddress(LocalDefaultAddressSpaceId, poolID1, address3, nil)
+					Expect(err).NotTo(HaveOccurred())
+					err = am.ReleasePool(LocalDefaultAddressSpaceId, poolID1)
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
+		})
+	})
+)
