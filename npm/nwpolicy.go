@@ -69,13 +69,16 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	var addedPolicy *networkingv1.NetworkPolicy
 	addedPolicy = nil
 	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
-		addedPolicy, err = addPolicy(oldPolicy, npObj)
-		if err != nil {
-			log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
-		}
 		npMgr.isSafeToCleanUpAzureNpmChain = false
 		npMgr.DeleteNetworkPolicy(oldPolicy)
 		npMgr.isSafeToCleanUpAzureNpmChain = true
+
+		addedPolicy, err = addPolicy(oldPolicy, npObj)
+		if err != nil {
+			log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
+		} else {
+			ns.processedNpMap[hashedSelector] = addedPolicy
+		}
 	} else {
 		ns.processedNpMap[hashedSelector] = npObj
 	}
