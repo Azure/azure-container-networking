@@ -229,12 +229,10 @@ func (iptMgr *IptablesManager) Exists(entry *IptEntry) (bool, error) {
 	iptMgr.OperationFlag = util.IptablesCheckFlag
 	returnCode, err := iptMgr.Run(entry)
 	if err == nil {
-		log.Printf("Rule exists. %+v.", entry)
 		return true, nil
 	}
 
 	if returnCode == iptablesErrDoesNotExist {
-		log.Printf("Rule doesn't exist. %+v.", entry)
 		return false, nil
 	}
 
@@ -341,12 +339,15 @@ func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
 	}
 
 	cmdArgs := append([]string{util.IptablesWaitFlag, entry.LockWaitTimeInSeconds, iptMgr.OperationFlag, entry.Chain}, entry.Specs...)
-	log.Printf("Executing iptables command %s %v", cmdName, cmdArgs)
-	_, err := exec.Command(cmdName, cmdArgs...).Output()
 
+	if iptMgr.OperationFlag != util.IptablesCheckFlag {
+		log.Printf("Executing iptables command %s %v", cmdName, cmdArgs)
+	}
+
+	_, err := exec.Command(cmdName, cmdArgs...).Output()
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
-		if errCode > 0 {
+		if errCode > 0 && iptMgr.OperationFlag != util.IptablesCheckFlag {
 			log.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
 		}
 

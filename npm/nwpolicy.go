@@ -46,6 +46,8 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		return nil
 	}
 
+	ns.rawNpMap[npObj.ObjectMeta.Name] = npObj
+
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
 	if !npMgr.isAzureNpmChainCreated {
@@ -116,6 +118,10 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 // UpdateNetworkPolicy handles updateing network policy in iptables.
 func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.NetworkPolicy, newNpObj *networkingv1.NetworkPolicy) error {
+	if isSamePolicy(oldNpObj, newNpObj) {
+		return nil
+	}
+
 	var err error
 
 	log.Printf("NETWORK POLICY UPDATING:\n old policy:[%v]\n new policy:[%v]", oldNpObj, newNpObj)
@@ -163,6 +169,8 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 			return err
 		}
 	}
+
+	delete(ns.rawNpMap, npObj.ObjectMeta.Name)
 
 	hashedSelector := HashSelector(&npObj.Spec.PodSelector)
 	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
