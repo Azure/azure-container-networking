@@ -26,14 +26,16 @@ func (npMgr *NetworkPolicyManager) canCleanUpNpmChains() bool {
 // AddNetworkPolicy handles adding network policy to iptables.
 func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	var (
-		err error
-		ns  *namespace
+		err    error
+		ns     *namespace
+		exists bool
+		npNs   = "ns-" + npObj.ObjectMeta.Namespace
+		npName = npObj.ObjectMeta.Name
+		allNs  = npMgr.nsMap[util.KubeAllNamespacesFlag]
 	)
 
-	npNs, npName := "ns-"+npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Printf("NETWORK POLICY CREATING: %v", npObj)
 
-	var exists bool
 	if ns, exists = npMgr.nsMap[npNs]; !exists {
 		ns, err = newNs(npNs)
 		if err != nil {
@@ -45,10 +47,6 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	if ns.policyExists(npObj) {
 		return nil
 	}
-
-	ns.rawNpMap[npObj.ObjectMeta.Name] = npObj
-
-	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
 	if !npMgr.isAzureNpmChainCreated {
 		if err = allNs.ipsMgr.CreateSet(util.KubeSystemFlag); err != nil {
@@ -64,32 +62,36 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		npMgr.isAzureNpmChainCreated = true
 	}
 
-	hashedSelector := HashSelector(&npObj.Spec.PodSelector)
+	var (
+		hashedSelector = HashSelector(&npObj.Spec.PodSelector)
+		addedPolicy    *networkingv1.NetworkPolicy
+		sets, lists    []string
+		iptEntries     []*iptm.IptEntry
+	)
 
-	var addedPolicy *networkingv1.NetworkPolicy
-	addedPolicy = nil
-	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
+	if oldPolicy, oldPolicyExists := ns.rawNpMap[npObj.ObjectMeta.Name]; oldPolicyExists {
 		npMgr.isSafeToCleanUpAzureNpmChain = false
 		npMgr.DeleteNetworkPolicy(oldPolicy)
 		npMgr.isSafeToCleanUpAzureNpmChain = true
 
-		addedPolicy, err = addPolicy(oldPolicy, npObj)
-		if err != nil {
-			log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
-		} else {
-			ns.processedNpMap[hashedSelector] = addedPolicy
+		if oldPolicy, oldPolicyExists = ns.processedNpMap[hashedSelector]; oldPolicyExists {
+			addedPolicy, err = addPolicy(oldPolicy, npObj)
+			if err != nil {
+				log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
+			}
 		}
+	}
+
+	if addedPolicy != nil {
+		sets, lists, iptEntries = translatePolicy(addedPolicy)
+		ns.processedNpMap[hashedSelector] = addedPolicy
 	} else {
+		sets, lists, iptEntries = translatePolicy(npObj)
 		ns.processedNpMap[hashedSelector] = npObj
 	}
 
-	var sets, lists []string
-	var iptEntries []*iptm.IptEntry
-	if addedPolicy != nil {
-		sets, lists, iptEntries = translatePolicy(addedPolicy)
-	} else {
-		sets, lists, iptEntries = translatePolicy(npObj)
-	}
+	ns.rawNpMap[npObj.ObjectMeta.Name] = npObj
+
 	ipsMgr := allNs.ipsMgr
 	for _, set := range sets {
 		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
@@ -121,22 +123,9 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 // UpdateNetworkPolicy handles updateing network policy in iptables.
 func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.NetworkPolicy, newNpObj *networkingv1.NetworkPolicy) error {
-	if isSamePolicy(oldNpObj, newNpObj) {
-		return nil
-	}
-
-	var err error
-
-	log.Printf("NETWORK POLICY UPDATING:\n old policy:[%v]\n new policy:[%v]", oldNpObj, newNpObj)
-
-	if err = npMgr.DeleteNetworkPolicy(oldNpObj); err != nil {
-		return err
-	}
-
 	if newNpObj.ObjectMeta.DeletionTimestamp == nil && newNpObj.ObjectMeta.DeletionGracePeriodSeconds == nil {
-		if err = npMgr.AddNetworkPolicy(newNpObj); err != nil {
-			return err
-		}
+		log.Printf("NETWORK POLICY UPDATING:\n old policy:[%v]\n new policy:[%v]", oldNpObj, newNpObj)
+		return npMgr.AddNetworkPolicy(newNpObj)
 	}
 
 	return nil
