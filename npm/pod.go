@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 func isValidPod(podObj *corev1.Pod) bool {
@@ -23,17 +24,17 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		return nil
 	}
 
-	var err error
+	var (
+		err         error
+		podNs       = "ns-" + podObj.ObjectMeta.Namespace
+		podName     = podObj.ObjectMeta.Name
+		podNodeName = podObj.Spec.NodeName
+		podLabels   = podObj.ObjectMeta.Labels
+		podIP       = podObj.Status.PodIP
+		ipsMgr      = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
+	)
 
-	podNs := "ns-" + podObj.ObjectMeta.Namespace
-	podName := podObj.ObjectMeta.Name
-	podNodeName := podObj.Spec.NodeName
-	podLabels := podObj.ObjectMeta.Labels
-	podIP := podObj.Status.PodIP
 	log.Printf("POD CREATING: [%s/%s/%s%+v%s]", podNs, podName, podNodeName, podLabels, podIP)
-
-	// Add the pod to ipset
-	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 
 	// Add pod namespace if it doesn't exist
 	if _, exists := npMgr.nsMap[podNs]; !exists {
@@ -76,18 +77,19 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 		return nil
 	}
 
-	var err error
-
-	oldPodObjNs := oldPodObj.ObjectMeta.Namespace
-	oldPodObjName := oldPodObj.ObjectMeta.Name
-	oldPodObjLabel := oldPodObj.ObjectMeta.Labels
-	oldPodObjPhase := oldPodObj.Status.Phase
-	oldPodObjIP := oldPodObj.Status.PodIP
-	newPodObjNs := newPodObj.ObjectMeta.Namespace
-	newPodObjName := newPodObj.ObjectMeta.Name
-	newPodObjLabel := newPodObj.ObjectMeta.Labels
-	newPodObjPhase := newPodObj.Status.Phase
-	newPodObjIP := newPodObj.Status.PodIP
+	var (
+		err            error
+		oldPodObjNs    = oldPodObj.ObjectMeta.Namespace
+		oldPodObjName  = oldPodObj.ObjectMeta.Name
+		oldPodObjLabel = oldPodObj.ObjectMeta.Labels
+		oldPodObjPhase = oldPodObj.Status.Phase
+		oldPodObjIP    = oldPodObj.Status.PodIP
+		newPodObjNs    = newPodObj.ObjectMeta.Namespace
+		newPodObjName  = newPodObj.ObjectMeta.Name
+		newPodObjLabel = newPodObj.ObjectMeta.Labels
+		newPodObjPhase = newPodObj.Status.Phase
+		newPodObjIP    = newPodObj.Status.PodIP
+	)
 
 	log.Printf(
 		"POD UPDATING:\n old pod: [%s/%s/%+v/%s/%s]\n new pod: [%s/%s/%+v/%s/%s]",
@@ -99,7 +101,9 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 		return err
 	}
 
-	if newPodObj.ObjectMeta.DeletionTimestamp == nil && newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil {
+	// Assume that the pod IP will be released when pod moves to succeeded or failed state.
+	// If the pod transitions back to an active state, then add operation will re establish the updated pod info.
+	if newPodObj.ObjectMeta.DeletionTimestamp == nil && newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil && newPodObjPhase != v1.PodSucceeded && newPodObjPhase != v1.PodFailed {
 		if err = npMgr.AddPod(newPodObj); err != nil {
 			return err
 		}
@@ -114,17 +118,18 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		return nil
 	}
 
-	var err error
+	var (
+		err         error
+		podNs       = "ns-" + podObj.ObjectMeta.Namespace
+		podName     = podObj.ObjectMeta.Name
+		podNodeName = podObj.Spec.NodeName
+		podLabels   = podObj.ObjectMeta.Labels
+		podIP       = podObj.Status.PodIP
+		ipsMgr      = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
+	)
 
-	podNs := "ns-" + podObj.ObjectMeta.Namespace
-	podName := podObj.ObjectMeta.Name
-	podNodeName := podObj.Spec.NodeName
-	podLabels := podObj.ObjectMeta.Labels
-	podIP := podObj.Status.PodIP
 	log.Printf("POD DELETING: [%s/%s/%s%+v%s]", podNs, podName, podNodeName, podLabels, podIP)
 
-	// Delete pod from ipset
-	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Delete the pod from its namespace's ipset.
 	if err = ipsMgr.DeleteFromSet(podNs, podIP); err != nil {
 		log.Errorf("Error: failed to delete pod from namespace ipset.")
