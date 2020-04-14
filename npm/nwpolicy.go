@@ -69,16 +69,18 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		iptEntries     []*iptm.IptEntry
 	)
 
+	// Remove the existing policy from processed (merged) network policy map
 	if oldPolicy, oldPolicyExists := ns.rawNpMap[npObj.ObjectMeta.Name]; oldPolicyExists {
 		npMgr.isSafeToCleanUpAzureNpmChain = false
 		npMgr.DeleteNetworkPolicy(oldPolicy)
 		npMgr.isSafeToCleanUpAzureNpmChain = true
+	}
 
-		if oldPolicy, oldPolicyExists = ns.processedNpMap[hashedSelector]; oldPolicyExists {
-			addedPolicy, err = addPolicy(oldPolicy, npObj)
-			if err != nil {
-				log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
-			}
+	// Add (merge) the new policy with others who apply to the same pods
+	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
+		addedPolicy, err = addPolicy(oldPolicy, npObj)
+		if err != nil {
+			log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
 		}
 	}
 
