@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cns
+  namespace: kube-system
+  labels:
+    app: azure-cns
+    addonmanager.kubernetes.io/mode: Reconcile
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-cns
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-cns
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+    spec:
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+      containers:
+        - name: cns-container
+          image: mcr.microsoft.com/containernetworking/azure-cns:latest
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: log
+              mountPath: /var/log
+            - name: cni
+              mountPath: /opt/cni/bin
+            - name: cniconfig
+              mountPath: /etc/cni/net.d
+            - name: cnsconfig
+              mountPath: /var/lib/azure-network
+          ports:
+            - containerPort: 10090
+          env:
+            - name: CNSIpAddress
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+      hostNetwork: true
+      volumes:
+        - name: log
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: cni
+          hostPath:
+            path: /opt/cni/bin
+            type: Directory
+        - name: cniconfig
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
+        - name: cnsconfig
+          hostPath:
+            path: /var/lib/azure-network
+            type: Directory
