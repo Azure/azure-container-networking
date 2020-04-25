@@ -5,7 +5,6 @@ metadata:
   namespace: kube-system
   labels:
     app: azure-cns
-    addonmanager.kubernetes.io/mode: Reconcile
 spec:
   selector:
     matchLabels:
@@ -60,4 +59,4 @@ spec:
         - name: cnsconfig
           hostPath:
             path: /var/lib/azure-network
-            type: Directory
+            type: DirectoryOrCreate
