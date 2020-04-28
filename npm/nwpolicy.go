@@ -85,15 +85,14 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	if addedPolicy != nil {
-		sets, lists, iptEntries = translatePolicy(addedPolicy)
 		ns.processedNpMap[hashedSelector] = addedPolicy
 	} else {
-		sets, lists, iptEntries = translatePolicy(npObj)
 		ns.processedNpMap[hashedSelector] = npObj
 	}
 
 	ns.rawNpMap[npObj.ObjectMeta.Name] = npObj
 
+	sets, lists, iptEntries = translatePolicy(npObj)
 	ipsMgr := allNs.ipsMgr
 	for _, set := range sets {
 		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))

@@ -283,15 +283,6 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 	log.Printf("Adding iptables entry: %+v.", entry)
 
-	exists, err := iptMgr.Exists(entry)
-	if err != nil {
-		return err
-	}
-
-	if exists {
-		return nil
-	}
-
 	if entry.IsJumpEntry {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 	} else {

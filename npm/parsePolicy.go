@@ -54,9 +54,8 @@ func addPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolic
 	}
 
 	spec := &(addedPolicy.Spec)
-	if len(old.Spec.PolicyTypes) == 1 && old.Spec.PolicyTypes[0] == networkingv1.PolicyTypeEgress &&
-		len(new.Spec.PolicyTypes) == 1 && new.Spec.PolicyTypes[0] == networkingv1.PolicyTypeEgress {
-		spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
+	if len(old.Spec.PolicyTypes) == 1 && len(new.Spec.PolicyTypes) == 1 && old.Spec.PolicyTypes[0] == new.Spec.PolicyTypes[0] {
+		spec.PolicyTypes = []networkingv1.PolicyType{new.Spec.PolicyTypes[0]}
 	} else {
 		spec.PolicyTypes = []networkingv1.PolicyType{
 			networkingv1.PolicyTypeIngress,
@@ -126,10 +125,8 @@ func deductPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPo
 	deductedPolicy.Spec.Ingress = deductedIngress
 	deductedPolicy.Spec.Egress = deductedEgress
 
-	if len(old.Spec.PolicyTypes) == 1 && old.Spec.PolicyTypes[0] == networkingv1.PolicyTypeEgress &&
-		len(new.Spec.PolicyTypes) == 1 && new.Spec.PolicyTypes[0] == networkingv1.PolicyTypeEgress &&
-		len(deductedIngress) == 0 {
-		deductedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}
+	if len(old.Spec.PolicyTypes) == 1 && len(new.Spec.PolicyTypes) == 1 && old.Spec.PolicyTypes[0] == new.Spec.PolicyTypes[0] {
+		deductedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{new.Spec.PolicyTypes[0]}
 	} else {
 		deductedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{
 			networkingv1.PolicyTypeIngress,
