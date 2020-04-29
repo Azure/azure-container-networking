@@ -248,7 +248,9 @@ func main() {
 		CustomDimensions: make(map[string]string),
 	}
 	network.SetCustomDimensions(&cnimetric, nil, err)
-	telemetry.SendCNIMetric(&cnimetric, tb)
+	if cniReport.ErrorMessage != "" || cniReport.EventMessage != "" {
+		telemetry.SendCNIMetric(&cnimetric, tb)
+	}
 
 	if err != nil {
 		reportPluginError(reportManager, tb, err)
