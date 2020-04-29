@@ -8,7 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -640,7 +640,7 @@ func TestTranslateIngress(t *testing.T) {
 	}
 
 	util.IsNewNwPolicyVerFlag = true
-	sets, lists, iptEntries := translateIngress(ns, targetSelector, rules)
+	sets, lists, iptEntries := translateIngress(ns, targetSelector, rules, nil)
 	expectedSets := []string{
 		"context:dev",
 		"testNotIn:frontend",
@@ -944,7 +944,7 @@ func TestTranslateEgress(t *testing.T) {
 	}
 
 	util.IsNewNwPolicyVerFlag = true
-	sets, lists, iptEntries := translateEgress(ns, targetSelector, rules)
+	sets, lists, iptEntries := translateEgress(ns, targetSelector, rules, nil)
 	expectedSets := []string{
 		"context:dev",
 		"testNotIn:frontend",
@@ -1172,7 +1172,7 @@ func TestDenyAllPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(denyAllPolicy)
+	sets, lists, iptEntries := translatePolicy(denyAllPolicy, nil)
 
 	expectedSets := []string{"ns-testnamespace"}
 	if !reflect.DeepEqual(sets, expectedSets) {
@@ -1204,7 +1204,7 @@ func TestAllowBackendToFrontend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sets, lists, iptEntries := translatePolicy(allowBackendToFrontendPolicy)
+	sets, lists, iptEntries := translatePolicy(allowBackendToFrontendPolicy, nil)
 
 	expectedSets := []string{
 		"app:backend",
@@ -1342,7 +1342,7 @@ func TestAllowAllToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowToFrontendPolicy)
+	sets, lists, iptEntries := translatePolicy(allowToFrontendPolicy, nil)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -1403,7 +1403,7 @@ func TestDenyAllToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(denyAllToFrontendPolicy)
+	sets, lists, iptEntries := translatePolicy(denyAllToFrontendPolicy, nil)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -1439,7 +1439,7 @@ func TestNamespaceToFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowNsTestNamespaceToFrontendPolicy)
+	sets, lists, iptEntries := translatePolicy(allowNsTestNamespaceToFrontendPolicy, nil)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -1571,7 +1571,7 @@ func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowAllNsToFrontendPolicy)
+	sets, lists, iptEntries := translatePolicy(allowAllNsToFrontendPolicy, nil)
 	expectedSets := []string{
 		"app:frontend",
 		"ns-testnamespace",
@@ -1704,7 +1704,7 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowNsDevToFrontendPolicy)
+	sets, lists, iptEntries := translatePolicy(allowNsDevToFrontendPolicy, nil)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -1853,7 +1853,7 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowAllToFrontendPolicy)
+	sets, lists, iptEntries := translatePolicy(allowAllToFrontendPolicy, nil)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -2054,7 +2054,7 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 	}
 
 	util.IsNewNwPolicyVerFlag = true
-	sets, lists, iptEntries := translatePolicy(allowNsDevAndBackendToFrontendPolicy)
+	sets, lists, iptEntries := translatePolicy(allowNsDevAndBackendToFrontendPolicy, nil)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -2195,7 +2195,7 @@ func TestAllowInternalAndExternal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowInternalAndExternalPolicy)
+	sets, lists, iptEntries := translatePolicy(allowInternalAndExternalPolicy, nil)
 
 	expectedSets := []string{
 		"app:backdoor",
@@ -2256,7 +2256,7 @@ func TestAllowBackendToFrontendPort8000(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowBackendToFrontendPort8000Policy)
+	sets, lists, iptEntries := translatePolicy(allowBackendToFrontendPort8000Policy, nil)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -2373,7 +2373,7 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowCniOrCnsToK8sPolicy)
+	sets, lists, iptEntries := translatePolicy(allowCniOrCnsToK8sPolicy, nil)
 
 	expectedSets := []string{
 		"app:k8s",
@@ -2581,7 +2581,7 @@ func TestDenyAllFromAppBackend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(denyAllFromBackendPolicy)
+	sets, lists, iptEntries := translatePolicy(denyAllFromBackendPolicy, nil)
 
 	expectedSets := []string{
 		"app:backend",
@@ -2617,7 +2617,7 @@ func TestAllowAllFromAppBackend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowAllEgress)
+	sets, lists, iptEntries := translatePolicy(allowAllEgress, nil)
 
 	expectedSets := []string{
 		"app:backend",
@@ -2699,7 +2699,7 @@ func TestDenyAllFromNsUnsafe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sets, lists, iptEntries := translatePolicy(denyAllFromNsUnsafePolicy)
+	sets, lists, iptEntries := translatePolicy(denyAllFromNsUnsafePolicy, nil)
 
 	expectedSets := []string{
 		"ns-unsafe",
@@ -2733,7 +2733,7 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(allowFrontendToTCPPort53UDPPort53Policy)
+	sets, lists, iptEntries := translatePolicy(allowFrontendToTCPPort53UDPPort53Policy, nil)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -2917,7 +2917,7 @@ func TestComplexPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, lists, iptEntries := translatePolicy(k8sExamplePolicy)
+	sets, lists, iptEntries := translatePolicy(k8sExamplePolicy, nil)
 
 	expectedSets := []string{
 		"role:db",
@@ -3294,7 +3294,7 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 		},
 	}
 
-	sets, lists, iptEntries := translatePolicy(denyAllPolicy)
+	sets, lists, iptEntries := translatePolicy(denyAllPolicy, nil)
 	expectedSets := []string{
 		"ns-default",
 	}
@@ -3311,7 +3311,7 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 		t.Errorf("expectedLists: %v", expectedLists)
 	}
 
-	sets, lists, finalIptEntries := translatePolicy(allowToPodPolicy)
+	sets, lists, finalIptEntries := translatePolicy(allowToPodPolicy, nil)
 	expectedSets = []string{
 		"app:test",
 		"testIn:pod-A",

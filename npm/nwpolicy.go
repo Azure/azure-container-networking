@@ -67,6 +67,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		addedPolicy    *networkingv1.NetworkPolicy
 		sets, lists    []string
 		iptEntries     []*iptm.IptEntry
+		ipsMgr         = allNs.ipsMgr
 	)
 
 	// Remove the existing policy from processed (merged) network policy map
@@ -92,8 +93,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	ns.rawNpMap[npObj.ObjectMeta.Name] = npObj
 
-	sets, lists, iptEntries = translatePolicy(npObj)
-	ipsMgr := allNs.ipsMgr
+	sets, lists, iptEntries = translatePolicy(npObj, ipsMgr)
 	for _, set := range sets {
 		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = ipsMgr.CreateSet(set); err != nil {
@@ -135,8 +135,9 @@ func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.Ne
 // DeleteNetworkPolicy handles deleting network policy from iptables.
 func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	var (
-		err error
-		ns  *namespace
+		err    error
+		ns     *namespace
+		ipsMgr = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	)
 
 	npNs, npName := "ns-"+npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
@@ -153,7 +154,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 
 	allNs := npMgr.nsMap[util.KubeAllNamespacesFlag]
 
-	_, _, iptEntries := translatePolicy(npObj)
+	_, _, iptEntries := translatePolicy(npObj, ipsMgr)
 
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
