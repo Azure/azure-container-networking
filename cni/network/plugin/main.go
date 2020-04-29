@@ -242,13 +242,14 @@ func main() {
 	}
 
 	executionTimeMs := time.Since(startTime).Milliseconds()
-	cnimetric.Metric = aitelemetry.Metric{
-		Name:             telemetry.CNIExecutimeMetricStr,
-		Value:            float64(executionTimeMs),
-		CustomDimensions: make(map[string]string),
-	}
-	network.SetCustomDimensions(&cnimetric, nil, err)
+
 	if cniReport.ErrorMessage != "" || cniReport.EventMessage != "" {
+		cnimetric.Metric = aitelemetry.Metric{
+			Name:             telemetry.CNIExecutimeMetricStr,
+			Value:            float64(executionTimeMs),
+			CustomDimensions: make(map[string]string),
+		}
+		network.SetCustomDimensions(&cnimetric, nil, err)
 		telemetry.SendCNIMetric(&cnimetric, tb)
 	}
 
