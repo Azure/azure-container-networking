@@ -93,8 +93,12 @@ const (
 	IpsetExistFlag string = "-exist"
 	IpsetFileFlag  string = "-file"
 
-	IpsetSetListFlag string = "setlist"
-	IpsetNetHashFlag string = "nethash"
+	IpsetSetListFlag    string = "setlist"
+	IpsetNetHashFlag    string = "nethash"
+	IpsetIPPortHashFlag string = "hash:ip,port"
+
+	IpsetUDPFlag  string = "udp:"
+	IpsetSCTPFlag string = "sctp:"
 
 	AzureNpmFlag   string = "azure-npm"
 	AzureNpmPrefix string = "azure-npm-"

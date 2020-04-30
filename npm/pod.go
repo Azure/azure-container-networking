@@ -3,6 +3,8 @@
 package npm
 
 import (
+	"fmt"
+
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
 
@@ -40,36 +42,43 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	// Add pod namespace if it doesn't exist
 	if _, exists := npMgr.nsMap[podNs]; !exists {
 		log.Printf("Creating set: %v, hashedSet: %v", podNs, util.GetHashedName(podNs))
-		if err = ipsMgr.CreateSet(podNs); err != nil {
+		if err = ipsMgr.CreateSet(podNs, util.IpsetNetHashFlag); err != nil {
 			log.Printf("Error creating ipset %s", podNs)
 		}
 	}
 
 	// Add the pod to its namespace's ipset.
 	log.Printf("Adding pod %s to ipset %s", podIP, podNs)
-	if err = ipsMgr.AddToSet(podNs, podIP); err != nil {
+	if err = ipsMgr.AddToSet(podNs, podIP, util.IpsetNetHashFlag); err != nil {
 		log.Errorf("Error: failed to add pod to namespace ipset.")
 	}
 
 	// Add the pod to its label's ipset.
 	for podLabelKey, podLabelVal := range podLabels {
 		log.Printf("Adding pod %s to ipset %s", podIP, podLabelKey)
-		if err = ipsMgr.AddToSet(podLabelKey, podIP); err != nil {
+		if err = ipsMgr.AddToSet(podLabelKey, podIP, util.IpsetNetHashFlag); err != nil {
 			log.Errorf("Error: failed to add pod to label ipset.")
 		}
 
 		label := podLabelKey + ":" + podLabelVal
 		log.Printf("Adding pod %s to ipset %s", podIP, label)
-		if err = ipsMgr.AddToSet(label, podIP); err != nil {
+		if err = ipsMgr.AddToSet(label, podIP, util.IpsetNetHashFlag); err != nil {
 			log.Errorf("Error: failed to add pod to label ipset.")
 		}
 	}
 
-	// Map named ports
+	// Add the pod's named ports its ipset.
 	for _, container := range podContainers {
 		for _, port := range container.Ports {
 			if port.Name != "" {
-				ipsMgr.AddToPortMap(podIP, port.Name, port.ContainerPort)
+				protocol := ""
+				switch port.Protocol {
+				case v1.ProtocolUDP:
+					protocol = util.IpsetUDPFlag
+				case v1.ProtocolSCTP:
+					protocol = util.IpsetSCTPFlag
+				}
+				ipsMgr.AddToSet(port.Name, fmt.Sprintf("%s,%s%d", podIP, protocol, port.ContainerPort), util.IpsetIPPortHashFlag)
 			}
 		}
 	}
@@ -126,13 +135,14 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	}
 
 	var (
-		err         error
-		podNs       = "ns-" + podObj.ObjectMeta.Namespace
-		podName     = podObj.ObjectMeta.Name
-		podNodeName = podObj.Spec.NodeName
-		podLabels   = podObj.ObjectMeta.Labels
-		podIP       = podObj.Status.PodIP
-		ipsMgr      = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
+		err           error
+		podNs         = "ns-" + podObj.ObjectMeta.Namespace
+		podName       = podObj.ObjectMeta.Name
+		podNodeName   = podObj.Spec.NodeName
+		podLabels     = podObj.ObjectMeta.Labels
+		podIP         = podObj.Status.PodIP
+		podContainers = podObj.Spec.Containers
+		ipsMgr        = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	)
 
 	log.Printf("POD DELETING: [%s/%s/%s%+v%s]", podNs, podName, podNodeName, podLabels, podIP)
@@ -141,6 +151,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 	if err = ipsMgr.DeleteFromSet(podNs, podIP); err != nil {
 		log.Errorf("Error: failed to delete pod from namespace ipset.")
 	}
+
 	// Delete the pod from its label's ipset.
 	for podLabelKey, podLabelVal := range podLabels {
 		log.Printf("Deleting pod %s from ipset %s", podIP, podLabelKey)
@@ -154,8 +165,22 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 			log.Errorf("Error: failed to delete pod from label ipset.")
 		}
 	}
-	// Delete the named port mapping for pod
-	ipsMgr.DeleteFromPortMap(podIP)
+
+	// Delete pod's named ports from its ipset.
+	for _, container := range podContainers {
+		for _, port := range container.Ports {
+			if port.Name != "" {
+				protocol := ""
+				switch port.Protocol {
+				case v1.ProtocolUDP:
+					protocol = util.IpsetUDPFlag
+				case v1.ProtocolSCTP:
+					protocol = util.IpsetSCTPFlag
+				}
+				ipsMgr.DeleteFromSet(port.Name, fmt.Sprintf("%s,%s%d", podIP, protocol, port.ContainerPort))
+			}
+		}
+	}
 
 	return nil
 }

@@ -3,8 +3,8 @@
 package ipsm
 
 import (
-	"testing"
 	"os"
+	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/util"
 )
@@ -77,7 +77,7 @@ func TestAddToList(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set"); err != nil {
+	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.CreateSet")
 	}
 
@@ -98,7 +98,7 @@ func TestDeleteFromList(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set"); err != nil {
+	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet")
 	}
 
@@ -127,7 +127,7 @@ func TestCreateSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set"); err != nil {
+	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet")
 	}
 }
@@ -144,7 +144,7 @@ func TestDeleteSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set"); err != nil {
+	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.CreateSet")
 	}
 
@@ -165,7 +165,7 @@ func TestAddToSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.AddToSet("test-set", "1.2.3.4"); err != nil {
+	if err := ipsMgr.AddToSet("test-set", "1.2.3.4", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestAddToSet failed @ ipsMgr.AddToSet")
 	}
 }
@@ -182,7 +182,7 @@ func TestDeleteFromSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.AddToSet("test-set", "1.2.3.4"); err != nil {
+	if err := ipsMgr.AddToSet("test-set", "1.2.3.4", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
@@ -203,7 +203,7 @@ func TestClean(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set"); err != nil {
+	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestClean failed @ ipsMgr.CreateSet")
 	}
 
@@ -224,7 +224,7 @@ func TestDestroy(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.AddToSet("test-set", "1.2.3.4"); err != nil {
+	if err := ipsMgr.AddToSet("test-set", "1.2.3.4", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestDestroy failed @ ipsMgr.AddToSet")
 	}
 
@@ -262,6 +262,6 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 
 	ipsMgr.Restore(util.IpsetConfigFile)
-	
+
 	os.Exit(exitCode)
 }

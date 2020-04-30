@@ -49,7 +49,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	if !npMgr.isAzureNpmChainCreated {
-		if err = allNs.ipsMgr.CreateSet(util.KubeSystemFlag); err != nil {
+		if err = allNs.ipsMgr.CreateSet(util.KubeSystemFlag, util.IpsetNetHashFlag); err != nil {
 			log.Errorf("Error: failed to initialize kube-system ipset.")
 			return err
 		}
@@ -96,7 +96,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	sets, lists, iptEntries = translatePolicy(npObj, ipsMgr)
 	for _, set := range sets {
 		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
-		if err = ipsMgr.CreateSet(set); err != nil {
+		if err = ipsMgr.CreateSet(set, util.IpsetNetHashFlag); err != nil {
 			log.Printf("Error creating ipset %s", set)
 			return err
 		}

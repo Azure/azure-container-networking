@@ -95,7 +95,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 
 	ipsMgr := npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	// Create ipset for the namespace.
-	if err = ipsMgr.CreateSet(nsName); err != nil {
+	if err = ipsMgr.CreateSet(nsName, util.IpsetNetHashFlag); err != nil {
 		log.Errorf("Error: failed to create ipset for namespace %s.", nsName)
 		return err
 	}

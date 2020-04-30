@@ -21,9 +21,8 @@ type ipsEntry struct {
 
 // IpsetManager stores ipset states.
 type IpsetManager struct {
-	listMap map[string]*Ipset           //tracks all set lists.
-	setMap  map[string]*Ipset           //label -> []ip
-	portMap map[string]map[string]int32 //ip -> port name -> port #
+	listMap map[string]*Ipset //tracks all set lists.
+	setMap  map[string]*Ipset //label -> []ip
 }
 
 // Ipset represents one ipset entry.
@@ -45,7 +44,6 @@ func NewIpsetManager() *IpsetManager {
 	return &IpsetManager{
 		listMap: make(map[string]*Ipset),
 		setMap:  make(map[string]*Ipset),
-		portMap: make(map[string]map[string]int32),
 	}
 }
 
@@ -185,7 +183,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 }
 
 // CreateSet creates an ipset.
-func (ipsMgr *IpsetManager) CreateSet(setName string) error {
+func (ipsMgr *IpsetManager) CreateSet(setName, spec string) error {
 	if _, exists := ipsMgr.setMap[setName]; exists {
 		return nil
 	}
@@ -195,7 +193,7 @@ func (ipsMgr *IpsetManager) CreateSet(setName string) error {
 		operationFlag: util.IpsetCreationFlag,
 		// Use hashed string for set name to avoid string length limit of ipset.
 		set:  util.GetHashedName(setName),
-		spec: util.IpsetNetHashFlag,
+		spec: spec,
 	}
 	log.Printf("Creating Set: %+v", entry)
 	if _, err := ipsMgr.Run(entry); err != nil {
@@ -240,12 +238,12 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 }
 
 // AddToSet inserts an ip to an entry in setMap, and creates/updates the corresponding ipset.
-func (ipsMgr *IpsetManager) AddToSet(setName string, ip string) error {
-	if ipsMgr.Exists(setName, ip, util.IpsetNetHashFlag) {
+func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec string) error {
+	if ipsMgr.Exists(setName, ip, spec) {
 		return nil
 	}
 
-	if err := ipsMgr.CreateSet(setName); err != nil {
+	if err := ipsMgr.CreateSet(setName, spec); err != nil {
 		return err
 	}
 
@@ -275,7 +273,7 @@ func (ipsMgr *IpsetManager) RetrieveFromSet(setName string) []string {
 }
 
 // DeleteFromSet removes an ip from an entry in setMap, and delete/update the corresponding ipset.
-func (ipsMgr *IpsetManager) DeleteFromSet(setName string, ip string) error {
+func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip string) error {
 	if _, exists := ipsMgr.setMap[setName]; !exists {
 		log.Printf("ipset with name %s not found", setName)
 		return nil
@@ -298,34 +296,6 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName string, ip string) error {
 	}
 
 	return nil
-}
-
-// AddToPortMap :- Set named port mapping
-func (ipsMgr *IpsetManager) AddToPortMap(podIP, portName string, port int32) {
-	podMap, exists := ipsMgr.portMap[podIP]
-	if !exists {
-		ipsMgr.portMap[podIP] = make(map[string]int32)
-		podMap, _ = ipsMgr.portMap[podIP]
-	}
-
-	podMap[portName] = port
-}
-
-// RetrieveFromPortMap :- Retrieves port based on port name on pod
-func (ipsMgr *IpsetManager) RetrieveFromPortMap(podIP, portName string) (port int32, exists bool) {
-	portMap, portMapExists := ipsMgr.portMap[podIP]
-	if portMapExists {
-		port, exists = portMap[portName]
-	}
-
-	return
-}
-
-// DeleteFromPortMap :- Remove named port mapping for a pod
-func (ipsMgr *IpsetManager) DeleteFromPortMap(podIP string) {
-	if _, exists := ipsMgr.portMap[podIP]; exists {
-		delete(ipsMgr.portMap, podIP)
-	}
 }
 
 // Clean removes all the empty sets & lists under the namespace.

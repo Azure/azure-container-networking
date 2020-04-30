@@ -250,7 +250,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 
 	// Create ipset for the namespace.
 	kubeSystemNs := "ns-" + util.KubeSystemFlag
-	if err := allNs.ipsMgr.CreateSet(kubeSystemNs); err != nil {
+	if err := allNs.ipsMgr.CreateSet(kubeSystemNs, util.IpsetNetHashFlag); err != nil {
 		log.Logf("Error: failed to create ipset for namespace %s.", kubeSystemNs)
 	}
 
