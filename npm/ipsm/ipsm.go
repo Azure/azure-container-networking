@@ -84,7 +84,7 @@ func (ipsMgr *IpsetManager) CreateList(listName string) error {
 		spec:          util.IpsetSetListFlag,
 	}
 	log.Printf("Creating List: %+v", entry)
-	if _, err := ipsMgr.Run(entry); err != nil {
+	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		log.Errorf("Error: failed to create ipset list %s.", listName)
 		return err
 	}
@@ -101,10 +101,8 @@ func (ipsMgr *IpsetManager) DeleteList(listName string) error {
 		set:           util.GetHashedName(listName),
 	}
 
-	errCode, err := ipsMgr.Run(entry)
-	if err != nil {
+	if errCode, err := ipsMgr.Run(entry); err != nil {
 		if errCode == 1 {
-			log.Printf("Error: Cannot delete list %s as it's being referred or doesn't exist.", listName)
 			return nil
 		}
 
@@ -137,7 +135,7 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		spec:          util.GetHashedName(setName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err != nil {
+	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		log.Errorf("Error: failed to create ipset rules. rule: %+v", entry)
 		return err
 	}
@@ -166,8 +164,8 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 		set:           hashedListName,
 		spec:          hashedSetName,
 	}
-	errCode, err := ipsMgr.Run(entry)
-	if errCode > 1 && err != nil {
+
+	if _, err := ipsMgr.Run(entry); err != nil {
 		log.Errorf("Error: failed to delete ipset entry. %+v", entry)
 		return err
 	}
@@ -196,7 +194,7 @@ func (ipsMgr *IpsetManager) CreateSet(setName, spec string) error {
 		spec: spec,
 	}
 	log.Printf("Creating Set: %+v", entry)
-	if _, err := ipsMgr.Run(entry); err != nil {
+	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		log.Errorf("Error: failed to create ipset.")
 		return err
 	}
@@ -221,10 +219,9 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 		operationFlag: util.IpsetDestroyFlag,
 		set:           util.GetHashedName(setName),
 	}
-	errCode, err := ipsMgr.Run(entry)
-	if err != nil {
+
+	if errCode, err := ipsMgr.Run(entry); err != nil {
 		if errCode == 1 {
-			log.Printf("Cannot delete set %s as it's being referred.", setName)
 			return nil
 		}
 
@@ -253,21 +250,12 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec string) error {
 		spec:          ip,
 	}
 
-	if _, err := ipsMgr.Run(entry); err != nil {
+	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		log.Printf("Error: failed to create ipset rules. %+v", entry)
 		return err
 	}
 
 	ipsMgr.setMap[setName].elements = append(ipsMgr.setMap[setName].elements, ip)
-
-	return nil
-}
-
-// RetrieveFromSet retrieves the elements in a set
-func (ipsMgr *IpsetManager) RetrieveFromSet(setName string) []string {
-	if s, exists := ipsMgr.setMap[setName]; exists {
-		return s.elements
-	}
 
 	return nil
 }
@@ -290,10 +278,17 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip string) error {
 		set:           util.GetHashedName(setName),
 		spec:          ip,
 	}
-	if _, err := ipsMgr.Run(entry); err != nil {
+
+	if errCode, err := ipsMgr.Run(entry); err != nil {
+		if errCode == 1 {
+			return nil
+		}
+
 		log.Errorf("Error: failed to delete ipset entry. Entry: %+v", entry)
 		return err
 	}
+
+	ipsMgr.DeleteSet(setName)
 
 	return nil
 }
