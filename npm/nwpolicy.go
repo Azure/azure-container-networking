@@ -137,10 +137,9 @@ func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.Ne
 // DeleteNetworkPolicy handles deleting network policy from iptables.
 func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	var (
-		err    error
-		ns     *namespace
-		allNs  = npMgr.nsMap[util.KubeAllNamespacesFlag]
-		ipsMgr = allNs.ipsMgr
+		err   error
+		ns    *namespace
+		allNs = npMgr.nsMap[util.KubeAllNamespacesFlag]
 	)
 
 	npNs, npName := "ns-"+npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
@@ -155,7 +154,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		npMgr.nsMap[npNs] = ns
 	}
 
-	sets, namedPorts, lists, iptEntries := translatePolicy(npObj)
+	_, _, _, iptEntries := translatePolicy(npObj)
 
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
@@ -165,16 +164,6 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	}
 
 	delete(ns.rawNpMap, npObj.ObjectMeta.Name)
-
-	for _, set := range sets {
-		ipsMgr.DeleteSet(set)
-	}
-	for _, set := range namedPorts {
-		ipsMgr.DeleteSet(set)
-	}
-	for _, list := range lists {
-		ipsMgr.DeleteList(list)
-	}
 
 	hashedSelector := HashSelector(&npObj.Spec.PodSelector)
 	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
