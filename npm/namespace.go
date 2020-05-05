@@ -3,6 +3,8 @@
 package npm
 
 import (
+	"reflect"
+
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
@@ -40,6 +42,15 @@ func newNs(name string) (*namespace, error) {
 
 func isSystemNs(nsObj *corev1.Namespace) bool {
 	return nsObj.ObjectMeta.Name == util.KubeSystemFlag
+}
+
+func isInvalidNamespaceUpdate(oldNsObj, newNsObj *corev1.Namespace) (isInvalidUpdate bool) {
+	isInvalidUpdate = oldNsObj.ObjectMeta.Name == newNsObj.ObjectMeta.Name &&
+		newNsObj.ObjectMeta.DeletionTimestamp == nil &&
+		newNsObj.ObjectMeta.DeletionGracePeriodSeconds == nil
+	isInvalidUpdate = isInvalidUpdate && reflect.DeepEqual(oldNsObj.ObjectMeta.Labels, newNsObj.ObjectMeta.Labels)
+
+	return
 }
 
 func (ns *namespace) policyExists(npObj *networkingv1.NetworkPolicy) bool {
@@ -134,8 +145,11 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 
 // UpdateNamespace handles updating namespace in ipset.
 func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, newNsObj *corev1.Namespace) error {
-	var err error
+	if isInvalidNamespaceUpdate(oldNsObj, newNsObj) {
+		return nil
+	}
 
+	var err error
 	oldNsNs, oldNsLabel := "ns-"+oldNsObj.ObjectMeta.Name, oldNsObj.ObjectMeta.Labels
 	newNsNs, newNsLabel := "ns-"+newNsObj.ObjectMeta.Name, newNsObj.ObjectMeta.Labels
 	log.Printf(

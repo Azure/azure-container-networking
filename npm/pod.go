@@ -4,6 +4,7 @@ package npm
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -18,6 +19,18 @@ func isValidPod(podObj *corev1.Pod) bool {
 
 func isSystemPod(podObj *corev1.Pod) bool {
 	return podObj.ObjectMeta.Namespace == util.KubeSystemFlag
+}
+
+func isInvalidPodUpdate(oldPodObj, newPodObj *corev1.Pod) (isInvalidUpdate bool) {
+	isInvalidUpdate = oldPodObj.ObjectMeta.Namespace == newPodObj.ObjectMeta.Namespace &&
+		oldPodObj.ObjectMeta.Name == newPodObj.ObjectMeta.Name &&
+		oldPodObj.Status.Phase == newPodObj.Status.Phase &&
+		oldPodObj.Status.PodIP == newPodObj.Status.PodIP &&
+		newPodObj.ObjectMeta.DeletionTimestamp == nil &&
+		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil
+	isInvalidUpdate = isInvalidUpdate && reflect.DeepEqual(oldPodObj.ObjectMeta.Labels, newPodObj.ObjectMeta.Labels)
+
+	return
 }
 
 // AddPod handles adding pod ip to its label's ipset.
@@ -89,6 +102,10 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 // UpdatePod handles updating pod ip in its label's ipset.
 func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) error {
 	if !isValidPod(newPodObj) {
+		return nil
+	}
+
+	if isInvalidPodUpdate(oldPodObj, newPodObj) {
 		return nil
 	}
 
