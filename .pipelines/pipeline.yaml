@@ -118,6 +118,7 @@ stages:
             displayName: "Run Tests"
 
           - bash: |
+              export CODECOV_TOKEN=$(CODECOV_TOKEN)
               bash <(curl -s https://codecov.io/bash)
               gocov convert coverage.out > coverage.json
               gocov-xml < coverage.json > coverage.xml
