@@ -116,3 +116,23 @@ If you have deployed kubernetes cluster via other sources(not using aks/aks-engi
 ```bash
 iptables -t nat -A POSTROUTING -m addrtype ! --dst-type local ! -d <vnet_address_space> -j MASQUERADE
 ```
+
+## Support hyper-v and process based containers with cricontainerd
+containerd:
+containerd is an industry-standard container runtime. It is used internally as the supported CRI interface for Kubernetes via its plugin cri containerd. [Official site]: https://github.com/containerd/containerd
+
+cri: cri is the containerd plugin that adds the Kubernetes CRI interface endpoints and deals with all translation to the containerd API.
+[Official site]: https://github.com/containerd/cri
+
+crictl: crictl is the easiest manual tool without needing a CRI orchestrator to actually call the functions associated with the CRI endpoint. It is written primarily by the Kubernetes maintainers.
+[Official site]: https://github.com/kubernetes-sigs/cri-tools/ 
+[Public Docs]: https://github.com/kubernetes-sigs/cri-tools/blob/master/docs/crictl.md 
+
+Using crictl:
+To avoid having to use --runtime-endpoint or --image-endpoint on the cmdline you can create a config file. The following will be based on the containerd default pipe location. Here is what crictl.yaml for CRI containerd contains by default. Use crictl.exe --config crictl.yaml on calls.
+```
+runtime-endpoint: npipe:\\.\pipe\containerd-containerd (e.g. tcp://127.0.0.1:2376)
+image-endpoint: npipe:\\.\pipe\containerd-containerd (e.g. tcp://127.0.0.1:2376)
+timeout: 0
+debug: true
+```
