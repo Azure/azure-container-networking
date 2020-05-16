@@ -122,6 +122,8 @@ func (listener *Listener) Decode(w http.ResponseWriter, r *http.Request, request
 
 // Encode encodes and sends a response as JSON payload.
 func (listener *Listener) Encode(w http.ResponseWriter, response interface{}) error {
+	// Set the content type as application json
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
 		http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
