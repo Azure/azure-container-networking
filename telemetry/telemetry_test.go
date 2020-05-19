@@ -190,9 +190,12 @@ func TestSendTelemetry(t *testing.T) {
 func TestCloseTelemetryConnection(t *testing.T) {
 	tb.Cancel()
 	time.Sleep(300 * time.Millisecond)
+
+	tb.mutex.Lock()
 	if len(tb.connections) != 0 {
 		t.Errorf("server didn't close connection")
 	}
+	tb.mutex.Unlock()
 }
 
 func TestServerCloseTelemetryConnection(t *testing.T) {
@@ -218,9 +221,11 @@ func TestServerCloseTelemetryConnection(t *testing.T) {
 		t.Errorf("Client couldn't recognise server close")
 	}
 
+	tb.mutex.Lock()
 	if len(tb.connections) != 0 {
 		t.Errorf("All connections not closed as expected")
 	}
+	tb.mutex.Unlock()
 
 	// Close client connection
 	tb1.Close()
@@ -248,9 +253,11 @@ func TestClientCloseTelemetryConnection(t *testing.T) {
 	tb1.Close()
 	time.Sleep(300 * time.Millisecond)
 
+	tb.mutex.Lock()
 	if len(tb.connections) != 0 {
 		t.Errorf("All connections not closed as expected")
 	}
+	tb.mutex.Unlock()
 
 	// Exit server thread and close server connection
 	tb.Cancel()
