@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -287,7 +287,6 @@ func TestDeductPolicy(t *testing.T) {
 
 	expectedPolicy := oldPolicy
 	expectedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{
-		networkingv1.PolicyTypeIngress,
 		networkingv1.PolicyTypeEgress,
 	}
 	deductedPolicy, err := deductPolicy(&oldPolicy, &newPolicy)
@@ -342,7 +341,6 @@ func TestDeductPolicy(t *testing.T) {
 	expectedPolicy = oldPolicy
 	expectedPolicy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{}
 	expectedPolicy.Spec.PolicyTypes = []networkingv1.PolicyType{
-		networkingv1.PolicyTypeIngress,
 		networkingv1.PolicyTypeEgress,
 	}
 	deductedPolicy, err = deductPolicy(&oldPolicy, &newPolicy)
