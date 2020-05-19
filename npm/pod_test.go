@@ -37,6 +37,7 @@ func TestisSystemPod(t *testing.T) {
 func TestAddPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
+		podMap:           make(map[string]bool),
 		TelemetryEnabled: false,
 	}
 
@@ -59,7 +60,8 @@ func TestAddPod(t *testing.T) {
 
 	podObj := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test-pod",
+			Name:      "test-pod",
+			Namespace: "test-namespace",
 			Labels: map[string]string{
 				"app": "test-pod",
 			},
@@ -80,6 +82,7 @@ func TestAddPod(t *testing.T) {
 func TestUpdatePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
+		podMap:           make(map[string]bool),
 		TelemetryEnabled: false,
 	}
 
@@ -102,7 +105,8 @@ func TestUpdatePod(t *testing.T) {
 
 	oldPodObj := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "old-test-pod",
+			Name:      "old-test-pod",
+			Namespace: "test-namespace",
 			Labels: map[string]string{
 				"app": "old-test-pod",
 			},
@@ -115,7 +119,8 @@ func TestUpdatePod(t *testing.T) {
 
 	newPodObj := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "new-test-pod",
+			Name:      "new-test-pod",
+			Namespace: "test-namespace",
 			Labels: map[string]string{
 				"app": "new-test-pod",
 			},
@@ -140,6 +145,7 @@ func TestUpdatePod(t *testing.T) {
 func TestDeletePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
+		podMap:           make(map[string]bool),
 		TelemetryEnabled: false,
 	}
 
@@ -162,7 +168,8 @@ func TestDeletePod(t *testing.T) {
 
 	podObj := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test-pod",
+			Name:      "test-pod",
+			Namespace: "test-namespace",
 			Labels: map[string]string{
 				"app": "test-pod",
 			},

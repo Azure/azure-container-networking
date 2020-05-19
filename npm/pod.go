@@ -96,6 +96,8 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		}
 	}
 
+	npMgr.podMap[podNs+podName] = true
+
 	return nil
 }
 
@@ -162,6 +164,11 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		ipsMgr        = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 	)
 
+	_, exists := npMgr.podMap[podNs+podName]
+	if !exists {
+		return nil
+	}
+
 	log.Printf("POD DELETING: [%s/%s/%s%+v%s]", podNs, podName, podNodeName, podLabels, podIP)
 
 	// Delete the pod from its namespace's ipset.
@@ -198,6 +205,8 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 			}
 		}
 	}
+
+	delete(npMgr.podMap, podNs+podName)
 
 	return nil
 }
