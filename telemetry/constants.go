@@ -5,7 +5,6 @@ package telemetry
 const (
 
 	// Metric Names
-	CNIExecutimeMetricStr  = "CNIExecutionTimeMs"
 	CNIAddTimeMetricStr    = "CNIAddTimeMs"
 	CNIDelTimeMetricStr    = "CNIDelTimeMs"
 	CNIUpdateTimeMetricStr = "CNIUpdateTimeMs"

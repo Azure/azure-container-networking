@@ -11,7 +11,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
@@ -141,7 +140,6 @@ func main() {
 	var (
 		config       common.PluginConfig
 		err          error
-		cnimetric    telemetry.AIMetric
 		logDirectory string // This sets empty string i.e. current location
 	)
 
@@ -242,16 +240,6 @@ func main() {
 	}
 
 	executionTimeMs := time.Since(startTime).Milliseconds()
-
-	if cniReport.ErrorMessage != "" || cniReport.EventMessage != "" {
-		cnimetric.Metric = aitelemetry.Metric{
-			Name:             telemetry.CNIExecutimeMetricStr,
-			Value:            float64(executionTimeMs),
-			CustomDimensions: make(map[string]string),
-		}
-		network.SetCustomDimensions(&cnimetric, nil, err)
-		telemetry.SendCNIMetric(&cnimetric, tb)
-	}
 
 	if err != nil {
 		reportPluginError(reportManager, tb, err)
