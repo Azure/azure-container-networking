@@ -342,6 +342,10 @@ func CreateSnatBridge(snatBridgeIP string, mainInterface string) error {
 		return nil
 	}
 
+	if err := epcommon.DisableRAForInterface(SnatBridgeName); err != nil {
+		return err
+	}
+
 	vethLink := netlink.VEthLink{
 		LinkInfo: netlink.LinkInfo{
 			Type: netlink.LINK_TYPE_VETH,
@@ -353,6 +357,14 @@ func CreateSnatBridge(snatBridgeIP string, mainInterface string) error {
 	err = netlink.AddLink(&vethLink)
 	if err != nil {
 		log.Printf("[net] Failed to create veth pair, err:%v.", err)
+		return err
+	}
+
+	if err := epcommon.DisableRAForInterface(azureSnatVeth0); err != nil {
+		return err
+	}
+
+	if err := epcommon.DisableRAForInterface(azureSnatVeth1); err != nil {
 		return err
 	}
 

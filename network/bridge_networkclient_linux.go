@@ -39,7 +39,11 @@ func (client *LinuxBridgeClient) CreateBridge() error {
 		},
 	}
 
-	return netlink.AddLink(&link)
+	if err := netlink.AddLink(&link); err != nil {
+		return err
+	}
+
+	return epcommon.DisableRAForInterface(client.bridgeName)
 }
 
 func (client *LinuxBridgeClient) DeleteBridge() error {
