@@ -589,7 +589,7 @@ var (
 				})
 			})
 
-			Context("When IfName is not match", func() {
+			Context("When the requested interface name does not exist", func() {
 				It("Should raise an error", func() {
 					as := &addressSpace{
 						Pools: map[string]*addressPool{},
