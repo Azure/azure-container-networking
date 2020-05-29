@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package v1alpha
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,27 +28,30 @@ type AvailableIPMapping struct {
 	IP   string `json:"ip,omitempty"`
 }
 
-// NetworkContainerSpec defines the structure of a Network Container as found in NetworkConfigStatus
-type NetworkContainerSpec struct {
+// NetworkContainer defines the structure of a Network Container as found in NetworkConfigStatus
+type NetworkContainer struct {
 	PrimaryIP      string               `json:"primaryIP,omitempty"`
 	ID             string               `json:"id,omitempty"`
 	Subnet         string               `json:"subnet,omitempty"`
 	AvailableIPs   []AvailableIPMapping `json:"availableIPs,omitempty"`
+	IPCount        int64                `json:"ipCount,omitempty"`
 	DefaultGateway string               `json:"defaultGateway,omitempty"`
 	Netmask        string               `json:"netmask,omitempty"`
 }
 
 // NetworkConfigSpec defines the desired state of NetworkConfig
 type NetworkConfigSpec struct {
-	Count       int64    `json:"count,omitempty"`
+	IPCount     int64    `json:"ipCount,omitempty"`
 	IPsNotInUse []string `json:"ipsNotInUse,omitempty"`
 }
 
 // NetworkConfigStatus defines the observed state of NetworkConfig
 type NetworkConfigStatus struct {
-	Count      int64                  `json:"count,omitempty"`
-	BufferSize int64                  `json:"bufferSize,omitempty"`
-	NCs        []NetworkContainerSpec `json:"ncs,omitempty"`
+	IPCount                 int64              `json:"count,omitempty"`
+	BatchSize               int64              `json:"batchSize,omitempty"`
+	ReleaseThresholdPercent int64              `json:"releaseThresholdPercent,omitempty"`
+	RequestThresholdPercent int64              `json:"requestThresholdPercent,omitempty"`
+	NCs                     []NetworkContainer `json:"ncs,omitempty"`
 }
 
 // +kubebuilder:object:root=true
