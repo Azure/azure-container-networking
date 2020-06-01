@@ -63,11 +63,12 @@ type NodeNetworkConfigStatus struct {
 type NetworkContainer struct {
 	ID              string         `json:"id,omitempty"`
 	PrimaryIP       string         `json:"primaryIP,omitempty"`
-	Subnet          string         `json:"subnet,omitempty"`
+	SubnetID        string         `json:"subnetID,omitempty"`
 	IPAssignments   []IPAssignment `json:"iPAssignments,omitempty"`
 	AssignedIPCount int64          `json:"assignedIPCount,omitempty"`
 	DefaultGateway  string         `json:"defaultGateway,omitempty"`
-	Netmask         string         `json:"netmask,omitempty"`
+	// Netmask for the subnet represented by this NC's SubnetID
+	Netmask string `json:"netmask,omitempty"`
 }
 
 // IPAssignment groups an IP address and Name. Name is a UUID set by the the IP address assigner.
