@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/util/wait"
+	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
 
 const (
@@ -72,32 +73,24 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	}
 
 	if !exists {
+		iptMgr.OperationFlag = "-t"
+		index := "3"
+		ksEntry := &IptEntry{
+			Chain: "filter",
+			Specs: []string{
+				"-n",
+				"--list",
+				"KUBE-SERVICES",
+			},
+		}
+		if _, err = iptMgr.Run(ksEntry); err != nil {
+			index = "1"
+		}
+		// position Azure-NPM chain after Kube-Forward and Kube-Service chains if it exists
 		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		entry.Specs = append([]string{index}, entry.Specs...)
 		if _, err = iptMgr.Run(entry); err != nil {
 			log.Errorf("Error: failed to add AZURE-NPM chain to FORWARD chain.")
-			return err
-		}
-	}
-
-	// Add default allow CONNECTED/RELATED rule to AZURE-NPM chain.
-	entry.Chain = util.IptablesAzureChain
-	entry.Specs = []string{
-		util.IptablesModuleFlag,
-		util.IptablesStateModuleFlag,
-		util.IptablesStateFlag,
-		util.IptablesRelatedState + "," + util.IptablesEstablishedState,
-		util.IptablesJumpFlag,
-		util.IptablesAccept,
-	}
-	exists, err = iptMgr.Exists(entry)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		iptMgr.OperationFlag = util.IptablesInsertionFlag
-		if _, err = iptMgr.Run(entry); err != nil {
-			log.Printf("Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -171,6 +164,29 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
 			log.Errorf("Error: failed to add AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.")
+			return err
+		}
+	}
+
+	// Add default allow CONNECTED/RELATED rule to AZURE-NPM chain.
+	entry.Chain = util.IptablesAzureChain
+	entry.Specs = []string{
+		util.IptablesModuleFlag,
+		util.IptablesStateModuleFlag,
+		util.IptablesStateFlag,
+		util.IptablesRelatedState + "," + util.IptablesEstablishedState,
+		util.IptablesJumpFlag,
+		util.IptablesAccept,
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesAppendFlag
+		if _, err = iptMgr.Run(entry); err != nil {
+			log.Printf("Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -457,3 +473,29 @@ func grabIptablesLocks() (*os.File, error) {
 func grabIptablesFileLock(f *os.File) error {
 	return unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 }
+
+// TO-DO :- Use iptables-restore to update iptables.
+// func SyncIptables(entries []*IptEntry) error {
+// 	// Ensure main chains and rules are installed.
+// 	tablesNeedServicesChain := []utiliptables.Table{utiliptables.TableFilter, utiliptables.TableNAT}
+// 	for _, table := range tablesNeedServicesChain {
+// 		if _, err := proxier.iptables.EnsureChain(table, iptablesServicesChain); err != nil {
+// 			glog.Errorf("Failed to ensure that %s chain %s exists: %v", table, iptablesServicesChain, err)
+// 			return
+// 		}
+// 	}
+
+// 	// Get iptables-save output so we can check for existing chains and rules.
+// 	// This will be a map of chain name to chain with rules as stored in iptables-save/iptables-restore
+// 	existingFilterChains := make(map[utiliptables.Chain]string)
+// 	iptablesSaveRaw, err := proxier.iptables.Save(utiliptables.TableFilter)
+// 	if err != nil { // if we failed to get any rules
+// 		glog.Errorf("Failed to execute iptables-save, syncing all rules. %s", err.Error())
+// 	} else { // otherwise parse the output
+// 		existingFilterChains = getChainLines(utiliptables.TableFilter, iptablesSaveRaw)
+// 	}
+
+// 	// Write table headers.
+// 	writeLine(filterChains, "*filter")
+
+// }
