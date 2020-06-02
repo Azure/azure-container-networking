@@ -9,6 +9,7 @@ package iptm
 import (
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -73,19 +74,19 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	}
 
 	if !exists {
-		iptMgr.OperationFlag = "-t"
-		index := "3"
-		ksEntry := &IptEntry{
-			Chain: "filter",
-			Specs: []string{
-				"-n",
-				"--list",
-				"KUBE-SERVICES",
-			},
+		// retrieve KUBE-SERVICES index
+		index := "1"
+		iptFilterEntries := exec.Command(util.Iptables, "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers")
+		grep := exec.Command("grep", "KUBE-SERVICES")
+		pipe, _ := iptFilterEntries.StdoutPipe()
+		grep.Stdin = pipe
+		iptFilterEntries.Start()
+		output, err := grep.CombinedOutput()
+		if err == nil && len(output) > 2 {
+			tmpIndex, _ := strconv.Atoi(string(output[0]))
+			index = strconv.Itoa(tmpIndex + 1)
 		}
-		if _, err = iptMgr.Run(ksEntry); err != nil {
-			index = "1"
-		}
+		pipe.Close()
 		// position Azure-NPM chain after Kube-Forward and Kube-Service chains if it exists
 		iptMgr.OperationFlag = util.IptablesInsertionFlag
 		entry.Specs = append([]string{index}, entry.Specs...)
