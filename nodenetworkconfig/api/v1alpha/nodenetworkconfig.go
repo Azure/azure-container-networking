@@ -52,7 +52,6 @@ type NodeNetworkConfigSpec struct {
 
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig
 type NodeNetworkConfigStatus struct {
-	AssignedIPCount         int64              `json:"assignedIPCount,omitempty"`
 	BatchSize               int64              `json:"batchSize,omitempty"`
 	ReleaseThresholdPercent int64              `json:"releaseThresholdPercent,omitempty"`
 	RequestThresholdPercent int64              `json:"requestThresholdPercent,omitempty"`
@@ -61,12 +60,11 @@ type NodeNetworkConfigStatus struct {
 
 // NetworkContainer defines the structure of a Network Container as found in NetworkConfigStatus
 type NetworkContainer struct {
-	ID              string         `json:"id,omitempty"`
-	PrimaryIP       string         `json:"primaryIP,omitempty"`
-	SubnetID        string         `json:"subnetID,omitempty"`
-	IPAssignments   []IPAssignment `json:"iPAssignments,omitempty"`
-	AssignedIPCount int64          `json:"assignedIPCount,omitempty"`
-	DefaultGateway  string         `json:"defaultGateway,omitempty"`
+	ID             string         `json:"id,omitempty"`
+	PrimaryIP      string         `json:"primaryIP,omitempty"`
+	SubnetID       string         `json:"subnetID,omitempty"`
+	IPAssignments  []IPAssignment `json:"iPAssignments,omitempty"`
+	DefaultGateway string         `json:"defaultGateway,omitempty"`
 	// Netmask for the subnet represented by this NC's SubnetID
 	Netmask string `json:"netmask,omitempty"`
 }
