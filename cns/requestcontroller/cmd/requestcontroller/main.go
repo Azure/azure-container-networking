@@ -114,9 +114,11 @@ func main() {
 	}
 
 	// Create manager for NodeNetworkConfigReconciler
+	// MetricsBindAddress is the tcp address that the controller should bind to
+	// for serving prometheus metrics, set to "0" to disable
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:             scheme,
-		MetricsBindAddress: ":8081",
+		MetricsBindAddress: "0",
 	})
 	if err != nil {
 		logger.Printf("error: %v", err)
@@ -134,9 +136,11 @@ func main() {
 		return
 	}
 
-	// Start manager
+	// Start manager and consequently, the controller
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		logger.Printf("error: %v", err)
 		return
 	}
+
+	//TODO: Setup unix domain socket to listen for CNS publishes (cnslistener)
 }
