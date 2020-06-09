@@ -1,0 +1,1 @@
+//This will listen for CNS to talk to it and when it does, it will pass those changes to the CRD via kubeocnfig API server
