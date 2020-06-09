@@ -23,6 +23,7 @@ const (
 )
 
 var (
+	// Base scheme for this runtime, we will add the CRD scheme to this in init
 	scheme = runtime.NewScheme()
 )
 
@@ -78,6 +79,7 @@ func printVersion() {
 	fmt.Printf("Version %v\n", version)
 }
 
+// add the CRD scheme to the runtime scheme
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
@@ -85,12 +87,10 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Hi there")
-
 	// Initialize and parse command line arguments.
 	acn.ParseArgs(&args, printVersion)
 
-	//Get kube config path
+	//Get kube config path and logging settings from cmd line
 	kubeconfigpath := acn.GetArg(acn.OptKubeConfigPath).(string)
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
@@ -103,13 +103,14 @@ func main() {
 	// Read the kubeconfig
 	kubeconfigBytes, err := ioutil.ReadFile(kubeconfigpath)
 	if err != nil {
+		logger.Printf("[cns-rc] Error reading kubeconfig file given path %v. Error: %v", err)
 		return
 	}
 
 	// Create a REST config from the kubeconfig file
 	restConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeconfigBytes)
 	if err != nil {
-
+		logger.Printf("[cns-rc] Error creating REST config from kube config: %v", err)
 		return
 	}
 
@@ -121,7 +122,7 @@ func main() {
 		MetricsBindAddress: "0",
 	})
 	if err != nil {
-		logger.Printf("error: %v", err)
+		logger.Printf("[cns-rc] Error creating new manager: %v", err)
 		return
 	}
 
@@ -132,13 +133,13 @@ func main() {
 
 	// Setup manager with NodeNetworkConfigReconciler
 	if err = nodeNetworkConfigController.SetupWithManager(mgr); err != nil {
-		logger.Printf("error: %v", err)
+		logger.Printf("[cns-rc] Error creating new NodeNetworkConfigController: %v", err)
 		return
 	}
 
 	// Start manager and consequently, the controller
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		logger.Printf("error: %v", err)
+		logger.Printf("[cns-rc] Error starting manager: %v", err)
 		return
 	}
 
