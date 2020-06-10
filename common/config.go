@@ -98,4 +98,8 @@ const (
 	// Store file location
 	OptStoreFileLocation      = "store-file-path"
 	OptStoreFileLocationAlias = "storefilepath"
+
+	// Kubeconfig path
+	OptKubeConfigPath      = "kubeconfigpath"
+	OptKubeConfigPathAlias = "k"
 )
