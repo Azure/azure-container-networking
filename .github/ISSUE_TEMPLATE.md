@@ -1,33 +1,3 @@
-<!-- Thanks for filing an issue! Before hitting the button, please answer these questions. It's helpful to search the existing GitHub issues first. It's likely that another user has already reported the issue you're facing, or it's a known issue that we're already aware of-->
-
-**Is this a request for help?**:
-
----
-
-**Is this an ISSUE or FEATURE REQUEST?** (choose one):
-
----
-
-**Which release version?**:
-
----
-
-**Which component (CNI/IPAM/CNM/CNS)**:
-
----
-
-**Which Operating System (Linux/Windows)**:
-
----
-
-**For Linux: Include Distro and kernel version using "uname -a"**
-
----
-
-**For windows: provide output of "$(Get-ItemProperty -Path "C:\windows\system32\hal.dll").VersionInfo.FileVersion"**
-
----
-
 <!--
 If this is a ISSUE, please:
   - Fill in as much of the template below as you can.  If you leave out
@@ -42,22 +12,18 @@ might close your issue.  If we're wrong, PLEASE feel free to reopen it and
 explain why.
 -->
 
-**Which Orchestrator and version (e.g. Kubernetes, Docker)**
-
----
+**Is this an ISSUE or FEATURE REQUEST?**:
 
 **What happened**:
 
----
-
 **What you expected to happen**:
 
----
+**How to reproduce it**:
 
-**How to reproduce it** (as minimally and precisely as possible):
+**Anything else we need to know?**:
 
----
-
-**Anything else we need to know**:
-
----
+**Environment**:
+- orchestrator and version (e.g. Kubernetes, Docker):
+- component and version (CNI/IPAM/CNM/CNS):
+- operation system (Linux/Windows):
+- Kernel (e.g. `uanme -a` for Linux or `$(Get-ItemProperty -Path "C:\windows\system32\hal.dll").VersionInfo.FileVersion` for Windows):
