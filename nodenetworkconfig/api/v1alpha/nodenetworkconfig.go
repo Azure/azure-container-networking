@@ -25,7 +25,7 @@ import (
 // +kubebuilder:object:root=true
 
 // NodeNetworkConfig is the Schema for the nodenetworkconfigs API
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:subresource:status
 type NodeNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`

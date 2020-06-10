@@ -10,23 +10,22 @@ import (
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
-//KubeConfig the kubeconfig file path
-type KubeConfig struct {
-	KubeConfigFilePath string
-}
-
-// NodeNetworkConfigReconciler watches API server for any creation/deletion/updates of NodeNetworkConfig objects
+// NodeNetworkConfigReconciler (aka controller) watches API server for any creation/deletion/updates of NodeNetworkConfig objects
 type NodeNetworkConfigReconciler struct {
-	client.Client
+	K8sClient client.Client
 }
 
 // Reconcile relays changes in NodeNetworkConfig to CNS
+// Returning non-nil error causes a requeue
+// Returning ctrl.Result{}, nil causes the queue to "forget" the item
+// Other return values are possible, see kubebuilder docs for details
 func (n *NodeNetworkConfigReconciler) Reconcile(request ctrl.Request) (ctrl.Result, error) {
-	nodeNetConfig := nnc.NodeNetworkConfig{}
+	var nodeNetConfig nnc.NodeNetworkConfig
 
 	//Get the CRD object
-	if err := n.Client.Get(context.TODO(), request.NamespacedName, &nodeNetConfig); err != nil {
-		logger.Printf("[cns-rc] Error getting CRD: %v", err)
+	if err := n.K8sClient.Get(context.TODO(), request.NamespacedName, &nodeNetConfig); err != nil {
+		logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	logger.Printf("[cns-rc] CRD object: %v", nodeNetConfig)
