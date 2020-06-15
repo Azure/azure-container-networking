@@ -5,6 +5,8 @@ package npm
 import (
 	"context"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof" // expose pprof endpoint
 	"os"
 	"sync"
 	"time"
@@ -170,8 +172,14 @@ func (npMgr *NetworkPolicyManager) backup() {
 	}
 }
 
+func startProfiling() {
+	fmt.Println(http.ListenAndServe(":8080", nil))
+	fmt.Println("Started profiling endpoint")
+}
+
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
+	go startProfiling()
 	// Starts all informers manufactured by npMgr's informerFactory.
 	npMgr.informerFactory.Start(stopCh)
 
@@ -302,14 +310,11 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		// Network policy event handlers
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				npMgr.Lock()
-				npMgr.AddNetworkPolicy(obj.(*networkingv1.NetworkPolicy))
-				npMgr.Unlock()
+				go npMgr.AddNetworkPolicy(obj.(*networkingv1.NetworkPolicy))
+
 			},
 			UpdateFunc: func(old, new interface{}) {
-				npMgr.Lock()
-				npMgr.UpdateNetworkPolicy(old.(*networkingv1.NetworkPolicy), new.(*networkingv1.NetworkPolicy))
-				npMgr.Unlock()
+				go npMgr.UpdateNetworkPolicy(old.(*networkingv1.NetworkPolicy), new.(*networkingv1.NetworkPolicy))
 			},
 			DeleteFunc: func(obj interface{}) {
 				npMgr.Lock()

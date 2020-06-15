@@ -33,8 +33,10 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		npName = npObj.ObjectMeta.Name
 		allNs  = npMgr.nsMap[util.KubeAllNamespacesFlag]
 	)
+	npMgr.Lock()
+	defer npMgr.Unlock()
 
-	log.Printf("NETWORK POLICY CREATING: %v", npObj)
+	log.Printf("NETWORK POLICY CREATING: %s", npObj.Name)
 
 	if ns, exists = npMgr.nsMap[npNs]; !exists {
 		ns, err = newNs(npNs)

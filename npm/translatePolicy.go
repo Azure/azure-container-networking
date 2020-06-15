@@ -1501,18 +1501,6 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []s
 		hasIngress, hasEgress bool
 	)
 
-	log.Printf("Translating network policy:\n %+v", npObj)
-
-	defer func() {
-		log.Printf("Finished translatePolicy")
-		log.Printf("sets: %v", resultSets)
-		log.Printf("lists: %v", resultLists)
-		log.Printf("entries: ")
-		for _, entry := range entries {
-			log.Printf("entry: %+v", entry)
-		}
-	}()
-
 	npNs := npObj.ObjectMeta.Namespace
 
 	if len(npObj.Spec.PolicyTypes) == 0 {
@@ -1572,7 +1560,6 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []s
 	}
 
 	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
-	log.Printf("Translating Policy: %+v", npObj)
 	resultSets, resultLists = util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists)
 
 	return resultSets, resultNamedPorts, resultLists, entries

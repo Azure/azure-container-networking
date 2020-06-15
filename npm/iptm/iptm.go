@@ -298,8 +298,6 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 
 // Add adds a rule in iptables.
 func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
-	log.Printf("Adding iptables entry: %+v.", entry)
-
 	if entry.IsJumpEntry {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 	} else {
@@ -347,10 +345,6 @@ func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
 	}
 
 	cmdArgs := append([]string{util.IptablesWaitFlag, entry.LockWaitTimeInSeconds, iptMgr.OperationFlag, entry.Chain}, entry.Specs...)
-
-	if iptMgr.OperationFlag != util.IptablesCheckFlag {
-		log.Printf("Executing iptables command %s %v", cmdName, cmdArgs)
-	}
 
 	_, err := exec.Command(cmdName, cmdArgs...).Output()
 	if msg, failed := err.(*exec.ExitError); failed {

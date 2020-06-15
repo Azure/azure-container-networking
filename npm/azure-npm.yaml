@@ -15,7 +15,7 @@ metadata:
     addonmanager.kubernetes.io/mode: EnsureExists
 rules:
   - apiGroups:
-    - ""
+      - ""
     resources:
       - pods
       - nodes
@@ -25,7 +25,7 @@ rules:
       - list
       - watch
   - apiGroups:
-    - networking.k8s.io
+      - networking.k8s.io
     resources:
       - networkpolicies
     verbs:
@@ -66,24 +66,31 @@ spec:
       labels:
         k8s-app: azure-npm
       annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
+        scheduler.alpha.kubernetes.io/critical-pod: ""
     spec:
       priorityClassName: system-node-critical
       tolerations:
-      - operator: "Exists"
-        effect: NoExecute
-      - operator: "Exists"
-        effect: NoSchedule
-      - key: CriticalAddonsOnly
-        operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
       nodeSelector:
         beta.kubernetes.io/os: linux
         kubernetes.io/role: agent
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.0.33
+          image: cr.microsoft.com/containernetworking/azure-npm:v1.1.4
           securityContext:
             privileged: true
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "20Mi"
+            limits:
+              cpu: "100m"
+              memory: "200Mi"
           env:
             - name: HOSTNAME
               valueFrom:
@@ -91,24 +98,24 @@ spec:
                   apiVersion: v1
                   fieldPath: spec.nodeName
           volumeMounts:
-          - name: xtables-lock
-            mountPath: /run/xtables.lock
-          - name: log
-            mountPath: /var/log
-          - name: protocols
-            mountPath: /etc/protocols
+            - name: xtables-lock
+              mountPath: /run/xtables.lock
+            - name: log
+              mountPath: /var/log
+            - name: protocols
+              mountPath: /etc/protocols
       hostNetwork: true
       volumes:
-      - name: log
-        hostPath:
-          path: /var/log
-          type: Directory
-      - name: xtables-lock
-        hostPath:
-          path: /run/xtables.lock
-          type: File
-      - name: protocols
-        hostPath:
-          path: /etc/protocols
-          type: File
+        - name: log
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: xtables-lock
+          hostPath:
+            path: /run/xtables.lock
+            type: File
+        - name: protocols
+          hostPath:
+            path: /etc/protocols
+            type: File
       serviceAccountName: azure-npm
