@@ -84,10 +84,13 @@ func (rc *requestController) StartRequestController() error {
 	}
 
 	// Start manager and consequently, the reconciler
-	if err := rc.mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		logger.Errorf("[cns-rc] Error starting manager: %v", err)
-		return err
-	}
+	// Start() blocks until SIGINT or SIGTERM is received
+	go func() {
+		logger.Printf("Starting manager")
+		if err := rc.mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+			logger.Errorf("[cns-rc] Error starting manager: %v", err)
+		}
+	}()
 
 	return nil
 }

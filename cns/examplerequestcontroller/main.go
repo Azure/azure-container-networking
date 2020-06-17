@@ -18,9 +18,8 @@ func main() {
 		logger.Errorf("Error making new RequestController: %v", err)
 	}
 
-	//Spawn off a goroutine running the reconcile loop
-
-	if err = rc.StartRequestController(); err != nil {
+	//Start the RequestController which starts the reconcile loop
+	if err := rc.StartRequestController(); err != nil {
 		logger.Errorf("Error starting requestController: %v", err)
 	}
 
