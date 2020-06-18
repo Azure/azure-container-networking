@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -385,7 +386,7 @@ func main() {
 			// Periodically poll (30s) DNC for node updates
 			for {
 				<-time.NewTicker(time.Second * 30).C
-				httpRestService.SyncNodeStatus(ep, vnet, node)
+				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
 			}
 		}(privateEndpoint, infravnet, nodeID)
 	}

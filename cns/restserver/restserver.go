@@ -4,19 +4,7 @@
 package restserver
 
 import (
-<<<<<<< HEAD
-=======
-	"bytes"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"runtime"
-	"strconv"
-	"strings"
->>>>>>> Adding changes for CNS to be compatible with managed DNC (reverse communication channel)
 	"sync"
 	"time"
 
@@ -42,8 +30,6 @@ var (
 	namedLock = acn.InitNamedLock()
 )
 
-<<<<<<< HEAD
-=======
 const (
 	// Key against which CNS state is persisted.
 	storeKey        = "ContainerNetworkService"
@@ -55,7 +41,6 @@ const (
 	dncApiVersion       = "?api-version=2018-03-01"
 )
 
->>>>>>> Adding changes for CNS to be compatible with managed DNC (reverse communication channel)
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
@@ -109,7 +94,7 @@ type networkInfo struct {
 type HTTPService interface {
 	common.ServiceAPI
 	SendNCSnapShotPeriodically(int, chan bool)
-	SyncNodeStatus(string, string, string)
+	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
 }
 
 // NewHTTPRestService creates a new HTTP Service object.

@@ -65,7 +65,6 @@ type CreateNetworkContainerRequest struct {
 	NetworkContainerType       string
 	NetworkContainerid         string // Mandatory input.
 	PrimaryInterfaceIdentifier string // Primary CA.
-	InterfaceIP                string
 	AuthorizationToken         string
 	LocalIPConfiguration       IPConfiguration
 	OrchestratorContext        json.RawMessage
