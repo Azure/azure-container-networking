@@ -2,6 +2,7 @@ package requestcontroller
 
 import (
 	"errors"
+	"os"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/requestcontroller/channels"
@@ -19,6 +20,7 @@ import (
 type requestController struct {
 	cnsChannel chan channels.CNSChannel
 	mgr        manager.Manager //mgr has method GetClient() to get k8s client
+	hostName   string          //name of node running this program
 }
 
 //NewRequestController given a CNSChannel, returns a requestController struct
@@ -28,6 +30,12 @@ func NewRequestController(cnsChannel chan channels.CNSChannel) (*requestControll
 	//Check that logger package has been intialized
 	if logger.Log == nil {
 		return nil, errors.New("Must initialize logger before calling")
+	}
+
+	// Check that HOSTNAME environment variable is set. HOSTNAME is name of node running this program
+	hostName := os.Getenv("HOSTNAME")
+	if hostName == "" {
+		return nil, errors.New("Must declare HOSTNAME environment variable. HOSTNAME is name of node.")
 	}
 
 	//Add CRD scheme to runtime sheme so manager can recognize it
@@ -64,6 +72,7 @@ func NewRequestController(cnsChannel chan channels.CNSChannel) (*requestControll
 	requestController := requestController{
 		cnsChannel: cnsChannel,
 		mgr:        mgr,
+		hostName:   hostName,
 	}
 
 	return &requestController, nil
@@ -75,6 +84,7 @@ func (rc *requestController) StartRequestController() error {
 	nodenetworkconfigreconciler := &reconcilers.NodeNetworkConfigReconciler{
 		K8sClient:  rc.mgr.GetClient(),
 		CNSchannel: rc.cnsChannel,
+		HostName:   rc.hostName,
 	}
 
 	// Setup manager with NodeNetworkConfigReconciler
@@ -91,6 +101,13 @@ func (rc *requestController) StartRequestController() error {
 			logger.Errorf("[cns-rc] Error starting manager: %v", err)
 		}
 	}()
+
+	return nil
+}
+
+// This function will translate a release request from CNS into updating the CRD spec
+// It implements cnsipaminterface method ReleaseIPs
+func (rc *requestController) ReleaseIpConfigs() error {
 
 	return nil
 }

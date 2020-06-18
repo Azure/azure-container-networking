@@ -11,7 +11,7 @@ func main() {
 	//Assuming logger is already setup and stuff
 	logger.InitLogger("Azure CNS", 3, 3, "")
 
-	cnsChannel := make(chan channels.CNSChannel)
+	cnsChannel := make(chan channels.CNSChannel, 1)
 
 	rc, err := requestcontroller.NewRequestController(cnsChannel)
 	if err != nil {
@@ -22,5 +22,9 @@ func main() {
 	if err := rc.StartRequestController(); err != nil {
 		logger.Errorf("Error starting requestController: %v", err)
 	}
+
+	x := <-cnsChannel
+
+	logger.Printf("done: %v", x)
 
 }
