@@ -65,6 +65,7 @@ type CreateNetworkContainerRequest struct {
 	NetworkContainerType       string
 	NetworkContainerid         string // Mandatory input.
 	PrimaryInterfaceIdentifier string // Primary CA.
+	InterfaceIP                string
 	AuthorizationToken         string
 	LocalIPConfiguration       IPConfiguration
 	OrchestratorContext        json.RawMessage
@@ -325,7 +326,8 @@ func (networkContainerRequestPolicy *NetworkContainerRequestPolicies) Validate()
 
 // NodeInfoResponse - Struct to hold the node info response.
 type NodeInfoResponse struct {
-	NetworkContainers []CreateNetworkContainerRequest
+	NetworkContainers  []CreateNetworkContainerRequest
+	GetNCVersionURLFmt string
 }
 
 // JsonErr - Struct to hold err info
