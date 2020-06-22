@@ -110,29 +110,68 @@ func (k8sRC *k8sRequestController) StartRequestController() error {
 	return nil
 }
 
-// This function will translate a release request from CNS into updating the CRD spec
-func (k8sRC *k8sRequestController) ReleaseIpsByUUID(listOfIPUUIDS []string, newCount int64) error {
+// ReleaseIPsByUUIDs sends release ip request to the API server. Provide the UUIDs of the IP allocations
+func (k8sRC *k8sRequestController) ReleaseIPsByUUIDs(listOfIPUUIDS []string) error {
+	nodeNetworkConfig, err := k8sRC.getNodeNetConfig(k8sRC.hostName, k8sNamespace)
+	if err != nil {
+		logger.Errorf("[cns-rc] Error getting CRD when releasing IPs by uuid %V", err)
+		return err
+	}
+
+	//Update the CRD IpsNotInUse
+	nodeNetworkConfig.Spec.IPsNotInUse = append(nodeNetworkConfig.Spec.IPsNotInUse, listOfIPUUIDS...)
+
+	//Send update to API server
+	if err := k8sRC.updateNodeNetConfig(nodeNetworkConfig); err != nil {
+		logger.Errorf("[cns-rc] Error updating CRD when releasing IPs by uuid %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// UpdateIPCount sends the new requested ip count to the API server
+func (k8sRC *k8sRequestController) UpdateRequestedIPCount(newCount int64) error {
+	nodeNetworkConfig, err := k8sRC.getNodeNetConfig(k8sRC.hostName, k8sNamespace)
+	if err != nil {
+		logger.Errorf("[cns-rc] Error getting CRD when releasing IPs by uuid %V", err)
+		return err
+	}
+
+	//Update the CRD IP count
+	nodeNetworkConfig.Spec.RequestedIPCount = newCount
+
+	//Send update to API server
+	if err := k8sRC.updateNodeNetConfig(nodeNetworkConfig); err != nil {
+		logger.Errorf("[cns-rc] Error updating CRD when releasing IPs by uuid %v", err)
+		return err
+	}
+
+	return nil
+}
+
+// getNodeNetConfig gets the nodeNetworkConfig CRD given the name and namespace of the CRD object
+func (k8sRC *k8sRequestController) getNodeNetConfig(name, namespace string) (*nnc.NodeNetworkConfig, error) {
 	k8sClient := k8sRC.mgr.GetClient()
 	nodeNetworkConfig := &nnc.NodeNetworkConfig{}
 
-	//Get the CRD object
 	err := k8sClient.Get(context.Background(), client.ObjectKey{
 		Namespace: k8sNamespace,
 		Name:      k8sRC.hostName,
 	}, nodeNetworkConfig)
 
 	if err != nil {
-		logger.Errorf("[cns-rc] Error getting CRD when releasing IPs by uuid %V", err)
-		return err
+		return nil, err
 	}
 
-	logger.Printf("Fetched nnc: %v", nodeNetworkConfig)
+	return nodeNetworkConfig, nil
+}
 
-	nodeNetworkConfig.Spec.IPsNotInUse = append(nodeNetworkConfig.Spec.IPsNotInUse, listOfIPUUIDS...)
-	nodeNetworkConfig.Spec.RequestedIPCount = newCount
+// updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
+func (k8sRC *k8sRequestController) updateNodeNetConfig(nodeNetworkConfig *nnc.NodeNetworkConfig) error {
+	k8sClient := k8sRC.mgr.GetClient()
 
 	if err := k8sClient.Update(context.Background(), nodeNetworkConfig); err != nil {
-		logger.Errorf("[cns-rc] Error updating CRD when releasing IPs by uuid %v", err)
 		return err
 	}
 

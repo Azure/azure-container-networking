@@ -24,8 +24,11 @@ func goRequestController(rc requestcontroller.RequestController) {
 	uuids[1] = "uuid1"
 	uuids[2] = "uuid2"
 	uuids[3] = "uuid3"
-	uuids[4] = "uuid4"
-	rc.ReleaseIpsByUUID(uuids, int64(10))
+	uuids[4] = "uuid100"
+	rc.ReleaseIPsByUUIDs(uuids)
+
+	// Update to dummy count
+	rc.UpdateRequestedIPCount(int64(10))
 }
 
 //Example of using the requestcontroller package
@@ -44,7 +47,4 @@ func main() {
 
 	//Rely on the interface
 	goRequestController(requestController)
-
-	x := <-cnsChannel
-	logger.Printf("done: %v", x)
 }

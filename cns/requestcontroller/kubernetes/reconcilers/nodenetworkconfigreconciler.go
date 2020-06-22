@@ -9,6 +9,8 @@ import (
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -19,13 +21,11 @@ type NodeNetworkConfigReconciler struct {
 	HostName   string
 }
 
-// Reconcile relays changes in NodeNetworkConfig to CNS
+// Reconcile relays status changes in NodeNetworkConfig to CNS
 // Returning non-nil error causes a requeue
 // Returning ctrl.Result{}, nil causes the queue to "forget" the item
 // Other return values are possible, see kubebuilder docs for details
 func (n *NodeNetworkConfigReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	// TODO: Implement a cache system so as not to call cns redunantly
-
 	// We are only interested in requests coming for the node that this program is running on
 	// Requeue if it's not for this node
 	if request.Name != n.HostName {
@@ -44,13 +44,6 @@ func (n *NodeNetworkConfigReconciler) Reconcile(request reconcile.Request) (reco
 
 	//TODO: Pass the updates to CNS via the CNSChannel
 
-	logger.Printf("Sending channel")
-	tempChannel := channels.CNSChannel{
-		Foo: "hi",
-	}
-
-	n.CNSchannel <- tempChannel
-
 	return reconcile.Result{}, nil
 }
 
@@ -58,5 +51,20 @@ func (n *NodeNetworkConfigReconciler) Reconcile(request reconcile.Request) (reco
 func (n *NodeNetworkConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nnc.NodeNetworkConfig{}).
+		WithEventFilter(predicate.Funcs{
+			UpdateFunc: isStatusUpdated,
+		}).
 		Complete(n)
+}
+
+// If the generations are the same, it means it's status change, and we should return true, so that the
+// reconcile loop is triggered by it.
+// If they're different, it means a spec change, and we should ignore, by returning false, to avoid redundant calls to cns when the
+// status hasn't changed
+// See https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#status-subresource
+// for more details
+func isStatusUpdated(e event.UpdateEvent) bool {
+	oldGeneration := e.MetaOld.GetGeneration()
+	newGeneration := e.MetaNew.GetGeneration()
+	return oldGeneration == newGeneration
 }
