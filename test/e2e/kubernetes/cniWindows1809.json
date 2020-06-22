@@ -13,18 +13,14 @@
                "--tls-min-version": "VersionTLS12",
                "--tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
             },
-            "addons": [
-               {
+            "addons": [{
+               "name": "azure-npm-daemonset",
+               "enabled": true,
+               "containers": [{
                   "name": "azure-npm-daemonset",
-                  "enabled": true,
-                  "containers": [
-                     {
-                        "name": "azure-npm-daemonset",
-                        "image": ""
-                     }
-                  ]
-               }
-            ]
+                  "image": ""
+               }]
+            }]
          }
       },
       "masterProfile": {
@@ -32,20 +28,16 @@
          "dnsPrefix": "cniWindows",
          "vmSize": "Standard_D2_v2"
       },
-      "agentPoolProfiles": [
-         {
-            "name": "windowspool2",
-            "count": 2,
-            "vmSize": "Standard_D2_v2",
-            "availabilityProfile": "AvailabilitySet",
-            "osType": "Windows",
-            "extensions": [
-               {
-                  "name": "windows-patches"
-               }
-            ]
-         }
-      ],
+      "agentPoolProfiles": [{
+         "name": "windowspool2",
+         "count": 2,
+         "vmSize": "Standard_D2_v2",
+         "availabilityProfile": "AvailabilitySet",
+         "osType": "Windows",
+         "extensions": [{
+            "name": "windows-patches"
+         }]
+      }],
       "windowsProfile": {
          "adminUsername": "azureuser",
          "adminPassword": "azureTest@!",
@@ -54,16 +46,14 @@
          "windowsPublisher": "MicrosoftWindowsServer",
          "windowsOffer": "WindowsServerSemiAnnual",
          "windowsSku": "Datacenter-Core-1809-with-Containers-smalldisk",
-         "imageVersion": "1809.0.20190826"
+         "imageVersion": "latest"
       },
       "linuxProfile": {
          "adminUsername": "azureuser",
          "ssh": {
-            "publicKeys": [
-               {
-                  "keyData": ""
-               }
-            ]
+            "publicKeys": [{
+               "keyData": ""
+            }]
          }
       },
       "servicePrincipalProfile": {
