@@ -1,30 +1,35 @@
 package requestcontroller
 
 import (
+	"context"
 	"errors"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/requestcontroller/channels"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller/reconcilers"
+	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubernetes/reconcilers"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
+
+const k8sNamespace = "kube-system"
 
 //requestController watches CRDs for status updates and publishes CRD spec changes
 // cnsChannel acts as the communication between CNS and requestController
 // mgr acts as the communication between requestController and API server
-type requestController struct {
+// implements the
+type k8sRequestController struct {
 	cnsChannel chan channels.CNSChannel
 	mgr        manager.Manager //mgr has method GetClient() to get k8s client
 	hostName   string          //name of node running this program
 }
 
-//NewRequestController given a CNSChannel, returns a requestController struct
-func NewRequestController(cnsChannel chan channels.CNSChannel) (*requestController, error) {
+//NewK8sRequestController given a CNSChannel, returns a k8sRequestController struct
+func NewK8sRequestController(cnsChannel chan channels.CNSChannel) (*k8sRequestController, error) {
 	const k8sNamespace = "kube-system"
 
 	//Check that logger package has been intialized
@@ -69,26 +74,26 @@ func NewRequestController(cnsChannel chan channels.CNSChannel) (*requestControll
 	}
 
 	// Create the requestController struct
-	requestController := requestController{
+	k8sRequestController := k8sRequestController{
 		cnsChannel: cnsChannel,
 		mgr:        mgr,
 		hostName:   hostName,
 	}
 
-	return &requestController, nil
+	return &k8sRequestController, nil
 }
 
 // StartRequestController starts the reconcile loop. This loop waits for changes to CRD statuses.
 // When a CRD status change is made, Reconcile from nodenetworkconfigreconciler is called.
-func (rc *requestController) StartRequestController() error {
+func (k8sRC *k8sRequestController) StartRequestController() error {
 	nodenetworkconfigreconciler := &reconcilers.NodeNetworkConfigReconciler{
-		K8sClient:  rc.mgr.GetClient(),
-		CNSchannel: rc.cnsChannel,
-		HostName:   rc.hostName,
+		K8sClient:  k8sRC.mgr.GetClient(),
+		CNSchannel: k8sRC.cnsChannel,
+		HostName:   k8sRC.hostName,
 	}
 
 	// Setup manager with NodeNetworkConfigReconciler
-	if err := nodenetworkconfigreconciler.SetupWithManager(rc.mgr); err != nil {
+	if err := nodenetworkconfigreconciler.SetupWithManager(k8sRC.mgr); err != nil {
 		logger.Errorf("[cns-rc] Error creating new NodeNetworkConfigReconciler: %v", err)
 		return err
 	}
@@ -97,7 +102,7 @@ func (rc *requestController) StartRequestController() error {
 	// Start() blocks until SIGINT or SIGTERM is received
 	go func() {
 		logger.Printf("Starting manager")
-		if err := rc.mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		if err := k8sRC.mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 			logger.Errorf("[cns-rc] Error starting manager: %v", err)
 		}
 	}()
@@ -106,8 +111,30 @@ func (rc *requestController) StartRequestController() error {
 }
 
 // This function will translate a release request from CNS into updating the CRD spec
-// It implements cnsipaminterface method ReleaseIPs
-func (rc *requestController) ReleaseIpConfigs() error {
+func (k8sRC *k8sRequestController) ReleaseIpsByUUID(listOfIPUUIDS []string, newCount int64) error {
+	k8sClient := k8sRC.mgr.GetClient()
+	nodeNetworkConfig := &nnc.NodeNetworkConfig{}
+
+	//Get the CRD object
+	err := k8sClient.Get(context.Background(), client.ObjectKey{
+		Namespace: k8sNamespace,
+		Name:      k8sRC.hostName,
+	}, nodeNetworkConfig)
+
+	if err != nil {
+		logger.Errorf("[cns-rc] Error getting CRD when releasing IPs by uuid %V", err)
+		return err
+	}
+
+	logger.Printf("Fetched nnc: %v", nodeNetworkConfig)
+
+	nodeNetworkConfig.Spec.IPsNotInUse = append(nodeNetworkConfig.Spec.IPsNotInUse, listOfIPUUIDS...)
+	nodeNetworkConfig.Spec.RequestedIPCount = newCount
+
+	if err := k8sClient.Update(context.Background(), nodeNetworkConfig); err != nil {
+		logger.Errorf("[cns-rc] Error updating CRD when releasing IPs by uuid %v", err)
+		return err
+	}
 
 	return nil
 }

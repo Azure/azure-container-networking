@@ -24,6 +24,8 @@ type NodeNetworkConfigReconciler struct {
 // Returning ctrl.Result{}, nil causes the queue to "forget" the item
 // Other return values are possible, see kubebuilder docs for details
 func (n *NodeNetworkConfigReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	// TODO: Implement a cache system so as not to call cns redunantly
+
 	// We are only interested in requests coming for the node that this program is running on
 	// Requeue if it's not for this node
 	if request.Name != n.HostName {
