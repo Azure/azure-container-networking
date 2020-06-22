@@ -18,7 +18,7 @@ import (
 
 const k8sNamespace = "kube-system"
 
-//requestController watches CRDs for status updates and publishes CRD spec changes
+// k8sRequestController watches CRDs for status updates and publishes CRD spec changes
 // cnsChannel acts as the communication between CNS and requestController
 // mgr acts as the communication between requestController and API server
 // implements the
@@ -30,7 +30,6 @@ type k8sRequestController struct {
 
 //NewK8sRequestController given a CNSChannel, returns a k8sRequestController struct
 func NewK8sRequestController(cnsChannel chan channels.CNSChannel) (*k8sRequestController, error) {
-	const k8sNamespace = "kube-system"
 
 	//Check that logger package has been intialized
 	if logger.Log == nil {
