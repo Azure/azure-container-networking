@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller/channels"
 	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubernetes/reconcilers"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -19,17 +19,16 @@ import (
 const k8sNamespace = "kube-system"
 
 // k8sRequestController watches CRDs for status updates and publishes CRD spec changes
-// cnsChannel acts as the communication between CNS and requestController
 // mgr acts as the communication between requestController and API server
-// implements the
+// implements the RequestController interface
 type k8sRequestController struct {
-	cnsChannel chan channels.CNSChannel
-	mgr        manager.Manager //mgr has method GetClient() to get k8s client
-	hostName   string          //name of node running this program
+	mgr         manager.Manager             //mgr has method GetClient() to get k8s client
+	restService *restserver.HTTPRestService //restService is given to nodeNetworkConfigReconciler (the reconcile loop)
+	hostName    string                      //name of node running this program
 }
 
-//NewK8sRequestController given a CNSChannel, returns a k8sRequestController struct
-func NewK8sRequestController(cnsChannel chan channels.CNSChannel) (*k8sRequestController, error) {
+//NewK8sRequestController given a reference to CNS's HTTPRestService state, returns a k8sRequestController struct
+func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sRequestController, error) {
 
 	//Check that logger package has been intialized
 	if logger.Log == nil {
@@ -74,9 +73,9 @@ func NewK8sRequestController(cnsChannel chan channels.CNSChannel) (*k8sRequestCo
 
 	// Create the requestController struct
 	k8sRequestController := k8sRequestController{
-		cnsChannel: cnsChannel,
-		mgr:        mgr,
-		hostName:   hostName,
+		mgr:         mgr,
+		restService: restService,
+		hostName:    hostName,
 	}
 
 	return &k8sRequestController, nil
@@ -86,9 +85,9 @@ func NewK8sRequestController(cnsChannel chan channels.CNSChannel) (*k8sRequestCo
 // When a CRD status change is made, Reconcile from nodenetworkconfigreconciler is called.
 func (k8sRC *k8sRequestController) StartRequestController() error {
 	nodenetworkconfigreconciler := &reconcilers.NodeNetworkConfigReconciler{
-		K8sClient:  k8sRC.mgr.GetClient(),
-		CNSchannel: k8sRC.cnsChannel,
-		HostName:   k8sRC.hostName,
+		K8sClient:   k8sRC.mgr.GetClient(),
+		RestService: k8sRC.restService,
+		HostName:    k8sRC.hostName,
 	}
 
 	// Setup manager with NodeNetworkConfigReconciler
@@ -129,7 +128,7 @@ func (k8sRC *k8sRequestController) ReleaseIPsByUUIDs(listOfIPUUIDS []string) err
 	return nil
 }
 
-// UpdateIPCount sends the new requested ip count to the API server
+// UpdateIPCount sends the new requested ip count to the API server.
 func (k8sRC *k8sRequestController) UpdateRequestedIPCount(newCount int64) error {
 	nodeNetworkConfig, err := k8sRC.getNodeNetConfig(k8sRC.hostName, k8sNamespace)
 	if err != nil {

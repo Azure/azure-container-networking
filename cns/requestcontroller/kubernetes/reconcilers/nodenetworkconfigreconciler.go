@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller/channels"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,9 +16,9 @@ import (
 
 // NodeNetworkConfigReconciler (aka controller) watches API server for any creation/deletion/updates of NodeNetworkConfig objects
 type NodeNetworkConfigReconciler struct {
-	K8sClient  client.Client
-	CNSchannel chan channels.CNSChannel
-	HostName   string
+	K8sClient   client.Client
+	RestService *restserver.HTTPRestService
+	HostName    string
 }
 
 // Reconcile relays status changes in NodeNetworkConfig to CNS
@@ -42,7 +42,7 @@ func (n *NodeNetworkConfigReconciler) Reconcile(request reconcile.Request) (reco
 
 	logger.Printf("[cns-rc] CRD object: %v", nodeNetConfig)
 
-	//TODO: Pass the updates to CNS via the CNSChannel
+	//TODO: Translate CRD status into HTTPRestService state
 
 	return reconcile.Result{}, nil
 }
