@@ -1,4 +1,4 @@
-package requestcontroller
+package kubernetes
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubernetes/reconcilers"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,6 +22,7 @@ const k8sNamespace = "kube-system"
 // implements the RequestController interface
 type k8sRequestController struct {
 	mgr         manager.Manager             //mgr has method GetClient() to get k8s client
+	Client      K8sClient                   //Relying on the K8sClient interface to more easily test
 	restService *restserver.HTTPRestService //restService is given to nodeNetworkConfigReconciler (the reconcile loop)
 	hostName    string                      //name of node running this program
 }
@@ -74,6 +74,7 @@ func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sReque
 	// Create the requestController struct
 	k8sRequestController := k8sRequestController{
 		mgr:         mgr,
+		Client:      mgr.GetClient(),
 		restService: restService,
 		hostName:    hostName,
 	}
@@ -84,8 +85,8 @@ func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sReque
 // StartRequestController starts the reconcile loop. This loop waits for changes to CRD statuses.
 // When a CRD status change is made, Reconcile from nodenetworkconfigreconciler is called.
 func (k8sRC *k8sRequestController) StartRequestController() error {
-	nodenetworkconfigreconciler := &reconcilers.NodeNetworkConfigReconciler{
-		K8sClient:   k8sRC.mgr.GetClient(),
+	nodenetworkconfigreconciler := &NodeNetworkConfigReconciler{
+		K8sClient:   k8sRC.Client,
 		RestService: k8sRC.restService,
 		HostName:    k8sRC.hostName,
 	}
@@ -150,10 +151,9 @@ func (k8sRC *k8sRequestController) UpdateRequestedIPCount(newCount int64) error 
 
 // getNodeNetConfig gets the nodeNetworkConfig CRD given the name and namespace of the CRD object
 func (k8sRC *k8sRequestController) getNodeNetConfig(name, namespace string) (*nnc.NodeNetworkConfig, error) {
-	k8sClient := k8sRC.mgr.GetClient()
 	nodeNetworkConfig := &nnc.NodeNetworkConfig{}
 
-	err := k8sClient.Get(context.Background(), client.ObjectKey{
+	err := k8sRC.Client.Get(context.Background(), client.ObjectKey{
 		Namespace: k8sNamespace,
 		Name:      k8sRC.hostName,
 	}, nodeNetworkConfig)
@@ -167,9 +167,7 @@ func (k8sRC *k8sRequestController) getNodeNetConfig(name, namespace string) (*nn
 
 // updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
 func (k8sRC *k8sRequestController) updateNodeNetConfig(nodeNetworkConfig *nnc.NodeNetworkConfig) error {
-	k8sClient := k8sRC.mgr.GetClient()
-
-	if err := k8sClient.Update(context.Background(), nodeNetworkConfig); err != nil {
+	if err := k8sRC.Client.Update(context.Background(), nodeNetworkConfig); err != nil {
 		return err
 	}
 

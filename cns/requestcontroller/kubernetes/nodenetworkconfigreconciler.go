@@ -1,4 +1,4 @@
-package reconcilers
+package kubernetes
 
 import (
 	"context"
@@ -9,14 +9,12 @@ import (
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // NodeNetworkConfigReconciler (aka controller) watches API server for any creation/deletion/updates of NodeNetworkConfig objects
 type NodeNetworkConfigReconciler struct {
-	K8sClient   client.Client
+	K8sClient   K8sClient
 	RestService *restserver.HTTPRestService
 	HostName    string
 }
@@ -51,20 +49,6 @@ func (n *NodeNetworkConfigReconciler) Reconcile(request reconcile.Request) (reco
 func (n *NodeNetworkConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nnc.NodeNetworkConfig{}).
-		WithEventFilter(predicate.Funcs{
-			UpdateFunc: isStatusUpdated,
-		}).
+		WithEventFilter(NodeNetworkConfigFilter{}).
 		Complete(n)
-}
-
-// If the generations are the same, it means it's status change, and we should return true, so that the
-// reconcile loop is triggered by it.
-// If they're different, it means a spec change, and we should ignore, by returning false, to avoid redundant calls to cns when the
-// status hasn't changed
-// See https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#status-subresource
-// for more details
-func isStatusUpdated(e event.UpdateEvent) bool {
-	oldGeneration := e.MetaOld.GetGeneration()
-	newGeneration := e.MetaNew.GetGeneration()
-	return oldGeneration == newGeneration
 }

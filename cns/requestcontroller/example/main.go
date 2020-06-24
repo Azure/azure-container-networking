@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/requestcontroller"
+	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubernetes"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 )
 
@@ -45,7 +46,7 @@ func main() {
 
 	restService := &restserver.HTTPRestService{}
 
-	requestController, err := requestcontroller.NewK8sRequestController(restService)
+	requestController, err := kubernetes.NewK8sRequestController(restService)
 	if err != nil {
 		logger.Errorf("Error making new RequestController: %v", err)
 	}
