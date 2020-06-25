@@ -2,7 +2,6 @@ package kubernetes
 
 import (
 	"context"
-	"errors"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
@@ -24,12 +23,6 @@ type NodeNetworkConfigReconciler struct {
 // Returning ctrl.Result{}, nil causes the queue to "forget" the item
 // Other return values are possible, see kubebuilder docs for details
 func (n *NodeNetworkConfigReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	// We are only interested in requests coming for the node that this program is running on
-	// Requeue if it's not for this node
-	if request.Name != n.HostName {
-		return reconcile.Result{}, errors.New("Requeing")
-	}
-
 	var nodeNetConfig nnc.NodeNetworkConfig
 
 	//Get the CRD object
@@ -49,6 +42,6 @@ func (n *NodeNetworkConfigReconciler) Reconcile(request reconcile.Request) (reco
 func (n *NodeNetworkConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nnc.NodeNetworkConfig{}).
-		WithEventFilter(NodeNetworkConfigFilter{}).
+		WithEventFilter(NodeNetworkConfigFilter{hostname: n.HostName}).
 		Complete(n)
 }

@@ -41,10 +41,16 @@ func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sReque
 		return nil, errors.New("Must declare HOSTNAME environment variable. HOSTNAME is name of node.")
 	}
 
-	//Add CRD scheme to runtime sheme so manager can recognize it
+	//Add client-go scheme to runtime sheme so manager can recognize it
 	var scheme = runtime.NewScheme()
-	_ = clientgoscheme.AddToScheme(scheme)
-	_ = nnc.AddToScheme(scheme)
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return nil, errors.New("Error adding client-go scheme to runtime scheme")
+	}
+
+	//Add CRD scheme to runtime sheme so manager can recognize it
+	if err := nnc.AddToScheme(scheme); err != nil {
+		return nil, errors.New("Error adding NodeNetworkConfig scheme to runtime scheme")
+	}
 
 	// GetConfig precedence
 	// * --kubeconfig flag pointing at a file at this cmd line
@@ -84,7 +90,8 @@ func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sReque
 
 // StartRequestController starts the reconcile loop. This loop waits for changes to CRD statuses.
 // When a CRD status change is made, Reconcile from nodenetworkconfigreconciler is called.
-func (k8sRC *k8sRequestController) StartRequestController() error {
+// exitChan will be notified when requestController receives a kill signal
+func (k8sRC *k8sRequestController) StartRequestController(exitChan chan bool) error {
 	nodenetworkconfigreconciler := &NodeNetworkConfigReconciler{
 		K8sClient:   k8sRC.Client,
 		RestService: k8sRC.restService,
@@ -99,9 +106,10 @@ func (k8sRC *k8sRequestController) StartRequestController() error {
 
 	// Start manager and consequently, the reconciler
 	// Start() blocks until SIGINT or SIGTERM is received
+	// When SIGINT or SIGTERm are recived, notifies exitChan before exiting
 	go func() {
 		logger.Printf("Starting manager")
-		if err := k8sRC.mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		if err := k8sRC.mgr.Start(SetupSignalHandler(exitChan)); err != nil {
 			logger.Errorf("[cns-rc] Error starting manager: %v", err)
 		}
 	}()
@@ -109,39 +117,22 @@ func (k8sRC *k8sRequestController) StartRequestController() error {
 	return nil
 }
 
-// ReleaseIPsByUUIDs sends release ip request to the API server. Provide the UUIDs of the IP allocations
-func (k8sRC *k8sRequestController) ReleaseIPsByUUIDs(listOfIPUUIDS []string) error {
-	nodeNetworkConfig, err := k8sRC.getNodeNetConfig(k8sRC.hostName, k8sNamespace)
+// ReleaseIPsByUUIDs sends release ip request to the API server and updates requested ip count.
+// Provide the UUIDs of the IP allocations and the new requested ip count
+func (k8sRC *k8sRequestController) ReleaseIPsByUUIDs(cntxt context.Context, listOfIPUUIDS []string, newRequestedIPCount int) error {
+	nodeNetworkConfig, err := k8sRC.getNodeNetConfig(cntxt, k8sRC.hostName, k8sNamespace)
 	if err != nil {
-		logger.Errorf("[cns-rc] Error getting CRD when releasing IPs by uuid %V", err)
+		logger.Errorf("[cns-rc] Error getting CRD when releasing IPs by uuid %v", err)
 		return err
 	}
 
 	//Update the CRD IpsNotInUse
 	nodeNetworkConfig.Spec.IPsNotInUse = append(nodeNetworkConfig.Spec.IPsNotInUse, listOfIPUUIDS...)
+	//Update the CRD requestedIPCount
+	nodeNetworkConfig.Spec.RequestedIPCount = int64(newRequestedIPCount)
 
 	//Send update to API server
-	if err := k8sRC.updateNodeNetConfig(nodeNetworkConfig); err != nil {
-		logger.Errorf("[cns-rc] Error updating CRD when releasing IPs by uuid %v", err)
-		return err
-	}
-
-	return nil
-}
-
-// UpdateIPCount sends the new requested ip count to the API server.
-func (k8sRC *k8sRequestController) UpdateRequestedIPCount(newCount int64) error {
-	nodeNetworkConfig, err := k8sRC.getNodeNetConfig(k8sRC.hostName, k8sNamespace)
-	if err != nil {
-		logger.Errorf("[cns-rc] Error getting CRD when releasing IPs by uuid %V", err)
-		return err
-	}
-
-	//Update the CRD IP count
-	nodeNetworkConfig.Spec.RequestedIPCount = newCount
-
-	//Send update to API server
-	if err := k8sRC.updateNodeNetConfig(nodeNetworkConfig); err != nil {
+	if err := k8sRC.updateNodeNetConfig(cntxt, nodeNetworkConfig); err != nil {
 		logger.Errorf("[cns-rc] Error updating CRD when releasing IPs by uuid %v", err)
 		return err
 	}
@@ -150,12 +141,12 @@ func (k8sRC *k8sRequestController) UpdateRequestedIPCount(newCount int64) error 
 }
 
 // getNodeNetConfig gets the nodeNetworkConfig CRD given the name and namespace of the CRD object
-func (k8sRC *k8sRequestController) getNodeNetConfig(name, namespace string) (*nnc.NodeNetworkConfig, error) {
+func (k8sRC *k8sRequestController) getNodeNetConfig(cntxt context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {
 	nodeNetworkConfig := &nnc.NodeNetworkConfig{}
 
-	err := k8sRC.Client.Get(context.Background(), client.ObjectKey{
-		Namespace: k8sNamespace,
-		Name:      k8sRC.hostName,
+	err := k8sRC.Client.Get(cntxt, client.ObjectKey{
+		Namespace: namespace,
+		Name:      name,
 	}, nodeNetworkConfig)
 
 	if err != nil {
@@ -166,8 +157,8 @@ func (k8sRC *k8sRequestController) getNodeNetConfig(name, namespace string) (*nn
 }
 
 // updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
-func (k8sRC *k8sRequestController) updateNodeNetConfig(nodeNetworkConfig *nnc.NodeNetworkConfig) error {
-	if err := k8sRC.Client.Update(context.Background(), nodeNetworkConfig); err != nil {
+func (k8sRC *k8sRequestController) updateNodeNetConfig(cntxt context.Context, nodeNetworkConfig *nnc.NodeNetworkConfig) error {
+	if err := k8sRC.Client.Update(cntxt, nodeNetworkConfig); err != nil {
 		return err
 	}
 
