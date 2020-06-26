@@ -77,7 +77,7 @@ func TestAddToList(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
+	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.CreateSet")
 	}
 
@@ -98,7 +98,7 @@ func TestDeleteFromList(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
+	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet")
 	}
 
@@ -127,8 +127,13 @@ func TestCreateSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
+	if err := ipsMgr.CreateSet("test-set", []string{util.IpsetNetHashFlag}); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet")
+	}
+
+	spec := append([]string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum})
+	if err := ipsMgr.CreateSet("test-set-with-maxelem", spec); err != nil {
+		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when set maxelem")
 	}
 }
 
@@ -144,7 +149,7 @@ func TestDeleteSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
+	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.CreateSet")
 	}
 
@@ -167,6 +172,10 @@ func TestAddToSet(t *testing.T) {
 
 	if err := ipsMgr.AddToSet("test-set", "1.2.3.4", util.IpsetNetHashFlag); err != nil {
 		t.Errorf("TestAddToSet failed @ ipsMgr.AddToSet")
+	}
+
+	if err := ipsMgr.AddToSet("test-set", "1.2.3.4/nomatch", util.IpsetNetHashFlag); err != nil {
+		t.Errorf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet")
 	}
 }
 
@@ -203,7 +212,7 @@ func TestClean(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set", util.IpsetNetHashFlag); err != nil {
+	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestClean failed @ ipsMgr.CreateSet")
 	}
 
@@ -248,7 +257,7 @@ func TestRun(t *testing.T) {
 	entry := &ipsEntry{
 		operationFlag: util.IpsetCreationFlag,
 		set:           "test-set",
-		spec:          util.IpsetNetHashFlag,
+		spec:          append([]string{util.IpsetNetHashFlag}),
 	}
 	if _, err := ipsMgr.Run(entry); err != nil {
 		t.Errorf("TestRun failed @ ipsMgr.Run")

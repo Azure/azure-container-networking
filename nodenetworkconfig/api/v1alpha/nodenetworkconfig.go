@@ -26,6 +26,8 @@ import (
 
 // NodeNetworkConfig is the Schema for the nodenetworkconfigs API
 // +kubebuilder:resource:scope=Namespaced
+
+// +kubebuilder:resource:shortName=nnc
 // +kubebuilder:subresource:status
 type NodeNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -52,10 +54,15 @@ type NodeNetworkConfigSpec struct {
 
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig
 type NodeNetworkConfigStatus struct {
-	BatchSize               int64              `json:"batchSize,omitempty"`
-	ReleaseThresholdPercent int64              `json:"releaseThresholdPercent,omitempty"`
-	RequestThresholdPercent int64              `json:"requestThresholdPercent,omitempty"`
-	NetworkContainers       []NetworkContainer `json:"networkContainers,omitempty"`
+	Scaler            Scaler             `json:"scaler,omitempty"`
+	NetworkContainers []NetworkContainer `json:"networkContainers,omitempty"`
+}
+
+// Scaler groups IP request params together
+type Scaler struct {
+	BatchSize               int64 `json:"batchSize,omitempty"`
+	ReleaseThresholdPercent int64 `json:"releaseThresholdPercent,omitempty"`
+	RequestThresholdPercent int64 `json:"requestThresholdPercent,omitempty"`
 }
 
 // NetworkContainer defines the structure of a Network Container as found in NetworkConfigStatus

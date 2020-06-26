@@ -16,7 +16,7 @@ type ipsEntry struct {
 	operationFlag string
 	name          string
 	set           string
-	spec          string
+	spec          []string
 }
 
 // IpsetManager stores ipset states.
@@ -81,7 +81,7 @@ func (ipsMgr *IpsetManager) CreateList(listName string) error {
 		name:          listName,
 		operationFlag: util.IpsetCreationFlag,
 		set:           util.GetHashedName(listName),
-		spec:          util.IpsetSetListFlag,
+		spec:          []string{util.IpsetSetListFlag},
 	}
 	log.Printf("Creating List: %+v", entry)
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
@@ -132,7 +132,7 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 	entry := &ipsEntry{
 		operationFlag: util.IpsetAppendFlag,
 		set:           util.GetHashedName(listName),
-		spec:          util.GetHashedName(setName),
+		spec:          []string{util.GetHashedName(setName)},
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
@@ -162,7 +162,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 	entry := &ipsEntry{
 		operationFlag: util.IpsetDeletionFlag,
 		set:           hashedListName,
-		spec:          hashedSetName,
+		spec:          []string{hashedSetName},
 	}
 
 	if _, err := ipsMgr.Run(entry); err != nil {
@@ -181,7 +181,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 }
 
 // CreateSet creates an ipset.
-func (ipsMgr *IpsetManager) CreateSet(setName, spec string) error {
+func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 	if _, exists := ipsMgr.setMap[setName]; exists {
 		return nil
 	}
@@ -211,10 +211,6 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 		return nil
 	}
 
-	if len(ipsMgr.setMap[setName].elements) > 0 {
-		return nil
-	}
-
 	entry := &ipsEntry{
 		operationFlag: util.IpsetDestroyFlag,
 		set:           util.GetHashedName(setName),
@@ -240,14 +236,21 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec string) error {
 		return nil
 	}
 
-	if err := ipsMgr.CreateSet(setName, spec); err != nil {
+	if err := ipsMgr.CreateSet(setName, append([]string{util.IpsetNetHashFlag})); err != nil {
 		return err
+	}
+	var resultSpec []string
+	if strings.Contains(ip, util.IpsetNomatch) {
+		ip = strings.Trim(ip, util.IpsetNomatch)
+		resultSpec = append([]string{ip, util.IpsetNomatch})
+	} else {
+		resultSpec = append([]string{ip})
 	}
 
 	entry := &ipsEntry{
 		operationFlag: util.IpsetAppendFlag,
 		set:           util.GetHashedName(setName),
-		spec:          ip,
+		spec:          resultSpec,
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
@@ -276,7 +279,7 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip string) error {
 	entry := &ipsEntry{
 		operationFlag: util.IpsetDeletionFlag,
 		set:           util.GetHashedName(setName),
-		spec:          ip,
+		spec:          append([]string{ip}),
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil {
@@ -342,13 +345,8 @@ func (ipsMgr *IpsetManager) Destroy() error {
 // Run execute an ipset command to update ipset.
 func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	cmdName := util.Ipset
-	cmdArgs := []string{entry.operationFlag, util.IpsetExistFlag}
-	if len(entry.set) > 0 {
-		cmdArgs = append(cmdArgs, entry.set)
-	}
-	if len(entry.spec) > 0 {
-		cmdArgs = append(cmdArgs, entry.spec)
-	}
+	cmdArgs := append([]string{entry.operationFlag, util.IpsetExistFlag, entry.set}, entry.spec...)
+	cmdArgs = util.DropEmptyFields(cmdArgs)
 
 	log.Printf("Executing ipset command %s %v", cmdName, cmdArgs)
 	_, err := exec.Command(cmdName, cmdArgs...).Output()

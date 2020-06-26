@@ -547,7 +547,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 
 func TestTranslateIngress(t *testing.T) {
 	ns := "testnamespace"
-
+    name := "testnetworkpolicyname"
 	targetSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"context": "dev",
@@ -640,7 +640,7 @@ func TestTranslateIngress(t *testing.T) {
 	}
 
 	util.IsNewNwPolicyVerFlag = true
-	sets, _, lists, iptEntries := translateIngress(ns, targetSelector, rules)
+	sets, _, lists, _, iptEntries := translateIngress(ns, name, targetSelector, rules)
 	expectedSets := []string{
 		"context:dev",
 		"testNotIn:frontend",
@@ -851,6 +851,7 @@ func TestTranslateIngress(t *testing.T) {
 
 func TestTranslateEgress(t *testing.T) {
 	ns := "testnamespace"
+	name := "testnetworkpolicyname"
 
 	targetSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
@@ -944,7 +945,7 @@ func TestTranslateEgress(t *testing.T) {
 	}
 
 	util.IsNewNwPolicyVerFlag = true
-	sets, _, lists, iptEntries := translateEgress(ns, targetSelector, rules)
+	sets, _, lists, _, iptEntries := translateEgress(ns, name, targetSelector, rules)
 	expectedSets := []string{
 		"context:dev",
 		"testNotIn:frontend",
@@ -1172,7 +1173,7 @@ func TestDenyAllPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(denyAllPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(denyAllPolicy)
 
 	expectedSets := []string{"ns-testnamespace"}
 	if !reflect.DeepEqual(sets, expectedSets) {
@@ -1204,7 +1205,7 @@ func TestAllowBackendToFrontend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sets, _, lists, iptEntries := translatePolicy(allowBackendToFrontendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowBackendToFrontendPolicy)
 
 	expectedSets := []string{
 		"app:backend",
@@ -1342,7 +1343,7 @@ func TestAllowAllToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowToFrontendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowToFrontendPolicy)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -1403,7 +1404,7 @@ func TestDenyAllToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(denyAllToFrontendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(denyAllToFrontendPolicy)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -1439,7 +1440,7 @@ func TestNamespaceToFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowNsTestNamespaceToFrontendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowNsTestNamespaceToFrontendPolicy)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -1571,7 +1572,7 @@ func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowAllNsToFrontendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowAllNsToFrontendPolicy)
 	expectedSets := []string{
 		"app:frontend",
 		"ns-testnamespace",
@@ -1704,7 +1705,7 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowNsDevToFrontendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowNsDevToFrontendPolicy)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -1853,7 +1854,7 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowAllToFrontendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowAllToFrontendPolicy)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -2054,7 +2055,7 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 	}
 
 	util.IsNewNwPolicyVerFlag = true
-	sets, _, lists, iptEntries := translatePolicy(allowNsDevAndBackendToFrontendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowNsDevAndBackendToFrontendPolicy)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -2195,7 +2196,7 @@ func TestAllowInternalAndExternal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowInternalAndExternalPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowInternalAndExternalPolicy)
 
 	expectedSets := []string{
 		"app:backdoor",
@@ -2256,7 +2257,7 @@ func TestAllowBackendToFrontendPort8000(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowBackendToFrontendPort8000Policy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowBackendToFrontendPort8000Policy)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -2373,7 +2374,7 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowCniOrCnsToK8sPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowCniOrCnsToK8sPolicy)
 
 	expectedSets := []string{
 		"app:k8s",
@@ -2581,7 +2582,7 @@ func TestDenyAllFromAppBackend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(denyAllFromBackendPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(denyAllFromBackendPolicy)
 
 	expectedSets := []string{
 		"app:backend",
@@ -2617,7 +2618,7 @@ func TestAllowAllFromAppBackend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowAllEgress)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowAllEgress)
 
 	expectedSets := []string{
 		"app:backend",
@@ -2699,7 +2700,7 @@ func TestDenyAllFromNsUnsafe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sets, _, lists, iptEntries := translatePolicy(denyAllFromNsUnsafePolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(denyAllFromNsUnsafePolicy)
 
 	expectedSets := []string{
 		"ns-unsafe",
@@ -2733,7 +2734,7 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(allowFrontendToTCPPort53UDPPort53Policy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowFrontendToTCPPort53UDPPort53Policy)
 
 	expectedSets := []string{
 		"app:frontend",
@@ -2917,7 +2918,7 @@ func TestComplexPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(k8sExamplePolicy)
+	sets, _, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(k8sExamplePolicy)
 
 	expectedSets := []string{
 		"role:db",
@@ -2939,6 +2940,28 @@ func TestComplexPolicy(t *testing.T) {
 		t.Errorf("expectedLists: %v", expectedLists)
 	}
 
+	expectedIngressIPCidrs := [][]string {
+		{"", "", "", "172.17.0.0/16", "172.17.1.0/24nomatch"},
+	}
+
+	expectedEgressIPCidrs := [][]string {
+		{"", "10.0.0.0/24", "10.0.0.1/32nomatch"},
+	}
+
+	if !reflect.DeepEqual(ingressIPCidrs, expectedIngressIPCidrs) {
+		t.Errorf("translatedPolicy failed @ k8s-example-policy ingress IP Cidrs comparison")
+		t.Errorf("ingress IP Cidrs: %v", ingressIPCidrs)
+		t.Errorf("expected ingress IP Cidrs: %v", expectedIngressIPCidrs)
+	}
+
+	if !reflect.DeepEqual(egressIPCidrs, expectedEgressIPCidrs) {
+		t.Errorf("translatedPolicy failed @ k8s-example-policy egress IP Cidrs comparison")
+		t.Errorf("egress IP Cidrs: %v", egressIPCidrs)
+		t.Errorf("expected egress IP Cidrs: %v", expectedEgressIPCidrs)
+	}
+
+	cidrIngressIpsetName := "k8s-example-policy" + "-in-ns-" + "default-" + "0" + "in"
+	cidrEgressIpsetName := "k8s-example-policy" + "-in-ns-" + "default-" + "0" + "out"
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
 		&iptm.IptEntry{
@@ -2954,8 +2977,11 @@ func TestComplexPolicy(t *testing.T) {
 				util.IptablesMatchSetFlag,
 				util.GetHashedName("role:db"),
 				util.IptablesDstFlag,
-				util.IptablesSFlag,
-				"172.17.0.0/16",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName(cidrIngressIpsetName),
+				util.IptablesSrcFlag,
 				util.IptablesProtFlag,
 				"TCP",
 				util.IptablesDstPortFlag,
@@ -2965,30 +2991,7 @@ func TestComplexPolicy(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-172.17.0.0/16-:-TCP-PORT-6379-TO-role:db-IN-ns-default",
-			},
-		},
-		&iptm.IptEntry{
-			Chain: util.IptablesAzureIngressFromChain,
-			Specs: []string{
-				util.IptablesSFlag,
-				"172.17.1.0/24",
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-default"),
-				util.IptablesDstFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("role:db"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesDrop,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				"DROP-172.17.1.0/24-TO-role:db-IN-ns-default",
+				"ALLOW-" + cidrIngressIpsetName + "-:-TCP-PORT-6379-TO-role:db-IN-ns-default",
 			},
 		},
 		&iptm.IptEntry{
@@ -3117,18 +3120,43 @@ func TestComplexPolicy(t *testing.T) {
 				util.IptablesMatchSetFlag,
 				util.GetHashedName("role:db"),
 				util.IptablesSrcFlag,
-				util.IptablesDFlag,
-				"10.0.0.0/24",
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName(cidrEgressIpsetName),
+				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesAccept,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-10.0.0.0/24-:-TCP-PORT-5978-FROM-role:db-IN-ns-default",
+				"ALLOW-" + cidrEgressIpsetName + "-:-TCP-PORT-5978-FROM-role:db-IN-ns-default",
 			},
 		},
 		&iptm.IptEntry{
 			Chain:       util.IptablesAzureEgressPortChain,
+			IsJumpEntry: true,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("ns-default"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("role:db"),
+				util.IptablesSrcFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureEgressToChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-FROM-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureEgressToChain,
+			},
+		},
+		&iptm.IptEntry{
+			Chain:       util.IptablesAzureEgressToChain,
 			IsJumpEntry: true,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3294,7 +3322,7 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 		},
 	}
 
-	sets, _, lists, iptEntries := translatePolicy(denyAllPolicy)
+	sets, _, lists, _, _, iptEntries := translatePolicy(denyAllPolicy)
 	expectedSets := []string{
 		"ns-default",
 	}
@@ -3311,7 +3339,7 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 		t.Errorf("expectedLists: %v", expectedLists)
 	}
 
-	sets, _, lists, finalIptEntries := translatePolicy(allowToPodPolicy)
+	sets, _, lists, _, _, finalIptEntries := translatePolicy(allowToPodPolicy)
 	expectedSets = []string{
 		"app:test",
 		"testIn:pod-A",
@@ -3649,7 +3677,7 @@ func TestNamedPorts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sets, namedPorts, lists, iptEntries := translatePolicy(namedPortPolicy)
+	sets, namedPorts, lists, _, _, iptEntries := translatePolicy(namedPortPolicy)
 
 	expectedSets := []string{
 		"app:server",

@@ -29,6 +29,8 @@ spec:
     - to:
         - ipBlock:
             cidr: 10.0.0.0/24
+            except:
+              - 10.0.0.1/32
       ports:
         - protocol: TCP
           port: 5978

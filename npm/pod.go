@@ -55,7 +55,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	// Add pod namespace if it doesn't exist
 	if _, exists := npMgr.nsMap[podNs]; !exists {
 		log.Printf("Creating set: %v, hashedSet: %v", podNs, util.GetHashedName(podNs))
-		if err = ipsMgr.CreateSet(podNs, util.IpsetNetHashFlag); err != nil {
+		if err = ipsMgr.CreateSet(podNs, append([]string{util.IpsetNetHashFlag})); err != nil {
 			log.Printf("Error creating ipset %s", podNs)
 		}
 	}

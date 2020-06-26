@@ -1,17 +1,38 @@
-<!--  Thanks for sending a pull request!  Here are some tips for you:
-1. If you want *faster* PR reviews, read how: https://github.com/kubernetes/community/blob/master/contributors/devel/pull-requests.md#best-practices-for-faster-reviews
--->
+<!-- Thank you for helping Azure Container Networking with a pull request!
+Use conventional commit messages, such as
+  feat: add a knob to the frobnitz
+or
+  fix: repair hole in wumpus
+And read this for faster PR reviews: https://github.com/kubernetes/community/blob/master/contributors/guide/pull-requests.md#best-practices-for-faster-reviews -->
 
-**What this PR does / why we need it**:
+**Reason for Change**:
+<!-- What does this PR improve or fix in Azure Container Networking? -->
 
-**Which issue this PR fixes** *(optional, in `fixes #<issue number>(, fixes #<issue_number>, ...)` format, will close that issue when PR gets merged)*: fixes #
 
-**Special notes for your reviewer**:
+**Issue Fixed**:
+<!-- If this PR fixes GitHub issue 1234, add "Fixes #1234" to the next line. -->
 
-**Release note**:
-<!--  Steps to write your release note:
-1. Use the release-note-* labels to set the release note state (if you have access)
-2. Enter your extended release note in the below block; leaving it blank means using the PR title as the release note. If no release note is required, just write `NONE`.
--->
-```release-note
-```
+
+**Requirements**:
+<!-- Put an "X" character inside the brackets of each completed task. Some may be optional depending on the PR. -->
+
+
+- [ ] uses [conventional commit messages](https://www.conventionalcommits.org/)
+  <!-- Common commit types:
+        build: Build 🏭
+        chore: Maintenance 🔧
+        ci: Continuous Integration 💜
+        docs: Documentation 📘
+        feat: Features 🌈
+        fix: Bug Fixes 🐞
+        perf: Performance Improvements 🚀
+        refactor: Code Refactoring 💎
+        revert: Revert Change ◀️
+        style: Code Style 🎶
+        security: Security Fix 🛡️
+        test: Testing 💚 -->
+- [ ] includes documentation
+- [ ] adds unit tests
+
+
+**Notes**:

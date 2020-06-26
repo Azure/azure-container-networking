@@ -3,8 +3,11 @@
 package npm
 
 import (
+	"strconv"
+
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/iptm"
+	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
 )
@@ -49,7 +52,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	if !npMgr.isAzureNpmChainCreated {
-		if err = allNs.ipsMgr.CreateSet(util.KubeSystemFlag, util.IpsetNetHashFlag); err != nil {
+		if err = allNs.ipsMgr.CreateSet(util.KubeSystemFlag, append([]string{util.IpsetNetHashFlag})); err != nil {
 			log.Errorf("Error: failed to initialize kube-system ipset.")
 			return err
 		}
@@ -63,11 +66,12 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	var (
-		hashedSelector          = HashSelector(&npObj.Spec.PodSelector)
-		addedPolicy             *networkingv1.NetworkPolicy
-		sets, namedPorts, lists []string
-		iptEntries              []*iptm.IptEntry
-		ipsMgr                  = allNs.ipsMgr
+		hashedSelector                   = HashSelector(&npObj.Spec.PodSelector)
+		addedPolicy                      *networkingv1.NetworkPolicy
+		sets, namedPorts, lists          []string
+		ingressIPCidrs, egressIPCidrs    [][]string
+		iptEntries                       []*iptm.IptEntry
+		ipsMgr                           = allNs.ipsMgr
 	)
 
 	// Remove the existing policy from processed (merged) network policy map
@@ -93,16 +97,16 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	ns.rawNpMap[npObj.ObjectMeta.Name] = npObj
 
-	sets, namedPorts, lists, iptEntries = translatePolicy(npObj)
+	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries = translatePolicy(npObj)
 	for _, set := range sets {
 		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
-		if err = ipsMgr.CreateSet(set, util.IpsetNetHashFlag); err != nil {
+		if err = ipsMgr.CreateSet(set, append([]string{util.IpsetNetHashFlag})); err != nil {
 			log.Printf("Error creating ipset %s", set)
 		}
 	}
 	for _, set := range namedPorts {
 		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
-		if err = ipsMgr.CreateSet(set, util.IpsetIPPortHashFlag); err != nil {
+		if err = ipsMgr.CreateSet(set, append([]string{util.IpsetIPPortHashFlag})); err != nil {
 			log.Printf("Error creating ipset named port %s", set)
 		}
 	}
@@ -114,6 +118,8 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	if err = npMgr.InitAllNsList(); err != nil {
 		log.Printf("Error initializing all-namespace ipset list.")
 	}
+	createCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, ipsMgr)
+	createCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, ipsMgr)
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
 		if err = iptMgr.Add(iptEntry); err != nil {
@@ -154,7 +160,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		npMgr.nsMap[npNs] = ns
 	}
 
-	_, _, _, iptEntries := translatePolicy(npObj)
+	_, _, _, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(npObj)
 
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
@@ -162,6 +168,9 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 			log.Errorf("Error: failed to apply iptables rule. Rule: %+v", iptEntry)
 		}
 	}
+
+	removeCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, allNs.ipsMgr)
+	removeCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, allNs.ipsMgr)
 
 	delete(ns.rawNpMap, npObj.ObjectMeta.Name)
 
@@ -188,4 +197,36 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	}
 
 	return nil
+}
+
+func createCidrsRule(ingressOrEgress, policyName, ns string, ipsetEntries [][]string, ipsMgr *ipsm.IpsetManager) {
+	spec := append([]string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum})
+	for i, ipCidrSet := range ipsetEntries {
+		if ipCidrSet == nil || len(ipCidrSet) == 0 {
+			continue
+		}
+		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + ingressOrEgress
+		log.Printf("Creating set: %v, hashedSet: %v", setName, util.GetHashedName(setName))
+		if err := ipsMgr.CreateSet(setName, spec); err != nil {
+			log.Printf("Error creating ipset %s", ipCidrSet)
+		}
+		for _, ipCidrEntry := range util.DropEmptyFields(ipCidrSet) {
+			if err := ipsMgr.AddToSet(setName, ipCidrEntry, util.IpsetNetHashFlag); err != nil {
+				log.Printf("Error adding ip cidrs %s into ipset %s", ipCidrEntry, ipCidrSet)
+			}
+		}
+	}
+}
+
+func removeCidrsRule(ingressOrEgress, policyName, ns string, ipsetEntries [][]string, ipsMgr *ipsm.IpsetManager) {
+	for i, ipCidrSet := range ipsetEntries {
+		if ipCidrSet == nil || len(ipCidrSet) == 0 {
+			continue
+		}
+		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + ingressOrEgress
+		log.Printf("Delete set: %v, hashedSet: %v", setName, util.GetHashedName(setName))
+		if err := ipsMgr.DeleteSet(setName); err != nil {
+			log.Printf("Error deleting ipset %s", ipCidrSet)
+		}
+	}
 }

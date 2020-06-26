@@ -81,7 +81,7 @@ spec:
         kubernetes.io/role: agent
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.0.33
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.1.4
           securityContext:
             privileged: true
           env:

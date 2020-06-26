@@ -102,6 +102,11 @@ const (
 
 	AzureNpmFlag   string = "azure-npm"
 	AzureNpmPrefix string = "azure-npm-"
+
+	IpsetMaxelemName string = "maxelem"
+	IpsetMaxelemNum  string = "4294967295"
+
+	IpsetNomatch string = "nomatch"
 )
 
 //NPM telemetry constants.

@@ -1,0 +1,106 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.3.0
+  creationTimestamp: null
+  name: nodenetworkconfigs.acn.azure.com
+spec:
+  group: acn.azure.com
+  names:
+    kind: NodeNetworkConfig
+    listKind: NodeNetworkConfigList
+    plural: nodenetworkconfigs
+    shortNames:
+    - nnc
+    singular: nodenetworkconfig
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: NodeNetworkConfig is the Schema for the nodenetworkconfigs API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: NodeNetworkConfigSpec defines the desired state of NetworkConfig
+          properties:
+            iPsNotInUse:
+              items:
+                type: string
+              type: array
+            requestedIPCount:
+              format: int64
+              type: integer
+          type: object
+        status:
+          description: NodeNetworkConfigStatus defines the observed state of NetworkConfig
+          properties:
+            networkContainers:
+              items:
+                description: NetworkContainer defines the structure of a Network Container
+                  as found in NetworkConfigStatus
+                properties:
+                  defaultGateway:
+                    type: string
+                  iPAssignments:
+                    items:
+                      description: IPAssignment groups an IP address and Name. Name
+                        is a UUID set by the the IP address assigner.
+                      properties:
+                        iP:
+                          type: string
+                        name:
+                          type: string
+                      type: object
+                    type: array
+                  id:
+                    type: string
+                  netmask:
+                    description: Netmask for the subnet represented by this NC's SubnetID
+                    type: string
+                  primaryIP:
+                    type: string
+                  subnetID:
+                    type: string
+                type: object
+              type: array
+            scaler:
+              description: Scaler groups IP request params together
+              properties:
+                batchSize:
+                  format: int64
+                  type: integer
+                releaseThresholdPercent:
+                  format: int64
+                  type: integer
+                requestThresholdPercent:
+                  format: int64
+                  type: integer
+              type: object
+          type: object
+      type: object
+  version: v1alpha
+  versions:
+  - name: v1alpha
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
