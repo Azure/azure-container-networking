@@ -21,10 +21,10 @@ const k8sNamespace = "kube-system"
 // mgr acts as the communication between requestController and API server
 // implements the RequestController interface
 type k8sRequestController struct {
-	mgr         manager.Manager             //mgr has method GetClient() to get k8s client
-	Client      K8sClient                   //Relying on the K8sClient interface to more easily test
-	restService *restserver.HTTPRestService //restService is given to nodeNetworkConfigReconciler (the reconcile loop)
-	hostName    string                      //name of node running this program
+	mgr        manager.Manager //mgr has method GetClient() to get k8s client
+	Client     K8sClient       //Relying on the K8sClient interface to more easily test
+	hostName   string          //name of node running this program
+	Reconciler *NodeNetworkConfigReconciler
 }
 
 //NewK8sRequestController given a reference to CNS's HTTPRestService state, returns a k8sRequestController struct
@@ -77,12 +77,30 @@ func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sReque
 		return nil, err
 	}
 
-	// Create the requestController struct
+	//Create k8scnsinteractor
+	k8scnsinteractor := &K8sCNSInteractor{
+		RestService: restService,
+	}
+
+	//Create reconciler
+	nodenetworkconfigreconciler := &NodeNetworkConfigReconciler{
+		K8sClient:     mgr.GetClient(),
+		HostName:      hostName,
+		CNSInteractor: k8scnsinteractor,
+	}
+
+	// Setup manager with reconciler
+	if err := nodenetworkconfigreconciler.SetupWithManager(mgr); err != nil {
+		logger.Errorf("[cns-rc] Error creating new NodeNetworkConfigReconciler: %v", err)
+		return nil, err
+	}
+
+	// Create the requestController
 	k8sRequestController := k8sRequestController{
-		mgr:         mgr,
-		Client:      mgr.GetClient(),
-		restService: restService,
-		hostName:    hostName,
+		mgr:        mgr,
+		Client:     mgr.GetClient(),
+		hostName:   hostName,
+		Reconciler: nodenetworkconfigreconciler,
 	}
 
 	return &k8sRequestController, nil
@@ -92,18 +110,6 @@ func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sReque
 // When a CRD status change is made, Reconcile from nodenetworkconfigreconciler is called.
 // exitChan will be notified when requestController receives a kill signal
 func (k8sRC *k8sRequestController) StartRequestController(exitChan chan bool) error {
-	nodenetworkconfigreconciler := &NodeNetworkConfigReconciler{
-		K8sClient:   k8sRC.Client,
-		RestService: k8sRC.restService,
-		HostName:    k8sRC.hostName,
-	}
-
-	// Setup manager with NodeNetworkConfigReconciler
-	if err := nodenetworkconfigreconciler.SetupWithManager(k8sRC.mgr); err != nil {
-		logger.Errorf("[cns-rc] Error creating new NodeNetworkConfigReconciler: %v", err)
-		return err
-	}
-
 	// Start manager and consequently, the reconciler
 	// Start() blocks until SIGINT or SIGTERM is received
 	// When SIGINT or SIGTERm are recived, notifies exitChan before exiting

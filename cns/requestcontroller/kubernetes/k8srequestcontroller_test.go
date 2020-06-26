@@ -16,7 +16,7 @@ var (
 )
 
 type MockClient struct {
-	mockStore map[string]*nnc.NodeNetworkConfig //Mock store of namespace/name -> nodeNetworkConfig
+	mockStore map[string]*nnc.NodeNetworkConfig //Mock store of "namespace/name" is key
 }
 
 // Mock implementation of the K8sClientInterface Get method
@@ -33,7 +33,7 @@ func initMockClient() {
 	//Make a mock store
 	mockStore := make(map[string]*nnc.NodeNetworkConfig)
 
-	//Fill it with an example namespace/name -> nodeNetConfig obj
+	//Fill the mock store
 	mockStore["namespace/name"] = &nnc.NodeNetworkConfig{}
 
 	// Make mock client initialized with mock store
