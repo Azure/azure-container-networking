@@ -6,14 +6,14 @@ package ipam
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
-	"testing"
-
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"net/http"
+	"net/url"
+	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
@@ -70,6 +70,8 @@ var (
 	err error
 
 	_ = BeforeSuite(func() {
+		// TODO: Ensure that the other testAgent has bees released.
+		time.Sleep(1 * time.Second)
 		// Create a fake local agent to handle requests from IPAM plugin.
 		u, _ := url.Parse("tcp://" + ipamQueryUrl)
 		testAgent, err = common.NewListener(u)

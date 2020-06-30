@@ -371,6 +371,7 @@ test-all:
         ./ipam/ \
         ./log/ \
         ./netlink/ \
+        ./network/ \
         ./store/ \
         ./telemetry/ \
 		./aitelemetry/ \
