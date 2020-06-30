@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -105,6 +106,15 @@ func TestNewK8sRequestController(t *testing.T) {
 	logger.InitLogger("Azure CNS Request Controller", 3, 3, "")
 
 	//Test making request controller without HOSTNAME env var set, should fail
+	//Save old value though
+	hostName, found := os.LookupEnv("HOSTNAME")
+	os.Unsetenv("HOSTNAME")
+	defer func() {
+		if found {
+			os.Setenv("HOSTNAME", hostName)
+		}
+	}()
+
 	_, err = NewK8sRequestController(nil, nil)
 	if err == nil {
 		t.Fatalf("Expected error when making NewK8sRequestController without setting HOSTNAME env var, got nil error")
