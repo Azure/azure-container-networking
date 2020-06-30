@@ -66,7 +66,13 @@ func main() {
 
 	restService := &restserver.HTTPRestService{}
 
-	requestController, err := kubernetes.NewK8sRequestController(restService)
+	//Provide kubeconfig, this method was abstracted out for testing
+	kubeconfig, err := kubernetes.GetKubeConfig()
+	if err != nil {
+		logger.Errorf("Error getting kubeconfig: %v", err)
+	}
+
+	requestController, err = kubernetes.NewK8sRequestController(restService, kubeconfig)
 	if err != nil {
 		logger.Errorf("Error making new RequestController: %v", err)
 		return

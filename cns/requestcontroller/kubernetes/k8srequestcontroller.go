@@ -10,6 +10,7 @@ import (
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -22,13 +23,26 @@ const k8sNamespace = "kube-system"
 // implements the RequestController interface
 type k8sRequestController struct {
 	mgr        manager.Manager //mgr has method GetClient() to get k8s client
-	Client     K8sClient       //Relying on the K8sClient interface to more easily test
+	K8sClient  K8sClient       //Relying on the K8sClient interface to more easily test
 	hostName   string          //name of node running this program
 	Reconciler *NodeNetworkConfigReconciler
 }
 
+// GetKubeConfig precedence
+// * --kubeconfig flag pointing at a file at this cmd line
+// * KUBECONFIG environment variable pointing at a file
+// * In-cluster config if running in cluster
+// * $HOME/.kube/config if exists
+func GetKubeConfig() (*rest.Config, error) {
+	k8sconfig, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	return k8sconfig, nil
+}
+
 //NewK8sRequestController given a reference to CNS's HTTPRestService state, returns a k8sRequestController struct
-func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sRequestController, error) {
+func NewK8sRequestController(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*k8sRequestController, error) {
 
 	//Check that logger package has been intialized
 	if logger.Log == nil {
@@ -52,22 +66,10 @@ func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sReque
 		return nil, errors.New("Error adding NodeNetworkConfig scheme to runtime scheme")
 	}
 
-	// GetConfig precedence
-	// * --kubeconfig flag pointing at a file at this cmd line
-	// * KUBECONFIG environment variable pointing at a file
-	// * In-cluster config if running in cluster
-	// * $HOME/.kube/config if exists
-	// We're not using GetConfigOrDie becuase we want to propogate the error if there is one
-	k8sconfig, err := ctrl.GetConfig()
-	if err != nil {
-		logger.Errorf("[cns-rc] Error getting kubeconfig: %v", err)
-		return nil, err
-	}
-
 	// Create manager for NodeNetworkConfigReconciler
 	// MetricsBindAddress is the tcp address that the controller should bind to
 	// for serving prometheus metrics, set to "0" to disable
-	mgr, err := ctrl.NewManager(k8sconfig, ctrl.Options{
+	mgr, err := ctrl.NewManager(kubeconfig, ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: "0",
 		Namespace:          k8sNamespace,
@@ -98,7 +100,7 @@ func NewK8sRequestController(restService *restserver.HTTPRestService) (*k8sReque
 	// Create the requestController
 	k8sRequestController := k8sRequestController{
 		mgr:        mgr,
-		Client:     mgr.GetClient(),
+		K8sClient:  mgr.GetClient(),
 		hostName:   hostName,
 		Reconciler: nodenetworkconfigreconciler,
 	}
@@ -150,7 +152,7 @@ func (k8sRC *k8sRequestController) ReleaseIPsByUUIDs(cntxt context.Context, list
 func (k8sRC *k8sRequestController) getNodeNetConfig(cntxt context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {
 	nodeNetworkConfig := &nnc.NodeNetworkConfig{}
 
-	err := k8sRC.Client.Get(cntxt, client.ObjectKey{
+	err := k8sRC.K8sClient.Get(cntxt, client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,
 	}, nodeNetworkConfig)
@@ -164,7 +166,7 @@ func (k8sRC *k8sRequestController) getNodeNetConfig(cntxt context.Context, name,
 
 // updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
 func (k8sRC *k8sRequestController) updateNodeNetConfig(cntxt context.Context, nodeNetworkConfig *nnc.NodeNetworkConfig) error {
-	if err := k8sRC.Client.Update(cntxt, nodeNetworkConfig); err != nil {
+	if err := k8sRC.K8sClient.Update(cntxt, nodeNetworkConfig); err != nil {
 		return err
 	}
 
