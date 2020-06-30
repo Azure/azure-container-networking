@@ -26,7 +26,6 @@ import (
 
 // NodeNetworkConfig is the Schema for the nodenetworkconfigs API
 // +kubebuilder:resource:scope=Namespaced
-
 // +kubebuilder:resource:shortName=nnc
 // +kubebuilder:subresource:status
 type NodeNetworkConfig struct {
