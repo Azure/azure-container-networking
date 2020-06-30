@@ -11,6 +11,7 @@ type K8sCNSInteractor struct {
 	RestService *restserver.HTTPRestService
 }
 
+//translate nnc status to create nc request
 func (interactor *K8sCNSInteractor) UpdateCNSState(status nnc.NodeNetworkConfigStatus) error {
 	//TODO: translate CNS Status into CNS Rest Service changes.
 	//Mat will pick up from here

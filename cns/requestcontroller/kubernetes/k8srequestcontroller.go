@@ -16,7 +16,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
+//make environment var name constant
 const k8sNamespace = "kube-system"
+
+//disable prometheus constant
+//nodeNetConfigRequestController
 
 // k8sRequestController watches CRDs for status updates and publishes CRD spec changes
 // mgr acts as the communication between requestController and API server
@@ -42,7 +46,7 @@ func GetKubeConfig() (*rest.Config, error) {
 }
 
 //NewK8sRequestController given a reference to CNS's HTTPRestService state, returns a k8sRequestController struct
-func NewK8sRequestController(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*k8sRequestController, error) {
+func NewRequestController(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*k8sRequestController, error) {
 
 	//Check that logger package has been intialized
 	if logger.Log == nil {
@@ -50,6 +54,7 @@ func NewK8sRequestController(restService *restserver.HTTPRestService, kubeconfig
 	}
 
 	// Check that HOSTNAME environment variable is set. HOSTNAME is name of node running this program
+	// NODENAME
 	hostName := os.Getenv("HOSTNAME")
 	if hostName == "" {
 		return nil, errors.New("Must declare HOSTNAME environment variable. HOSTNAME is name of node.")

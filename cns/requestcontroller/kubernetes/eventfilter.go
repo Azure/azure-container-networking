@@ -16,6 +16,7 @@ type NodeNetworkConfigFilter struct {
 // status hasn't changed
 // See https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#status-subresource
 // for more details
+// Generation will not change on status change
 func (n NodeNetworkConfigFilter) Update(e event.UpdateEvent) bool {
 	isHostName := n.isHostName(e.MetaOld.GetName())
 	oldGeneration := e.MetaOld.GetGeneration()
