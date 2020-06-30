@@ -26,6 +26,7 @@ func (n NodeNetworkConfigFilter) Update(e event.UpdateEvent) bool {
 
 // Only process create events if CRD name equals this host's name
 func (n NodeNetworkConfigFilter) Create(e event.CreateEvent) bool {
+	//when we add, check status
 	return n.isHostName(e.Meta.GetName())
 }
 
@@ -33,6 +34,9 @@ func (n NodeNetworkConfigFilter) Create(e event.CreateEvent) bool {
 func (n NodeNetworkConfigFilter) Delete(e event.DeleteEvent) bool {
 	return n.isHostName(e.Meta.GetName())
 }
+
+//Decide on what deleting CRD means, recreate CRD with CNS state?
+//Right now ignore, coordinate with DNC
 
 // Given a string, returns if that string equals the hostname running this program
 func (n NodeNetworkConfigFilter) isHostName(metaName string) bool {

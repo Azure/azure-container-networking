@@ -10,12 +10,11 @@ import (
 type RequestController interface {
 	StartRequestController(exitChan chan bool) error
 	UpdateCRDSpec(cntxt context.Context, crdSpec nnc.NodeNetworkConfigSpec) error
-	//pass in cns client
 }
 
 // interface for request controller to interact with cns
 //CNSClient
-type CNSInteractor interface {
-	UpdateCNSState(nnc.NodeNetworkConfigStatus) error
+type CNSClient interface {
+	UpdateCNSState() error
 	//pass in cns type
 }

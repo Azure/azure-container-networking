@@ -116,11 +116,12 @@ func NewRequestController(restService *restserver.HTTPRestService, kubeconfig *r
 // StartRequestController starts the reconcile loop. This loop waits for changes to CRD statuses.
 // When a CRD status change is made, Reconcile from nodenetworkconfigreconciler is called.
 // exitChan will be notified when requestController receives a kill signal
+//This method blocks
 func (k8sRC *k8sRequestController) StartRequestController(exitChan chan bool) error {
 	// Start manager and consequently, the reconciler
 	// Start() blocks until SIGINT or SIGTERM is received
 	// When SIGINT or SIGTERm are recived, notifies exitChan before exiting
-	go func() {
+	go func() {//get rid of go routine
 		logger.Printf("Starting manager")
 		if err := k8sRC.mgr.Start(SetupSignalHandler(exitChan)); err != nil {
 			logger.Errorf("[cns-rc] Error starting manager: %v", err)
@@ -152,6 +153,10 @@ func (k8sRC *k8sRequestController) ReleaseIPsByUUIDs(cntxt context.Context, list
 
 	return nil
 }
+
+ReconcileCNSState
+
+// seperate pr for that
 
 // getNodeNetConfig gets the nodeNetworkConfig CRD given the name and namespace of the CRD object
 func (k8sRC *k8sRequestController) getNodeNetConfig(cntxt context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {

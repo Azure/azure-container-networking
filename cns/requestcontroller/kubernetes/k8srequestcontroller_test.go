@@ -60,6 +60,9 @@ func (mc MockClient) Get(ctx context.Context, key client.ObjectKey, obj runtime.
 	return nil
 }
 
+//rename folder to kube-controller
+//remove k8s filename prefix
+
 //Mock implementation of the K8sClientInterface Update method
 //Mimics that of controller-runtime's client.Client
 func (mc MockClient) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
