@@ -1,4 +1,4 @@
-package kubernetes
+package kubecontroller
 
 import (
 	"context"
@@ -11,9 +11,8 @@ import (
 // ObjectKey identifies a Kubernetes Object.
 type ObjectKey = types.NamespacedName
 
-// K8sClient is an interface used by nodeNetworkConfigReconciler and k8sRequestController
-// They rely on this interface in order to be able to make unit tests that overload these methods
-type K8sClient interface {
+// APIClient is an interface that talks to the API server
+type APIClient interface {
 	Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error
 	Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error
 }

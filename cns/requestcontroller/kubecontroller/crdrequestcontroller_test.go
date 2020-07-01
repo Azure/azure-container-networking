@@ -1,4 +1,4 @@
-package kubernetes
+package kubecontroller
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,17 +35,13 @@ type MockKey struct {
 	Name      string
 }
 
-func (m MockKey) String() string {
-	return m.Namespace + "/" + m.Name
-}
-
-// MockClient implements K8SClient interface
+// MockClient implements APIClient interface
 type MockClient struct {
 	mockStore map[MockKey]*nnc.NodeNetworkConfig
 }
 
-// Mock implementation of the K8sClientInterface Get method
-//Mimics that of controller-runtime's client.Client
+// Mock implementation of the APIClient interface Get method
+// Mimics that of controller-runtime's client.Client
 func (mc MockClient) Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
 	mockKey := MockKey{
 		Namespace: key.Namespace,
@@ -60,10 +57,7 @@ func (mc MockClient) Get(ctx context.Context, key client.ObjectKey, obj runtime.
 	return nil
 }
 
-//rename folder to kube-controller
-//remove k8s filename prefix
-
-//Mock implementation of the K8sClientInterface Update method
+//Mock implementation of the APIClient interface Update method
 //Mimics that of controller-runtime's client.Client
 func (mc MockClient) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
 	nodeNetConfig := obj.(*nnc.NodeNetworkConfig)
@@ -83,11 +77,11 @@ func (mc MockClient) Update(ctx context.Context, obj runtime.Object, opts ...cli
 	return nil
 }
 
-// MockCNSInteractor implements CNSInteractor interface
+// MockCNSInteractor implements CNSClient interface
 type MockCNSInteractor struct{}
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
-func (mi MockCNSInteractor) UpdateCNSState(nnc.NodeNetworkConfigStatus) error {
+func (mi MockCNSInteractor) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest) error {
 	mockCNSUpdated = true
 	return nil
 }
@@ -96,36 +90,36 @@ func ResetCNSInteractionFlag() {
 	mockCNSUpdated = false
 }
 
-func TestNewK8sRequestController(t *testing.T) {
+func TestNewCrdRequestController(t *testing.T) {
 	//Test making request controller without logger initialized, should fail
-	_, err := NewK8sRequestController(nil, nil)
+	_, err := NewCrdRequestController(nil, nil)
 	if err == nil {
-		t.Fatalf("Expected error when making NewK8sRequestController without initializing logger, got nil error")
+		t.Fatalf("Expected error when making NewCrdRequestController without initializing logger, got nil error")
 	} else if !strings.Contains(err.Error(), "logger") {
-		t.Fatalf("Expected logger error when making NewK8sRequestController without initializing logger, got: %+v", err)
+		t.Fatalf("Expected logger error when making NewCrdRequestController without initializing logger, got: %+v", err)
 	}
 
 	//Initialize logger
-	logger.InitLogger("Azure CNS Request Controller", 3, 3, "")
+	logger.InitLogger("Azure CRD Request Controller", 3, 3, "")
 
-	//Test making request controller without HOSTNAME env var set, should fail
+	//Test making request controller without NODENAME env var set, should fail
 	//Save old value though
-	hostName, found := os.LookupEnv("HOSTNAME")
-	os.Unsetenv("HOSTNAME")
+	nodeName, found := os.LookupEnv(nodeNameEnvVar)
+	os.Unsetenv(nodeNameEnvVar)
 	defer func() {
 		if found {
-			os.Setenv("HOSTNAME", hostName)
+			os.Setenv(nodeNameEnvVar, nodeName)
 		}
 	}()
 
-	_, err = NewK8sRequestController(nil, nil)
+	_, err = NewCrdRequestController(nil, nil)
 	if err == nil {
-		t.Fatalf("Expected error when making NewK8sRequestController without setting HOSTNAME env var, got nil error")
-	} else if !strings.Contains(err.Error(), "HOSTNAME") {
-		t.Fatalf("Expected error when making NewK8sRequestController without setting HOSTNAME env var, got: %+v", err)
+		t.Fatalf("Expected error when making NewCrdRequestController without setting " + nodeNameEnvVar + " env var, got nil error")
+	} else if !strings.Contains(err.Error(), nodeNameEnvVar) {
+		t.Fatalf("Expected error when making NewCrdRequestController without setting "+nodeNameEnvVar+" env var, got: %+v", err)
 	}
 
-	//Successful creation is tested in integrationt tests because it requires standing up a minikube cluster
+	//TODO: Create integration tests with minikube
 }
 
 func TestGetNonExistingNodeNetConfig(t *testing.T) {
@@ -197,38 +191,48 @@ func TestUpdateExistingNodeNetConfig(t *testing.T) {
 	}
 }
 
-func TestReleaseIPsByUUIDsOnNonExistingNodeNetConfig(t *testing.T) {
+func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 	rc := createMockRequestController()
-	rc.hostName = nonexistingNNCName
+	rc.nodeName = nonexistingNNCName
 
 	uuids := make([]string, 3)
 	uuids[0] = "uuid0"
 	uuids[1] = "uuid1"
 	uuids[2] = "uuid2"
-	newCount := 5
+	newCount := int64(5)
 
-	//Test releasing ips by uuid for existing NodeNetworkConfig (hostname)
-	err := rc.ReleaseIPsByUUIDs(context.Background(), uuids, newCount)
+	spec := &nnc.NodeNetworkConfigSpec{
+		RequestedIPCount: newCount,
+		IPsNotInUse:      uuids,
+	}
+
+	//Test updating spec for existing NodeNetworkConfig
+	err := rc.UpdateCRDSpec(context.Background(), spec)
 
 	if err == nil {
-		t.Fatalf("Expected error when releasing ips by uuids")
+		t.Fatalf("Expected error when updating spec on non-existing crd")
 	}
 }
 
-func TestReleaseIPsByUUIDsOnExistingNodeNetConfig(t *testing.T) {
+func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 	rc := createMockRequestController()
 
 	uuids := make([]string, 3)
 	uuids[0] = "uuid0"
 	uuids[1] = "uuid1"
 	uuids[2] = "uuid2"
-	newCount := 5
+	newCount := int64(5)
 
-	//Test releasing ips by uuid for existing NodeNetworkConfig (hostname)
-	err := rc.ReleaseIPsByUUIDs(context.Background(), uuids, newCount)
+	spec := &nnc.NodeNetworkConfigSpec{
+		RequestedIPCount: newCount,
+		IPsNotInUse:      uuids,
+	}
+
+	//Test releasing ips by uuid for existing NodeNetworkConfig
+	err := rc.UpdateCRDSpec(context.Background(), spec)
 
 	if err != nil {
-		t.Fatalf("Expected no error when releasing ips by uuids, got :%v", err)
+		t.Fatalf("Expected no error when updating spec on existing crd, got :%v", err)
 	}
 
 	mockKey := MockKey{
@@ -237,11 +241,11 @@ func TestReleaseIPsByUUIDsOnExistingNodeNetConfig(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(mockStore[mockKey].Spec.IPsNotInUse, uuids) {
-		t.Fatalf("Expected IpsNotInUse to equal requested ReleaseIpsByUUIDs")
+		t.Fatalf("Expected IpsNotInUse to equal requested ips to release")
 	}
 
 	if mockStore[mockKey].Spec.RequestedIPCount != int64(newCount) {
-		t.Fatalf("Expected requested ip count to equal count passed into ReleaseIPsByUUIds")
+		t.Fatalf("Expected requested ip count to equal count passed into requested ip count")
 	}
 }
 
@@ -314,16 +318,16 @@ func createMockInteractor() MockCNSInteractor {
 	return MockCNSInteractor{}
 }
 
-func createMockRequestController() *k8sRequestController {
+func createMockRequestController() *crdRequestController {
 	mockClient := createMockClient()
 	mockInteractor := createMockInteractor()
 
-	rc := &k8sRequestController{}
-	rc.hostName = existingNNCName
-	rc.K8sClient = mockClient
-	rc.Reconciler = &NodeNetworkConfigReconciler{}
-	rc.Reconciler.K8sClient = mockClient
-	rc.Reconciler.CNSInteractor = mockInteractor
+	rc := &crdRequestController{}
+	rc.nodeName = existingNNCName
+	rc.APIClient = mockClient
+	rc.Reconciler = &CrdReconciler{}
+	rc.Reconciler.APIClient = mockClient
+	rc.Reconciler.CNSClient = mockInteractor
 
 	//Initialize logger
 	logger.InitLogger("Azure CNS Request Controller", 0, 0, "")
