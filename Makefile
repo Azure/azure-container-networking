@@ -378,7 +378,7 @@ test-all:
         ./cnm/network/ \
         ./cni/ipam/ \
         ./cns/ipamclient/ \
-		./cns/requestcontroller/kubernetes/ \
+		./cns/requestcontroller/kubecontroller/ \
         ./cnms/service/ \
         ./npm/iptm/ \
         ./npm/ipsm/
