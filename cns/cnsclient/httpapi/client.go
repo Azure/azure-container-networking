@@ -1,17 +1,17 @@
-package kubecontroller
+package httpapi
 
 import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 )
 
-// CNSInteractor implements the CNSClient interface.
-type CNSInteractor struct {
+// Client implements APIClient interface. Used to update CNS state
+type Client struct {
 	RestService *restserver.HTTPRestService
 }
 
 // UpdateCNSState updates cns state
-func (interactor *CNSInteractor) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest) error {
+func (client *Client) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest) error {
 	//Mat will pick up from here
 	return nil
 }

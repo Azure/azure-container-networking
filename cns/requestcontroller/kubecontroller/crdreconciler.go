@@ -3,9 +3,10 @@ package kubecontroller
 import (
 	"context"
 
+	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -13,9 +14,9 @@ import (
 
 // CrdReconciler watches for CRD status changes
 type CrdReconciler struct {
-	APIClient APIClient
-	NodeName  string
-	CNSClient requestcontroller.CNSClient
+	KubeClient KubeClient
+	NodeName   string
+	CNSClient  cnsclient.APIClient
 }
 
 // Reconcile is called on CRD status changes
@@ -23,9 +24,14 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	var nodeNetConfig nnc.NodeNetworkConfig
 
 	//Get the CRD object
-	if err := r.APIClient.Get(context.TODO(), request.NamespacedName, &nodeNetConfig); err != nil {
-		logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
-		return reconcile.Result{}, client.IgnoreNotFound(err)
+	if err := r.KubeClient.Get(context.TODO(), request.NamespacedName, &nodeNetConfig); err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
+			return reconcile.Result{}, client.IgnoreNotFound(err)
+		} else {
+			logger.Errorf("[cns-rc] Error retrieving CRD from cache : %v", err)
+			return reconcile.Result{}, err
+		}
 	}
 
 	logger.Printf("[cns-rc] CRD object: %v", nodeNetConfig)

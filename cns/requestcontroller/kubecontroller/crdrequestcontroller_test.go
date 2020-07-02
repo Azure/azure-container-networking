@@ -35,14 +35,14 @@ type MockKey struct {
 	Name      string
 }
 
-// MockClient implements APIClient interface
-type MockClient struct {
+// MockKubeClient implements KubeClient interface
+type MockKubeClient struct {
 	mockStore map[MockKey]*nnc.NodeNetworkConfig
 }
 
 // Mock implementation of the APIClient interface Get method
 // Mimics that of controller-runtime's client.Client
-func (mc MockClient) Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+func (mc MockKubeClient) Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
 	mockKey := MockKey{
 		Namespace: key.Namespace,
 		Name:      key.Name,
@@ -59,7 +59,7 @@ func (mc MockClient) Get(ctx context.Context, key client.ObjectKey, obj runtime.
 
 //Mock implementation of the APIClient interface Update method
 //Mimics that of controller-runtime's client.Client
-func (mc MockClient) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+func (mc MockKubeClient) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
 	nodeNetConfig := obj.(*nnc.NodeNetworkConfig)
 
 	mockKey := MockKey{
@@ -77,11 +77,11 @@ func (mc MockClient) Update(ctx context.Context, obj runtime.Object, opts ...cli
 	return nil
 }
 
-// MockCNSInteractor implements CNSClient interface
-type MockCNSInteractor struct{}
+// MockCNSClient implements API client interface
+type MockCNSClient struct{}
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
-func (mi MockCNSInteractor) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest) error {
+func (mi *MockCNSClient) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest) error {
 	mockCNSUpdated = true
 	return nil
 }
@@ -306,28 +306,28 @@ func createMockStore() map[MockKey]*nnc.NodeNetworkConfig {
 	return mockStore
 }
 
-func createMockClient() MockClient {
+func createMockKubeClient() MockKubeClient {
 	mockStore := createMockStore()
 	// Make mock client initialized with mock store
-	mockClient := MockClient{mockStore: mockStore}
+	MockKubeClient := MockKubeClient{mockStore: mockStore}
 
-	return mockClient
+	return MockKubeClient
 }
 
-func createMockInteractor() MockCNSInteractor {
-	return MockCNSInteractor{}
+func createMockCNSClient() *MockCNSClient {
+	return &MockCNSClient{}
 }
 
 func createMockRequestController() *crdRequestController {
-	mockClient := createMockClient()
-	mockInteractor := createMockInteractor()
+	MockKubeClient := createMockKubeClient()
+	MockCNSClient := createMockCNSClient()
 
 	rc := &crdRequestController{}
 	rc.nodeName = existingNNCName
-	rc.APIClient = mockClient
+	rc.KubeClient = MockKubeClient
 	rc.Reconciler = &CrdReconciler{}
-	rc.Reconciler.APIClient = mockClient
-	rc.Reconciler.CNSClient = mockInteractor
+	rc.Reconciler.KubeClient = MockKubeClient
+	rc.Reconciler.CNSClient = MockCNSClient
 
 	//Initialize logger
 	logger.InitLogger("Azure CNS Request Controller", 0, 0, "")

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
@@ -18,14 +19,14 @@ import (
 
 const nodeNameEnvVar = "NODENAME"
 const k8sNamespace = "kube-system"
-const prometheusAddress = "0"
+const prometheusAddress = "0" //0 means disabled
 
 // crdRequestController
 // - watches CRD status changes
 // - updates CRD spec
 type crdRequestController struct {
 	mgr        manager.Manager //Manager starts the reconcile loop which watches for crd status changes
-	APIClient  APIClient       //Relying on the APIClient interface to more easily test
+	KubeClient KubeClient      //KubeClient interacts with API server
 	nodeName   string          //name of node running this program
 	Reconciler *CrdReconciler
 }
@@ -81,16 +82,16 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 		return nil, err
 	}
 
-	//Create cnsinteractor
-	cnsInteractor := &CNSInteractor{
+	//Create httpClient
+	httpClient := &httpapi.Client{
 		RestService: restService,
 	}
 
 	//Create reconciler
 	crdreconciler := &CrdReconciler{
-		APIClient: mgr.GetClient(),
-		NodeName:  nodeName,
-		CNSClient: cnsInteractor,
+		KubeClient: mgr.GetClient(),
+		NodeName:   nodeName,
+		CNSClient:  httpClient,
 	}
 
 	// Setup manager with reconciler
@@ -102,7 +103,7 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 	// Create the requestController
 	crdRequestController := crdRequestController{
 		mgr:        mgr,
-		APIClient:  mgr.GetClient(),
+		KubeClient: mgr.GetClient(),
 		nodeName:   nodeName,
 		Reconciler: crdreconciler,
 	}
@@ -131,7 +132,7 @@ func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec 
 	}
 
 	//Update the CRD spec
-	nodeNetworkConfig.Spec = *crdSpec
+	crdSpec.DeepCopyInto(&nodeNetworkConfig.Spec)
 
 	//Send update to API server
 	if err := crdRC.updateNodeNetConfig(cntxt, nodeNetworkConfig); err != nil {
@@ -146,7 +147,7 @@ func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec 
 func (crdRC *crdRequestController) getNodeNetConfig(cntxt context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {
 	nodeNetworkConfig := &nnc.NodeNetworkConfig{}
 
-	err := crdRC.APIClient.Get(cntxt, client.ObjectKey{
+	err := crdRC.KubeClient.Get(cntxt, client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,
 	}, nodeNetworkConfig)
@@ -160,7 +161,7 @@ func (crdRC *crdRequestController) getNodeNetConfig(cntxt context.Context, name,
 
 // updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
 func (crdRC *crdRequestController) updateNodeNetConfig(cntxt context.Context, nodeNetworkConfig *nnc.NodeNetworkConfig) error {
-	if err := crdRC.APIClient.Update(cntxt, nodeNetworkConfig); err != nil {
+	if err := crdRC.KubeClient.Update(cntxt, nodeNetworkConfig); err != nil {
 		return err
 	}
 

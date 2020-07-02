@@ -11,8 +11,8 @@ import (
 // ObjectKey identifies a Kubernetes Object.
 type ObjectKey = types.NamespacedName
 
-// APIClient is an interface that talks to the API server
-type APIClient interface {
+// KubeClient is an interface that talks to the API server
+type KubeClient interface {
 	Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error
 	Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error
 }
