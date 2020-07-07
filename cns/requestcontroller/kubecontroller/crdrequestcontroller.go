@@ -5,11 +5,14 @@ import (
 	"errors"
 	"os"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -29,6 +32,7 @@ type crdRequestController struct {
 	KubeClient KubeClient      //KubeClient interacts with API server
 	nodeName   string          //name of node running this program
 	Reconciler *CrdReconciler
+	kubeconfig *rest.Config
 }
 
 // GetKubeConfig precedence
@@ -106,6 +110,7 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 		KubeClient: mgr.GetClient(),
 		nodeName:   nodeName,
 		Reconciler: crdreconciler,
+		kubeconfig: kubeconfig,
 	}
 
 	return &crdRequestController, nil
@@ -120,6 +125,43 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 		logger.Errorf("[cns-rc] Error starting manager: %v", err)
 	}
 
+	return nil
+}
+
+// InitCNSState will list pods, get their ips, and pass the orchestrator contexts and ips to cns
+func (crdRC *crdRequestController) InitCNSState(cntxt context.Context) error {
+	// Make a one-off client since we don't want to rely on the manager being started or not
+	clientset, err := kubernetes.NewForConfig(crdRC.kubeconfig)
+	if err != nil {
+		logger.Errorf("[cns-rc] Error getting client set when initializing cns state: %v", err)
+		return err
+	}
+
+	// List pods
+	pods, err := clientset.CoreV1().Pods("").List(cntxt, metav1.ListOptions{
+		FieldSelector: "spec.nodeName=" + crdRC.nodeName,
+	})
+	if err != nil {
+		logger.Errorf("[cns-rc] Error listing pods when initializing cns state: %v", err)
+		return err
+	}
+
+	// For each pod, pass pod's namespace + name and ip to cns
+	for _, pod := range pods.Items {
+		if len(pod.Status.PodIP) > 0 {
+			// pod namespace + name and ip
+			podInfo := &cns.KubernetesPodInfo{
+				PodName:      pod.Name,
+				PodNamespace: pod.Namespace,
+			}
+			ip := &cns.IPSubnet{
+				IPAddress: pod.Status.PodIP,
+			}
+			// Relay pod info and ip to cns
+			crdRC.Reconciler.CNSClient.PopulateIP(podInfo, ip)
+		}
+	}
+	// TODO mark cns ready
 	return nil
 }
 

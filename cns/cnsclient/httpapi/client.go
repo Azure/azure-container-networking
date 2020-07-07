@@ -15,3 +15,9 @@ func (client *Client) UpdateCNSState(createNetworkContainerRequest *cns.CreateNe
 	//Mat will pick up from here
 	return nil
 }
+
+// PopulateIP tells CNS of a current pod on the node and that pod's ip
+func (clien *Client) PopulateIP(podInfo *cns.KubernetesPodInfo, IPConfig *cns.IPSubnet) error {
+	//Mat will pick up from here
+	return nil
+}
