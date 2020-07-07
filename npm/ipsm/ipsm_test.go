@@ -195,7 +195,16 @@ func TestDeleteFromSet(t *testing.T) {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
+	if len(ipsMgr.setMap["test-set"].elements) != 1 {
+		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
+	}
+
 	if err := ipsMgr.DeleteFromSet("test-set", "1.2.3.4"); err != nil {
+		t.Errorf("TestDeleteFromSet failed @ ipsMgr.DeleteFromSet")
+	}
+
+	// After deleting the only entry, "1.2.3.4" from "test-set", "test-set" ipset won't exist
+	if _, exists := ipsMgr.setMap["test-set"]; exists {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.DeleteFromSet")
 	}
 }

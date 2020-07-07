@@ -291,7 +291,9 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip string) error {
 		return err
 	}
 
-	ipsMgr.DeleteSet(setName)
+	if len(ipsMgr.setMap[setName].elements) == 0 {
+		ipsMgr.DeleteSet(setName)
+	}
 
 	return nil
 }
