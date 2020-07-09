@@ -159,6 +159,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		ipCidrs                               [][]string
 		entries                               []*iptm.IptEntry
 		fromRuleEntries                       []*iptm.IptEntry
+		addedCidrEntry                        bool // all cidr entry will be added in one set per from/to rule
 		addedIngressFromEntry, addedPortEntry bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 	)
 
@@ -291,7 +292,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						}
 						addedIngressFromEntry = true
 					}
-					if j != 0 {
+					if j != 0 && addedCidrEntry {
 						continue
 					}
 					if portRuleExists {
@@ -324,7 +325,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+cidrIpsetName+
-										"-:-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
 										"-TO-"+targetSelectorComment,
 								)
 								fromRuleEntries = append(fromRuleEntries, entry)
@@ -353,19 +354,19 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+cidrIpsetName+
-										"-:-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
 										"-TO-"+targetSelectorComment,
 								)
 								fromRuleEntries = append(fromRuleEntries, entry)
 							}
 						}
 					} else {
-						cidrEntry := &iptm.IptEntry{
+						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureIngressFromChain,
 							Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 						}
-						cidrEntry.Specs = append(
-							cidrEntry.Specs,
+						entry.Specs = append(
+							entry.Specs,
 							util.IptablesModuleFlag,
 							util.IptablesSetModuleFlag,
 							util.IptablesMatchSetFlag,
@@ -379,9 +380,10 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							"ALLOW-"+cidrIpsetName+
 								"-TO-"+targetSelectorComment,
 						)
-						fromRuleEntries = append(fromRuleEntries, cidrEntry)
+						fromRuleEntries = append(fromRuleEntries, entry)
 						addedIngressFromEntry = true
 					}
+					addedCidrEntry = true
 				}
 				continue
 			}
@@ -787,7 +789,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		entries = append(entries, entry)
 	}
 
-	log.Printf("finished parsing ingress rule")
+	log.Logf("finished parsing ingress rule")
 	return util.DropEmptyFields(sets), util.DropEmptyFields(namedPorts), util.DropEmptyFields(lists), ipCidrs, entries
 }
 
@@ -799,10 +801,11 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 		ipCidrs                            [][]string
 		entries                            []*iptm.IptEntry
 		toRuleEntries                      []*iptm.IptEntry
+		addedCidrEntry                     bool // all cidr entry will be added in one set per from/to rule
 		addedEgressToEntry, addedPortEntry bool // add drop entry when there are non ALLOW-ALL* rules
 	)
 
-	log.Printf("started parsing egress rule")
+	log.Logf("started parsing egress rule")
 
 	labelsWithOps, _, _ := parseSelector(&targetSelector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)
@@ -927,7 +930,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 						}
 						addedEgressToEntry = true
 					}
-					if j != 0 {
+					if j != 0 && addedCidrEntry {
 						continue
 					}
 					if portRuleExists {
@@ -960,7 +963,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+cidrIpsetName+
-										"-:-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
 										"-FROM-"+targetSelectorComment,
 								)
 								toRuleEntries = append(toRuleEntries, entry)
@@ -989,30 +992,30 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+cidrIpsetName+
-										"-:-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
 										"-FROM-"+targetSelectorComment,
 								)
 								toRuleEntries = append(toRuleEntries, entry)
 							}
 						}
 					} else {
-						cidrEntry := &iptm.IptEntry{
+						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureEgressToChain,
 						}
-						cidrEntry.Specs = append(
-							cidrEntry.Specs,
+						entry.Specs = append(
+							entry.Specs,
 							targetSelectorIptEntrySpec...,
 						)
-						cidrEntry.Specs = append(
-							cidrEntry.Specs,
+						entry.Specs = append(
+							entry.Specs,
 							util.IptablesModuleFlag,
 							util.IptablesSetModuleFlag,
 							util.IptablesMatchSetFlag,
 							util.GetHashedName(cidrIpsetName),
 							util.IptablesDstFlag,
 						)
-						cidrEntry.Specs = append(
-							cidrEntry.Specs,
+						entry.Specs = append(
+							entry.Specs,
 							util.IptablesJumpFlag,
 							util.IptablesAccept,
 							util.IptablesModuleFlag,
@@ -1021,9 +1024,10 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 							"ALLOW-"+cidrIpsetName+
 								"-FROM-"+targetSelectorComment,
 						)
-						toRuleEntries = append(toRuleEntries, cidrEntry)
+						toRuleEntries = append(toRuleEntries, entry)
 						addedEgressToEntry = true
 					}
+					addedCidrEntry = true
 				}
 				continue
 			}
@@ -1430,7 +1434,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 		entries = append(entries, entry)
 	}
 
-	log.Printf("finished parsing egress rule")
+	log.Logf("finished parsing egress rule")
 	return util.DropEmptyFields(sets), util.DropEmptyFields(namedPorts), util.DropEmptyFields(lists), ipCidrs, entries
 }
 
@@ -1500,15 +1504,13 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []s
 		hasIngress, hasEgress bool
 	)
 
-	log.Printf("Translating network policy:\n %+v", npObj)
-
 	defer func() {
-		log.Printf("Finished translatePolicy")
-		log.Printf("sets: %v", resultSets)
-		log.Printf("lists: %v", resultLists)
-		log.Printf("entries: ")
+		log.Logf("Finished translatePolicy")
+		log.Logf("sets: %v", resultSets)
+		log.Logf("lists: %v", resultLists)
+		log.Logf("entries: ")
 		for _, entry := range entries {
-			log.Printf("entry: %+v", entry)
+			log.Logf("entry: %+v", entry)
 		}
 	}()
 
@@ -1574,7 +1576,6 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, []s
 	}
 
 	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
-	log.Printf("Translating Policy: %+v", npObj)
 	resultSets, resultLists = util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultLists)
 
 	return resultSets, resultNamedPorts, resultLists, resultIngressIPCidrs, resultEgressIPCidrs, entries

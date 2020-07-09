@@ -83,7 +83,7 @@ func (ipsMgr *IpsetManager) CreateList(listName string) error {
 		set:           util.GetHashedName(listName),
 		spec:          []string{util.IpsetSetListFlag},
 	}
-	log.Printf("Creating List: %+v", entry)
+	log.Logf("Creating List: %+v", entry)
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		log.Errorf("Error: failed to create ipset list %s.", listName)
 		return err
@@ -148,7 +148,7 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 // DeleteFromList removes an ipset to an ipset list.
 func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) error {
 	if _, exists := ipsMgr.listMap[listName]; !exists {
-		log.Printf("ipset list with name %s not found", listName)
+		log.Logf("ipset list with name %s not found", listName)
 		return nil
 	}
 
@@ -193,7 +193,7 @@ func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 		set:  util.GetHashedName(setName),
 		spec: spec,
 	}
-	log.Printf("Creating Set: %+v", entry)
+	log.Logf("Creating Set: %+v", entry)
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		log.Errorf("Error: failed to create ipset.")
 		return err
@@ -207,7 +207,7 @@ func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 // DeleteSet removes a set from ipset.
 func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 	if _, exists := ipsMgr.setMap[setName]; !exists {
-		log.Printf("ipset with name %s not found", setName)
+		log.Logf("ipset with name %s not found", setName)
 		return nil
 	}
 
@@ -254,7 +254,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec string) error {
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		log.Printf("Error: failed to create ipset rules. %+v", entry)
+		log.Logf("Error: failed to create ipset rules. %+v", entry)
 		return err
 	}
 
@@ -266,7 +266,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec string) error {
 // DeleteFromSet removes an ip from an entry in setMap, and delete/update the corresponding ipset.
 func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip string) error {
 	if _, exists := ipsMgr.setMap[setName]; !exists {
-		log.Printf("ipset with name %s not found", setName)
+		log.Logf("ipset with name %s not found", setName)
 		return nil
 	}
 
@@ -291,7 +291,9 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip string) error {
 		return err
 	}
 
-	ipsMgr.DeleteSet(setName)
+	if len(ipsMgr.setMap[setName].elements) == 0 {
+		ipsMgr.DeleteSet(setName)
+	}
 
 	return nil
 }
@@ -348,7 +350,7 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	cmdArgs := append([]string{entry.operationFlag, util.IpsetExistFlag, entry.set}, entry.spec...)
 	cmdArgs = util.DropEmptyFields(cmdArgs)
 
-	log.Printf("Executing ipset command %s %v", cmdName, cmdArgs)
+	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
 	_, err := exec.Command(cmdName, cmdArgs...).Output()
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()

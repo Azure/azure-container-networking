@@ -2914,18 +2914,20 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 
 func TestComplexPolicy(t *testing.T) {
 	k8sExamplePolicy, err := readPolicyYaml("testpolicies/complex-policy.yaml")
+	k8sExamplePolicyDiffOrder, err := readPolicyYaml("testpolicies/complex-policy-diff-order.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	sets, _, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(k8sExamplePolicy)
+	setsDiffOrder, _, listsDiffOrder, ingressIPCidrsDiffOrder, egressIPCidrsDiffOrder, iptEntriesDiffOrder := translatePolicy(k8sExamplePolicyDiffOrder)
 
 	expectedSets := []string{
 		"role:db",
 		"ns-default",
 		"role:frontend",
 	}
-	if !reflect.DeepEqual(sets, expectedSets) {
+	if !reflect.DeepEqual(sets, expectedSets) || !reflect.DeepEqual(setsDiffOrder, expectedSets) {
 		t.Errorf("translatedPolicy failed @ k8s-example-policy sets comparison")
 		t.Errorf("sets: %v", sets)
 		t.Errorf("expectedSets: %v", expectedSets)
@@ -2934,7 +2936,7 @@ func TestComplexPolicy(t *testing.T) {
 	expectedLists := []string{
 		"ns-project:myproject",
 	}
-	if !reflect.DeepEqual(lists, expectedLists) {
+	if !reflect.DeepEqual(lists, expectedLists) || !reflect.DeepEqual(listsDiffOrder, expectedLists) {
 		t.Errorf("translatedPolicy failed @ k8s-example-policy lists comparison")
 		t.Errorf("lists: %v", lists)
 		t.Errorf("expectedLists: %v", expectedLists)
@@ -2948,13 +2950,13 @@ func TestComplexPolicy(t *testing.T) {
 		{"", "10.0.0.0/24", "10.0.0.1/32nomatch"},
 	}
 
-	if !reflect.DeepEqual(ingressIPCidrs, expectedIngressIPCidrs) {
+	if !reflect.DeepEqual(ingressIPCidrs, expectedIngressIPCidrs) || !reflect.DeepEqual(ingressIPCidrsDiffOrder, expectedIngressIPCidrs){
 		t.Errorf("translatedPolicy failed @ k8s-example-policy ingress IP Cidrs comparison")
 		t.Errorf("ingress IP Cidrs: %v", ingressIPCidrs)
 		t.Errorf("expected ingress IP Cidrs: %v", expectedIngressIPCidrs)
 	}
 
-	if !reflect.DeepEqual(egressIPCidrs, expectedEgressIPCidrs) {
+	if !reflect.DeepEqual(egressIPCidrs, expectedEgressIPCidrs) || !reflect.DeepEqual(egressIPCidrsDiffOrder, expectedEgressIPCidrs) {
 		t.Errorf("translatedPolicy failed @ k8s-example-policy egress IP Cidrs comparison")
 		t.Errorf("egress IP Cidrs: %v", egressIPCidrs)
 		t.Errorf("expected egress IP Cidrs: %v", expectedEgressIPCidrs)
@@ -2991,7 +2993,7 @@ func TestComplexPolicy(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-" + cidrIngressIpsetName + "-:-TCP-PORT-6379-TO-role:db-IN-ns-default",
+				"ALLOW-" + cidrIngressIpsetName + "-AND-TCP-PORT-6379-TO-role:db-IN-ns-default",
 			},
 		},
 		&iptm.IptEntry{
@@ -3130,7 +3132,7 @@ func TestComplexPolicy(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-" + cidrEgressIpsetName + "-:-TCP-PORT-5978-FROM-role:db-IN-ns-default",
+				"ALLOW-" + cidrEgressIpsetName + "-AND-TCP-PORT-5978-FROM-role:db-IN-ns-default",
 			},
 		},
 		&iptm.IptEntry{
@@ -3222,7 +3224,7 @@ func TestComplexPolicy(t *testing.T) {
 	}
 	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
 	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("testnamespace", k8sExamplePolicy.Spec.PodSelector, false, false)...)
-	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) || !reflect.DeepEqual(iptEntriesDiffOrder, expectedIptEntries) {
 		t.Errorf("translatedPolicy failed @ k8s-example-policy policy comparison")
 		marshalledIptEntries, _ := json.Marshal(iptEntries)
 		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)

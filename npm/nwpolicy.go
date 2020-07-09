@@ -37,12 +37,12 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		allNs  = npMgr.nsMap[util.KubeAllNamespacesFlag]
 	)
 
-	log.Printf("NETWORK POLICY CREATING: %v", npObj)
+	log.Logf("NETWORK POLICY CREATING: NameSpace%s, Name:%s", npNs, npName)
 
 	if ns, exists = npMgr.nsMap[npNs]; !exists {
 		ns, err = newNs(npNs)
 		if err != nil {
-			log.Printf("Error creating namespace %s\n", npNs)
+			log.Logf("Error creating namespace %s\n", npNs)
 		}
 		npMgr.nsMap[npNs] = ns
 	}
@@ -85,7 +85,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	if oldPolicy, oldPolicyExists := ns.processedNpMap[hashedSelector]; oldPolicyExists {
 		addedPolicy, err = addPolicy(oldPolicy, npObj)
 		if err != nil {
-			log.Printf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
+			log.Logf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
 		}
 	}
 
@@ -99,24 +99,24 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries = translatePolicy(npObj)
 	for _, set := range sets {
-		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
+		log.Logf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = ipsMgr.CreateSet(set, append([]string{util.IpsetNetHashFlag})); err != nil {
-			log.Printf("Error creating ipset %s", set)
+			log.Logf("Error creating ipset %s", set)
 		}
 	}
 	for _, set := range namedPorts {
-		log.Printf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
+		log.Logf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = ipsMgr.CreateSet(set, append([]string{util.IpsetIPPortHashFlag})); err != nil {
-			log.Printf("Error creating ipset named port %s", set)
+			log.Logf("Error creating ipset named port %s", set)
 		}
 	}
 	for _, list := range lists {
 		if err = ipsMgr.CreateList(list); err != nil {
-			log.Printf("Error creating ipset list %s", list)
+			log.Logf("Error creating ipset list %s", list)
 		}
 	}
 	if err = npMgr.InitAllNsList(); err != nil {
-		log.Printf("Error initializing all-namespace ipset list.")
+		log.Logf("Error initializing all-namespace ipset list.")
 	}
 	createCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, ipsMgr)
 	createCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, ipsMgr)
@@ -133,7 +133,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 // UpdateNetworkPolicy handles updateing network policy in iptables.
 func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.NetworkPolicy, newNpObj *networkingv1.NetworkPolicy) error {
 	if newNpObj.ObjectMeta.DeletionTimestamp == nil && newNpObj.ObjectMeta.DeletionGracePeriodSeconds == nil {
-		log.Printf("NETWORK POLICY UPDATING:\n old policy:[%v]\n new policy:[%v]", oldNpObj, newNpObj)
+		log.Logf("NETWORK POLICY UPDATING")
 		return npMgr.AddNetworkPolicy(newNpObj)
 	}
 
@@ -149,7 +149,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	)
 
 	npNs, npName := "ns-"+npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
-	log.Printf("NETWORK POLICY DELETING: %v", npObj)
+	log.Printf("NETWORK POLICY DELETING: Namespace: %s, Name:%s", npNs, npName)
 
 	var exists bool
 	if ns, exists = npMgr.nsMap[npNs]; !exists {
@@ -211,8 +211,19 @@ func createCidrsRule(ingressOrEgress, policyName, ns string, ipsetEntries [][]st
 			log.Printf("Error creating ipset %s", ipCidrSet)
 		}
 		for _, ipCidrEntry := range util.DropEmptyFields(ipCidrSet) {
-			if err := ipsMgr.AddToSet(setName, ipCidrEntry, util.IpsetNetHashFlag); err != nil {
-				log.Printf("Error adding ip cidrs %s into ipset %s", ipCidrEntry, ipCidrSet)
+			// Ipset doesn't allow 0.0.0.0/0 to be added. A general solution is split 0.0.0.0/1 in half which convert to 
+			// 1.0.0.0/1 and 128.0.0.0/1
+			if (ipCidrEntry == "0.0.0.0/0") {
+				splitEntry := [2]string{"1.0.0.0/1", "128.0.0.0/1"}
+				for _, entry := range splitEntry {
+					if err := ipsMgr.AddToSet(setName, entry, util.IpsetNetHashFlag); err != nil {
+						log.Printf("Error adding ip cidrs %s into ipset %s", entry, ipCidrSet)
+					}
+				}
+			} else {
+				if err := ipsMgr.AddToSet(setName, ipCidrEntry, util.IpsetNetHashFlag); err != nil {
+					log.Printf("Error adding ip cidrs %s into ipset %s", ipCidrEntry, ipCidrSet)
+				}
 			}
 		}
 	}

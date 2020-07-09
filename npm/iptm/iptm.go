@@ -54,7 +54,7 @@ func NewIptablesManager() *IptablesManager {
 
 // InitNpmChains initializes Azure NPM chains in iptables.
 func (iptMgr *IptablesManager) InitNpmChains() error {
-	log.Printf("Initializing AZURE-NPM chains.")
+	log.Logf("Initializing AZURE-NPM chains.")
 
 	if err := iptMgr.AddChain(util.IptablesAzureChain); err != nil {
 		return err
@@ -187,7 +187,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	if !exists {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err = iptMgr.Run(entry); err != nil {
-			log.Printf("Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
+			log.Logf("Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -265,7 +265,7 @@ func (iptMgr *IptablesManager) AddChain(chain string) error {
 	errCode, err := iptMgr.Run(entry)
 	if err != nil {
 		if errCode == iptablesErrDoesNotExist {
-			log.Printf("Chain already exists %s.", entry.Chain)
+			log.Logf("Chain already exists %s.", entry.Chain)
 			return nil
 		}
 
@@ -285,7 +285,7 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 	errCode, err := iptMgr.Run(entry)
 	if err != nil {
 		if errCode == iptablesErrDoesNotExist {
-			log.Printf("Chain doesn't exist %s.", entry.Chain)
+			log.Logf("Chain doesn't exist %s.", entry.Chain)
 			return nil
 		}
 
@@ -298,7 +298,7 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 
 // Add adds a rule in iptables.
 func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
-	log.Printf("Adding iptables entry: %+v.", entry)
+	log.Logf("Adding iptables entry: %+v.", entry)
 
 	if entry.IsJumpEntry {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
@@ -315,7 +315,7 @@ func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 
 // Delete removes a rule in iptables.
 func (iptMgr *IptablesManager) Delete(entry *IptEntry) error {
-	log.Printf("Deleting iptables entry: %+v", entry)
+	log.Logf("Deleting iptables entry: %+v", entry)
 
 	exists, err := iptMgr.Exists(entry)
 	if err != nil {
@@ -349,7 +349,7 @@ func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
 	cmdArgs := append([]string{util.IptablesWaitFlag, entry.LockWaitTimeInSeconds, iptMgr.OperationFlag, entry.Chain}, entry.Specs...)
 
 	if iptMgr.OperationFlag != util.IptablesCheckFlag {
-		log.Printf("Executing iptables command %s %v", cmdName, cmdArgs)
+		log.Logf("Executing iptables command %s %v", cmdName, cmdArgs)
 	}
 
 	_, err := exec.Command(cmdName, cmdArgs...).Output()
@@ -378,7 +378,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 
 	defer func(l *os.File) {
 		if err = l.Close(); err != nil {
-			log.Printf("Failed to close iptables locks")
+			log.Logf("Failed to close iptables locks")
 		}
 	}(l)
 
@@ -414,7 +414,7 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 
 	defer func(l *os.File) {
 		if err = l.Close(); err != nil {
-			log.Printf("Failed to close iptables locks")
+			log.Logf("Failed to close iptables locks")
 		}
 	}(l)
 
@@ -452,7 +452,7 @@ func grabIptablesLocks() (*os.File, error) {
 	// Grab 1.6.x style lock.
 	l, err := os.OpenFile(util.IptablesLockFile, os.O_CREATE, 0600)
 	if err != nil {
-		log.Printf("Error: failed to open iptables lock file %s.", util.IptablesLockFile)
+		log.Logf("Error: failed to open iptables lock file %s.", util.IptablesLockFile)
 		return nil, err
 	}
 
@@ -463,7 +463,7 @@ func grabIptablesLocks() (*os.File, error) {
 
 		return true, nil
 	}); err != nil {
-		log.Printf("Error: failed to acquire new iptables lock: %v.", err)
+		log.Logf("Error: failed to acquire new iptables lock: %v.", err)
 		return nil, err
 	}
 

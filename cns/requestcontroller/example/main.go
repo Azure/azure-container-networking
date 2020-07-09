@@ -12,12 +12,15 @@ import (
 )
 
 func goRequestController(rc requestcontroller.RequestController) {
+<<<<<<< HEAD
 	// On reboot, initialize cns with current pods on the node
 	if err := rc.InitCNSState(context.Background()); err != nil {
 		logger.Errorf("Error initializing cns state: %v", err)
 		return
 	}
 
+=======
+>>>>>>> master
 	//Exit channel for requestController, this channel is notified when requestController receives
 	//SIGINT or SIGTERM, requestControllerExitChan is sent 'true' and you can clean up anything then
 	requestControllerExitChan := make(chan bool, 1)
