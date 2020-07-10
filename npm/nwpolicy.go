@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
+	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
 )
@@ -66,12 +66,12 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	var (
-		hashedSelector                   = HashSelector(&npObj.Spec.PodSelector)
-		addedPolicy                      *networkingv1.NetworkPolicy
-		sets, namedPorts, lists          []string
-		ingressIPCidrs, egressIPCidrs    [][]string
-		iptEntries                       []*iptm.IptEntry
-		ipsMgr                           = allNs.ipsMgr
+		hashedSelector                = HashSelector(&npObj.Spec.PodSelector)
+		addedPolicy                   *networkingv1.NetworkPolicy
+		sets, namedPorts, lists       []string
+		ingressIPCidrs, egressIPCidrs [][]string
+		iptEntries                    []*iptm.IptEntry
+		ipsMgr                        = allNs.ipsMgr
 	)
 
 	// Remove the existing policy from processed (merged) network policy map
@@ -211,17 +211,17 @@ func createCidrsRule(ingressOrEgress, policyName, ns string, ipsetEntries [][]st
 			log.Printf("Error creating ipset %s", ipCidrSet)
 		}
 		for _, ipCidrEntry := range util.DropEmptyFields(ipCidrSet) {
-			// Ipset doesn't allow 0.0.0.0/0 to be added. A general solution is split 0.0.0.0/1 in half which convert to 
+			// Ipset doesn't allow 0.0.0.0/0 to be added. A general solution is split 0.0.0.0/1 in half which convert to
 			// 1.0.0.0/1 and 128.0.0.0/1
-			if (ipCidrEntry == "0.0.0.0/0") {
+			if ipCidrEntry == "0.0.0.0/0" {
 				splitEntry := [2]string{"1.0.0.0/1", "128.0.0.0/1"}
 				for _, entry := range splitEntry {
-					if err := ipsMgr.AddToSet(setName, entry, util.IpsetNetHashFlag); err != nil {
+					if err := ipsMgr.AddToSet(setName, entry, util.IpsetNetHashFlag, ""); err != nil {
 						log.Printf("Error adding ip cidrs %s into ipset %s", entry, ipCidrSet)
 					}
 				}
 			} else {
-				if err := ipsMgr.AddToSet(setName, ipCidrEntry, util.IpsetNetHashFlag); err != nil {
+				if err := ipsMgr.AddToSet(setName, ipCidrEntry, util.IpsetNetHashFlag, ""); err != nil {
 					log.Printf("Error adding ip cidrs %s into ipset %s", ipCidrEntry, ipCidrSet)
 				}
 			}

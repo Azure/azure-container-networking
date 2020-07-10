@@ -2368,6 +2368,121 @@ func TestAllowBackendToFrontendPort8000(t *testing.T) {
 	}
 }
 
+func TestAllowBackendToFrontendWithMissingPort(t *testing.T) {
+	allowBackendToFrontendMissingPortPolicy, err := readPolicyYaml("testpolicies/allow-backend-to-frontend-with-missing-port.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sets, _, lists, _, _, iptEntries := translatePolicy(allowBackendToFrontendMissingPortPolicy)
+
+	expectedSets := []string{
+		"app:frontend",
+		"ns-testnamespace",
+		"app:backend",
+	}
+	if !reflect.DeepEqual(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ ALLOW-app:backend-TO-app:frontend-port-8000-policy sets comparison")
+		t.Errorf("sets: %v", sets)
+		t.Errorf("expectedSets: %v", expectedSets)
+	}
+
+	expectedLists := []string{}
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ ALLOW-app:backend-TO-app:frontend-port-8000-policy lists comparison")
+		t.Errorf("lists: %v", lists)
+		t.Errorf("expectedLists: %v", expectedLists)
+	}
+
+	expectedIptEntries := []*iptm.IptEntry{}
+	nonKubeSystemEntries := []*iptm.IptEntry{
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureIngressPortChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("ns-testnamespace"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("ns-testnamespace"),
+				util.IptablesSrcFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:backend"),
+				util.IptablesSrcFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAccept,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-app:backend-IN-ns-testnamespace-AND--TO-app:frontend-IN-ns-testnamespace",
+			},
+		},
+		&iptm.IptEntry{
+			Chain:       util.IptablesAzureIngressPortChain,
+			IsJumpEntry: true,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("ns-testnamespace"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesAzureTargetSetsChain,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
+			},
+		},
+		&iptm.IptEntry{
+			Chain: util.IptablesAzureTargetSetsChain,
+			Specs: []string{
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("ns-testnamespace"),
+				util.IptablesDstFlag,
+				util.IptablesModuleFlag,
+				util.IptablesSetModuleFlag,
+				util.IptablesMatchSetFlag,
+				util.GetHashedName("app:frontend"),
+				util.IptablesDstFlag,
+				util.IptablesJumpFlag,
+				util.IptablesDrop,
+				util.IptablesModuleFlag,
+				util.IptablesCommentModuleFlag,
+				util.IptablesCommentFlag,
+				"DROP-ALL-TO-app:frontend-IN-ns-testnamespace",
+			},
+		},
+	}
+
+	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
+	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("dangerous", allowBackendToFrontendMissingPortPolicy.Spec.PodSelector, false, false)...)
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		t.Errorf("translatedPolicy failed @ ALLOW-ALL-TO-app:backdoor-policy policy comparison")
+		marshalledIptEntries, _ := json.Marshal(iptEntries)
+		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+		t.Errorf("iptEntries: %s", marshalledIptEntries)
+		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	}
+}
+
 func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 	allowCniOrCnsToK8sPolicy, err := readPolicyYaml("testpolicies/allow-multiple-labels-to-multiple-labels.yaml")
 	if err != nil {
