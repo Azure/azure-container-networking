@@ -11,4 +11,5 @@ import (
 type KubeClient interface {
 	Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error
 	Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error
+	List(ctx context.Context, list runtime.Object, opts ...client.ListOption) error
 }

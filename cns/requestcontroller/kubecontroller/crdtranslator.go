@@ -5,11 +5,10 @@ import (
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
-// CRDStatusToNCRequest translates a crd status to network container request
-func CRDStatusToNCRequest(crdStatus *nnc.NodeNetworkConfigStatus) (*cns.CreateNetworkContainerRequest, error) {
-	//TODO: Translate CRD status into network container request
-	//Mat will pick up from here
-	return nil, nil
+// CRDStatusToCNS translates a crd status to cns recognizable data
+func CRDStatusToCNS(crdStatus *nnc.NodeNetworkConfigStatus) (*cns.CreateNetworkContainerRequest, []*cns.ContainerIPConfigState, error) {
+	//TODO: translate status to CNS state
+	return nil, nil, nil
 }
 
 // CNSToCRDSpec translates CNS's list of Ips to be released and requested ip count into a CRD Spec

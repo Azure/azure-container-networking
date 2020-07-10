@@ -11,13 +11,18 @@ type Client struct {
 }
 
 // UpdateCNSState updates cns state
-func (client *Client) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest) error {
-	//Mat will pick up from here
+func (client *Client) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest, containerIPConfigs []*cns.ContainerIPConfigState) error {
+	//TODO: update cns state
 	return nil
 }
 
-// PopulateIP tells CNS of a current pod on the node and that pod's ip
-func (clien *Client) PopulateIP(podInfo *cns.KubernetesPodInfo, IPConfig *cns.IPSubnet) error {
-	//Mat will pick up from here
+func (client *Client) InitCNSState(*cns.CreateNetworkContainerRequest, []*cns.ContainerIPConfigState) error {
+	client.RestService.ReadyToIPAM = true
+	//TODO: setup cns state
 	return nil
+}
+
+// ReadyToIPAM tells the caller if CNS is act as an IPAM for CNI
+func (client *Client) ReadyToIPAM() bool {
+	return client.RestService.ReadyToIPAM
 }

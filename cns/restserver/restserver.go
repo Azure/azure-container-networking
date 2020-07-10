@@ -56,6 +56,7 @@ type HTTPRestService struct {
 	PodIPConfigState             map[string]*cns.ContainerIPConfigState // seondaryipid(uuid) is key
 	AllocatedIPCount             map[string]struct{ int }               // key - ncid
 	ContainerStatus              map[string]containerstatus
+	ReadyToIPAM                  bool
 	routingTable                 *routes.RoutingTable
 	store                        store.KeyValueStore
 	state                        *httpRestServiceState
