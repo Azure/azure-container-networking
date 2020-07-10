@@ -9,6 +9,10 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 )
 
+const (
+	WireserverIP = "168.63.129.16"
+)
+
 // NetworkContainerResponse - NMAgent response.
 type NetworkContainerResponse struct {
 	ResponseCode       string `json:"httpStatusCode"`

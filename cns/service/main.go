@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
@@ -216,8 +217,7 @@ func printVersion() {
 }
 
 // Try to register node with DNC when CNS is started in managed DNC mode
-func registerNode(dncEP, infraVnet, nodeID string) {
-	logger.Printf("[Azure CNS] SyncNodeStatus")
+func registerNode(httpRestService restserver.HTTPService, dncEP, infraVnet, nodeID string) {
 	var (
 		numCPU   = runtime.NumCPU()
 		response *http.Response
@@ -227,17 +227,19 @@ func registerNode(dncEP, infraVnet, nodeID string) {
 	)
 
 	for err != nil {
-		response, err = httpc.Post(fmt.Sprintf("%s/%s/node/%s/nclimit/%d%s", dncEP, infraVnet, nodeID, numCPU, dncApiVersion), "application/json", &body)
+		response, err = httpc.Post(fmt.Sprintf("%s/%s/node/%s/cores/%d%s", dncEP, infraVnet, nodeID, numCPU, dncApiVersion), "application/json", &body)
 		if err == nil {
-			break
+			if response.StatusCode == http.StatusCreated {
+				var req cns.SetOrchestratorTypeRequest
+				json.NewDecoder(response.Body).Decode(&req)
+				httpRestService.SetNodeOrchestrator(&req)
+			} else {
+				logger.Errorf("[Azure CNS] Failed to register node with managed DNC with http status code: " + strconv.Itoa(response.StatusCode))
+			}
+
+			response.Body.Close()
 		}
 		time.Sleep(time.Second * 5)
-	}
-
-	response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		panic("[Azure CNS] Failed to register node with managed DNC with http status code: " + strconv.Itoa(response.StatusCode))
 	}
 
 	logger.Printf("[Azure CNS] Node Registered")
@@ -381,7 +383,7 @@ func main() {
 		httpRestService.SetOption(acn.OptInfrastructureNetwork, infravnet)
 		httpRestService.SetOption(acn.OptNodeID, nodeID)
 
-		registerNode(privateEndpoint, infravnet, nodeID)
+		registerNode(httpRestService, privateEndpoint, infravnet, nodeID)
 		go func(ep, vnet, node string) {
 			// Periodically poll (30s) DNC for node updates
 			for {

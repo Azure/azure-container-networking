@@ -94,6 +94,7 @@ type networkInfo struct {
 type HTTPService interface {
 	common.ServiceAPI
 	SendNCSnapShotPeriodically(int, chan bool)
+	SetNodeOrchestrator(*cns.SetOrchestratorTypeRequest)
 	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
 }
 
