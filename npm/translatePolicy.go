@@ -231,7 +231,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		// Only Ports rules exist
 		if portRuleExists && !fromRuleExists && !allowExternal {
 			for _, portRule := range rule.Ports {
-				if portRule.Port.IntValue() == 0 {
+				if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 					portName := portRule.Port.String()
 					namedPorts = append(namedPorts, portName)
 					entry := &iptm.IptEntry{
@@ -297,7 +297,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 					}
 					if portRuleExists {
 						for _, portRule := range rule.Ports {
-							if portRule.Port.IntValue() == 0 {
+							if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 								portName := portRule.Port.String()
 								namedPorts = append(namedPorts, portName)
 								entry := &iptm.IptEntry{
@@ -413,7 +413,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				iptPartialNsComment := craftPartialIptablesCommentFromSelector("", fromRule.NamespaceSelector, true)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
-						if portRule.Port.IntValue() == 0 {
+						if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 							portName := portRule.Port.String()
 							namedPorts = append(namedPorts, portName)
 							entry := &iptm.IptEntry{
@@ -507,7 +507,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, fromRule.PodSelector, false)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
-						if portRule.Port.IntValue() == 0 {
+						if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 							portName := portRule.Port.String()
 							namedPorts = append(namedPorts, portName)
 							entry := &iptm.IptEntry{
@@ -614,7 +614,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			iptPartialPodComment := craftPartialIptablesCommentFromSelector("", fromRule.PodSelector, false)
 			if portRuleExists {
 				for _, portRule := range rule.Ports {
-					if portRule.Port.IntValue() == 0 {
+					if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 						portName := portRule.Port.String()
 						namedPorts = append(namedPorts, portName)
 						entry := &iptm.IptEntry{
@@ -869,7 +869,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 		// Only Ports rules exist
 		if portRuleExists && !toRuleExists && !allowExternal {
 			for _, portRule := range rule.Ports {
-				if portRule.Port.IntValue() == 0 {
+				if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 					portName := portRule.Port.String()
 					namedPorts = append(namedPorts, portName)
 					entry := &iptm.IptEntry{
@@ -935,7 +935,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 					}
 					if portRuleExists {
 						for _, portRule := range rule.Ports {
-							if portRule.Port.IntValue() == 0 {
+							if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 								portName := portRule.Port.String()
 								namedPorts = append(namedPorts, portName)
 								entry := &iptm.IptEntry{
@@ -1057,7 +1057,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 				iptPartialNsComment := craftPartialIptablesCommentFromSelector("", toRule.NamespaceSelector, true)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
-						if portRule.Port.IntValue() == 0 {
+						if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 							portName := portRule.Port.String()
 							namedPorts = append(namedPorts, portName)
 							entry := &iptm.IptEntry{
@@ -1151,7 +1151,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 				iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
-						if portRule.Port.IntValue() == 0 {
+						if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 							portName := portRule.Port.String()
 							namedPorts = append(namedPorts, portName)
 							entry := &iptm.IptEntry{
@@ -1258,7 +1258,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 			iptPartialPodComment := craftPartialIptablesCommentFromSelector("", toRule.PodSelector, false)
 			if portRuleExists {
 				for _, portRule := range rule.Ports {
-					if portRule.Port.IntValue() == 0 {
+					if portRule.Port != nil && portRule.Port.IntValue() == 0 {
 						portName := portRule.Port.String()
 						namedPorts = append(namedPorts, portName)
 						entry := &iptm.IptEntry{
