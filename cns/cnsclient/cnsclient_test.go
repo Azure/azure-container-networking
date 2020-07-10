@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -36,6 +37,28 @@ func addTestStateToRestServer(svc *restserver.HTTPRestService) {
 		state1,
 	}
 	svc.AddIPConfigsToState(ipconfigs)
+}
+
+func getIPConfigFromGetNetworkContainerResponse(resp *cns.GetNetworkContainerResponse) (net.IPNet, error) {
+
+	var (
+		resultIPnet net.IPNet
+		err         error
+	)
+
+	// set result ipconfig from CNS Response Body
+	prefix := strconv.Itoa(int(resp.IPConfiguration.IPSubnet.PrefixLength))
+	ip, ipnet, err := net.ParseCIDR(resp.IPConfiguration.IPSubnet.IPAddress + "/" + prefix)
+	if err != nil {
+		return resultIPnet, err
+	}
+
+	// construct ipnet for result
+	resultIPnet = net.IPNet{
+		IP:   ip,
+		Mask: ipnet.Mask,
+	}
+	return resultIPnet, err
 }
 
 func TestMain(m *testing.M) {
@@ -117,23 +140,25 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	}
 
 	// no IP reservation found with that context, expect fail
-	_, _, err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	err = cnsClient.ReleaseIPAddress(orchestratorContext)
 	if err == nil {
 		t.Fatalf("Expected failure to release when no IP reservation found with context: %+v", err)
 	}
 
 	// request IP address
-	result, _, err := cnsClient.RequestIPAddress(orchestratorContext)
+	resp, err := cnsClient.RequestIPAddress(orchestratorContext)
 	if err != nil {
 		t.Fatalf("get IP from CNS failed with %+v", err)
 	}
 
-	if reflect.DeepEqual(desired, result.IPs[0].Address) != true {
-		t.Fatalf("Desired result not matching actual result, expected: %+v, actual: %+v", desired, result.IPs[0].Address)
+	resultIPnet, err := getIPConfigFromGetNetworkContainerResponse(resp)
+
+	if reflect.DeepEqual(desired, resultIPnet) != true {
+		t.Fatalf("Desired result not matching actual result, expected: %+v, actual: %+v", desired, resultIPnet)
 	}
 
 	// release requested IP address, expect success
-	_, _, err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	err = cnsClient.ReleaseIPAddress(orchestratorContext)
 	if err != nil {
 		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
 	}

@@ -59,7 +59,7 @@ func TestIPAMGetAvailableIPConfig(t *testing.T) {
 	b, _ := json.Marshal(testPod1Info)
 	req.OrchestratorContext = b
 
-	actualstate, err := getIPConfig(svc, req)
+	actualstate, err := requestIPConfigHelper(svc, req)
 	if err != nil {
 		t.Fatal("Expected IP retrieval to be nil")
 	}
@@ -90,7 +90,7 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 	b, _ := json.Marshal(testPod2Info)
 	req.OrchestratorContext = b
 
-	actualstate, err := getIPConfig(svc, req)
+	actualstate, err := requestIPConfigHelper(svc, req)
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
 	}
@@ -117,7 +117,7 @@ func TestIPAMGetAlreadyAllocatedIPConfigForSamePod(t *testing.T) {
 	b, _ := json.Marshal(testPod1Info)
 	req.OrchestratorContext = b
 
-	actualstate, err := getIPConfig(svc, req)
+	actualstate, err := requestIPConfigHelper(svc, req)
 	if err != nil {
 		t.Fatalf("Expected not error: %+v", err)
 	}
@@ -146,7 +146,7 @@ func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
 	req.OrchestratorContext = b
 	req.DesiredIPConfig = newIPConfig(testIP2, 24)
 
-	_, err = getIPConfig(svc, req)
+	_, err = requestIPConfigHelper(svc, req)
 	if err == nil {
 		t.Fatalf("Expected to fail as IP not found in pool")
 	}
@@ -170,7 +170,7 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 	req.OrchestratorContext = b
 	req.DesiredIPConfig = newIPConfig(testIP1, 24)
 
-	actualstate, err := getIPConfig(svc, req)
+	actualstate, err := requestIPConfigHelper(svc, req)
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
 	}
@@ -201,7 +201,7 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAllocatedSpecfiedIP(t *testing.T
 	req.OrchestratorContext = b
 	req.DesiredIPConfig = newIPConfig(testIP1, 24)
 
-	_, err = getIPConfig(svc, req)
+	_, err = requestIPConfigHelper(svc, req)
 	if err == nil {
 		t.Fatalf("Expected failure requesting already IP: %+v", err)
 	}
@@ -228,7 +228,7 @@ func TestIPAMFailToGetIPWhenAllIPsAreAllocated(t *testing.T) {
 	b, _ := json.Marshal(testPod3Info)
 	req.OrchestratorContext = b
 
-	_, err = getIPConfig(svc, req)
+	_, err = requestIPConfigHelper(svc, req)
 	if err == nil {
 		t.Fatalf("Expected failure requesting IP when there are no more IP's: %+v", err)
 	}
@@ -259,16 +259,13 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	req.OrchestratorContext = b
 	req.DesiredIPConfig = desiredIPConfig
 
-	_, err = getIPConfig(svc, req)
+	_, err = requestIPConfigHelper(svc, req)
 	if err == nil {
 		t.Fatal("Expected failure requesting IP when there are no more IP's")
 	}
 
 	// Release Test Pod 1
-	req2 := cns.GetNetworkContainerRequest{}
-	b, _ = json.Marshal(testPod1Info)
-	req2.OrchestratorContext = b
-	err = releaseIPConfig(svc, req2)
+	err = svc.ReleaseIPConfig(testPod1Info)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
@@ -278,7 +275,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	b, _ = json.Marshal(testPod2Info)
 	req.OrchestratorContext = b
 	req.DesiredIPConfig = desiredIPConfig
-	actualstate, err := getIPConfig(svc, req)
+	actualstate, err := requestIPConfigHelper(svc, req)
 
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
