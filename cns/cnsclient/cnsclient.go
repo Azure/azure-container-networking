@@ -260,6 +260,7 @@ func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.G
 func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
 	var (
 		err  error
+		res  *http.Response
 		body bytes.Buffer
 	)
 
@@ -277,7 +278,7 @@ func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
 		return err
 	}
 
-	res, err := httpc.Post(url, contentTypeJSON, &body)
+	res, err = httpc.Post(url, contentTypeJSON, &body)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
 		return err
@@ -305,5 +306,4 @@ func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
 	}
 
 	return err
-
 }
