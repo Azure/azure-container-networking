@@ -8,6 +8,21 @@ import (
 // CRDStatusToCNS translates a crd status to cns recognizable data
 func CRDStatusToCNS(crdStatus *nnc.NodeNetworkConfigStatus) ([]*cns.ContainerIPConfigState, error) {
 	//TODO: translate status to CNS state
+	var (
+		ipConfigs []*cns.ContainerIPConfigState
+	)
+	for _, nc := range crdStatus.NetworkContainers {
+		for _, ipAssignment := range nc.IPAssignments {
+			ipConfig := &cns.ContainerIPConfigState{
+				IPConfig: cns.IPSubnet{
+					IPAddress: ipAssignment.IP,
+				},
+				ID:   ipAssignment.Name,
+				NCID: nc.ID,
+			}
+			ipConfigs = append(ipConfigs, ipConfig)
+		}
+	}
 	return nil, nil
 }
 
