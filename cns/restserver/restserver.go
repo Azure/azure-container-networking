@@ -55,11 +55,6 @@ type HTTPRestService struct {
 	PodIPIDByOrchestratorContext map[string]string                      // OrchestratorContext is key and value is Pod IP uuid.
 	PodIPConfigState             map[string]*cns.ContainerIPConfigState // seondaryipid(uuid) is key
 	AllocatedIPCount             map[string]allocatedIPCount            // key - ncid
-<<<<<<< HEAD
-	ContainerStatus              map[string]containerstatus
-	ReadyToIPAM                  bool
-=======
->>>>>>> cnsipamcni
 	routingTable                 *routes.RoutingTable
 	store                        store.KeyValueStore
 	state                        *httpRestServiceState
