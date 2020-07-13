@@ -330,3 +330,48 @@ func TestIPAMFailToAddThenCleanThenRequestExpectFail(t *testing.T) {
 		t.Fatalf("Expected state to be clean when one ipconfig is bad in batch add.")
 	}
 }
+
+func TestIPAMReleaseIPIdempotency(t *testing.T) {
+	svc := getTestService()
+	// set state as already allocated
+	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
+	ipconfigs := []*cns.ContainerIPConfigState{
+		state1,
+	}
+
+	err := svc.AddIPConfigsToState(ipconfigs)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+	}
+
+	// Release Test Pod 1
+	err = svc.ReleaseIPConfig(testPod1Info)
+	if err != nil {
+		t.Fatalf("Unexpected failure releasing IP: %+v", err)
+	}
+
+	// Call release again, should be fine
+	err = svc.ReleaseIPConfig(testPod1Info)
+	if err != nil {
+		t.Fatalf("Unexpected failure releasing IP: %+v", err)
+	}
+}
+
+func TestIPAMAllocateIPIdempotency(t *testing.T) {
+	svc := getTestService()
+	// set state as already allocated
+	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
+	ipconfigs := []*cns.ContainerIPConfigState{
+		state1,
+	}
+
+	err := svc.AddIPConfigsToState(ipconfigs)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+	}
+
+	err = svc.AddIPConfigsToState(ipconfigs)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+	}
+}
