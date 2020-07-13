@@ -200,10 +200,11 @@ func (cnsClient *CNSClient) DeleteHostNCApipaEndpoint(networkContainerID string)
 }
 
 // RequestIPAddress calls the requestIPAddress in CNS
-func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
+func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.GetIPConfigResponse, error) {
 	var (
 		err      error
-		response *cns.GetNetworkContainerResponse
+		res      *http.Response
+		response *cns.GetIPConfigResponse
 	)
 
 	defer func() {
@@ -227,7 +228,7 @@ func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.G
 		return response, err
 	}
 
-	res, err := httpc.Post(url, contentTypeJSON, &body)
+	res, err = httpc.Post(url, contentTypeJSON, &body)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
 		return response, err

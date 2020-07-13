@@ -39,7 +39,7 @@ func addTestStateToRestServer(svc *restserver.HTTPRestService) {
 	svc.AddIPConfigsToState(ipconfigs)
 }
 
-func getIPConfigFromGetNetworkContainerResponse(resp *cns.GetNetworkContainerResponse) (net.IPNet, error) {
+func getIPConfigFromGetNetworkContainerResponse(resp *cns.GetIPConfigResponse) (net.IPNet, error) {
 
 	var (
 		resultIPnet net.IPNet
@@ -62,6 +62,13 @@ func getIPConfigFromGetNetworkContainerResponse(resp *cns.GetNetworkContainerRes
 }
 
 func TestMain(m *testing.M) {
+	var (
+		info = &cns.SetOrchestratorTypeRequest{
+			OrchestratorType: cns.Kubernetes}
+		body bytes.Buffer
+		res  *http.Response
+	)
+
 	tmpFileState, err := ioutil.TempFile(os.TempDir(), "cns-*.json")
 	tmpLogDir, err := ioutil.TempDir("", "cns-")
 	fmt.Printf("logdir: %+v", tmpLogDir)
@@ -98,12 +105,6 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	var (
-		info = &cns.SetOrchestratorTypeRequest{
-			OrchestratorType: cns.Kubernetes}
-		body bytes.Buffer
-	)
-
 	if err := json.NewEncoder(&body).Encode(info); err != nil {
 		log.Errorf("encoding json failed with %v", err)
 		return
@@ -112,7 +113,7 @@ func TestMain(m *testing.M) {
 	httpc := &http.Client{}
 	url := defaultCnsURL + cns.SetOrchestratorType
 
-	res, err := httpc.Post(url, "application/json", &body)
+	res, err = httpc.Post(url, "application/json", &body)
 	if err != nil {
 		fmt.Println(err)
 	}

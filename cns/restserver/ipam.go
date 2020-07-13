@@ -122,32 +122,62 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	return
 }
 
+func validateIPConfig(ipconfig *cns.ContainerIPConfigState) error {
+	if ipconfig.ID == "" {
+		return fmt.Errorf("Failed to add IPConfig to state: %+v, empty ID", ipconfig)
+	}
+	if ipconfig.State == "" {
+		return fmt.Errorf("Failed to add IPConfig to state: %+v, empty State", ipconfig)
+	}
+	if ipconfig.IPConfig.IPAddress == "" {
+		return fmt.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.IPAddress", ipconfig)
+	}
+	if ipconfig.IPConfig.PrefixLength == 0 {
+		return fmt.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.PrefixLength", ipconfig)
+	}
+	return nil
+}
+
 //AddIPConfigsToState takes a lock on the service object, and will add an array of ipconfigs to the CNS Service.
 //Used to add IPConfigs to the CNS pool, specifically in the scenario of rebatching.
 func (service *HTTPRestService) AddIPConfigsToState(ipconfigs []*cns.ContainerIPConfigState) error {
-	service.Lock()
-	defer service.Unlock()
+	var (
+		err      error
+		index    int
+		ipconfig *cns.ContainerIPConfigState
+	)
 
-	for i, ipconfig := range ipconfigs {
+	service.Lock()
+
+	defer func() {
+		service.Unlock()
+
+		if err != nil {
+			if removeErr := service.RemoveIPConfigsFromState(ipconfigs[0:index]); removeErr != nil {
+				logger.Printf("Failed remove IPConfig after AddIpConfigs: %v", removeErr)
+			}
+		}
+	}()
+
+	for index, ipconfig = range ipconfigs {
+
+		if err = validateIPConfig(ipconfig); err != nil {
+			return err
+		}
+
 		service.PodIPConfigState[ipconfig.ID] = ipconfig
 
 		if ipconfig.State == cns.Allocated {
 			var podInfo cns.KubernetesPodInfo
 
-			if err := json.Unmarshal(ipconfig.OrchestratorContext, &podInfo); err != nil {
-
-				if err := service.RemoveIPConfigsFromState(ipconfigs[0:i]); err != nil {
-					return fmt.Errorf("Failed remove IPConfig after AddIpConfigs: %v", err)
-				}
-
+			if err = json.Unmarshal(ipconfig.OrchestratorContext, &podInfo); err != nil {
 				return fmt.Errorf("Failed to add IPConfig to state: %+v with error: %v", ipconfig, err)
 			}
 
 			service.PodIPIDByOrchestratorContext[podInfo.GetOrchestratorContextKey()] = ipconfig.ID
 		}
 	}
-
-	return nil
+	return err
 }
 
 //RemoveIPConfigsFromState takes a lock on the service object, and will remove an array of ipconfigs to the CNS Service.
@@ -199,7 +229,7 @@ func (service *HTTPRestService) ReleaseIPConfig(podInfo cns.KubernetesPodInfo) e
 		if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
 			service.setIPConfigAsAvailable(ipconfig, podInfo)
 		} else {
-			return fmt.Errorf("Pod->IPIP exists but IPID to IPConfig doesn't exist")
+			return fmt.Errorf("Pod to IPID exists, but IPID to IPConfig doesn't exist")
 		}
 	} else {
 		return fmt.Errorf("SetIPConfigAsAvailable failed to release, no allocation found for pod")
@@ -211,7 +241,6 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.KubernetesPodInf
 	var (
 		ipState *cns.ContainerIPConfigState
 		isExist bool
-		err     error
 	)
 
 	service.RLock()
@@ -222,10 +251,10 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.KubernetesPodInf
 		if ipState, isExist = service.PodIPConfigState[ipID]; isExist {
 			return ipState, isExist, nil
 		}
-		return ipState, isExist, fmt.Errorf("Pod->IPIP exists but IPID to IPConfig doesn't exist")
+		return ipState, isExist, fmt.Errorf("Pod to IPID exists, but IPID to IPConfig doesn't exist")
 	}
 
-	return ipState, isExist, err
+	return ipState, isExist, nil
 }
 
 func (service *HTTPRestService) GetDesiredIPConfig(podInfo cns.KubernetesPodInfo, desiredIPAddress string, orchestratorContext json.RawMessage) (*cns.ContainerIPConfigState, error) {
@@ -278,6 +307,7 @@ func requestIPConfigHelper(service *HTTPRestService, req cns.GetIPConfigRequest)
 	}
 
 	// check if ipconfig already allocated for this pod and return if exists or error
+	// if error, ipstate is nil, if exists, ipstate is not nil and error is nil
 	if ipState, isExist, err = service.GetExistingIPConfig(podInfo); err != nil || isExist {
 		return ipState, err
 	}
