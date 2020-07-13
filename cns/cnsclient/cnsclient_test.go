@@ -40,7 +40,6 @@ func addTestStateToRestServer(svc *restserver.HTTPRestService) {
 }
 
 func getIPConfigFromGetNetworkContainerResponse(resp *cns.GetIPConfigResponse) (net.IPNet, error) {
-
 	var (
 		resultIPnet net.IPNet
 		err         error

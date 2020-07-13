@@ -160,7 +160,6 @@ func (service *HTTPRestService) AddIPConfigsToState(ipconfigs []*cns.ContainerIP
 	}()
 
 	for index, ipconfig = range ipconfigs {
-
 		if err = validateIPConfig(ipconfig); err != nil {
 			return err
 		}
@@ -257,7 +256,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.KubernetesPodInf
 	return ipState, isExist, nil
 }
 
-func (service *HTTPRestService) GetDesiredIPConfig(podInfo cns.KubernetesPodInfo, desiredIPAddress string, orchestratorContext json.RawMessage) (*cns.ContainerIPConfigState, error) {
+func (service *HTTPRestService) AllocateDesiredIPConfig(podInfo cns.KubernetesPodInfo, desiredIPAddress string, orchestratorContext json.RawMessage) (*cns.ContainerIPConfigState, error) {
 	var ipState *cns.ContainerIPConfigState
 
 	service.Lock()
@@ -274,7 +273,7 @@ func (service *HTTPRestService) GetDesiredIPConfig(podInfo cns.KubernetesPodInfo
 	return ipState, fmt.Errorf("Requested IP not found in pool")
 }
 
-func (service *HTTPRestService) GetAnyAvailableIPConfig(podInfo cns.KubernetesPodInfo, orchestratorContext json.RawMessage) (*cns.ContainerIPConfigState, error) {
+func (service *HTTPRestService) AllocateAnyAvailableIPConfig(podInfo cns.KubernetesPodInfo, orchestratorContext json.RawMessage) (*cns.ContainerIPConfigState, error) {
 	var ipState *cns.ContainerIPConfigState
 
 	service.Lock()
@@ -314,9 +313,9 @@ func requestIPConfigHelper(service *HTTPRestService, req cns.GetIPConfigRequest)
 
 	// return desired IPConfig
 	if req.DesiredIPConfig.IPAddress != "" {
-		return service.GetDesiredIPConfig(podInfo, req.DesiredIPConfig.IPAddress, req.OrchestratorContext)
+		return service.AllocateDesiredIPConfig(podInfo, req.DesiredIPConfig.IPAddress, req.OrchestratorContext)
 	}
 
 	// return any free IPConfig
-	return service.GetAnyAvailableIPConfig(podInfo, req.OrchestratorContext)
+	return service.AllocateAnyAvailableIPConfig(podInfo, req.OrchestratorContext)
 }

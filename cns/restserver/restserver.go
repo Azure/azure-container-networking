@@ -55,8 +55,11 @@ type HTTPRestService struct {
 	PodIPIDByOrchestratorContext map[string]string                      // OrchestratorContext is key and value is Pod IP uuid.
 	PodIPConfigState             map[string]*cns.ContainerIPConfigState // seondaryipid(uuid) is key
 	AllocatedIPCount             map[string]allocatedIPCount            // key - ncid
+<<<<<<< HEAD
 	ContainerStatus              map[string]containerstatus
 	ReadyToIPAM                  bool
+=======
+>>>>>>> cnsipamcni
 	routingTable                 *routes.RoutingTable
 	store                        store.KeyValueStore
 	state                        *httpRestServiceState
@@ -238,16 +241,16 @@ func (service *HTTPRestService) Stop() {
 
 // GetPartitionKey - Get dnc/service partition key
 func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
-	service.Lock()
+	service.RLock()
 	dncPartitionKey = service.dncPartitionKey
-	service.Unlock()
+	service.RUnlock()
 	return
 }
 
 // Get the network info from the service network state
 func (service *HTTPRestService) getNetworkInfo(networkName string) (*networkInfo, bool) {
-	service.Lock()
-	defer service.Unlock()
+	service.RLock()
+	defer service.RUnlock()
 	networkInfo, found := service.state.Networks[networkName]
 
 	return networkInfo, found
@@ -1398,8 +1401,8 @@ func (service *HTTPRestService) getNetworkContainerStatus(w http.ResponseWriter,
 		return
 	}
 
-	service.Lock()
-	defer service.Unlock()
+	service.RLock()
+	defer service.RUnlock()
 	var ok bool
 	var containerDetails containerstatus
 
@@ -1677,8 +1680,8 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 }
 
 func (service *HTTPRestService) getNetworkContainerDetails(networkContainerID string) (containerstatus, bool) {
-	service.Lock()
-	defer service.Unlock()
+	service.RLock()
+	defer service.RUnlock()
 
 	containerDetails, containerExists := service.state.ContainerStatus[networkContainerID]
 
