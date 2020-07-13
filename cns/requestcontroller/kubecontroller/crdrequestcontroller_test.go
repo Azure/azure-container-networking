@@ -108,12 +108,12 @@ func (mc MockKubeClient) List(ctx context.Context, list runtime.Object, opts ...
 type MockCNSClient struct{}
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
-func (mc *MockCNSClient) UpdateCNSState(ncRequest *cns.CreateNetworkContainerRequest, containerIPConfigs []*cns.ContainerIPConfigState) error {
+func (mc *MockCNSClient) UpdateCNSState(ipConfigs []*cns.ContainerIPConfigState) error {
 	mockCNSUpdated = true
 	return nil
 }
 
-func (mc *MockCNSClient) InitCNSState(ncRequest *cns.CreateNetworkContainerRequest, ipConfigs []*cns.ContainerIPConfigState) error {
+func (mc *MockCNSClient) InitCNSState(ipConfigs []*cns.ContainerIPConfigState) error {
 	for _, ipConfig := range ipConfigs {
 		if ipConfig.ID == allocatedUUID {
 			if ipConfig.State != cns.Allocated {

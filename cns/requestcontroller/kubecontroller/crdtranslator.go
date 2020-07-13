@@ -6,9 +6,9 @@ import (
 )
 
 // CRDStatusToCNS translates a crd status to cns recognizable data
-func CRDStatusToCNS(crdStatus *nnc.NodeNetworkConfigStatus) (*cns.CreateNetworkContainerRequest, []*cns.ContainerIPConfigState, error) {
+func CRDStatusToCNS(crdStatus *nnc.NodeNetworkConfigStatus) ([]*cns.ContainerIPConfigState, error) {
 	//TODO: translate status to CNS state
-	return nil, nil, nil
+	return nil, nil
 }
 
 // CNSToCRDSpec translates CNS's list of Ips to be released and requested ip count into a CRD Spec
