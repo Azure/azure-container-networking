@@ -11,15 +11,25 @@ type Client struct {
 }
 
 // UpdateCNSState updates cns state
-func (client *Client) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest, containerIPConfigs []*cns.ContainerIPConfigState) error {
-	//TODO: update cns state
-	return nil
+func (client *Client) UpdateCNSState(containerIPConfigs []*cns.ContainerIPConfigState) error {
+	var (
+		ipConfigsToAdd []*cns.ContainerIPConfigState
+	)
+
+	//Only add ipconfigs that don't exist in cns state already
+	for _, ipConfig := range containerIPConfigs {
+		if _, ok := client.RestService.PodIPConfigState[ipConfig.ID]; !ok {
+			ipConfigsToAdd = append(ipConfigsToAdd, ipConfig)
+		}
+	}
+
+	return client.RestService.AddIPConfigsToState(ipConfigsToAdd)
 }
 
-func (client *Client) InitCNSState(*cns.CreateNetworkContainerRequest, []*cns.ContainerIPConfigState) error {
+// InitCNSState initializes cns state
+func (client *Client) InitCNSState(ipConfigs []*cns.ContainerIPConfigState) error {
 	client.RestService.ReadyToIPAM = true
-	//TODO: setup cns state
-	return nil
+	return client.RestService.AddIPConfigsToState(ipConfigs)
 }
 
 // ReadyToIPAM tells the caller if CNS is act as an IPAM for CNI

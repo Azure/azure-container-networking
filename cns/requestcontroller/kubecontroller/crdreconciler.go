@@ -38,9 +38,10 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		}
 	}
 
-	logger.Printf("[cns-rc] CRD object: %v", nodeNetConfig)
+	logger.Printf("[cns-rc] CRD spec: %v", nodeNetConfig.Spec)
+	logger.Printf("[cns-rc] CRD status: %v", nodeNetConfig.Status)
 
-	ncRequest, ipConfigs, err := CRDStatusToCNS(&nodeNetConfig.Status)
+	ipConfigs, err := CRDStatusToCNS(&nodeNetConfig.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
 		//requeue
@@ -48,14 +49,14 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	}
 
 	if r.CNSClient.ReadyToIPAM() {
-		r.CNSClient.UpdateCNSState(ncRequest, ipConfigs)
+		r.CNSClient.UpdateCNSState(ipConfigs)
 	} else {
 		if err := r.markAllocatedIPs(ipConfigs); err != nil {
 			logger.Errorf("[cns-rc] Error marking ips as allocated when readying CNS: %v", err)
 			//requeue
 			return reconcile.Result{}, err
 		}
-		r.CNSClient.InitCNSState(ncRequest, ipConfigs)
+		r.CNSClient.InitCNSState(ipConfigs)
 	}
 
 	return reconcile.Result{}, nil
