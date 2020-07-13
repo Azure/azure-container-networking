@@ -42,6 +42,86 @@ func NewPodStateWithOrchestratorContext(ipaddress string, prefixLength uint8, id
 	}, err
 }
 
+// used to request an IPConfig from the CNS state
+func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		err             error
+		ipconfigRequest cns.GetIPConfigRequest
+		ipState         *cns.ContainerIPConfigState
+		returnCode      int
+		returnMessage   string
+	)
+
+	err = service.Listener.Decode(w, r, &ipconfigRequest)
+	logger.Request(service.Name, &ipconfigRequest, err)
+	if err != nil {
+		return
+	}
+
+	// retrieve ipconfig from nc
+	if ipState, err = requestIPConfigHelper(service, ipconfigRequest); err != nil {
+		returnCode = UnexpectedError
+		returnMessage = fmt.Sprintf("AllocateIPConfig failed: %v", err)
+	}
+
+	resp := cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage,
+	}
+
+	reserveResp := &cns.GetIPConfigResponse{
+		Response: resp,
+	}
+	reserveResp.IPConfiguration.IPSubnet = ipState.IPConfig
+
+	err = service.Listener.Encode(w, &reserveResp)
+	logger.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+}
+
+func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		podInfo    cns.KubernetesPodInfo
+		req        cns.GetIPConfigRequest
+		statusCode int
+	)
+
+	statusCode = UnexpectedError
+
+	err := service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		return
+	}
+
+	defer func() {
+		resp := cns.Response{}
+
+		if err != nil {
+			resp.ReturnCode = statusCode
+			resp.Message = err.Error()
+		}
+
+		err = service.Listener.Encode(w, &resp)
+		logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	}()
+
+	if service.state.OrchestratorType != cns.Kubernetes {
+		err = fmt.Errorf("ReleaseIPConfig API supported only for kubernetes orchestrator")
+		return
+	}
+
+	// retrieve podinfo  from orchestrator context
+	if err = json.Unmarshal(req.OrchestratorContext, &podInfo); err != nil {
+		return
+	}
+
+	if err = service.ReleaseIPConfig(podInfo); err != nil {
+		statusCode = NotFound
+		return
+	}
+	return
+}
+
 //AddIPConfigsToState takes a lock on the service object, and will add an array of ipconfigs to the CNS Service.
 //Used to add IPConfigs to the CNS pool, specifically in the scenario of rebatching.
 func (service *HTTPRestService) AddIPConfigsToState(ipconfigs []*cns.ContainerIPConfigState) error {
@@ -105,7 +185,7 @@ func (service *HTTPRestService) setIPConfigAsAvailable(ipconfig *cns.ContainerIP
 	ipconfig.State = cns.Available
 	ipconfig.OrchestratorContext = nil
 	service.PodIPConfigState[ipconfig.ID] = ipconfig
-	service.PodIPIDByOrchestratorContext[podInfo.GetOrchestratorContextKey()] = ""
+	delete(service.PodIPIDByOrchestratorContext, podInfo.GetOrchestratorContextKey())
 	return service.PodIPConfigState[ipconfig.ID]
 }
 
@@ -179,89 +259,8 @@ func (service *HTTPRestService) GetAnyAvailableIPConfig(podInfo cns.KubernetesPo
 	return ipState, fmt.Errorf("No more free IP's available, trigger batch")
 }
 
-// cni -> allocate ipconfig
-// 			|- fetch nc from state by constructing nc id
-func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
-	var (
-		err           error
-		ncrequest     cns.GetNetworkContainerRequest
-		ipState       *cns.ContainerIPConfigState
-		returnCode    int
-		returnMessage string
-	)
-
-	err = service.Listener.Decode(w, r, &ncrequest)
-	logger.Request(service.Name, &ncrequest, err)
-	if err != nil {
-		return
-	}
-
-	// retrieve ipconfig from nc
-	if ipState, err = requestIPConfigHelper(service, ncrequest); err != nil {
-		returnCode = UnexpectedError
-		returnMessage = fmt.Sprintf("AllocateIPConfig failed: %v", err)
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
-	reserveResp := &cns.GetNetworkContainerResponse{
-		Response: resp,
-	}
-	reserveResp.IPConfiguration.IPSubnet = ipState.IPConfig
-
-	err = service.Listener.Encode(w, &reserveResp)
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
-}
-
-func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
-	var (
-		podInfo    cns.KubernetesPodInfo
-		req        cns.GetNetworkContainerRequest
-		statusCode int
-	)
-
-	statusCode = UnexpectedError
-
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
-	if err != nil {
-		return
-	}
-
-	defer func() {
-		resp := cns.Response{}
-
-		if err != nil {
-			resp.ReturnCode = statusCode
-			resp.Message = err.Error()
-		}
-
-		err = service.Listener.Encode(w, &resp)
-		logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
-	}()
-
-	if service.state.OrchestratorType != cns.Kubernetes {
-		err = fmt.Errorf("ReleaseIPConfig API supported only for kubernetes orchestrator")
-		return
-	}
-
-	// retrieve podinfo  from orchestrator context
-	if err = json.Unmarshal(req.OrchestratorContext, &podInfo); err != nil {
-		return
-	}
-
-	if err = service.ReleaseIPConfig(podInfo); err != nil {
-		statusCode = NotFound
-		return
-	}
-	return
-}
-
 // If IPConfig is already allocated for pod, it returns that else it returns one of the available ipconfigs.
-func requestIPConfigHelper(service *HTTPRestService, req cns.GetNetworkContainerRequest) (*cns.ContainerIPConfigState, error) {
+func requestIPConfigHelper(service *HTTPRestService, req cns.GetIPConfigRequest) (*cns.ContainerIPConfigState, error) {
 	var (
 		podInfo cns.KubernetesPodInfo
 		ipState *cns.ContainerIPConfigState

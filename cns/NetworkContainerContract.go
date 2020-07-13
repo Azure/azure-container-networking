@@ -69,7 +69,6 @@ type CreateNetworkContainerRequest struct {
 	LocalIPConfiguration       IPConfiguration
 	OrchestratorContext        json.RawMessage
 	IPConfiguration            IPConfiguration
-	SecondaryIPConfigs         map[string]SecondaryIPConfig //uuid is key
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
 	Routes                     []Route
@@ -169,7 +168,6 @@ type GetNetworkContainerStatusResponse struct {
 // GetNetworkContainerRequest specifies the details about the request to retrieve a specifc network container.
 type GetNetworkContainerRequest struct {
 	NetworkContainerid  string
-	DesiredIPConfig     IPSubnet
 	OrchestratorContext json.RawMessage
 }
 
@@ -185,6 +183,16 @@ type GetNetworkContainerResponse struct {
 	Response                   Response
 	AllowHostToNCCommunication bool
 	AllowNCToHostCommunication bool
+}
+
+type GetIPConfigRequest struct {
+	DesiredIPConfig     IPSubnet
+	OrchestratorContext json.RawMessage
+}
+
+type GetIPConfigResponse struct {
+	IPConfiguration IPConfiguration
+	Response        Response
 }
 
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
