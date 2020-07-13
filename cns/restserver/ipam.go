@@ -228,10 +228,12 @@ func (service *HTTPRestService) ReleaseIPConfig(podInfo cns.KubernetesPodInfo) e
 		if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
 			service.setIPConfigAsAvailable(ipconfig, podInfo)
 		} else {
-			return fmt.Errorf("Pod to IPID exists, but IPID to IPConfig doesn't exist")
+			logger.Errorf("Failed to get release ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+			return fmt.Errorf("ReleaseIPConfig failed. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
 		}
 	} else {
-		return fmt.Errorf("SetIPConfigAsAvailable failed to release, no allocation found for pod")
+		logger.Printf("SetIPConfigAsAvailable failed to release, no allocation found for pod")
+		return nil
 	}
 	return nil
 }
@@ -250,7 +252,8 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.KubernetesPodInf
 		if ipState, isExist = service.PodIPConfigState[ipID]; isExist {
 			return ipState, isExist, nil
 		}
-		return ipState, isExist, fmt.Errorf("Pod to IPID exists, but IPID to IPConfig doesn't exist")
+		logger.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+		return ipState, isExist, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
 	}
 
 	return ipState, isExist, nil
