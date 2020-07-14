@@ -55,7 +55,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 			return reconcile.Result{}, err
 		}
 	} else {
-		if err := r.markAllocatedIPs(ipConfigs); err != nil {
+		if err := r.markIPs(ipConfigs); err != nil {
 			logger.Errorf("[cns-rc] Error marking ips as allocated when readying CNS: %v", err)
 			//requeue
 			return reconcile.Result{}, err
@@ -80,20 +80,28 @@ func (r *CrdReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *CrdReconciler) markAllocatedIPs(ipConfigs []*cns.ContainerIPConfigState) error {
+// markIPs marks ips as allocated if it finds a pod using that ip, and available otherwise
+func (r *CrdReconciler) markIPs(ipConfigs []*cns.ContainerIPConfigState) error {
 	// Get current pods running on the node
 	pods, err := r.getPods()
 	if err != nil {
 		return err
 	}
 
-	//Mark the ips in use as allocated
+	//Mark the ips in use by pods as allocated
 	for _, pod := range pods.Items {
 		podIP := pod.Status.PodIP
 		for _, ipConfig := range ipConfigs {
 			if ipConfig.IPConfig.IPAddress == podIP {
 				ipConfig.State = cns.Allocated
 			}
+		}
+	}
+
+	//Mark ips not in use as available
+	for _, ipConfig := range ipConfigs {
+		if ipConfig.State != cns.Allocated {
+			ipConfig.State = cns.Available
 		}
 	}
 

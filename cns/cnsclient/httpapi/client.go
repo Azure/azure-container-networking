@@ -22,6 +22,7 @@ func (client *Client) UpdateCNSState(ipConfigs []*cns.ContainerIPConfigState) er
 	//Only add ipconfigs that don't exist in cns state already
 	for _, ipConfig := range ipConfigs {
 		if _, ok := client.RestService.PodIPConfigState[ipConfig.ID]; !ok {
+			ipConfig.State = cns.Available
 			ipConfigsToAdd = append(ipConfigsToAdd, ipConfig)
 		}
 	}
@@ -33,7 +34,9 @@ func (client *Client) UpdateCNSState(ipConfigs []*cns.ContainerIPConfigState) er
 
 // InitCNSState initializes cns state
 func (client *Client) InitCNSState(ipConfigs []*cns.ContainerIPConfigState) error {
+	client.RestService.Lock()
 	client.RestService.ReadyToIPAM = true
+	client.RestService.Unlock()
 	return client.RestService.AddIPConfigsToState(ipConfigs)
 }
 
