@@ -7,10 +7,10 @@ import (
 
 // CRDStatusToCNS translates a crd status to cns recognizable data
 func CRDStatusToCNS(crdStatus *nnc.NodeNetworkConfigStatus) ([]*cns.ContainerIPConfigState, error) {
-	//TODO: translate status to CNS state
 	var (
 		ipConfigs []*cns.ContainerIPConfigState
 	)
+
 	for _, nc := range crdStatus.NetworkContainers {
 		for _, ipAssignment := range nc.IPAssignments {
 			ipConfig := &cns.ContainerIPConfigState{
@@ -23,11 +23,19 @@ func CRDStatusToCNS(crdStatus *nnc.NodeNetworkConfigStatus) ([]*cns.ContainerIPC
 			ipConfigs = append(ipConfigs, ipConfig)
 		}
 	}
-	return nil, nil
+	return ipConfigs, nil
 }
 
 // CNSToCRDSpec translates CNS's list of Ips to be released and requested ip count into a CRD Spec
-func CNSToCRDSpec() (*nnc.NodeNetworkConfigSpec, error) {
-	//TODO: Translate list of ips to be released and requested ip count to CRD spec
-	return nil, nil
+func CNSToCRDSpec(ipConfigs []*cns.ContainerIPConfigState, requestedIPCount int) (*nnc.NodeNetworkConfigSpec, error) {
+	var (
+		spec *nnc.NodeNetworkConfigSpec
+	)
+
+	for _, ipConfig := range ipConfigs {
+		spec.IPsNotInUse = append(spec.IPsNotInUse, ipConfig.IPConfig.IPAddress)
+	}
+	spec.RequestedIPCount = int64(requestedIPCount)
+
+	return spec, nil
 }
