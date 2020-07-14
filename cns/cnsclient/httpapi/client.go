@@ -37,10 +37,19 @@ func (client *Client) InitCNSState(ipConfigs []*cns.ContainerIPConfigState) erro
 	client.RestService.Lock()
 	client.RestService.ReadyToIPAM = true
 	client.RestService.Unlock()
+
 	return client.RestService.AddIPConfigsToState(ipConfigs)
 }
 
-// ReadyToIPAM tells the caller if CNS is act as an IPAM for CNI
+// ReadyToIPAM tells the caller if CNS is ready to act as an IPAM for CNI
 func (client *Client) ReadyToIPAM() bool {
-	return client.RestService.ReadyToIPAM
+	var (
+		ready bool
+	)
+
+	client.RestService.Lock()
+	ready = client.RestService.ReadyToIPAM
+	client.RestService.Unlock()
+
+	return ready
 }

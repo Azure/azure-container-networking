@@ -34,6 +34,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 			return reconcile.Result{}, client.IgnoreNotFound(err)
 		} else {
 			logger.Errorf("[cns-rc] Error retrieving CRD from cache : %v", err)
+			//requeue
 			return reconcile.Result{}, err
 		}
 	}
@@ -60,7 +61,12 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 			//requeue
 			return reconcile.Result{}, err
 		}
-		r.CNSClient.InitCNSState(ipConfigs)
+
+		if err := r.CNSClient.InitCNSState(ipConfigs); err != nil {
+			logger.Errorf("[cns-rc] Error initializing cns state: %v", err)
+			//requeue
+			return reconcile.Result{}, err
+		}
 	}
 
 	return reconcile.Result{}, nil
@@ -68,12 +74,14 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter
 func (r *CrdReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	//Index nodeNames to later be able to filter by nodeName
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{}, "spec.nodeName", func(rawObj runtime.Object) []string {
 		pod := rawObj.(*corev1.Pod)
 		return []string{pod.Spec.NodeName}
 	}); err != nil {
 		return err
 	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nnc.NodeNetworkConfig{}).
 		WithEventFilter(NodeNetworkConfigFilter{nodeName: r.NodeName, namespace: r.Namespace}).
@@ -115,5 +123,6 @@ func (r *CrdReconciler) getPods() (*corev1.PodList, error) {
 	if err := r.KubeClient.List(context.TODO(), pods, client.MatchingFields{"spec.nodeName": r.NodeName}); err != nil {
 		return nil, err
 	}
+
 	return pods, nil
 }
