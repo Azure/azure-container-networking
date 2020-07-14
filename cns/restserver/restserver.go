@@ -28,6 +28,8 @@ import (
 var (
 	// Named Lock for accessing different states in httpRestServiceState
 	namedLock = acn.InitNamedLock()
+	// map of NC to their respective NMA getVersion URLs
+	versionURLs sync.Map
 )
 
 const (
