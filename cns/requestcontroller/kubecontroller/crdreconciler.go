@@ -49,7 +49,11 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	}
 
 	if r.CNSClient.ReadyToIPAM() {
-		r.CNSClient.UpdateCNSState(ipConfigs)
+		if err := r.CNSClient.UpdateCNSState(ipConfigs); err != nil {
+			logger.Errorf("[cns-rc] Error updating CNS state: %v", err)
+			//requeue
+			return reconcile.Result{}, err
+		}
 	} else {
 		if err := r.markAllocatedIPs(ipConfigs); err != nil {
 			logger.Errorf("[cns-rc] Error marking ips as allocated when readying CNS: %v", err)
