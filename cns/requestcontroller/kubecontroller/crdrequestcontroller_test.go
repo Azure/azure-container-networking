@@ -89,6 +89,7 @@ func (mc MockKubeClient) Update(ctx context.Context, obj runtime.Object, opts ..
 	}
 
 	nodeNetConfig.DeepCopyInto(mockAPI.nodeNetConfigs[mockKey])
+
 	return nil
 }
 
@@ -102,6 +103,7 @@ func (mc MockKubeClient) List(ctx context.Context, list runtime.Object, opts ...
 	pods := list.(*corev1.PodList)
 
 	podList.DeepCopyInto(pods)
+
 	return nil
 }
 
@@ -111,6 +113,7 @@ type MockCNSClient struct{}
 // we're just testing that reconciler interacts with CNS on Reconcile().
 func (mc *MockCNSClient) UpdateCNSState(ipConfigs []*cns.ContainerIPConfigState) error {
 	mockCNSUpdated = true
+
 	return nil
 }
 
@@ -127,6 +130,7 @@ func (mc *MockCNSClient) InitCNSState(ipConfigs []*cns.ContainerIPConfigState) e
 		}
 	}
 	mockCNSReady = true
+
 	return nil
 }
 
