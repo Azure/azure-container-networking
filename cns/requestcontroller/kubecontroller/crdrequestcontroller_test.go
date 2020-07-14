@@ -118,7 +118,11 @@ func (mc *MockCNSClient) InitCNSState(ipConfigs []*cns.ContainerIPConfigState) e
 	for _, ipConfig := range ipConfigs {
 		if ipConfig.ID == allocatedUUID {
 			if ipConfig.State != cns.Allocated {
-				return errors.New("Expected allocated ip to be marked as such")
+				return errors.New("Expected allocated ip to be marked allocated")
+			}
+		} else if ipConfig.ID == unallocatedUUID {
+			if ipConfig.State != cns.Available {
+				return errors.New("Expected unallocated ip to be marked available")
 			}
 		}
 	}
