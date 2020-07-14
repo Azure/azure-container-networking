@@ -12,7 +12,7 @@ func CRDStatusToCNS(crdStatus *nnc.NodeNetworkConfigStatus) ([]*cns.ContainerIPC
 }
 
 // CNSToCRDSpec translates CNS's list of Ips to be released and requested ip count into a CRD Spec
-func CNSToCRDSpec() (*nnc.NodeNetworkConfigSpec, error) {
+func CNSToCRDSpec(ipConfigs []*cns.ContainerIPConfigState, requestedIPCount int) (*nnc.NodeNetworkConfigSpec, error) {
 	//TODO: Translate list of ips to be released and requested ip count to CRD spec
 	return nil, nil
 }
