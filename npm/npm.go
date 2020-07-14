@@ -11,18 +11,21 @@ import (
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
+
+	//"github.com/Azure/azure-container-networking/npm/controllers/pod"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/Azure/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
-	networkinginformers "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+
+	"net/http"
+	_ "net/http/pprof" // expose pprof endpoint
 )
 
 var aiMetadata string
@@ -38,12 +41,10 @@ const (
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
 	sync.Mutex
-	clientset *kubernetes.Clientset
-
+	clientset       *kubernetes.Clientset
 	informerFactory informers.SharedInformerFactory
-	podInformer     coreinformers.PodInformer
 	nsInformer      coreinformers.NamespaceInformer
-	npInformer      networkinginformers.NetworkPolicyInformer
+	controllers     []Controller
 
 	nodeName                     string
 	nsMap                        map[string]*namespace
@@ -56,6 +57,11 @@ type NetworkPolicyManager struct {
 
 	serverVersion    *version.Info
 	TelemetryEnabled bool
+}
+
+func startProfiling() {
+	fmt.Println(http.ListenAndServe(":8080", nil))
+	fmt.Println("Started profiling endpoint")
 }
 
 // GetClusterState returns current cluster state.
@@ -173,18 +179,18 @@ func (npMgr *NetworkPolicyManager) backup() {
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	// Starts all informers manufactured by npMgr's informerFactory.
+
+	log.Logf("Starting shared informers and controllers")
 	npMgr.informerFactory.Start(stopCh)
 
-	// Wait for the initial sync of local cache.
-	if !cache.WaitForCacheSync(stopCh, npMgr.podInformer.Informer().HasSynced) {
-		return fmt.Errorf("Pod informer failed to sync")
+	if npMgr.controllers != nil {
+		for _, controller := range npMgr.controllers {
+			controller.Run(stopCh)
+		}
 	}
 
+	// TODO: This will be removed as well after Namespace controller is created
 	if !cache.WaitForCacheSync(stopCh, npMgr.nsInformer.Informer().HasSynced) {
-		return fmt.Errorf("Namespace informer failed to sync")
-	}
-
-	if !cache.WaitForCacheSync(stopCh, npMgr.npInformer.Informer().HasSynced) {
 		return fmt.Errorf("Namespace informer failed to sync")
 	}
 
@@ -195,15 +201,15 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 
 // NewNetworkPolicyManager creates a NetworkPolicyManager
 func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, npmVersion string) *NetworkPolicyManager {
+	log.Logf("start profiling")
+	go startProfiling()
 	// Clear out left over iptables states
 	log.Logf("Azure-NPM creating, cleaning iptables")
 	iptMgr := iptm.NewIptablesManager()
 	iptMgr.UninitNpmChains()
 
 	var (
-		podInformer   = informerFactory.Core().V1().Pods()
 		nsInformer    = informerFactory.Core().V1().Namespaces()
-		npInformer    = informerFactory.Networking().V1().NetworkPolicies()
 		serverVersion *version.Info
 		err           error
 	)
@@ -229,9 +235,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	npMgr := &NetworkPolicyManager{
 		clientset:                    clientset,
 		informerFactory:              informerFactory,
-		podInformer:                  podInformer,
 		nsInformer:                   nsInformer,
-		npInformer:                   npInformer,
 		nodeName:                     os.Getenv("HOSTNAME"),
 		nsMap:                        make(map[string]*namespace),
 		podMap:                       make(map[string]string),
@@ -256,27 +260,6 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		log.Logf("Error: failed to create ipset for namespace %s.", kubeSystemNs)
 	}
 
-	podInformer.Informer().AddEventHandler(
-		// Pod event handlers
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				npMgr.Lock()
-				npMgr.AddPod(obj.(*corev1.Pod))
-				npMgr.Unlock()
-			},
-			UpdateFunc: func(old, new interface{}) {
-				npMgr.Lock()
-				npMgr.UpdatePod(old.(*corev1.Pod), new.(*corev1.Pod))
-				npMgr.Unlock()
-			},
-			DeleteFunc: func(obj interface{}) {
-				npMgr.Lock()
-				npMgr.DeletePod(obj.(*corev1.Pod))
-				npMgr.Unlock()
-			},
-		},
-	)
-
 	nsInformer.Informer().AddEventHandler(
 		// Namespace event handlers
 		cache.ResourceEventHandlerFuncs{
@@ -298,26 +281,19 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		},
 	)
 
-	npInformer.Informer().AddEventHandler(
-		// Network policy event handlers
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				npMgr.Lock()
-				npMgr.AddNetworkPolicy(obj.(*networkingv1.NetworkPolicy))
-				npMgr.Unlock()
-			},
-			UpdateFunc: func(old, new interface{}) {
-				npMgr.Lock()
-				npMgr.UpdateNetworkPolicy(old.(*networkingv1.NetworkPolicy), new.(*networkingv1.NetworkPolicy))
-				npMgr.Unlock()
-			},
-			DeleteFunc: func(obj interface{}) {
-				npMgr.Lock()
-				npMgr.DeleteNetworkPolicy(obj.(*networkingv1.NetworkPolicy))
-				npMgr.Unlock()
-			},
-		},
-	)
+	// initialize Controllers
+	npMgr.InitControllers()
 
 	return npMgr
+}
+
+// Init the Kube-Controllers
+func (npMgr *NetworkPolicyManager) InitControllers() {
+	// initialize pod controller
+	podController := NewPodController(npMgr)
+	npMgr.controllers = append(npMgr.controllers, podController)
+
+	// initialize nwPolicy controller
+	nwPolicyController := NewNwPolicyController(npMgr)
+	npMgr.controllers = append(npMgr.controllers, nwPolicyController)
 }

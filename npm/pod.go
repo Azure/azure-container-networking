@@ -4,7 +4,6 @@ package npm
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -13,31 +12,31 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-func isValidPod(podObj *corev1.Pod) bool {
-	return len(podObj.Status.PodIP) > 0
-}
+// func isValidPod(podObj *corev1.Pod) bool {
+// 	return len(podObj.Status.PodIP) > 0
+// }
 
-func isSystemPod(podObj *corev1.Pod) bool {
-	return podObj.ObjectMeta.Namespace == util.KubeSystemFlag
-}
+// func isSystemPod(podObj *corev1.Pod) bool {
+// 	return podObj.ObjectMeta.Namespace == util.KubeSystemFlag
+// }
 
-func isInvalidPodUpdate(oldPodObj, newPodObj *corev1.Pod) (isInvalidUpdate bool) {
-	isInvalidUpdate = oldPodObj.ObjectMeta.Namespace == newPodObj.ObjectMeta.Namespace &&
-		oldPodObj.ObjectMeta.Name == newPodObj.ObjectMeta.Name &&
-		oldPodObj.Status.Phase == newPodObj.Status.Phase &&
-		oldPodObj.Status.PodIP == newPodObj.Status.PodIP &&
-		newPodObj.ObjectMeta.DeletionTimestamp == nil &&
-		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil
-	isInvalidUpdate = isInvalidUpdate && reflect.DeepEqual(oldPodObj.ObjectMeta.Labels, newPodObj.ObjectMeta.Labels)
+// func isInvalidPodUpdate(oldPodObj, newPodObj *corev1.Pod) (isInvalidUpdate bool) {
+// 	isInvalidUpdate = oldPodObj.ObjectMeta.Namespace == newPodObj.ObjectMeta.Namespace &&
+// 		oldPodObj.ObjectMeta.Name == newPodObj.ObjectMeta.Name &&
+// 		oldPodObj.Status.Phase == newPodObj.Status.Phase &&
+// 		oldPodObj.Status.PodIP == newPodObj.Status.PodIP &&
+// 		newPodObj.ObjectMeta.DeletionTimestamp == nil &&
+// 		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil
+// 	isInvalidUpdate = isInvalidUpdate && reflect.DeepEqual(oldPodObj.ObjectMeta.Labels, newPodObj.ObjectMeta.Labels)
 
-	return
-}
+// 	return
+// }
 
 // AddPod handles adding pod ip to its label's ipset.
 func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
-	if !isValidPod(podObj) {
-		return nil
-	}
+	// if !isValidPod(podObj) {
+	// 	return nil
+	// }
 
 	var (
 		err           error
@@ -105,13 +104,13 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 
 // UpdatePod handles updating pod ip in its label's ipset.
 func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) error {
-	if !isValidPod(newPodObj) {
-		return nil
-	}
+	// if !isValidPod(newPodObj) {
+	// 	return nil
+	// }
 
-	if isInvalidPodUpdate(oldPodObj, newPodObj) {
-		return nil
-	}
+	// if isInvalidPodUpdate(oldPodObj, newPodObj) {
+	// 	return nil
+	// }
 
 	var (
 		err            error
