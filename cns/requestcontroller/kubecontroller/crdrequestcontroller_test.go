@@ -26,6 +26,7 @@ const allocatedPodIP = "10.0.0.1"
 const allocatedUUID = "539970a2-c2dd-11ea-b3de-0242ac130004"
 const unallocatedPodIP = "10.0.0.2"
 const unallocatedUUID = "deb9de3b-f15f-403f-8a2c-fbe0b8a6af48"
+const networkContainerID = "24fcd232-0364-41b0-8027-6e6ef9aeabc6"
 const existingNamespace = k8sNamespace
 const nonexistingNNCName = "nodenetconfig_nonexisting"
 const nonexistingPodName = "pod_nonexisting"
@@ -420,6 +421,7 @@ func createMockAPI() *MockAPI {
 		Status: nnc.NodeNetworkConfigStatus{
 			NetworkContainers: []nnc.NetworkContainer{
 				{
+					ID: networkContainerID,
 					IPAssignments: []nnc.IPAssignment{
 						{
 							Name: allocatedUUID,
