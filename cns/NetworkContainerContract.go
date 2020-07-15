@@ -35,7 +35,6 @@ const (
 	Basic                  = "Basic"
 	JobObject              = "JobObject"
 	COW                    = "COW" // Container on Windows
-	AKS                    = "AKS"
 )
 
 // Orchestrator Types
