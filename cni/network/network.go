@@ -1101,7 +1101,6 @@ func determineSnat() (bool, bool, error) {
 			log.Errorf("[cni-net] failed to unmarshal to snatConfig with error %v",
 				retrieveSnatConfigErr)
 		}
-
 	}
 
 	// If we weren't able to retrieve snatConfiguration, query NMAgent
@@ -1127,7 +1126,7 @@ func determineSnat() (bool, bool, error) {
 						fp.Write(jsonStr)
 						fp.Close()
 					} else {
-						log.Printf("[cni-net] failed to save snatConfig")
+						log.Errorf("[cni-net] failed to save snat settings to %s with error: %+v", snatConfigFile, err)
 					}
 				}
 			} else {
@@ -1143,7 +1142,14 @@ func determineSnat() (bool, bool, error) {
 		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
 	}
 
-	log.Printf("[cni-net] EnableSnatOnHost set to %t; EnableSnatForDns set to %t", snatConfig.EnableSnatOnHost, snatConfig.EnableSnatForDns)
+	log.Printf("[cni-net] saved snat settings %+v to %s", snatConfig, snatConfigFile)
+	if snatConfig.EnableSnatOnHost {
+		log.Printf("[cni-net] enabling SNAT on container host for outbound connectivity")
+	} else if snatConfig.EnableSnatForDns {
+		log.Printf("[cni-net] enabling SNAT on container host for DNS traffic")
+	} else {
+		log.Printf("[cni-net] disabling SNAT on container host")
+	}
 
 	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
 }
