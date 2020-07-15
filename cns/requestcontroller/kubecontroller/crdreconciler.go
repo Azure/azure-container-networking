@@ -55,25 +55,8 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
-	if r.CNSClient.ReadyToIPAM() {
-		if err = r.CNSClient.UpdateCNSState(ipConfigs); err != nil {
-			logger.Errorf("[cns-rc] Error updating CNS state: %v", err)
-			//requeue
-			return reconcile.Result{}, err
-		}
-	} else {
-		if err = r.updateIPAvailability(cntxt, ipConfigs); err != nil {
-			logger.Errorf("[cns-rc] Error marking ips as allocated when readying CNS: %v", err)
-			//requeue
-			return reconcile.Result{}, err
-		}
-
-		if err = r.CNSClient.InitCNSState(ipConfigs); err != nil {
-			logger.Errorf("[cns-rc] Error initializing cns state: %v", err)
-			//requeue
-			return reconcile.Result{}, err
-		}
-	}
+	//TODO: process the nc request on CNS side
+	r.CNSClient.CreateOrUpdateNC(ncRequest)
 
 	return reconcile.Result{}, nil
 }
