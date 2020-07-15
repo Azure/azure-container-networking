@@ -25,10 +25,16 @@ type CrdReconciler struct {
 
 // Reconcile is called on CRD status changes
 func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	var nodeNetConfig nnc.NodeNetworkConfig
+	var (
+		nodeNetConfig nnc.NodeNetworkConfig
+		ipConfigs     []*cns.ContainerIPConfigState
+		cntxt         context.Context
+		err           error
+	)
 
 	//Get the CRD object
-	if err := r.KubeClient.Get(context.TODO(), request.NamespacedName, &nodeNetConfig); err != nil {
+	cntxt = context.TODO()
+	if err = r.KubeClient.Get(cntxt, request.NamespacedName, &nodeNetConfig); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
 			return reconcile.Result{}, client.IgnoreNotFound(err)
@@ -42,7 +48,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	logger.Printf("[cns-rc] CRD spec: %v", nodeNetConfig.Spec)
 	logger.Printf("[cns-rc] CRD status: %v", nodeNetConfig.Status)
 
-	ipConfigs, err := CRDStatusToCNS(&nodeNetConfig.Status)
+	ipConfigs, err = CRDStatusToCNS(&nodeNetConfig.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
 		//requeue
@@ -50,19 +56,19 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	}
 
 	if r.CNSClient.ReadyToIPAM() {
-		if err := r.CNSClient.UpdateCNSState(ipConfigs); err != nil {
+		if err = r.CNSClient.UpdateCNSState(ipConfigs); err != nil {
 			logger.Errorf("[cns-rc] Error updating CNS state: %v", err)
 			//requeue
 			return reconcile.Result{}, err
 		}
 	} else {
-		if err := r.markIPs(ipConfigs); err != nil {
+		if err = r.updateIPAvailability(cntxt, ipConfigs); err != nil {
 			logger.Errorf("[cns-rc] Error marking ips as allocated when readying CNS: %v", err)
 			//requeue
 			return reconcile.Result{}, err
 		}
 
-		if err := r.CNSClient.InitCNSState(ipConfigs); err != nil {
+		if err = r.CNSClient.InitCNSState(ipConfigs); err != nil {
 			logger.Errorf("[cns-rc] Error initializing cns state: %v", err)
 			//requeue
 			return reconcile.Result{}, err
@@ -88,26 +94,42 @@ func (r *CrdReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// markIPs marks ips as allocated if it finds a pod using that ip, and available otherwise
-func (r *CrdReconciler) markIPs(ipConfigs []*cns.ContainerIPConfigState) error {
+// updateIPAvailability marks ips as allocated if it finds a pod using that ip, and available otherwise
+func (r *CrdReconciler) updateIPAvailability(cntxt context.Context, ipConfigs []*cns.ContainerIPConfigState) error {
+	var (
+		pods              *corev1.PodList
+		pod               corev1.Pod
+		ok                bool
+		podIP             string
+		ipConfig          *cns.ContainerIPConfigState
+		ipConfigByAddress map[string]*cns.ContainerIPConfigState
+		err               error
+	)
+
+	ipConfigByAddress = make(map[string]*cns.ContainerIPConfigState)
+
 	// Get current pods running on the node
-	pods, err := r.getPods()
+	pods, err = r.getPods(cntxt)
 	if err != nil {
 		return err
 	}
 
+	// Index ipConfigs by address to avoid inner loop
+	for _, ipConfig = range ipConfigs {
+		ipConfigByAddress[ipConfig.IPConfig.IPAddress] = ipConfig
+	}
+
 	//Mark the ips in use by pods as allocated
-	for _, pod := range pods.Items {
-		podIP := pod.Status.PodIP
-		for _, ipConfig := range ipConfigs {
-			if ipConfig.IPConfig.IPAddress == podIP {
-				ipConfig.State = cns.Allocated
-			}
+	for _, pod = range pods.Items {
+		podIP = pod.Status.PodIP
+		if _, ok = ipConfigByAddress[podIP]; ok {
+			ipConfig = ipConfigByAddress[podIP]
+			ipConfig.State = cns.Allocated
 		}
 	}
 
 	//Mark ips not in use as available
-	for _, ipConfig := range ipConfigs {
+	for _, ipConfig = range ipConfigs {
 		if ipConfig.State != cns.Allocated {
 			ipConfig.State = cns.Available
 		}
@@ -117,10 +139,10 @@ func (r *CrdReconciler) markIPs(ipConfigs []*cns.ContainerIPConfigState) error {
 }
 
 // GetPods gets the pods running on this node
-func (r *CrdReconciler) getPods() (*corev1.PodList, error) {
+func (r *CrdReconciler) getPods(cntxt context.Context) (*corev1.PodList, error) {
 	pods := &corev1.PodList{}
 
-	if err := r.KubeClient.List(context.TODO(), pods, client.MatchingFields{"spec.nodeName": r.NodeName}); err != nil {
+	if err := r.KubeClient.List(cntxt, pods, client.MatchingFields{"spec.nodeName": r.NodeName}); err != nil {
 		return nil, err
 	}
 

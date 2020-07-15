@@ -20,22 +20,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-const existingNNCName = "nodenetconfig_1"
-const existingPodName = "pod_1"
-const allocatedPodIP = "10.0.0.1"
-const allocatedUUID = "539970a2-c2dd-11ea-b3de-0242ac130004"
-const unallocatedPodIP = "10.0.0.2"
-const unallocatedUUID = "deb9de3b-f15f-403f-8a2c-fbe0b8a6af48"
-const networkContainerID = "24fcd232-0364-41b0-8027-6e6ef9aeabc6"
-const existingNamespace = k8sNamespace
-const nonexistingNNCName = "nodenetconfig_nonexisting"
-const nonexistingPodName = "pod_nonexisting"
-const nonexistingNamespace = "namespace_nonexisting"
-
-var (
-	mockAPI        *MockAPI
-	mockCNSUpdated bool
-	mockCNSReady   bool
+const (
+	existingNNCName      = "nodenetconfig_1"
+	existingPodName      = "pod_1"
+	allocatedPodIP       = "10.0.0.1"
+	allocatedUUID        = "539970a2-c2dd-11ea-b3de-0242ac130004"
+	unallocatedPodIP     = "10.0.0.2"
+	unallocatedUUID      = "deb9de3b-f15f-403f-8a2c-fbe0b8a6af48"
+	networkContainerID   = "24fcd232-0364-41b0-8027-6e6ef9aeabc6"
+	existingNamespace    = k8sNamespace
+	nonexistingNNCName   = "nodenetconfig_nonexisting"
+	nonexistingPodName   = "pod_nonexisting"
+	nonexistingNamespace = "namespace_nonexisting"
 )
 
 // MockAPI is a mock of kubernete's API server
@@ -82,18 +78,18 @@ func (mc MockKubeClient) Update(ctx context.Context, obj runtime.Object, opts ..
 		Name:      nodeNetConfig.ObjectMeta.Name,
 	}
 
-	_, ok := mockAPI.nodeNetConfigs[mockKey]
+	_, ok := mc.mockAPI.nodeNetConfigs[mockKey]
 
 	if !ok {
 		return errors.New("Node Net Config not found in mock store")
 	}
 
-	nodeNetConfig.DeepCopyInto(mockAPI.nodeNetConfigs[mockKey])
+	nodeNetConfig.DeepCopyInto(mc.mockAPI.nodeNetConfigs[mockKey])
 
 	return nil
 }
 
-// Mock implementatino of KubeClient List method
+// Mock implementation of KubeClient List method
 func (mc MockKubeClient) List(ctx context.Context, list runtime.Object, opts ...client.ListOption) error {
 	podList := &corev1.PodList{}
 	for _, pod := range mc.mockAPI.pods {
@@ -108,11 +104,14 @@ func (mc MockKubeClient) List(ctx context.Context, list runtime.Object, opts ...
 }
 
 // MockCNSClient implements API client interface
-type MockCNSClient struct{}
+type MockCNSClient struct {
+	MockCNSUpdated bool
+	MockCNSReady   bool
+}
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
 func (mc *MockCNSClient) UpdateCNSState(ipConfigs []*cns.ContainerIPConfigState) error {
-	mockCNSUpdated = true
+	mc.MockCNSUpdated = true
 
 	return nil
 }
@@ -129,26 +128,13 @@ func (mc *MockCNSClient) InitCNSState(ipConfigs []*cns.ContainerIPConfigState) e
 			}
 		}
 	}
-	mockCNSReady = true
+	mc.MockCNSReady = true
 
 	return nil
 }
 
 func (mc *MockCNSClient) ReadyToIPAM() bool {
-	return mockCNSReady
-}
-
-func ResetCNSInteractionFlag() {
-	mockCNSUpdated = false
-}
-
-func ResetCNSReadyFlag() {
-	mockCNSReady = false
-}
-
-func ResetReconcileFlags() {
-	ResetCNSInteractionFlag()
-	ResetCNSReadyFlag()
+	return mc.MockCNSReady
 }
 
 func TestNewCrdRequestController(t *testing.T) {
@@ -184,7 +170,28 @@ func TestNewCrdRequestController(t *testing.T) {
 }
 
 func TestGetNonExistingNodeNetConfig(t *testing.T) {
-	rc := createMockRequestController()
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	rc := &crdRequestController{
+		KubeClient: mockKubeClient,
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
 	//Test getting nonexisting NodeNetconfig obj
 	_, err := rc.getNodeNetConfig(context.Background(), nonexistingNNCName, nonexistingNamespace)
@@ -195,7 +202,28 @@ func TestGetNonExistingNodeNetConfig(t *testing.T) {
 }
 
 func TestGetExistingNodeNetConfig(t *testing.T) {
-	rc := createMockRequestController()
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	rc := &crdRequestController{
+		KubeClient: mockKubeClient,
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
 	//Test getting existing NodeNetConfig obj
 	nodeNetConfig, err := rc.getNodeNetConfig(context.Background(), existingNNCName, existingNamespace)
@@ -203,26 +231,42 @@ func TestGetExistingNodeNetConfig(t *testing.T) {
 		t.Fatalf("Expected no error when getting existing NodeNetworkConfig: %+v", err)
 	}
 
-	mockKey := MockKey{
-		Namespace: existingNamespace,
-		Name:      existingNNCName,
-	}
-
-	if !reflect.DeepEqual(nodeNetConfig, mockAPI.nodeNetConfigs[mockKey]) {
+	if !reflect.DeepEqual(nodeNetConfig, mockAPI.nodeNetConfigs[mockNNCKey]) {
 		t.Fatalf("Expected fetched node net config to equal one in mock store")
 	}
 }
 
 func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
-	rc := createMockRequestController()
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	rc := &crdRequestController{
+		KubeClient: mockKubeClient,
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
 	//Test updating non existing NodeNetworkConfig obj
-	nodeNetConfig := &nnc.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
+	nodeNetConfigNonExisting := &nnc.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
 		Name:      nonexistingNNCName,
 		Namespace: nonexistingNamespace,
 	}}
 
-	err := rc.updateNodeNetConfig(context.Background(), nodeNetConfig)
+	err := rc.updateNodeNetConfig(context.Background(), nodeNetConfigNonExisting)
 
 	if err == nil {
 		t.Fatalf("Expected error when updating non existing NodeNetworkConfig. Got nil error")
@@ -230,15 +274,32 @@ func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
 }
 
 func TestUpdateExistingNodeNetConfig(t *testing.T) {
-	rc := createMockRequestController()
-
-	mockKey := MockKey{
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
 		Namespace: existingNamespace,
 		Name:      existingNNCName,
 	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	rc := &crdRequestController{
+		nodeName:   existingNNCName,
+		KubeClient: mockKubeClient,
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	//Update an existing NodeNetworkConfig obj from the mock store
-	nodeNetConfigUpdated := mockAPI.nodeNetConfigs[mockKey].DeepCopy()
+	//Update an existing NodeNetworkConfig obj from the mock API
+	nodeNetConfigUpdated := mockAPI.nodeNetConfigs[mockNNCKey].DeepCopy()
 	nodeNetConfigUpdated.ObjectMeta.ClusterName = "New cluster name"
 
 	err := rc.updateNodeNetConfig(context.Background(), nodeNetConfigUpdated)
@@ -247,14 +308,35 @@ func TestUpdateExistingNodeNetConfig(t *testing.T) {
 	}
 
 	//See that NodeNetworkConfig in mock store was updated
-	if !reflect.DeepEqual(nodeNetConfigUpdated, mockAPI.nodeNetConfigs[mockKey]) {
+	if !reflect.DeepEqual(nodeNetConfigUpdated, mockAPI.nodeNetConfigs[mockNNCKey]) {
 		t.Fatal("Update of existing NodeNetworkConfig did not get passed along")
 	}
 }
 
 func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
-	rc := createMockRequestController()
-	rc.nodeName = nonexistingNNCName
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	rc := &crdRequestController{
+		nodeName:   nonexistingNNCName,
+		KubeClient: mockKubeClient,
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
 	uuids := make([]string, 3)
 	uuids[0] = "uuid0"
@@ -276,7 +358,29 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 }
 
 func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
-	rc := createMockRequestController()
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	rc := &crdRequestController{
+		nodeName:   existingNNCName,
+		KubeClient: mockKubeClient,
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
 	uuids := make([]string, 3)
 	uuids[0] = "uuid0"
@@ -289,41 +393,61 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 		IPsNotInUse:      uuids,
 	}
 
-	//Test releasing ips by uuid for existing NodeNetworkConfig
+	//Test update spec for existing NodeNetworkConfig
 	err := rc.UpdateCRDSpec(context.Background(), spec)
 
 	if err != nil {
 		t.Fatalf("Expected no error when updating spec on existing crd, got :%v", err)
 	}
 
-	mockKey := MockKey{
-		Namespace: existingNamespace,
-		Name:      existingNNCName,
-	}
-
-	if !reflect.DeepEqual(mockAPI.nodeNetConfigs[mockKey].Spec.IPsNotInUse, uuids) {
-		t.Fatalf("Expected IpsNotInUse to equal requested ips to release")
-	}
-
-	if mockAPI.nodeNetConfigs[mockKey].Spec.RequestedIPCount != int64(newCount) {
-		t.Fatalf("Expected requested ip count to equal count passed into requested ip count")
+	if !reflect.DeepEqual(mockAPI.nodeNetConfigs[mockNNCKey].Spec, *spec) {
+		t.Fatalf("Expected Spec to equal requested spec update")
 	}
 }
 
 func TestReconcileNonExistingNNCWhenCNSReady(t *testing.T) {
-	rc := createMockRequestController()
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	//Set mockCNSState to ready
+	mockCNSClient := &MockCNSClient{
+		MockCNSReady: true,
+	}
+	rc := &crdRequestController{
+		nodeName:   nonexistingNNCName,
+		KubeClient: mockKubeClient,
+		Reconciler: &CrdReconciler{
+			KubeClient: mockKubeClient,
+			NodeName:   nonexistingNNCName,
+			Namespace:  nonexistingNamespace,
+			CNSClient:  mockCNSClient,
+		},
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
+
 	request := reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: nonexistingNamespace,
 			Name:      nonexistingNNCName,
 		},
 	}
-	mockCNSReady = true
 
 	_, err := rc.Reconciler.Reconcile(request)
-
-	//Want to reset flags to false for next test
-	defer ResetReconcileFlags()
 
 	if err == nil {
 		t.Fatalf("Expected error when calling Reconcile for non existing NodeNetworkConfig")
@@ -331,122 +455,16 @@ func TestReconcileNonExistingNNCWhenCNSReady(t *testing.T) {
 }
 
 func TestReconcileExistingNNCWhenCNSReady(t *testing.T) {
-	rc := createMockRequestController()
-	request := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: existingNamespace,
-			Name:      existingNNCName,
-		},
-	}
-	mockCNSReady = true
-
-	_, err := rc.Reconciler.Reconcile(request)
-
-	//Want to reset flags to false for next test
-	defer ResetReconcileFlags()
-
-	if err != nil {
-		t.Fatalf("Expected no error reconciling existing NodeNetworkConfig, got :%v", err)
-	}
-
-	if !mockCNSUpdated {
-		t.Fatalf("Expected MockCNSInteractor's UpdateCNSState() method to be called on Reconcile of existing NodeNetworkConfig")
-	}
-}
-
-func TestReconcileExistingNNCWhenCNSNotReady(t *testing.T) {
-	//Should init cns state
-	rc := createMockRequestController()
-	request := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: existingNamespace,
-			Name:      existingNNCName,
-		},
-	}
-
-	_, err := rc.Reconciler.Reconcile(request)
-
-	//Want to reset flags to false for next test
-	defer ResetReconcileFlags()
-
-	if err != nil {
-		t.Fatalf("Expected no error reconciling existing NodeNetworkConfig, got :%v", err)
-	}
-
-	if mockCNSReady == false {
-		t.Fatalf("Expected reconciler to init cns state")
-	}
-}
-
-func TestReconcileNonExistingNNCWhenCNSNotReady(t *testing.T) {
-	//will fail on get
-	rc := createMockRequestController()
-	request := reconcile.Request{
-		NamespacedName: types.NamespacedName{
-			Namespace: nonexistingNamespace,
-			Name:      nonexistingNNCName,
-		},
-	}
-
-	_, err := rc.Reconciler.Reconcile(request)
-
-	//Want to reset flags to false for next test
-	defer ResetReconcileFlags()
-
-	if err == nil {
-		t.Fatalf("Expected error when calling Reconcile for non existing NodeNetworkConfig")
-	}
-
-	//Assert that update and ready flags are still false
-	if mockCNSUpdated != false {
-		t.Fatalf("Expected no update with a non-existing nnc")
-	}
-	if mockCNSReady != false {
-		t.Fatalf("Expected no initialization with a non-existing nnc")
-	}
-}
-
-func createMockAPI() *MockAPI {
-	//Create the mock API
-	nodeNetConfigs := make(map[MockKey]*nnc.NodeNetworkConfig)
-	pods := make(map[MockKey]*corev1.Pod)
-	mockAPI = &MockAPI{
-		nodeNetConfigs: nodeNetConfigs,
-		pods:           pods,
-	}
-
-	mockKey := MockKey{
-		Namespace: existingNamespace,
-		Name:      existingNNCName,
-	}
-
-	//Fill the mock API with one valid nodenetconfig obj
-	nnc := &nnc.NodeNetworkConfig{
+	nodeNetConfig := &nnc.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
 		},
-		Status: nnc.NodeNetworkConfigStatus{
-			NetworkContainers: []nnc.NetworkContainer{
-				{
-					ID: networkContainerID,
-					IPAssignments: []nnc.IPAssignment{
-						{
-							Name: allocatedUUID,
-							IP:   allocatedPodIP,
-						},
-						{
-							Name: unallocatedUUID,
-							IP:   unallocatedPodIP,
-						},
-					},
-				},
-			},
-		},
 	}
-	mockAPI.nodeNetConfigs[mockKey] = nnc
-
-	//Fill the mock API with one valid pod
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      existingPodName,
@@ -456,37 +474,194 @@ func createMockAPI() *MockAPI {
 			PodIP: allocatedPodIP,
 		},
 	}
-	mockKey.Name = existingPodName
-	mockAPI.pods[mockKey] = pod
+	mockPodKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingPodName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+		pods: map[MockKey]*corev1.Pod{
+			mockPodKey: pod,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	//Set mockCNSState to ready
+	mockCNSClient := &MockCNSClient{
+		MockCNSReady: true,
+	}
+	rc := &crdRequestController{
+		nodeName:   nonexistingNNCName,
+		KubeClient: mockKubeClient,
+		Reconciler: &CrdReconciler{
+			KubeClient: mockKubeClient,
+			NodeName:   existingNNCName,
+			Namespace:  existingNamespace,
+			CNSClient:  mockCNSClient,
+		},
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	return mockAPI
+	request := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: existingNamespace,
+			Name:      existingNNCName,
+		},
+	}
+
+	_, err := rc.Reconciler.Reconcile(request)
+
+	if err != nil {
+		t.Fatalf("Expected no error reconciling existing NodeNetworkConfig, got :%v", err)
+	}
+
+	if !mockCNSClient.MockCNSUpdated {
+		t.Fatalf("Expected MockCNSInteractor's UpdateCNSState() method to be called on Reconcile of existing NodeNetworkConfig")
+	}
 }
 
-func createMockKubeClient() MockKubeClient {
-	mockAPI := createMockAPI()
-	// Make mock client initialized with mock API
-	MockKubeClient := MockKubeClient{mockAPI: mockAPI}
+func TestReconcileExistingNNCWhenCNSNotReady(t *testing.T) {
+	//Should init cns state
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      existingPodName,
+			Namespace: existingNamespace,
+		},
+		Status: corev1.PodStatus{
+			PodIP: allocatedPodIP,
+		},
+	}
+	mockPodKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingPodName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+		pods: map[MockKey]*corev1.Pod{
+			mockPodKey: pod,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	mockCNSClient := &MockCNSClient{
+		MockCNSReady: false,
+	}
+	rc := &crdRequestController{
+		nodeName:   nonexistingNNCName,
+		KubeClient: mockKubeClient,
+		Reconciler: &CrdReconciler{
+			KubeClient: mockKubeClient,
+			NodeName:   existingNNCName,
+			Namespace:  existingNamespace,
+			CNSClient:  mockCNSClient,
+		},
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	return MockKubeClient
+	request := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: existingNamespace,
+			Name:      existingNNCName,
+		},
+	}
+
+	_, err := rc.Reconciler.Reconcile(request)
+
+	if err != nil {
+		t.Fatalf("Expected no error reconciling existing NodeNetworkConfig, got :%v", err)
+	}
+
+	if mockCNSClient.MockCNSReady == false {
+		t.Fatalf("Expected reconciler to init cns state")
+	}
 }
 
-func createMockCNSClient() *MockCNSClient {
-	return &MockCNSClient{}
-}
+func TestReconcileNonExistingNNCWhenCNSNotReady(t *testing.T) {
+	//will fail on get
+	nodeNetConfig := &nnc.NodeNetworkConfig{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      existingNNCName,
+			Namespace: existingNamespace,
+		},
+	}
+	mockNNCKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingNNCName,
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      existingPodName,
+			Namespace: existingNamespace,
+		},
+		Status: corev1.PodStatus{
+			PodIP: allocatedPodIP,
+		},
+	}
+	mockPodKey := MockKey{
+		Namespace: existingNamespace,
+		Name:      existingPodName,
+	}
+	mockAPI := &MockAPI{
+		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+			mockNNCKey: nodeNetConfig,
+		},
+		pods: map[MockKey]*corev1.Pod{
+			mockPodKey: pod,
+		},
+	}
+	mockKubeClient := MockKubeClient{
+		mockAPI: mockAPI,
+	}
+	mockCNSClient := &MockCNSClient{
+		MockCNSUpdated: false,
+		MockCNSReady:   false,
+	}
+	rc := &crdRequestController{
+		nodeName:   nonexistingNNCName,
+		KubeClient: mockKubeClient,
+		Reconciler: &CrdReconciler{
+			KubeClient: mockKubeClient,
+			NodeName:   nonexistingNNCName,
+			Namespace:  nonexistingNamespace,
+			CNSClient:  mockCNSClient,
+		},
+	}
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-func createMockRequestController() *crdRequestController {
-	MockKubeClient := createMockKubeClient()
-	MockCNSClient := createMockCNSClient()
+	request := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: nonexistingNamespace,
+			Name:      nonexistingNNCName,
+		},
+	}
 
-	rc := &crdRequestController{}
-	rc.nodeName = existingNNCName
-	rc.KubeClient = MockKubeClient
-	rc.Reconciler = &CrdReconciler{}
-	rc.Reconciler.KubeClient = MockKubeClient
-	rc.Reconciler.CNSClient = MockCNSClient
+	_, err := rc.Reconciler.Reconcile(request)
 
-	//Initialize logger
-	logger.InitLogger("Azure CNS Request Controller", 0, 0, "")
+	if err == nil {
+		t.Fatalf("Expected error when calling Reconcile for non existing NodeNetworkConfig")
+	}
 
-	return rc
+	//Assert that update and ready flags are still false
+	if mockCNSClient.MockCNSUpdated != false {
+		t.Fatalf("Expected no update with a non-existing nnc")
+	}
+	if mockCNSClient.MockCNSReady != false {
+		t.Fatalf("Expected no initialization with a non-existing nnc")
+	}
 }
