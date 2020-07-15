@@ -81,8 +81,12 @@ func (mc MockKubeClient) Update(ctx context.Context, obj runtime.Object, opts ..
 type MockCNSClient struct{}
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
-func (mi *MockCNSClient) UpdateCNSState(createNetworkContainerRequest *cns.CreateNetworkContainerRequest) error {
+func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest *cns.CreateNetworkContainerRequest) error {
 	mockCNSUpdated = true
+	return nil
+}
+
+func (mi *MockCNSClient) InitCNSState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]*cns.KubernetesPodInfo) error {
 	return nil
 }
 
