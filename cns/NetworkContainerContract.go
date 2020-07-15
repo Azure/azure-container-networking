@@ -329,9 +329,3 @@ type NodeInfoResponse struct {
 	NetworkContainers  []CreateNetworkContainerRequest
 	GetNCVersionURLFmt string
 }
-
-// JsonErr - Struct to hold err info
-type JsonErr struct {
-	Text       string `json:"Text"`
-	HTTPStatus int    `json:"HttpStatusCode"`
-}

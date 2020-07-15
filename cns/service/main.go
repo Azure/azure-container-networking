@@ -223,7 +223,7 @@ func registerNode(httpRestService restserver.HTTPService, dncEP, infraVnet, node
 		response *http.Response
 		err      = fmt.Errorf("")
 		body     bytes.Buffer
-		httpc    = &http.Client{Timeout: time.Second * 30}
+		httpc    = acn.GetHttpClient()
 	)
 
 	for err != nil {
@@ -234,12 +234,15 @@ func registerNode(httpRestService restserver.HTTPService, dncEP, infraVnet, node
 				json.NewDecoder(response.Body).Decode(&req)
 				httpRestService.SetNodeOrchestrator(&req)
 			} else {
-				logger.Errorf("[Azure CNS] Failed to register node with managed DNC with http status code: " + strconv.Itoa(response.StatusCode))
+				logger.Errorf("[Azure CNS] Failed to register node %s/%s with managed DNC with http status code %s", infraVnet, nodeID, strconv.Itoa(response.StatusCode))
 			}
 
 			response.Body.Close()
+			time.Sleep(time.Second * 5)
+		} else {
+			logger.Errorf("[Azure CNS] Failed to register node %s/%s with err: %+v", infraVnet, nodeID, err)
+			return
 		}
-		time.Sleep(time.Second * 5)
 	}
 
 	logger.Printf("[Azure CNS] Node Registered")
@@ -391,6 +394,17 @@ func main() {
 				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
 			}
 		}(privateEndpoint, infravnet, nodeID)
+	} else if !(privateEndpoint == "" && infravnet == "" && nodeID == "") {
+		if privateEndpoint == "" {
+			logger.Errorf("Failed to start CNS in managed mode since %s is not set", acn.OptPrivateEndpoint)
+		}
+		if infravnet == "" {
+			logger.Errorf("Failed to start CNS in managed mode since %s is not set", acn.OptInfrastructureNetwork)
+		}
+		if nodeID == "" {
+			logger.Errorf("Failed to start CNS in managed mode since %s is not set", acn.OptNodeID)
+		}
+		return
 	}
 
 	var netPlugin network.NetPlugin
