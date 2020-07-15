@@ -75,6 +75,7 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 	mgr, err := ctrl.NewManager(kubeconfig, ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: prometheusAddress,
+		Namespace:          k8sNamespace,
 	})
 	if err != nil {
 		logger.Errorf("[cns-rc] Error creating new request controller manager: %v", err)
@@ -90,7 +91,6 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 	crdreconciler := &CrdReconciler{
 		KubeClient: mgr.GetClient(),
 		NodeName:   nodeName,
-		Namespace:  k8sNamespace,
 		CNSClient:  httpClient,
 	}
 
@@ -120,6 +120,11 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 		logger.Errorf("[cns-rc] Error starting manager: %v", err)
 	}
 
+	return nil
+}
+
+func (crdRC *crdRequestController) InitCNS() error {
+	//init CNS
 	return nil
 }
 
