@@ -9,7 +9,9 @@ import (
 	"syscall"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type ipsEntry struct {
@@ -180,6 +182,8 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 
 // CreateSet creates an ipset.
 func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
+	timer := metrics.StartNewTimer()
+
 	if _, exists := ipsMgr.setMap[setName]; exists {
 		return nil
 	}
@@ -198,6 +202,10 @@ func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 	}
 
 	ipsMgr.setMap[setName] = NewIpset(setName)
+
+	metrics.NumIPSets.Inc()
+	timer.StopAndRecord(metrics.AddIPSetExecTime)
+	metrics.IPSetInventory.With(prometheus.Labels{metrics.SetNameLabel: setName}).Set(0)
 
 	return nil
 }
@@ -224,6 +232,9 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 	}
 
 	delete(ipsMgr.setMap, setName)
+
+	metrics.NumIPSets.Dec()
+	metrics.IPSetInventory.With(prometheus.Labels{metrics.SetNameLabel: setName}).Set(0)
 
 	return nil
 }
@@ -269,6 +280,8 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 	// Stores the podUid as the context for this ip.
 	ipsMgr.setMap[setName].elements[ip] = podUid
 
+	metrics.IPSetInventory.With(prometheus.Labels{metrics.SetNameLabel: setName}).Inc()
+
 	return nil
 }
 
@@ -309,6 +322,8 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
 
 	// Now cleanup the cache
 	delete(ipsMgr.setMap[setName].elements, ip)
+
+	metrics.IPSetInventory.With(prometheus.Labels{metrics.SetNameLabel: setName}).Dec()
 
 	if len(ipsMgr.setMap[setName].elements) == 0 {
 		ipsMgr.DeleteSet(setName)
@@ -359,6 +374,8 @@ func (ipsMgr *IpsetManager) Destroy() error {
 		log.Errorf("Error: failed to destroy ipset")
 		return err
 	}
+
+	//TODO set metrics.IPSetInventory to 0 for all set names
 
 	return nil
 }
@@ -423,6 +440,8 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 		return err
 	}
 	cmd.Wait()
+
+	//TODO based on the set name and number of entries in the config file, update metrics.IPSetInventory
 
 	return nil
 }

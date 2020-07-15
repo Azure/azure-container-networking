@@ -49,7 +49,7 @@ roleRef:
   name: azure-npm
   apiGroup: rbac.authorization.k8s.io
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: azure-npm
@@ -67,6 +67,8 @@ spec:
         k8s-app: azure-npm
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "8000"
     spec:
       priorityClassName: system-node-critical
       tolerations:

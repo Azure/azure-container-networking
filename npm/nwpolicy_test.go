@@ -7,6 +7,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
+	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 
 	corev1 "k8s.io/api/core/v1"
@@ -98,6 +100,9 @@ func TestAddNetworkPolicy(t *testing.T) {
 		},
 	}
 
+	gaugeVal, err1 := promutil.GetValue(metrics.NumPolicies)
+	countVal, err2 := promutil.GetCountValue(metrics.AddPolicyExecTime)
+
 	npMgr.Lock()
 	if err := npMgr.AddNetworkPolicy(allowIngress); err != nil {
 		t.Errorf("TestAddNetworkPolicy failed @ allowIngress AddNetworkPolicy")
@@ -144,6 +149,16 @@ func TestAddNetworkPolicy(t *testing.T) {
 		t.Errorf("Error: %v", err)
 	}
 	npMgr.Unlock()
+
+	newGaugeVal, err3 := promutil.GetValue(metrics.NumPolicies)
+	newCountVal, err4 := promutil.GetCountValue(metrics.AddPolicyExecTime)
+	promutil.NotifyIfErrors(t, err1, err2, err3, err4)
+	if newGaugeVal != gaugeVal+2 {
+		t.Errorf("Change in policy number didn't register in prometheus")
+	}
+	if newCountVal != countVal+2 {
+		t.Errorf("Execution time didn't register in prometheus")
+	}
 }
 
 func TestUpdateNetworkPolicy(t *testing.T) {
@@ -340,8 +355,16 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 		t.Errorf("TestAddNetworkPolicy failed @ AddNetworkPolicy")
 	}
 
+	gaugeVal, err1 := promutil.GetValue(metrics.NumPolicies)
+
 	if err := npMgr.DeleteNetworkPolicy(allow); err != nil {
 		t.Errorf("TestDeleteNetworkPolicy failed @ DeleteNetworkPolicy")
 	}
 	npMgr.Unlock()
+
+	newGaugeVal, err2 := promutil.GetValue(metrics.NumPolicies)
+	promutil.NotifyIfErrors(t, err1, err2)
+	if newGaugeVal != gaugeVal-1 {
+		t.Errorf("Change in policy number didn't register in prometheus")
+	}
 }

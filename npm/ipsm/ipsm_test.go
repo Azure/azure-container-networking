@@ -6,7 +6,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestSave(t *testing.T) {
@@ -127,13 +130,33 @@ func TestCreateSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set", []string{util.IpsetNetHashFlag}); err != nil {
+	gaugeVal, err1 := promutil.GetValue(metrics.NumIPSets)
+	countVal, err2 := promutil.GetCountValue(metrics.AddIPSetExecTime)
+
+	testSet1Name := "test-set"
+	if err := ipsMgr.CreateSet(testSet1Name, []string{util.IpsetNetHashFlag}); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet")
 	}
 
+	testSet2Name := "test-set-with-maxelem"
 	spec := append([]string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum})
-	if err := ipsMgr.CreateSet("test-set-with-maxelem", spec); err != nil {
+	if err := ipsMgr.CreateSet(testSet2Name, spec); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when set maxelem")
+	}
+
+	newGaugeVal, err3 := promutil.GetValue(metrics.NumIPSets)
+	newCountVal, err4 := promutil.GetCountValue(metrics.AddIPSetExecTime)
+	testSet1Count, err5 := promutil.GetVecValue(metrics.IPSetInventory, prometheus.Labels{metrics.SetNameLabel: testSet1Name})
+	testSet2Count, err6 := promutil.GetVecValue(metrics.IPSetInventory, prometheus.Labels{metrics.SetNameLabel: testSet2Name})
+	promutil.NotifyIfErrors(t, err1, err2, err3, err4, err5, err6)
+	if newGaugeVal != gaugeVal+2 {
+		t.Errorf("Change in ipset number didn't register in Prometheus")
+	}
+	if newCountVal != countVal+2 {
+		t.Errorf("Execution time didn't register in Prometheus")
+	}
+	if testSet1Count != 0 || testSet2Count != 0 {
+		t.Errorf("Prometheus IPSet count has incorrect number of entries")
 	}
 }
 
@@ -149,12 +172,25 @@ func TestDeleteSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
+	testSetName := "test-set"
+	if err := ipsMgr.CreateSet(testSetName, append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.CreateSet")
 	}
 
-	if err := ipsMgr.DeleteSet("test-set"); err != nil {
+	gaugeVal, err1 := promutil.GetValue(metrics.NumIPSets)
+
+	if err := ipsMgr.DeleteSet(testSetName); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
+	}
+
+	newGaugeVal, err2 := promutil.GetValue(metrics.NumIPSets)
+	testSetCount, err3 := promutil.GetVecValue(metrics.IPSetInventory, prometheus.Labels{metrics.SetNameLabel: testSetName})
+	promutil.NotifyIfErrors(t, err1, err2, err3)
+	if newGaugeVal != gaugeVal-1 {
+		t.Errorf("Change in ipset number didn't register in prometheus")
+	}
+	if testSetCount != 0 {
+		t.Errorf("Prometheus IPSet count has incorrect number of entries")
 	}
 }
 
@@ -170,12 +206,19 @@ func TestAddToSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.AddToSet("test-set", "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
+	testSetName := "test-set"
+	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestAddToSet failed @ ipsMgr.AddToSet")
 	}
 
-	if err := ipsMgr.AddToSet("test-set", "1.2.3.4/nomatch", util.IpsetNetHashFlag, ""); err != nil {
+	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4/nomatch", util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet")
+	}
+
+	testSetCount, err1 := promutil.GetVecValue(metrics.IPSetInventory, prometheus.Labels{metrics.SetNameLabel: testSetName})
+	promutil.NotifyIfErrors(t, err1)
+	if testSetCount != 2 {
+		t.Errorf("Prometheus IPSet count has incorrect number of entries")
 	}
 }
 
@@ -231,21 +274,28 @@ func TestDeleteFromSet(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.AddToSet("test-set", "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
+	testSetName := "test-set"
+	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
-	if len(ipsMgr.setMap["test-set"].elements) != 1 {
+	if len(ipsMgr.setMap[testSetName].elements) != 1 {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
-	if err := ipsMgr.DeleteFromSet("test-set", "1.2.3.4", ""); err != nil {
+	if err := ipsMgr.DeleteFromSet(testSetName, "1.2.3.4", ""); err != nil {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.DeleteFromSet")
 	}
 
 	// After deleting the only entry, "1.2.3.4" from "test-set", "test-set" ipset won't exist
-	if _, exists := ipsMgr.setMap["test-set"]; exists {
+	if _, exists := ipsMgr.setMap[testSetName]; exists {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.DeleteFromSet")
+	}
+
+	testSetCount, err1 := promutil.GetVecValue(metrics.IPSetInventory, prometheus.Labels{metrics.SetNameLabel: testSetName})
+	promutil.NotifyIfErrors(t, err1)
+	if testSetCount != 0 {
+		t.Errorf("Prometheus IPSet count has incorrect number of entries")
 	}
 }
 
@@ -373,6 +423,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
+	metrics.InitializeAll()
 	ipsMgr := NewIpsetManager()
 	ipsMgr.Save(util.IpsetConfigFile)
 

@@ -163,7 +163,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		addedIngressFromEntry, addedPortEntry bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 	)
 
-	log.Printf("started parsing ingress rule")
+	log.Logf("started parsing ingress rule")
 
 	labelsWithOps, _, _ := parseSelector(&targetSelector)
 	ops, labels := GetOperatorsAndLabels(labelsWithOps)

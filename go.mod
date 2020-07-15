@@ -19,9 +19,11 @@ require (
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
 	github.com/petar/GoLLRB v0.0.0-20190514000832-33fb24c13b99 // indirect
+	github.com/prometheus/client_golang v1.0.0
+	github.com/prometheus/client_model v0.2.0
 	github.com/satori/go.uuid v1.2.0 // indirect
 	go.opencensus.io v0.22.2 // indirect
-	golang.org/x/net v0.0.0-20191112182307-2180aed22343 // indirect
+	golang.org/x/net v0.0.0-20191112182307-2180aed22343
 	golang.org/x/sys v0.0.0-20191120155948-bd437916bb0e
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	google.golang.org/appengine v1.6.5 // indirect

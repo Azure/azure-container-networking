@@ -52,10 +52,9 @@ type HTTPRestService struct {
 	imdsClient                   *imdsclient.ImdsClient
 	ipamClient                   *ipamclient.IpamClient
 	networkContainer             *networkcontainers.NetworkContainers
-	PodIPIDByOrchestratorContext map[string]string                      // OrchestratorContext is key and value is Pod IP uuid.
-	PodIPConfigState             map[string]*cns.ContainerIPConfigState // seondaryipid(uuid) is key
-	AllocatedIPCount             map[string]allocatedIPCount            // key - ncid
-	ReadyToIPAM                  bool
+	PodIPIDByOrchestratorContext map[string]string                     // OrchestratorContext is key and value is Pod IP uuid.
+	PodIPConfigState             map[string]cns.ContainerIPConfigState // seondaryipid(uuid) is key
+	AllocatedIPCount             map[string]allocatedIPCount           // key - ncid
 	routingTable                 *routes.RoutingTable
 	store                        store.KeyValueStore
 	state                        *httpRestServiceState
@@ -127,7 +126,7 @@ func NewHTTPRestService(config *common.ServiceConfig) (HTTPService, error) {
 	serviceState.joinedNetworks = make(map[string]struct{})
 
 	podIPIDByOrchestratorContext := make(map[string]string)
-	podIPConfigState := make(map[string]*cns.ContainerIPConfigState)
+	podIPConfigState := make(map[string]cns.ContainerIPConfigState)
 	allocatedIPCount := make(map[string]allocatedIPCount) // key - ncid
 
 	return &HTTPRestService{
