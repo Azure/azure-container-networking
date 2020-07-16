@@ -374,17 +374,14 @@ test-all:
         ./network/ \
         ./store/ \
         ./telemetry/ \
-		./aitelemetry/ \
+        ./aitelemetry/ \
         ./cnm/network/ \
         ./cni/ipam/ \
         ./cns/ipamclient/ \
         ./cns/cnsclient/ \
+        ./cns/restserver/ \
         ./cns/requestcontroller/kubecontroller/ \
         ./cnms/service/ \
         ./npm/iptm/ \
         ./npm/ipsm/
-	
-	#until the restserver tests are fixed...
-	go test -timeout 30s \
-		./cns/restserver -run ^TestIPAM*
 		
