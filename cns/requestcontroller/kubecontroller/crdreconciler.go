@@ -45,7 +45,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	}
 
 	//TODO: process the nc request on CNS side
-	r.CNSClient.UpdateCNSState(ncRequest)
+	r.CNSClient.CreateOrUpdateNC(ncRequest)
 
 	return reconcile.Result{}, nil
 }

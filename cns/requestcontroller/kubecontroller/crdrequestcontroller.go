@@ -5,11 +5,16 @@ import (
 	"errors"
 	"os"
 
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -17,18 +22,25 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-const nodeNameEnvVar = "NODENAME"
-const k8sNamespace = "kube-system"
-const prometheusAddress = "0" //0 means disabled
+const (
+	nodeNameEnvVar    = "NODENAME"
+	k8sNamespace      = "kube-system"
+	crdTypeName       = "nodenetworkconfigs"
+	allNamespaces     = ""
+	prometheusAddress = "0" //0 means disabled
+)
 
 // crdRequestController
 // - watches CRD status changes
 // - updates CRD spec
 type crdRequestController struct {
-	mgr        manager.Manager //Manager starts the reconcile loop which watches for crd status changes
-	KubeClient KubeClient      //KubeClient interacts with API server
-	nodeName   string          //name of node running this program
-	Reconciler *CrdReconciler
+	mgr             manager.Manager       //Manager starts the reconcile loop which watches for crd status changes
+	KubeClient      KubeClient            //KubeClient interacts with API server
+	directAPIClient *kubernetes.Clientset //direct client to the api server
+	directCRDClient *rest.RESTClient      //direct client to the api server for the crd
+	CNSClient       cnsclient.APIClient
+	nodeName        string //name of node running this program
+	Reconciler      *CrdReconciler
 }
 
 // GetKubeConfig precedence
@@ -69,6 +81,16 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 		return nil, errors.New("Error adding NodeNetworkConfig scheme to runtime scheme")
 	}
 
+	// Create a direct client to the API server which we use to list pods when initializing cns state before reconcile loop
+	directAPIClient, err := kubernetes.NewForConfig(kubeconfig)
+
+	// Create a direct client to the API server configured to get nodenetconfigs to get nnc for same reason above
+	config := *kubeconfig
+	config.GroupVersion = &nnc.GroupVersion
+	config.APIPath = "/apis"
+	config.NegotiatedSerializer = clientgoscheme.Codecs.WithoutConversion()
+	directCRDClient, err := rest.RESTClientFor(&config)
+
 	// Create manager for CrdRequestController
 	// MetricsBindAddress is the tcp address that the controller should bind to
 	// for serving prometheus metrics, set to "0" to disable
@@ -102,10 +124,13 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 
 	// Create the requestController
 	crdRequestController := crdRequestController{
-		mgr:        mgr,
-		KubeClient: mgr.GetClient(),
-		nodeName:   nodeName,
-		Reconciler: crdreconciler,
+		mgr:             mgr,
+		KubeClient:      mgr.GetClient(),
+		directAPIClient: directAPIClient,
+		directCRDClient: directCRDClient,
+		CNSClient:       httpClient,
+		nodeName:        nodeName,
+		Reconciler:      crdreconciler,
 	}
 
 	return &crdRequestController, nil
@@ -123,9 +148,55 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 	return nil
 }
 
+// InitCNS initializes cns by passing pods and a createnetworkcontainerrequest
 func (crdRC *crdRequestController) InitCNS() error {
-	//init CNS
-	return nil
+	var (
+		pods          *corev1.PodList
+		pod           corev1.Pod
+		podInfo       *cns.KubernetesPodInfo
+		nodeNetConfig *nnc.NodeNetworkConfig
+		podInfoByIP   map[string]*cns.KubernetesPodInfo
+		cntxt         context.Context
+		ncRequest     *cns.CreateNetworkContainerRequest
+		err           error
+	)
+
+	cntxt = context.Background()
+
+	// Get nodeNetConfig using direct client
+	if nodeNetConfig, err = crdRC.getNodeNetConfigDirect(cntxt, crdRC.nodeName, k8sNamespace); err != nil {
+		logger.Errorf("Error when getting nodeNetConfig using direct client when initializing cns state: %v", err)
+		return err
+	}
+
+	// Convert to CreateNetworkContainerRequest
+	if ncRequest, err = CRDStatusToNCRequest(&nodeNetConfig.Status); err != nil {
+		logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
+		return err
+	}
+
+	// Get all pods using direct client
+	if pods, err = crdRC.getAllPods(cntxt, crdRC.nodeName); err != nil {
+		logger.Errorf("Error when getting all pods when initializing cns: %v", err)
+		return err
+	}
+
+	// Convert pod list to map of pod ip -> kubernetes pod info
+	podInfoByIP = make(map[string]*cns.KubernetesPodInfo)
+	for _, pod = range pods.Items {
+		//Only add pods that aren't on the host network
+		if !pod.Spec.HostNetwork {
+			podInfo = &cns.KubernetesPodInfo{
+				PodName:      pod.Name,
+				PodNamespace: pod.Namespace,
+			}
+			podInfoByIP[pod.Status.PodIP] = podInfo
+		}
+	}
+
+	// Call cnsclient init cns passing those two things
+	return crdRC.Reconciler.CNSClient.InitCNSState(ncRequest, podInfoByIP)
+
 }
 
 // UpdateCRDSpec updates the CRD spec
@@ -164,6 +235,23 @@ func (crdRC *crdRequestController) getNodeNetConfig(cntxt context.Context, name,
 	return nodeNetworkConfig, nil
 }
 
+// getNodeNetConfigDirect gets the nodeNetworkConfig CRD using a direct client
+func (crdRC *crdRequestController) getNodeNetConfigDirect(cntxt context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {
+	var (
+		nodeNetworkConfig *nnc.NodeNetworkConfig
+		err               error
+	)
+
+	nodeNetworkConfig = &nnc.NodeNetworkConfig{}
+	err = crdRC.directCRDClient.Get().Namespace(namespace).Resource(crdTypeName).Name(name).Do(cntxt).Into(nodeNetworkConfig)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return nodeNetworkConfig, nil
+}
+
 // updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
 func (crdRC *crdRequestController) updateNodeNetConfig(cntxt context.Context, nodeNetworkConfig *nnc.NodeNetworkConfig) error {
 	if err := crdRC.KubeClient.Update(cntxt, nodeNetworkConfig); err != nil {
@@ -171,4 +259,22 @@ func (crdRC *crdRequestController) updateNodeNetConfig(cntxt context.Context, no
 	}
 
 	return nil
+}
+
+// getAllPods gets all pods running on the node using the direct API client
+func (crdRC *crdRequestController) getAllPods(cntxt context.Context, node string) (*corev1.PodList, error) {
+	var (
+		pods *corev1.PodList
+		err  error
+	)
+
+	pods, err = crdRC.directAPIClient.CoreV1().Pods(allNamespaces).List(cntxt, metav1.ListOptions{
+		FieldSelector: "spec.nodeName=" + node,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return pods, nil
 }
