@@ -111,12 +111,16 @@ type MockCNSClient struct {
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
 func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest *cns.CreateNetworkContainerRequest) error {
-	mi.MockCNSUpdated = true
+	mockCNSUpdated = true
 	return nil
 }
 
 func (mi *MockCNSClient) InitCNSState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]*cns.KubernetesPodInfo) error {
 	return nil
+}
+
+func ResetCNSInteractionFlag() {
+	mockCNSUpdated = false
 }
 
 func TestNewCrdRequestController(t *testing.T) {
