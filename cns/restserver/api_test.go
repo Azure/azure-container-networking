@@ -676,202 +676,204 @@ func setEnv(t *testing.T) *httptest.ResponseRecorder {
 
 // IGNORE TEST AS IT IS FAILING. TODO:- Fix it https://msazure.visualstudio.com/One/_workitems/edit/7720083
 // // Tests CreateNetwork functionality.
-// func TestCreateNetwork(t *testing.T) {
-// 	fmt.Println("Test: CreateNetwork")
 
-// 	var body bytes.Buffer
-// 	setEnv(t)
-// 	// info := &cns.CreateNetworkRequest{
-// 	// 	NetworkName: "azurenet",
-// 	// }
+/*
+func TestCreateNetwork(t *testing.T) {
+	fmt.Println("Test: CreateNetwork")
 
-// 	// json.NewEncoder(&body).Encode(info)
+	var body bytes.Buffer
+	setEnv(t)
+	// info := &cns.CreateNetworkRequest{
+	// 	NetworkName: "azurenet",
+	// }
 
-// 	// req, err := http.NewRequest(http.MethodPost, cns.CreateNetworkPath, &body)
-// 	// if err != nil {
-// 	// 	t.Fatal(err)
-// 	// }
+	// json.NewEncoder(&body).Encode(info)
 
-// 	// w := httptest.NewRecorder()
-// 	// mux.ServeHTTP(w, req)
+	// req, err := http.NewRequest(http.MethodPost, cns.CreateNetworkPath, &body)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
 
-// 	httpc := &http.Client{}
-// 	url := defaultCnsURL + cns.CreateNetworkPath
-// 	log.Printf("CreateNetworkRequest url %v", url)
+	// w := httptest.NewRecorder()
+	// mux.ServeHTTP(w, req)
 
-// 	payload := &cns.CreateNetworkRequest{
-// 		NetworkName: "azurenet",
-// 	}
+	httpc := &http.Client{}
+	url := defaultCnsURL + cns.CreateNetworkPath
+	log.Printf("CreateNetworkRequest url %v", url)
 
-// 	err := json.NewEncoder(&body).Encode(payload)
-// 	if err != nil {
-// 		t.Errorf("encoding json failed with %v", err)
-// 	}
+	payload := &cns.CreateNetworkRequest{
+		NetworkName: "azurenet",
+	}
 
-// 	res, err := httpc.Post(url, contentTypeJSON, &body)
-// 	if err != nil {
-// 		t.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
-// 	}
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		t.Errorf("encoding json failed with %v", err)
+	}
 
-// 	defer res.Body.Close()
-// 	var resp cns.Response
+	res, err := httpc.Post(url, contentTypeJSON, &body)
+	if err != nil {
+		t.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
+	}
 
-// 	// err = decodeResponse(res, &resp)
-// 	// if err != nil || resp.ReturnCode != 0 {
-// 	// 	t.Errorf("CreateNetwork failed with response %+v", resp)
-// 	// } else {
-// 	// 	fmt.Printf("CreateNetwork Responded with %+v\n", resp)
-// 	// }
+	defer res.Body.Close()
+	var resp cns.Response
 
-// 	err = json.NewDecoder(res.Body).Decode(&resp)
-// 	if err != nil {
-// 		t.Errorf("[Azure CNSClient] Error received while parsing ReleaseIPAddress response resp:%v err:%v", res.Body, err.Error())
-// 	}
+	// err = decodeResponse(res, &resp)
+	// if err != nil || resp.ReturnCode != 0 {
+	// 	t.Errorf("CreateNetwork failed with response %+v", resp)
+	// } else {
+	// 	fmt.Printf("CreateNetwork Responded with %+v\n", resp)
+	// }
 
-// 	if resp.ReturnCode != 0 {
-// 		t.Errorf("[Azure CNSClient] ReleaseIPAddress received error response :%v", resp.Message)
-// 		// return fmt.Errorf(resp.Message)
-// 	}
-// }
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		t.Errorf("[Azure CNSClient] Error received while parsing ReleaseIPAddress response resp:%v err:%v", res.Body, err.Error())
+	}
 
-// // Tests DeleteNetwork functionality.
-// func TestDeleteNetwork(t *testing.T) {
-// 	fmt.Println("Test: DeleteNetwork")
+	if resp.ReturnCode != 0 {
+		t.Errorf("[Azure CNSClient] ReleaseIPAddress received error response :%v", resp.Message)
+		// return fmt.Errorf(resp.Message)
+	}
+}
 
-// 	var body bytes.Buffer
-// 	setEnv(t)
-// 	info := &cns.DeleteNetworkRequest{
-// 		NetworkName: "azurenet",
-// 	}
+func TestDeleteNetwork(t *testing.T) {
+	fmt.Println("Test: DeleteNetwork")
 
-// 	json.NewEncoder(&body).Encode(info)
+	var body bytes.Buffer
+	setEnv(t)
+	info := &cns.DeleteNetworkRequest{
+		NetworkName: "azurenet",
+	}
 
-// 	req, err := http.NewRequest(http.MethodPost, cns.DeleteNetworkPath, &body)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+	json.NewEncoder(&body).Encode(info)
 
-// 	w := httptest.NewRecorder()
-// 	mux.ServeHTTP(w, req)
-// 	var resp cns.Response
+	req, err := http.NewRequest(http.MethodPost, cns.DeleteNetworkPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-// 	err = decodeResponse(w, &resp)
-// 	if err != nil || resp.ReturnCode != 0 {
-// 		t.Errorf("DeleteNetwork failed with response %+v", resp)
-// 	} else {
-// 		fmt.Printf("DeleteNetwork Responded with %+v\n", resp)
-// 	}
-// }
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var resp cns.Response
 
-// func TestReserveIPAddress(t *testing.T) {
-// 	fmt.Println("Test: ReserveIPAddress")
+	err = decodeResponse(w, &resp)
+	if err != nil || resp.ReturnCode != 0 {
+		t.Errorf("DeleteNetwork failed with response %+v", resp)
+	} else {
+		fmt.Printf("DeleteNetwork Responded with %+v\n", resp)
+	}
+}
 
-// 	reserveIPRequest := cns.ReserveIPAddressRequest{ReservationID: "ip01"}
-// 	reserveIPRequestJSON := new(bytes.Buffer)
-// 	json.NewEncoder(reserveIPRequestJSON).Encode(reserveIPRequest)
-// 	envRequest := cns.SetEnvironmentRequest{Location: "Azure", NetworkType: "Underlay"}
-// 	envRequestJSON := new(bytes.Buffer)
-// 	json.NewEncoder(envRequestJSON).Encode(envRequest)
+func TestReserveIPAddress(t *testing.T) {
+	fmt.Println("Test: ReserveIPAddress")
 
-// 	req, err := http.NewRequest(http.MethodPost, cns.ReserveIPAddressPath, envRequestJSON)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+	reserveIPRequest := cns.ReserveIPAddressRequest{ReservationID: "ip01"}
+	reserveIPRequestJSON := new(bytes.Buffer)
+	json.NewEncoder(reserveIPRequestJSON).Encode(reserveIPRequest)
+	envRequest := cns.SetEnvironmentRequest{Location: "Azure", NetworkType: "Underlay"}
+	envRequestJSON := new(bytes.Buffer)
+	json.NewEncoder(envRequestJSON).Encode(envRequest)
 
-// 	w := httptest.NewRecorder()
-// 	mux.ServeHTTP(w, req)
-// 	var reserveIPAddressResponse cns.ReserveIPAddressResponse
+	req, err := http.NewRequest(http.MethodPost, cns.ReserveIPAddressPath, envRequestJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-// 	err = decodeResponse(w, &reserveIPAddressResponse)
-// 	if err != nil || reserveIPAddressResponse.Response.ReturnCode != 0 {
-// 		t.Errorf("SetEnvironment failed with response %+v", reserveIPAddressResponse)
-// 	} else {
-// 		fmt.Printf("SetEnvironment Responded with %+v\n", reserveIPAddressResponse)
-// 	}
-// }
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var reserveIPAddressResponse cns.ReserveIPAddressResponse
 
-// func TestReleaseIPAddress(t *testing.T) {
-// 	fmt.Println("Test: ReleaseIPAddress")
+	err = decodeResponse(w, &reserveIPAddressResponse)
+	if err != nil || reserveIPAddressResponse.Response.ReturnCode != 0 {
+		t.Errorf("SetEnvironment failed with response %+v", reserveIPAddressResponse)
+	} else {
+		fmt.Printf("SetEnvironment Responded with %+v\n", reserveIPAddressResponse)
+	}
+}
 
-// 	releaseIPRequest := cns.ReleaseIPAddressRequest{ReservationID: "ip01"}
-// 	releaseIPAddressRequestJSON := new(bytes.Buffer)
-// 	json.NewEncoder(releaseIPAddressRequestJSON).Encode(releaseIPRequest)
+func TestReleaseIPAddress(t *testing.T) {
+	fmt.Println("Test: ReleaseIPAddress")
 
-// 	req, err := http.NewRequest(http.MethodPost, cns.ReleaseIPAddressPath, releaseIPAddressRequestJSON)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+	releaseIPRequest := cns.ReleaseIPAddressRequest{ReservationID: "ip01"}
+	releaseIPAddressRequestJSON := new(bytes.Buffer)
+	json.NewEncoder(releaseIPAddressRequestJSON).Encode(releaseIPRequest)
 
-// 	w := httptest.NewRecorder()
-// 	mux.ServeHTTP(w, req)
-// 	var releaseIPAddressResponse cns.Response
+	req, err := http.NewRequest(http.MethodPost, cns.ReleaseIPAddressPath, releaseIPAddressRequestJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-// 	err = decodeResponse(w, &releaseIPAddressResponse)
-// 	if err != nil || releaseIPAddressResponse.ReturnCode != 0 {
-// 		t.Errorf("SetEnvironment failed with response %+v", releaseIPAddressResponse)
-// 	} else {
-// 		fmt.Printf("SetEnvironment Responded with %+v\n", releaseIPAddressResponse)
-// 	}
-// }
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var releaseIPAddressResponse cns.Response
 
-// func TestGetUnhealthyIPAddresses(t *testing.T) {
-// 	fmt.Println("Test: GetGhostIPAddresses")
+	err = decodeResponse(w, &releaseIPAddressResponse)
+	if err != nil || releaseIPAddressResponse.ReturnCode != 0 {
+		t.Errorf("SetEnvironment failed with response %+v", releaseIPAddressResponse)
+	} else {
+		fmt.Printf("SetEnvironment Responded with %+v\n", releaseIPAddressResponse)
+	}
+}
 
-// 	req, err := http.NewRequest(http.MethodGet, cns.GetUnhealthyIPAddressesPath, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+func TestGetUnhealthyIPAddresses(t *testing.T) {
+	fmt.Println("Test: GetGhostIPAddresses")
 
-// 	w := httptest.NewRecorder()
-// 	mux.ServeHTTP(w, req)
-// 	var getIPAddressesResponse cns.GetIPAddressesResponse
+	req, err := http.NewRequest(http.MethodGet, cns.GetUnhealthyIPAddressesPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-// 	err = decodeResponse(w, &getIPAddressesResponse)
-// 	if err != nil || getIPAddressesResponse.Response.ReturnCode != 0 {
-// 		t.Errorf("GetUnhealthyIPAddresses failed with response %+v", getIPAddressesResponse)
-// 	} else {
-// 		fmt.Printf("GetUnhealthyIPAddresses Responded with %+v\n", getIPAddressesResponse)
-// 	}
-// }
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var getIPAddressesResponse cns.GetIPAddressesResponse
 
-// func TestGetIPAddressUtilization(t *testing.T) {
-// 	fmt.Println("Test: GetIPAddressUtilization")
+	err = decodeResponse(w, &getIPAddressesResponse)
+	if err != nil || getIPAddressesResponse.Response.ReturnCode != 0 {
+		t.Errorf("GetUnhealthyIPAddresses failed with response %+v", getIPAddressesResponse)
+	} else {
+		fmt.Printf("GetUnhealthyIPAddresses Responded with %+v\n", getIPAddressesResponse)
+	}
+}
 
-// 	req, err := http.NewRequest(http.MethodGet, cns.GetIPAddressUtilizationPath, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+func TestGetIPAddressUtilization(t *testing.T) {
+	fmt.Println("Test: GetIPAddressUtilization")
 
-// 	w := httptest.NewRecorder()
-// 	mux.ServeHTTP(w, req)
-// 	var iPAddressesUtilizationResponse cns.IPAddressesUtilizationResponse
+	req, err := http.NewRequest(http.MethodGet, cns.GetIPAddressUtilizationPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-// 	err = decodeResponse(w, &iPAddressesUtilizationResponse)
-// 	if err != nil || iPAddressesUtilizationResponse.Response.ReturnCode != 0 {
-// 		t.Errorf("GetIPAddressUtilization failed with response %+v\n", iPAddressesUtilizationResponse)
-// 	} else {
-// 		fmt.Printf("GetIPAddressUtilization Responded with %+v\n", iPAddressesUtilizationResponse)
-// 	}
-// }
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var iPAddressesUtilizationResponse cns.IPAddressesUtilizationResponse
 
-// func TestGetHostLocalIP(t *testing.T) {
-// 	fmt.Println("Test: GetHostLocalIP")
+	err = decodeResponse(w, &iPAddressesUtilizationResponse)
+	if err != nil || iPAddressesUtilizationResponse.Response.ReturnCode != 0 {
+		t.Errorf("GetIPAddressUtilization failed with response %+v\n", iPAddressesUtilizationResponse)
+	} else {
+		fmt.Printf("GetIPAddressUtilization Responded with %+v\n", iPAddressesUtilizationResponse)
+	}
+}
 
-// 	setEnv(t)
+func TestGetHostLocalIP(t *testing.T) {
+	fmt.Println("Test: GetHostLocalIP")
 
-// 	req, err := http.NewRequest(http.MethodGet, cns.GetHostLocalIPPath, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+	setEnv(t)
 
-// 	w := httptest.NewRecorder()
-// 	mux.ServeHTTP(w, req)
-// 	var hostLocalIPAddressResponse cns.HostLocalIPAddressResponse
+	req, err := http.NewRequest(http.MethodGet, cns.GetHostLocalIPPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-// 	err = decodeResponse(w, &hostLocalIPAddressResponse)
-// 	if err != nil || hostLocalIPAddressResponse.Response.ReturnCode != 0 {
-// 		t.Errorf("GetHostLocalIP failed with response %+v", hostLocalIPAddressResponse)
-// 	} else {
-// 		fmt.Printf("GetHostLocalIP Responded with %+v\n", hostLocalIPAddressResponse)
-// 	}
-// }
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var hostLocalIPAddressResponse cns.HostLocalIPAddressResponse
+
+	err = decodeResponse(w, &hostLocalIPAddressResponse)
+	if err != nil || hostLocalIPAddressResponse.Response.ReturnCode != 0 {
+		t.Errorf("GetHostLocalIP failed with response %+v", hostLocalIPAddressResponse)
+	} else {
+		fmt.Printf("GetHostLocalIP Responded with %+v\n", hostLocalIPAddressResponse)
+	}
+}
+*/
