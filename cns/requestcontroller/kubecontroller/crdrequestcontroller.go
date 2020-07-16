@@ -195,7 +195,7 @@ func (crdRC *crdRequestController) InitCNS() error {
 	}
 
 	// Call cnsclient init cns passing those two things
-	return crdRC.Reconciler.CNSClient.InitCNSState(ncRequest, podInfoByIP)
+	return crdRC.CNSClient.InitCNSState(ncRequest, podInfoByIP)
 
 }
 
