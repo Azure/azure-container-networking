@@ -6,7 +6,9 @@ package restserver
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -176,8 +178,11 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 }
 
 func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkContainerRequest) cns.GetNetworkContainerResponse {
-	var containerID string
-	var getNetworkContainerResponse cns.GetNetworkContainerResponse
+	var (
+		containerID                 string
+		getNetworkContainerResponse cns.GetNetworkContainerResponse
+		exists                      bool
+	)
 
 	service.RLock()
 	defer service.RUnlock()
@@ -201,7 +206,34 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		}
 
 		logger.Printf("pod info %+v", podInfo)
-		containerID = service.state.ContainerIDByOrchestratorContext[podInfo.PodName+podInfo.PodNamespace]
+
+		var (
+			context   = podInfo.PodName + podInfo.PodNamespace
+			dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
+			infraVnet = service.GetOption(acn.OptInfrastructureNetwork).(string)
+			nodeID    = service.GetOption(acn.OptNodeID).(string)
+			managed   = service.GetOption(acn.OptManaged).(bool)
+		)
+
+		containerID, exists = service.state.ContainerIDByOrchestratorContext[context]
+		if managed {
+			if exists {
+				_, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID)
+				if getNetworkContainerResponse.Response.ReturnCode == Success {
+					return getNetworkContainerResponse
+				}
+			} else {
+				service.RUnlock()
+				getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.SyncNodeStatus(dncEP, infraVnet, nodeID, req.OrchestratorContext)
+				service.RLock()
+				if getNetworkContainerResponse.Response.ReturnCode == NotFound {
+					return getNetworkContainerResponse
+				}
+
+				containerID = service.state.ContainerIDByOrchestratorContext[context]
+			}
+		}
+
 		logger.Printf("containerid %v", containerID)
 		break
 
@@ -299,9 +331,35 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 			Message:    "[Azure CNS] Error. NetworkContainerid is empty"}
 	}
 
-	existing, ok := service.getNetworkContainerDetails(cns.SwiftPrefix + req.NetworkContainerid)
+	var (
+		dncEP        = service.GetOption(acn.OptPrivateEndpoint).(string)
+		infraVnet    = service.GetOption(acn.OptInfrastructureNetwork).(string)
+		nodeID       = service.GetOption(acn.OptNodeID).(string)
+		isManagedDnc = service.GetOption(acn.OptManaged).(bool)
+	)
 
-	if !ok {
+	existing, ok := service.getNetworkContainerDetails(cns.SwiftPrefix + req.NetworkContainerid)
+	if isManagedDnc && operation == attach {
+		if ok {
+			if existing.CreateNetworkContainerRequest.WaitingForUpdate {
+				_, returnCode, message := isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid)
+				if returnCode != Success {
+					return cns.Response{
+						ReturnCode: returnCode,
+						Message:    message}
+				}
+			}
+		} else {
+			returnCode, msg := service.SyncNodeStatus(dncEP, infraVnet, nodeID, json.RawMessage{})
+			if returnCode != Success {
+				return cns.Response{
+					ReturnCode: returnCode,
+					Message:    msg}
+			}
+
+			existing, _ = service.getNetworkContainerDetails(cns.SwiftPrefix + req.NetworkContainerid)
+		}
+	} else if !ok {
 		return cns.Response{
 			ReturnCode: NotFound,
 			Message:    fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)}
@@ -441,6 +499,45 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ncSnapshotIntervalInM
 	}
 }
 
+// isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version
+func isNCWaitingForUpdate(ncVersion, ncid string) (waitingForUpdate bool, returnCode int, message string) {
+	getNCVersionURL, ok := ncVersionURLs.Load(ncid)
+	if !ok {
+		returnCode = NotFound
+		message = fmt.Sprintf("[Azure-CNS] Network container %s not found", ncid)
+		return
+	}
+
+	response, err := nmagentclient.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
+	if err == nil {
+		if response.StatusCode == http.StatusOK {
+			var versionResponse nmagentclient.NetworkContainerResponse
+			rBytes, _ := ioutil.ReadAll(response.Body)
+			json.Unmarshal(rBytes, &versionResponse)
+			if versionResponse.ResponseCode == "200" {
+				programmedVersion, _ := strconv.Atoi(ncVersion)
+				nmaVersion, _ := strconv.Atoi(versionResponse.Version)
+				if programmedVersion > nmaVersion {
+					waitingForUpdate = true
+					returnCode = NetworkContainerPendingStatePropagation
+					message = fmt.Sprintf("[Azure-CNS] Network container %s v%d had not propagated to respective NMA w/ v%d", ncid, programmedVersion, nmaVersion)
+				}
+			} else {
+				returnCode = UnexpectedError
+				message = fmt.Sprintf("[Azure-CNS] Failed to get NC version from response %s for NC %s", rBytes, ncid)
+			}
+		} else {
+			returnCode = UnexpectedError
+			message = fmt.Sprintf("[Azure-CNS] Failed to get NC version with http status %d", response.StatusCode)
+		}
+	} else {
+		returnCode = UnexpectedError
+		message = fmt.Sprintf("[Azure-CNS] Failed to get NC version from NMA with error: %+v", err)
+	}
+
+	return
+}
+
 // ReturnCodeToString - Converts an error code to appropriate string.
 func ReturnCodeToString(returnCode int) (s string) {
 	switch returnCode {
@@ -476,6 +573,8 @@ func ReturnCodeToString(returnCode int) (s string) {
 		s = "UnexpectedError"
 	case DockerContainerNotSpecified:
 		s = "DockerContainerNotSpecified"
+	case NetworkContainerPendingStatePropagation:
+		s = "NetworkContainerPendingStatePropagation"
 	default:
 		s = "UnknownError"
 	}

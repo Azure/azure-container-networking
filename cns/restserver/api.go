@@ -4,10 +4,13 @@
 package restserver
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"strings"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 )
 
@@ -1414,4 +1418,108 @@ func (service *HTTPRestService) deleteHostNCApipaEndpoint(w http.ResponseWriter,
 
 	err = service.Listener.Encode(w, &response)
 	logger.Response(service.Name, response, response.Response.ReturnCode, ReturnCodeToString(response.Response.ReturnCode), err)
+}
+
+// SetNodeOrchestrator :- Set node orchestrator after registering with mDNC
+func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRequest) {
+	body, _ := json.Marshal(r)
+	req, _ := http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	service.setOrchestratorType(httptest.NewRecorder(), req)
+}
+
+// SyncNodeStatus :- Retrieve the latest node state from DNC & returns the first occurence of returnCode and error with respect to contextFromCNI
+func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode int, errStr string) {
+	logger.Printf("[Azure CNS] SyncNodeStatus")
+	var (
+		response         *http.Response
+		err              error
+		nodeInfoResponse cns.NodeInfoResponse
+		req              *http.Request
+		body             []byte
+		httpc            = common.GetHttpClient()
+	)
+
+	// try to retrieve NodeInfoResponse from mDNC
+	response, err = httpc.Get(fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, dncEP, infraVnet, nodeID, dncApiVersion))
+	if err == nil {
+		if response.StatusCode == http.StatusOK {
+			err = json.NewDecoder(response.Body).Decode(&nodeInfoResponse)
+		} else {
+			err = fmt.Errorf("%d", response.StatusCode)
+		}
+
+		response.Body.Close()
+	}
+
+	if err != nil {
+		returnCode = UnexpectedError
+		errStr = fmt.Sprintf("[Azure-CNS] Failed to sync node with error: %+v", err)
+		logger.Errorf(errStr)
+		return
+	}
+
+	var (
+		ncsToBeAdded   = make(map[string]cns.CreateNetworkContainerRequest)
+		ncsToBeDeleted = make(map[string]bool)
+	)
+
+	// determine new NCs and NCs to be deleted
+	service.RLock()
+	for ncid := range service.state.ContainerStatus {
+		ncsToBeDeleted[cns.SwiftPrefix+ncid] = true
+	}
+
+	for _, nc := range nodeInfoResponse.NetworkContainers {
+		ncid := cns.SwiftPrefix + nc.NetworkContainerid
+		delete(ncsToBeDeleted, ncid)
+		if savedNc, exists := service.state.ContainerStatus[ncid]; !exists || savedNc.CreateNetworkContainerRequest.Version < nc.Version {
+			ncsToBeAdded[ncid] = nc
+		}
+	}
+	service.RUnlock()
+
+	// check if the version is valid and save it to service state
+	for _, nc := range ncsToBeAdded {
+		versionURL := fmt.Sprintf(nodeInfoResponse.GetNCVersionURLFmt,
+			nmagentclient.WireserverIP,
+			nc.PrimaryInterfaceIdentifier,
+			nc.NetworkContainerid,
+			nc.AuthorizationToken)
+		ncVersionURLs.Store(nc.NetworkContainerid, versionURL)
+		waitingForUpdate, tmpReturnCode, tmpErrStr := isNCWaitingForUpdate(nc.NetworkContainerid, nc.Version)
+		if tmpReturnCode != Success && bytes.Compare(nc.OrchestratorContext, contextFromCNI) == 0 {
+			returnCode = tmpReturnCode
+			errStr = tmpErrStr
+			logger.Errorf(tmpErrStr)
+		}
+
+		if tmpReturnCode == UnexpectedError {
+			continue
+		}
+
+		nc.WaitingForUpdate = waitingForUpdate
+		body, _ = json.Marshal(nc)
+		req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+		service.createOrUpdateNetworkContainer(httptest.NewRecorder(), req)
+	}
+
+	// delete dangling NCs
+	for nc := range ncsToBeDeleted {
+		var body bytes.Buffer
+		json.NewEncoder(&body).Encode(&cns.DeleteNetworkContainerRequest{NetworkContainerid: nc})
+
+		req, err = http.NewRequest(http.MethodPost, "", &body)
+		if err == nil {
+			req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+			service.deleteNetworkContainer(httptest.NewRecorder(), req)
+		} else {
+			logger.Errorf("[Azure-CNS] Failed to delete NC request to sync state: %s", err.Error())
+		}
+
+		ncVersionURLs.Delete(nc)
+	}
+
+	return
 }
