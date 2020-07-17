@@ -69,6 +69,7 @@ type CreateNetworkContainerRequest struct {
 	LocalIPConfiguration       IPConfiguration
 	OrchestratorContext        json.RawMessage
 	IPConfiguration            IPConfiguration
+	SecondaryIPConfigs         map[string]SecondaryIPConfig //uuid is key
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
 	Routes                     []Route
@@ -115,7 +116,6 @@ type IPConfiguration struct {
 }
 
 type SecondaryIPConfig struct {
-	UUID     string
 	IPConfig IPSubnet
 }
 

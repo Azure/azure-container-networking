@@ -353,10 +353,12 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 		if policy.Type == policyType {
 			var err error
 			var endpointPolicy hcn.EndpointPolicy
+			var isOutboundNatPolicy bool
 
 			switch GetPolicyType(policy) {
 			case OutBoundNatPolicy:
 				endpointPolicy, err = GetHcnOutBoundNATPolicy(policy, epInfoData)
+				isOutboundNatPolicy = true
 			case RoutePolicy:
 				endpointPolicy, err = GetHcnRoutePolicy(policy)
 			case PortMappingPolicy:
@@ -371,8 +373,10 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 				return hcnEndPointPolicies, err
 			}
 
-			hcnEndPointPolicies = append(hcnEndPointPolicies, endpointPolicy)
-			log.Printf("Successfully set the policy: %+v", endpointPolicy)
+			if !(isOutboundNatPolicy && enableMultiTenancy && !enableSnatForDns) {
+				hcnEndPointPolicies = append(hcnEndPointPolicies, endpointPolicy)
+				log.Printf("Successfully set the policy: %+v", endpointPolicy)
+			}
 		}
 	}
 

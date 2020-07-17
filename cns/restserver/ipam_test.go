@@ -50,10 +50,10 @@ func TestIPAMGetAvailableIPConfig(t *testing.T) {
 	svc := getTestService()
 
 	testState := NewPodState(testIP1, 24, testPod1GUID, testNCID, cns.Available)
-	ipconfigs := []*cns.ContainerIPConfigState{
-		testState,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		testState.ID: testState,
 	}
-	svc.AddIPConfigsToState(ipconfigs)
+	svc.addIPConfigsToState(ipconfigs)
 
 	req := cns.GetIPConfigRequest{}
 	b, _ := json.Marshal(testPod1Info)
@@ -81,11 +81,11 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
 	state2 := NewPodState(testIP2, 24, testPod2GUID, testNCID, cns.Available)
 
-	ipconfigs := []*cns.ContainerIPConfigState{
-		state1,
-		state2,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
+		state2.ID: state2,
 	}
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
@@ -111,10 +111,10 @@ func TestIPAMGetAlreadyAllocatedIPConfigForSamePod(t *testing.T) {
 
 	// Add Allocated Pod IP to state
 	testState, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
-	ipconfigs := []*cns.ContainerIPConfigState{
-		testState,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		testState.ID: testState,
 	}
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
@@ -140,11 +140,11 @@ func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
 
 	// Add Available Pod IP to state
 	testState := NewPodState(testIP1, 24, testPod1GUID, testNCID, cns.Available)
-	ipconfigs := []*cns.ContainerIPConfigState{
-		testState,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		testState.ID: testState,
 	}
 
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
@@ -165,11 +165,11 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 
 	// Add Available Pod IP to state
 	testState := NewPodState(testIP1, 24, testPod1GUID, testNCID, cns.Available)
-	ipconfigs := []*cns.ContainerIPConfigState{
-		testState,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		testState.ID: testState,
 	}
 
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
@@ -197,10 +197,10 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAllocatedSpecfiedIP(t *testing.T
 
 	// set state as already allocated
 	testState, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
-	ipconfigs := []*cns.ContainerIPConfigState{
-		testState,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		testState.ID: testState,
 	}
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
@@ -224,11 +224,11 @@ func TestIPAMFailToGetIPWhenAllIPsAreAllocated(t *testing.T) {
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
 	state2, _ := NewPodStateWithOrchestratorContext(testIP2, 24, testPod2GUID, testNCID, cns.Allocated, testPod2Info)
 
-	ipconfigs := []*cns.ContainerIPConfigState{
-		state1,
-		state2,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
+		state2.ID: state2,
 	}
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
@@ -253,11 +253,11 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 
 	// set state as already allocated
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
-	ipconfigs := []*cns.ContainerIPConfigState{
-		state1,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
 	}
 
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
@@ -302,32 +302,94 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	}
 }
 
-func TestIPAMFailToAddThenCleanThenRequestExpectFail(t *testing.T) {
+func TestIPAMExpectFailWhenAddingBadIPConfig(t *testing.T) {
 	svc := getTestService()
 
 	var err error
 
 	// set state as already allocated
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Available, testPod1Info)
-	state2, _ := NewPodStateWithOrchestratorContext("", 24, "", testNCID, cns.Available, testPod1Info)
 
-	ipconfigs := []*cns.ContainerIPConfigState{
-		state1,
-		state2,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
 	}
 
-	err = svc.AddIPConfigsToState(ipconfigs)
+	err = svc.addIPConfigsToState(ipconfigs)
+	if err != nil {
+		t.Fatalf("Expected to not fail when good ipconfig is added")
+	}
+
+	// create bad ipconfig
+	state2, _ := NewPodStateWithOrchestratorContext("", 24, "", testNCID, cns.Available, testPod1Info)
+
+	ipconfigs2 := map[string]cns.ContainerIPConfigState{
+		state2.ID: state2,
+	}
+
+	// add a bad ipconfig
+	err = svc.addIPConfigsToState(ipconfigs2)
 	if err == nil {
 		t.Fatalf("Expected add to fail when bad ipconfig is added.")
 	}
 
-	req := cns.GetIPConfigRequest{}
-	b, _ := json.Marshal(testPod1Info)
-	req.OrchestratorContext = b
+	// ensure state remains untouched
+	if len(svc.PodIPConfigState) != 1 {
+		t.Fatalf("Expected bad ipconfig to not be added added.")
+	}
+}
 
-	_, err = requestIPConfigHelper(svc, req)
+func TestIPAMStateCleanUpWhenAddingGoodIPConfigWithBadOrchestratorContext(t *testing.T) {
+	svc := getTestService()
+
+	var err error
+
+	// add available state
+	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Available, testPod1Info)
+
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
+	}
+
+	err = svc.addIPConfigsToState(ipconfigs)
+	if err != nil {
+		t.Fatalf("Expected to not fail when good ipconfig is added")
+	}
+
+	// create a good ipconfig
+	state2, _ := NewPodStateWithOrchestratorContext(testIP2, 24, testPod2GUID, testNCID, cns.Allocated, testPod1Info)
+
+	// make it bad with a bad orchestratorcontext and add to good ipconfig
+	b, err := json.Marshal("badstring")
+	state2.OrchestratorContext = b
+
+	ipconfigs2 := map[string]cns.ContainerIPConfigState{
+		state2.ID: state2,
+	}
+
+	err = svc.addIPConfigsToState(ipconfigs2)
 	if err == nil {
-		t.Fatalf("Expected state to be clean when one ipconfig is bad in batch add.")
+		t.Fatalf("Expected add to fail when bad ipconfig is added.")
+	}
+
+	// ensure state remains untouched
+	if len(svc.PodIPConfigState) != 1 {
+		t.Fatalf("Expected bad ipconfig to not be added added.")
+	}
+
+	// ensure we can still get the available ipconfig
+	req := cns.GetIPConfigRequest{}
+	b, _ = json.Marshal(testPod1Info)
+	req.OrchestratorContext = b
+	actualstate, err := requestIPConfigHelper(svc, req)
+	if err != nil {
+		t.Fatalf("Expected IP retrieval to be nil: %v", err)
+	}
+
+	desiredState, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
+	desiredState.OrchestratorContext = b
+
+	if reflect.DeepEqual(desiredState, actualstate) != true {
+		t.Fatalf("Desired state not matching actual state, expected: %+v, actual: %+v", desiredState, actualstate)
 	}
 }
 
@@ -335,11 +397,11 @@ func TestIPAMReleaseIPIdempotency(t *testing.T) {
 	svc := getTestService()
 	// set state as already allocated
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
-	ipconfigs := []*cns.ContainerIPConfigState{
-		state1,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
 	}
 
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
@@ -361,17 +423,61 @@ func TestIPAMAllocateIPIdempotency(t *testing.T) {
 	svc := getTestService()
 	// set state as already allocated
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Allocated, testPod1Info)
-	ipconfigs := []*cns.ContainerIPConfigState{
-		state1,
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
 	}
 
-	err := svc.AddIPConfigsToState(ipconfigs)
+	err := svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
 
-	err = svc.AddIPConfigsToState(ipconfigs)
+	err = svc.addIPConfigsToState(ipconfigs)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+	}
+}
+
+func TestIPAMExpectStateToNotChangeWhenChangingAllocatedToAvailable(t *testing.T) {
+	svc := getTestService()
+	// add two ipconfigs, one as available, the other as allocated
+	state1, _ := NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Available, testPod1Info)
+	state2, _ := NewPodStateWithOrchestratorContext(testIP2, 24, testPod2GUID, testNCID, cns.Allocated, testPod2Info)
+
+	ipconfigs := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
+		state2.ID: state2,
+	}
+
+	err := svc.addIPConfigsToState(ipconfigs)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+	}
+
+	// create state2 again, but as available
+	state2Available, _ := NewPodStateWithOrchestratorContext(testIP2, 24, testPod2GUID, testNCID, cns.Available, testPod2Info)
+
+	// add an available and allocated ipconfig
+	ipconfigsTest := map[string]cns.ContainerIPConfigState{
+		state1.ID: state1,
+		state2.ID: state2Available,
+	}
+
+	// expect to fail overwriting an allocated state with available
+	err = svc.addIPConfigsToState(ipconfigsTest)
+	if err == nil {
+		t.Fatalf("Expected to fail when overwriting an allocated state as available: %+v", err)
+	}
+
+	// get allocated ipconfigs, should only be one from the inital call, and not 2 from the failed call
+	availableIPconfigs := svc.GetAvailableIPConfigs()
+	if len(availableIPconfigs) != 1 {
+		t.Fatalf("More than expected available IP configs in state")
+	}
+
+	// get allocated ipconfigs, should only be one from the inital call, and not 0 from the failed call
+	allocatedIPconfigs := svc.GetAllocatedIPConfigs()
+	if len(allocatedIPconfigs) != 1 {
+		t.Fatalf("More than expected allocated IP configs in state")
 	}
 }

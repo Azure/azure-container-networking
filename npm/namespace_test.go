@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/iptm"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -178,6 +179,7 @@ func TestDeleteNamespace(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
+	metrics.InitializeAll()
 	iptMgr := iptm.NewIptablesManager()
 	iptMgr.Save(util.IptablesConfigFile)
 

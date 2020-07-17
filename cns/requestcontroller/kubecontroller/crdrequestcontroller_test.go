@@ -110,31 +110,17 @@ type MockCNSClient struct {
 }
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
-func (mc *MockCNSClient) UpdateCNSState(ipConfigs []*cns.ContainerIPConfigState) error {
-	mc.MockCNSUpdated = true
-
+func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest *cns.CreateNetworkContainerRequest) error {
+	mockCNSUpdated = true
 	return nil
 }
 
-func (mc *MockCNSClient) InitCNSState(ipConfigs []*cns.ContainerIPConfigState) error {
-	for _, ipConfig := range ipConfigs {
-		if ipConfig.ID == allocatedUUID {
-			if ipConfig.State != cns.Allocated {
-				return errors.New("Expected allocated ip to be marked allocated")
-			}
-		} else if ipConfig.ID == unallocatedUUID {
-			if ipConfig.State != cns.Available {
-				return errors.New("Expected unallocated ip to be marked available")
-			}
-		}
-	}
-	mc.MockCNSReady = true
-
+func (mi *MockCNSClient) InitCNSState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]*cns.KubernetesPodInfo) error {
 	return nil
 }
 
-func (mc *MockCNSClient) ReadyToIPAM() bool {
-	return mc.MockCNSReady
+func ResetCNSInteractionFlag() {
+	mockCNSUpdated = false
 }
 
 func TestNewCrdRequestController(t *testing.T) {

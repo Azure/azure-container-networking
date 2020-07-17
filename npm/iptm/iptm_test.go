@@ -1,9 +1,11 @@
 package iptm
 
 import (
-	"testing"
 	"os"
+	"testing"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
@@ -147,8 +149,22 @@ func TestAdd(t *testing.T) {
 			util.IptablesReject,
 		},
 	}
+
+	gaugeVal, err1 := promutil.GetValue(metrics.NumIPTableRules)
+	countVal, err2 := promutil.GetCountValue(metrics.AddIPTableRuleExecTime)
+
 	if err := iptMgr.Add(entry); err != nil {
 		t.Errorf("TestAdd failed @ iptMgr.Add")
+	}
+
+	newGaugeVal, err3 := promutil.GetValue(metrics.NumIPTableRules)
+	newCountVal, err4 := promutil.GetCountValue(metrics.AddIPTableRuleExecTime)
+	promutil.NotifyIfErrors(t, err1, err2, err3, err4)
+	if newGaugeVal != gaugeVal+1 {
+		t.Errorf("Change in iptable rule number didn't register in prometheus")
+	}
+	if newCountVal != countVal+1 {
+		t.Errorf("Execution time didn't register in prometheus")
 	}
 }
 
@@ -175,8 +191,16 @@ func TestDelete(t *testing.T) {
 		t.Errorf("TestDelete failed @ iptMgr.Add")
 	}
 
+	gaugeVal, err1 := promutil.GetValue(metrics.NumIPTableRules)
+
 	if err := iptMgr.Delete(entry); err != nil {
 		t.Errorf("TestDelete failed @ iptMgr.Delete")
+	}
+
+	newGaugeVal, err2 := promutil.GetValue(metrics.NumIPTableRules)
+	promutil.NotifyIfErrors(t, err1, err2)
+	if newGaugeVal != gaugeVal-1 {
+		t.Errorf("Change in iptable rule number didn't register in prometheus")
 	}
 }
 
@@ -202,6 +226,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
+	metrics.InitializeAll()
 	iptMgr := NewIptablesManager()
 	iptMgr.Save(util.IptablesConfigFile)
 

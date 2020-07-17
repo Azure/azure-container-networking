@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/util/wait"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
@@ -298,6 +299,8 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 
 // Add adds a rule in iptables.
 func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
+	timer := metrics.StartNewTimer()
+
 	log.Logf("Adding iptables entry: %+v.", entry)
 
 	if entry.IsJumpEntry {
@@ -309,6 +312,9 @@ func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 		log.Errorf("Error: failed to create iptables rules.")
 		return err
 	}
+
+	metrics.NumIPTableRules.Inc()
+	timer.StopAndRecord(metrics.AddIPTableRuleExecTime)
 
 	return nil
 }
@@ -331,6 +337,8 @@ func (iptMgr *IptablesManager) Delete(entry *IptEntry) error {
 		log.Errorf("Error: failed to delete iptables rules.")
 		return err
 	}
+
+	metrics.NumIPTableRules.Dec()
 
 	return nil
 }
