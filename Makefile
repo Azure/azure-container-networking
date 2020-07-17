@@ -367,24 +367,4 @@ endif
 # run all tests
 .PHONY: test-all
 test-all:
-	go test -v -race -covermode atomic -coverprofile=coverage.out \
-        ./ipam/ \
-        ./log/ \
-        ./netlink/ \
-        ./network/ \
-        ./store/ \
-        ./telemetry/ \
-		./aitelemetry/ \
-        ./cnm/network/ \
-        ./cni/ipam/ \
-        ./cns/ipamclient/ \
-        ./cns/cnsclient/ \
-        ./cns/requestcontroller/kubecontroller/ \
-        ./cnms/service/ \
-        ./npm/iptm/ \
-        ./npm/ipsm/
-	
-	#until the restserver tests are fixed...
-	go test -timeout 30s \
-		./cns/restserver -run ^TestIPAM*
-		
+	go test -v -race -covermode atomic -coverprofile=coverage.out ./...
