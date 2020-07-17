@@ -97,10 +97,6 @@ type MockCNSClient struct {
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
 func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest *cns.CreateNetworkContainerRequest) error {
-<<<<<<< HEAD
-	mockCNSUpdated = true
-	return nil
-=======
 	mi.MockCNSUpdated = true
 	return nil
 }
@@ -117,7 +113,6 @@ var _ DirectCRDClient = &MockDirectCRDClient{}
 
 type MockDirectCRDClient struct {
 	mockAPI *MockAPI
->>>>>>> reconcile-on-start
 }
 
 func (mc *MockDirectCRDClient) Get(cntxt context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
