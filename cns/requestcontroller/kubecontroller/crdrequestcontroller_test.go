@@ -135,16 +135,11 @@ func (mc *MockDirectCRDClient) Get(cntxt context.Context, name, namespace, typeN
 
 }
 
-<<<<<<< HEAD
-func ResetCNSInteractionFlag() {
-	mockCNSUpdated = false
-=======
 // MockDirectAPIClient implements the DirectAPIClient interface
 var _ DirectAPIClient = &MockDirectAPIClient{}
 
 type MockDirectAPIClient struct {
 	mockAPI *MockAPI
->>>>>>> reconcile-on-start
 }
 
 func (mc *MockDirectAPIClient) ListPods(cntxt context.Context, namespace, node string) (*corev1.PodList, error) {
