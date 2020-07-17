@@ -55,7 +55,7 @@ func goRequestController(rc requestcontroller.RequestController) {
 	oldCount := 20
 	newRequestedIPCount := oldCount - len(secondaryIPConfigs)
 
-	spec, _ := kubecontroller.CNSToCRDSpec(secondaryIPConfigs, ipCount)
+	spec, _ := kubecontroller.CNSToCRDSpec(secondaryIPConfigs, newRequestedIPCount)
 
 	//Update CRD spec
 	rc.UpdateCRDSpec(cntxt, spec)
