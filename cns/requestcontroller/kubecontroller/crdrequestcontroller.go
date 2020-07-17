@@ -243,9 +243,7 @@ func (crdRC *crdRequestController) getNodeNetConfigDirect(cntxt context.Context,
 		err               error
 	)
 
-	nodeNetworkConfig, err = crdRC.directCRDClient.Get(cntxt, name, namespace, crdTypeName)
-
-	if err != nil {
+	if nodeNetworkConfig, err = crdRC.directCRDClient.Get(cntxt, name, namespace, crdTypeName); err != nil {
 		return nil, err
 	}
 
@@ -268,9 +266,7 @@ func (crdRC *crdRequestController) getAllPods(cntxt context.Context, node string
 		err  error
 	)
 
-	pods, err = crdRC.directAPIClient.ListPods(cntxt, allNamespaces, node)
-
-	if err != nil {
+	if pods, err = crdRC.directAPIClient.ListPods(cntxt, allNamespaces, node); err != nil {
 		return nil, err
 	}
 
