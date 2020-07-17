@@ -110,4 +110,8 @@ const (
 	// Node ID/Name
 	OptNodeID      = "node-id"
 	OptNodeIDAlias = "n"
+
+	// Managed mode
+	OptManaged      = "managed"
+	OptManagedAlias = "m"
 )

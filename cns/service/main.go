@@ -208,6 +208,13 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: "",
 	},
+	{
+		Name:         acn.OptManaged,
+		Shorthand:    acn.OptManagedAlias,
+		Description:  "Set to true to enable managed mode. This is deprecated in favor of cns_config.json",
+		Type:         "bool",
+		DefaultValue: false,
+	},
 }
 
 // Prints description and version information.
@@ -218,30 +225,36 @@ func printVersion() {
 
 // Try to register node with DNC when CNS is started in managed DNC mode
 func registerNode(httpRestService restserver.HTTPService, dncEP, infraVnet, nodeID string) {
+	logger.Printf("[Azure CNS] Registering node %s with Infrastructure Network: %s PrivateEndpoint: %s", nodeID, infraVnet, dncEP)
+
 	var (
 		numCPU   = runtime.NumCPU()
+		url      = fmt.Sprintf(acn.RegisterNodeURLFmt, dncEP, infraVnet, nodeID, numCPU, dncApiVersion)
 		response *http.Response
 		err      = fmt.Errorf("")
 		body     bytes.Buffer
 		httpc    = acn.GetHttpClient()
 	)
 
-	for err != nil {
-		response, err = httpc.Post(fmt.Sprintf("%s/%s/node/%s/cores/%d%s", dncEP, infraVnet, nodeID, numCPU, dncApiVersion), "application/json", &body)
+	for sleep := true; err != nil; sleep = true {
+		response, err = httpc.Post(url, "application/json", &body)
 		if err == nil {
 			if response.StatusCode == http.StatusCreated {
 				var req cns.SetOrchestratorTypeRequest
 				json.NewDecoder(response.Body).Decode(&req)
 				httpRestService.SetNodeOrchestrator(&req)
+				sleep = false
 			} else {
-				logger.Errorf("[Azure CNS] Failed to register node %s/%s with managed DNC with http status code %s", infraVnet, nodeID, strconv.Itoa(response.StatusCode))
+				logger.Errorf("[Azure CNS] Failed to register node with http status code %s", strconv.Itoa(response.StatusCode))
 			}
 
 			response.Body.Close()
-			time.Sleep(time.Second * 5)
 		} else {
-			logger.Errorf("[Azure CNS] Failed to register node %s/%s with err: %+v", infraVnet, nodeID, err)
-			return
+			logger.Errorf("[Azure CNS] Failed to register node with err: %+v", err)
+		}
+
+		if sleep {
+			time.Sleep(acn.FiveSeconds)
 		}
 	}
 
@@ -306,6 +319,7 @@ func main() {
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
+	config.Managed = acn.GetArg(acn.OptManaged).(bool) || cnsconfig.ManagedSettings != configuration.ManagedSettings{NodeSyncIntervalInSeconds: 30}
 
 	if !disableTelemetry {
 		ts := cnsconfig.TelemetrySettings
@@ -354,6 +368,7 @@ func main() {
 	httpRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
 	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
 	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
+	httpRestService.SetOption(acn.OptManaged, config.Managed)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -381,30 +396,27 @@ func main() {
 	}
 
 	// If CNS is running on managed DNC mode
-	if privateEndpoint != "" && infravnet != "" && nodeID != "" {
+	if config.Managed {
+		if privateEndpoint == "" || infravnet == "" || nodeID == "" {
+			logger.Errorf("[Azure CNS] Missing required values to run in managed mode: PrivateEndpoint: %s InfrastructureNetwork: %s NodeID: %s",
+				privateEndpoint,
+				infravnet,
+				nodeID)
+			return
+		}
+
 		httpRestService.SetOption(acn.OptPrivateEndpoint, privateEndpoint)
 		httpRestService.SetOption(acn.OptInfrastructureNetwork, infravnet)
 		httpRestService.SetOption(acn.OptNodeID, nodeID)
 
 		registerNode(httpRestService, privateEndpoint, infravnet, nodeID)
 		go func(ep, vnet, node string) {
-			// Periodically poll (30s) DNC for node updates
+			// Periodically poll DNC for node updates
 			for {
-				<-time.NewTicker(time.Second * 30).C
+				<-time.NewTicker(time.Duration(cnsconfig.ManagedSettings.NodeSyncIntervalInSeconds) * time.Second).C
 				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
 			}
 		}(privateEndpoint, infravnet, nodeID)
-	} else if !(privateEndpoint == "" && infravnet == "" && nodeID == "") {
-		if privateEndpoint == "" {
-			logger.Errorf("Failed to start CNS in managed mode since %s is not set", acn.OptPrivateEndpoint)
-		}
-		if infravnet == "" {
-			logger.Errorf("Failed to start CNS in managed mode since %s is not set", acn.OptInfrastructureNetwork)
-		}
-		if nodeID == "" {
-			logger.Errorf("Failed to start CNS in managed mode since %s is not set", acn.OptNodeID)
-		}
-		return
 	}
 
 	var netPlugin network.NetPlugin

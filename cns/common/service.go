@@ -18,6 +18,7 @@ type Service struct {
 	Options map[string]interface{}
 	ErrChan chan error
 	Store   store.KeyValueStore
+	Managed bool
 }
 
 // ServiceAPI defines base interface.
@@ -35,20 +36,22 @@ type ServiceConfig struct {
 	Listener *acn.Listener
 	ErrChan  chan error
 	Store    store.KeyValueStore
+	Managed  bool
 }
 
 // NewService creates a new Service object.
-func NewService(name, version string, store store.KeyValueStore) (*Service, error) {
+func NewService(name, version string, store store.KeyValueStore, managed bool) (*Service, error) {
 	logger.Debugf("[Azure CNS] Going to create a service object with name: %v. version: %v.", name, version)
 
 	svc := &Service{
 		Name:    name,
 		Version: version,
+		Managed: managed,
 		Options: make(map[string]interface{}),
 		Store:   store,
 	}
 
-	logger.Debugf("[Azure CNS] Finished creating service object with name: %v. version: %v.", name, version)
+	logger.Debugf("[Azure CNS] Finished creating service object with name: %v. version: %v. managed: %t", name, version, managed)
 	return svc, nil
 }
 
@@ -65,6 +68,7 @@ func (service *Service) Initialize(config *ServiceConfig) error {
 	service.ErrChan = config.ErrChan
 	service.Store = config.Store
 	service.Version = config.Version
+	service.Managed = config.Managed
 
 	logger.Debugf("[Azure CNS] nitialized service: %+v with config: %+v.", service, config)
 

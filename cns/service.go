@@ -27,8 +27,8 @@ type Service struct {
 }
 
 // NewService creates a new Service object.
-func NewService(name, version string, store store.KeyValueStore) (*Service, error) {
-	service, err := common.NewService(name, version, store)
+func NewService(name, version string, store store.KeyValueStore, managed bool) (*Service, error) {
+	service, err := common.NewService(name, version, store, managed)
 
 	if err != nil {
 		return nil, err

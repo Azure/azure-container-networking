@@ -17,6 +17,7 @@ const (
 
 type CNSConfig struct {
 	TelemetrySettings TelemetrySettings
+	ManagedSettings   ManagedSettings
 }
 
 type TelemetrySettings struct {
@@ -42,6 +43,13 @@ type TelemetrySettings struct {
 	DebugMode bool
 	// Interval for sending snapshot events.
 	SnapshotIntervalInMins int
+}
+
+type ManagedSettings struct {
+	PrivateEndpoint           string
+	InfrastructureNetwork     string
+	NodeID                    string
+	NodeSyncIntervalInSeconds int
 }
 
 // This functions reads cns config file and save it in a structure
@@ -99,7 +107,15 @@ func setTelemetrySettingDefaults(telemetrySettings *TelemetrySettings) {
 	}
 }
 
+// set managed setting defaults
+func setManagedSettingDefaults(managedSettings *ManagedSettings) {
+	if managedSettings.NodeSyncIntervalInSeconds == 0 {
+		managedSettings.NodeSyncIntervalInSeconds = 30
+	}
+}
+
 // Set Default values of CNS config if not specified
 func SetCNSConfigDefaults(config *CNSConfig) {
 	setTelemetrySettingDefaults(&config.TelemetrySettings)
+	setManagedSettingDefaults(&config.ManagedSettings)
 }
