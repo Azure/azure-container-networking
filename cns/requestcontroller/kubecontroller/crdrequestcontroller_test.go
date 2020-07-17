@@ -30,6 +30,8 @@ const (
 	nonexistingNNCName   = "nodenetconfig_nonexisting"
 	nonexistingPodName   = "pod_nonexisting"
 	nonexistingNamespace = "namespace_nonexisting"
+	ncPrimaryIP          = "10.0.0.1"
+	ncNetMask            = "255.255.255.0"
 )
 
 // MockAPI is a mock of kubernete's API server
@@ -583,6 +585,21 @@ func TestInitRequestController(t *testing.T) {
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
 		},
+		Status: nnc.NodeNetworkConfigStatus{
+			NetworkContainers: []nnc.NetworkContainer{
+				{
+					PrimaryIP: ncPrimaryIP,
+					Netmask:   ncNetMask,
+					ID:        networkContainerID,
+					IPAssignments: []nnc.IPAssignment{
+						{
+							Name: allocatedUUID,
+							IP:   allocatedPodIP,
+						},
+					},
+				},
+			},
+		},
 	}
 	mockNNCKey := MockKey{
 		Namespace: existingNamespace,
@@ -656,6 +673,10 @@ func TestInitRequestController(t *testing.T) {
 
 	if _, ok := mockCNSClient.Pods[mockPod.Status.PodIP]; !ok {
 		t.Fatalf("Init should pass cns pods that aren't part of host network")
+	}
+
+	if _, ok := mockCNSClient.NCRequest.SecondaryIPConfigs[allocatedUUID]; !ok {
+		t.Fatalf("Expected secondary ip config to be in ncrequest")
 	}
 
 }
