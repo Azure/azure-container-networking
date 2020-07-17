@@ -139,7 +139,8 @@ func validateIPConfig(ipconfig cns.ContainerIPConfigState) error {
 }
 
 func (service *HTTPRestService) CreateOrUpdateNetworkContainerWithSecondaryIPConfigs(nc cns.CreateNetworkContainerRequest) error {
-	return service.addIPConfigsToState(nc.SecondaryIPConfigs)
+	//return service.addIPConfigsToState(nc.SecondaryIPConfigs)
+	return nil
 }
 
 //AddIPConfigsToState takes a lock on the service object, and will add an array of ipconfigs to the CNS Service.

@@ -30,18 +30,18 @@ var (
 	}
 )
 
-func addTestStateToRestServer(svc *restserver.HTTPRestService) {
-	// set state as already allocated
-	state1, _ := restserver.NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Available, testPod1Info)
-	ipconfigs := map[string]cns.ContainerIPConfigState{
-		state1.ID: state1,
-	}
-	nc := cns.CreateNetworkContainerRequest{
-		SecondaryIPConfigs: ipconfigs,
-	}
+// func addTestStateToRestServer(svc *restserver.HTTPRestService) {
+// 	// set state as already allocated
+// 	state1, _ := restserver.NewPodStateWithOrchestratorContext(testIP1, 24, testPod1GUID, testNCID, cns.Available, testPod1Info)
+// 	ipconfigs := map[string]cns.SecondaryIPConfig{
+// 		state1.ID: state1,
+// 	}
+// 	nc := cns.CreateNetworkContainerRequest{
+// 		SecondaryIPConfigs: ipconfigs,
+// 	}
 
-	svc.CreateOrUpdateNetworkContainerWithSecondaryIPConfigs(nc)
-}
+// 	svc.CreateOrUpdateNetworkContainerWithSecondaryIPConfigs(nc)
+// }
 
 func getIPConfigFromGetNetworkContainerResponse(resp *cns.GetIPConfigResponse) (net.IPNet, error) {
 	var (
@@ -98,7 +98,7 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	addTestStateToRestServer(svc)
+	//addTestStateToRestServer(svc)
 
 	if httpRestService != nil {
 		err = httpRestService.Start(&config)
