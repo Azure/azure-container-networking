@@ -35,13 +35,10 @@ func CRDStatusToNCRequest(crdStatus *nnc.NodeNetworkConfigStatus) (*cns.CreateNe
 			}
 			createNCRequest.SecondaryIPConfigs[ipAssignment.Name] = secondaryIPConfig
 		}
-
-		//Only returning the first network container for now, later we will return a list
-		return &createNCRequest, nil
-
 	}
 
-	return nil, nil
+	//Only returning the first network container for now, later we will return a list
+	return &createNCRequest, nil
 }
 
 // CNSToCRDSpec translates CNS's list of Ips to be released and requested ip count into a CRD Spec
