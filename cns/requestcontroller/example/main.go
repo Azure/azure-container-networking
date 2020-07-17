@@ -3,15 +3,21 @@ package main
 import (
 	"time"
 
-	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/requestcontroller"
 	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubecontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"golang.org/x/net/context"
 )
 
 func goRequestController(rc requestcontroller.RequestController) {
+	//Before we start the reconcile loop, we want to initialize the CNS state
+	if err := rc.InitCNS(); err != nil {
+		logger.Errorf("Error initializing cns state: %v", err)
+		return
+	}
+
 	//Exit channel for requestController, this channel is notified when requestController receives
 	//SIGINT or SIGTERM, requestControllerExitChan is sent 'true' and you can clean up anything then
 	requestControllerExitChan := make(chan bool, 1)
@@ -30,33 +36,24 @@ func goRequestController(rc requestcontroller.RequestController) {
 	// We provide a context when making operations on CRD in case we need to cancel operation
 	cntxt := context.Background()
 
-	// Example release of ips
-	var ipConfigsToRelease []*cns.ContainerIPConfigState
-	ipConfig1 := &cns.ContainerIPConfigState{
-		IPConfig: cns.IPSubnet{
-			IPAddress: "10.0.0.1",
-		},
-		ID:    "uuid1",
-		NCID:  "ncid1",
-		State: cns.Available,
-	}
-	ipConfig2 := &cns.ContainerIPConfigState{
-		IPConfig: cns.IPSubnet{
-			IPAddress: "10.0.0.2",
-		},
-		ID:    "uuid2",
-		NCID:  "ncid2",
-		State: cns.Available,
-	}
-	ipConfigsToRelease = append(ipConfigsToRelease, ipConfig1)
-	ipConfigsToRelease = append(ipConfigsToRelease, ipConfig2)
+	// Create some dummy uuids
+	uuids := make([]string, 5)
+	uuids[0] = "uuid0"
+	uuids[1] = "uuid1"
+	uuids[2] = "uuid2"
+	uuids[3] = "uuid3"
+	uuids[4] = "uuid4"
 
-	// In a rebatch scenario, we would want to request a new count of Ips
-	// If it isn't a rebatch scenario, provide the old count and it will remain unchanged
-	requestedIPCount := 10
+	// newCount = oldCount - ips releasing
+	// In this example, say we had 20 allocated to the node, we want to release 5, new count would be 15
+	oldCount := 20
+	newRequestedIPCount := int64(oldCount - len(uuids))
 
-	// Translate
-	spec, _ := kubecontroller.CNSToCRDSpec(ipConfigsToRelease, requestedIPCount)
+	//Create CRD spec
+	spec := &nnc.NodeNetworkConfigSpec{
+		RequestedIPCount: newRequestedIPCount,
+		IPsNotInUse:      uuids,
+	}
 
 	//Update CRD spec
 	rc.UpdateCRDSpec(cntxt, spec)
