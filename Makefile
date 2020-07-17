@@ -367,21 +367,4 @@ endif
 # run all tests
 .PHONY: test-all
 test-all:
-	go test -v -race -covermode atomic -coverprofile=coverage.out \
-        ./ipam/ \
-        ./log/ \
-        ./netlink/ \
-        ./network/ \
-        ./store/ \
-        ./telemetry/ \
-        ./aitelemetry/ \
-        ./cnm/network/ \
-        ./cni/ipam/ \
-        ./cns/ipamclient/ \
-        ./cns/cnsclient/ \
-        ./cns/restserver/ \
-        ./cns/requestcontroller/kubecontroller/ \
-        ./cnms/service/ \
-        ./npm/iptm/ \
-        ./npm/ipsm/
-		
+	go test -v -race -covermode atomic -coverprofile=coverage.out ./...
