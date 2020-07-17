@@ -3,6 +3,7 @@ package kubecontroller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -12,9 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,10 +33,10 @@ const (
 // - watches CRD status changes
 // - updates CRD spec
 type crdRequestController struct {
-	mgr             manager.Manager       //Manager starts the reconcile loop which watches for crd status changes
-	KubeClient      KubeClient            //KubeClient interacts with API server
-	directAPIClient *kubernetes.Clientset //direct client to the api server
-	directCRDClient *rest.RESTClient      //direct client to the api server for the crd
+	mgr             manager.Manager //Manager starts the reconcile loop which watches for crd status changes
+	KubeClient      KubeClient      //KubeClient is a cached client which interacts with API server
+	directAPIClient DirectAPIClient //Direct client to interact with API server
+	directCRDClient DirectCRDClient //Direct client to interact with CRDs on API server
 	CNSClient       cnsclient.APIClient
 	nodeName        string //name of node running this program
 	Reconciler      *CrdReconciler
@@ -82,14 +81,16 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 	}
 
 	// Create a direct client to the API server which we use to list pods when initializing cns state before reconcile loop
-	directAPIClient, err := kubernetes.NewForConfig(kubeconfig)
+	directAPIClient, err := NewAPIDirectClient(kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating direct API Client: %v", err)
+	}
 
 	// Create a direct client to the API server configured to get nodenetconfigs to get nnc for same reason above
-	config := *kubeconfig
-	config.GroupVersion = &nnc.GroupVersion
-	config.APIPath = "/apis"
-	config.NegotiatedSerializer = clientgoscheme.Codecs.WithoutConversion()
-	directCRDClient, err := rest.RESTClientFor(&config)
+	directCRDClient, err := NewCRDDirectClient(kubeconfig, &nnc.GroupVersion)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating direct CRD client: %v", err)
+	}
 
 	// Create manager for CrdRequestController
 	// MetricsBindAddress is the tcp address that the controller should bind to
@@ -242,8 +243,7 @@ func (crdRC *crdRequestController) getNodeNetConfigDirect(cntxt context.Context,
 		err               error
 	)
 
-	nodeNetworkConfig = &nnc.NodeNetworkConfig{}
-	err = crdRC.directCRDClient.Get().Namespace(namespace).Resource(crdTypeName).Name(name).Do(cntxt).Into(nodeNetworkConfig)
+	nodeNetworkConfig, err = crdRC.directCRDClient.Get(cntxt, name, namespace, crdTypeName)
 
 	if err != nil {
 		return nil, err
@@ -268,9 +268,7 @@ func (crdRC *crdRequestController) getAllPods(cntxt context.Context, node string
 		err  error
 	)
 
-	pods, err = crdRC.directAPIClient.CoreV1().Pods(allNamespaces).List(cntxt, metav1.ListOptions{
-		FieldSelector: "spec.nodeName=" + node,
-	})
+	pods, err = crdRC.directAPIClient.ListPods(cntxt, allNamespaces, node)
 
 	if err != nil {
 		return nil, err
