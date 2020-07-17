@@ -341,7 +341,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 	existing, ok := service.getNetworkContainerDetails(cns.SwiftPrefix + req.NetworkContainerid)
 	if isManagedDnc && operation == attach {
 		if ok {
-			if existing.CreateNetworkContainerRequest.WaitingForUpdate {
+			if existing.WaitingForUpdate {
 				_, returnCode, message := isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid)
 				if returnCode != Success {
 					return cns.Response{

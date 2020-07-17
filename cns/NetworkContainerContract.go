@@ -76,7 +76,6 @@ type CreateNetworkContainerRequest struct {
 	AllowHostToNCCommunication bool
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
-	WaitingForUpdate           bool // True when NC is waiting for NMA to sync versions/rules
 }
 
 // NetworkContainerRequestPolicies - specifies policies associated with create network request
