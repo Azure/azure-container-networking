@@ -3,11 +3,11 @@ package main
 import (
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/requestcontroller"
 	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubecontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"golang.org/x/net/context"
 )
 
@@ -36,24 +36,26 @@ func goRequestController(rc requestcontroller.RequestController) {
 	// We provide a context when making operations on CRD in case we need to cancel operation
 	cntxt := context.Background()
 
-	// Create some dummy uuids
-	uuids := make([]string, 5)
-	uuids[0] = "uuid0"
-	uuids[1] = "uuid1"
-	uuids[2] = "uuid2"
-	uuids[3] = "uuid3"
-	uuids[4] = "uuid4"
-
-	// newCount = oldCount - ips releasing
-	// In this example, say we had 20 allocated to the node, we want to release 5, new count would be 15
-	oldCount := 20
-	newRequestedIPCount := int64(oldCount - len(uuids))
-
-	//Create CRD spec
-	spec := &nnc.NodeNetworkConfigSpec{
-		RequestedIPCount: newRequestedIPCount,
-		IPsNotInUse:      uuids,
+	// Example translation from cns secondaryIPs to crdSpec
+	ipConfig1 := cns.SecondaryIPConfig{
+		IPConfig: cns.IPSubnet{
+			IPAddress:    "10.0.0.1",
+			PrefixLength: 24,
+		},
 	}
+
+	ipConfig2 := cns.SecondaryIPConfig{
+		IPConfig: cns.IPSubnet{
+			IPAddress:    "10.0.0.2",
+			PrefixLength: 24,
+		},
+	}
+
+	secondaryIPConfigs := []cns.SecondaryIPConfig{ipConfig1, ipConfig2}
+	oldCount := 20
+	newRequestedIPCount := oldCount - len(secondaryIPConfigs)
+
+	spec, _ := kubecontroller.CNSToCRDSpec(secondaryIPConfigs, ipCount)
 
 	//Update CRD spec
 	rc.UpdateCRDSpec(cntxt, spec)

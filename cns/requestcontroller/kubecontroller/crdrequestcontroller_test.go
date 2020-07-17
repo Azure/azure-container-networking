@@ -365,16 +365,24 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	uuids := make([]string, 3)
-	uuids[0] = "uuid0"
-	uuids[1] = "uuid1"
-	uuids[2] = "uuid2"
-	newCount := int64(5)
-
-	spec := &nnc.NodeNetworkConfigSpec{
-		RequestedIPCount: newCount,
-		IPsNotInUse:      uuids,
+	ipConfig1 := cns.SecondaryIPConfig{
+		IPConfig: cns.IPSubnet{
+			IPAddress:    "10.0.0.1",
+			PrefixLength: 24,
+		},
 	}
+
+	ipConfig2 := cns.SecondaryIPConfig{
+		IPConfig: cns.IPSubnet{
+			IPAddress:    "10.0.0.2",
+			PrefixLength: 24,
+		},
+	}
+
+	secondaryIPConfigs := []cns.SecondaryIPConfig{ipConfig1, ipConfig2}
+	ipCount := 10
+
+	spec, _ := CNSToCRDSpec(secondaryIPConfigs, ipCount)
 
 	//Test updating spec for existing NodeNetworkConfig
 	err := rc.UpdateCRDSpec(context.Background(), spec)
@@ -409,16 +417,24 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	uuids := make([]string, 3)
-	uuids[0] = "uuid0"
-	uuids[1] = "uuid1"
-	uuids[2] = "uuid2"
-	newCount := int64(5)
-
-	spec := &nnc.NodeNetworkConfigSpec{
-		RequestedIPCount: newCount,
-		IPsNotInUse:      uuids,
+	ipConfig1 := cns.SecondaryIPConfig{
+		IPConfig: cns.IPSubnet{
+			IPAddress:    "10.0.0.1",
+			PrefixLength: 24,
+		},
 	}
+
+	ipConfig2 := cns.SecondaryIPConfig{
+		IPConfig: cns.IPSubnet{
+			IPAddress:    "10.0.0.2",
+			PrefixLength: 24,
+		},
+	}
+
+	secondaryIPConfigs := []cns.SecondaryIPConfig{ipConfig1, ipConfig2}
+	ipCount := 10
+
+	spec, _ := CNSToCRDSpec(secondaryIPConfigs, ipCount)
 
 	//Test update spec for existing NodeNetworkConfig
 	err := rc.UpdateCRDSpec(context.Background(), spec)

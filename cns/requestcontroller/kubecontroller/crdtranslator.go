@@ -45,9 +45,19 @@ func CRDStatusToNCRequest(crdStatus *nnc.NodeNetworkConfigStatus) (*cns.CreateNe
 }
 
 // CNSToCRDSpec translates CNS's list of Ips to be released and requested ip count into a CRD Spec
-func CNSToCRDSpec() (*nnc.NodeNetworkConfigSpec, error) {
-	//TODO: Translate list of ips to be released and requested ip count to CRD spec
-	return nil, nil
+func CNSToCRDSpec(secondaryIPConfigs []cns.SecondaryIPConfig, ipCount int) (*nnc.NodeNetworkConfigSpec, error) {
+	var (
+		spec              nnc.NodeNetworkConfigSpec
+		secondaryIPConfig cns.SecondaryIPConfig
+	)
+
+	spec.RequestedIPCount = int64(ipCount)
+
+	for _, secondaryIPConfig = range secondaryIPConfigs {
+		spec.IPsNotInUse = append(spec.IPsNotInUse, secondaryIPConfig.IPConfig.IPAddress)
+	}
+
+	return &spec, nil
 }
 
 func maskStringToBytes(mask string) []byte {
