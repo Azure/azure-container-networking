@@ -25,9 +25,7 @@ func (crdClient *CRDDirectClient) Get(cntxt context.Context, name, namespace, ty
 	)
 
 	nodeNetConfig = &nnc.NodeNetworkConfig{}
-	err = crdClient.restClient.Get().Namespace(namespace).Resource(crdTypeName).Name(name).Do(cntxt).Into(nodeNetConfig)
-
-	if err != nil {
+	if err = crdClient.restClient.Get().Namespace(namespace).Resource(crdTypeName).Name(name).Do(cntxt).Into(nodeNetConfig); err != nil {
 		return nil, err
 	}
 
