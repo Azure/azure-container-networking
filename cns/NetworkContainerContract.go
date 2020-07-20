@@ -59,6 +59,12 @@ const (
 	PendingRelease = "PendingRelease"
 )
 
+// CNS Modes
+const (
+	Direct      = "Direct"
+	PrivateLink = "PrivateLink"
+)
+
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
 	Version                    string

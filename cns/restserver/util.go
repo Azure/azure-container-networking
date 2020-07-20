@@ -207,22 +207,21 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 
 		logger.Printf("pod info %+v", podInfo)
 
-		var (
-			context   = podInfo.PodName + podInfo.PodNamespace
-			dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
-			infraVnet = service.GetOption(acn.OptInfrastructureNetwork).(string)
-			nodeID    = service.GetOption(acn.OptNodeID).(string)
-			managed   = service.GetOption(acn.OptManaged).(bool)
-		)
-
+		context := podInfo.PodName + podInfo.PodNamespace
 		containerID, exists = service.state.ContainerIDByOrchestratorContext[context]
-		if managed {
+		if service.Managed {
 			if exists {
 				_, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID)
 				if getNetworkContainerResponse.Response.ReturnCode == Success {
 					return getNetworkContainerResponse
 				}
 			} else {
+				var (
+					dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
+					infraVnet = service.GetOption(acn.OptInfrastructureNetwork).(string)
+					nodeID    = service.GetOption(acn.OptNodeID).(string)
+				)
+
 				service.RUnlock()
 				getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.SyncNodeStatus(dncEP, infraVnet, nodeID, req.OrchestratorContext)
 				service.RLock()
@@ -331,15 +330,8 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 			Message:    "[Azure CNS] Error. NetworkContainerid is empty"}
 	}
 
-	var (
-		dncEP        = service.GetOption(acn.OptPrivateEndpoint).(string)
-		infraVnet    = service.GetOption(acn.OptInfrastructureNetwork).(string)
-		nodeID       = service.GetOption(acn.OptNodeID).(string)
-		isManagedDnc = service.GetOption(acn.OptManaged).(bool)
-	)
-
 	existing, ok := service.getNetworkContainerDetails(cns.SwiftPrefix + req.NetworkContainerid)
-	if isManagedDnc && operation == attach {
+	if service.Managed && operation == attach {
 		if ok {
 			if existing.WaitingForUpdate {
 				_, returnCode, message := isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid)
@@ -350,6 +342,12 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				}
 			}
 		} else {
+			var (
+				dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
+				infraVnet = service.GetOption(acn.OptInfrastructureNetwork).(string)
+				nodeID    = service.GetOption(acn.OptNodeID).(string)
+			)
+
 			returnCode, msg := service.SyncNodeStatus(dncEP, infraVnet, nodeID, json.RawMessage{})
 			if returnCode != Success {
 				return cns.Response{

@@ -318,9 +318,16 @@ func main() {
 	configuration.SetCNSConfigDefaults(&cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
-	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
-	config.Managed = acn.GetArg(acn.OptManaged).(bool) || cnsconfig.ManagedSettings != configuration.ManagedSettings{NodeSyncIntervalInSeconds: 30}
+	if cnsconfig.ManagedSettings != (configuration.ManagedSettings{NodeSyncIntervalInSeconds: 30}) {
+		config.Managed = true
+		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
+		infravnet = cnsconfig.ManagedSettings.InfrastructureNetwork
+		nodeID = cnsconfig.ManagedSettings.NodeID
+	} else {
+		config.Managed = acn.GetArg(acn.OptManaged).(bool)
+	}
 
+	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
 	if !disableTelemetry {
 		ts := cnsconfig.TelemetrySettings
 		aiConfig := aitelemetry.AIConfig{
