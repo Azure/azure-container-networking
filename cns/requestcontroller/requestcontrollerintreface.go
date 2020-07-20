@@ -8,7 +8,6 @@ import (
 
 // RequestController interface for cns to interact with the request controller
 type RequestController interface {
-	InitCNS() error
 	StartRequestController(exitChan chan bool) error
 	UpdateCRDSpec(cntxt context.Context, crdSpec *nnc.NodeNetworkConfigSpec) error
 }

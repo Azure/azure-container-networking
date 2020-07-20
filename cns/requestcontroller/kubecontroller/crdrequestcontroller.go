@@ -27,6 +27,7 @@ const (
 	crdTypeName       = "nodenetworkconfigs"
 	allNamespaces     = ""
 	prometheusAddress = "0" //0 means disabled
+	crdNotFound       = "no matches for kind \"NodeNetworkConfig\" in version \"acn.azure.com/v1alpha\""
 )
 
 // crdRequestController
@@ -141,9 +142,26 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 // Blocks until SIGINT or SIGTERM is received
 // Notifies exitChan when kill signal received
 func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) error {
-	logger.Printf("Starting manager")
-	if err := crdRC.mgr.Start(SetupSignalHandler(exitChan)); err != nil {
+	var (
+		err error
+	)
+	//Initialize cns state
+	logger.Printf("Initializing CNS state")
+	if err = crdRC.InitCNS(); err != nil {
+		logger.Errorf("[cns-rc] Error initializing cns state: %v", err)
+		return err
+	}
+
+	logger.Printf("Starting reconcile loop")
+	for {
+		err = crdRC.mgr.Start(SetupSignalHandler(exitChan))
+		if err == nil {
+			return nil
+		}
+	}
+	if err = crdRC.mgr.Start(SetupSignalHandler(exitChan)); err != nil {
 		logger.Errorf("[cns-rc] Error starting manager: %v", err)
+		return err
 	}
 
 	return nil
@@ -166,14 +184,19 @@ func (crdRC *crdRequestController) InitCNS() error {
 
 	// Get nodeNetConfig using direct client
 	if nodeNetConfig, err = crdRC.getNodeNetConfigDirect(cntxt, crdRC.nodeName, k8sNamespace); err != nil {
-		logger.Errorf("Error when getting nodeNetConfig using direct client when initializing cns state: %v", err)
-		return err
+		//Ignore scheme not installed and crd name not found
+		if client.IgnoreNotFound(err) != nil {
+			logger.Errorf("Error when getting nodeNetConfig using direct client when initializing cns state: %v", err)
+			return err
+		}
 	}
 
-	// Convert to CreateNetworkContainerRequest
-	if ncRequest, err = CRDStatusToNCRequest(&nodeNetConfig.Status); err != nil {
-		logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
-		return err
+	// Convert to CreateNetworkContainerRequest if crd not nill and is populated
+	if nodeNetConfig != nil && len(nodeNetConfig.Status.NetworkContainers) != 0 {
+		if ncRequest, err = CRDStatusToNCRequest(&nodeNetConfig.Status); err != nil {
+			logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
+			return err
+		}
 	}
 
 	// Get all pods using direct client
@@ -183,15 +206,17 @@ func (crdRC *crdRequestController) InitCNS() error {
 	}
 
 	// Convert pod list to map of pod ip -> kubernetes pod info
-	podInfoByIP = make(map[string]*cns.KubernetesPodInfo)
-	for _, pod = range pods.Items {
-		//Only add pods that aren't on the host network
-		if !pod.Spec.HostNetwork {
-			podInfo = &cns.KubernetesPodInfo{
-				PodName:      pod.Name,
-				PodNamespace: pod.Namespace,
+	if len(pods.Items) != 0 {
+		podInfoByIP = make(map[string]*cns.KubernetesPodInfo)
+		for _, pod = range pods.Items {
+			//Only add pods that aren't on the host network
+			if !pod.Spec.HostNetwork {
+				podInfo = &cns.KubernetesPodInfo{
+					PodName:      pod.Name,
+					PodNamespace: pod.Namespace,
+				}
+				podInfoByIP[pod.Status.PodIP] = podInfo
 			}
-			podInfoByIP[pod.Status.PodIP] = podInfo
 		}
 	}
 
