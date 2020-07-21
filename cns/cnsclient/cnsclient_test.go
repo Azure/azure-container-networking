@@ -1,22 +1,10 @@
 package cnsclient
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"net"
-	"net/http"
-	"os"
-	"reflect"
 	"strconv"
-	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/common"
-	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/restserver"
-	"github.com/Azure/azure-container-networking/log"
 )
 
 var (
@@ -64,6 +52,7 @@ func getIPConfigFromGetNetworkContainerResponse(resp *cns.GetIPConfigResponse) (
 	return resultIPnet, err
 }
 
+/*
 func TestMain(m *testing.M) {
 	var (
 		info = &cns.SetOrchestratorTypeRequest{
@@ -167,3 +156,4 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
 	}
 }
+*/
