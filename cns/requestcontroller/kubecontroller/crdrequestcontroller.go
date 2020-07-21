@@ -148,7 +148,7 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 	)
 
 	logger.Printf("Initializing CNS state")
-	if err = crdRC.InitCNS(); err != nil {
+	if err = crdRC.initCNS(); err != nil {
 		logger.Errorf("[cns-rc] Error initializing cns state: %v", err)
 		return err
 	}
@@ -167,7 +167,7 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 }
 
 // InitCNS initializes cns by passing pods and a createnetworkcontainerrequest
-func (crdRC *crdRequestController) InitCNS() error {
+func (crdRC *crdRequestController) initCNS() error {
 	var (
 		pods          *corev1.PodList
 		pod           corev1.Pod
