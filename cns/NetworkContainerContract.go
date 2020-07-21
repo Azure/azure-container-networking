@@ -59,10 +59,11 @@ const (
 	PendingRelease = "PendingRelease"
 )
 
-// CNS Modes
+// ChannelMode :- CNS channel modes
 const (
-	Direct      = "Direct"
-	PrivateLink = "PrivateLink"
+	Direct  = "Direct"
+	Managed = "Managed"
+	CRD     = "CRD"
 )
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.

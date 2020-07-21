@@ -209,7 +209,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 
 		context := podInfo.PodName + podInfo.PodNamespace
 		containerID, exists = service.state.ContainerIDByOrchestratorContext[context]
-		if service.Managed {
+		if service.ChannelMode == cns.Managed {
 			if exists {
 				_, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID)
 				if getNetworkContainerResponse.Response.ReturnCode == Success {
@@ -331,7 +331,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 	}
 
 	existing, ok := service.getNetworkContainerDetails(cns.SwiftPrefix + req.NetworkContainerid)
-	if service.Managed && operation == attach {
+	if service.ChannelMode == cns.Managed && operation == attach {
 		if ok {
 			if existing.WaitingForUpdate {
 				_, returnCode, message := isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid)

@@ -92,7 +92,7 @@ type HTTPService interface {
 
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig) (HTTPService, error) {
-	service, err := cns.NewService(config.Name, config.Version, config.Store, config.Managed)
+	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
 	}

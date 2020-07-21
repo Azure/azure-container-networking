@@ -318,13 +318,12 @@ func main() {
 	configuration.SetCNSConfigDefaults(&cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
-	if cnsconfig.ManagedSettings != (configuration.ManagedSettings{NodeSyncIntervalInSeconds: 30}) {
-		config.Managed = true
+	if cnsconfig.ChannelMode == cns.Managed {
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetwork
 		nodeID = cnsconfig.ManagedSettings.NodeID
-	} else {
-		config.Managed = acn.GetArg(acn.OptManaged).(bool)
+	} else if acn.GetArg(acn.OptManaged).(bool) {
+		config.ChannelMode = cns.Managed
 	}
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
@@ -375,7 +374,6 @@ func main() {
 	httpRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
 	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
 	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
-	httpRestService.SetOption(acn.OptManaged, config.Managed)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -403,7 +401,7 @@ func main() {
 	}
 
 	// If CNS is running on managed DNC mode
-	if config.Managed {
+	if config.ChannelMode == cns.Managed {
 		if privateEndpoint == "" || infravnet == "" || nodeID == "" {
 			logger.Errorf("[Azure CNS] Missing required values to run in managed mode: PrivateEndpoint: %s InfrastructureNetwork: %s NodeID: %s",
 				privateEndpoint,
