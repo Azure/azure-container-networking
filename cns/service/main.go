@@ -245,7 +245,8 @@ func registerNode(httpRestService restserver.HTTPService, dncEP, infraVnet, node
 				httpRestService.SetNodeOrchestrator(&req)
 				sleep = false
 			} else {
-				logger.Errorf("[Azure CNS] Failed to register node with http status code %s", strconv.Itoa(response.StatusCode))
+				err = fmt.Errorf("[Azure CNS] Failed to register node with http status code %s", strconv.Itoa(response.StatusCode))
+				logger.Errorf(err.Error())
 			}
 
 			response.Body.Close()
