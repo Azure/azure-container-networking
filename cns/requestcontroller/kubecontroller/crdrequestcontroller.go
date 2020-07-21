@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
@@ -27,7 +28,7 @@ const (
 	crdTypeName       = "nodenetworkconfigs"
 	allNamespaces     = ""
 	prometheusAddress = "0" //0 means disabled
-	crdNotFound       = "no matches for kind \"NodeNetworkConfig\" in version \"acn.azure.com/v1alpha\""
+	crdNotInstalled   = "the server could not find the requested resource (get nodenetworkconfigs.acn.azure.com"
 )
 
 // crdRequestController
@@ -152,14 +153,31 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 		return err
 	}
 
-	logger.Printf("Starting reconcile loop")
 	for {
-		err = crdRC.mgr.Start(SetupSignalHandler(exitChan))
+		// loop until the crd scheme has been installed
+		_, err = crdRC.getNodeNetConfigDirect(context.Background(), crdRC.nodeName, k8sNamespace)
+
+		// If no error proceed to start reconcile loop
 		if err == nil {
-			return nil
+			break
 		}
+
+		// If crd is not installed, keep looping
+		if isNotInstalledMessage(err.Error()) {
+			continue
+		}
+
+		// If the crd is installed, and specific crd is not found, start reconcile loop
+		if client.IgnoreNotFound(err) == nil {
+			break
+		}
+
+		// If the error is something else, fail
+		return err
 	}
-	if err = crdRC.mgr.Start(SetupSignalHandler(exitChan)); err != nil {
+
+	logger.Printf("Starting reconcile loop")
+	if err := crdRC.mgr.Start(SetupSignalHandler(exitChan)); err != nil {
 		logger.Errorf("[cns-rc] Error starting manager: %v", err)
 		return err
 	}
@@ -296,4 +314,8 @@ func (crdRC *crdRequestController) getAllPods(cntxt context.Context, node string
 	}
 
 	return pods, nil
+}
+
+func isNotInstalledMessage(message string) bool {
+	return strings.Contains(message, crdNotInstalled)
 }
