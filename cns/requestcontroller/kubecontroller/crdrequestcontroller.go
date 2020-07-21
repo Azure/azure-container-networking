@@ -189,7 +189,7 @@ func (crdRC *crdRequestController) InitCNS() error {
 			os.Exit(1)
 		}
 
-		// If CRD is defined but instance of crd isn't found, ignore
+		// If instance of crd is not found, ignore
 		// otherwise, log error and return
 		if client.IgnoreNotFound(err) != nil {
 			logger.Errorf("Error when getting nodeNetConfig using direct client when initializing cns state: %v", err)
