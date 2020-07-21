@@ -13,5 +13,6 @@
         "InfrastructureNetwork": "",
         "NodeID": "",
         "NodeSyncIntervalInSeconds": 30
-    }
+    },
+    "ChannelMode": "Direct"
 }

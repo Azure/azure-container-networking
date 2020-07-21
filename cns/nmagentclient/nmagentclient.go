@@ -13,8 +13,8 @@ const (
 	WireserverIP = "168.63.129.16"
 )
 
-// NetworkContainerResponse - NMAgent response.
-type NetworkContainerResponse struct {
+// NMANetworkContainerResponse - NMAgent response.
+type NMANetworkContainerResponse struct {
 	ResponseCode       string `json:"httpStatusCode"`
 	NetworkContainerID string `json:"networkContainerId"`
 	Version            string `json:"version"`

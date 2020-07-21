@@ -509,7 +509,7 @@ func isNCWaitingForUpdate(ncVersion, ncid string) (waitingForUpdate bool, return
 	response, err := nmagentclient.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
 	if err == nil {
 		if response.StatusCode == http.StatusOK {
-			var versionResponse nmagentclient.NetworkContainerResponse
+			var versionResponse nmagentclient.NMANetworkContainerResponse
 			rBytes, _ := ioutil.ReadAll(response.Body)
 			json.Unmarshal(rBytes, &versionResponse)
 			if versionResponse.ResponseCode == "200" {
