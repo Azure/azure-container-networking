@@ -12,12 +12,6 @@ import (
 )
 
 func goRequestController(rc requestcontroller.RequestController) {
-	//Before we start the reconcile loop, we want to initialize the CNS state
-	if err := rc.InitCNS(); err != nil {
-		logger.Errorf("Error initializing cns state: %v", err)
-		return
-	}
-
 	//Exit channel for requestController, this channel is notified when requestController receives
 	//SIGINT or SIGTERM, requestControllerExitChan is sent 'true' and you can clean up anything then
 	requestControllerExitChan := make(chan bool, 1)
