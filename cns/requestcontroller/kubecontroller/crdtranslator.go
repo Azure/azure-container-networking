@@ -9,7 +9,7 @@ import (
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
-// CRDStatusToNCRequest translates a crd status to network container request
+// CRDStatusToNCRequest translates a crd status to createnetworkcontainer request
 func CRDStatusToNCRequest(crdStatus *nnc.NodeNetworkConfigStatus) (*cns.CreateNetworkContainerRequest, error) {
 	var (
 		createNCRequest   cns.CreateNetworkContainerRequest
