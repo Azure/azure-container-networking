@@ -974,8 +974,6 @@ func (service *HTTPRestService) getNetworkContainerStatus(w http.ResponseWriter,
 	containerInfo := service.state.ContainerStatus
 	if containerInfo != nil {
 		containerDetails, ok = containerInfo[req.NetworkContainerid]
-	} else {
-		ok = false
 	}
 
 	var hostVersion string

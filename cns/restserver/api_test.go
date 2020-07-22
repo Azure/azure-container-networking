@@ -218,7 +218,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkAdapterWithName(t, "ethWebApp")
+	err = deleteNetworkAdapterWithName(t, cns.SwiftPrefix+"ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -248,7 +248,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 	setEnv(t)
 	setOrchestratorType(t, cns.Kubernetes)
 
-	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "AzureContainerInstance")
+	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", cns.AzureContainerInstance)
 	if err != nil {
 		t.Errorf("creatOrUpdateNetworkContainerWithName failed Err:%+v", err)
 		t.Fatal(err)
@@ -263,7 +263,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkAdapterWithName(t, "ethWebApp")
+	err = deleteNetworkAdapterWithName(t, cns.SwiftPrefix+"ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -283,14 +283,14 @@ func TestGetNetworkContainerStatus(t *testing.T) {
 	setEnv(t)
 	setOrchestratorType(t, cns.Kubernetes)
 
-	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", "WebApps")
+	err := creatOrUpdateNetworkContainerWithName(t, "ethWebApp", "11.0.0.5", cns.AzureContainerInstance)
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
 	fmt.Println("Now calling getNetworkContainerStatus")
-	err = getNetworkContainerStatus(t, "ethWebApp")
+	err = getNetworkContainerStatus(t, cns.SwiftPrefix+"ethWebApp")
 	if err != nil {
 		t.Errorf("getNetworkContainerStatus failed Err:%+v", err)
 		t.Fatal(err)
@@ -298,7 +298,7 @@ func TestGetNetworkContainerStatus(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkAdapterWithName(t, "ethWebApp")
+	err = deleteNetworkAdapterWithName(t, cns.SwiftPrefix+"ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -319,7 +319,7 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 	}
 
 	fmt.Println("Now calling getInterfaceForContainer")
-	err = getInterfaceForContainer(t, "ethWebApp")
+	err = getInterfaceForContainer(t, cns.SwiftPrefix+"ethWebApp")
 	if err != nil {
 		t.Errorf("getInterfaceForContainer failed Err:%+v", err)
 		t.Fatal(err)
@@ -327,7 +327,7 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkAdapterWithName(t, "ethWebApp")
+	err = deleteNetworkAdapterWithName(t, cns.SwiftPrefix+"ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -597,7 +597,7 @@ func getNetworkContainerStatus(t *testing.T, name string) error {
 	var resp cns.GetNetworkContainerStatusResponse
 
 	getReq := &cns.GetNetworkContainerStatusRequest{
-		NetworkContainerid: "ethWebApp",
+		NetworkContainerid: name,
 	}
 
 	json.NewEncoder(&body).Encode(getReq)
@@ -624,7 +624,7 @@ func getInterfaceForContainer(t *testing.T, name string) error {
 	var resp cns.GetInterfaceForContainerResponse
 
 	getReq := &cns.GetInterfaceForContainerRequest{
-		NetworkContainerID: "ethWebApp",
+		NetworkContainerID: name,
 	}
 
 	json.NewEncoder(&body).Encode(getReq)

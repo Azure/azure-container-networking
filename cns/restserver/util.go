@@ -105,14 +105,14 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	service.Lock()
 	defer service.Unlock()
 
+	if service.state.ContainerStatus == nil {
+		service.state.ContainerStatus = make(map[string]containerstatus)
+	}
+
 	existing, ok := service.state.ContainerStatus[req.NetworkContainerid]
 	var hostVersion string
 	if ok {
 		hostVersion = existing.HostVersion
-	}
-
-	if service.state.ContainerStatus == nil {
-		service.state.ContainerStatus = make(map[string]containerstatus)
 	}
 
 	service.state.ContainerStatus[req.NetworkContainerid] =
