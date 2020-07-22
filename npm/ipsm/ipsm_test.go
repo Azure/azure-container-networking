@@ -3,6 +3,7 @@
 package ipsm
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -144,15 +145,24 @@ func TestCreateSet(t *testing.T) {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when set maxelem")
 	}
 
+	testSet3Name := "test-set-with-port"
+	spec = append([]string{util.IpsetIPPortHashFlag})
+	if err := ipsMgr.CreateSet(testSet3Name, spec); err != nil {
+		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when creating port set")
+	}
+	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err != nil {
+		t.Errorf("AddToSet failed @ ipsMgr.CreateSet when set port")
+	}
+
 	newGaugeVal, err3 := promutil.GetValue(metrics.NumIPSets)
 	newCountVal, err4 := promutil.GetCountValue(metrics.AddIPSetExecTime)
 	testSet1Count, err5 := promutil.GetVecValue(metrics.IPSetInventory, prometheus.Labels{metrics.SetNameLabel: testSet1Name})
 	testSet2Count, err6 := promutil.GetVecValue(metrics.IPSetInventory, prometheus.Labels{metrics.SetNameLabel: testSet2Name})
 	promutil.NotifyIfErrors(t, err1, err2, err3, err4, err5, err6)
-	if newGaugeVal != gaugeVal+2 {
+	if newGaugeVal != gaugeVal+3 {
 		t.Errorf("Change in ipset number didn't register in Prometheus")
 	}
-	if newCountVal != countVal+2 {
+	if newCountVal != countVal+3 {
 		t.Errorf("Execution time didn't register in Prometheus")
 	}
 	if testSet1Count != 0 || testSet2Count != 0 {
