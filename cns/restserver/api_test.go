@@ -218,7 +218,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkAdapterWithName(t, cns.SwiftPrefix+"ethWebApp")
+	err = deleteNetworkAdapterWithName(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -263,7 +263,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkAdapterWithName(t, cns.SwiftPrefix+"ethWebApp")
+	err = deleteNetworkAdapterWithName(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -290,7 +290,7 @@ func TestGetNetworkContainerStatus(t *testing.T) {
 	}
 
 	fmt.Println("Now calling getNetworkContainerStatus")
-	err = getNetworkContainerStatus(t, cns.SwiftPrefix+"ethWebApp")
+	err = getNetworkContainerStatus(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("getNetworkContainerStatus failed Err:%+v", err)
 		t.Fatal(err)
@@ -298,7 +298,7 @@ func TestGetNetworkContainerStatus(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkAdapterWithName(t, cns.SwiftPrefix+"ethWebApp")
+	err = deleteNetworkAdapterWithName(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -319,7 +319,7 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 	}
 
 	fmt.Println("Now calling getInterfaceForContainer")
-	err = getInterfaceForContainer(t, cns.SwiftPrefix+"ethWebApp")
+	err = getInterfaceForContainer(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("getInterfaceForContainer failed Err:%+v", err)
 		t.Fatal(err)
@@ -327,7 +327,7 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkAdapterWithName(t, cns.SwiftPrefix+"ethWebApp")
+	err = deleteNetworkAdapterWithName(t, "ethWebApp")
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)

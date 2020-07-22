@@ -775,10 +775,6 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 		returnMessage = fmt.Sprintf("[Azure CNS] Error. NetworkContainerid is empty")
 	}
 
-	if !strings.Contains(req.NetworkContainerid, cns.SwiftPrefix) {
-		req.NetworkContainerid = cns.SwiftPrefix + req.NetworkContainerid
-	}
-
 	switch r.Method {
 	case "POST":
 		if req.NetworkContainerType == cns.WebApps {
