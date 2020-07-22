@@ -675,7 +675,7 @@ func TestInitRequestController(t *testing.T) {
 		nodeName:        existingNNCName,
 	}
 
-	if err := rc.InitCNS(); err != nil {
+	if err := rc.initCNS(); err != nil {
 		t.Fatalf("Expected no failure to init cns when given mock clients")
 	}
 

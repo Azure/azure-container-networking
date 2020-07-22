@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
@@ -14,6 +13,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -28,7 +29,6 @@ const (
 	crdTypeName       = "nodenetworkconfigs"
 	allNamespaces     = ""
 	prometheusAddress = "0" //0 means disabled
-	crdNotInstalled   = "the server could not find the requested resource (get nodenetworkconfigs.acn.azure.com"
 )
 
 // crdRequestController
@@ -146,39 +146,20 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 	var (
 		err error
 	)
-	//Initialize cns state
+
 	logger.Printf("Initializing CNS state")
-	if err = crdRC.InitCNS(); err != nil {
+	if err = crdRC.initCNS(); err != nil {
 		logger.Errorf("[cns-rc] Error initializing cns state: %v", err)
-		return err
-	}
-
-	for {
-		// loop until the crd scheme has been installed
-		_, err = crdRC.getNodeNetConfigDirect(context.Background(), crdRC.nodeName, k8sNamespace)
-
-		// If no error proceed to start reconcile loop
-		if err == nil {
-			break
-		}
-
-		// If crd is not installed, keep looping
-		if isNotInstalledMessage(err.Error()) {
-			continue
-		}
-
-		// If the crd is installed, and specific crd is not found, start reconcile loop
-		if client.IgnoreNotFound(err) == nil {
-			break
-		}
-
-		// If the error is something else, fail
 		return err
 	}
 
 	logger.Printf("Starting reconcile loop")
 	if err := crdRC.mgr.Start(SetupSignalHandler(exitChan)); err != nil {
-		logger.Errorf("[cns-rc] Error starting manager: %v", err)
+		if crdRC.isNotDefined(err) {
+			logger.Errorf("[cns-rc] CRD is not defined on cluster, starting reconcile loop failed: %v", err)
+			os.Exit(1)
+		}
+
 		return err
 	}
 
@@ -186,7 +167,7 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 }
 
 // InitCNS initializes cns by passing pods and a createnetworkcontainerrequest
-func (crdRC *crdRequestController) InitCNS() error {
+func (crdRC *crdRequestController) initCNS() error {
 	var (
 		pods          *corev1.PodList
 		pod           corev1.Pod
@@ -202,7 +183,14 @@ func (crdRC *crdRequestController) InitCNS() error {
 
 	// Get nodeNetConfig using direct client
 	if nodeNetConfig, err = crdRC.getNodeNetConfigDirect(cntxt, crdRC.nodeName, k8sNamespace); err != nil {
-		//Ignore scheme not installed and crd name not found
+		// If the CRD is not defined, exit
+		if crdRC.isNotDefined(err) {
+			logger.Errorf("CRD is not defined on cluster: %v", err)
+			os.Exit(1)
+		}
+
+		// If instance of crd is not found, ignore
+		// otherwise, log error and return
 		if client.IgnoreNotFound(err) != nil {
 			logger.Errorf("Error when getting nodeNetConfig using direct client when initializing cns state: %v", err)
 			return err
@@ -316,6 +304,33 @@ func (crdRC *crdRequestController) getAllPods(cntxt context.Context, node string
 	return pods, nil
 }
 
-func isNotInstalledMessage(message string) bool {
-	return strings.Contains(message, crdNotInstalled)
+// isNotDefined tells whether the given error is a CRD not defined error
+func (crdRC *crdRequestController) isNotDefined(err error) bool {
+	var (
+		statusError *apierrors.StatusError
+		ok          bool
+		notDefined  bool
+		cause       metav1.StatusCause
+	)
+
+	if err == nil {
+		return false
+	}
+
+	if statusError, ok = err.(*apierrors.StatusError); !ok {
+		return false
+	}
+
+	if len(statusError.ErrStatus.Details.Causes) > 0 {
+		for _, cause = range statusError.ErrStatus.Details.Causes {
+			if cause.Type == metav1.CauseTypeUnexpectedServerResponse {
+				if apierrors.IsNotFound(err) {
+					notDefined = true
+					break
+				}
+			}
+		}
+	}
+
+	return notDefined
 }
