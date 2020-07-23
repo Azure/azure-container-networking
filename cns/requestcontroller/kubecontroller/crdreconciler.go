@@ -36,16 +36,14 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 	logger.Printf("[cns-rc] CRD object: %v", nodeNetConfig)
 
-	//TODO: Translate CRD status into NetworkContainer request
-	ncRequest, err := CRDStatusToNCRequest(&nodeNetConfig.Status)
+	ncRequest, err := CRDStatusToNCRequest(nodeNetConfig.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
 		//requeue
 		return reconcile.Result{}, err
 	}
 
-	//TODO: process the nc request on CNS side
-	r.CNSClient.CreateOrUpdateNC(ncRequest)
+	r.CNSClient.CreateOrUpdateNC(&ncRequest)
 
 	return reconcile.Result{}, nil
 }

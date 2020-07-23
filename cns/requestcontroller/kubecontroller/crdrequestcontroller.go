@@ -169,14 +169,15 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 // InitCNS initializes cns by passing pods and a createnetworkcontainerrequest
 func (crdRC *crdRequestController) initCNS() error {
 	var (
-		pods          *corev1.PodList
-		pod           corev1.Pod
-		podInfo       *cns.KubernetesPodInfo
-		nodeNetConfig *nnc.NodeNetworkConfig
-		podInfoByIP   map[string]*cns.KubernetesPodInfo
-		cntxt         context.Context
-		ncRequest     *cns.CreateNetworkContainerRequest
-		err           error
+		pods               *corev1.PodList
+		pod                corev1.Pod
+		podInfo            *cns.KubernetesPodInfo
+		nodeNetConfig      *nnc.NodeNetworkConfig
+		podInfoByIP        map[string]*cns.KubernetesPodInfo
+		cntxt              context.Context
+		ncRequest          cns.CreateNetworkContainerRequest
+		ncRequestReference *cns.CreateNetworkContainerRequest
+		err                error
 	)
 
 	cntxt = context.Background()
@@ -199,7 +200,9 @@ func (crdRC *crdRequestController) initCNS() error {
 
 	// Convert to CreateNetworkContainerRequest if crd not nill and is populated
 	if nodeNetConfig != nil && len(nodeNetConfig.Status.NetworkContainers) != 0 {
-		if ncRequest, err = CRDStatusToNCRequest(&nodeNetConfig.Status); err != nil {
+		// Assign the reference to the ncRequest, otherwise we'll pass a nil pointer to InitCNSState
+		ncRequestReference = &ncRequest
+		if ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status); err != nil {
 			logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
 			return err
 		}
@@ -227,12 +230,12 @@ func (crdRC *crdRequestController) initCNS() error {
 	}
 
 	// Call cnsclient init cns passing those two things
-	return crdRC.CNSClient.InitCNSState(ncRequest, podInfoByIP)
+	return crdRC.CNSClient.InitCNSState(ncRequestReference, podInfoByIP)
 
 }
 
 // UpdateCRDSpec updates the CRD spec
-func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec *nnc.NodeNetworkConfigSpec) error {
+func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec nnc.NodeNetworkConfigSpec) error {
 	nodeNetworkConfig, err := crdRC.getNodeNetConfig(cntxt, crdRC.nodeName, k8sNamespace)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error getting CRD when updating spec %v", err)
@@ -240,7 +243,7 @@ func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec 
 	}
 
 	//Update the CRD spec
-	crdSpec.DeepCopyInto(&nodeNetworkConfig.Spec)
+	(&crdSpec).DeepCopyInto(&nodeNetworkConfig.Spec)
 
 	//Send update to API server
 	if err := crdRC.updateNodeNetConfig(cntxt, nodeNetworkConfig); err != nil {

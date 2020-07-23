@@ -23,15 +23,14 @@ const (
 	existingNNCName      = "nodenetconfig_1"
 	existingPodName      = "pod_1"
 	hostNetworkPodName   = "pod_hostNet"
-	allocatedPodIP       = "10.0.0.1"
+	allocatedPodIP       = "10.0.0.1/32"
 	allocatedUUID        = "539970a2-c2dd-11ea-b3de-0242ac130004"
 	networkContainerID   = "24fcd232-0364-41b0-8027-6e6ef9aeabc6"
 	existingNamespace    = k8sNamespace
 	nonexistingNNCName   = "nodenetconfig_nonexisting"
 	nonexistingPodName   = "pod_nonexisting"
 	nonexistingNamespace = "namespace_nonexisting"
-	ncPrimaryIP          = "10.0.0.1"
-	ncNetMask            = "255.255.255.0"
+	ncPrimaryIP          = "10.0.0.1/32"
 )
 
 // MockAPI is a mock of kubernete's API server
@@ -443,7 +442,7 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 		t.Fatalf("Expected no error when updating spec on existing crd, got :%v", err)
 	}
 
-	if !reflect.DeepEqual(mockAPI.nodeNetConfigs[mockNNCKey].Spec, *spec) {
+	if !reflect.DeepEqual(mockAPI.nodeNetConfigs[mockNNCKey].Spec, spec) {
 		t.Fatalf("Expected Spec to equal requested spec update")
 	}
 }
@@ -605,7 +604,6 @@ func TestInitRequestController(t *testing.T) {
 			NetworkContainers: []nnc.NetworkContainer{
 				{
 					PrimaryIP: ncPrimaryIP,
-					Netmask:   ncNetMask,
 					ID:        networkContainerID,
 					IPAssignments: []nnc.IPAssignment{
 						{
