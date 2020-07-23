@@ -726,6 +726,8 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 			fallthrough
 		case cns.Kubernetes:
 			fallthrough
+		case cns.KubernetesCRD:
+			fallthrough
 		case cns.WebApps:
 			fallthrough
 		case cns.Batch:

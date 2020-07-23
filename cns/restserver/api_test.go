@@ -51,6 +51,7 @@ type xmlDocument struct {
 
 var (
 	service                               HTTPService
+	svc                                   *HTTPRestService
 	mux                                   *http.ServeMux
 	hostQueryForProgrammedVersionResponse = `{"httpStatusCode":"200","networkContainerId":"eab2470f-test-test-test-b3cd316979d5","version":"1"}`
 	hostQueryResponse                     = xmlDocument{
@@ -104,8 +105,7 @@ func TestMain(m *testing.M) {
 		fmt.Printf("Failed to create CNS object %v\n", err)
 		os.Exit(1)
 	}
-
-	svc := service.(*HTTPRestService)
+	svc = service.(*HTTPRestService)
 	svc.Name = "cns-test-server"
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)

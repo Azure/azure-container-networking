@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -32,6 +33,7 @@ const (
 	toggleIPV6Cmd        = "sysctl -w net.ipv6.conf.all.disable_ipv6=%d"
 	enableIPV6ForwardCmd = "sysctl -w net.ipv6.conf.all.forwarding=1"
 	disableRACmd         = "sysctl -w net.ipv6.conf.%s.accept_ra=0"
+	acceptRAV6File       = "/proc/sys/net/ipv6/conf/%s/accept_ra"
 )
 
 func getPrivateIPSpace() []string {
@@ -239,6 +241,13 @@ func AddSnatRule(match string, ip net.IP) error {
 }
 
 func DisableRAForInterface(ifName string) error {
+	raFilePath := fmt.Sprintf(acceptRAV6File, ifName)
+	exist, err := common.CheckIfFileExists(raFilePath)
+	if !exist {
+		log.Printf("[net] accept_ra file doesn't exist:err:%v", err)
+		return nil
+	}
+
 	cmd := fmt.Sprintf(disableRACmd, ifName)
 	out, err := platform.ExecuteCommand(cmd)
 	if err != nil {

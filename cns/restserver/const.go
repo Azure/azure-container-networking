@@ -27,7 +27,11 @@ const (
 	NetworkJoinFailed                       = 24
 	NetworkContainerPublishFailed           = 25
 	NetworkContainerUnpublishFailed         = 26
-	NetworkContainerPendingStatePropagation = 27
+	InvalidPrimaryIPConfig                  = 27
+	PrimaryCANotSame                        = 28
+	InconsistentIPConfigState               = 29
+	InvalidSecondaryIPConfig                = 30
+	NetworkContainerPendingStatePropagation = 31
 	UnexpectedError                         = 99
 )
 
