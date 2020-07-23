@@ -43,7 +43,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
-	r.CNSClient.CreateOrUpdateNC(&ncRequest)
+	r.CNSClient.CreateOrUpdateNC(ncRequest)
 
 	return reconcile.Result{}, nil
 }

@@ -169,15 +169,14 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 // InitCNS initializes cns by passing pods and a createnetworkcontainerrequest
 func (crdRC *crdRequestController) initCNS() error {
 	var (
-		pods               *corev1.PodList
-		pod                corev1.Pod
-		podInfo            *cns.KubernetesPodInfo
-		nodeNetConfig      *nnc.NodeNetworkConfig
-		podInfoByIP        map[string]*cns.KubernetesPodInfo
-		cntxt              context.Context
-		ncRequest          cns.CreateNetworkContainerRequest
-		ncRequestReference *cns.CreateNetworkContainerRequest
-		err                error
+		pods          *corev1.PodList
+		pod           corev1.Pod
+		podInfo       *cns.KubernetesPodInfo
+		nodeNetConfig *nnc.NodeNetworkConfig
+		podInfoByIP   map[string]*cns.KubernetesPodInfo
+		cntxt         context.Context
+		ncRequest     *cns.CreateNetworkContainerRequest
+		err           error
 	)
 
 	cntxt = context.Background()
@@ -200,8 +199,6 @@ func (crdRC *crdRequestController) initCNS() error {
 
 	// Convert to CreateNetworkContainerRequest if crd not nill and is populated
 	if nodeNetConfig != nil && len(nodeNetConfig.Status.NetworkContainers) != 0 {
-		// Assign the reference to the ncRequest, otherwise we'll pass a nil pointer to InitCNSState
-		ncRequestReference = &ncRequest
 		if ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status); err != nil {
 			logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
 			return err
@@ -230,7 +227,7 @@ func (crdRC *crdRequestController) initCNS() error {
 	}
 
 	// Call cnsclient init cns passing those two things
-	return crdRC.CNSClient.InitCNSState(ncRequestReference, podInfoByIP)
+	return crdRC.CNSClient.InitCNSState(ncRequest, podInfoByIP)
 
 }
 

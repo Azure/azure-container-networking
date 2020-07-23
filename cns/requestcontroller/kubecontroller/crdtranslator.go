@@ -1,14 +1,16 @@
 package kubecontroller
 
 import (
+	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
 // CRDStatusToNCRequest translates a crd status to createnetworkcontainer request
-func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetworkContainerRequest, error) {
+func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNetworkContainerRequest, error) {
 	var (
 		ncRequest         cns.CreateNetworkContainerRequest
 		nc                nnc.NetworkContainer
@@ -29,7 +31,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 
 		// Convert "10.0.0.1/32" into "10.0.0.1" and 32
 		if ip, ipNet, err = net.ParseCIDR(nc.PrimaryIP); err != nil {
-			return ncRequest, err
+			return nil, err
 		}
 		_, bits = ipNet.Mask.Size()
 
@@ -39,7 +41,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 
 		for _, ipAssignment = range nc.IPAssignments {
 			if ip, ipNet, err = net.ParseCIDR(ipAssignment.IP); err != nil {
-				return ncRequest, err
+				return nil, err
 			}
 
 			_, bits = ipNet.Mask.Size()
@@ -54,7 +56,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 	}
 
 	//Only returning the first network container for now, later we will return a list
-	return ncRequest, nil
+	return &ncRequest, nil
 }
 
 // CNSToCRDSpec translates CNS's list of Ips to be released and requested ip count into a CRD Spec
@@ -62,12 +64,29 @@ func CNSToCRDSpec(toBeDeletedSecondaryIPConfigs []cns.SecondaryIPConfig, ipCount
 	var (
 		spec              nnc.NodeNetworkConfigSpec
 		secondaryIPConfig cns.SecondaryIPConfig
+		ipCIDRForm        string
+		ipMaskString      string
+		err               error
 	)
 
 	spec.RequestedIPCount = int64(ipCount)
 
 	for _, secondaryIPConfig = range toBeDeletedSecondaryIPConfigs {
-		spec.IPsNotInUse = append(spec.IPsNotInUse, secondaryIPConfig.IPConfig.IPAddress)
+		// Check that the prefix length isn't zero
+		if secondaryIPConfig.IPConfig.PrefixLength == 0 {
+			return spec, fmt.Errorf("Prefix length is zero in secondaryIPConfig")
+		}
+
+		// Put the ip into cidr form
+		ipMaskString = strconv.Itoa(int(secondaryIPConfig.IPConfig.PrefixLength))
+		ipCIDRForm = secondaryIPConfig.IPConfig.IPAddress + "/" + ipMaskString
+
+		// Check that the ip is in valid CIDR form
+		if _, _, err = net.ParseCIDR(ipCIDRForm); err != nil {
+			return spec, err
+		}
+
+		spec.IPsNotInUse = append(spec.IPsNotInUse, ipCIDRForm)
 	}
 
 	return spec, nil
