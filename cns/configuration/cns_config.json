@@ -7,5 +7,12 @@
         "HeartBeatIntervalInMins": 30,
         "DebugMode": false,
         "SnapshotIntervalInMins": 60
-    }
+    },
+    "ManagedSettings": {
+        "PrivateEndpoint": "",
+        "InfrastructureNetworkID": "",
+        "NodeID": "",
+        "NodeSyncIntervalInSeconds": 30
+    },
+    "ChannelMode": "Direct"
 }

@@ -6,7 +6,9 @@ package restserver
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -103,14 +105,16 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	service.Lock()
 	defer service.Unlock()
 
-	existing, ok := service.state.ContainerStatus[req.NetworkContainerid]
-	var hostVersion string
-	if ok {
-		hostVersion = existing.HostVersion
-	}
-
 	if service.state.ContainerStatus == nil {
 		service.state.ContainerStatus = make(map[string]containerstatus)
+	}
+
+	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
+	var hostVersion string
+	var existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig //uuid is key
+	if ok {
+		hostVersion = existingNCStatus.HostVersion
+		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 	}
 
 	service.state.ContainerStatus[req.NetworkContainerid] =
@@ -143,7 +147,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			fallthrough
 		case cns.AzureFirstParty:
 			fallthrough
-		case cns.WebApps:
+		case cns.WebApps: // todo: Is WebApps an OrchastratorType or ContainerType?
 			var podInfo cns.KubernetesPodInfo
 			err := json.Unmarshal(req.OrchestratorContext, &podInfo)
 			if err != nil {
@@ -160,24 +164,144 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			service.state.ContainerIDByOrchestratorContext[podInfo.PodName+podInfo.PodNamespace] = req.NetworkContainerid
 			break
 
+		case cns.KubernetesCRD:
+			// Validate and Update the SecondaryIpConfig state
+			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs)
+			if returnCode != 0 {
+				return returnCode, returnMesage
+			}
 		default:
 			errMsg := fmt.Sprintf("Unsupported orchestrator type: %s", service.state.OrchestratorType)
 			logger.Errorf(errMsg)
 			return UnsupportedOrchestratorType, errMsg
 		}
+
 	default:
 		errMsg := fmt.Sprintf("Unsupported network container type %s", req.NetworkContainerType)
 		logger.Errorf(errMsg)
 		return UnsupportedNetworkContainerType, errMsg
 	}
 
+	service.state.ContainerStatus[req.NetworkContainerid] =
+		containerstatus{
+			ID:                            req.NetworkContainerid,
+			VMVersion:                     req.Version,
+			CreateNetworkContainerRequest: req,
+			HostVersion:                   hostVersion}
+
 	service.saveState()
 	return 0, ""
 }
 
+// This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted)
+// from the inmemory map
+// Note: Also this func is an untransacted API as the caller will take a Service lock
+func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) (int, string) {
+	// parse the existingSecondaryIpConfigState to find the deleted Ips
+	newIPConfigs := req.SecondaryIPConfigs
+	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
+
+	// Populate the ToBeDeleted list, Secondary IPs which doesnt exist in New request anymore.
+	// We will later remove them from the in-memory cache
+	for secondaryIpId, existingIPConfig := range existingSecondaryIPConfigs {
+		_, exists := newIPConfigs[secondaryIpId]
+		if !exists {
+			// IP got removed in the updated request, add it in tobeDeletedIps
+			tobeDeletedIpConfigs[secondaryIpId] = existingIPConfig
+		}
+	}
+
+	// Validate TobeDeletedIps are ready to be deleted.
+	for ipId, _ := range tobeDeletedIpConfigs {
+		ipConfigStatus, exists := service.PodIPConfigState[ipId]
+		if exists {
+			// pod ip exists, validate if state is not allocated, else fail
+			if ipConfigStatus.State == cns.Allocated {
+				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
+				return InconsistentIPConfigState, errMsg
+			}
+		}
+	}
+
+	// now actually remove the deletedIPs
+	for ipId, _ := range tobeDeletedIpConfigs {
+		returncode, errMsg := service.removeToBeDeletedIpsStateUntransacted(ipId, true)
+		if returncode != Success {
+			return returncode, errMsg
+		}
+	}
+
+	// Add the newIpConfigs, ignore if ip state is already in the map
+	service.addIPConfigStateUntransacted(req.NetworkContainerid, newIPConfigs)
+
+	return 0, ""
+}
+
+// addIPConfigStateUntransacted adds the IPConfis to the PodIpConfigState map with Available state
+// If the IP is already added then it will be an idempotent call. Also note, caller will
+// acquire/release the service lock.
+func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, ipconfigs map[string]cns.SecondaryIPConfig) {
+	// add ipconfigs to state
+	for ipId, ipconfig := range ipconfigs {
+		// if this IPConfig already exists in the map, then ignore as this is an idempotent state
+		if _, exists := service.PodIPConfigState[ipId]; exists {
+			continue
+		}
+
+		// add the new State
+		ipconfigStatus := ipConfigurationStatus{
+			NCID:                ncId,
+			ID:                  ipId,
+			IPSubnet:            ipconfig.IPSubnet,
+			State:               cns.Available,
+			OrchestratorContext: nil,
+		}
+
+		service.PodIPConfigState[ipId] = ipconfigStatus
+
+		// Todo Update batch API and maintain the count
+	}
+}
+
+// Todo: call this when request is received
+func validateIPSubnet(ipSubnet cns.IPSubnet) error {
+	if ipSubnet.IPAddress == "" {
+		return fmt.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.IPAddress", ipSubnet)
+	}
+	if ipSubnet.PrefixLength == 0 {
+		return fmt.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.PrefixLength", ipSubnet)
+	}
+	return nil
+}
+
+// removeToBeDeletedIpsStateUntransacted removes IPConfigs from the PodIpConfigState map
+// Caller will acquire/release the service lock.
+func (service *HTTPRestService) removeToBeDeletedIpsStateUntransacted(ipId string, skipValidation bool) (int, string) {
+
+	// this is set if caller has already done the validation
+	if !skipValidation {
+		ipConfigStatus, exists := service.PodIPConfigState[ipId]
+		if exists {
+			// pod ip exists, validate if state is not allocated, else fail
+			if ipConfigStatus.State == cns.Allocated {
+				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
+				return InconsistentIPConfigState, errMsg
+			}
+		}
+	}
+
+	// Delete this ip from PODIpConfigState Map
+	logger.Printf("[Azure-Cns] Delete the PodIpConfigState, IpId: %s, IPConfigStatus: %v", ipId, service.PodIPConfigState[ipId])
+	delete(service.PodIPConfigState, ipId)
+	return 0, ""
+}
+
 func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkContainerRequest) cns.GetNetworkContainerResponse {
-	var containerID string
-	var getNetworkContainerResponse cns.GetNetworkContainerResponse
+	var (
+		containerID                 string
+		getNetworkContainerResponse cns.GetNetworkContainerResponse
+		exists                      bool
+	)
 
 	service.RLock()
 	defer service.RUnlock()
@@ -201,7 +325,33 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		}
 
 		logger.Printf("pod info %+v", podInfo)
-		containerID = service.state.ContainerIDByOrchestratorContext[podInfo.PodName+podInfo.PodNamespace]
+
+		context := podInfo.PodName + podInfo.PodNamespace
+		containerID, exists = service.state.ContainerIDByOrchestratorContext[context]
+		if service.ChannelMode == cns.Managed {
+			if exists {
+				_, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID)
+				if getNetworkContainerResponse.Response.ReturnCode == Success {
+					return getNetworkContainerResponse
+				}
+			} else {
+				var (
+					dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
+					infraVnet = service.GetOption(acn.OptInfrastructureNetworkID).(string)
+					nodeID    = service.GetOption(acn.OptNodeID).(string)
+				)
+
+				service.RUnlock()
+				getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.SyncNodeStatus(dncEP, infraVnet, nodeID, req.OrchestratorContext)
+				service.RLock()
+				if getNetworkContainerResponse.Response.ReturnCode == NotFound {
+					return getNetworkContainerResponse
+				}
+
+				containerID = service.state.ContainerIDByOrchestratorContext[context]
+			}
+		}
+
 		logger.Printf("containerid %v", containerID)
 		break
 
@@ -300,8 +450,33 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 	}
 
 	existing, ok := service.getNetworkContainerDetails(cns.SwiftPrefix + req.NetworkContainerid)
+	if service.ChannelMode == cns.Managed && operation == attach {
+		if ok {
+			if existing.WaitingForUpdate {
+				_, returnCode, message := isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid)
+				if returnCode != Success {
+					return cns.Response{
+						ReturnCode: returnCode,
+						Message:    message}
+				}
+			}
+		} else {
+			var (
+				dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
+				infraVnet = service.GetOption(acn.OptInfrastructureNetworkID).(string)
+				nodeID    = service.GetOption(acn.OptNodeID).(string)
+			)
 
-	if !ok {
+			returnCode, msg := service.SyncNodeStatus(dncEP, infraVnet, nodeID, json.RawMessage{})
+			if returnCode != Success {
+				return cns.Response{
+					ReturnCode: returnCode,
+					Message:    msg}
+			}
+
+			existing, _ = service.getNetworkContainerDetails(cns.SwiftPrefix + req.NetworkContainerid)
+		}
+	} else if !ok {
 		return cns.Response{
 			ReturnCode: NotFound,
 			Message:    fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)}
@@ -411,6 +586,8 @@ func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerReque
 	aiEvent.Properties[logger.NetworkContainerTypeStr] = createNetworkContainerRequest.NetworkContainerType
 	aiEvent.Properties[logger.OrchestratorContextStr] = fmt.Sprintf("%s", createNetworkContainerRequest.OrchestratorContext)
 
+	// TODO - Add for SecondaryIPs (Task: https://msazure.visualstudio.com/One/_workitems/edit/7711831)
+
 	logger.LogEvent(aiEvent)
 }
 
@@ -439,6 +616,45 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ncSnapshotIntervalInM
 			return
 		}
 	}
+}
+
+// isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version
+func isNCWaitingForUpdate(ncVersion, ncid string) (waitingForUpdate bool, returnCode int, message string) {
+	getNCVersionURL, ok := ncVersionURLs.Load(ncid)
+	if !ok {
+		returnCode = NotFound
+		message = fmt.Sprintf("[Azure-CNS] Network container %s not found", ncid)
+		return
+	}
+
+	response, err := nmagentclient.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
+	if err == nil {
+		if response.StatusCode == http.StatusOK {
+			var versionResponse nmagentclient.NMANetworkContainerResponse
+			rBytes, _ := ioutil.ReadAll(response.Body)
+			json.Unmarshal(rBytes, &versionResponse)
+			if versionResponse.ResponseCode == "200" {
+				programmedVersion, _ := strconv.Atoi(ncVersion)
+				nmaVersion, _ := strconv.Atoi(versionResponse.Version)
+				if programmedVersion > nmaVersion {
+					waitingForUpdate = true
+					returnCode = NetworkContainerPendingStatePropagation
+					message = fmt.Sprintf("[Azure-CNS] Network container %s v%d had not propagated to respective NMA w/ v%d", ncid, programmedVersion, nmaVersion)
+				}
+			} else {
+				returnCode = UnexpectedError
+				message = fmt.Sprintf("[Azure-CNS] Failed to get NC version from response %s for NC %s", rBytes, ncid)
+			}
+		} else {
+			returnCode = UnexpectedError
+			message = fmt.Sprintf("[Azure-CNS] Failed to get NC version with http status %d", response.StatusCode)
+		}
+	} else {
+		returnCode = UnexpectedError
+		message = fmt.Sprintf("[Azure-CNS] Failed to get NC version from NMA with error: %+v", err)
+	}
+
+	return
 }
 
 // ReturnCodeToString - Converts an error code to appropriate string.
@@ -476,6 +692,8 @@ func ReturnCodeToString(returnCode int) (s string) {
 		s = "UnexpectedError"
 	case DockerContainerNotSpecified:
 		s = "DockerContainerNotSpecified"
+	case NetworkContainerPendingStatePropagation:
+		s = "NetworkContainerPendingStatePropagation"
 	default:
 		s = "UnknownError"
 	}

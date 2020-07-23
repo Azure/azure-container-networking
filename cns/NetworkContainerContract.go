@@ -44,6 +44,8 @@ const (
 	Batch           = "Batch"
 	DBforPostgreSQL = "DBforPostgreSQL"
 	AzureFirstParty = "AzureFirstParty"
+	KubernetesCRD   = "KubernetesCRD"
+	// TODO: Add OrchastratorType as CRD: https://msazure.visualstudio.com/One/_workitems/edit/7711872
 )
 
 // Encap Types
@@ -57,6 +59,13 @@ const (
 	Available      = "Available"
 	Allocated      = "Allocated"
 	PendingRelease = "PendingRelease"
+)
+
+// ChannelMode :- CNS channel modes
+const (
+	Direct  = "Direct"
+	Managed = "Managed"
+	CRD     = "CRD"
 )
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
@@ -98,6 +107,7 @@ type KubernetesPodInfo struct {
 }
 
 // GetOrchestratorContext will return the orchestratorcontext as a string
+// TODO - should use a hashed name or can this be PODUid?
 func (podinfo *KubernetesPodInfo) GetOrchestratorContextKey() string {
 	return podinfo.PodName + ":" + podinfo.PodNamespace
 }
@@ -115,16 +125,9 @@ type IPConfiguration struct {
 	GatewayIPAddress string
 }
 
+// SecondaryIPConfig contains IP info of SecondaryIP
 type SecondaryIPConfig struct {
-	IPConfig IPSubnet
-}
-
-type ContainerIPConfigState struct {
-	IPConfig            IPSubnet
-	ID                  string //uuid
-	NCID                string
-	State               string
-	OrchestratorContext json.RawMessage
+	IPSubnet IPSubnet
 }
 
 // IPSubnet contains ip subnet.
@@ -321,4 +324,10 @@ func (networkContainerRequestPolicy *NetworkContainerRequestPolicies) Validate()
 		}
 	}
 	return nil
+}
+
+// NodeInfoResponse - Struct to hold the node info response.
+type NodeInfoResponse struct {
+	NetworkContainers  []CreateNetworkContainerRequest
+	GetNCVersionURLFmt string
 }

@@ -22,10 +22,15 @@ import (
 )
 
 const (
-	metadataURL           = "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json"
-	azCloudUrl            = "http://169.254.169.254/metadata/instance/compute/azEnvironment?api-version=2018-10-01&format=text"
-	httpConnectionTimeout = 7
-	headerTimeout         = 7
+	metadataURL                     = "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json"
+	azCloudUrl                      = "http://169.254.169.254/metadata/instance/compute/azEnvironment?api-version=2018-10-01&format=text"
+	httpConnectionTimeout           = 7
+	headerTimeout                   = 7
+	RegisterNodeURLFmt              = "%s/%s/node/%s/cores/%d%s"
+	SyncNodeNetworkContainersURLFmt = "%s/%s/node/%s%s"
+	FiveSeconds                     = 5 * time.Second
+	JsonContent                     = "application/json; charset=UTF-8"
+	ContentType                     = "Content-Type"
 )
 
 // XmlDocument - Azure host agent XML document format.

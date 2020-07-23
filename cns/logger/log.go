@@ -84,8 +84,9 @@ func sendTraceInternal(msg string) {
 	Log.th.TrackLog(report)
 }
 
+// also logs in the AI telemetry
 func Printf(format string, args ...interface{}) {
-	Log.logger.Printf(format, args...)
+	Log.logger.Logf(format, args...)
 
 	if Log.th == nil || Log.DisableTraceLogging {
 		return

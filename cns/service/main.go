@@ -4,15 +4,22 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
@@ -30,6 +37,7 @@ const (
 	pluginName                      = "azure-vnet"
 	defaultCNINetworkConfigFileName = "10-azure.conflist"
 	configFileName                  = "config.json"
+	dncApiVersion                   = "?api-version=2018-03-01"
 )
 
 // Version is populated by make during build.
@@ -179,12 +187,79 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: platform.CNMRuntimePath,
 	},
+	{
+		Name:         acn.OptPrivateEndpoint,
+		Shorthand:    acn.OptPrivateEndpointAlias,
+		Description:  "Set private endpoint",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptInfrastructureNetworkID,
+		Shorthand:    acn.OptInfrastructureNetworkIDAlias,
+		Description:  "Set infrastructure network ID",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptNodeID,
+		Shorthand:    acn.OptNodeIDAlias,
+		Description:  "Set node name/ID",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptManaged,
+		Shorthand:    acn.OptManagedAlias,
+		Description:  "Set to true to enable managed mode. This is deprecated in favor of cns_config.json",
+		Type:         "bool",
+		DefaultValue: false,
+	},
 }
 
 // Prints description and version information.
 func printVersion() {
 	fmt.Printf("Azure Container Network Service\n")
 	fmt.Printf("Version %v\n", version)
+}
+
+// Try to register node with DNC when CNS is started in managed DNC mode
+func registerNode(httpRestService restserver.HTTPService, dncEP, infraVnet, nodeID string) {
+	logger.Printf("[Azure CNS] Registering node %s with Infrastructure Network: %s PrivateEndpoint: %s", nodeID, infraVnet, dncEP)
+
+	var (
+		numCPU   = runtime.NumCPU()
+		url      = fmt.Sprintf(acn.RegisterNodeURLFmt, dncEP, infraVnet, nodeID, numCPU, dncApiVersion)
+		response *http.Response
+		err      = fmt.Errorf("")
+		body     bytes.Buffer
+		httpc    = acn.GetHttpClient()
+	)
+
+	for sleep := true; err != nil; sleep = true {
+		response, err = httpc.Post(url, "application/json", &body)
+		if err == nil {
+			if response.StatusCode == http.StatusCreated {
+				var req cns.SetOrchestratorTypeRequest
+				json.NewDecoder(response.Body).Decode(&req)
+				httpRestService.SetNodeOrchestrator(&req)
+				sleep = false
+			} else {
+				err = fmt.Errorf("[Azure CNS] Failed to register node with http status code %s", strconv.Itoa(response.StatusCode))
+				logger.Errorf(err.Error())
+			}
+
+			response.Body.Close()
+		} else {
+			logger.Errorf("[Azure CNS] Failed to register node with err: %+v", err)
+		}
+
+		if sleep {
+			time.Sleep(acn.FiveSeconds)
+		}
+	}
+
+	logger.Printf("[Azure CNS] Node Registered")
 }
 
 // Main is the entry point for CNS.
@@ -200,8 +275,8 @@ func main() {
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
 	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
-	ipamQueryUrl, _ := acn.GetArg(acn.OptIpamQueryUrl).(string)
-	ipamQueryInterval, _ := acn.GetArg(acn.OptIpamQueryInterval).(int)
+	ipamQueryUrl := acn.GetArg(acn.OptIpamQueryUrl).(string)
+	ipamQueryInterval := acn.GetArg(acn.OptIpamQueryInterval).(int)
 	startCNM := acn.GetArg(acn.OptStartAzureCNM).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 	createDefaultExtNetworkType := acn.GetArg(acn.OptCreateDefaultExtNetworkType).(string)
@@ -209,6 +284,9 @@ func main() {
 	httpConnectionTimeout := acn.GetArg(acn.OptHttpConnectionTimeout).(int)
 	httpResponseHeaderTimeout := acn.GetArg(acn.OptHttpResponseHeaderTimeout).(int)
 	storeFileLocation := acn.GetArg(acn.OptStoreFileLocation).(string)
+	privateEndpoint := acn.GetArg(acn.OptPrivateEndpoint).(string)
+	infravnet := acn.GetArg(acn.OptInfrastructureNetworkID).(string)
+	nodeID := acn.GetArg(acn.OptNodeID).(string)
 
 	if vers {
 		printVersion()
@@ -241,8 +319,15 @@ func main() {
 	configuration.SetCNSConfigDefaults(&cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
-	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
+	if cnsconfig.ChannelMode == cns.Managed {
+		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
+		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
+		nodeID = cnsconfig.ManagedSettings.NodeID
+	} else if acn.GetArg(acn.OptManaged).(bool) {
+		config.ChannelMode = cns.Managed
+	}
 
+	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
 	if !disableTelemetry {
 		ts := cnsconfig.TelemetrySettings
 		aiConfig := aitelemetry.AIConfig{
@@ -314,6 +399,30 @@ func main() {
 		go logger.SendToTelemetryService(reports, telemetryStopProcessing)
 		go logger.SendHeartBeat(cnsconfig.TelemetrySettings.HeartBeatIntervalInMins, stopheartbeat)
 		go httpRestService.SendNCSnapShotPeriodically(cnsconfig.TelemetrySettings.SnapshotIntervalInMins, stopSnapshots)
+	}
+
+	// If CNS is running on managed DNC mode
+	if config.ChannelMode == cns.Managed {
+		if privateEndpoint == "" || infravnet == "" || nodeID == "" {
+			logger.Errorf("[Azure CNS] Missing required values to run in managed mode: PrivateEndpoint: %s InfrastructureNetworkID: %s NodeID: %s",
+				privateEndpoint,
+				infravnet,
+				nodeID)
+			return
+		}
+
+		httpRestService.SetOption(acn.OptPrivateEndpoint, privateEndpoint)
+		httpRestService.SetOption(acn.OptInfrastructureNetworkID, infravnet)
+		httpRestService.SetOption(acn.OptNodeID, nodeID)
+
+		registerNode(httpRestService, privateEndpoint, infravnet, nodeID)
+		go func(ep, vnet, node string) {
+			// Periodically poll DNC for node updates
+			for {
+				<-time.NewTicker(time.Duration(cnsconfig.ManagedSettings.NodeSyncIntervalInSeconds) * time.Second).C
+				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
+			}
+		}(privateEndpoint, infravnet, nodeID)
 	}
 
 	var netPlugin network.NetPlugin

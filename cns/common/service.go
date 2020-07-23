@@ -13,11 +13,12 @@ import (
 
 // Service implements behavior common to all services.
 type Service struct {
-	Name    string
-	Version string
-	Options map[string]interface{}
-	ErrChan chan error
-	Store   store.KeyValueStore
+	Name        string
+	Version     string
+	Options     map[string]interface{}
+	ErrChan     chan error
+	Store       store.KeyValueStore
+	ChannelMode string
 }
 
 // ServiceAPI defines base interface.
@@ -30,25 +31,27 @@ type ServiceAPI interface {
 
 // ServiceConfig specifies common configuration.
 type ServiceConfig struct {
-	Name     string
-	Version  string
-	Listener *acn.Listener
-	ErrChan  chan error
-	Store    store.KeyValueStore
+	Name        string
+	Version     string
+	Listener    *acn.Listener
+	ErrChan     chan error
+	Store       store.KeyValueStore
+	ChannelMode string
 }
 
 // NewService creates a new Service object.
-func NewService(name, version string, store store.KeyValueStore) (*Service, error) {
+func NewService(name, version, channelMode string, store store.KeyValueStore) (*Service, error) {
 	logger.Debugf("[Azure CNS] Going to create a service object with name: %v. version: %v.", name, version)
 
 	svc := &Service{
-		Name:    name,
-		Version: version,
-		Options: make(map[string]interface{}),
-		Store:   store,
+		Name:        name,
+		Version:     version,
+		ChannelMode: channelMode,
+		Options:     make(map[string]interface{}),
+		Store:       store,
 	}
 
-	logger.Debugf("[Azure CNS] Finished creating service object with name: %v. version: %v.", name, version)
+	logger.Debugf("[Azure CNS] Finished creating service object with name: %v. version: %v. managed: %s", name, version, channelMode)
 	return svc, nil
 }
 
@@ -65,6 +68,7 @@ func (service *Service) Initialize(config *ServiceConfig) error {
 	service.ErrChan = config.ErrChan
 	service.Store = config.Store
 	service.Version = config.Version
+	service.ChannelMode = config.ChannelMode
 
 	logger.Debugf("[Azure CNS] nitialized service: %+v with config: %+v.", service, config)
 

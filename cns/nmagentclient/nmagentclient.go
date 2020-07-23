@@ -9,6 +9,17 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 )
 
+const (
+	WireserverIP = "168.63.129.16"
+)
+
+// NMANetworkContainerResponse - NMAgent response.
+type NMANetworkContainerResponse struct {
+	ResponseCode       string `json:"httpStatusCode"`
+	NetworkContainerID string `json:"networkContainerId"`
+	Version            string `json:"version"`
+}
+
 // JoinNetwork joins the given network
 func JoinNetwork(
 	networkID string,
@@ -60,5 +71,18 @@ func UnpublishNetworkContainer(
 	logger.Printf("[NMAgentClient][Response] Unpublish NC: %s. Response: %+v. Error: %v",
 		networkContainerID, response, err)
 
+	return response, err
+}
+
+// GetNetworkContainerVersion :- Retrieves NC version from NMAgent
+func GetNetworkContainerVersion(
+	networkContainerID,
+	getNetworkContainerVersionURL string) (*http.Response, error) {
+	logger.Printf("[NMAgentClient] GetNetworkContainerVersion NC: %s", networkContainerID)
+
+	response, err := common.GetHttpClient().Get(getNetworkContainerVersionURL)
+
+	logger.Printf("[NMAgentClient][Response] GetNetworkContainerVersion NC: %s. Response: %+v. Error: %v",
+		networkContainerID, response, err)
 	return response, err
 }
