@@ -367,14 +367,14 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 	ipConfig1 := cns.SecondaryIPConfig{
 		IPSubnet: cns.IPSubnet{
 			IPAddress:    "10.0.0.1",
-			PrefixLength: 24,
+			PrefixLength: 32,
 		},
 	}
 
 	ipConfig2 := cns.SecondaryIPConfig{
 		IPSubnet: cns.IPSubnet{
 			IPAddress:    "10.0.0.2",
-			PrefixLength: 24,
+			PrefixLength: 32,
 		},
 	}
 
@@ -419,14 +419,14 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 	ipConfig1 := cns.SecondaryIPConfig{
 		IPSubnet: cns.IPSubnet{
 			IPAddress:    "10.0.0.1",
-			PrefixLength: 24,
+			PrefixLength: 32,
 		},
 	}
 
 	ipConfig2 := cns.SecondaryIPConfig{
 		IPSubnet: cns.IPSubnet{
 			IPAddress:    "10.0.0.2",
-			PrefixLength: 24,
+			PrefixLength: 32,
 		},
 	}
 
