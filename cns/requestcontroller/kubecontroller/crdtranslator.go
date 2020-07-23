@@ -49,7 +49,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNet
 			ipSubnet.IPAddress = ip.String()
 			ipSubnet.PrefixLength = uint8(bits)
 			secondaryIPConfig = cns.SecondaryIPConfig{
-				IPConfig: ipSubnet,
+				IPSubnet: ipSubnet,
 			}
 			ncRequest.SecondaryIPConfigs[ipAssignment.Name] = secondaryIPConfig
 		}
@@ -73,13 +73,13 @@ func CNSToCRDSpec(toBeDeletedSecondaryIPConfigs []cns.SecondaryIPConfig, ipCount
 
 	for _, secondaryIPConfig = range toBeDeletedSecondaryIPConfigs {
 		// Check that the prefix length isn't zero
-		if secondaryIPConfig.IPConfig.PrefixLength == 0 {
+		if secondaryIPConfig.IPSubnet.PrefixLength == 0 {
 			return spec, fmt.Errorf("Prefix length is zero in secondaryIPConfig")
 		}
 
 		// Put the ip into cidr form
-		ipMaskString = strconv.Itoa(int(secondaryIPConfig.IPConfig.PrefixLength))
-		ipCIDRForm = secondaryIPConfig.IPConfig.IPAddress + "/" + ipMaskString
+		ipMaskString = strconv.Itoa(int(secondaryIPConfig.IPSubnet.PrefixLength))
+		ipCIDRForm = secondaryIPConfig.IPSubnet.IPAddress + "/" + ipMaskString
 
 		// Check that the ip is in valid CIDR form
 		if _, _, err = net.ParseCIDR(ipCIDRForm); err != nil {
