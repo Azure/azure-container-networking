@@ -11,6 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 )
 
@@ -117,7 +118,7 @@ func (dockerClient *DockerClient) CreateNetwork(networkName string, nicInfo *imd
 
 	res, err := http.Post(
 		dockerClient.connectionURL+createNetworkPath,
-		"application/json; charset=utf-8",
+		common.JsonContent,
 		netConfigJSON)
 
 	if err != nil {
@@ -160,7 +161,7 @@ func (dockerClient *DockerClient) DeleteNetwork(networkName string) error {
 		return err
 	}
 
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set(common.ContentType, common.JsonContent)
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {

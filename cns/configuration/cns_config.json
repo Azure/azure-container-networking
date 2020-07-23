@@ -10,7 +10,7 @@
     },
     "ManagedSettings": {
         "PrivateEndpoint": "",
-        "InfrastructureNetwork": "",
+        "InfrastructureNetworkID": "",
         "NodeID": "",
         "NodeSyncIntervalInSeconds": 30
     },

@@ -29,6 +29,8 @@ const (
 	RegisterNodeURLFmt              = "%s/%s/node/%s/cores/%d%s"
 	SyncNodeNetworkContainersURLFmt = "%s/%s/node/%s%s"
 	FiveSeconds                     = 5 * time.Second
+	JsonContent                     = "application/json; charset=UTF-8"
+	ContentType                     = "Content-Type"
 )
 
 // XmlDocument - Azure host agent XML document format.

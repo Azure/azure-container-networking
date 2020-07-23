@@ -218,7 +218,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 			} else {
 				var (
 					dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
-					infraVnet = service.GetOption(acn.OptInfrastructureNetwork).(string)
+					infraVnet = service.GetOption(acn.OptInfrastructureNetworkID).(string)
 					nodeID    = service.GetOption(acn.OptNodeID).(string)
 				)
 
@@ -344,7 +344,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 		} else {
 			var (
 				dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
-				infraVnet = service.GetOption(acn.OptInfrastructureNetwork).(string)
+				infraVnet = service.GetOption(acn.OptInfrastructureNetworkID).(string)
 				nodeID    = service.GetOption(acn.OptNodeID).(string)
 			)
 

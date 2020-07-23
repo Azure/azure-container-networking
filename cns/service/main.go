@@ -195,8 +195,8 @@ var args = acn.ArgumentList{
 		DefaultValue: "",
 	},
 	{
-		Name:         acn.OptInfrastructureNetwork,
-		Shorthand:    acn.OptInfrastructureNetworkAlias,
+		Name:         acn.OptInfrastructureNetworkID,
+		Shorthand:    acn.OptInfrastructureNetworkIDAlias,
 		Description:  "Set infrastructure network ID",
 		Type:         "string",
 		DefaultValue: "",
@@ -285,7 +285,7 @@ func main() {
 	httpResponseHeaderTimeout := acn.GetArg(acn.OptHttpResponseHeaderTimeout).(int)
 	storeFileLocation := acn.GetArg(acn.OptStoreFileLocation).(string)
 	privateEndpoint := acn.GetArg(acn.OptPrivateEndpoint).(string)
-	infravnet := acn.GetArg(acn.OptInfrastructureNetwork).(string)
+	infravnet := acn.GetArg(acn.OptInfrastructureNetworkID).(string)
 	nodeID := acn.GetArg(acn.OptNodeID).(string)
 
 	if vers {
@@ -321,7 +321,7 @@ func main() {
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
-		infravnet = cnsconfig.ManagedSettings.InfrastructureNetwork
+		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
 		nodeID = cnsconfig.ManagedSettings.NodeID
 	} else if acn.GetArg(acn.OptManaged).(bool) {
 		config.ChannelMode = cns.Managed
@@ -404,7 +404,7 @@ func main() {
 	// If CNS is running on managed DNC mode
 	if config.ChannelMode == cns.Managed {
 		if privateEndpoint == "" || infravnet == "" || nodeID == "" {
-			logger.Errorf("[Azure CNS] Missing required values to run in managed mode: PrivateEndpoint: %s InfrastructureNetwork: %s NodeID: %s",
+			logger.Errorf("[Azure CNS] Missing required values to run in managed mode: PrivateEndpoint: %s InfrastructureNetworkID: %s NodeID: %s",
 				privateEndpoint,
 				infravnet,
 				nodeID)
@@ -412,7 +412,7 @@ func main() {
 		}
 
 		httpRestService.SetOption(acn.OptPrivateEndpoint, privateEndpoint)
-		httpRestService.SetOption(acn.OptInfrastructureNetwork, infravnet)
+		httpRestService.SetOption(acn.OptInfrastructureNetworkID, infravnet)
 		httpRestService.SetOption(acn.OptNodeID, nodeID)
 
 		registerNode(httpRestService, privateEndpoint, infravnet, nodeID)

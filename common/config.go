@@ -104,8 +104,8 @@ const (
 	OptPrivateEndpointAlias = "pe"
 
 	// Infrastructure Network
-	OptInfrastructureNetwork      = "infra-vnet"
-	OptInfrastructureNetworkAlias = "iv"
+	OptInfrastructureNetworkID      = "infra-vnet"
+	OptInfrastructureNetworkIDAlias = "iv"
 
 	// Node ID/Name
 	OptNodeID      = "node-id"

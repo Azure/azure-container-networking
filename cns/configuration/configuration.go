@@ -49,7 +49,7 @@ type TelemetrySettings struct {
 
 type ManagedSettings struct {
 	PrivateEndpoint           string
-	InfrastructureNetwork     string
+	InfrastructureNetworkID   string
 	NodeID                    string
 	NodeSyncIntervalInSeconds int
 }

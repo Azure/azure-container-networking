@@ -32,7 +32,7 @@ func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
 func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRequest) {
 	body, _ := json.Marshal(r)
 	req, _ := http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	req.Header.Set(common.ContentType, common.JsonContent)
 	service.setOrchestratorType(httptest.NewRecorder(), req)
 }
 
@@ -111,7 +111,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 		body, _ = json.Marshal(nc)
 		req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
-		req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+		req.Header.Set(common.ContentType, common.JsonContent)
 		service.createOrUpdateNetworkContainer(w, req)
 		if w.Result().StatusCode == http.StatusOK {
 			var resp cns.CreateNetworkContainerResponse
@@ -136,7 +136,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 		req, err = http.NewRequest(http.MethodPost, "", &body)
 		if err == nil {
-			req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+			req.Header.Set(common.JsonContent, common.JsonContent)
 			service.deleteNetworkContainer(httptest.NewRecorder(), req)
 		} else {
 			logger.Errorf("[Azure-CNS] Failed to delete NC request to sync state: %s", err.Error())

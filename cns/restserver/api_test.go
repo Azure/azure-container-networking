@@ -78,13 +78,13 @@ const (
 )
 
 func getInterfaceInfo(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/xml")
+	w.Header().Set(acncommon.ContentType, "application/xml")
 	output, _ := xml.Marshal(hostQueryResponse)
 	w.Write(output)
 }
 
 func nmagentHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.Header().Set(acncommon.ContentType, acncommon.JsonContent)
 	w.WriteHeader(http.StatusOK)
 
 	if strings.Contains(r.RequestURI, "networkContainers") {
