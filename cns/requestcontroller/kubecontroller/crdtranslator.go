@@ -9,7 +9,7 @@ import (
 )
 
 // CRDStatusToNCRequest translates a crd status to createnetworkcontainer request
-func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNetworkContainerRequest, error) {
+func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetworkContainerRequest, error) {
 	var (
 		ncRequest         cns.CreateNetworkContainerRequest
 		nc                nnc.NetworkContainer
@@ -27,10 +27,9 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNet
 	numNCsSupported = 1
 	numNCs = len(crdStatus.NetworkContainers)
 
+	// Right now we're only supporing one NC per node, but in the future we will support multiple NCs per node
 	if numNCs > numNCsSupported {
-		return nil, fmt.Errorf("Number of network containers is not supported. Got %v number of ncs, supports %v", numNCs, numNCsSupported)
-	} else if numNCs == 0 {
-		return nil, nil
+		return ncRequest, fmt.Errorf("Number of network containers is not supported. Got %v number of ncs, supports %v", numNCs, numNCsSupported)
 	}
 
 	for _, nc = range crdStatus.NetworkContainers {
@@ -40,7 +39,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNet
 
 		// Convert "10.0.0.1/32" into "10.0.0.1" and 32
 		if ip, ipNet, err = net.ParseCIDR(nc.PrimaryIP); err != nil {
-			return nil, err
+			return ncRequest, err
 		}
 		_, bits = ipNet.Mask.Size()
 
@@ -50,7 +49,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNet
 
 		for _, ipAssignment = range nc.IPAssignments {
 			if ip, ipNet, err = net.ParseCIDR(ipAssignment.IP); err != nil {
-				return nil, err
+				return ncRequest, err
 			}
 
 			_, bits = ipNet.Mask.Size()
@@ -65,7 +64,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNet
 	}
 
 	//Only returning the first network container for now, later we will return a list
-	return &ncRequest, nil
+	return ncRequest, nil
 }
 
 // CNSToCRDSpec translates CNS's map of Ips to be released and requested ip count into a CRD Spec

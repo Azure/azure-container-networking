@@ -13,11 +13,11 @@ type Client struct {
 }
 
 // CreateOrUpdateNC updates cns state
-func (client *Client) CreateOrUpdateNC(ncRequest *cns.CreateNetworkContainerRequest) error {
-	returnCode := client.RestService.CreateOrUpdateNetworkContainerInternal(*ncRequest)
+func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest) error {
+	returnCode := client.RestService.CreateOrUpdateNetworkContainerInternal(ncRequest)
 
 	if returnCode != 0 {
-		return fmt.Errorf("Failed to Create NC request: %+v, errorCode: %d", *ncRequest, returnCode)
+		return fmt.Errorf("Failed to Create NC request: %+v, errorCode: %d", ncRequest, returnCode)
 	}
 
 	return nil

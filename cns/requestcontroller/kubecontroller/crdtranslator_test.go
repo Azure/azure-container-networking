@@ -135,7 +135,7 @@ func TestStatusToNCRequestIPAssignmentNotCIDR(t *testing.T) {
 func TestStatusToNCRequestSuccess(t *testing.T) {
 	var (
 		status       nnc.NodeNetworkConfigStatus
-		ncRequest    *cns.CreateNetworkContainerRequest
+		ncRequest    cns.CreateNetworkContainerRequest
 		secondaryIPs map[string]cns.SecondaryIPConfig
 		secondaryIP  cns.SecondaryIPConfig
 		ok           bool

@@ -175,7 +175,7 @@ func (crdRC *crdRequestController) initCNS() error {
 		nodeNetConfig *nnc.NodeNetworkConfig
 		podInfoByIP   map[string]*cns.KubernetesPodInfo
 		cntxt         context.Context
-		ncRequest     *cns.CreateNetworkContainerRequest
+		ncRequest     cns.CreateNetworkContainerRequest
 		err           error
 	)
 
@@ -189,20 +189,25 @@ func (crdRC *crdRequestController) initCNS() error {
 			os.Exit(1)
 		}
 
-		// If instance of crd is not found, ignore
-		// otherwise, log error and return
-		if client.IgnoreNotFound(err) != nil {
-			logger.Errorf("Error when getting nodeNetConfig using direct client when initializing cns state: %v", err)
-			return err
+		// If instance of crd is not found, pass nil to CNSClient
+		if client.IgnoreNotFound(err) == nil {
+			return crdRC.CNSClient.InitCNSState(nil, nil)
 		}
+
+		// If it's any other error, log it and return
+		logger.Errorf("Error when getting nodeNetConfig using direct client when initializing cns state: %v", err)
+		return err
 	}
 
-	// Convert to CreateNetworkContainerRequest if crd not nill and is populated
-	if nodeNetConfig != nil && len(nodeNetConfig.Status.NetworkContainers) != 0 {
-		if ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status); err != nil {
-			logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
-			return err
-		}
+	// If there are no NCs, pass nil to CNSClient
+	if len(nodeNetConfig.Status.NetworkContainers) == 0 {
+		return crdRC.CNSClient.InitCNSState(nil, nil)
+	}
+
+	// Convert to CreateNetworkContainerRequest
+	if ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status); err != nil {
+		logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
+		return err
 	}
 
 	// Get all pods using direct client
@@ -226,9 +231,7 @@ func (crdRC *crdRequestController) initCNS() error {
 		}
 	}
 
-	// Call cnsclient init cns passing those two things
-	return crdRC.CNSClient.InitCNSState(ncRequest, podInfoByIP)
-
+	return crdRC.CNSClient.InitCNSState(&ncRequest, podInfoByIP)
 }
 
 // UpdateCRDSpec updates the CRD spec
