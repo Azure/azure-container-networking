@@ -195,66 +195,35 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 	}
 }
 
-func TestSecondaryIPsToCRDSpecMalformedIP(t *testing.T) {
+func TestSecondaryIPsToCRDSpecNilMap(t *testing.T) {
 	var (
-		secondaryIPs []cns.SecondaryIPConfig
+		secondaryIPs map[string]cns.SecondaryIPConfig
 		ipCount      int
 		err          error
 	)
 
 	ipCount = 10
-	secondaryIPs = []cns.SecondaryIPConfig{
-		{
-			IPSubnet: cns.IPSubnet{
-				IPAddress:    ipMalformed,
-				PrefixLength: ipCIDRMaskLength,
-			},
-		},
-	}
 
-	// Test with secondary ip having malformed ip
+	// Test with nil secondaryIPs map
 	_, err = CNSToCRDSpec(secondaryIPs, ipCount)
 
 	if err == nil {
-		t.Fatalf("Expected error when converting secondary ip with malformed ip into crd spec")
-	}
-}
-
-func TestSecondaryIPsToCRDSpecNoLengthProvided(t *testing.T) {
-	var (
-		secondaryIPs []cns.SecondaryIPConfig
-		ipCount      int
-		err          error
-	)
-
-	ipCount = 10
-	secondaryIPs = []cns.SecondaryIPConfig{
-		{
-			IPSubnet: cns.IPSubnet{
-				IPAddress: ipCIDRString,
-			},
-		},
-	}
-
-	// Test with secondary ip not having prefix length
-	_, err = CNSToCRDSpec(secondaryIPs, ipCount)
-
-	if err == nil {
-		t.Fatalf("Expected error when converting secondary ip with no prefix length provided into crd spec")
+		t.Fatalf("Expected error when converting nil map of secondary IPs into crd spec")
 	}
 }
 
 func TestSecondaryIPsToCRDSpecSuccess(t *testing.T) {
 	var (
-		secondaryIPs []cns.SecondaryIPConfig
+		secondaryIPs map[string]cns.SecondaryIPConfig
 		spec         nnc.NodeNetworkConfigSpec
 		ipCount      int
 		err          error
 	)
 
 	ipCount = 10
-	secondaryIPs = []cns.SecondaryIPConfig{
-		{
+
+	secondaryIPs = map[string]cns.SecondaryIPConfig{
+		allocatedUUID: {
 			IPSubnet: cns.IPSubnet{
 				IPAddress:    ipCIDRString,
 				PrefixLength: ipCIDRMaskLength,
@@ -273,7 +242,7 @@ func TestSecondaryIPsToCRDSpecSuccess(t *testing.T) {
 		t.Fatalf("Expected crd spec's IPsNotInUse to have length 1, but has length %v", len(spec.IPsNotInUse))
 	}
 
-	if spec.IPsNotInUse[0] != ipCIDR {
+	if spec.IPsNotInUse[0] != allocatedUUID {
 		t.Fatalf("Expected crd's spec ip not in use to be in CIDR form %v but got %v", ipCIDR, spec.IPsNotInUse[0])
 	}
 

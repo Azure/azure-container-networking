@@ -25,6 +25,7 @@ const (
 	hostNetworkPodName   = "pod_hostNet"
 	allocatedPodIP       = "10.0.0.1/32"
 	allocatedUUID        = "539970a2-c2dd-11ea-b3de-0242ac130004"
+	allocatedUUID2       = "01a5dd00-cd5d-11ea-87d0-0242ac130003"
 	networkContainerID   = "24fcd232-0364-41b0-8027-6e6ef9aeabc6"
 	existingNamespace    = k8sNamespace
 	nonexistingNNCName   = "nodenetconfig_nonexisting"
@@ -378,7 +379,10 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 		},
 	}
 
-	secondaryIPConfigs := []cns.SecondaryIPConfig{ipConfig1, ipConfig2}
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		allocatedUUID:  ipConfig1,
+		allocatedUUID2: ipConfig2,
+	}
 	ipCount := 10
 
 	spec, _ := CNSToCRDSpec(secondaryIPConfigs, ipCount)
@@ -430,7 +434,11 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 		},
 	}
 
-	secondaryIPConfigs := []cns.SecondaryIPConfig{ipConfig1, ipConfig2}
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		allocatedUUID:  ipConfig1,
+		allocatedUUID2: ipConfig2,
+	}
+
 	ipCount := 10
 
 	spec, _ := CNSToCRDSpec(secondaryIPConfigs, ipCount)
