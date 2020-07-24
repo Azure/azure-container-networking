@@ -94,10 +94,6 @@ stages:
             displayName: "Build Linux"
 
           - bash: |
-              cd ./output 
-              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
-              sudo find . -mindepth 2 -type f -print -exec mv {} . \;
-              sudo rm -R -- */ && cd ..
               # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
               { { { { 
                     sudo -E env "PATH=$PATH" make test-all; 
@@ -147,6 +143,15 @@ stages:
             workingDirectory: "$(modulePath)"
             name: "mcrreplication"
             displayName: "Push NPM Image and Wait for MCR"
+
+          - script: |
+              cd ./output 
+              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
+              sudo find . -mindepth 2 -type f -print -exec mv {} . \;
+              sudo rm -R -- */ && cd ..
+            workingDirectory: "$(modulePath)"
+            name: "PrepareArtifacts"
+            displayName: "Prepare Artifacts"
 
           - task: PublishTestResults@2
             inputs:
