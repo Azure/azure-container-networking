@@ -43,9 +43,11 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
-	r.CNSClient.CreateOrUpdateNC(ncRequest)
+	if ncRequest != nil && len(ncRequest.SecondaryIPConfigs) != 0 {
+		err = r.CNSClient.CreateOrUpdateNC(ncRequest)
+	}
 
-	return reconcile.Result{}, nil
+	return reconcile.Result{}, err
 }
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter
