@@ -240,7 +240,7 @@ func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec 
 	}
 
 	//Update the CRD spec
-	(&crdSpec).DeepCopyInto(&nodeNetworkConfig.Spec)
+	crdSpec.DeepCopyInto(&nodeNetworkConfig.Spec)
 
 	//Send update to API server
 	if err := crdRC.updateNodeNetConfig(cntxt, nodeNetworkConfig); err != nil {
