@@ -21,11 +21,16 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNet
 		ipNet             *net.IPNet
 		bits              int
 		numNCsSupported   int
+		numNCs            int
 	)
 
 	numNCsSupported = 1
-	if len(crdStatus.NetworkContainers) != numNCsSupported {
-		return nil, fmt.Errorf("Number of network containers is not supported. Got %v number of ncs, supports %v", len(crdStatus.NetworkContainers), numNCsSupported)
+	numNCs = len(crdStatus.NetworkContainers)
+
+	if numNCs > numNCsSupported {
+		return nil, fmt.Errorf("Number of network containers is not supported. Got %v number of ncs, supports %v", numNCs, numNCsSupported)
+	} else if numNCs == 0 {
+		return nil, nil
 	}
 
 	for _, nc = range crdStatus.NetworkContainers {
