@@ -20,11 +20,16 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (*cns.CreateNet
 		ip                net.IP
 		ipNet             *net.IPNet
 		bits              int
+		numNCsSupported   int
 	)
 
-	ncRequest.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig)
+	numNCsSupported = 1
+	if len(crdStatus.NetworkContainers) != numNCsSupported {
+		return nil, fmt.Errorf("Number of network containers is not supported. Got %v number of ncs, supports %v", len(crdStatus.NetworkContainers), numNCsSupported)
+	}
 
 	for _, nc = range crdStatus.NetworkContainers {
+		ncRequest.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig)
 		ncRequest.NetworkContainerid = nc.ID
 		ncRequest.NetworkContainerType = cns.Docker
 

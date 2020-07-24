@@ -235,7 +235,7 @@ func TestSecondaryIPsToCRDSpecSuccess(t *testing.T) {
 	spec, err = CNSToCRDSpec(secondaryIPs, ipCount)
 
 	if err != nil {
-		t.Fatalf("Expected no error when converting secondary ip into crd spec but got %v", err)
+		t.Fatalf("Expected no error when converting secondary ips into crd spec but got %v", err)
 	}
 
 	if len(spec.IPsNotInUse) != 1 {
@@ -243,7 +243,7 @@ func TestSecondaryIPsToCRDSpecSuccess(t *testing.T) {
 	}
 
 	if spec.IPsNotInUse[0] != allocatedUUID {
-		t.Fatalf("Expected crd's spec ip not in use to be in CIDR form %v but got %v", ipCIDR, spec.IPsNotInUse[0])
+		t.Fatalf("Expected crd's spec to contain UUID %v but got %v", allocatedUUID, spec.IPsNotInUse[0])
 	}
 
 	if spec.RequestedIPCount != int64(ipCount) {
