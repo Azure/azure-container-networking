@@ -272,6 +272,7 @@ publish-azure-vnet-plugin-image:
 azure-npm-image: azure-npm
 ifeq ($(GOOS),linux)
 	docker build \
+	--no-cache \
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(VERSION) \
 	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \

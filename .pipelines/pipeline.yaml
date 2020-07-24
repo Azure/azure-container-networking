@@ -93,13 +93,6 @@ stages:
             name: "BuildLinux"
             displayName: "Build Linux"
 
-          - script: |
-              make all-binaries VERSION=$(EnvironmentalVariables.Tag)
-              sudo make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
-            workingDirectory: "$(modulePath)"
-            name: "BuildNPMImage"
-            displayName: "Build NPM Image"
-
           - bash: |
               cd ./output 
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
@@ -116,6 +109,13 @@ stages:
             workingDirectory: "$(modulePath)"
             name: "Test"
             displayName: "Run Tests"
+
+          - script: |
+              make all-binaries VERSION=$(EnvironmentalVariables.Tag)
+              sudo make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
+            workingDirectory: "$(modulePath)"
+            name: "BuildNPMImage"
+            displayName: "Build NPM Image"
 
           - bash: |
               export CODECOV_TOKEN=$(CODECOV_TOKEN)
