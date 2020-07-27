@@ -68,18 +68,14 @@ func (ipsMgr *IpsetManager) Exists(key string, val string, kind string) bool {
 	return true
 }
 
-// ExistsSet checks whehter an ipset exists.
-func (ipsMgr *IpsetManager) ExistsSet(setName, kind string) bool {
+// SetExists checks whehter an ipset exists.
+func (ipsMgr *IpsetManager) SetExists(setName, kind string) bool {
     m := ipsMgr.setMap
     if kind == util.IpsetSetListFlag {
         m = ipsMgr.listMap
     }
-
-    if _, exists := m[setName]; !exists {
-        return false
-    }
-
-    return true
+    _, exists := m[setName]
+    return exists
 }
 
 func isNsSet(setName string) bool {
@@ -269,7 +265,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 		return nil
 	}
 
-	if !ipsMgr.ExistsSet(setName, spec) {
+	if !ipsMgr.SetExists(setName, spec) {
 		if err := ipsMgr.CreateSet(setName, append([]string{spec})); err != nil {
 			return err
 		}
