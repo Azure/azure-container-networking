@@ -320,6 +320,7 @@ func main() {
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
 	if cnsconfig.ChannelMode == cns.Managed {
+		config.ChannelMode = cns.Managed
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
 		nodeID = cnsconfig.ManagedSettings.NodeID

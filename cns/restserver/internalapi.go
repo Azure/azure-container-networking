@@ -80,7 +80,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	}
 
 	for _, nc := range nodeInfoResponse.NetworkContainers {
-		ncid := cns.SwiftPrefix + nc.NetworkContainerid
+		ncid := nc.NetworkContainerid
 		delete(ncsToBeDeleted, ncid)
 		if savedNc, exists := service.state.ContainerStatus[ncid]; !exists || savedNc.CreateNetworkContainerRequest.Version < nc.Version {
 			ncsToBeAdded[ncid] = nc
