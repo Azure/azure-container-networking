@@ -142,7 +142,7 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 // StartRequestController starts the Reconciler loop which watches for CRD status updates
 // Blocks until SIGINT or SIGTERM is received
 // Notifies exitChan when kill signal received
-func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) error {
+func (crdRC *crdRequestController) StartRequestController(exitChan <-chan struct{}) error {
 	var (
 		err error
 	)
@@ -154,7 +154,7 @@ func (crdRC *crdRequestController) StartRequestController(exitChan chan bool) er
 	}
 
 	logger.Printf("Starting reconcile loop")
-	if err := crdRC.mgr.Start(SetupSignalHandler(exitChan)); err != nil {
+	if err := crdRC.mgr.Start(exitChan); err != nil {
 		if crdRC.isNotDefined(err) {
 			logger.Errorf("[cns-rc] CRD is not defined on cluster, starting reconcile loop failed: %v", err)
 			os.Exit(1)

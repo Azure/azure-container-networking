@@ -458,11 +458,11 @@ func main() {
 			return
 		}
 
-		// TODO: need to figure out where to use this exit channel
-		requestControllerExitChannel := make(chan bool, 1)
-		//Start the RequestController which starts the reconcile loop, blocks
+		//Start the RequestController which starts the reconcile loop
+		requestControllerStopChannel := make(chan struct{})
+		defer close(requestControllerStopChannel)
 		go func() {
-			if err := requestController.StartRequestController(requestControllerExitChannel); err != nil {
+			if err := requestController.StartRequestController(requestControllerStopChannel); err != nil {
 				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
 				return
 			}
