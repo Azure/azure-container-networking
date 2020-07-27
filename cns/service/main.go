@@ -24,6 +24,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/requestcontroller"
+	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubecontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -323,6 +325,8 @@ func main() {
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
 		nodeID = cnsconfig.ManagedSettings.NodeID
+	} else if cnsconfig.ChannelMode == cns.CRD {
+		config.ChannelMode = cns.CRD
 	} else if acn.GetArg(acn.OptManaged).(bool) {
 		config.ChannelMode = cns.Managed
 	}
@@ -423,6 +427,46 @@ func main() {
 				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
 			}
 		}(privateEndpoint, infravnet, nodeID)
+	} else if config.ChannelMode == cns.CRD {
+		var requestController requestcontroller.RequestController
+
+		logger.Printf("[Azure CNS] Starting request controller")
+
+		kubeConfig, err := kubecontroller.GetKubeConfig()
+		if err != nil {
+			logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
+			return
+		}
+
+		//convert interface type to implementation type
+		httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
+		if !ok {
+			logger.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v", httpRestService)
+			return
+		}
+
+		// Set orchestrator type
+		orchestrator := cns.SetOrchestratorTypeRequest{
+			OrchestratorType: cns.KubernetesCRD,
+		}
+		httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
+
+		// Get crd implementation of request controller
+		requestController, err = kubecontroller.NewCrdRequestController(httpRestServiceImplementation, kubeConfig)
+		if err != nil {
+			logger.Errorf("[Azure CNS] Failed to make crd request controller :%v", err)
+			return
+		}
+
+		// TODO: need to figure out where to use this exit channel
+		requestControllerExitChannel := make(chan bool, 1)
+		//Start the RequestController which starts the reconcile loop, blocks
+		go func() {
+			if err := requestController.StartRequestController(requestControllerExitChannel); err != nil {
+				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
+				return
+			}
+		}()
 	}
 
 	var netPlugin network.NetPlugin
