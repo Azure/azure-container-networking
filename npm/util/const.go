@@ -92,6 +92,8 @@ const (
 
 	IpsetExistFlag string = "-exist"
 	IpsetFileFlag  string = "-file"
+	IPsetCheckListFlag string = "list"
+	IpsetTestFlag  string = "test"
 
 	IpsetSetListFlag    string = "setlist"
 	IpsetNetHashFlag    string = "nethash"

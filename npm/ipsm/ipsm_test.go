@@ -101,20 +101,60 @@ func TestDeleteFromList(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
+	setName := "test-set"
+	if err := ipsMgr.CreateSet(setName, append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet")
 	}
 
-	if err := ipsMgr.AddToList("test-list", "test-set"); err != nil {
+	entry := &ipsEntry{
+		operationFlag: util.IPsetCheckListFlag,
+		set:           util.GetHashedName(setName),
+	}
+
+	if _, err := ipsMgr.Run(entry); err != nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet since %s not exist in kernel", setName)
+	}
+
+	listName := "test-list"
+	if err := ipsMgr.AddToList(listName, setName); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList")
 	}
 
-	if err := ipsMgr.DeleteFromList("test-list", "test-set"); err != nil {
+	entry = &ipsEntry{
+		operationFlag: util.IpsetTestFlag,
+		set:           util.GetHashedName(listName),
+		spec:          append([]string{util.GetHashedName(setName)}),
+	}
+
+	if _, err := ipsMgr.Run(entry); err != nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList since %s not exist in %s set", listName, setName)
+	}
+
+	if err := ipsMgr.DeleteFromList(listName, setName); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList")
+	}
+
+	entry = &ipsEntry{
+		operationFlag: util.IpsetTestFlag,
+		set:           util.GetHashedName(listName),
+		spec:          append([]string{util.GetHashedName(setName)}),
+	}
+
+	if _, err := ipsMgr.Run(entry); err == nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList since %s still exist in %s set", listName, setName)
 	}
 
 	if err := ipsMgr.DeleteSet("test-set"); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
+	}
+
+	entry = &ipsEntry{
+		operationFlag: util.IPsetCheckListFlag,
+		set:           util.GetHashedName(setName),
+	}
+
+	if _, err := ipsMgr.Run(entry); err == nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet since %s still exist in kernel", setName)
 	}
 }
 
