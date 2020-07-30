@@ -320,7 +320,7 @@ ifeq ($(GOOS),linux)
 	docker build \
 	-f cns/aks.Dockerfile \
 	-t $(AZURE_CNS_IMAGE):$(VERSION) \
-	--build-arg CNS_VERSION=$(VERSION) \
+	--build-arg VERSION=$(VERSION) \
 	--build-arg CNS_AI_PATH=$(cnsaipath) \
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
 	.
