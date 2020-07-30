@@ -313,6 +313,19 @@ ifeq ($(GOOS),linux)
 	docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(CNS_BUILD_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
 endif
 
+# Build the Azure CNS image for AKS Swift.
+.PHONY: azure-cns-aks-swift-image
+azure-cns-aks-swift-image:
+ifeq ($(GOOS),linux)
+	docker build \
+	-f cns/aks.Dockerfile \
+	-t $(AZURE_CNS_IMAGE):$(VERSION) \
+	--build-arg CNS_VERSION=$(VERSION) \
+	--build-arg CNS_AI_PATH=$(cnsaipath) \
+	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	.
+endif
+
 # Publish the Azure NPM image to a Docker registry
 .PHONY: publish-azure-cns-image
 publish-azure-cns-image:
