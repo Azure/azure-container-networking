@@ -15,7 +15,7 @@ WORKDIR /usr/local/src/cns
 COPY . .
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /usr/local/bin/azure-cns -ldflags "-X main.version="+$CNS_VERSION+" -X "+$CNS_AI_PATH+"="+$CNS_AI_ID+" -s -w " cns/service/*.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /usr/local/bin/azure-cns -ldflags "-X main.version="$CNS_VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID" -s -w " cns/service/*.go
 
 # Copy into final image
 FROM scratch
