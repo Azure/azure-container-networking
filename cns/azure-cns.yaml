@@ -1,3 +1,55 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-cns
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: kube-system
+  name: nodeNetConfigEditor
+rules:
+  - apiGroups: ["acn.azure.com"]
+    resources: ["nodenetworkconfigs"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-reader-all-namespaces
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nodeNetConfigEditorRoleBinding
+  namespace: kube-system
+subjects:
+- kind: ServiceAccount
+  name: azure-cns
+  namespace: kube-system
+roleRef:
+  kind: Role
+  name: nodeNetConfigEditor
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-reader-all-namespaces-binding
+subjects:
+- kind: ServiceAccount
+  name: azure-cns
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: pod-reader-all-namespaces
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -16,25 +68,41 @@ spec:
       annotations:
         cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: beta.kubernetes.io/os
+                operator: In
+                values:
+                - linux
       priorityClassName: system-node-critical
       tolerations:
         - key: CriticalAddonsOnly
           operator: Exists
-      nodeSelector:
-        beta.kubernetes.io/os: linux
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
       containers:
         - name: cns-container
-          image: mcr.microsoft.com/containernetworking/azure-cns:latest
-          imagePullPolicy: Always
+          image: mcr.microsoft.com/containernetworking/azure-cns:v1.1.1
+          imagePullPolicy: IfNotPresent
+          args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           volumeMounts:
             - name: log
               mountPath: /var/log
-            - name: cni
-              mountPath: /opt/cni/bin
-            - name: cniconfig
-              mountPath: /etc/cni/net.d
-            - name: cnsconfig
+            - name: cns-state
               mountPath: /var/lib/azure-network
+            - name: cns-config
+              mountPath: /etc/azure-cns
           ports:
             - containerPort: 10090
           env:
@@ -42,21 +110,54 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            - name: CNSPort
+              value: "10090"
+            - name: CNSLogTarget
+              value: "stdoutfile"
+            - name: CNS_CONFIGURATION_PATH
+              value: /etc/azure-cns/cns_config.json
+            - name: NODENAME
+              valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: spec.nodeName 
       hostNetwork: true
       volumes:
         - name: log
           hostPath:
             path: /var/log
             type: Directory
-        - name: cni
-          hostPath:
-            path: /opt/cni/bin
-            type: Directory
-        - name: cniconfig
-          hostPath:
-            path: /etc/cni/net.d
-            type: Directory
-        - name: cnsconfig
+        - name: cns-state
           hostPath:
             path: /var/lib/azure-network
             type: DirectoryOrCreate
+        - name: cns-config
+          configMap:
+            name: cns-config
+      serviceAccountName: azure-cns
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cns-config
+  namespace: kube-system
+data:
+  cns_config.json: |
+    {
+      "TelemetrySettings": {
+          "TelemetryBatchSizeBytes": 16384,
+          "TelemetryBatchIntervalInSecs": 15,
+          "RefreshIntervalInSecs": 15,
+          "DisableAll": false,
+          "HeartBeatIntervalInMins": 30,
+          "DebugMode": false,
+          "SnapshotIntervalInMins": 60
+      },
+      "ManagedSettings": {
+          "PrivateEndpoint": "",
+          "InfrastructureNetworkID": "",
+          "NodeID": "",
+          "NodeSyncIntervalInSeconds": 30
+      },
+      "ChannelMode": "CRD"
+    }
