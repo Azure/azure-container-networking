@@ -14,6 +14,8 @@ const (
 	ipCIDRMaskLength = 32
 	ipNotCIDR        = "10.0.0.1"
 	ipMalformed      = "10.0.0.0.0"
+	defaultGateway   = "10.0.0.2"
+	subnetID         = "subnet1"
 )
 
 func TestStatusToNCRequestMalformedPrimaryIP(t *testing.T) {
@@ -153,6 +155,9 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 						IP:   ipCIDR,
 					},
 				},
+				SubnetID:       subnetID,
+				DefaultGateway: defaultGateway,
+				Netmask:        "", // Not currently set by DNC Request Controller
 			},
 		},
 	}
@@ -170,6 +175,10 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 
 	if ncRequest.IPConfiguration.IPSubnet.PrefixLength != uint8(ipCIDRMaskLength) {
 		t.Fatalf("Expected ncRequest's ipconfiguration prefix length to be %v but got %v", ipCIDRMaskLength, ncRequest.IPConfiguration.IPSubnet.PrefixLength)
+	}
+
+	if ncRequest.IPConfiguration.GatewayIPAddress != defaultGateway {
+		t.Fatalf("Expected ncRequest's ipconfiguration gateway to be %s but got %s", defaultGateway, ncRequest.IPConfiguration.GatewayIPAddress)
 	}
 
 	if ncRequest.NetworkContainerid != ncID {

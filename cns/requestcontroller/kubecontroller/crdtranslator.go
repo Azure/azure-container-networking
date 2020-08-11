@@ -46,6 +46,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 		ipSubnet.IPAddress = ip.String()
 		ipSubnet.PrefixLength = uint8(bits)
 		ncRequest.IPConfiguration.IPSubnet = ipSubnet
+		ncRequest.IPConfiguration.GatewayIPAddress = nc.DefaultGateway
 
 		for _, ipAssignment = range nc.IPAssignments {
 			if ip, ipNet, err = net.ParseCIDR(ipAssignment.IP); err != nil {
