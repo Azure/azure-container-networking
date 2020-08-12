@@ -88,6 +88,11 @@ func (npMgr *NetworkPolicyManager) GetAppVersion() string {
 	return npMgr.version
 }
 
+// GetAIMetadata returns ai metadata number
+func GetAIMetadata() string {
+	return aiMetadata;
+}
+
 // SendClusterMetrics :- send NPM cluster metrics using AppInsights
 func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	var (
