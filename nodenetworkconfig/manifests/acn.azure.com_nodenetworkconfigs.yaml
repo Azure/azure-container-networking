@@ -69,12 +69,11 @@ spec:
                     type: array
                   id:
                     type: string
-                  netmask:
-                    description: Netmask for the subnet represented by this NC's SubnetID
-                    type: string
                   primaryIP:
                     type: string
-                  subnetID:
+                  subnetAddressSpace:
+                    type: string
+                  subnetName:
                     type: string
                 type: object
               type: array

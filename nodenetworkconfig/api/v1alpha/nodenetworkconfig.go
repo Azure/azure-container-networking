@@ -66,13 +66,12 @@ type Scaler struct {
 
 // NetworkContainer defines the structure of a Network Container as found in NetworkConfigStatus
 type NetworkContainer struct {
-	ID             string         `json:"id,omitempty"`
-	PrimaryIP      string         `json:"primaryIP,omitempty"`
-	SubnetID       string         `json:"subnetID,omitempty"`
-	IPAssignments  []IPAssignment `json:"iPAssignments,omitempty"`
-	DefaultGateway string         `json:"defaultGateway,omitempty"`
-	// Netmask for the subnet represented by this NC's SubnetID
-	Netmask string `json:"netmask,omitempty"`
+	ID                 string         `json:"id,omitempty"`
+	PrimaryIP          string         `json:"primaryIP,omitempty"`
+	SubnetName         string         `json:"subnetName,omitempty"`
+	IPAssignments      []IPAssignment `json:"iPAssignments,omitempty"`
+	DefaultGateway     string         `json:"defaultGateway,omitempty"`
+	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
 }
 
 // IPAssignment groups an IP address and Name. Name is a UUID set by the the IP address assigner.

@@ -15,7 +15,7 @@ const (
 	ipNotCIDR        = "10.0.0.1"
 	ipMalformed      = "10.0.0.0.0"
 	defaultGateway   = "10.0.0.2"
-	subnetID         = "subnet1"
+	subnetName       = "subnet1"
 )
 
 func TestStatusToNCRequestMalformedPrimaryIP(t *testing.T) {
@@ -155,9 +155,9 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 						IP:   ipCIDR,
 					},
 				},
-				SubnetID:       subnetID,
-				DefaultGateway: defaultGateway,
-				Netmask:        "", // Not currently set by DNC Request Controller
+				SubnetName:         subnetName,
+				DefaultGateway:     defaultGateway,
+				SubnetAddressSpace: "", // Not currently set by DNC Request Controller
 			},
 		},
 	}
