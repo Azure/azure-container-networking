@@ -112,6 +112,10 @@ func (npMgr *NetworkPolicyManager) SendAiMetrics() {
 			Name:             "NwPolicyCount",
 			CustomDimensions: customDimensions,
 		}
+		errCountTest = aitelemetry.Metric{
+			Name:             "errCountTest",
+			CustomDimensions: customDimensions,
+		}
 	)
 
 	for i := 0; err != nil && i < 5; i++ {
@@ -131,10 +135,12 @@ func (npMgr *NetworkPolicyManager) SendAiMetrics() {
 			podCount.Value = float64(clusterState.PodCount)
 			nsCount.Value = float64(clusterState.NsCount)
 			nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
+			errCountTest.Value = float64(77)
 
 			th.TrackMetric(podCount)
 			th.TrackMetric(nsCount)
 			th.TrackMetric(nwPolicyCount)
+			th.TrackMetric(errCountTest)
 		}
 	} else {
 		log.Logf("Failed to initialize AppInsights handle with err: %+v", err)
