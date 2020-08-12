@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/iptm"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/Azure/azure-container-networking/telemetry"
 	corev1 "k8s.io/api/core/v1"
@@ -82,21 +83,14 @@ func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 	return npMgr.clusterState
 }
 
-// SendAiMetrics :- send NPM metrics using AppInsights
-func (npMgr *NetworkPolicyManager) SendAiMetrics() {
-	var (
-		aiConfig = aitelemetry.AIConfig{
-			AppName:                   util.AzureNpmFlag,
-			AppVersion:                npMgr.version,
-			BatchSize:                 32768,
-			BatchInterval:             30,
-			RefreshTimeout:            15,
-			DebugMode:                 true,
-			GetEnvRetryCount:          5,
-			GetEnvRetryWaitTimeInSecs: 3,
-		}
+// GetAppVersion returns network policy manager app version
+func (npMgr *NetworkPolicyManager) GetAppVersion() string {
+	return npMgr.version
+}
 
-		th, err          = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+// SendClusterMetrics :- send NPM cluster metrics using AppInsights
+func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
+	var (
 		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
 		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.nodeName),
 			"APIServer": npMgr.serverVersion.String()}
@@ -113,37 +107,22 @@ func (npMgr *NetworkPolicyManager) SendAiMetrics() {
 			CustomDimensions: customDimensions,
 		}
 		errCountTest = aitelemetry.Metric{
-			Name:             "errCountTest",
+			Name:             "errCountTest02",
 			CustomDimensions: customDimensions,
 		}
 	)
+	for {
+		<-heartbeat
+		clusterState := npMgr.GetClusterState()
+		podCount.Value = float64(clusterState.PodCount)
+		nsCount.Value = float64(clusterState.NsCount)
+		nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
+		errCountTest.Value = float64(77)
 
-	for i := 0; err != nil && i < 5; i++ {
-		log.Logf("Failed to init AppInsights with err: %+v", err)
-		time.Sleep(time.Minute * 5)
-		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
-	}
-
-	if th != nil {
-		log.Logf("Initialized AppInsights handle")
-
-		defer th.Close(10)
-
-		for {
-			<-heartbeat
-			clusterState := npMgr.GetClusterState()
-			podCount.Value = float64(clusterState.PodCount)
-			nsCount.Value = float64(clusterState.NsCount)
-			nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
-			errCountTest.Value = float64(77)
-
-			th.TrackMetric(podCount)
-			th.TrackMetric(nsCount)
-			th.TrackMetric(nwPolicyCount)
-			th.TrackMetric(errCountTest)
-		}
-	} else {
-		log.Logf("Failed to initialize AppInsights handle with err: %+v", err)
+		metrics.SendMetric(podCount)
+		metrics.SendMetric(nsCount)
+		metrics.SendMetric(nwPolicyCount)
+		metrics.SendMetric(errCountTest)
 	}
 }
 

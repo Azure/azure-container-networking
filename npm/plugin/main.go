@@ -63,7 +63,8 @@ func main() {
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
 
-	go npMgr.SendAiMetrics()
+	metrics.CreateTelemetryHandle(npMgr.GetAppVersion())
+	go npMgr.SendClusterMetrics()
 
 	if err = npMgr.Start(wait.NeverStop); err != nil {
 		log.Logf("npm failed with error %v.", err)
