@@ -13,8 +13,7 @@ var (
 )
 
 // CreateTelemetryHandle creates
-func CreateTelemetryHandle(version string) error {
-	var aiMetadata string
+func CreateTelemetryHandle(version, aiMetadata string) error {
 
 	aiConfig := aitelemetry.AIConfig{
 		AppName:                   util.AzureNpmFlag,
