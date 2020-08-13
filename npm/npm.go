@@ -111,10 +111,6 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 			Name:             "NwPolicyCount",
 			CustomDimensions: customDimensions,
 		}
-		errCountTest = aitelemetry.Metric{
-			Name:             "errCountTest02",
-			CustomDimensions: customDimensions,
-		}
 	)
 	for {
 		<-heartbeat
@@ -122,12 +118,11 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 		podCount.Value = float64(clusterState.PodCount)
 		nsCount.Value = float64(clusterState.NsCount)
 		nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
-		errCountTest.Value = float64(77)
 
+		metrics.SendErrorMetric(777, "npm", "SendClusterMetrics");
 		metrics.SendMetric(podCount)
 		metrics.SendMetric(nsCount)
 		metrics.SendMetric(nwPolicyCount)
-		metrics.SendMetric(errCountTest)
 	}
 }
 
