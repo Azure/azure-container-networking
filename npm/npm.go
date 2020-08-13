@@ -119,7 +119,6 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 		nsCount.Value = float64(clusterState.NsCount)
 		nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
 
-		metrics.SendErrorMetric(777, "npm", "SendClusterMetrics");
 		metrics.SendMetric(podCount)
 		metrics.SendMetric(nsCount)
 		metrics.SendMetric(nwPolicyCount)

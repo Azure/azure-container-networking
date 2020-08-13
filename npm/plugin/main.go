@@ -45,6 +45,7 @@ func main() {
 	}
 
 	metrics.InitializeAll()
+	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
 	// Creates the in-cluster config
 	config, err := rest.InClusterConfig()
@@ -63,7 +64,6 @@ func main() {
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
 
-	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 	go npMgr.SendClusterMetrics()
 
 	if err = npMgr.Start(wait.NeverStop); err != nil {
