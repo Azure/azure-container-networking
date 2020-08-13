@@ -13,9 +13,9 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
-const {
+const (
 	packageName string = "ipsm"
-}
+)
 
 type ipsEntry struct {
 	operationFlag string
@@ -411,7 +411,7 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {
 			log.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
-			metrics.SendErrorMetric(errCode, package, functionName);
+			metrics.SendErrorMetric(errCode, packageName, functionName)
 		}
 
 		return errCode, err
