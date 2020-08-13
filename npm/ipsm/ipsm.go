@@ -13,6 +13,10 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
+const {
+	packageName string = "ipsm"
+}
+
 type ipsEntry struct {
 	operationFlag string
 	name          string
@@ -396,17 +400,18 @@ func (ipsMgr *IpsetManager) Destroy() error {
 
 // Run execute an ipset command to update ipset.
 func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
+	functionName := "Run"
 	cmdName := util.Ipset
 	cmdArgs := append([]string{entry.operationFlag, util.IpsetExistFlag, entry.set}, entry.spec...)
 	cmdArgs = util.DropEmptyFields(cmdArgs)
 
 	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
-	metrics.SendErrorMetric(777, "ipsm", "Run");
 	_, err := exec.Command(cmdName, cmdArgs...).Output()
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {
 			log.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+			metrics.SendErrorMetric(errCode, package, functionName);
 		}
 
 		return errCode, err
