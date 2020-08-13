@@ -45,7 +45,6 @@ func main() {
 	}
 
 	metrics.InitializeAll()
-	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
 	// Creates the in-cluster config
 	config, err := rest.InClusterConfig()
@@ -63,6 +62,7 @@ func main() {
 	factory := informers.NewSharedInformerFactory(clientset, time.Hour*24)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
+	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
 	go npMgr.SendClusterMetrics()
 

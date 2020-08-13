@@ -112,6 +112,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 			CustomDimensions: customDimensions,
 		}
 	)
+	packageName := "npm"
 	for {
 		<-heartbeat
 		clusterState := npMgr.GetClusterState()
@@ -119,6 +120,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 		nsCount.Value = float64(clusterState.NsCount)
 		nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
 
+		metrics.Printf("Testing error logging in AI for SendClusterMetrics in %s", packageName)
 		metrics.SendMetric(podCount)
 		metrics.SendMetric(nsCount)
 		metrics.SendMetric(nwPolicyCount)
