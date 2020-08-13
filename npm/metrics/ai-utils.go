@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"time"
+	"strconv"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
@@ -56,14 +57,16 @@ func SendMetric(metric aitelemetry.Metric) {
 }
 
 // SendErrorMetric is responsible for sending error metrics trhough AI telemetry
-// func SendErrorMetric(errorCode int, packageName, functionName string) {
-// 	customDimensions := map[string]string{"PackageName": packageName,
-// 		"FunctionName": functionName,
-// 	    "ErrorCode": strconv.Itoa(errorCode)}
-// 	metric := aitelemetry.Metric{
-// 		Name:             util.ErrorMetric,
-// 		Value:            util.ErrorValue,
-// 		CustomDimensions: customDimensions,
-// 	}
-// 	go SendMetric(metric)
-// }
+func SendErrorMetric(errorCode int, packageName, functionName string) {
+	customDimensions := map[string]string {
+		util.PackageName: packageName,
+		util.FunctionName: functionName,
+		util.ErrorCode: strconv.Itoa(errorCode),
+	}
+	metric := aitelemetry.Metric{
+		Name:             util.ErrorMetric,
+		Value:            util.ErrorValue,
+		CustomDimensions: customDimensions,
+	}
+	go SendMetric(metric)
+}

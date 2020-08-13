@@ -401,6 +401,7 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	cmdArgs = util.DropEmptyFields(cmdArgs)
 
 	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
+	metrics.SendErrorMetric(777, "ipsm", "Run");
 	_, err := exec.Command(cmdName, cmdArgs...).Output()
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()

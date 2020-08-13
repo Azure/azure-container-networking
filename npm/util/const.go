@@ -122,4 +122,11 @@ const (
 	AddNetworkPolicyEvent    string = "Add network policy"
 	UpdateNetworkPolicyEvent string = "Update network policy"
 	DeleteNetworkPolicyEvent string = "Delete network policy"
+
+	ErrorMetric  string = "ErrorMetric"
+	PackageName  string = "PackageName"
+	FunctionName string = "FunctionName"
+	ErrorCode    string = "ErrorCode"
+
+	ErrorValue float64 = 1
 )
