@@ -2,23 +2,27 @@ package metrics
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
+	"github.com/Azure/azure-container-networking/npm/util"
 )
 
 // Printf logs in the AI telemetry
-func Printf(format string, args ...interface{}) {
+func Printf(errorCode int, packageName, functionName, format string, args ...interface{}) {
 	if th == nil {
 		return
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	sendTraceInternal(msg)
-}
-
-// Send AI telemetry trace
-func sendTraceInternal(msg string) {
-	report := aitelemetry.Report{CustomDimensions: make(map[string]string)}
-	report.Message = msg
-    th.TrackLog(report)
+	customDimensions := map[string]string {
+		util.PackageName: packageName,
+		util.FunctionName: functionName,
+	}
+	report := aitelemetry.Report{
+		Message:          msg,
+		Context:          strconv.Itoa(errorCode),
+		CustomDimensions: customDimensions,
+	}
+	th.TrackLog(report)
 }

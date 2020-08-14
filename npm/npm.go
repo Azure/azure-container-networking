@@ -120,7 +120,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 		nsCount.Value = float64(clusterState.NsCount)
 		nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
 
-		metrics.Printf("Testing error logging in AI for SendClusterMetrics in %s", packageName)
+		metrics.Printf(7, "npm", "SendClusterMetrics", "Testing error logging %s", packageName)
 		metrics.SendMetric(podCount)
 		metrics.SendMetric(nsCount)
 		metrics.SendMetric(nwPolicyCount)
