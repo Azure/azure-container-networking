@@ -33,8 +33,7 @@ const (
 	restoreMaxRetries             = 10
 	backupWaitTimeInSeconds       = 60
 	telemetryRetryTimeInSeconds   = 60
-	heartbeatIntervalInMinutes    = 5
-	packageName                   = "npm"
+	heartbeatIntervalInMinutes    = 30
 )
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
