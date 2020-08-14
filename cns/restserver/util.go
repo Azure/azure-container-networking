@@ -625,7 +625,7 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ncSnapshotIntervalInM
 	}
 }
 
-func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.GetIPConfigRequest) (cns.KubernetesPodInfo, int, string) {
+func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPConfigRequest) (cns.KubernetesPodInfo, int, string) {
 	var podInfo cns.KubernetesPodInfo
 
 	if service.state.OrchestratorType != cns.KubernetesCRD {

@@ -54,7 +54,6 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var (
-		podInfo       cns.KubernetesPodInfo
 		req           cns.IPConfigRequest
 		statusCode    int
 		returnMessage string
@@ -171,7 +170,7 @@ func filterIPConfigsWithState(toBeAdded map[string]ipConfigurationStatus, state 
 	for _, v := range toBeAdded {
 		if f(v, state) {
 			ip := cns.IPAddressState{
-				IPAddress: v.IPSubnet.IPAddress,
+				IPAddress: v.IPAddress,
 				State:     v.State,
 			}
 			vsf = append(vsf, ip)

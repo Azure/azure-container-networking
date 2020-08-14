@@ -222,4 +222,17 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
 	}
+
+	ipaddresses, err = cnsClient.GetIPAddressesMatchingStates(cns.Available)
+	if err != nil {
+		t.Fatalf("Get allocated IP addresses failed %+v", err)
+	}
+
+	if len(ipaddresses) != 1 {
+		t.Fatalf("Number of available IP addresses expected to be 1, actual %+v", ipaddresses)
+	}
+
+	if ipaddresses[0].IPAddress != desiredIpAddress && ipaddresses[0].State != cns.Available {
+		t.Fatalf("Available IP address does not match expected, address state: %+v", ipaddresses)
+	}
 }

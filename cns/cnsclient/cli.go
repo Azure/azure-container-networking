@@ -50,6 +50,7 @@ func getCmd(client *CNSClient, arg string) {
 			fmt.Println(err)
 			return
 		}
+
 		printIPAddresses(addr)
 
 	case getAllocatedArg:
@@ -59,6 +60,7 @@ func getCmd(client *CNSClient, arg string) {
 			fmt.Println(err)
 			return
 		}
+
 		printIPAddresses(addr)
 
 	case getAllArg:
@@ -68,14 +70,14 @@ func getCmd(client *CNSClient, arg string) {
 			fmt.Println(err)
 			return
 		}
+
 		printIPAddresses(addr)
 	default:
-		fmt.Println("argument supplied for the get cmd, use the '%v' flag", acn.OptDebugCmdAlias)
+		fmt.Printf("argument supplied for the get cmd, use the '%v' flag", acn.OptDebugCmdAlias)
 	}
 }
 
 func printIPAddresses(addrSlice []cns.IPAddressState) {
-
 	sort.Slice(addrSlice, func(i, j int) bool {
 		if addrSlice[i].IPAddress < addrSlice[j].IPAddress {
 			return true

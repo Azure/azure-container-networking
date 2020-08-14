@@ -227,7 +227,7 @@ func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.I
 	httpc := &http.Client{}
 	url := cnsClient.connectionURL + cns.RequestIPConfig
 
-	payload := &cns.GetIPConfigRequest{
+	payload := &cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
 	}
 
@@ -277,7 +277,7 @@ func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
 	url := cnsClient.connectionURL + cns.ReleaseIPConfig
 	log.Printf("ReleaseIPAddress url %v", url)
 
-	payload := &cns.GetIPConfigRequest{
+	payload := &cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
 	}
 
