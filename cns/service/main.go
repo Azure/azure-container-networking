@@ -332,7 +332,11 @@ func main() {
 	logger.InitLogger(name, logLevel, logTarget, logDirectory)
 
 	if clientDebugCmd != "" {
-		cnsclient.HandleCNSClientCommands(clientDebugCmd, clientDebugArg)
+		err := cnsclient.HandleCNSClientCommands(clientDebugCmd, clientDebugArg)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 

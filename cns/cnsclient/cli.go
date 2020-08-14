@@ -10,36 +10,63 @@ import (
 )
 
 var (
-	getArg          = "get"
+	getArg = "get"
+
+	availableCmds = []string{
+		getArg,
+	}
+
 	getAvailableArg = "Available"
 	getAllocatedArg = "Allocated"
 	getAllArg       = "All"
 
+	getFlags = []string{
+		getAvailableArg,
+		getAllocatedArg,
+		getAllocatedArg,
+	}
+
 	releaseArg = "release"
+
+	eth0InterfaceName   = "eth0"
+	azure0InterfaceName = "azure0"
 )
 
-func HandleCNSClientCommands(cmd, arg string) {
+func HandleCNSClientCommands(cmd, arg string) error {
 	var ip net.IP
 
 	// retrieve the primary interface that CNS is listening on
 	interfaces, _ := net.Interfaces()
+FindIP:
 	for _, iface := range interfaces {
-		addrs, _ := iface.Addrs()
-		for _, address := range addrs {
-			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-				ip = ipnet.IP
+		if iface.Name == eth0InterfaceName || iface.Name == azure0InterfaceName {
+			addrs, _ := iface.Addrs()
+			for _, address := range addrs {
+				if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+					ip = ipnet.IP
+					break FindIP
+				}
 			}
 		}
 	}
 
+	if ip == nil {
+		return fmt.Errorf("Primary IP not found")
+	}
+
 	cnsurl := "http://" + ip.String() + ":10090"
-	cnsClient, _ := InitCnsClient(cnsurl)
+	cnsClient, err := InitCnsClient(cnsurl)
+	if err != nil {
+		return err
+	}
+
 	switch cmd {
 	case getArg:
 		getCmd(cnsClient, arg)
 	default:
-		fmt.Printf("No debug cmd supplied, options are: %v", getArg)
+		return fmt.Errorf("No debug cmd supplied, options are: %v", getArg)
 	}
+	return nil
 }
 
 func getCmd(client *CNSClient, arg string) {

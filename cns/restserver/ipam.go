@@ -57,16 +57,10 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		req           cns.IPConfigRequest
 		statusCode    int
 		returnMessage string
+		err           error
 	)
 
 	statusCode = UnexpectedError
-
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
-	if err != nil {
-		returnMessage = err.Error()
-		return
-	}
 
 	defer func() {
 		resp := cns.Response{}
@@ -79,6 +73,13 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		err = service.Listener.Encode(w, &resp)
 		logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 	}()
+
+	err = service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		returnMessage = err.Error()
+		return
+	}
 
 	podInfo, statusCode, returnMessage := service.validateIpConfigRequest(req)
 
@@ -133,16 +134,10 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 		resp          cns.GetIPAddressStateResponse
 		statusCode    int
 		returnMessage string
+		err           error
 	)
 
 	statusCode = UnexpectedError
-
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
-	if err != nil {
-		returnMessage = err.Error()
-		return
-	}
 
 	defer func() {
 		if err != nil {
@@ -153,6 +148,13 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 		err = service.Listener.Encode(w, &resp)
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, ReturnCodeToString(resp.Response.ReturnCode), err)
 	}()
+
+	err = service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		returnMessage = err.Error()
+		return
+	}
 
 	// Get all IPConfigs matching a state, and append to a slice of IPAddressState
 	resp.IPAddresses = make([]cns.IPAddressState, 0)
