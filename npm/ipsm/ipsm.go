@@ -13,10 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
-const (
-	packageName string = "ipsm"
-)
-
 type ipsEntry struct {
 	operationFlag string
 	name          string
