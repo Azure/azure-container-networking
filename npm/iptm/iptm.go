@@ -93,6 +93,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		entry.Specs = append([]string{index}, entry.Specs...)
 		if _, err = iptMgr.Run(entry); err != nil {
 			log.Errorf("Error: failed to add AZURE-NPM chain to FORWARD chain.")
+			metrics.SendErrorMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
 			return err
 		}
 	}
@@ -114,6 +115,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
 			log.Errorf("Error: failed to add AZURE-NPM-INGRESS-PORT chain to AZURE-NPM chain.")
+			metrics.SendErrorMetric(util.IptmID, "Error: failed to add AZURE-NPM-INGRESS-PORT chain to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -140,6 +142,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
 			log.Errorf("Error: failed to add AZURE-NPM-EGRESS-PORT chain to AZURE-NPM chain.")
+			metrics.SendErrorMetric(util.IptmID, "Error: failed to add AZURE-NPM-INGRESS-PORT chain to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -166,6 +169,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
 			log.Errorf("Error: failed to add AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.")
+			metrics.SendErrorMetric(util.IptmID, "Error: failed to add AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -189,6 +193,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err = iptMgr.Run(entry); err != nil {
 			log.Logf("Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
+			metrics.SendErrorMetric(util.IptmID, "Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -219,6 +224,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 	errCode, err := iptMgr.Run(entry)
 	if errCode != iptablesErrDoesNotExist && err != nil {
 		log.Errorf("Error: failed to remove default rule from FORWARD chain.")
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
 		return err
 	}
 
@@ -230,6 +236,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		errCode, err := iptMgr.Run(entry)
 		if errCode != iptablesErrDoesNotExist && err != nil {
 			log.Errorf("Error: failed to flush iptables chain %s.", chain)
+			metrics.SendErrorMetric(util.IptmID, "Error: failed to flush iptables chain %s.", chain)
 		}
 	}
 
@@ -271,6 +278,7 @@ func (iptMgr *IptablesManager) AddChain(chain string) error {
 		}
 
 		log.Errorf("Error: failed to create iptables chain %s.", entry.Chain)
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to create iptables chain %s.", entry.Chain)
 		return err
 	}
 
@@ -291,6 +299,7 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 		}
 
 		log.Errorf("Error: failed to delete iptables chain %s.", entry.Chain)
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to delete iptables chain %s.", entry.Chain)
 		return err
 	}
 
@@ -310,6 +319,7 @@ func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 	}
 	if _, err := iptMgr.Run(entry); err != nil {
 		log.Errorf("Error: failed to create iptables rules.")
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to create iptables rules.")
 		return err
 	}
 
@@ -335,6 +345,7 @@ func (iptMgr *IptablesManager) Delete(entry *IptEntry) error {
 	iptMgr.OperationFlag = util.IptablesDeletionFlag
 	if _, err := iptMgr.Run(entry); err != nil {
 		log.Errorf("Error: failed to delete iptables rules.")
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to delete iptables rules.")
 		return err
 	}
 
@@ -365,6 +376,7 @@ func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 && iptMgr.OperationFlag != util.IptablesCheckFlag {
 			log.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+			metrics.SendErrorMetric(util.IptmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
 		}
 
 		return errCode, err
@@ -394,6 +406,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 	f, err := os.Create(configFile)
 	if err != nil {
 		log.Errorf("Error: failed to open file: %s.", configFile)
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to open file: %s.", configFile)
 		return err
 	}
 	defer f.Close()
@@ -402,6 +415,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 	cmd.Stdout = f
 	if err := cmd.Start(); err != nil {
 		log.Errorf("Error: failed to run iptables-save.")
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to run iptables-save.")
 		return err
 	}
 	cmd.Wait()
@@ -430,6 +444,7 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 	f, err := os.Open(configFile)
 	if err != nil {
 		log.Errorf("Error: failed to open file: %s.", configFile)
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to open file: %s.", configFile)
 		return err
 	}
 	defer f.Close()
@@ -438,6 +453,7 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 	cmd.Stdin = f
 	if err := cmd.Start(); err != nil {
 		log.Errorf("Error: failed to run iptables-restore.")
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to run iptables-restore.")
 		return err
 	}
 	cmd.Wait()
@@ -461,6 +477,7 @@ func grabIptablesLocks() (*os.File, error) {
 	l, err := os.OpenFile(util.IptablesLockFile, os.O_CREATE, 0600)
 	if err != nil {
 		log.Logf("Error: failed to open iptables lock file %s.", util.IptablesLockFile)
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to open iptables lock file %s.", util.IptablesLockFile)
 		return nil, err
 	}
 
@@ -472,6 +489,7 @@ func grabIptablesLocks() (*os.File, error) {
 		return true, nil
 	}); err != nil {
 		log.Logf("Error: failed to acquire new iptables lock: %v.", err)
+		metrics.SendErrorMetric(util.IptmID, "Error: failed to acquire new iptables lock: %v.", err)
 		return nil, err
 	}
 
