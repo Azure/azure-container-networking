@@ -130,5 +130,18 @@ const (
 	FunctionName string = "FunctionName"
 	ErrorCode    string = "ErrorCode"
 
-	ErrorValue float64 = 1
+	BatchSize                 int = 32768
+	BatchInterval             int = 30
+	RefreshTimeout            int = 15
+	GetEnvRetryCount          int = 5
+	GetEnvRetryWaitTimeInSecs int = 3
+	AiInitializeRetryCount    int = 5
+	NpmID                     int = 1
+	IpsmID                    int = 2
+	IptmID                    int = 3
+
+	DebugMode                 bool = true
+
+	ErrorValue                float64 = 1
+
 )

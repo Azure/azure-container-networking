@@ -1,8 +1,9 @@
 package metrics
 
 import (
-	"time"
+	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
@@ -19,18 +20,18 @@ func CreateTelemetryHandle(version, aiMetadata string) error {
 	aiConfig := aitelemetry.AIConfig{
 		AppName:                   util.AzureNpmFlag,
 		AppVersion:                version,
-		BatchSize:                 32768,
-		BatchInterval:             30,
-		RefreshTimeout:            15,
-		DebugMode:                 true,
-		GetEnvRetryCount:          5,
-		GetEnvRetryWaitTimeInSecs: 3,
+		BatchSize:                 util.BatchSize,
+		BatchInterval:             util.BatchInterval,
+		RefreshTimeout:            util.RefreshTimeout,
+		DebugMode:                 util.DebugMode,
+		GetEnvRetryCount:          util.GetEnvRetryCount,
+		GetEnvRetryWaitTimeInSecs: util.GetEnvRetryWaitTimeInSecs,
 	}
 
 	var err error
 	th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
 
-	for i := 0; err != nil && i < 5; i++ {
+	for i := 0; err != nil && i < util.AiInitializeRetryCount; i++ {
 		log.Logf("Failed to init AppInsights with err: %+v for %d time", err, i + 1)
 		time.Sleep(time.Minute * 5)
 		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
@@ -47,26 +48,35 @@ func CreateTelemetryHandle(version, aiMetadata string) error {
 	return nil
 }
 
-// SendMetric sends
-func SendMetric(metric aitelemetry.Metric) {
-	if th == nil {
-		log.Logf("AppInsights didn't initialized.")
-		return
-	}
-	th.TrackMetric(metric)
-}
-
 // SendErrorMetric is responsible for sending error metrics trhough AI telemetry
-func SendErrorMetric(errorCode int, packageName, functionName string) {
+func SendErrorMetric(operationID int, format string, args ...interface{}) {
+	// Send error metrics
 	customDimensions := map[string]string {
-		util.PackageName: packageName,
-		util.FunctionName: functionName,
-		util.ErrorCode: strconv.Itoa(errorCode),
+		util.ErrorCode: strconv.Itoa(operationID),
 	}
 	metric := aitelemetry.Metric{
 		Name:             util.ErrorMetric,
 		Value:            util.ErrorValue,
 		CustomDimensions: customDimensions,
 	}
-	go SendMetric(metric)
+	SendMetric(metric)
+
+	// Send error logs
+	msg := fmt.Sprintf(format, args...)
+	report := aitelemetry.Report{
+		Message:          msg,
+		Context:          strconv.Itoa(operationID),
+		CustomDimensions: make(map[string]string),
+	}
+	th.TrackLog(report)
 }
+
+// SendMetric sends
+func SendMetric(metric aitelemetry.Metric) {
+	if th == nil {
+			log.Logf("AppInsights didn't initialized.")
+			return
+	}
+	th.TrackMetric(metric)
+}
+
