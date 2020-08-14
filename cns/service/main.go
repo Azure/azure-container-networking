@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
@@ -222,6 +223,20 @@ var args = acn.ArgumentList{
 		Type:         "bool",
 		DefaultValue: false,
 	},
+	{
+		Name:         acn.OptDebugCmd,
+		Shorthand:    acn.OptDebugCmdAlias,
+		Description:  "Debug flag to retrieve IPconfigs, available values: allocated, available, all",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptDebugArg,
+		Shorthand:    acn.OptDebugArgAlias,
+		Description:  "Argument flag to be paired with the 'debugcmd' flag.",
+		Type:         "string",
+		DefaultValue: "",
+	},
 }
 
 // Prints description and version information.
@@ -294,6 +309,8 @@ func main() {
 	privateEndpoint := acn.GetArg(acn.OptPrivateEndpoint).(string)
 	infravnet := acn.GetArg(acn.OptInfrastructureNetworkID).(string)
 	nodeID := acn.GetArg(acn.OptNodeID).(string)
+	clientDebugCmd := acn.GetArg(acn.OptDebugCmd).(string)
+	clientDebugArg := acn.GetArg(acn.OptDebugArg).(string)
 
 	if vers {
 		printVersion()
@@ -313,6 +330,11 @@ func main() {
 
 	// Create logging provider.
 	logger.InitLogger(name, logLevel, logTarget, logDirectory)
+
+	if clientDebugCmd != "" {
+		cnsclient.HandleCNSFlags(clientDebugCmd, clientDebugArg)
+		os.Exit(0)
+	}
 
 	if !telemetryEnabled {
 		logger.Errorf("[Azure CNS] Cannot disable telemetry via cmdline. Update cns_config.json to disable telemetry.")

@@ -22,6 +22,7 @@ const (
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
+	GetIPAddresses                           = "/network/getipconfigs"
 )
 
 // NetworkContainer Prefixes
@@ -197,16 +198,6 @@ type GetNetworkContainerResponse struct {
 	AllowNCToHostCommunication bool
 }
 
-type GetIPConfigRequest struct {
-	DesiredIPAddress    string
-	OrchestratorContext json.RawMessage
-}
-
-type GetIPConfigResponse struct {
-	PodIpInfo PodIpInfo
-	Response  Response
-}
-
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
 type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
@@ -219,6 +210,31 @@ type HostIPInfo struct {
 	Gateway   string
 	PrimaryIP string
 	Subnet    string
+}
+
+type IPConfigRequest struct {
+	DesiredIPAddress    string
+	OrchestratorContext json.RawMessage
+}
+
+type IPConfigResponse struct {
+	PodIpInfo PodIpInfo
+	Response  Response
+}
+
+type GetIPAddressesRequest struct {
+	IPConfigStateFilter []string
+}
+
+type GetIPAddressStateResponse struct {
+	IPAddresses []IPAddressState
+	Response    Response
+}
+
+// Only used in the GetIPConfig API to return IP's that match a filter
+type IPAddressState struct {
+	IPAddress string
+	State     string
 }
 
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.

@@ -71,7 +71,7 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	}
 }
 
-func getIPNetFromResponse(resp *cns.GetIPConfigResponse) (net.IPNet, error) {
+func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 	var (
 		resultIPnet net.IPNet
 		err         error

@@ -177,7 +177,7 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 			}
 			jsonContext, _ := json.Marshal(kubernetesPodInfo)
 
-			ipconfigRequest := cns.GetIPConfigRequest{
+			ipconfigRequest := cns.IPConfigRequest{
 				DesiredIPAddress:    secIpConfig.IPAddress,
 				OrchestratorContext: jsonContext,
 			}

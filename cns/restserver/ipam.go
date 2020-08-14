@@ -43,7 +43,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		Message:    returnMessage,
 	}
 
-	reserveResp := &cns.GetIPConfigResponse{
+	reserveResp := &cns.IPConfigResponse{
 		Response: resp,
 	}
 	reserveResp.PodIpInfo = podIpInfo
@@ -54,7 +54,8 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var (
-		req           cns.GetIPConfigRequest
+		podInfo       cns.KubernetesPodInfo
+		req           cns.IPConfigRequest
 		statusCode    int
 		returnMessage string
 	)
@@ -127,7 +128,59 @@ func (service *HTTPRestService) GetPendingProgramIPConfigs() []cns.IPConfigurati
 	})
 }
 
-func (service *HTTPRestService) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
+func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		req           cns.GetIPAddressesRequest
+		resp          cns.GetIPAddressStateResponse
+		statusCode    int
+		returnMessage string
+	)
+
+	statusCode = UnexpectedError
+
+	err := service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		returnMessage = err.Error()
+		return
+	}
+
+	defer func() {
+
+		if err != nil {
+			resp.Response.ReturnCode = statusCode
+			resp.Response.Message = returnMessage
+		}
+
+		err = service.Listener.Encode(w, &resp)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, ReturnCodeToString(resp.Response.ReturnCode), err)
+	}()
+
+	resp.IPAddresses = make([]cns.IPAddressState, 0)
+	for _, podstate := range req.IPConfigStateFilter {
+		resp.IPAddresses = append(resp.IPAddresses, filterIPConfigsWithState(service.PodIPConfigState, podstate, func(ipconfig ipConfigurationStatus, state string) bool {
+			return ipconfig.State == podstate
+		})...)
+	}
+
+	return
+}
+
+func filterIPConfigsWithState(toBeAdded map[string]ipConfigurationStatus, state string, f func(ipConfigurationStatus, string) bool) []cns.IPAddressState {
+	vsf := make([]cns.IPAddressState, 0)
+	for _, v := range toBeAdded {
+		if f(v, state) {
+			ip := cns.IPAddressState{
+				IPAddress: v.IPSubnet.IPAddress,
+				State:     v.State,
+			}
+			vsf = append(vsf, ip)
+		}
+	}
+	return vsf
+}
+
+func (service *HTTPRestService) GetAllocatedIPConfigs() []ipConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
 	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {

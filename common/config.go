@@ -114,4 +114,12 @@ const (
 	// Managed mode
 	OptManaged      = "managed"
 	OptManagedAlias = "m"
+
+	// Client mode, get allocated ipconfigs
+	OptDebugCmd      = "debugcmd"
+	OptDebugCmdAlias = "cmd"
+
+	// Client mode, get allocated ipconfigs
+	OptDebugArg      = "debugarg"
+	OptDebugArgAlias = "darg"
 )

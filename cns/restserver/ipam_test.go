@@ -172,7 +172,7 @@ func TestIPAMGetAvailableIPConfig(t *testing.T) {
 	}
 	UpdatePodIpConfigState(t, svc, ipconfigs)
 
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod1Info)
 	req.OrchestratorContext = b
 
@@ -207,7 +207,7 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
 
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod2Info)
 	req.OrchestratorContext = b
 
@@ -236,7 +236,7 @@ func TestIPAMGetAlreadyAllocatedIPConfigForSamePod(t *testing.T) {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
 
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod1Info)
 	req.OrchestratorContext = b
 
@@ -266,7 +266,7 @@ func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
 
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod2Info)
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = testIP2
@@ -291,7 +291,7 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
 	}
 
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod1Info)
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = testIP1
@@ -323,7 +323,7 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAllocatedSpecfiedIP(t *testing.T
 	}
 
 	// request the already allocated ip with a new context
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod2Info)
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = testIP1
@@ -351,7 +351,7 @@ func TestIPAMFailToGetIPWhenAllIPsAreAllocated(t *testing.T) {
 	}
 
 	// request the already allocated ip with a new context
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod3Info)
 	req.OrchestratorContext = b
 
@@ -382,7 +382,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	desiredIpAddress := testIP1
 
 	// Use TestPodInfo2 to request TestIP1, which has already been allocated
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod2Info)
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = desiredIpAddress
@@ -399,7 +399,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	}
 
 	// Rerequest
-	req = cns.GetIPConfigRequest{}
+	req = cns.IPConfigRequest{}
 	b, _ = json.Marshal(testPod2Info)
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = desiredIpAddress
@@ -491,7 +491,7 @@ func TestAvailableIPConfigs(t *testing.T) {
 	allocatedIps := svc.GetAllocatedIPConfigs()
 	validateIpState(t, allocatedIps, desiredAllocatedIpConfigs)
 
-	req := cns.GetIPConfigRequest{}
+	req := cns.IPConfigRequest{}
 	b, _ := json.Marshal(testPod1Info)
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = state1.IPAddress
