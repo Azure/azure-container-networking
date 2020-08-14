@@ -18,9 +18,10 @@ var (
 	releaseArg = "release"
 )
 
-func HandleCNSFlags(cmd, arg string) {
+func HandleCNSClientCommands(cmd, arg string) {
 	var ip net.IP
 
+	// retrieve the primary interface that CNS is listening on
 	interfaces, _ := net.Interfaces()
 	for _, iface := range interfaces {
 		addrs, _ := iface.Addrs()
@@ -52,7 +53,6 @@ func getCmd(client *CNSClient, arg string) {
 		}
 
 		printIPAddresses(addr)
-
 	case getAllocatedArg:
 		fmt.Println(getAllocatedArg)
 		addr, err := client.GetIPAddressesMatchingStates(cns.Allocated)
@@ -62,7 +62,6 @@ func getCmd(client *CNSClient, arg string) {
 		}
 
 		printIPAddresses(addr)
-
 	case getAllArg:
 		fmt.Println(getAllArg)
 		addr, err := client.GetIPAddressesMatchingStates(cns.Allocated, cns.Available)
@@ -77,14 +76,17 @@ func getCmd(client *CNSClient, arg string) {
 	}
 }
 
+// Sort the addresses based on IP, then write to stdout
 func printIPAddresses(addrSlice []cns.IPAddressState) {
 	sort.Slice(addrSlice, func(i, j int) bool {
 		if addrSlice[i].IPAddress < addrSlice[j].IPAddress {
 			return true
 		}
+
 		if addrSlice[i].IPAddress > addrSlice[j].IPAddress {
 			return false
 		}
+
 		return addrSlice[i].IPAddress < addrSlice[j].IPAddress
 	})
 

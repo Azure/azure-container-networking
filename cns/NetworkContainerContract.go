@@ -217,21 +217,25 @@ type IPConfigRequest struct {
 	OrchestratorContext json.RawMessage
 }
 
+// IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
 	PodIpInfo PodIpInfo
 	Response  Response
 }
 
+// GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs
+// The IPConfigStateFilter is a slice of IP's to fetch from CNS that match those states
 type GetIPAddressesRequest struct {
 	IPConfigStateFilter []string
 }
 
+// GetIPAddressStateResponse is used in CNS IPAM mode as a response to get IP address state
 type GetIPAddressStateResponse struct {
 	IPAddresses []IPAddressState
 	Response    Response
 }
 
-// Only used in the GetIPConfig API to return IP's that match a filter
+// IPAddressState Only used in the GetIPConfig API to return IP's that match a filter
 type IPAddressState struct {
 	IPAddress string
 	State     string

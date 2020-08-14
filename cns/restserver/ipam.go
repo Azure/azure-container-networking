@@ -145,7 +145,6 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 	}
 
 	defer func() {
-
 		if err != nil {
 			resp.Response.ReturnCode = statusCode
 			resp.Response.Message = returnMessage
@@ -155,9 +154,10 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, ReturnCodeToString(resp.Response.ReturnCode), err)
 	}()
 
+	// Get all IPConfigs matching a state, and append to a slice of IPAddressState
 	resp.IPAddresses = make([]cns.IPAddressState, 0)
 	for _, podstate := range req.IPConfigStateFilter {
-		resp.IPAddresses = append(resp.IPAddresses, filterIPConfigsWithState(service.PodIPConfigState, podstate, func(ipconfig ipConfigurationStatus, state string) bool {
+		resp.IPAddresses = append(resp.IPAddresses, filterIPConfigsMatchingState(service.PodIPConfigState, podstate, func(ipconfig ipConfigurationStatus, state string) bool {
 			return ipconfig.State == podstate
 		})...)
 	}
@@ -165,7 +165,8 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 	return
 }
 
-func filterIPConfigsWithState(toBeAdded map[string]ipConfigurationStatus, state string, f func(ipConfigurationStatus, string) bool) []cns.IPAddressState {
+// filter the ipconfigs in CNS matching a state (Available, Allocated, etc.) and return in a slice
+func filterIPConfigsMatchingState(toBeAdded map[string]ipConfigurationStatus, state string, f func(ipConfigurationStatus, string) bool) []cns.IPAddressState {
 	vsf := make([]cns.IPAddressState, 0)
 	for _, v := range toBeAdded {
 		if f(v, state) {
@@ -174,6 +175,17 @@ func filterIPConfigsWithState(toBeAdded map[string]ipConfigurationStatus, state 
 				State:     v.State,
 			}
 			vsf = append(vsf, ip)
+		}
+	}
+	return vsf
+}
+
+// filter ipconfigs based on predicate
+func filterIPConfigs(toBeAdded map[string]ipConfigurationStatus, f func(ipConfigurationStatus) bool) []ipConfigurationStatus {
+	vsf := make([]ipConfigurationStatus, 0)
+	for _, v := range toBeAdded {
+		if f(v) {
+			vsf = append(vsf, v)
 		}
 	}
 	return vsf
