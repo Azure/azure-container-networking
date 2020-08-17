@@ -68,15 +68,24 @@ func SendErrorMetric(operationID int, format string, args ...interface{}) {
 		Context:          strconv.Itoa(operationID),
 		CustomDimensions: make(map[string]string),
 	}
-	th.TrackLog(report)
+	SendLog(report)
 }
 
-// SendMetric sends
+// SendMetric sends metrics
 func SendMetric(metric aitelemetry.Metric) {
 	if th == nil {
 			log.Logf("AppInsights didn't initialized.")
 			return
 	}
 	th.TrackMetric(metric)
+}
+
+// SendLog sends log
+func SendLog(report aitelemetry.Report) {
+	if th == nil {
+			log.Logf("AppInsights didn't initialized.")
+			return
+	}
+	th.TrackLog(report)
 }
 

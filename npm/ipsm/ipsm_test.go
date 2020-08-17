@@ -154,7 +154,7 @@ func TestDeleteFromList(t *testing.T) {
 	}
 
 	if _, err := ipsMgr.Run(entry); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet since %s still exist in kernel", setName)
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", setName)
 	}
 }
 
