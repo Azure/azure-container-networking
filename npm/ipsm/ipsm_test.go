@@ -449,7 +449,7 @@ func TestDestroy(t *testing.T) {
 		}
 	}()
 
-	if err := ipsMgr.AddToSet("test-set", "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
+	if err := ipsMgr.AddToSet("test-destroy-set", "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestDestroy failed @ ipsMgr.AddToSet")
 	}
 
