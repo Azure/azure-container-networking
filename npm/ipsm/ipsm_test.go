@@ -101,6 +101,7 @@ func TestDeleteFromList(t *testing.T) {
 		}
 	}()
 
+	// Create set and validate set is created.
 	setName := "test-set"
 	if err := ipsMgr.CreateSet(setName, append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet")
@@ -115,6 +116,7 @@ func TestDeleteFromList(t *testing.T) {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet since %s not exist in kernel", setName)
 	}
 
+	// Create list, add set to list and validate set is in the list.
 	listName := "test-list"
 	if err := ipsMgr.AddToList(listName, setName); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList")
@@ -130,6 +132,7 @@ func TestDeleteFromList(t *testing.T) {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList since %s not exist in %s set", listName, setName)
 	}
 
+	// Delete set from list and validate set is not in list anymore.
 	if err := ipsMgr.DeleteFromList(listName, setName); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList")
 	}
@@ -144,7 +147,23 @@ func TestDeleteFromList(t *testing.T) {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList since %s still exist in %s set", listName, setName)
 	}
 
-	if err := ipsMgr.DeleteSet("test-set"); err != nil {
+	// Delete List and validate list is not exist.
+
+	if err := ipsMgr.DeleteSet(listName); err != nil {
+		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
+	}
+
+	entry = &ipsEntry{
+		operationFlag: util.IPsetCheckListFlag,
+		set:           util.GetHashedName(listName),
+	}
+
+	if _, err := ipsMgr.Run(entry); err == nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", listName)
+	}
+
+	// Delete set and validate set is not exist.
+	if err := ipsMgr.DeleteSet(setName); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
 	}
 
@@ -154,7 +173,7 @@ func TestDeleteFromList(t *testing.T) {
 	}
 
 	if _, err := ipsMgr.Run(entry); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet since %s still exist in kernel", setName)
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", setName)
 	}
 }
 
