@@ -70,6 +70,19 @@ func TestAddPod(t *testing.T) {
 			Phase: "Running",
 			PodIP: "1.2.3.4",
 		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				corev1.Container{
+					Ports: []corev1.ContainerPort{
+						corev1.ContainerPort{
+							ContainerPort: 80,
+							Name:          "serve-80",
+							Protocol:      "TCP",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	npMgr.Lock()
