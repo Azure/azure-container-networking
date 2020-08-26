@@ -41,7 +41,7 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
-	returnCode := svc.ReconcileNCState(nil, expectedAllocatedPods)
+	returnCode := svc.ReconcileNCState(nil, expectedAllocatedPods, 0, 0, 0)
 	if returnCode != Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -51,6 +51,7 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 
 func TestReconcileNCWithExistingState(t *testing.T) {
 	restartService()
+	svc.poolMonitor = NewCNSIPAMPoolMonitor(nil, nil)
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
@@ -78,7 +79,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods)
+	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, 0, 0, 0)
 	if returnCode != Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -88,6 +89,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 
 func TestReconcileNCWithSystemPods(t *testing.T) {
 	restartService()
+	svc.poolMonitor = NewCNSIPAMPoolMonitor(nil, nil)
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
@@ -116,7 +118,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods)
+	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, 0, 0, 0)
 	if returnCode != Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}

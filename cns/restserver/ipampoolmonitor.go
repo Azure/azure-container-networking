@@ -17,8 +17,8 @@ var (
 )
 
 type IPAMPoolMonitor interface {
-	Start()
-	UpdatePoolLimitsTransacted(batchSize int64, requestThreshold float64, releaseThreshold float64)
+	Start() error
+	UpdatePoolLimitsTransacted(batchSize int, requestThreshold float64, releaseThreshold float64)
 }
 
 type CNSIPAMPoolMonitor struct {
@@ -35,12 +35,28 @@ type CNSIPAMPoolMonitor struct {
 	sync.RWMutex
 }
 
-func NewCNSIPAMPoolMonitor(cnsService *HTTPRestService, requestController requestcontroller.RequestController) CNSIPAMPoolMonitor {
-	return CNSIPAMPoolMonitor{
+func NewCNSIPAMPoolMonitor(cnsService *HTTPRestService, requestController requestcontroller.RequestController) *CNSIPAMPoolMonitor {
+	return &CNSIPAMPoolMonitor{
 		initialized: false,
 		cns:         cnsService,
 		rc:          requestController,
 	}
+}
+
+// TODO: add looping and cancellation to this, and add to CNS MAIN
+func (pm *CNSIPAMPoolMonitor) Start() error {
+
+	if pm.initialized {
+		availableIPConfigs := pm.cns.GetAvailableIPConfigs()
+		rebatchAction := pm.checkForResize(len(availableIPConfigs))
+		switch rebatchAction {
+		case increasePoolSize:
+			return pm.increasePoolSize()
+		case decreasePoolSize:
+			return pm.decreasePoolSize()
+		}
+	}
+	return nil
 }
 
 // UpdatePoolLimitsTransacted called by request controller on reconcile to set the batch size limits
@@ -62,12 +78,12 @@ func (pm *CNSIPAMPoolMonitor) checkForResize(freeIPConfigCount int) int {
 	switch {
 	// pod count is increasing
 	case freeIPConfigCount < pm.minimumFreeIps:
-		logger.Printf("Number of free IP's (%.1f) < minimum free IPs (%.1f), request batch increase\n", freeIPConfigCount, pm.minimumFreeIps)
+		logger.Printf("Number of free IP's (%d) < minimum free IPs (%d), request batch increase\n", freeIPConfigCount, pm.minimumFreeIps)
 		return increasePoolSize
 
 	// pod count is decreasing
 	case freeIPConfigCount > pm.maximumFreeIps:
-		logger.Printf("Number of free IP's (%.1f) > maximum free IPs (%.1f), request batch decrease\n", freeIPConfigCount, pm.maximumFreeIps)
+		logger.Printf("Number of free IP's (%d) > maximum free IPs (%d), request batch decrease\n", freeIPConfigCount, pm.maximumFreeIps)
 		return decreasePoolSize
 	}
 	return doNothing
@@ -119,20 +135,4 @@ func CNSToCRDSpec(toBeDeletedSecondaryIPConfigs map[string]cns.SecondaryIPConfig
 	}
 
 	return spec, nil
-}
-
-// TODO: add looping and cancellation to this, and add to CNS MAIN
-func (pm *CNSIPAMPoolMonitor) Start() (err error) {
-
-	if pm.initialized {
-		availableIPConfigs := pm.cns.GetAvailableIPConfigs()
-		rebatchAction := pm.checkForResize(len(availableIPConfigs))
-		switch rebatchAction {
-		case increasePoolSize:
-			pm.increasePoolSize()
-		case decreasePoolSize:
-			pm.decreasePoolSize()
-		}
-	}
-	return err
 }

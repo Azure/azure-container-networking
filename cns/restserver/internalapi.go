@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/requestcontroller"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 )
@@ -150,6 +151,12 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	return
 }
 
+func (service *HTTPRestService) StartCNSIPAMPoolMonitor(cnsService *HTTPRestService, requestController requestcontroller.RequestController) {
+
+	// TODO, start pool monitor as well
+	service.poolMonitor = NewCNSIPAMPoolMonitor(cnsService, requestController)
+}
+
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIp map[string]cns.KubernetesPodInfo, batchSize int64, requestThreshold, releaseThreshold float64) int {
 	// check if ncRequest is null, then return as there is no CRD state yet
@@ -190,7 +197,7 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 		}
 	}
 
-	service.poolMonitor.UpdatePoolLimitsTransacted(batchSize, requestThreshold, releaseThreshold)
+	service.poolMonitor.UpdatePoolLimitsTransacted(int(batchSize), requestThreshold, releaseThreshold)
 
 	return 0
 }
