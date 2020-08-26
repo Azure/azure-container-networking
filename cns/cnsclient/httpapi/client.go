@@ -24,8 +24,8 @@ func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerReque
 }
 
 // ReconcileNCState initializes cns state
-func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.KubernetesPodInfo) error {
-	returnCode := client.RestService.ReconcileNCState(ncRequest, podInfoByIP)
+func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.KubernetesPodInfo, batchSize int64, requestThreshold, releaseThreshold float64) error {
+	returnCode := client.RestService.ReconcileNCState(ncRequest, podInfoByIP, batchSize, requestThreshold, releaseThreshold)
 
 	if returnCode != 0 {
 		return fmt.Errorf("Failed to Reconcile ncState: ncRequest %+v, podInfoMap: %+v, errorCode: %d", *ncRequest, podInfoByIP, returnCode)

@@ -151,7 +151,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 }
 
 // This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIp map[string]cns.KubernetesPodInfo) int {
+func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIp map[string]cns.KubernetesPodInfo, batchSize int64, requestThreshold, releaseThreshold float64) int {
 	// check if ncRequest is null, then return as there is no CRD state yet
 	if ncRequest == nil {
 		log.Logf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIp))
@@ -189,6 +189,8 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 			log.Logf("SecondaryIP %+v is not allocated. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
 		}
 	}
+
+	service.poolMonitor.UpdatePoolLimitsTransacted(batchSize, requestThreshold, releaseThreshold)
 
 	return 0
 }

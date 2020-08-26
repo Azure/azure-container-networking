@@ -90,6 +90,28 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	return
 }
 
+func (service *HTTPRestService) MarkIPsAsPendingTransacted(numberToMark int) (map[string]cns.SecondaryIPConfig, error) {
+	pendingReleaseIPs := make(map[string]cns.SecondaryIPConfig)
+	markedIPCount := 0
+
+	service.Lock()
+	defer service.Unlock()
+	for uuid, ipconfig := range service.PodIPConfigState {
+		if ipconfig.State == cns.Available {
+			ipconfig.State = cns.PendingRelease
+			pendingReleaseIPs[uuid] = cns.SecondaryIPConfig{
+				IPAddress: ipconfig.IPAddress,
+			}
+			markedIPCount++
+			if markedIPCount == numberToMark {
+				return pendingReleaseIPs, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
+}
+
 func (service *HTTPRestService) GetAllocatedIPConfigs() []ipConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
