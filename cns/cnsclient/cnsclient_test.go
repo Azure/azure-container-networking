@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/ipampoolmonitor"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/log"
@@ -38,6 +39,7 @@ var (
 
 func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	var ipConfig cns.IPConfiguration
+	var scalarUnits cns.ScalarUnits
 	ipConfig.DNSServers = dnsservers
 	ipConfig.GatewayIPAddress = gatewayIp
 	var ipSubnet cns.IPSubnet
@@ -61,7 +63,7 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 		SecondaryIPConfigs:   secondaryIPConfigs,
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, scalarUnits)
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
@@ -121,6 +123,8 @@ func TestMain(m *testing.M) {
 	httpRestService, err := restserver.NewHTTPRestService(&config, fakes.NewFakeImdsClient())
 	svc = httpRestService.(*restserver.HTTPRestService)
 	svc.Name = "cns-test-server"
+	svc.PoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(nil, nil)
+
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return

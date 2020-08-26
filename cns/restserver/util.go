@@ -253,7 +253,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, ipconf
 		}
 
 		// add the new State
-		ipconfigStatus := ipConfigurationStatus{
+		ipconfigStatus := cns.IPConfigurationStatus{
 			NCID:                ncId,
 			ID:                  ipId,
 			IPAddress:           ipconfig.IPAddress,
@@ -641,7 +641,7 @@ func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.GetI
 	return podInfo, Success, ""
 }
 
-func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus ipConfigurationStatus, podIpInfo *cns.PodIpInfo) error {
+func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIpInfo *cns.PodIpInfo) error {
 	var (
 		ncStatus               containerstatus
 		exists                 bool

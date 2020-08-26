@@ -112,24 +112,28 @@ func (service *HTTPRestService) MarkIPsAsPendingTransacted(numberToMark int) (ma
 	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
 }
 
-func (service *HTTPRestService) GetAllocatedIPConfigs() []ipConfigurationStatus {
+func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
+	return service.PodIPConfigState
+}
+
+func (service *HTTPRestService) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
-	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig ipConfigurationStatus) bool {
+	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
 		return ipconfig.State == cns.Allocated
 	})
 }
 
-func (service *HTTPRestService) GetAvailableIPConfigs() []ipConfigurationStatus {
+func (service *HTTPRestService) GetAvailableIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
-	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig ipConfigurationStatus) bool {
+	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
 		return ipconfig.State == cns.Available
 	})
 }
 
-func filterIPConfigMap(toBeAdded map[string]ipConfigurationStatus, f func(ipConfigurationStatus) bool) []ipConfigurationStatus {
-	vsf := make([]ipConfigurationStatus, 0)
+func filterIPConfigMap(toBeAdded map[string]cns.IPConfigurationStatus, f func(cns.IPConfigurationStatus) bool) []cns.IPConfigurationStatus {
+	vsf := make([]cns.IPConfigurationStatus, 0)
 	for _, v := range toBeAdded {
 		if f(v) {
 			vsf = append(vsf, v)
@@ -139,7 +143,7 @@ func filterIPConfigMap(toBeAdded map[string]ipConfigurationStatus, f func(ipConf
 }
 
 //SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated, does not take a lock
-func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig ipConfigurationStatus, podInfo cns.KubernetesPodInfo, marshalledOrchestratorContext json.RawMessage) ipConfigurationStatus {
+func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurationStatus, podInfo cns.KubernetesPodInfo, marshalledOrchestratorContext json.RawMessage) cns.IPConfigurationStatus {
 	ipconfig.State = cns.Allocated
 	ipconfig.OrchestratorContext = marshalledOrchestratorContext
 	service.PodIPIDByOrchestratorContext[podInfo.GetOrchestratorContextKey()] = ipconfig.ID
@@ -148,7 +152,7 @@ func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig ipConfigurationS
 }
 
 //SetIPConfigAsAllocated and sets the ipconfig in the CNS state as allocated, does not take a lock
-func (service *HTTPRestService) setIPConfigAsAvailable(ipconfig ipConfigurationStatus, podInfo cns.KubernetesPodInfo) ipConfigurationStatus {
+func (service *HTTPRestService) setIPConfigAsAvailable(ipconfig cns.IPConfigurationStatus, podInfo cns.KubernetesPodInfo) cns.IPConfigurationStatus {
 	ipconfig.State = cns.Available
 	ipconfig.OrchestratorContext = nil
 	service.PodIPConfigState[ipconfig.ID] = ipconfig

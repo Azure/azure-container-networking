@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/ipampoolmonitor"
 	"github.com/google/uuid"
 )
 
@@ -36,12 +37,13 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 
 func TestReconcileNCWithEmptyState(t *testing.T) {
 	restartService()
+	var scalarUnits cns.ScalarUnits
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
-	returnCode := svc.ReconcileNCState(nil, expectedAllocatedPods, 0, 0, 0)
+	returnCode := svc.ReconcileNCState(nil, expectedAllocatedPods, scalarUnits)
 	if returnCode != Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -51,7 +53,8 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 
 func TestReconcileNCWithExistingState(t *testing.T) {
 	restartService()
-	svc.poolMonitor = NewCNSIPAMPoolMonitor(nil, nil)
+	var scalarUnits cns.ScalarUnits
+	svc.PoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(nil, nil)
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
@@ -79,7 +82,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, 0, 0, 0)
+	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, scalarUnits)
 	if returnCode != Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -89,7 +92,8 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 
 func TestReconcileNCWithSystemPods(t *testing.T) {
 	restartService()
-	svc.poolMonitor = NewCNSIPAMPoolMonitor(nil, nil)
+	svc.PoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(nil, nil)
+	var scalarUnits cns.ScalarUnits
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
@@ -118,7 +122,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, 0, 0, 0)
+	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, scalarUnits)
 	if returnCode != Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -184,7 +188,9 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int) {
 
 func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncId string) {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, ncId)
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req)
+	var scalarUnits cns.ScalarUnits
+	svc.PoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(nil, nil)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, scalarUnits)
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}

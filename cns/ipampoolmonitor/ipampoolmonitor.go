@@ -1,4 +1,4 @@
-package restserver
+package ipampoolmonitor
 
 import (
 	"context"
@@ -16,26 +16,19 @@ var (
 	doNothing        = 0
 )
 
-type IPAMPoolMonitor interface {
-	Start() error
-	UpdatePoolLimitsTransacted(batchSize int, requestThreshold float64, releaseThreshold float64)
-}
-
 type CNSIPAMPoolMonitor struct {
 	initialized bool
 
-	cns *HTTPRestService
-	rc  requestcontroller.RequestController
+	cns            cns.HTTPService
+	rc             requestcontroller.RequestController
+	scalarUnits    cns.ScalarUnits
+	MinimumFreeIps int
+	MaximumFreeIps int
 
-	batchSize        int
-	requestThreshold float64
-	releaseThreshold float64
-	minimumFreeIps   int
-	maximumFreeIps   int
 	sync.RWMutex
 }
 
-func NewCNSIPAMPoolMonitor(cnsService *HTTPRestService, requestController requestcontroller.RequestController) *CNSIPAMPoolMonitor {
+func NewCNSIPAMPoolMonitor(cnsService cns.HTTPService, requestController requestcontroller.RequestController) *CNSIPAMPoolMonitor {
 	return &CNSIPAMPoolMonitor{
 		initialized: false,
 		cns:         cnsService,
@@ -56,41 +49,40 @@ func (pm *CNSIPAMPoolMonitor) Start() error {
 			return pm.decreasePoolSize()
 		}
 	}
+
 	return nil
 }
 
 // UpdatePoolLimitsTransacted called by request controller on reconcile to set the batch size limits
-func (pm *CNSIPAMPoolMonitor) UpdatePoolLimitsTransacted(batchSize int, requestThreshold float64, releaseThreshold float64) {
-
+func (pm *CNSIPAMPoolMonitor) UpdatePoolLimitsTransacted(scalarUnits cns.ScalarUnits) {
 	pm.Lock()
 	defer pm.Unlock()
-	pm.batchSize = batchSize
-	pm.requestThreshold = requestThreshold
-	pm.releaseThreshold = releaseThreshold
+	pm.scalarUnits = scalarUnits
 
-	//TODO: rounding
-	pm.minimumFreeIps = int(float64(pm.batchSize) * requestThreshold)
-	pm.maximumFreeIps = int(float64(pm.batchSize) * releaseThreshold)
+	// TODO rounding?
+	pm.MinimumFreeIps = int(pm.scalarUnits.BatchSize * (pm.scalarUnits.RequestThresholdPercent / 100))
+	pm.MaximumFreeIps = int(pm.scalarUnits.BatchSize * (pm.scalarUnits.ReleaseThresholdPercent / 100))
+
 	pm.initialized = true
 }
 
 func (pm *CNSIPAMPoolMonitor) checkForResize(freeIPConfigCount int) int {
 	switch {
 	// pod count is increasing
-	case freeIPConfigCount < pm.minimumFreeIps:
-		logger.Printf("Number of free IP's (%d) < minimum free IPs (%d), request batch increase\n", freeIPConfigCount, pm.minimumFreeIps)
+	case freeIPConfigCount < pm.MinimumFreeIps:
+		logger.Printf("Number of free IP's (%d) < minimum free IPs (%d), request batch increase\n", freeIPConfigCount, pm.MinimumFreeIps)
 		return increasePoolSize
 
 	// pod count is decreasing
-	case freeIPConfigCount > pm.maximumFreeIps:
-		logger.Printf("Number of free IP's (%d) > maximum free IPs (%d), request batch decrease\n", freeIPConfigCount, pm.maximumFreeIps)
+	case freeIPConfigCount > pm.MaximumFreeIps:
+		logger.Printf("Number of free IP's (%d) > maximum free IPs (%d), request batch decrease\n", freeIPConfigCount, pm.MaximumFreeIps)
 		return decreasePoolSize
 	}
 	return doNothing
 }
 
 func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
-	increaseIPCount := len(pm.cns.PodIPConfigState) + pm.batchSize
+	increaseIPCount := len(pm.cns.GetPodIPConfigState()) + int(pm.scalarUnits.BatchSize)
 
 	// pass nil map to CNStoCRDSpec because we don't want to modify the to be deleted ipconfigs
 	spec, err := CNSToCRDSpec(nil, increaseIPCount)
@@ -104,7 +96,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 func (pm *CNSIPAMPoolMonitor) decreasePoolSize() error {
 
 	// TODO: Better handling here, negatives?
-	decreaseIPCount := len(pm.cns.PodIPConfigState) - pm.batchSize
+	decreaseIPCount := len(pm.cns.GetPodIPConfigState()) - int(pm.scalarUnits.BatchSize)
 
 	// mark n number of IP's as pending
 	pendingIPAddresses, err := pm.cns.MarkIPsAsPendingTransacted(decreaseIPCount)

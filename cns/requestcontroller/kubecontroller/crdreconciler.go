@@ -55,7 +55,13 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
-	if err = r.CNSClient.CreateOrUpdateNC(ncRequest); err != nil {
+	scalarUnits := cns.ScalarUnits{
+		BatchSize:               nodeNetConfig.Status.Scaler.BatchSize,
+		RequestThresholdPercent: nodeNetConfig.Status.Scaler.RequestThresholdPercent,
+		ReleaseThresholdPercent: nodeNetConfig.Status.Scaler.ReleaseThresholdPercent,
+	}
+
+	if err = r.CNSClient.CreateOrUpdateNC(ncRequest, scalarUnits); err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 		// requeue
 		return reconcile.Result{}, err

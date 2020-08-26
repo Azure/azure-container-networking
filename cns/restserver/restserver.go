@@ -4,7 +4,6 @@
 package restserver
 
 import (
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -40,11 +39,11 @@ type HTTPRestService struct {
 	imdsClient                   imdsclient.ImdsClientInterface
 	ipamClient                   *ipamclient.IpamClient
 	networkContainer             *networkcontainers.NetworkContainers
-	PodIPIDByOrchestratorContext map[string]string                // OrchestratorContext is key and value is Pod IP uuid.
-	PodIPConfigState             map[string]ipConfigurationStatus // seondaryipid(uuid) is key
-	AllocatedIPCount             map[string]allocatedIPCount      // key - ncid
+	PodIPIDByOrchestratorContext map[string]string                    // OrchestratorContext is key and value is Pod IP uuid.
+	PodIPConfigState             map[string]cns.IPConfigurationStatus // seondaryipid(uuid) is key
+	AllocatedIPCount             map[string]allocatedIPCount          // key - ncid
 	routingTable                 *routes.RoutingTable
-	poolMonitor                  IPAMPoolMonitor
+	PoolMonitor                  cns.IPAMPoolMonitor
 	store                        store.KeyValueStore
 	state                        *httpRestServiceState
 	sync.RWMutex
@@ -53,16 +52,6 @@ type HTTPRestService struct {
 
 type allocatedIPCount struct {
 	Count int
-}
-
-// This is used for KubernetesCRD orchastrator Type where NC has multiple ips.
-// This struct captures the state for SecondaryIPs associated to a given NC
-type ipConfigurationStatus struct {
-	NCID                string
-	ID                  string //uuid
-	IPAddress           string
-	State               string
-	OrchestratorContext json.RawMessage
 }
 
 // containerstatus is used to save status of an existing container
@@ -94,16 +83,8 @@ type networkInfo struct {
 	Options     map[string]interface{}
 }
 
-// HTTPService describes the min API interface that every service should have.
-type HTTPService interface {
-	common.ServiceAPI
-	SendNCSnapShotPeriodically(int, chan bool)
-	SetNodeOrchestrator(*cns.SetOrchestratorTypeRequest)
-	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
-}
-
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdsclient.ImdsClientInterface) (HTTPService, error) {
+func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdsclient.ImdsClientInterface) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
@@ -128,7 +109,7 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 	serviceState.joinedNetworks = make(map[string]struct{})
 
 	podIPIDByOrchestratorContext := make(map[string]string)
-	podIPConfigState := make(map[string]ipConfigurationStatus)
+	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
 	allocatedIPCount := make(map[string]allocatedIPCount) // key - ncid
 
 	return &HTTPRestService{

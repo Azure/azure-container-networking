@@ -3,7 +3,11 @@
 
 package cns
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/Azure/azure-container-networking/cns/common"
+)
 
 // Container Network Service remote API Contract
 const (
@@ -24,6 +28,27 @@ const (
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
 )
+
+// HTTPService describes the min API interface that every service should have.
+type HTTPService interface {
+	common.ServiceAPI
+	SendNCSnapShotPeriodically(int, chan bool)
+	SetNodeOrchestrator(*SetOrchestratorTypeRequest)
+	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
+	GetAvailableIPConfigs() []IPConfigurationStatus
+	GetPodIPConfigState() map[string]IPConfigurationStatus
+	MarkIPsAsPendingTransacted(numberToMark int) (map[string]SecondaryIPConfig, error)
+}
+
+// This is used for KubernetesCRD orchastrator Type where NC has multiple ips.
+// This struct captures the state for SecondaryIPs associated to a given NC
+type IPConfigurationStatus struct {
+	NCID                string
+	ID                  string //uuid
+	IPAddress           string
+	State               string
+	OrchestratorContext json.RawMessage
+}
 
 // SetEnvironmentRequest describes the Request to set the environment in CNS.
 type SetEnvironmentRequest struct {
@@ -134,6 +159,17 @@ type NodeConfiguration struct {
 	NodeIP     string
 	NodeID     string
 	NodeSubnet Subnet
+}
+
+type IPAMPoolMonitor interface {
+	Start() error
+	UpdatePoolLimitsTransacted(ScalarUnits)
+}
+
+type ScalarUnits struct {
+	BatchSize               int64
+	RequestThresholdPercent int64
+	ReleaseThresholdPercent int64
 }
 
 // Response describes generic response from CNS.

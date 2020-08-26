@@ -13,8 +13,8 @@ type Client struct {
 }
 
 // CreateOrUpdateNC updates cns state
-func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest) error {
-	returnCode := client.RestService.CreateOrUpdateNetworkContainerInternal(ncRequest)
+func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest, scalarUnits cns.ScalarUnits) error {
+	returnCode := client.RestService.CreateOrUpdateNetworkContainerInternal(ncRequest, scalarUnits)
 
 	if returnCode != 0 {
 		return fmt.Errorf("Failed to Create NC request: %+v, errorCode: %d", ncRequest, returnCode)
@@ -24,8 +24,8 @@ func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerReque
 }
 
 // ReconcileNCState initializes cns state
-func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.KubernetesPodInfo, batchSize int64, requestThreshold, releaseThreshold float64) error {
-	returnCode := client.RestService.ReconcileNCState(ncRequest, podInfoByIP, batchSize, requestThreshold, releaseThreshold)
+func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.KubernetesPodInfo, scalarUnits cns.ScalarUnits) error {
+	returnCode := client.RestService.ReconcileNCState(ncRequest, podInfoByIP, scalarUnits)
 
 	if returnCode != 0 {
 		return fmt.Errorf("Failed to Reconcile ncState: ncRequest %+v, podInfoMap: %+v, errorCode: %d", *ncRequest, podInfoByIP, returnCode)

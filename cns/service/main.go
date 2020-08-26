@@ -227,7 +227,7 @@ func printVersion() {
 }
 
 // Try to register node with DNC when CNS is started in managed DNC mode
-func registerNode(httpRestService restserver.HTTPService, dncEP, infraVnet, nodeID string) {
+func registerNode(httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string) {
 	logger.Printf("[Azure CNS] Registering node %s with Infrastructure Network: %s PrivateEndpoint: %s", nodeID, infraVnet, dncEP)
 
 	var (

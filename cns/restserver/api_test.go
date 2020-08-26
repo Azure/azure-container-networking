@@ -51,7 +51,7 @@ type xmlDocument struct {
 }
 
 var (
-	service                               HTTPService
+	service                               cns.HTTPService
 	svc                                   *HTTPRestService
 	mux                                   *http.ServeMux
 	hostQueryForProgrammedVersionResponse = `{"httpStatusCode":"200","networkContainerId":"eab2470f-test-test-test-b3cd316979d5","version":"1"}`

@@ -177,6 +177,7 @@ func (crdRC *crdRequestController) initCNS() error {
 		cntxt         context.Context
 		ncRequest     cns.CreateNetworkContainerRequest
 		err           error
+		scalarUnits   cns.ScalarUnits
 	)
 
 	cntxt = context.Background()
@@ -189,9 +190,15 @@ func (crdRC *crdRequestController) initCNS() error {
 			os.Exit(1)
 		}
 
+		scalarUnits = cns.ScalarUnits{
+			BatchSize:               nodeNetConfig.Status.Scaler.BatchSize,
+			RequestThresholdPercent: nodeNetConfig.Status.Scaler.RequestThresholdPercent,
+			ReleaseThresholdPercent: nodeNetConfig.Status.Scaler.ReleaseThresholdPercent,
+		}
+
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
-			return crdRC.CNSClient.ReconcileNCState(nil, nil, 0, 0, 0)
+			return crdRC.CNSClient.ReconcileNCState(nil, nil, scalarUnits)
 		}
 
 		// If it's any other error, log it and return
@@ -201,7 +208,7 @@ func (crdRC *crdRequestController) initCNS() error {
 
 	// If there are no NCs, pass nil to CNSClient
 	if len(nodeNetConfig.Status.NetworkContainers) == 0 {
-		return crdRC.CNSClient.ReconcileNCState(nil, nil, 0, 0, 0)
+		return crdRC.CNSClient.ReconcileNCState(nil, nil, scalarUnits)
 	}
 
 	// Convert to CreateNetworkContainerRequest
@@ -231,12 +238,8 @@ func (crdRC *crdRequestController) initCNS() error {
 		}
 	}
 
-	batchSize := nodeNetConfig.Status.Scaler.BatchSize
-	requestThreshold := float64(nodeNetConfig.Status.Scaler.RequestThresholdPercent) / 100
-	releaseThreshold := float64(nodeNetConfig.Status.Scaler.ReleaseThresholdPercent) / 100
-
 	// Call cnsclient init cns passing those two things
-	return crdRC.CNSClient.ReconcileNCState(&ncRequest, podInfoByIP, batchSize, requestThreshold, releaseThreshold)
+	return crdRC.CNSClient.ReconcileNCState(&ncRequest, podInfoByIP, scalarUnits)
 
 }
 
