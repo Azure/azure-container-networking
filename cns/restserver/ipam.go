@@ -90,7 +90,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	return
 }
 
-func (service *HTTPRestService) MarkIPsAsPendingTransacted(numberToMark int) (map[string]cns.SecondaryIPConfig, error) {
+func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]cns.SecondaryIPConfig, error) {
 	pendingReleaseIPs := make(map[string]cns.SecondaryIPConfig)
 	markedIPCount := 0
 

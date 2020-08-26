@@ -37,7 +37,7 @@ type HTTPService interface {
 	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
 	GetAvailableIPConfigs() []IPConfigurationStatus
 	GetPodIPConfigState() map[string]IPConfigurationStatus
-	MarkIPsAsPendingTransacted(numberToMark int) (map[string]SecondaryIPConfig, error)
+	MarkIPsAsPending(numberToMark int) (map[string]SecondaryIPConfig, error)
 }
 
 // This is used for KubernetesCRD orchastrator Type where NC has multiple ips.

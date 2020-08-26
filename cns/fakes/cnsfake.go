@@ -35,7 +35,7 @@ func (fake *HTTPServiceFake) GetPodIPConfigState() map[string]cns.IPConfiguratio
 	return make(map[string]cns.IPConfigurationStatus)
 }
 
-func (fake *HTTPServiceFake) MarkIPsAsPendingTransacted(numberToMark int) (map[string]cns.SecondaryIPConfig, error) {
+func (fake *HTTPServiceFake) MarkIPsAsPending(numberToMark int) (map[string]cns.SecondaryIPConfig, error) {
 	return make(map[string]cns.SecondaryIPConfig), nil
 }
 

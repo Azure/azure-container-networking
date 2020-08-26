@@ -152,7 +152,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	return
 }
 
-func (service *HTTPRestService) StartCNSIPAMPoolMonitor(cnsService *HTTPRestService, requestController requestcontroller.RequestController) {
+func (service *HTTPRestService) StartCNSIPAMPoolMonitor(cnsService cns.HTTPService, requestController requestcontroller.RequestController) {
 
 	// TODO, start pool monitor as well
 	service.PoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(cnsService, requestController)

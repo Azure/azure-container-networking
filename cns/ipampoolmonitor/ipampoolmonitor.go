@@ -95,11 +95,12 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 
 func (pm *CNSIPAMPoolMonitor) decreasePoolSize() error {
 
-	// TODO: Better handling here, negatives?
+	// TODO: Better handling here, negatives
+	// TODO: Maintain desired state to check against if pool size adjustment is already happening
 	decreaseIPCount := len(pm.cns.GetPodIPConfigState()) - int(pm.scalarUnits.BatchSize)
 
 	// mark n number of IP's as pending
-	pendingIPAddresses, err := pm.cns.MarkIPsAsPendingTransacted(decreaseIPCount)
+	pendingIPAddresses, err := pm.cns.MarkIPsAsPending(decreaseIPCount)
 	if err != nil {
 		return err
 	}
