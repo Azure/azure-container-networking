@@ -468,12 +468,25 @@ func TestDestroy(t *testing.T) {
 		}
 	}()
 
+<<<<<<< HEAD
 	if err := ipsMgr.AddToSet("test-destroy-set", "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
+=======
+	setName := "test-destroy"
+	testIP := "1.2.3.4"
+	if err := ipsMgr.AddToSet(setName, testIP, util.IpsetNetHashFlag, ""); err != nil {
+>>>>>>> f1adbf1... Improve TestDestroy unit test validation to make it not flaky.
 		t.Errorf("TestDestroy failed @ ipsMgr.AddToSet")
 	}
 
-	if err := ipsMgr.Destroy(); err != nil {
-		t.Errorf("TestDestroy failed @ ipsMgr.Destroy")
+	// Call Destroy and validate set doesn't exist.
+	ipsMgr.Destroy()
+	entry := &ipsEntry{
+		operationFlag: util.IPsetCheckListFlag,
+		set:           util.GetHashedName(setName),
+	}
+
+	if _, err := ipsMgr.Run(entry); err == nil {
+		t.Errorf("TestDestroy failed @ ipsMgr.Destroy since %s still exist in kernel", setName)
 	}
 }
 
