@@ -223,7 +223,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
 	}
 
-	ipaddresses, err = cnsClient.GetIPAddressesMatchingStates(cns.Available)
+	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(cns.Available)
 	if err != nil {
 		t.Fatalf("Get allocated IP addresses failed %+v", err)
 	}

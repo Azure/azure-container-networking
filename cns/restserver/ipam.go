@@ -17,7 +17,7 @@ import (
 func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		err             error
-		ipconfigRequest cns.GetIPConfigRequest
+		ipconfigRequest cns.IPConfigRequest
 		podIpInfo       cns.PodIpInfo
 		returnCode      int
 		returnMessage   string
@@ -366,7 +366,7 @@ func (service *HTTPRestService) AllocateAnyAvailableIPConfig(podInfo cns.Kuberne
 }
 
 // If IPConfig is already allocated for pod, it returns that else it returns one of the available ipconfigs.
-func requestIPConfigHelper(service *HTTPRestService, req cns.GetIPConfigRequest) (cns.PodIpInfo, error) {
+func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) (cns.PodIpInfo, error) {
 	var (
 		podInfo   cns.KubernetesPodInfo
 		podIpInfo cns.PodIpInfo
