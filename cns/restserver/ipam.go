@@ -159,7 +159,7 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 	// Get all IPConfigs matching a state, and append to a slice of IPAddressState
 	resp.IPAddresses = make([]cns.IPAddressState, 0)
 	for _, podstate := range req.IPConfigStateFilter {
-		resp.IPAddresses = append(resp.IPAddresses, filterIPConfigsMatchingState(service.PodIPConfigState, podstate, func(ipconfig ipConfigurationStatus, state string) bool {
+		resp.IPAddresses = append(resp.IPAddresses, filterIPConfigsMatchingState(service.PodIPConfigState, podstate, func(ipconfig cns.IPConfigurationStatus, state string) bool {
 			return ipconfig.State == podstate
 		})...)
 	}
@@ -168,7 +168,7 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 }
 
 // filter the ipconfigs in CNS matching a state (Available, Allocated, etc.) and return in a slice
-func filterIPConfigsMatchingState(toBeAdded map[string]ipConfigurationStatus, state string, f func(ipConfigurationStatus, string) bool) []cns.IPAddressState {
+func filterIPConfigsMatchingState(toBeAdded map[string]cns.IPConfigurationStatus, state string, f func(cns.IPConfigurationStatus, string) bool) []cns.IPAddressState {
 	vsf := make([]cns.IPAddressState, 0)
 	for _, v := range toBeAdded {
 		if f(v, state) {
@@ -183,8 +183,8 @@ func filterIPConfigsMatchingState(toBeAdded map[string]ipConfigurationStatus, st
 }
 
 // filter ipconfigs based on predicate
-func filterIPConfigs(toBeAdded map[string]ipConfigurationStatus, f func(ipConfigurationStatus) bool) []ipConfigurationStatus {
-	vsf := make([]ipConfigurationStatus, 0)
+func filterIPConfigs(toBeAdded map[string]cns.IPConfigurationStatus, f func(cns.IPConfigurationStatus) bool) []cns.IPConfigurationStatus {
+	vsf := make([]cns.IPConfigurationStatus, 0)
 	for _, v := range toBeAdded {
 		if f(v) {
 			vsf = append(vsf, v)
@@ -193,7 +193,7 @@ func filterIPConfigs(toBeAdded map[string]ipConfigurationStatus, f func(ipConfig
 	return vsf
 }
 
-func (service *HTTPRestService) GetAllocatedIPConfigs() []ipConfigurationStatus {
+func (service *HTTPRestService) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
 	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
