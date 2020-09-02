@@ -137,7 +137,7 @@ const (
 	GetEnvRetryCount          int = 5
 	GetEnvRetryWaitTimeInSecs int = 3
 	AiInitializeRetryCount    int = 3
-	AiInitializeRetryInMin    int = 2
+	AiInitializeRetryInMin    int = 1
 	// These ID represents where did the error log generate from.
 	// It's for better query purpose.
 	NpmID                     int = 1

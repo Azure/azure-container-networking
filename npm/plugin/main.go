@@ -61,11 +61,12 @@ func main() {
 	factory := informers.NewSharedInformerFactory(clientset, time.Hour*24)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
-	go metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
+	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
 	go npMgr.SendClusterMetrics()
 
 	if err = npMgr.Start(wait.NeverStop); err != nil {
+		metrics.SendErrorMetric("npm failed with error %v.", err)
 		log.Logf("npm failed with error %v.", err)
 		panic(err.Error)
 	}
