@@ -66,7 +66,6 @@ func main() {
 	go npMgr.SendClusterMetrics()
 
 	if err = npMgr.Start(wait.NeverStop); err != nil {
-		metrics.SendErrorMetric("npm failed with error %v.", err)
 		log.Logf("npm failed with error %v.", err)
 		panic(err.Error)
 	}
