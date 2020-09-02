@@ -8,7 +8,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
-
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -62,7 +61,7 @@ func main() {
 	factory := informers.NewSharedInformerFactory(clientset, time.Hour*24)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
-	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
+	go metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
 	go npMgr.SendClusterMetrics()
 

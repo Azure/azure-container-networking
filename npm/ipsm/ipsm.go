@@ -1,3 +1,4 @@
+// Package ipsm focus on ip set operation
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
 package ipsm
@@ -69,12 +70,12 @@ func (ipsMgr *IpsetManager) Exists(key string, val string, kind string) bool {
 
 // SetExists checks whehter an ipset exists.
 func (ipsMgr *IpsetManager) SetExists(setName, kind string) bool {
-    m := ipsMgr.setMap
-    if kind == util.IpsetSetListFlag {
-        m = ipsMgr.listMap
-    }
-    _, exists := m[setName]
-    return exists
+	m := ipsMgr.setMap
+	if kind == util.IpsetSetListFlag {
+		m = ipsMgr.listMap
+	}
+	_, exists := m[setName]
+	return exists
 }
 
 func isNsSet(setName string) bool {
@@ -95,7 +96,6 @@ func (ipsMgr *IpsetManager) CreateList(listName string) error {
 	}
 	log.Logf("Creating List: %+v", entry)
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		log.Errorf("Error: failed to create ipset list %s.", listName)
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to create ipset list %s.", listName)
 		return err
 	}
@@ -117,7 +117,6 @@ func (ipsMgr *IpsetManager) DeleteList(listName string) error {
 			return nil
 		}
 
-		log.Errorf("Error: failed to delete ipset %s %+v", listName, entry)
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to delete ipset %s %+v", listName, entry)
 		return err
 	}
@@ -148,7 +147,6 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		log.Errorf("Error: failed to create ipset rules. rule: %+v", entry)
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to create ipset rules. rule: %+v", entry)
 		return err
 	}
@@ -161,7 +159,6 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 // DeleteFromList removes an ipset to an ipset list.
 func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) error {
 	if _, exists := ipsMgr.listMap[listName]; !exists {
-		log.Logf("ipset list with name %s not found", listName)
 		metrics.SendErrorMetric(util.IpsmID, "ipset list with name %s not found", listName)
 		return nil
 	}
@@ -174,7 +171,6 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 	}
 
 	if _, err := ipsMgr.Run(entry); err != nil {
-		log.Errorf("Error: failed to delete ipset entry. %+v", entry)
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to delete ipset entry. %+v", entry)
 		return err
 	}
@@ -186,7 +182,6 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 
 	if len(ipsMgr.listMap[listName].elements) == 0 {
 		if err := ipsMgr.DeleteList(listName); err != nil {
-			log.Errorf("Error: failed to delete ipset list %s.", listName)
 			metrics.SendErrorMetric(util.IpsmID, "Error: failed to delete ipset list %s.", listName)
 			return err
 		}
@@ -212,7 +207,6 @@ func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 	}
 	log.Logf("Creating Set: %+v", entry)
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		log.Errorf("Error: failed to create ipset.")
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to create ipset.")
 		return err
 	}
@@ -229,7 +223,6 @@ func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 // DeleteSet removes a set from ipset.
 func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 	if _, exists := ipsMgr.setMap[setName]; !exists {
-		log.Logf("ipset with name %s not found", setName)
 		metrics.SendErrorMetric(util.IpsmID, "ipset with name %s not found", setName)
 		return nil
 	}
@@ -244,7 +237,6 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 			return nil
 		}
 
-		log.Errorf("Error: failed to delete ipset %s. Entry: %+v", setName, entry)
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to delete ipset %s. Entry: %+v", setName, entry)
 		return err
 	}
@@ -294,7 +286,6 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		log.Logf("Error: failed to create ipset rules. %+v", entry)
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to create ipset rules. %+v", entry)
 		return err
 	}
@@ -339,7 +330,6 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
 			return nil
 		}
 
-		log.Errorf("Error: failed to delete ipset entry. Entry: %+v", entry)
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to delete ipset entry. Entry: %+v", entry)
 		return err
 	}
@@ -365,7 +355,6 @@ func (ipsMgr *IpsetManager) Clean() error {
 		}
 
 		if err := ipsMgr.DeleteSet(setName); err != nil {
-			log.Errorf("Error: failed to clean ipset")
 			metrics.SendErrorMetric(util.IpsmID, "Error: failed to clean ipset")
 			return err
 		}
@@ -377,7 +366,6 @@ func (ipsMgr *IpsetManager) Clean() error {
 		}
 
 		if err := ipsMgr.DeleteList(listName); err != nil {
-			log.Errorf("Error: failed to clean ipset list")
 			metrics.SendErrorMetric(util.IpsmID, "Error: failed to clean ipset list")
 			return err
 		}
@@ -392,14 +380,12 @@ func (ipsMgr *IpsetManager) Destroy() error {
 		operationFlag: util.IpsetFlushFlag,
 	}
 	if _, err := ipsMgr.Run(entry); err != nil {
-		log.Errorf("Error: failed to flush ipset")
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to flush ipset")
 		return err
 	}
 
 	entry.operationFlag = util.IpsetDestroyFlag
 	if _, err := ipsMgr.Run(entry); err != nil {
-		log.Errorf("Error: failed to destroy ipset")
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to destroy ipset")
 		return err
 	}
@@ -420,7 +406,6 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {
-			log.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
 			metrics.SendErrorMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
 		}
 
@@ -438,7 +423,6 @@ func (ipsMgr *IpsetManager) Save(configFile string) error {
 
 	cmd := exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
 	if err := cmd.Start(); err != nil {
-		log.Errorf("Error: failed to save ipset to file.")
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to save ipset to file.")
 		return err
 	}
@@ -455,7 +439,6 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 
 	f, err := os.Stat(configFile)
 	if err != nil {
-		log.Errorf("Error: failed to get file %s stat from ipsm.Restore", configFile)
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to get file %s stat from ipsm.Restore", configFile)
 		return err
 	}
@@ -468,7 +451,6 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 
 	cmd := exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
 	if err := cmd.Start(); err != nil {
-		log.Errorf("Error: failed to restore ipset from file.")
 		metrics.SendErrorMetric(util.IpsmID, "Error: failed to to restore ipset from file.")
 		return err
 	}

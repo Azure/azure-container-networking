@@ -130,12 +130,16 @@ const (
 	FunctionName string = "FunctionName"
 	ErrorCode    string = "ErrorCode"
 
-	BatchSize                 int = 32768
-	BatchInterval             int = 30
-	RefreshTimeout            int = 15
+	// A general used default batch size in AI telemetry
+	BatchSizeInBytes          int = 32768
+	BatchIntervalInSecs       int = 30
+	RefreshTimeoutInSecs      int = 15
 	GetEnvRetryCount          int = 5
 	GetEnvRetryWaitTimeInSecs int = 3
-	AiInitializeRetryCount    int = 5
+	AiInitializeRetryCount    int = 3
+	AiInitializeRetryInMin    int = 2
+	// These ID represents where did the error log generate from.
+	// It's for better query purpose.
 	NpmID                     int = 1
 	IpsmID                    int = 2
 	IptmID                    int = 3

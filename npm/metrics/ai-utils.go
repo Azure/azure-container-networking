@@ -14,7 +14,7 @@ var (
 	th aitelemetry.TelemetryHandle
 )
 
-// CreateTelemetryHandle creates
+// CreateTelemetryHandle creates a handler to initialize AI telemetry
 func CreateTelemetryHandle(version, aiMetadata string) error {
 
 	aiConfig := aitelemetry.AIConfig{
@@ -28,13 +28,14 @@ func CreateTelemetryHandle(version, aiMetadata string) error {
 		GetEnvRetryWaitTimeInSecs: util.GetEnvRetryWaitTimeInSecs,
 	}
 
-	var err error
-	th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
-
-	for i := 0; err != nil && i < util.AiInitializeRetryCount; i++ {
-		log.Logf("Failed to init AppInsights with err: %+v for %d time", err, i + 1)
-		time.Sleep(time.Minute * 5)
-		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+	for i := 0; i < util.AiInitializeRetryCount; i++ {
+		th, err := aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+		if err != nil {
+			log.Logf("Failed to init AppInsights with err: %+v for %d time", err, i+1)
+			time.Sleep(time.Minute * util.AiInitializeRetryInMin)
+		} else {
+			i = util.AiInitializeRetryCount
+		}
 	}
 
 	if err != nil {
@@ -51,7 +52,7 @@ func CreateTelemetryHandle(version, aiMetadata string) error {
 // SendErrorMetric is responsible for sending error metrics trhough AI telemetry
 func SendErrorMetric(operationID int, format string, args ...interface{}) {
 	// Send error metrics
-	customDimensions := map[string]string {
+	customDimensions := map[string]string{
 		util.ErrorCode: strconv.Itoa(operationID),
 	}
 	metric := aitelemetry.Metric{
@@ -68,14 +69,15 @@ func SendErrorMetric(operationID int, format string, args ...interface{}) {
 		Context:          strconv.Itoa(operationID),
 		CustomDimensions: make(map[string]string),
 	}
+	log.Errorf(msg)
 	SendLog(report)
 }
 
 // SendMetric sends metrics
 func SendMetric(metric aitelemetry.Metric) {
 	if th == nil {
-			log.Logf("AppInsights didn't initialized.")
-			return
+		log.Logf("AppInsights didn't initialized.")
+		return
 	}
 	th.TrackMetric(metric)
 }
@@ -83,9 +85,8 @@ func SendMetric(metric aitelemetry.Metric) {
 // SendLog sends log
 func SendLog(report aitelemetry.Report) {
 	if th == nil {
-			log.Logf("AppInsights didn't initialized.")
-			return
+		log.Logf("AppInsights didn't initialized.")
+		return
 	}
 	th.TrackLog(report)
 }
-
