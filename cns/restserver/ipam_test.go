@@ -66,7 +66,7 @@ func NewPodState(ipaddress string, prefixLength uint8, id, ncid, state string) c
 	}
 }
 
-func requestIpAddressAndGetState(t *testing.T, req cns.GetIPConfigRequest) (cns.IPConfigurationStatus, error) {
+func requestIpAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPConfigurationStatus, error) {
 	var (
 		podInfo   cns.KubernetesPodInfo
 		ipState   cns.IPConfigurationStatus
