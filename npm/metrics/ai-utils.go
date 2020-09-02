@@ -20,19 +20,20 @@ func CreateTelemetryHandle(version, aiMetadata string) error {
 	aiConfig := aitelemetry.AIConfig{
 		AppName:                   util.AzureNpmFlag,
 		AppVersion:                version,
-		BatchSize:                 util.BatchSize,
-		BatchInterval:             util.BatchInterval,
-		RefreshTimeout:            util.RefreshTimeout,
+		BatchSize:                 util.BatchSizeInBytes,
+		BatchInterval:             util.BatchIntervalInSecs,
+		RefreshTimeout:            util.RefreshTimeoutInSecs,
 		DebugMode:                 util.DebugMode,
 		GetEnvRetryCount:          util.GetEnvRetryCount,
 		GetEnvRetryWaitTimeInSecs: util.GetEnvRetryWaitTimeInSecs,
 	}
 
+	var err error
 	for i := 0; i < util.AiInitializeRetryCount; i++ {
-		th, err := aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
 		if err != nil {
 			log.Logf("Failed to init AppInsights with err: %+v for %d time", err, i+1)
-			time.Sleep(time.Minute * util.AiInitializeRetryInMin)
+			time.Sleep(time.Minute * time.Duration(util.AiInitializeRetryInMin))
 		} else {
 			i = util.AiInitializeRetryCount
 		}
