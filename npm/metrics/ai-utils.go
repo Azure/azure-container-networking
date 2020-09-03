@@ -35,7 +35,7 @@ func CreateTelemetryHandle(version, aiMetadata string) error {
 			log.Logf("Failed to init AppInsights with err: %+v for %d time", err, i+1)
 			time.Sleep(time.Minute * time.Duration(util.AiInitializeRetryInMin))
 		} else {
-			i = util.AiInitializeRetryCount
+			break
 		}
 	}
 

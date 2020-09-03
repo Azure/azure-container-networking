@@ -1,4 +1,4 @@
-// Copyright 2018 Microsoft. All rights reserved.
+// Package npm Copyright 2018 Microsoft. All rights reserved.
 // MIT License
 package npm
 
@@ -90,7 +90,7 @@ func (npMgr *NetworkPolicyManager) GetAppVersion() string {
 
 // GetAIMetadata returns ai metadata number
 func GetAIMetadata() string {
-	return aiMetadata;
+	return aiMetadata
 }
 
 // SendClusterMetrics :- send NPM cluster metrics using AppInsights
