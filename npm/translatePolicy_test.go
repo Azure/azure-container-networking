@@ -256,7 +256,8 @@ func TestCraftPartialIptEntryFromSelector(t *testing.T) {
 			"label": "src",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "labelNotIn",
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values: []string{
@@ -326,7 +327,8 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 			"k0": "v0",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "k1",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -334,7 +336,8 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 					"v11",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "k2",
 				Operator: metav1.LabelSelectorOpDoesNotExist,
 				Values:   []string{},
@@ -354,7 +357,8 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 			"k0": "v0",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "k1",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -362,7 +366,8 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 					"v11",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "k2",
 				Operator: metav1.LabelSelectorOpDoesNotExist,
 				Values:   []string{},
@@ -387,7 +392,8 @@ func TestGetDefaultDropEntries(t *testing.T) {
 			"context": "dev",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testNotIn",
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values: []string{
@@ -400,7 +406,8 @@ func TestGetDefaultDropEntries(t *testing.T) {
 	iptIngressEntries := getDefaultDropEntries(ns, targetSelector, true, false)
 
 	expectedIptIngressEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -440,7 +447,8 @@ func TestGetDefaultDropEntries(t *testing.T) {
 	iptEgressEntries := getDefaultDropEntries(ns, targetSelector, false, true)
 
 	expectedIptEgressEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -480,7 +488,8 @@ func TestGetDefaultDropEntries(t *testing.T) {
 	iptIngressEgressEntries := getDefaultDropEntries(ns, targetSelector, true, true)
 
 	expectedIptIngressEgressEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -507,7 +516,8 @@ func TestGetDefaultDropEntries(t *testing.T) {
 				"DROP-ALL-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -553,7 +563,8 @@ func TestTranslateIngress(t *testing.T) {
 			"context": "dev",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testNotIn",
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values: []string{
@@ -570,7 +581,8 @@ func TestTranslateIngress(t *testing.T) {
 			"app": "db",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -584,7 +596,8 @@ func TestTranslateIngress(t *testing.T) {
 			"ns": "dev",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -600,7 +613,8 @@ func TestTranslateIngress(t *testing.T) {
 				"region": "northpole",
 			},
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				// metav1.LabelSelectorRequirement
+				{
 					Key:      "k",
 					Operator: metav1.LabelSelectorOpDoesNotExist,
 				},
@@ -611,7 +625,8 @@ func TestTranslateIngress(t *testing.T) {
 				"planet": "earth",
 			},
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				// metav1.LabelSelectorRequirement
+				{
 					Key:      "keyExists",
 					Operator: metav1.LabelSelectorOpExists,
 				},
@@ -620,18 +635,22 @@ func TestTranslateIngress(t *testing.T) {
 	}
 
 	rules := []networkingv1.NetworkPolicyIngressRule{
-		networkingv1.NetworkPolicyIngressRule{
+		// networkingv1.NetworkPolicyIngressRule
+		{
 			Ports: []networkingv1.NetworkPolicyPort{
-				networkingv1.NetworkPolicyPort{
+				// networkingv1.NetworkPolicyPort
+				{
 					Protocol: &tcp,
 					Port:     &port6783,
 				},
 			},
 			From: []networkingv1.NetworkPolicyPeer{
-				networkingv1.NetworkPolicyPeer{
+				// networkingv1.NetworkPolicyPeer
+				{
 					PodSelector: ingressPodSelector,
 				},
-				networkingv1.NetworkPolicyPeer{
+				// networkingv1.NetworkPolicyPeer
+				{
 					NamespaceSelector: ingressNamespaceSelector,
 				},
 				compositeNetworkPolicyPeer,
@@ -671,7 +690,8 @@ func TestTranslateIngress(t *testing.T) {
 	}
 
 	expectedIptEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -717,7 +737,8 @@ func TestTranslateIngress(t *testing.T) {
 				"ALLOW-app:db-AND-testIn:frontend-IN-ns-testnamespace-AND-TCP-PORT-6783-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -758,7 +779,8 @@ func TestTranslateIngress(t *testing.T) {
 				"ALLOW-ns-ns:dev-AND-ns-testIn:frontendns-AND-TCP-PORT-6783-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -810,7 +832,8 @@ func TestTranslateIngress(t *testing.T) {
 				"ALLOW-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-AND-TCP-PORT-6783-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -858,7 +881,8 @@ func TestTranslateEgress(t *testing.T) {
 			"context": "dev",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testNotIn",
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values: []string{
@@ -875,7 +899,8 @@ func TestTranslateEgress(t *testing.T) {
 			"app": "db",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -889,7 +914,8 @@ func TestTranslateEgress(t *testing.T) {
 			"ns": "dev",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -905,7 +931,8 @@ func TestTranslateEgress(t *testing.T) {
 				"region": "northpole",
 			},
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				// metav1.LabelSelectorRequirement
+				{
 					Key:      "k",
 					Operator: metav1.LabelSelectorOpDoesNotExist,
 				},
@@ -916,7 +943,8 @@ func TestTranslateEgress(t *testing.T) {
 				"planet": "earth",
 			},
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				// metav1.LabelSelectorRequirement
+				{
 					Key:      "keyExists",
 					Operator: metav1.LabelSelectorOpExists,
 				},
@@ -925,18 +953,22 @@ func TestTranslateEgress(t *testing.T) {
 	}
 
 	rules := []networkingv1.NetworkPolicyEgressRule{
-		networkingv1.NetworkPolicyEgressRule{
+		// networkingv1.NetworkPolicyEgressRule
+		{
 			Ports: []networkingv1.NetworkPolicyPort{
-				networkingv1.NetworkPolicyPort{
+				// networkingv1.NetworkPolicyPort
+				{
 					Protocol: &tcp,
 					Port:     &port6783,
 				},
 			},
 			To: []networkingv1.NetworkPolicyPeer{
-				networkingv1.NetworkPolicyPeer{
+				// networkingv1.NetworkPolicyPeer
+				{
 					PodSelector: egressPodSelector,
 				},
-				networkingv1.NetworkPolicyPeer{
+				// networkingv1.NetworkPolicyPeer
+				{
 					NamespaceSelector: egressNamespaceSelector,
 				},
 				compositeNetworkPolicyPeer,
@@ -976,7 +1008,8 @@ func TestTranslateEgress(t *testing.T) {
 	}
 
 	expectedIptEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1022,7 +1055,8 @@ func TestTranslateEgress(t *testing.T) {
 				"ALLOW-app:db-AND-testIn:frontend-IN-ns-testnamespace-AND-TCP-PORT-6783-FROM-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1063,7 +1097,8 @@ func TestTranslateEgress(t *testing.T) {
 				"ALLOW-ns-ns:dev-AND-ns-testIn:frontendns-AND-TCP-PORT-6783-FROM-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1115,7 +1150,8 @@ func TestTranslateEgress(t *testing.T) {
 				"ALLOW-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace-TO-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-AND-TCP-PORT-6783",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureEgressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1228,7 +1264,8 @@ func TestAllowBackendToFrontend(t *testing.T) {
 	expectedIptEntries := []*iptm.IptEntry{}
 
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1259,7 +1296,8 @@ func TestAllowBackendToFrontend(t *testing.T) {
 				"ALLOW-app:frontend-IN-ns-testnamespace-TO-app:backend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1282,7 +1320,8 @@ func TestAllowBackendToFrontend(t *testing.T) {
 					util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1305,7 +1344,8 @@ func TestAllowBackendToFrontend(t *testing.T) {
 					util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1365,7 +1405,8 @@ func TestAllowAllToAppFrontend(t *testing.T) {
 	expectedIptEntries := []*iptm.IptEntry{}
 
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1461,7 +1502,8 @@ func TestNamespaceToFrontend(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1487,7 +1529,8 @@ func TestNamespaceToFrontend(t *testing.T) {
 				"ALLOW-ns-testnamespace-TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1510,7 +1553,8 @@ func TestNamespaceToFrontend(t *testing.T) {
 					util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1533,7 +1577,8 @@ func TestNamespaceToFrontend(t *testing.T) {
 					util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1594,7 +1639,8 @@ func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1620,7 +1666,8 @@ func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
 				"ALLOW-all-namespaces-TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1643,7 +1690,8 @@ func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
 					util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1666,7 +1714,8 @@ func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
 					util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1730,7 +1779,8 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1768,7 +1818,8 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 				"ALLOW-ns-namespace:dev-AND-ns-!namespace:test0-AND-ns-!namespace:test1-TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1791,7 +1842,8 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 					util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1814,7 +1866,8 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 					util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1878,7 +1931,8 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -1920,7 +1974,8 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 				"ALLOW-all-namespaces-TO-app:frontend-AND-!k0-AND-k1:v0-AND-k1:v1-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1959,7 +2014,8 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 					util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -1998,7 +2054,8 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 					util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2079,7 +2136,8 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2110,7 +2168,8 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 				"ALLOW-ns-ns:dev-AND-app:backend-TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2133,7 +2192,8 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 					util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2156,7 +2216,8 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 					util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2217,7 +2278,8 @@ func TestAllowInternalAndExternal(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2279,7 +2341,8 @@ func TestAllowBackendToFrontendPort8000(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2312,7 +2375,8 @@ func TestAllowBackendToFrontendPort8000(t *testing.T) {
 				"ALLOW-app:backend-IN-ns-testnamespace-AND-PORT-8000-TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2334,7 +2398,8 @@ func TestAllowBackendToFrontendPort8000(t *testing.T) {
 				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2396,7 +2461,8 @@ func TestAllowBackendToFrontendWithMissingPort(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2427,7 +2493,8 @@ func TestAllowBackendToFrontendWithMissingPort(t *testing.T) {
 				"ALLOW-app:backend-IN-ns-testnamespace-AND--TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2449,7 +2516,8 @@ func TestAllowBackendToFrontendWithMissingPort(t *testing.T) {
 				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2515,7 +2583,8 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2556,7 +2625,8 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 				"ALLOW-program:cni-AND-team:acn-IN-ns-acn-TO-app:k8s-AND-team:aks-IN-ns-acn",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2597,7 +2667,8 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 				"ALLOW-binary:cns-AND-group:container-IN-ns-acn-TO-app:k8s-AND-team:aks-IN-ns-acn",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2625,7 +2696,8 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 					util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2652,7 +2724,8 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 				"ALLOW-ALL-TO-app:k8s-AND-team:aks-IN-ns-acn-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2754,7 +2827,8 @@ func TestAllowAllFromAppBackend(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2775,7 +2849,8 @@ func TestAllowAllFromAppBackend(t *testing.T) {
 				"ALLOW-ALL-FROM-app:backend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureEgressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2872,7 +2947,8 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesProtFlag,
@@ -2897,7 +2973,8 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 				"ALLOW-ALL-TO-TCP-PORT-53-FROM-app:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesProtFlag,
@@ -2922,7 +2999,8 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 				"ALLOW-ALL-TO-UDP-PORT-53-FROM-app:frontend-IN-ns-testnamespace",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressToChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -2949,7 +3027,8 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 					util.KubeAllNamespacesFlag,
 			},
 		},
-		&iptm.IptEntry{
+		//&iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureEgressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2972,7 +3051,8 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 					util.IptablesAzureEgressToChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureEgressToChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -2994,7 +3074,8 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 				"ALLOW-ALL-FROM-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3081,7 +3162,8 @@ func TestComplexPolicy(t *testing.T) {
 	cidrEgressIpsetName := "k8s-example-policy" + "-in-ns-" + "default-" + "0" + "out"
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3111,7 +3193,8 @@ func TestComplexPolicy(t *testing.T) {
 				"ALLOW-" + cidrIngressIpsetName + "-AND-TCP-PORT-6379-TO-role:db-IN-ns-default",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3141,7 +3224,8 @@ func TestComplexPolicy(t *testing.T) {
 				"ALLOW-ns-project:myproject-AND-TCP-PORT-6379-TO-role:db-IN-ns-default",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3176,7 +3260,8 @@ func TestComplexPolicy(t *testing.T) {
 				"ALLOW-role:frontend-IN-ns-default-AND-TCP-PORT-6379-TO-role:db-IN-ns-default",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -3198,7 +3283,8 @@ func TestComplexPolicy(t *testing.T) {
 				"ALLOW-ALL-TO-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -3220,7 +3306,8 @@ func TestComplexPolicy(t *testing.T) {
 				"ALLOW-ALL-TO-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressPortChain,
 			Specs: []string{
 				util.IptablesProtFlag,
@@ -3250,7 +3337,8 @@ func TestComplexPolicy(t *testing.T) {
 				"ALLOW-" + cidrEgressIpsetName + "-AND-TCP-PORT-5978-FROM-role:db-IN-ns-default",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureEgressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -3272,7 +3360,8 @@ func TestComplexPolicy(t *testing.T) {
 				"ALLOW-ALL-FROM-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureEgressToChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureEgressToChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -3294,7 +3383,8 @@ func TestComplexPolicy(t *testing.T) {
 				"ALLOW-ALL-FROM-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3315,7 +3405,8 @@ func TestComplexPolicy(t *testing.T) {
 				"DROP-ALL-TO-role:db-IN-ns-default",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3355,7 +3446,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 			"app": "test",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -3390,15 +3482,18 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				networkingv1.PolicyTypeEgress,
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				// networkingv1.NetworkPolicyIngressRule
+				{
 					From: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						// networkingv1.NetworkPolicyPeer
+						{
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"app": "test",
 								},
 								MatchExpressions: []metav1.LabelSelectorRequirement{
-									metav1.LabelSelectorRequirement{
+									// metav1.LabelSelectorRequirement
+									{
 										Key:      "testIn",
 										Operator: metav1.LabelSelectorOpIn,
 										Values: []string{
@@ -3408,13 +3503,15 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 								},
 							},
 						},
-						networkingv1.NetworkPolicyPeer{
+						// networkingv1.NetworkPolicyPeer
+						{
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"app": "test",
 								},
 								MatchExpressions: []metav1.LabelSelectorRequirement{
-									metav1.LabelSelectorRequirement{
+									// metav1.LabelSelectorRequirement
+									{
 										Key:      "testIn",
 										Operator: metav1.LabelSelectorOpIn,
 										Values: []string{
@@ -3428,9 +3525,11 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				},
 			},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				// networkingv1.NetworkPolicyEgressRule
+				{
 					To: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						// networkingv1.NetworkPolicyPeer
+						{
 							NamespaceSelector: &metav1.LabelSelector{},
 						},
 					},
@@ -3482,7 +3581,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 	iptEntries = append(iptEntries, finalIptEntries...)
 
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3500,7 +3600,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 		},
 	}
 	nonKubeSystemEntries2 := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3541,7 +3642,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				"ALLOW-app:test-AND-testIn:pod-B-IN-ns-default-TO-app:test-AND-testIn:pod-A-IN-ns-default",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3582,7 +3684,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				"ALLOW-app:test-AND-testIn:pod-C-IN-ns-default-TO-app:test-AND-testIn:pod-A-IN-ns-default",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{util.IptablesModuleFlag,
@@ -3609,7 +3712,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 					util.IptablesAzureIngressFromChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressFromChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -3636,7 +3740,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				"ALLOW-ALL-TO-app:test-AND-testIn:pod-A-IN-ns-default-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureEgressToChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3667,7 +3772,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				"ALLOW-app:test-AND-testIn:pod-A-IN-ns-default-TO-all-namespaces",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureEgressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -3695,7 +3801,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 					util.IptablesAzureEgressToChain,
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureEgressToChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -3722,7 +3829,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				"ALLOW-ALL-FROM-app:test-AND-testIn:pod-A-IN-ns-default-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3748,7 +3856,8 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				"DROP-ALL-TO-app:test-AND-testIn:pod-A-IN-ns-default",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3824,7 +3933,8 @@ func TestNamedPorts(t *testing.T) {
 
 	expectedIptEntries := []*iptm.IptEntry{}
 	nonKubeSystemEntries := []*iptm.IptEntry{
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureIngressPortChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
@@ -3850,7 +3960,8 @@ func TestNamedPorts(t *testing.T) {
 				"ALLOW-ALL-TCP-PORT-serve-80-TO-app:server-IN-ns-test",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain:       util.IptablesAzureIngressPortChain,
 			IsJumpEntry: true,
 			Specs: []string{
@@ -3872,7 +3983,8 @@ func TestNamedPorts(t *testing.T) {
 				"ALLOW-ALL-TO-app:server-IN-ns-test-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
 			},
 		},
-		&iptm.IptEntry{
+		// &iptm.IptEntry
+		{
 			Chain: util.IptablesAzureTargetSetsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,

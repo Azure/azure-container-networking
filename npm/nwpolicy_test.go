@@ -78,14 +78,17 @@ func TestAddNetworkPolicy(t *testing.T) {
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				// networkingv1.NetworkPolicyIngressRule
+				{
 					From: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						// networkingv1.NetworkPolicyPeer
+						{
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{"app": "test"},
 							},
 						},
-						networkingv1.NetworkPolicyPeer{
+						// networkingv1.NetworkPolicyPeer
+						{
 							IPBlock: &networkingv1.IPBlock{
 								CIDR: "0.0.0.0/0",
 							},
@@ -128,7 +131,8 @@ func TestAddNetworkPolicy(t *testing.T) {
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				// networkingv1.NetworkPolicyEgressRule
+				{
 					To: []networkingv1.NetworkPolicyPeer{{
 						PodSelector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -221,7 +225,8 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				// networkingv1.NetworkPolicyIngressRule
+				{
 					From: []networkingv1.NetworkPolicyPeer{{
 						PodSelector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -245,7 +250,8 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				// networkingv1.NetworkPolicyEgressRule
+				{
 					To: []networkingv1.NetworkPolicyPeer{{
 						NamespaceSelector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"ns": "test"},
@@ -333,7 +339,8 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				// networkingv1.NetworkPolicyIngressRule
+				{
 					From: []networkingv1.NetworkPolicyPeer{{
 						PodSelector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},

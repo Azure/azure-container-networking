@@ -53,11 +53,13 @@ func (h ReqHeap) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 }
 
+// Push function
 func (h *ReqHeap) Push(x interface{}) {
 	sort.Strings(x.(metav1.LabelSelectorRequirement).Values)
 	*h = append(*h, x.(metav1.LabelSelectorRequirement))
 }
 
+// Pop function
 func (h *ReqHeap) Pop() interface{} {
 	old := *h
 	n := len(old)

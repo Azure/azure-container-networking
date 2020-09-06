@@ -200,7 +200,8 @@ func TestReqHeap(t *testing.T) {
 func TestSortSelector(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -208,7 +209,8 @@ func TestSortSelector(t *testing.T) {
 					"backend",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "a",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -225,14 +227,16 @@ func TestSortSelector(t *testing.T) {
 	sortSelector(selector)
 	expectedSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "a",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
 					"b",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -257,7 +261,8 @@ func TestSortSelector(t *testing.T) {
 func TestHashSelector(t *testing.T) {
 	firstSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -274,7 +279,8 @@ func TestHashSelector(t *testing.T) {
 
 	secondSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -337,7 +343,8 @@ func TestParseSelector(t *testing.T) {
 
 	selector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
