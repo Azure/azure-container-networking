@@ -70,12 +70,12 @@ func (ipsMgr *IpsetManager) Exists(key string, val string, kind string) bool {
 
 // SetExists checks whehter an ipset exists.
 func (ipsMgr *IpsetManager) SetExists(setName, kind string) bool {
-    m := ipsMgr.setMap
-    if kind == util.IpsetSetListFlag {
-        m = ipsMgr.listMap
-    }
-    _, exists := m[setName]
-    return exists
+	m := ipsMgr.setMap
+	if kind == util.IpsetSetListFlag {
+		m = ipsMgr.listMap
+	}
+	_, exists := m[setName]
+	return exists
 }
 
 func isNsSet(setName string) bool {

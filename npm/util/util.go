@@ -7,8 +7,8 @@ import (
 	"hash/fnv"
 	"os"
 	"regexp"
-	"strings"
 	"sort"
+	"strings"
 
 	"github.com/Masterminds/semver"
 	"k8s.io/apimachinery/pkg/version"
@@ -106,7 +106,7 @@ func CompareK8sVer(firstVer *version.Info, secondVer *version.Info) int {
 	if len(v1Minor) < 1 {
 		return -2
 	}
-	v1, err := semver.NewVersion(firstVer.Major+"."+v1Minor[0])
+	v1, err := semver.NewVersion(firstVer.Major + "." + v1Minor[0])
 	if err != nil {
 		return -2
 	}
@@ -114,7 +114,7 @@ func CompareK8sVer(firstVer *version.Info, secondVer *version.Info) int {
 	if len(v2Minor) < 1 {
 		return -2
 	}
-	v2, err := semver.NewVersion(secondVer.Major+"."+v2Minor[0])
+	v2, err := semver.NewVersion(secondVer.Major + "." + v2Minor[0])
 	if err != nil {
 		return -2
 	}

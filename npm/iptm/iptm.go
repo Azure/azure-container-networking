@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )

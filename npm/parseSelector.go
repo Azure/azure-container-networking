@@ -1,9 +1,9 @@
 package npm
 
 import (
+	"container/heap"
 	"fmt"
 	"sort"
-	"container/heap"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -14,18 +14,18 @@ import (
 // An ReqHeap is a min-heap of labelSelectorRequirements.
 type ReqHeap []metav1.LabelSelectorRequirement
 
-func (h ReqHeap) Len() int { 
+func (h ReqHeap) Len() int {
 	return len(h)
 }
 
 func (h ReqHeap) Less(i, j int) bool {
 	sort.Strings(h[i].Values)
 	sort.Strings(h[j].Values)
-	
+
 	if int(h[i].Key[0]) < int(h[j].Key[0]) {
 		return true
 	}
-	
+
 	if int(h[i].Key[0]) > int(h[j].Key[0]) {
 		return false
 	}
@@ -37,7 +37,7 @@ func (h ReqHeap) Less(i, j int) bool {
 	if len(h[j].Values) == 0 {
 		return false
 	}
-	
+
 	if len(h[i].Values[0]) == 0 {
 		return true
 	}
@@ -61,8 +61,8 @@ func (h *ReqHeap) Push(x interface{}) {
 func (h *ReqHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
-	x := old[n -1]
-	*h = old[0 : n - 1]
+	x := old[n-1]
+	*h = old[0 : n-1]
 
 	return x
 }

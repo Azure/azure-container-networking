@@ -113,11 +113,11 @@ func TestAddNetworkPolicy(t *testing.T) {
 	ipsMgr = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
 
 	// Check whether 0.0.0.0/0 got translated to 1.0.0.0/1 and 128.0.0.0/1
-	if ! ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "1.0.0.0/1", util.IpsetNetHashFlag) {
+	if !ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "1.0.0.0/1", util.IpsetNetHashFlag) {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
-	if ! ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "128.0.0.0/1", util.IpsetNetHashFlag) {
+	if !ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "128.0.0.0/1", util.IpsetNetHashFlag) {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 

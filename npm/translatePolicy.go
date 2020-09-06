@@ -1,4 +1,4 @@
-// Copyright 2018 Microsoft. All rights reserved.
+// Package npm use Copyright 2018 Microsoft. All rights reserved.
 // MIT License
 package npm
 
@@ -288,7 +288,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 					if len(fromRule.IPBlock.Except) > 0 {
 						for _, except := range fromRule.IPBlock.Except {
 							// TODO move IP cidrs rule to allow based only
-							ipCidrs[i] = append(ipCidrs[i], except + util.IpsetNomatch)
+							ipCidrs[i] = append(ipCidrs[i], except+util.IpsetNomatch)
 						}
 						addedIngressFromEntry = true
 					}
@@ -984,7 +984,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									util.GetHashedName(cidrIpsetName),
 									util.IptablesDstFlag,
 								)
-								entry.Specs = append(	
+								entry.Specs = append(
 									entry.Specs,
 									util.IptablesJumpFlag,
 									util.IptablesAccept,
