@@ -244,7 +244,7 @@ func TestDeleteSet(t *testing.T) {
 		}
 	}()
 
-	testSetName := "test-set"
+	testSetName := "test-delete-set"
 	if err := ipsMgr.CreateSet(testSetName, append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.CreateSet")
 	}
@@ -350,7 +350,7 @@ func TestDeleteFromSet(t *testing.T) {
 		}
 	}()
 
-	testSetName := "test-set"
+	testSetName := "test-delete-from-set"
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
