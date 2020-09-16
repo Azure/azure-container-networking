@@ -244,7 +244,7 @@ func TestDeleteSet(t *testing.T) {
 		}
 	}()
 
-	testSetName := "test-delete-set"
+	testSetName := "test-set"
 	if err := ipsMgr.CreateSet(testSetName, append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.CreateSet")
 	}
@@ -350,7 +350,7 @@ func TestDeleteFromSet(t *testing.T) {
 		}
 	}()
 
-	testSetName := "test-delete-from-set"
+	testSetName := "test-set"
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
@@ -468,13 +468,9 @@ func TestDestroy(t *testing.T) {
 		}
 	}()
 
-<<<<<<< HEAD
-	if err := ipsMgr.AddToSet("test-destroy-set", "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
-=======
 	setName := "test-destroy"
 	testIP := "1.2.3.4"
 	if err := ipsMgr.AddToSet(setName, testIP, util.IpsetNetHashFlag, ""); err != nil {
->>>>>>> f1adbf1... Improve TestDestroy unit test validation to make it not flaky.
 		t.Errorf("TestDestroy failed @ ipsMgr.AddToSet")
 	}
 
