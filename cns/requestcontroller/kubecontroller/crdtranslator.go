@@ -66,23 +66,3 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 	//Only returning the first network container for now, later we will return a list
 	return ncRequest, nil
 }
-
-// CNSToCRDSpec translates CNS's map of Ips to be released and requested ip count into a CRD Spec
-func CNSToCRDSpec(toBeDeletedSecondaryIPConfigs map[string]cns.SecondaryIPConfig, ipCount int) (nnc.NodeNetworkConfigSpec, error) {
-	var (
-		spec nnc.NodeNetworkConfigSpec
-		uuid string
-	)
-
-	if toBeDeletedSecondaryIPConfigs == nil {
-		return spec, fmt.Errorf("Error when translating toBeDeletedSecondaryIPConfigs to CRD spec, map is nil")
-	}
-
-	spec.RequestedIPCount = int64(ipCount)
-
-	for uuid = range toBeDeletedSecondaryIPConfigs {
-		spec.IPsNotInUse = append(spec.IPsNotInUse, uuid)
-	}
-
-	return spec, nil
-}
