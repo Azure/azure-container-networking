@@ -16,9 +16,10 @@ var (
 		getArg,
 	}
 
-	getAvailableArg = "Available"
-	getAllocatedArg = "Allocated"
-	getAllArg       = "All"
+	getAvailableArg      = "Available"
+	getAllocatedArg      = "Allocated"
+	getAllArg            = "All"
+	getPendingReleaseArg = "PendingRelease"
 
 	getFlags = []string{
 		getAvailableArg,
@@ -71,33 +72,38 @@ FindIP:
 
 func getCmd(client *CNSClient, arg string) {
 	switch arg {
-	case getAvailableArg:
-		fmt.Println(getAvailableArg)
+	case cns.Available:
 		addr, err := client.GetIPAddressesMatchingStates(cns.Available)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-
 		printIPAddresses(addr)
-	case getAllocatedArg:
-		fmt.Println(getAllocatedArg)
+
+	case cns.Allocated:
 		addr, err := client.GetIPAddressesMatchingStates(cns.Allocated)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-
 		printIPAddresses(addr)
+
 	case getAllArg:
-		fmt.Println(getAllArg)
-		addr, err := client.GetIPAddressesMatchingStates(cns.Allocated, cns.Available)
+		addr, err := client.GetIPAddressesMatchingStates(cns.Allocated, cns.Available, cns.PendingRelease)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-
 		printIPAddresses(addr)
+
+	case cns.PendingRelease:
+		addr, err := client.GetIPAddressesMatchingStates(cns.PendingRelease)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		printIPAddresses(addr)
+
 	default:
 		fmt.Printf("argument supplied for the get cmd, use the '%v' flag", acn.OptDebugCmdAlias)
 	}
@@ -118,6 +124,6 @@ func printIPAddresses(addrSlice []cns.IPAddressState) {
 	})
 
 	for _, addr := range addrSlice {
-		fmt.Printf("%v\n", addr)
+		fmt.Printf("%+v\n", addr)
 	}
 }

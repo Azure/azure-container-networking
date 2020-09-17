@@ -22,7 +22,7 @@ const (
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
-	GetIPAddresses                           = "/network/getipconfigs"
+	GetIPAddresses                           = "/debug/getipaddresses"
 )
 
 // NetworkContainer Prefixes
