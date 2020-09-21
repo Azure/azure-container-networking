@@ -32,11 +32,8 @@
          "name": "windowspool2",
          "count": 2,
          "vmSize": "Standard_D2_v2",
-         "availabilityProfile": "AvailabilitySet",
-         "osType": "Windows",
-         "extensions": [{
-            "name": "windows-patches"
-         }]
+        "availabilityProfile": "VirtualMachineScaleSets",
+        "osType": "Windows"
       }],
       "windowsProfile": {
          "adminUsername": "azureuser",
