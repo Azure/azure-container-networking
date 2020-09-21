@@ -10,8 +10,10 @@ trigger:
 
 stages:
   - stage: build_and_test
+    displayName: Build and Unit Test
     jobs:
       - job: unit_tests
+        displayName: Unit Tests
         pool:
           name: Networking-ContainerNetworking
           demands: agent.os -equals Linux
@@ -194,6 +196,26 @@ stages:
             displayName: Create artifact storage container
             condition: succeeded()
 
+  - stage: end_to_end_tests
+    displayName: End to End Tests
+    jobs:
+      - job: single_tenancy
+        displayName: Single Tenancy
+        pool:
+          name: Networking-ContainerNetworking
+          demands: agent.os -equals Linux
+
+        container:
+          image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+          options: "--privileged"
+
+        # Go setup for the vmImage:
+        # https://github.com/Microsoft/azure-pipelines-image-generation/blob/master/images/linux/scripts/installers/go.sh
+        variables:
+          GOBIN: "$(GOPATH)/bin" # Go binaries path
+          GOPATH: "$(System.DefaultWorkingDirectory)/gopath" # Go workspace path
+          modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking" # $(build.repository.name)' # Path to the module's code
+
       - template: e2e-job-template.yaml
         parameters:
           name: "ubuntu_16_04_linux_e2e"
@@ -231,8 +253,10 @@ stages:
           clusterDefinitionCniBuildExt: ".zip"
 
   - stage: cleanup
+    displayName: Cleanup
     jobs:
       - job: delete_remote_artifacts
+        displayName: Delete remote artifacts
         pool:
           name: Networking-ContainerNetworking
           demands: agent.os -equals Linux
