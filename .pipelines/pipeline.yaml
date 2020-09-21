@@ -13,7 +13,7 @@ stages:
     displayName: Build and Unit Test
     jobs:
       - job: unit_tests
-        displayName: Unit Tests
+        displayName: CNI, NPM, CNS, CNM
         pool:
           name: Networking-ContainerNetworking
           demands: agent.os -equals Linux
@@ -196,47 +196,53 @@ stages:
             displayName: Create artifact storage container
             condition: succeeded()
 
-  - stage: end_to_end_tests
-    displayName: End to End Tests
-    jobs:
-      - template: e2e-job-template.yaml
-        parameters:
-          name: "ubuntu_16_04_linux_e2e"
-          pipelineBuildImage: "$(BUILD_IMAGE)"
-          clusterDefinition: "cniLinux1604.json"
-          clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-          clusterDefinitionCniBuildOS: "linux"
-          clusterDefinitionCniBuildExt: ".tgz"
+  - template: e2e-job-template.yaml
+    parameters:
+      name: "ubuntu_16_04_linux_e2e"
+      displayName: Ubuntu 16.04
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      clusterDefinition: "cniLinux1604.json"
+      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
+      clusterDefinitionCniBuildOS: "linux"
+      clusterDefinitionCniBuildExt: ".tgz"
 
-      - template: e2e-job-template.yaml
-        parameters:
-          name: "ubuntu_18_04_linux_e2e"
-          pipelineBuildImage: "$(BUILD_IMAGE)"
-          clusterDefinition: "cniLinux1804.json"
-          clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-          clusterDefinitionCniBuildOS: "linux"
-          clusterDefinitionCniBuildExt: ".tgz"
+  - template: e2e-job-template.yaml
+    parameters:
+      name: "ubuntu_18_04_linux_e2e"
+      displayName: Ubuntu 18.04
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      clusterDefinition: "cniLinux1804.json"
+      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
+      clusterDefinitionCniBuildOS: "linux"
+      clusterDefinitionCniBuildExt: ".tgz"
 
-      - template: e2e-job-template.yaml
-        parameters:
-          name: "windows_18_09_e2e"
-          pipelineBuildImage: "$(BUILD_IMAGE)"
-          clusterDefinition: "cniWindows1809.json"
-          clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-          clusterDefinitionCniBuildOS: "windows"
-          clusterDefinitionCniBuildExt: ".zip"
+  - template: e2e-job-template.yaml
+    parameters:
+      name: "windows_18_09_e2e"
+      displayName: "Windows 1809"
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      clusterDefinition: "cniWindows1809.json"
+      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+      clusterDefinitionCniBuildOS: "windows"
+      clusterDefinitionCniBuildExt: ".zip"
 
-      - template: e2e-job-template.yaml
-        parameters:
-          name: "windows_19_03_e2e"
-          pipelineBuildImage: "$(BUILD_IMAGE)"
-          clusterDefinition: "cniWindows1903.json"
-          clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-          clusterDefinitionCniBuildOS: "windows"
-          clusterDefinitionCniBuildExt: ".zip"
+  - template: e2e-job-template.yaml
+    parameters:
+      name: "windows_19_03_e2e"
+      displayName: "Windows 1903"
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      clusterDefinition: "cniWindows1903.json"
+      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+      clusterDefinitionCniBuildOS: "windows"
+      clusterDefinitionCniBuildExt: ".zip"
 
   - stage: cleanup
     displayName: Cleanup
+    dependsOn:
+      - "ubuntu_16_04_linux_e2e"
+      - "ubuntu_18_04_linux_e2e"
+      - "windows_18_09_e2e"
+      - "windows_19_03_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
