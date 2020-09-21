@@ -225,9 +225,9 @@ func main() {
 		panic("network plugin start fatal error")
 	}
 
-	// Check CNI_COMMAD value for logging purposes.
-	cmd := os.Getenv("CNI_COMMAND")
-	log.Errorf("CNI_COMMAND environment variable set to %s", cmd)
+	// Check CNI_COMMAND value for logging purposes.
+	cniCmd := os.Getenv(cni.Cmd)
+	log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
 
 	handled, err := handleIfCniUpdate(netPlugin.Update)
 	if handled == true {
