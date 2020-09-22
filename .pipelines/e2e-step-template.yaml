@@ -88,6 +88,7 @@ steps:
       export CLEANUP_ON_EXIT=true 
       export REGIONS=$(AKS_ENGINE_REGION) 
       export IS_JENKINS=false 
+      export DEBUG_CRASHING_PODS=true
       make test-kubernetes
     name: DeployAKSEngine
     displayName: Run AKS-Engine E2E Tests
