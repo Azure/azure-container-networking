@@ -4,33 +4,34 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
-	acn "github.com/Azure/azure-container-networking/common"
 )
 
-var (
-	getArg = "get"
-
-	availableCmds = []string{
-		getArg,
-	}
-
+const (
+	getCmdArg            = "get"
 	getAvailableArg      = "Available"
 	getAllocatedArg      = "Allocated"
 	getAllArg            = "All"
 	getPendingReleaseArg = "PendingRelease"
+
+	releaseArg = "release"
+
+	eth0InterfaceName   = "eth0"
+	azure0InterfaceName = "azure0"
+)
+
+var (
+	availableCmds = []string{
+		getCmdArg,
+	}
 
 	getFlags = []string{
 		getAvailableArg,
 		getAllocatedArg,
 		getAllocatedArg,
 	}
-
-	releaseArg = "release"
-
-	eth0InterfaceName   = "eth0"
-	azure0InterfaceName = "azure0"
 )
 
 func HandleCNSClientCommands(cmd, arg string) error {
@@ -61,65 +62,45 @@ FindIP:
 		return err
 	}
 
-	switch cmd {
-	case getArg:
-		getCmd(cnsClient, arg)
+	switch {
+	case strings.EqualFold(getCmdArg, cmd):
+		return getCmd(cnsClient, arg)
 	default:
-		return fmt.Errorf("No debug cmd supplied, options are: %v", getArg)
+		return fmt.Errorf("No debug cmd supplied, options are: %v", getCmdArg)
 	}
-	return nil
 }
 
-func getCmd(client *CNSClient, arg string) {
+func getCmd(client *CNSClient, arg string) error {
+	var states []string
+
 	switch arg {
 	case cns.Available:
-		addr, err := client.GetIPAddressesMatchingStates(cns.Available)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		printIPAddresses(addr)
+		states = append(states, cns.Available)
 
 	case cns.Allocated:
-		addr, err := client.GetIPAddressesMatchingStates(cns.Allocated)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		printIPAddresses(addr)
-
-	case getAllArg:
-		addr, err := client.GetIPAddressesMatchingStates(cns.Allocated, cns.Available, cns.PendingRelease)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		printIPAddresses(addr)
+		states = append(states, cns.Allocated)
 
 	case cns.PendingRelease:
-		addr, err := client.GetIPAddressesMatchingStates(cns.PendingRelease)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		printIPAddresses(addr)
+		states = append(states, cns.PendingRelease)
 
 	default:
-		fmt.Printf("argument supplied for the get cmd, use the '%v' flag", acn.OptDebugCmdAlias)
+		states = append(states, cns.Allocated)
+		states = append(states, cns.Available)
+		states = append(states, cns.PendingRelease)
 	}
+
+	addr, err := client.GetIPAddressesMatchingStates(states...)
+	if err != nil {
+		return err
+	}
+
+	printIPAddresses(addr)
+	return nil
 }
 
 // Sort the addresses based on IP, then write to stdout
 func printIPAddresses(addrSlice []cns.IPAddressState) {
 	sort.Slice(addrSlice, func(i, j int) bool {
-		if addrSlice[i].IPAddress < addrSlice[j].IPAddress {
-			return true
-		}
-
-		if addrSlice[i].IPAddress > addrSlice[j].IPAddress {
-			return false
-		}
-
 		return addrSlice[i].IPAddress < addrSlice[j].IPAddress
 	})
 

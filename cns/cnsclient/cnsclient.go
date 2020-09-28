@@ -327,7 +327,10 @@ func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) 
 		body bytes.Buffer
 	)
 
-	httpc := &http.Client{}
+	if len(StateFilter) == 0 {
+		return []cns.IPAddressState{}, nil
+	}
+
 	url := cnsClient.connectionURL + cns.GetIPAddresses
 	log.Printf("GetIPAddressesMatchingStates url %v", url)
 
@@ -341,7 +344,7 @@ func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) 
 		return resp.IPAddresses, err
 	}
 
-	res, err = httpc.Post(url, contentTypeJSON, &body)
+	res, err = http.Post(url, contentTypeJSON, &body)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
 		return resp.IPAddresses, err

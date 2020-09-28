@@ -150,28 +150,31 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 	}()
 
 	err = service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
 	if err != nil {
 		returnMessage = err.Error()
 		return
 	}
 
-	// Get all IPConfigs matching a state, and append to a slice of IPAddressState
-	resp.IPAddresses = make([]cns.IPAddressState, 0)
-	for _, podstate := range req.IPConfigStateFilter {
-		resp.IPAddresses = append(resp.IPAddresses, filterIPConfigsMatchingState(service.PodIPConfigState, podstate, func(ipconfig cns.IPConfigurationStatus, state string) bool {
-			return ipconfig.State == podstate
-		})...)
+	filterFunc := func(ipconfig cns.IPConfigurationStatus, states []string) bool {
+		for _, state := range states {
+			if ipconfig.State == state {
+				return true
+			}
+		}
+		return false
 	}
+
+	// Get all IPConfigs matching a state, and append to a slice of IPAddressState
+	resp.IPAddresses = filterIPConfigsMatchingState(service.PodIPConfigState, req.IPConfigStateFilter, filterFunc)
 
 	return
 }
 
 // filter the ipconfigs in CNS matching a state (Available, Allocated, etc.) and return in a slice
-func filterIPConfigsMatchingState(toBeAdded map[string]cns.IPConfigurationStatus, state string, f func(cns.IPConfigurationStatus, string) bool) []cns.IPAddressState {
+func filterIPConfigsMatchingState(toBeAdded map[string]cns.IPConfigurationStatus, states []string, f func(cns.IPConfigurationStatus, []string) bool) []cns.IPAddressState {
 	vsf := make([]cns.IPAddressState, 0)
 	for _, v := range toBeAdded {
-		if f(v, state) {
+		if f(v, states) {
 			ip := cns.IPAddressState{
 				IPAddress: v.IPAddress,
 				State:     v.State,
