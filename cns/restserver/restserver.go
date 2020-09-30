@@ -60,7 +60,7 @@ type containerstatus struct {
 	VMVersion                     string
 	HostVersion                   string
 	CreateNetworkContainerRequest cns.CreateNetworkContainerRequest
-	WaitingForUpdate              bool // True when NC is waiting for NMA to sync versions/rules
+	VfpUpdateComplete             bool // True when VFP programming is completed for the NC
 }
 
 // httpRestServiceState contains the state we would like to persist.

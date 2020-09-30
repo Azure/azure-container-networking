@@ -1128,6 +1128,16 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, numOfCPUCoresResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
+func getInterfaceIdFromCreateNetworkContainerURL(
+	createNetworkContainerURL string) string {
+	return strings.Split(strings.Split(createNetworkContainerURL, "interfaces/")[1], "/")[0]
+}
+
+func getAuthTokenFromCreateNetworkContainerURL(
+	createNetworkContainerURL string) string {
+	return strings.Split(strings.Split(createNetworkContainerURL, "authenticationToken/")[1], "/")[0]
+}
+
 // Publish Network Container by calling nmagent
 func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure-CNS] PublishNetworkContainer")
@@ -1184,6 +1194,17 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
 			}
 		}
+
+		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
+		primaryInterfaceIdentifier := getInterfaceIdFromCreateNetworkContainerURL(req.CreateNetworkContainerURL)
+		authToken := getAuthTokenFromCreateNetworkContainerURL(req.CreateNetworkContainerURL)
+		ncGetVersionURL := fmt.Sprintf(nmagentclient.GetNetworkContainerVersionURLFmt,
+			nmagentclient.WireserverIP,
+			primaryInterfaceIdentifier,
+			req.NetworkContainerID,
+			authToken)
+		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, ncGetVersionURL)
+
 	default:
 		returnMessage = "PublishNetworkContainer API expects a POST"
 		returnCode = UnsupportedVerb
