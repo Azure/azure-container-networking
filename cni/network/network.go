@@ -385,7 +385,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	log.Printf("Result from multitenancy %+v", result)
 
 	// Initialize values from network config.
-	networkId, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkId, _, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 		return err
@@ -709,7 +709,8 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	if networkId, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
+	if networkId, _, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
+		// TODO: Ideally we should return from here only.
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 	}
 
@@ -754,15 +755,16 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 // Delete handles CNI delete commands.
 func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var (
-		err          error
-		nwCfg        *cni.NetworkConfig
-		k8sPodName   string
-		k8sNamespace string
-		networkId    string
-		nwInfo       network.NetworkInfo
-		epInfo       *network.EndpointInfo
-		cniMetric    telemetry.AIMetric
-		msg          string
+		err           error
+		nwCfg         *cni.NetworkConfig
+		k8sPodName    string
+		k8sNamespace  string
+		networkId     string
+		nwInfo        network.NetworkInfo
+		epInfo        *network.EndpointInfo
+		cniMetric     telemetry.AIMetric
+		msg           string
+		isNotFoundErr bool
 	)
 
 	startTime := time.Now()
@@ -796,8 +798,16 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	if networkId, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
+	networkId, isNotFoundErr, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+
+	// If error is not found error, then we ignore it, to comply with CNI SPEC.
+	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
+
+		if !isNotFoundErr {
+			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
+			return err
+		}
 	}
 
 	endpointId := GetEndpointID(args)
@@ -1002,7 +1012,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, err = cnsClient.GetNetworkConfiguration(orchestratorContext); err != nil {
+	if targetNetworkConfig, _, err = cnsClient.GetNetworkConfiguration(orchestratorContext); err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return plugin.Errorf(err.Error())
 	}
