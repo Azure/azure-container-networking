@@ -51,7 +51,7 @@ func getContainerNetworkConfiguration(
 	nwCfg *cni.NetworkConfig,
 	podName string,
 	podNamespace string,
-	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, bool, error) {
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
@@ -68,24 +68,24 @@ func getContainerNetworkConfigurationInternal(
 	address string,
 	namespace string,
 	podName string,
-	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, bool, error) {
 	cnsClient, err := cnsclient.GetCnsClient()
 	if err != nil {
 		log.Printf("Failed to get CNS client. Error: %v", err)
-		return nil, nil, net.IPNet{}, err
+		return nil, nil, net.IPNet{}, false, err
 	}
 
 	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: namespace}
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
-		return nil, nil, net.IPNet{}, err
+		return nil, nil, net.IPNet{}, false, err
 	}
 
-	networkConfig, err := cnsClient.GetNetworkConfiguration(orchestratorContext)
+	networkConfig, isNotFoundError, err := cnsClient.GetNetworkConfiguration(orchestratorContext)
 	if err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
-		return nil, nil, net.IPNet{}, err
+		return nil, nil, net.IPNet{}, isNotFoundError, err
 	}
 
 	log.Printf("Network config received from cns %+v", networkConfig)
@@ -94,10 +94,10 @@ func getContainerNetworkConfigurationInternal(
 	if subnetPrefix == nil {
 		errBuf := fmt.Sprintf("Interface not found for this ip %v", networkConfig.PrimaryInterfaceIdentifier)
 		log.Printf(errBuf)
-		return nil, nil, net.IPNet{}, fmt.Errorf(errBuf)
+		return nil, nil, net.IPNet{}, true, fmt.Errorf(errBuf)
 	}
 
-	return convertToCniResult(networkConfig, ifName), networkConfig, *subnetPrefix, nil
+	return convertToCniResult(networkConfig, ifName), networkConfig, *subnetPrefix, false, nil
 }
 
 func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName string) *cniTypesCurr.Result {
@@ -211,7 +211,7 @@ func GetMultiTenancyCNIResult(
 	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error) {
 
 	if nwCfg.MultiTenancy {
-		result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
+		result, cnsNetworkConfig, subnetPrefix, _, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
 		if err != nil {
 			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
 			return nil, nil, net.IPNet{}, nil, err

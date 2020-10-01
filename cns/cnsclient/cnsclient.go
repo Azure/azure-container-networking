@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/log"
 )
 
@@ -51,8 +52,14 @@ func GetCnsClient() (*CNSClient, error) {
 }
 
 // GetNetworkConfiguration Request to get network config.
-func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
-	var body bytes.Buffer
+func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) (
+	*cns.GetNetworkContainerResponse, bool, error) {
+	var (
+		body            bytes.Buffer
+		isNotFoundError bool
+	)
+
+	isNotFoundError = false
 
 	httpc := &http.Client{}
 	url := cnsClient.connectionURL + cns.GetNetworkContainerByOrchestratorContext
@@ -65,13 +72,13 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	err := json.NewEncoder(&body).Encode(payload)
 	if err != nil {
 		log.Errorf("encoding json failed with %v", err)
-		return nil, err
+		return nil, isNotFoundError, err
 	}
 
 	res, err := httpc.Post(url, contentTypeJSON, &body)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
-		return nil, err
+		return nil, isNotFoundError, err
 	}
 
 	defer res.Body.Close()
@@ -79,7 +86,7 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	if res.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("[Azure CNSClient] GetNetworkConfiguration invalid http status code: %v", res.StatusCode)
 		log.Errorf(errMsg)
-		return nil, fmt.Errorf(errMsg)
+		return nil, isNotFoundError, fmt.Errorf(errMsg)
 	}
 
 	var resp cns.GetNetworkContainerResponse
@@ -87,15 +94,19 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] Error received while parsing GetNetworkConfiguration response resp:%v err:%v", res.Body, err.Error())
-		return nil, err
+		return nil, isNotFoundError, err
 	}
 
 	if resp.Response.ReturnCode != 0 {
-		log.Errorf("[Azure CNSClient] GetNetworkConfiguration received error response :%v", resp.Response.Message)
-		return nil, fmt.Errorf(resp.Response.Message)
+		isNotFoundError = (resp.Response.ReturnCode == restserver.UnknownContainerID)
+		log.Errorf(
+			"[Azure CNSClient] GetNetworkConfiguration received error response :%v , isNotFoundError : %v",
+			resp.Response.Message,
+			isNotFoundError)
+		return nil, isNotFoundError, fmt.Errorf(resp.Response.Message)
 	}
 
-	return &resp, nil
+	return &resp, isNotFoundError, nil
 }
 
 // CreateHostNCApipaEndpoint creates an endpoint in APIPA network for host container connectivity.
