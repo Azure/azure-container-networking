@@ -3,7 +3,6 @@ package policy
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Microsoft/hcsshim"
@@ -11,11 +10,11 @@ import (
 )
 
 const (
-	// protocolTcp indicates tcp protocol id for portmapping
-	protocolTcp = 6
+	// ProtocolTcp indicates tcp protocol id for portmapping
+	ProtocolTcp = 6
 
-	// protocolUdp indicates udp protocol id for portmapping
-	protocolUdp = 17
+	// ProtocolUdp indicates udp protocol id for portmapping
+	ProtocolUdp = 17
 
 	// CnetAddressSpace indicates constant for the key string
 	CnetAddressSpace = "cnetAddressSpace"
@@ -25,13 +24,6 @@ type KVPairRoutePolicy struct {
 	Type              CNIPolicyType   `json:"Type"`
 	DestinationPrefix json.RawMessage `json:"DestinationPrefix"`
 	NeedEncap         json.RawMessage `json:"NeedEncap"`
-}
-
-type KVPairPortMapping struct {
-	Type         CNIPolicyType `json:"Type"`
-	ExternalPort uint16        `json:"ExternalPort"`
-	InternalPort uint16        `json:"InternalPort"`
-	Protocol     string        `json:"Protocol"`
 }
 
 type KVPairOutBoundNAT struct {
@@ -63,6 +55,13 @@ func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData m
 					} else {
 						jsonPolicies = append(jsonPolicies, serializedOutboundNatPolicy)
 					}
+				}
+			} else if isPolicyTypeNAT := IsPolicyTypeNAT(policy); isPolicyTypeNAT {
+				// NATPolicy comes as a HNSv2 type, it needs to be converted to HNSv1
+				if serializedNatPolicy, err := SerializeNATPolicy(policy); err != nil {
+					log.Printf("Failed to serialize NatPolicy")
+				} else {
+					jsonPolicies = append(jsonPolicies, serializedNatPolicy)
 				}
 			} else {
 				jsonPolicies = append(jsonPolicies, policy.Data)
@@ -117,6 +116,45 @@ func IsPolicyTypeOutBoundNAT(policy Policy) bool {
 	return false
 }
 
+// IsPolicyTypeNAT returns true if the policy type is NAT
+func IsPolicyTypeNAT(policy Policy) bool {
+	if policy.Type == EndpointPolicy {
+		var endpointPolicy hcn.EndpointPolicy
+		if err := json.Unmarshal(policy.Data, &endpointPolicy); err != nil {
+			return false
+		}
+		if endpointPolicy.Type == hcn.PortMapping {
+			return true
+		}
+	}
+	return false
+}
+
+func SerializeNATPolicy(policy Policy) (json.RawMessage, error) {
+	var (
+		endpointPolicy    hcn.EndpointPolicy
+		portMappingPolicy hcn.PortMappingPolicySetting
+	)
+	if err := json.Unmarshal(policy.Data, &endpointPolicy); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(endpointPolicy.Settings, &portMappingPolicy); err != nil {
+		return nil, err
+	}
+	natPolicy := hcsshim.NatPolicy{
+		Type:         "NAT",
+		InternalPort: portMappingPolicy.InternalPort,
+		ExternalPort: portMappingPolicy.ExternalPort,
+	}
+	switch portMappingPolicy.Protocol {
+	case ProtocolTcp:
+		natPolicy.Protocol = "TCP"
+	case ProtocolUdp:
+		natPolicy.Protocol = "UDP"
+	}
+	return json.Marshal(natPolicy)
+}
+
 // SerializeOutBoundNATPolicy formulates OutBoundNAT policy and returns serialized json
 func SerializeOutBoundNATPolicy(policy Policy, epInfoData map[string]interface{}) (json.RawMessage, error) {
 	outBoundNatPolicy := hcsshim.OutboundNatPolicy{}
@@ -169,9 +207,9 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 	}
 
 	// Check if the type if Port mapping / NAT
-	var dataPortMapping KVPairPortMapping
+	var dataPortMapping hcn.EndpointPolicy
 	if err := json.Unmarshal(policy.Data, &dataPortMapping); err == nil {
-		if dataPortMapping.Type == PortMappingPolicy {
+		if dataPortMapping.Type == hcn.PortMapping {
 			return PortMappingPolicy
 		}
 	}
@@ -308,37 +346,12 @@ func GetHcnRoutePolicy(policy Policy) (hcn.EndpointPolicy, error) {
 
 // GetHcnPortMappingPolicy returns port mapping policy.
 func GetHcnPortMappingPolicy(policy Policy) (hcn.EndpointPolicy, error) {
-	portMappingPolicy := hcn.EndpointPolicy{
-		Type: hcn.PortMapping,
-	}
-
-	var dataPortMapping KVPairPortMapping
-	if err := json.Unmarshal(policy.Data, &dataPortMapping); err != nil {
+	var portMappingPolicy hcn.EndpointPolicy
+	if err := json.Unmarshal(policy.Data, &portMappingPolicy); err != nil {
 		return portMappingPolicy,
 			fmt.Errorf("Invalid policy: %+v. Expecting PortMapping policy. Error: %v", policy, err)
 	}
-
-	portMappingPolicySetting := &hcn.PortMappingPolicySetting{
-		InternalPort: dataPortMapping.InternalPort,
-		ExternalPort: dataPortMapping.ExternalPort,
-	}
-
-	protocol := strings.ToUpper(strings.TrimSpace(dataPortMapping.Protocol))
-	switch protocol {
-	case "TCP":
-		portMappingPolicySetting.Protocol = protocolTcp
-	case "UDP":
-		portMappingPolicySetting.Protocol = protocolUdp
-	default:
-		return portMappingPolicy, fmt.Errorf("Invalid protocol: %s for port mapping", protocol)
-	}
-
-	portMappingPolicySettingBytes, err := json.Marshal(portMappingPolicySetting)
-	if err != nil {
-		return portMappingPolicy, err
-	}
-
-	portMappingPolicy.Settings = portMappingPolicySettingBytes
+	portMappingPolicy.Type = hcn.PortMapping
 
 	return portMappingPolicy, nil
 }
