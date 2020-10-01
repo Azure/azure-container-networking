@@ -119,7 +119,7 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	common.LogNetworkInterfaces()
 
 	// Initialize network manager.
-	err = plugin.nm.Initialize(config, false)
+	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)
 	if err != nil {
 		log.Printf("[cni-net] Failed to initialize network manager, err:%v.", err)
 		return err

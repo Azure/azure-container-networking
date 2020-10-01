@@ -28,6 +28,10 @@ var (
 	win1903Version = 18362
 )
 
+const (
+	rehydrateNetworkInfoOnReboot = true
+)
+
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
  * This is a temporary work around for issue #57253 of Kubernetes.
  * We can delete this if statement once they fix it.
@@ -268,7 +272,7 @@ func addIPV6EndpointPolicy(nwInfo network.NetworkInfo) (policy.Policy, error) {
 		return eppolicy, fmt.Errorf("network state doesn't have ipv6 subnet")
 	}
 
-    // Everything should be snat'd except podcidr
+	// Everything should be snat'd except podcidr
 	exceptionList := []string{nwInfo.Subnets[1].Prefix.String()}
 	rawPolicy, _ := json.Marshal(&hcsshim.OutboundNatPolicy{
 		Policy:     hcsshim.Policy{Type: hcsshim.OutboundNat},
