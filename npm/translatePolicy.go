@@ -1,4 +1,4 @@
-// Copyright 2018 Microsoft. All rights reserved.
+// Package npm use Copyright 2018 Microsoft. All rights reserved.
 // MIT License
 package npm
 
@@ -103,7 +103,7 @@ func craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, s
 		}
 	}
 
-	for i, _ := range ops {
+	for i := range ops {
 		spec = append(spec, craftPartialIptEntrySpecFromOpAndLabel(ops[i], labels[i], srcOrDstFlag, isNamespaceSelector)...)
 	}
 
@@ -143,7 +143,7 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 		}
 	}
 
-	for i, _ := range labelsWithoutOps {
+	for i := range labelsWithoutOps {
 		comment += prefix + ops[i] + labelsWithoutOps[i]
 		comment += "-AND-"
 	}
@@ -288,7 +288,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 					if len(fromRule.IPBlock.Except) > 0 {
 						for _, except := range fromRule.IPBlock.Except {
 							// TODO move IP cidrs rule to allow based only
-							ipCidrs[i] = append(ipCidrs[i], except + util.IpsetNomatch)
+							ipCidrs[i] = append(ipCidrs[i], except+util.IpsetNomatch)
 						}
 						addedIngressFromEntry = true
 					}
@@ -402,7 +402,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 					// Empty namespaceSelector. This selects all namespaces
 					nsLabelsWithoutOps[0] = util.KubeAllNamespacesFlag
 				} else {
-					for i, _ := range nsLabelsWithoutOps {
+					for i := range nsLabelsWithoutOps {
 						// Add namespaces prefix to distinguish namespace ipset lists and pod ipsets
 						nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
 					}
@@ -598,7 +598,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			nsLabelsWithOps, _, _ := parseSelector(fromRule.NamespaceSelector)
 			_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 			// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
-			for i, _ := range nsLabelsWithoutOps {
+			for i := range nsLabelsWithoutOps {
 				nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
 			}
 			lists = append(lists, nsLabelsWithoutOps...)
@@ -984,7 +984,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									util.GetHashedName(cidrIpsetName),
 									util.IptablesDstFlag,
 								)
-								entry.Specs = append(	
+								entry.Specs = append(
 									entry.Specs,
 									util.IptablesJumpFlag,
 									util.IptablesAccept,
@@ -1046,7 +1046,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 					// Empty namespaceSelector. This selects all namespaces
 					nsLabelsWithoutOps[0] = util.KubeAllNamespacesFlag
 				} else {
-					for i, _ := range nsLabelsWithoutOps {
+					for i := range nsLabelsWithoutOps {
 						// Add namespaces prefix to distinguish namespace ipset lists and pod ipsets
 						nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
 					}
@@ -1242,7 +1242,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 			nsLabelsWithOps, _, _ := parseSelector(toRule.NamespaceSelector)
 			_, nsLabelsWithoutOps := GetOperatorsAndLabels(nsLabelsWithOps)
 			// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
-			for i, _ := range nsLabelsWithoutOps {
+			for i := range nsLabelsWithoutOps {
 				nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
 			}
 			lists = append(lists, nsLabelsWithoutOps...)

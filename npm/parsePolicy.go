@@ -1,4 +1,4 @@
-// Copyright 2018 Microsoft. All rights reserved.
+// Package npm use Copyright 2018 Microsoft. All rights reserved.
 // MIT License
 package npm
 

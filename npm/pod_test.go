@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestisValidPod(t *testing.T) {
+func TestIsValidPod(t *testing.T) {
 	podObj := &corev1.Pod{
 		Status: corev1.PodStatus{
 			Phase: "Running",
@@ -23,7 +23,7 @@ func TestisValidPod(t *testing.T) {
 	}
 }
 
-func TestisSystemPod(t *testing.T) {
+func TestIsSystemPod(t *testing.T) {
 	podObj := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: util.KubeSystemFlag,

@@ -1,9 +1,9 @@
 package npm
 
 import (
+	"container/heap"
 	"reflect"
 	"testing"
-	"container/heap"
 
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -89,7 +89,6 @@ func TestGetOperatorAndLabel(t *testing.T) {
 		t.Errorf("TestGetOperatorAndLabel failed @ operator comparison")
 	}
 
-
 	if !reflect.DeepEqual(resultLabels, expectedLabels) {
 		t.Errorf("TestGetOperatorAndLabel failed @ label comparison")
 	}
@@ -136,7 +135,7 @@ func TestReqHeap(t *testing.T) {
 		metav1.LabelSelectorRequirement{
 			Key:      "a",
 			Operator: metav1.LabelSelectorOpIn,
-			Values: []string{},
+			Values:   []string{},
 		},
 		metav1.LabelSelectorRequirement{
 			Key:      "testIn",
@@ -164,7 +163,7 @@ func TestReqHeap(t *testing.T) {
 		metav1.LabelSelectorRequirement{
 			Key:      "a",
 			Operator: metav1.LabelSelectorOpIn,
-			Values: []string{},
+			Values:   []string{},
 		},
 		metav1.LabelSelectorRequirement{
 			Key:      "testIn",
@@ -201,7 +200,8 @@ func TestReqHeap(t *testing.T) {
 func TestSortSelector(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -209,7 +209,8 @@ func TestSortSelector(t *testing.T) {
 					"backend",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "a",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -226,14 +227,16 @@ func TestSortSelector(t *testing.T) {
 	sortSelector(selector)
 	expectedSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "a",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
 					"b",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -258,7 +261,8 @@ func TestSortSelector(t *testing.T) {
 func TestHashSelector(t *testing.T) {
 	firstSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -272,10 +276,11 @@ func TestHashSelector(t *testing.T) {
 			"c": "d",
 		},
 	}
-	
+
 	secondSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -338,7 +343,8 @@ func TestParseSelector(t *testing.T) {
 
 	selector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			// metav1.LabelSelectorRequirement
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{

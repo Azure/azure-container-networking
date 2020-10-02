@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestnewNs(t *testing.T) {
+func TestNewNs(t *testing.T) {
 	if _, err := newNs("test"); err != nil {
 		t.Errorf("TestnewNs failed @ newNs")
 	}
