@@ -742,8 +742,6 @@ func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (wa
 
 	ncTargetVersion, _ := strconv.Atoi(ncVersion)
 	nmaProgrammedNCVersion, _ := strconv.Atoi(versionResponse.Version)
-	logger.Printf("[Azure CNS] tempdebug: 1 %d %s", ncTargetVersion, ncVersion)
-	logger.Printf("[Azure CNS] tempdebug: 2 %d %s", nmaProgrammedNCVersion, versionResponse.Version)
 	if ncTargetVersion > nmaProgrammedNCVersion {
 		returnCode = NetworkContainerVfpProgramPending
 		message = fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",
@@ -752,7 +750,7 @@ func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (wa
 		returnCode = NetworkContainerVfpProgramComplete
 		waitingForUpdate = false
 		message = fmt.Sprintf("Vfp programming complete")
-		logger.Printf("[Azure CNS] Vfp programming complete for NC: %s", ncid)
+		logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
 	}
 
 	return
