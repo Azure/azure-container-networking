@@ -351,7 +351,7 @@ func TestPublishNCViaCNS(t *testing.T) {
 	networkContainerID := "ethWebApp"
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 	createNetworkContainerURL := "http://" + nmagentEndpoint +
-		"interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version"
+		"/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version"
 
 	publishNCRequest := &cns.PublishNetworkContainerRequest{
 		NetworkID:                         networkID,
