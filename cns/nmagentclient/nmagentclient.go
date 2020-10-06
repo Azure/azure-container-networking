@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	WireserverIP                     = "168.63.129.16"
 	GetNetworkContainerVersionURLFmt = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/version/authenticationToken/%s/api-version/1"
 )
+
+var WireserverIP = "168.63.129.16"
 
 // NMANetworkContainerResponse - NMAgent response.
 type NMANetworkContainerResponse struct {
