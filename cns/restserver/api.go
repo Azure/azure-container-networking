@@ -1312,6 +1312,9 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				unpublishResponse.Body.Close()
 			}
 		}
+
+		// Remove the NC version URL entry added during publish
+		ncVersionURLs.Delete(cns.SwiftPrefix + req.NetworkContainerID)
 	default:
 		returnMessage = "UnpublishNetworkContainer API expects a POST"
 		returnCode = UnsupportedVerb

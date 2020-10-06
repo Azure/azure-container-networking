@@ -52,11 +52,10 @@ type xmlDocument struct {
 }
 
 var (
-	service                               cns.HTTPService
-	svc                                   *HTTPRestService
-	mux                                   *http.ServeMux
-	hostQueryForProgrammedVersionResponse = `{"httpStatusCode":"200","networkContainerId":"ethWebApp","version":"0"}`
-	hostQueryResponse                     = xmlDocument{
+	service           cns.HTTPService
+	svc               *HTTPRestService
+	mux               *http.ServeMux
+	hostQueryResponse = xmlDocument{
 		XMLName: xml.Name{Local: "Interfaces"},
 		Interface: []Interface{Interface{
 			XMLName:    xml.Name{Local: "Interface"},
@@ -85,6 +84,7 @@ type createOrUpdateNetworkContainerParams struct {
 	ncIP      string
 	ncType    string
 	ncVersion string
+	vnetID    string
 }
 
 func getInterfaceInfo(w http.ResponseWriter, r *http.Request) {
@@ -95,10 +95,25 @@ func getInterfaceInfo(w http.ResponseWriter, r *http.Request) {
 
 func nmagentHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(acncommon.ContentType, acncommon.JsonContent)
-	w.WriteHeader(http.StatusOK)
 
-	if strings.Contains(r.RequestURI, "networkContainers") {
-		w.Write([]byte(hostQueryForProgrammedVersionResponse))
+	if strings.Contains(r.RequestURI, "nc-nma-success") {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-success","version":"0"}`))
+	}
+
+	if strings.Contains(r.RequestURI, "nc-nma-fail-version-mismatch") {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-fail-version-mismatch","version":"0"}`))
+	}
+
+	if strings.Contains(r.RequestURI, "nc-nma-fail-500") {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-fail-500","version":"0"}`))
+	}
+
+	if strings.Contains(r.RequestURI, "nc-nma-fail-unavailable") {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"httpStatusCode":"401","networkContainerId":"nc-nma-fail-unavailable","version":"0"}`))
 	}
 }
 
@@ -398,52 +413,107 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	setOrchestratorType(t, cns.Kubernetes)
 
 	params := createOrUpdateNetworkContainerParams{
-		ncID:      "ethWebApp",
+		ncID:      "nc-nma-success",
 		ncIP:      "11.0.0.5",
 		ncType:    cns.AzureContainerInstance,
 		ncVersion: "0",
+		vnetID:    "vnet1",
 	}
 
-	if err := createOrUpdateNetworkContainerWithParams(t, params); err != nil {
-		t.Errorf("createOrUpdateNetworkContainerWithParams failed Err:%+v", err)
-		t.Fatal(err)
-	}
+	createNC(t, params)
 
-	publishNCViaCNS(t, "vnet1", "ethWebApp")
-
-	if err := getNetworkContainerByContext(t, "ethWebApp"); err != nil {
+	if err := getNetworkContainerByContext(t, "nc-nma-success"); err != nil {
 		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
-	if err := deleteNetworkAdapterWithName(t, "ethWebApp"); err != nil {
+	// Get NC goal state again to test the path where the NMA API doesn't need to be executed but
+	// instead use the cached state ( in json ) of version status
+	if err := getNetworkContainerByContext(t, "nc-nma-success"); err != nil {
+		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	if err := deleteNetworkAdapterWithName(t, "nc-nma-success"); err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
+	// Testing the path where the NC version with CNS is higher than the one with NMAgent.
+	// This indicates that the NMAgent is yet to program the NC version.
 	params = createOrUpdateNetworkContainerParams{
-		ncID:      "ethWebAppUpdated",
+		ncID:      "nc-nma-fail-version-mismatch",
 		ncIP:      "11.0.0.5",
 		ncType:    cns.AzureContainerInstance,
 		ncVersion: "1",
+		vnetID:    "vnet1",
 	}
 
+	createNC(t, params)
+
+	if err := getNetworkContainerByContextExpectedError(t, "nc-nma-fail-version-mismatch"); err != nil {
+		t.Errorf("TestGetNetworkContainerVersionStatus failed")
+		t.Fatal(err)
+	}
+
+	if err := deleteNetworkAdapterWithName(t, "nc-nma-fail-version-mismatch"); err != nil {
+		t.Errorf("Deleting interface failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	// Testing the path where NMAgent response status code is not 200.
+	// 2. NMAgent response status code is 200 but embedded response is 401
+	params = createOrUpdateNetworkContainerParams{
+		ncID:      "nc-nma-fail-500",
+		ncIP:      "11.0.0.5",
+		ncType:    cns.AzureContainerInstance,
+		ncVersion: "0",
+		vnetID:    "vnet1",
+	}
+
+	createNC(t, params)
+
+	if err := getNetworkContainerByContext(t, "nc-nma-fail-500"); err != nil {
+		t.Errorf("TestGetNetworkContainerVersionStatus failed")
+		t.Fatal(err)
+	}
+
+	if err := deleteNetworkAdapterWithName(t, "nc-nma-fail-500"); err != nil {
+		t.Errorf("Deleting interface failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	// Testing the path where NMAgent response status code is 200 but embedded response is 401
+	params = createOrUpdateNetworkContainerParams{
+		ncID:      "nc-nma-fail-unavailable",
+		ncIP:      "11.0.0.5",
+		ncType:    cns.AzureContainerInstance,
+		ncVersion: "0",
+		vnetID:    "vnet1",
+	}
+
+	createNC(t, params)
+
+	if err := getNetworkContainerByContextExpectedError(t, "nc-nma-fail-unavailable"); err != nil {
+		t.Errorf("TestGetNetworkContainerVersionStatus failed")
+		t.Fatal(err)
+	}
+
+	if err := deleteNetworkAdapterWithName(t, "nc-nma-fail-unavailable"); err != nil {
+		t.Errorf("Deleting interface failed Err:%+v", err)
+		t.Fatal(err)
+	}
+}
+
+func createNC(
+	t *testing.T,
+	params createOrUpdateNetworkContainerParams) {
 	if err := createOrUpdateNetworkContainerWithParams(t, params); err != nil {
 		t.Errorf("createOrUpdateNetworkContainerWithParams failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
-	publishNCViaCNS(t, "vnet1", "ethWebAppUpdated")
-
-	if err := getNetworkContainerByContextExpectedError(t, "ethWebAppUpdated"); err != nil {
-		t.Errorf("TestGetNetworkContainerVersionStatus failed")
-		t.Fatal(err)
-	}
-
-	if err := deleteNetworkAdapterWithName(t, "ethWebAppUpdated"); err != nil {
-		t.Errorf("Deleting interface failed Err:%+v", err)
-		t.Fatal(err)
-	}
+	publishNCViaCNS(t, params.vnetID, params.ncID)
 }
 
 func TestPublishNCViaCNS(t *testing.T) {
