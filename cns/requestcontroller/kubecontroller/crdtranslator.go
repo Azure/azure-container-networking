@@ -36,6 +36,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 		ncRequest.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig)
 		ncRequest.NetworkContainerid = nc.ID
 		ncRequest.NetworkContainerType = cns.Docker
+		ncRequest.Version = nc.Version
 
 		if ip = net.ParseIP(nc.PrimaryIP); ip == nil {
 			return ncRequest, fmt.Errorf("Invalid PrimaryIP %s:", nc.PrimaryIP)
