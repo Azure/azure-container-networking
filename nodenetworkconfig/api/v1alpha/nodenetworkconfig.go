@@ -72,6 +72,7 @@ type NetworkContainer struct {
 	IPAssignments      []IPAssignment `json:"iPAssignments,omitempty"`
 	DefaultGateway     string         `json:"defaultGateway,omitempty"`
 	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
+	Version            string         `json:"version,omitempty"`
 }
 
 // IPAssignment groups an IP address and Name. Name is a UUID set by the the IP address assigner.
