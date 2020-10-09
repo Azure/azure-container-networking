@@ -40,7 +40,7 @@ func InitCnsClient(url string) (*CNSClient, error) {
 	return cnsClient, nil
 }
 
-// GetCnsClient returns the cns client object and encapsulates the error as CNSClientError
+// GetCnsClient returns the cns client object
 func GetCnsClient() (*CNSClient, error) {
 	var err error
 

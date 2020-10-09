@@ -213,7 +213,7 @@ func GetMultiTenancyCNIResult(
 	if nwCfg.MultiTenancy {
 		result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
 		if err != nil {
-			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %+v", k8sPodName, k8sNamespace, err)
+			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
 			return nil, nil, net.IPNet{}, nil, err
 		}
 
