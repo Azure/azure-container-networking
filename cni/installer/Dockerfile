@@ -8,7 +8,7 @@ RUN chmod +x /go/installer
 RUN find /output -name "*.zip" -type f -delete
 RUN find /output -name "*.tgz" -type f -delete
 
-FROM golang
+FROM scratch
 COPY --from=build /go/installer .
 COPY --from=build /output /output
 CMD ["./installer"]
