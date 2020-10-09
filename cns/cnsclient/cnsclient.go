@@ -40,19 +40,8 @@ func InitCnsClient(url string) (*CNSClient, error) {
 	return cnsClient, nil
 }
 
-// GetCnsClient returns the cns client object
+// GetCnsClient returns the cns client object and encapsulates the error as CNSClientError
 func GetCnsClient() (*CNSClient, error) {
-	var err error
-
-	if cnsClient == nil {
-		err = fmt.Errorf("[Azure CNSClient] CNS Client not initialized")
-	}
-
-	return cnsClient, err
-}
-
-// GetCnsClientEx returns the cns client object and encapsulates the error as CNSClientError
-func GetCnsClientEx() (*CNSClient, error) {
 	var err error
 
 	if cnsClient == nil {

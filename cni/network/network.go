@@ -5,7 +5,6 @@ package network
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/utils"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/common"
@@ -804,10 +804,8 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 
-		var cnsError *cnsclient.CNSClientError
-
-		if errors.As(err, &cnsError) && !cnsError.IsNotFoundError() {
-			err = plugin.Errorf("Failed to extract network name from network config. error: %v", cnsError)
+		if !utils.IsNotFoundError(err) {
+			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
 			return err
 		}
 	}
