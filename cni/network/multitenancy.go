@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -51,7 +52,7 @@ func getContainerNetworkConfiguration(
 	nwCfg *cni.NetworkConfig,
 	podName string,
 	podNamespace string,
-	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, bool, error) {
+	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cnsclient.CNSClientError) {
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
@@ -68,24 +69,24 @@ func getContainerNetworkConfigurationInternal(
 	address string,
 	namespace string,
 	podName string,
-	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, bool, error) {
+	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cnsclient.CNSClientError) {
 	cnsClient, err := cnsclient.GetCnsClient()
 	if err != nil {
 		log.Printf("Failed to get CNS client. Error: %v", err)
-		return nil, nil, net.IPNet{}, false, err
+		return nil, nil, net.IPNet{}, &cnsclient.CNSClientError{restserver.UnexpectedError, err}
 	}
 
 	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: namespace}
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
-		return nil, nil, net.IPNet{}, false, err
+		return nil, nil, net.IPNet{}, &cnsclient.CNSClientError{restserver.UnexpectedError, err}
 	}
 
-	networkConfig, isNotFoundError, err := cnsClient.GetNetworkConfiguration(orchestratorContext)
+	networkConfig, cnsClientErr := cnsClient.GetNetworkConfiguration(orchestratorContext)
 	if err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
-		return nil, nil, net.IPNet{}, isNotFoundError, err
+		return nil, nil, net.IPNet{}, cnsClientErr
 	}
 
 	log.Printf("Network config received from cns %+v", networkConfig)
@@ -94,10 +95,10 @@ func getContainerNetworkConfigurationInternal(
 	if subnetPrefix == nil {
 		errBuf := fmt.Sprintf("Interface not found for this ip %v", networkConfig.PrimaryInterfaceIdentifier)
 		log.Printf(errBuf)
-		return nil, nil, net.IPNet{}, true, fmt.Errorf(errBuf)
+		return nil, nil, net.IPNet{}, &cnsclient.CNSClientError{restserver.UnexpectedError, fmt.Errorf(errBuf)}
 	}
 
-	return convertToCniResult(networkConfig, ifName), networkConfig, *subnetPrefix, false, nil
+	return convertToCniResult(networkConfig, ifName), networkConfig, *subnetPrefix, nil
 }
 
 func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName string) *cniTypesCurr.Result {
@@ -211,10 +212,10 @@ func GetMultiTenancyCNIResult(
 	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error) {
 
 	if nwCfg.MultiTenancy {
-		result, cnsNetworkConfig, subnetPrefix, _, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
-		if err != nil {
-			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
-			return nil, nil, net.IPNet{}, nil, err
+		result, cnsNetworkConfig, subnetPrefix, cnsClienterr := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
+		if cnsClienterr != nil {
+			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %+v", k8sPodName, k8sNamespace, cnsClienterr)
+			return nil, nil, net.IPNet{}, nil, cnsClienterr.Err
 		}
 
 		log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
@@ -222,7 +223,7 @@ func GetMultiTenancyCNIResult(
 		if checkIfSubnetOverlaps(enableInfraVnet, nwCfg, cnsNetworkConfig) {
 			buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", nwCfg.InfraVnetAddressSpace, cnsNetworkConfig.CnetAddressSpace)
 			log.Printf(buf)
-			err = errors.New(buf)
+			err := errors.New(buf)
 			return nil, nil, net.IPNet{}, nil, err
 		}
 

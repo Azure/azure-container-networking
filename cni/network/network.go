@@ -910,6 +910,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		orchestratorContext []byte
 		targetNetworkConfig *cns.GetNetworkContainerResponse
 		cniMetric           telemetry.AIMetric
+		cnsErr              *cnsclient.CNSClientError
 	)
 
 	startTime := time.Now()
@@ -1012,9 +1013,9 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, _, err = cnsClient.GetNetworkConfiguration(orchestratorContext); err != nil {
+	if targetNetworkConfig, cnsErr = cnsClient.GetNetworkConfiguration(orchestratorContext); err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
-		return plugin.Errorf(err.Error())
+		return plugin.Errorf(cnsErr.Err.Error())
 	}
 
 	log.Printf("Network config received from cns for [name=%v, namespace=%v] is as follows -> %+v", k8sPodName, k8sNamespace, targetNetworkConfig)

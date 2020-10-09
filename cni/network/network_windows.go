@@ -11,6 +11,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/cnsclient"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -159,6 +161,7 @@ func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (st
 		err              error
 		isNotFoundErr    bool
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
+		cnsClientError   *cnsclient.CNSClientError
 	)
 
 	networkName = nwCfg.Name
@@ -172,8 +175,9 @@ func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (st
 			return networkName, isNotFoundErr, err
 		}
 
-		_, cnsNetworkConfig, _, isNotFoundErr, err = getContainerNetworkConfiguration(nwCfg, podName, podNs, ifName)
-		if err != nil {
+		_, cnsNetworkConfig, _, cnsClientError = getContainerNetworkConfiguration(nwCfg, podName, podNs, ifName)
+		if cnsClientError != nil {
+			isNotFoundErr = (cnsClientError.Code == restserver.UnknownContainerID)
 			log.Printf(
 				"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v, isNotFoundErr: %v",
 				podName,
