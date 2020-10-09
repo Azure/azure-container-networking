@@ -134,7 +134,7 @@ CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 AZURE_NPM_IMAGE = containernetworking.azurecr.io/public/containernetworking/azure-npm
 
 # Azure CNI installer parameters
-AZURE_CNI_IMAGE = containernetworking.azurecr.io/public/containernetworking/azure-cni-node
+AZURE_CNI_IMAGE = containernetworking.azurecr.io/public/containernetworking/azure-cni-manager
 
 # Azure vnet telemetry image parameters.
 AZURE_VNET_TELEMETRY_IMAGE = containernetworking.azurecr.io/public/containernetworking/azure-vnet-telemetry
@@ -241,8 +241,8 @@ all-binaries-platforms:
 	export GOOS=windows; make all-binaries
 
 # CNI Installer
-.PHONY: azure-cni-node
-azure-cni-node: all-binaries-platforms
+.PHONY: azure-cni-manager
+azure-cni-manager: all-binaries-platforms
 	docker build -f ./cni/installer/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".

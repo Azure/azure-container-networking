@@ -31,6 +31,8 @@ const (
 	defaultBinDirLinux      = "/opt/cni/bin/"
 	defaultConflistDirLinux = "/etc/cni/net.d/"
 	defaultLogFile          = "/var/log/azure-vnet.log"
+	transparent             = "transparent"
+	bridge                  = "bridge"
 
 	envCNIOS                     = "CNI_OS"
 	envCNITYPE                   = "CNI_TYPE"
@@ -38,6 +40,7 @@ const (
 	envCNIDestinationBinDir      = "CNI_DST_BIN_DIR"
 	envCNIDestinationConflistDir = "CNI_DST_CONFLIST_DIR"
 	envCNIIPAMType               = "CNI_IPAM_TYPE"
+	envCNIMode                   = "CNI_MODE"
 	envCNIExemptBins             = "CNI_EXCEMPT_BINS"
 	envCNILogFile                = "CNI_LOG_FILE"
 )
@@ -51,6 +54,7 @@ type installerConfig struct {
 	logFile        string
 	osType         string
 	cniType        string
+	cniMode        string
 }
 
 func (i *installerConfig) SetExempt(exempt []string) {
@@ -79,6 +83,19 @@ func (i *installerConfig) SetCNIType(cniType string) error {
 		i.cniType = cni
 	default:
 		return fmt.Errorf("No CNI type supplied, please set %q env to either %q or %q and try again", envCNITYPE, singletenancy, multitenancy)
+	}
+	return nil
+}
+
+func (i *installerConfig) SetCNIMode(cniMode string) error {
+	// get paths for singletenancy and multitenancy
+	if cniMode != "" {
+		if strings.EqualFold(cniMode, transparent) || strings.EqualFold(cniMode, bridge) {
+			i.cniMode = cniMode
+			return nil
+		}
+		
+		return fmt.Errorf("No CNI mode supplied, please set %q env to either %q or %q and try again", envCNIMode, transparent, bridge)
 	}
 	return nil
 }
@@ -154,7 +171,7 @@ func modifyConflists(conflistpath string, envs installerConfig, perm os.FileMode
 	}
 
 	// if we need to modify the conflist from env's do it here
-	if envs.ipamType != "" {
+	if envs.ipamType != "" || envs.cniMode != "" {
 		confmap, err := modifyConf(conflist.Plugins[0], envs)
 		if err != nil {
 			return err
@@ -190,6 +207,7 @@ func modifyConf(conf interface{}, envs installerConfig) (interface{}, error) {
 
 	// change the netconfig from passed envs
 	netconfig.Ipam.Type = envs.ipamType
+	netconfig.Mode = envs.cniMode
 
 	netconfigbytes, _ := json.Marshal(netconfig)
 	var rawConfig interface{}

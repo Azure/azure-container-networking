@@ -20,16 +20,18 @@ func main() {
 	install(envs)
 	log.Println("Installed")
 
-	t, err := tail.TailFile(envs.logFile, tail.Config{Follow: true})
+	// this loop exists for when the logfile gets rotated, and tail loses the original file
+	for {
+		t, err := tail.TailFile(envs.logFile, tail.Config{Follow: true})
 
-	if err != nil {
-		log.Print(err)
-		os.Exit(1)
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+
+		fmt.Println("Watching logfile:")
+		for line := range t.Lines {
+			fmt.Println(line.Text)
+		}
 	}
-
-	fmt.Println("Watching logfile:")
-	for line := range t.Lines {
-		fmt.Println(line.Text)
-	}
-
 }

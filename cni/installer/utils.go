@@ -15,6 +15,7 @@ func getInstallerConfigFromEnv() (installerConfig, error) {
 	dstBinDirectory := os.Getenv(envCNIDestinationBinDir)
 	dstConflistDirectory := os.Getenv(envCNIDestinationConflistDir)
 	ipamType := os.Getenv(envCNIIPAMType)
+	cniMode := os.Getenv(envCNIMode)
 	envCNIExemptBins := os.Getenv(envCNIExemptBins)
 	cniLogFile := os.Getenv(envCNILogFile)
 
@@ -29,6 +30,11 @@ func getInstallerConfigFromEnv() (installerConfig, error) {
 
 	// only allow windows and linux binaries
 	if err := envs.SetCNIType(cniType); err != nil {
+		return envs, err
+	}
+
+	// only allow windows and linux binaries
+	if err := envs.SetCNIMode(cniMode); err != nil {
 		return envs, err
 	}
 
