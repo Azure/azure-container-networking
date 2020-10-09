@@ -16,7 +16,6 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/microsoft/ApplicationInsights-Go v0.4.3
-	github.com/nxadm/tail v1.4.5
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
 	github.com/petar/GoLLRB v0.0.0-20190514000832-33fb24c13b99 // indirect

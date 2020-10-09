@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: azure-cni-installer-agent
+  name: azure-azure-cni-manager-agent
 spec:
   selector:
     matchLabels:
-      acn: cni-installer
+      acn: azure-cni-manager
   template:
     metadata:
       labels:
-        acn: cni-installer
+        acn: azure-cni-manager
     spec:
       affinity:
         nodeAffinity:
@@ -26,8 +26,8 @@ spec:
       imagePullSecrets:
         - name: acndev.azurecr.io-key
       containers:
-        - name: azure-cni-installer
-          image: acndev.azurecr.io/azure-cni-installer:07f84fcdbef4
+        - name: azure-azure-cni-manager
+          image: acndev.azurecr.io/azure-azure-cni-manager:07f84fcdbef4
           env:
             - name: CNI_OS
               value: linux

@@ -27,7 +27,7 @@ spec:
       #  - name: acndev.azurecr.io-key
       containers:
         - name: azure-cni-installer
-          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.1.8-3-g3a943e8-dirty-1
+          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.1.8-4-g4d14734-dirty-3
           imagePullPolicy: Always
           env:
             - name: CNI_OS

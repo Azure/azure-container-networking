@@ -94,7 +94,7 @@ func (i *installerConfig) SetCNIMode(cniMode string) error {
 			i.cniMode = cniMode
 			return nil
 		}
-		
+
 		return fmt.Errorf("No CNI mode supplied, please set %q env to either %q or %q and try again", envCNIMode, transparent, bridge)
 	}
 	return nil
@@ -110,38 +110,33 @@ var (
 	version string
 )
 
-func install(envs installerConfig) {
+func install(envs installerConfig) error {
 	if _, err := os.Stat(envs.dstBinDir); os.IsNotExist(err) {
 		os.MkdirAll(envs.dstBinDir, binPerm)
 	} else if err != nil {
-		fmt.Printf("Failed to create destination bin %v directory: %v", envs.dstBinDir, err)
-		os.Exit(1)
+		return fmt.Errorf("Failed to create destination bin %v directory: %v", envs.dstBinDir, err)
 	}
 
 	if _, err := os.Stat(envs.dstConflistDir); os.IsNotExist(err) {
 		os.MkdirAll(envs.dstConflistDir, conflistPerm)
 	} else if err != nil {
-		fmt.Printf("Failed to create destination conflist %v directory: %v with err %v", envs.dstConflistDir, envs.dstBinDir, err)
-		os.Exit(1)
+		return fmt.Errorf("Failed to create destination conflist %v directory: %v with err %v", envs.dstConflistDir, envs.dstBinDir, err)
 	}
 
 	binaries, conflists, err := getFiles(envs.srcDir)
 	if err != nil {
-		fmt.Printf("Failed to get CNI related file paths with err: %v", err)
-		os.Exit(1)
+		return fmt.Errorf("Failed to get CNI related file paths with err: %v", err)
 	}
 
 	err = copyBinaries(binaries, envs, binPerm)
 	if err != nil {
-		fmt.Printf("Failed to copy CNI binaries with err: %v", err)
-		os.Exit(1)
+		return fmt.Errorf("Failed to copy CNI binaries with err: %v", err)
 	}
 
 	for _, conf := range conflists {
 		err = modifyConflists(conf, envs, conflistPerm)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 	}
 
@@ -150,6 +145,7 @@ func install(envs installerConfig) {
 	}
 
 	fmt.Printf("Successfully installed Azure CNI %s and binaries to %s and conflist to %s\n", version, envs.dstBinDir, envs.dstConflistDir)
+	return nil
 }
 
 func modifyConflists(conflistpath string, envs installerConfig, perm os.FileMode) error {

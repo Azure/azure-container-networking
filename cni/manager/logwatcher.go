@@ -9,6 +9,8 @@ import (
 	"gopkg.in/fsnotify.v1"
 )
 
+// follow is used to open a file, and "tail" it,
+// which is to echo each log file line to stdout
 func follow(filename string) error {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -42,6 +44,7 @@ func follow(filename string) error {
 	}
 }
 
+// waitForChange uses fsnotify to block and wait for a file write update
 func waitForChange(w *fsnotify.Watcher) error {
 	for {
 		select {
