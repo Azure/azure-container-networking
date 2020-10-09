@@ -805,7 +805,8 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 
 		var cnsError *cnsclient.CNSClientError
-		if errors.As(err, &cnsError) && cnsError.IsNotFoundError() {
+
+		if errors.As(err, &cnsError) && !cnsError.IsNotFoundError() {
 			err = plugin.Errorf("Failed to extract network name from network config. error: %v", cnsError)
 			return err
 		}
