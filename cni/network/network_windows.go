@@ -11,8 +11,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
-	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -155,35 +153,30 @@ func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPref
 	return nil
 }
 
-func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, bool, error) {
+func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
 	var (
 		networkName      string
 		err              error
-		isNotFoundErr    bool
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
-		cnsClientError   *cnsclient.CNSClientError
 	)
 
 	networkName = nwCfg.Name
 	err = nil
-	isNotFoundErr = false
 
 	if nwCfg.MultiTenancy {
 		determineWinVer()
 		if len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
 			err = fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s", podName, podNs)
-			return networkName, isNotFoundErr, err
+			return networkName, err
 		}
 
-		_, cnsNetworkConfig, _, cnsClientError = getContainerNetworkConfiguration(nwCfg, podName, podNs, ifName)
-		if cnsClientError != nil {
-			isNotFoundErr = (cnsClientError.Code == restserver.UnknownContainerID)
+		_, cnsNetworkConfig, _, err = getContainerNetworkConfiguration(nwCfg, podName, podNs, ifName)
+		if err != nil {
 			log.Printf(
-				"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v, isNotFoundErr: %v",
+				"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v",
 				podName,
 				podNs,
-				err,
-				isNotFoundErr)
+				err)
 		} else {
 			var subnet net.IPNet
 			if err = updateSubnetPrefix(cnsNetworkConfig, &subnet); err == nil {
@@ -195,7 +188,7 @@ func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (st
 		}
 	}
 
-	return networkName, isNotFoundErr, err
+	return networkName, err
 }
 
 func setupInfraVnetRoutingForMultitenancy(

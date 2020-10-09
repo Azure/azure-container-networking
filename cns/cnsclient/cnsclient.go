@@ -25,11 +25,6 @@ var (
 	cnsClient *CNSClient
 )
 
-type CNSClientError struct {
-	Code int
-	Err  error
-}
-
 // InitCnsClient initializes new cns client and returns the object
 func InitCnsClient(url string) (*CNSClient, error) {
 	if cnsClient == nil {
@@ -56,12 +51,24 @@ func GetCnsClient() (*CNSClient, error) {
 	return cnsClient, err
 }
 
+// GetCnsClientEx returns the cns client object and encapsulates the error as CNSClientError
+func GetCnsClientEx() (*CNSClient, error) {
+	var err error
+
+	if cnsClient == nil {
+		err = &CNSClientError{
+			restserver.UnexpectedError,
+			fmt.Errorf("[Azure CNSClient] CNS Client not initialized")}
+	}
+
+	return cnsClient, err
+}
+
 // GetNetworkConfiguration Request to get network config.
 func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) (
-	*cns.GetNetworkContainerResponse, *CNSClientError) {
+	*cns.GetNetworkContainerResponse, error) {
 	var (
-		body            bytes.Buffer
-		isNotFoundError bool
+		body bytes.Buffer
 	)
 
 	httpc := &http.Client{}
@@ -87,8 +94,9 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		log.Errorf("[Azure CNSClient] GetNetworkConfiguration invalid http status code: %v", res.StatusCode)
-		return nil, &CNSClientError{restserver.UnexpectedError, err}
+		errMsg := fmt.Sprintf("[Azure CNSClient] GetNetworkConfiguration invalid http status code: %v", res.StatusCode)
+		log.Errorf(errMsg)
+		return nil, &CNSClientError{restserver.UnexpectedError, fmt.Errorf(errMsg)}
 	}
 
 	var resp cns.GetNetworkContainerResponse
@@ -101,10 +109,10 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 
 	if resp.Response.ReturnCode != 0 {
 		log.Errorf(
-			"[Azure CNSClient] GetNetworkConfiguration received error response :%v , isNotFoundError : %v",
+			"[Azure CNSClient] GetNetworkConfiguration received error response :%v , Code : %d",
 			resp.Response.Message,
-			isNotFoundError)
-		return nil, &CNSClientError{resp.Response.ReturnCode, err}
+			resp.Response.ReturnCode)
+		return nil, &CNSClientError{resp.Response.ReturnCode, fmt.Errorf(resp.Response.Message)}
 	}
 
 	return &resp, nil

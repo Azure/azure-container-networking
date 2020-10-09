@@ -5,6 +5,7 @@ package network
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -385,7 +386,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	log.Printf("Result from multitenancy %+v", result)
 
 	// Initialize values from network config.
-	networkId, _, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkId, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 		return err
@@ -709,7 +710,7 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	if networkId, _, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
+	if networkId, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 	}
@@ -755,16 +756,15 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 // Delete handles CNI delete commands.
 func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var (
-		err           error
-		nwCfg         *cni.NetworkConfig
-		k8sPodName    string
-		k8sNamespace  string
-		networkId     string
-		nwInfo        network.NetworkInfo
-		epInfo        *network.EndpointInfo
-		cniMetric     telemetry.AIMetric
-		msg           string
-		isNotFoundErr bool
+		err          error
+		nwCfg        *cni.NetworkConfig
+		k8sPodName   string
+		k8sNamespace string
+		networkId    string
+		nwInfo       network.NetworkInfo
+		epInfo       *network.EndpointInfo
+		cniMetric    telemetry.AIMetric
+		msg          string
 	)
 
 	startTime := time.Now()
@@ -798,14 +798,15 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	networkId, isNotFoundErr, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkId, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
 
 	// If error is not found error, then we ignore it, to comply with CNI SPEC.
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 
-		if !isNotFoundErr {
-			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
+		var cnsError *cnsclient.CNSClientError
+		if errors.As(err, &cnsError) && cnsError.IsNotFoundError() {
+			err = plugin.Errorf("Failed to extract network name from network config. error: %v", cnsError)
 			return err
 		}
 	}
@@ -910,7 +911,6 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		orchestratorContext []byte
 		targetNetworkConfig *cns.GetNetworkContainerResponse
 		cniMetric           telemetry.AIMetric
-		cnsErr              *cnsclient.CNSClientError
 	)
 
 	startTime := time.Now()
@@ -1013,9 +1013,9 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, cnsErr = cnsClient.GetNetworkConfiguration(orchestratorContext); err != nil {
+	if targetNetworkConfig, err = cnsClient.GetNetworkConfiguration(orchestratorContext); err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
-		return plugin.Errorf(cnsErr.Err.Error())
+		return plugin.Errorf(err.Error())
 	}
 
 	log.Printf("Network config received from cns for [name=%v, namespace=%v] is as follows -> %+v", k8sPodName, k8sNamespace, targetNetworkConfig)
