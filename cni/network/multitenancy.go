@@ -211,10 +211,10 @@ func GetMultiTenancyCNIResult(
 	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error) {
 
 	if nwCfg.MultiTenancy {
-		result, cnsNetworkConfig, subnetPrefix, cnsClienterr := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
-		if cnsClienterr != nil {
-			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %+v", k8sPodName, k8sNamespace, cnsClienterr)
-			return nil, nil, net.IPNet{}, nil, cnsClienterr
+		result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
+		if err != nil {
+			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %+v", k8sPodName, k8sNamespace, err)
+			return nil, nil, net.IPNet{}, nil, err
 		}
 
 		log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
@@ -222,7 +222,7 @@ func GetMultiTenancyCNIResult(
 		if checkIfSubnetOverlaps(enableInfraVnet, nwCfg, cnsNetworkConfig) {
 			buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", nwCfg.InfraVnetAddressSpace, cnsNetworkConfig.CnetAddressSpace)
 			log.Printf(buf)
-			err := errors.New(buf)
+			err = errors.New(buf)
 			return nil, nil, net.IPNet{}, nil, err
 		}
 
