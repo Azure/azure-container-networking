@@ -82,10 +82,10 @@ func getContainerNetworkConfigurationInternal(
 		return nil, nil, net.IPNet{}, err
 	}
 
-	networkConfig, cnsClientErr := cnsClient.GetNetworkConfiguration(orchestratorContext)
+	networkConfig, err := cnsClient.GetNetworkConfiguration(orchestratorContext)
 	if err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
-		return nil, nil, net.IPNet{}, cnsClientErr
+		return nil, nil, net.IPNet{}, err
 	}
 
 	log.Printf("Network config received from cns %+v", networkConfig)
