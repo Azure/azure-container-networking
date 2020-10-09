@@ -16,6 +16,7 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/microsoft/ApplicationInsights-Go v0.4.3
+	github.com/nxadm/tail v1.4.5
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
 	github.com/petar/GoLLRB v0.0.0-20190514000832-33fb24c13b99 // indirect
@@ -27,6 +28,7 @@ require (
 	golang.org/x/sys v0.0.0-20191120155948-bd437916bb0e
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
+	gopkg.in/fsnotify.v1 v1.4.7
 	k8s.io/api v0.18.2
 	k8s.io/apimachinery v0.18.2
 	k8s.io/client-go v0.18.2

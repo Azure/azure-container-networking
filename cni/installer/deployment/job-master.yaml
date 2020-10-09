@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: azure-cni-installer-master
+spec:
+  ttlSecondsAfterFinished: 20
+  template:
+    spec:
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/master
+                    operator: Exists
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+      hostNetwork: true
+      imagePullSecrets:
+        - name: acndev-acr-latest
+      containers:
+        - name: azure-cni-installer
+          image: acndev.azurecr.io/azure-cni-installer:bc3eb9f0b19e
+          env:
+            - name: CNI_OS
+              value: linux
+            - name: CNI_TYPE
+              value: singletenancy
+            - name: CNI_IPAM_TYPE
+              value: azure-cns
+            - name: CNI_EXCEMPT_BINS
+              value: azure-vnet-telemetry,azure-vnet-telemetry.config
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
+      restartPolicy: Never
+      volumes:
+        - name: cni-bin
+          hostPath:
+            path: /opt/cni/bin
+            type: Directory
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory

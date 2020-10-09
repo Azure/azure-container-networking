@@ -11,4 +11,4 @@ RUN find /output -name "*.tgz" -type f -delete
 FROM golang
 COPY --from=build /go/installer .
 COPY --from=build /output /output
-CMD ["sleep", "1000000"]
+CMD ["./installer"]

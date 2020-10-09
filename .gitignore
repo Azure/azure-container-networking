@@ -11,3 +11,6 @@ ipam-*.xml
 
 # Coverage 
 *.out
+
+# Goland
+.idea/*

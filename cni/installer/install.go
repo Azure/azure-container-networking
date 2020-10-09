@@ -30,6 +30,7 @@ const (
 	defaultSrcDirLinux      = "/output/"
 	defaultBinDirLinux      = "/opt/cni/bin/"
 	defaultConflistDirLinux = "/etc/cni/net.d/"
+	defaultLogFile          = "/var/log/azure-vnet.log"
 
 	envCNIOS                     = "CNI_OS"
 	envCNITYPE                   = "CNI_TYPE"
@@ -38,14 +39,48 @@ const (
 	envCNIDestinationConflistDir = "CNI_DST_CONFLIST_DIR"
 	envCNIIPAMType               = "CNI_IPAM_TYPE"
 	envCNIExemptBins             = "CNI_EXCEMPT_BINS"
+	envCNILogFile                = "CNI_LOG_FILE"
 )
 
-type environmentalVariables struct {
+type installerConfig struct {
 	srcDir         string
 	dstBinDir      string
 	dstConflistDir string
 	ipamType       string
 	exemptBins     map[string]bool
+	logFile        string
+	osType         string
+	cniType        string
+}
+
+func (i *installerConfig) SetExempt(exempt []string) {
+	// set exempt binaries to skip installing
+	// convert to all lower case, strip whitespace, and split on comma
+	for _, binName := range exempt {
+		i.exemptBins[binName] = true
+	}
+}
+
+func (i *installerConfig) SetOSType(osType string) error {
+	if strings.EqualFold(osType, linux) || strings.EqualFold(osType, windows) {
+		i.osType = fmt.Sprintf("%s_%s", osType, amd64)
+	} else {
+		return fmt.Errorf("No target OS type supplied, please set %q env and try again", envCNIOS)
+	}
+	return nil
+}
+
+func (i *installerConfig) SetCNIType(cniType string) error {
+	// get paths for singletenancy and multitenancy
+	switch {
+	case strings.EqualFold(cniType, multitenancy):
+		i.cniType = fmt.Sprintf("%s-%s", cni, multitenancy)
+	case strings.EqualFold(cniType, singletenancy):
+		i.cniType = cni
+	default:
+		return fmt.Errorf("No CNI type supplied, please set %q env to either %q or %q and try again", envCNITYPE, singletenancy, multitenancy)
+	}
+	return nil
 }
 
 type rawConflist struct {
@@ -58,25 +93,17 @@ var (
 	version string
 )
 
-func main() {
-	envs, err := getDirectoriesFromEnv()
-	if err != nil {
-		fmt.Printf("Failed to get environmental variables with err: %v", err)
-		os.Exit(1)
-	}
-
+func install(envs installerConfig) {
 	if _, err := os.Stat(envs.dstBinDir); os.IsNotExist(err) {
 		os.MkdirAll(envs.dstBinDir, binPerm)
-	}
-	if err != nil {
+	} else if err != nil {
 		fmt.Printf("Failed to create destination bin %v directory: %v", envs.dstBinDir, err)
 		os.Exit(1)
 	}
 
 	if _, err := os.Stat(envs.dstConflistDir); os.IsNotExist(err) {
 		os.MkdirAll(envs.dstConflistDir, conflistPerm)
-	}
-	if err != nil {
+	} else if err != nil {
 		fmt.Printf("Failed to create destination conflist %v directory: %v with err %v", envs.dstConflistDir, envs.dstBinDir, err)
 		os.Exit(1)
 	}
@@ -108,7 +135,7 @@ func main() {
 	fmt.Printf("Successfully installed Azure CNI %s and binaries to %s and conflist to %s\n", version, envs.dstBinDir, envs.dstConflistDir)
 }
 
-func modifyConflists(conflistpath string, envs environmentalVariables, perm os.FileMode) error {
+func modifyConflists(conflistpath string, envs installerConfig, perm os.FileMode) error {
 	jsonFile, err := os.Open(conflistpath)
 	if err != nil {
 		return err
@@ -150,7 +177,7 @@ func modifyConflists(conflistpath string, envs environmentalVariables, perm os.F
 	return ioutil.WriteFile(dstFile, filebytes, perm)
 }
 
-func modifyConf(conf interface{}, envs environmentalVariables) (interface{}, error) {
+func modifyConf(conf interface{}, envs installerConfig) (interface{}, error) {
 	mapbytes, err := json.Marshal(conf)
 	if err != nil {
 		return nil, err
@@ -171,121 +198,4 @@ func modifyConf(conf interface{}, envs environmentalVariables) (interface{}, err
 	}
 
 	return rawConfig, nil
-}
-
-func getDirectoriesFromEnv() (environmentalVariables, error) {
-	osVersion := os.Getenv(envCNIOS)
-	cniType := os.Getenv(envCNITYPE)
-	srcDirectory := os.Getenv(envCNISourceDir)
-	dstBinDirectory := os.Getenv(envCNIDestinationBinDir)
-	dstConflistDirectory := os.Getenv(envCNIDestinationConflistDir)
-	ipamType := os.Getenv(envCNIIPAMType)
-	envCNIExemptBins := os.Getenv(envCNIExemptBins)
-
-	envs := environmentalVariables{
-		exemptBins: make(map[string]bool),
-	}
-
-	// only allow windows and linux binaries
-	if strings.EqualFold(osVersion, linux) || strings.EqualFold(osVersion, windows) {
-		osVersion = fmt.Sprintf("%s_%s", osVersion, amd64)
-	} else {
-		return envs, fmt.Errorf("No target OS version supplied, please set %q env and try again", envCNIOS)
-	}
-
-	// get paths for singletenancy and multitenancy
-	switch {
-	case strings.EqualFold(cniType, multitenancy):
-		cniType = fmt.Sprintf("%s-%s", cni, multitenancy)
-	case strings.EqualFold(cniType, singletenancy):
-		cniType = cni
-	default:
-		return envs, fmt.Errorf("No CNI type supplied, please set %q env to either %q or %q and try again", envCNITYPE, singletenancy, multitenancy)
-	}
-
-	// set the source directory where bins and conflist(s) are
-	if srcDirectory == "" {
-		srcDirectory = defaultSrcDirLinux
-	}
-	envs.srcDir = fmt.Sprintf("%s%s/%s/", srcDirectory, osVersion, cniType)
-
-	// set the destination directory to install binaries
-	if dstBinDirectory == "" {
-		dstBinDirectory = defaultBinDirLinux
-	}
-	envs.dstBinDir = dstBinDirectory
-
-	// set the destination directory to install conflists
-	if dstConflistDirectory == "" {
-		dstConflistDirectory = defaultConflistDirLinux
-	}
-	envs.dstConflistDir = dstConflistDirectory
-
-	// set exempt binaries to skip installing
-	// convert to all lower case, strip whitespace, and split on comma
-	exempt := strings.Split(strings.Replace(strings.ToLower(envCNIExemptBins), " ", "", -1), ",")
-	for _, binName := range exempt {
-		envs.exemptBins[binName] = true
-	}
-
-	// set custom conflist settings
-	envs.ipamType = ipamType
-
-	return envs, nil
-}
-
-func getFiles(path string) (binaries []string, conflists []string, err error) {
-	err = filepath.Walk(path,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return fmt.Errorf("Failed to traverse path %s with err %s", path, err)
-			}
-
-			if !info.IsDir() {
-				ext := filepath.Ext(path)
-				if ext == conflistExtension {
-					conflists = append(conflists, path)
-				} else {
-					binaries = append(binaries, path)
-				}
-
-			}
-
-			return nil
-		})
-
-	return
-}
-
-func copyBinaries(filePaths []string, envs environmentalVariables, perm os.FileMode) error {
-	for _, path := range filePaths {
-		fileName := filepath.Base(path)
-
-		if exempt, ok := envs.exemptBins[fileName]; ok && exempt {
-			fmt.Printf("Skipping %s, marked as exempt\n", fileName)
-		} else {
-			err := copyFile(path, envs.dstBinDir+fileName, perm)
-			fmt.Printf("Installing %v...\n", envs.dstBinDir+fileName)
-			if err != nil {
-				return err
-			}
-		}
-
-	}
-
-	return nil
-}
-
-func copyFile(src string, dst string, perm os.FileMode) error {
-	data, err := ioutil.ReadFile(src)
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(dst, data, perm)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
