@@ -240,10 +240,11 @@ all-binaries-platforms:
 	export GOOS=linux; make all-binaries
 	export GOOS=windows; make all-binaries
 
-# CNI Installer
+# CNI Manager
 .PHONY: azure-cni-manager
 azure-cni-manager: all-binaries-platforms
-	docker build -f ./cni/manager/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
+	docker build -f ./acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
+
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
 .PHONY: azure-vnet-plugin-image

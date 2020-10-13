@@ -1,0 +1,97 @@
+package api
+
+import "strings"
+
+const (
+	CNI = "cni"
+
+	//CNI Install Flags
+	FlagMode              = "mode"
+	FlagTarget            = "target"
+	FlagIPAM              = "ipam"
+	FlagOS                = "os"
+	FlagTenancy           = "tenancy"
+	FlagExempt            = "exempt"
+	FlagBinDirectory      = "bin-directory"
+	FlagConflistDirectory = "conflist-directory"
+	FlagVersion           = "version"
+
+	//CNI Log Flags
+	FlagFollow      = "follow"
+	FlagLogFilePath = "log-file"
+
+	// tenancy flags
+	Singletenancy = "singletenancy"
+	Multitenancy  = "multitenancy"
+
+	// os flags
+	Linux   = "linux"
+	Windows = "windows"
+
+	// arch flags
+	Amd64 = "amd64"
+
+	// target mode flags
+	Local   = "local"
+	Cluster = "cluster"
+
+	// File permissions
+	BinPerm      = 755
+	ConflistPerm = 644
+
+	// CNI versions
+	Latest   = "latest"
+	Packaged = "packaged"
+
+	AzureCNIBin          = "azure-vnet"
+	AzureTelemetryBin    = "azure-vnet-telemetry"
+	AzureTelemetryConfig = "azure-vnet-telemetry.config"
+	AzureCNSIPAM         = "azure-cns"
+	AzureVNETIPAM        = "azure-vnet-ipam"
+	ConflistExtension    = ".conflist"
+
+	DefaultSrcDirLinux      = "/output/"
+	DefaultBinDirLinux      = "/opt/cni/bin/"
+	DefaultConflistDirLinux = "/etc/cni/net.d/"
+	DefaultLogFile          = "/var/log/azure-vnet.log"
+	Transparent             = "transparent"
+	Bridge                  = "bridge"
+)
+
+var (
+	// Concatenating flags to the env ensures consistency between flags and env's for viper and cobra
+	EnvCNIOS                     = "AZURE_CNI_" + strings.ToUpper(FlagOS)
+	EnvCNIType                   = "AZURE_CNI_" + strings.ToUpper(FlagTenancy)
+	EnvCNISourceDir              = "AZURE_CNI_SRC_DIR"
+	EnvCNIDestinationBinDir      = "AZURE_CNI_DST_BIN_DIR"
+	EnvCNIDestinationConflistDir = "AZURE_CNI_DST_CONFLIST_DIR"
+	EnvCNIIPAMType               = "AZURE_CNI_" + strings.ToUpper(FlagIPAM)
+	EnvCNIMode                   = "AZURE_CNI_" + strings.ToUpper(FlagMode)
+	EnvCNIExemptBins             = "AZURE_CNI_EXCEMPT_BINS"
+	EnvCNILogFile                = "AZURE_CNI_LOG_FILE"
+
+	Defaults = map[string]string{
+		FlagOS:                       Linux,
+		FlagTenancy:                  Singletenancy,
+		FlagIPAM:                     AzureVNETIPAM,
+		FlagExempt:                   AzureTelemetryBin + "," + AzureTelemetryConfig,
+		FlagMode:                     Bridge,
+		FlagTarget:                   Local,
+		FlagBinDirectory:             DefaultBinDirLinux,
+		FlagConflistDirectory:        DefaultConflistDirLinux,
+		FlagVersion:                  Latest,
+		FlagLogFilePath:              DefaultLogFile,
+		EnvCNILogFile:                EnvCNILogFile,
+		EnvCNISourceDir:              DefaultSrcDirLinux,
+		EnvCNIDestinationBinDir:      DefaultBinDirLinux,
+		EnvCNIDestinationConflistDir: DefaultConflistDirLinux,
+	}
+
+	DefaultToggles = map[string]bool{
+		FlagFollow: false,
+	}
+)
+
+func GetDefaults() map[string]string {
+	return Defaults
+}
