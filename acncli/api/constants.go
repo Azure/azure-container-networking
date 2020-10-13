@@ -5,6 +5,8 @@ import "strings"
 const (
 	CNI = "cni"
 
+	EnvPrefix = "AZURE_CNI"
+
 	//CNI Install Flags
 	FlagMode              = "mode"
 	FlagTarget            = "target"
@@ -56,19 +58,20 @@ const (
 	DefaultLogFile          = "/var/log/azure-vnet.log"
 	Transparent             = "transparent"
 	Bridge                  = "bridge"
+	Azure0                  = "azure0"
 )
 
 var (
 	// Concatenating flags to the env ensures consistency between flags and env's for viper and cobra
-	EnvCNIOS                     = "AZURE_CNI_" + strings.ToUpper(FlagOS)
-	EnvCNIType                   = "AZURE_CNI_" + strings.ToUpper(FlagTenancy)
-	EnvCNISourceDir              = "AZURE_CNI_SRC_DIR"
-	EnvCNIDestinationBinDir      = "AZURE_CNI_DST_BIN_DIR"
-	EnvCNIDestinationConflistDir = "AZURE_CNI_DST_CONFLIST_DIR"
-	EnvCNIIPAMType               = "AZURE_CNI_" + strings.ToUpper(FlagIPAM)
-	EnvCNIMode                   = "AZURE_CNI_" + strings.ToUpper(FlagMode)
-	EnvCNIExemptBins             = "AZURE_CNI_" + strings.ToUpper(FlagExempt)
-	EnvCNILogFile                = "AZURE_CNI_LOG_FILE"
+	EnvCNIOS                     = EnvPrefix + "_" + strings.ToUpper(FlagOS)
+	EnvCNIType                   = EnvPrefix + "_" + strings.ToUpper(FlagTenancy)
+	EnvCNISourceDir              = EnvPrefix + "_" + "SRC_DIR"
+	EnvCNIDestinationBinDir      = EnvPrefix + "_" + "BIN_DIR"
+	EnvCNIDestinationConflistDir = EnvPrefix + "_" + "CONFLIST_DIR"
+	EnvCNIIPAMType               = EnvPrefix + "_" + strings.ToUpper(FlagIPAM)
+	EnvCNIMode                   = EnvPrefix + "_" + strings.ToUpper(FlagMode)
+	EnvCNIExemptBins             = EnvPrefix + "_" + strings.ToUpper(FlagExempt)
+	EnvCNILogFile                = EnvPrefix + "_" + "LOG_FILE"
 
 	Defaults = map[string]string{
 		FlagOS:                       Linux,

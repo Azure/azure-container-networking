@@ -65,7 +65,7 @@ func (i *InstallerConfig) SetCNIDatapathMode(cniMode string) error {
 func InstallLocal(installerConf InstallerConfig) error {
 	fmt.Printf("📁 - Checking if destination bin directory (%s) exists...\n", installerConf.DstBinDir)
 	if _, err := os.Stat(installerConf.DstBinDir); os.IsNotExist(err) {
-		fmt.Printf("Destination bin directory does not exist, creating...\n", installerConf.DstBinDir)
+		fmt.Println("Destination bin directory does not exist, creating...")
 		err = os.MkdirAll(installerConf.DstBinDir, c.BinPerm)
 		if err != nil {
 			return err
@@ -76,6 +76,7 @@ func InstallLocal(installerConf InstallerConfig) error {
 
 	fmt.Printf("📂 - Checking if destination conflist directory (%s) exists...\n", installerConf.DstConflistDir)
 	if _, err := os.Stat(installerConf.DstConflistDir); os.IsNotExist(err) {
+		fmt.Println("Destination conflist directory does not exist, creating...")
 		os.MkdirAll(installerConf.DstConflistDir, c.ConflistPerm)
 	} else if err != nil {
 		return fmt.Errorf("Failed to create destination conflist %v directory: %v with err %v", installerConf.DstConflistDir, installerConf.DstBinDir, err)

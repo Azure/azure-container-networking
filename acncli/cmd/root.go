@@ -3,12 +3,9 @@ package cmd
 import (
 	"fmt"
 
+	c "github.com/Azure/azure-container-networking/acncli/api"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-)
-
-const (
-	envPrefix = "AZURE_CNI"
 )
 
 // NewRootCmd returns a root
@@ -18,7 +15,7 @@ func NewRootCmd(version string) *cobra.Command {
 	}
 
 	viper.New()
-	viper.SetEnvPrefix(envPrefix)
+	viper.SetEnvPrefix(c.EnvPrefix)
 	viper.AutomaticEnv()
 
 	var versionCmd = &cobra.Command{

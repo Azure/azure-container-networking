@@ -76,8 +76,16 @@ func ModifyConflists(conflistpath string, installerConf InstallerConfig, perm os
 
 	// change the netconfig from passed installerConf
 	netconfig.Ipam.Type = installerConf.IPAMType
-	netconfig.Mode = installerConf.CNITenancy
+	netconfig.Mode = installerConf.CNIMode
 
+	// no bridge in transparent mode
+	if netconfig.Mode == c.Transparent {
+		netconfig.Bridge = ""
+	} else if netconfig.Mode == c.Bridge {
+		netconfig.Bridge = c.Azure0
+	}
+
+	// set conf back in conflist
 	conflist.Plugins[confindex] = netconfig
 
 	// get target path
