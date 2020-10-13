@@ -46,8 +46,8 @@ func copyBinaries(filePaths []string, installerConf InstallerConfig, perm os.Fil
 		if exempt, ok := installerConf.ExemptBins[fileName]; ok && exempt {
 			fmt.Printf("Skipping %s, marked as exempt\n", fileName)
 		} else {
+			fmt.Printf("🚚 - Installing %v...\n", installerConf.DstBinDir+fileName)
 			err := copyFile(path, installerConf.DstBinDir+fileName, perm)
-			fmt.Printf("Installing %v...\n", installerConf.DstBinDir+fileName)
 			if err != nil {
 				return err
 			}

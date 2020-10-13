@@ -67,7 +67,7 @@ var (
 	EnvCNIDestinationConflistDir = "AZURE_CNI_DST_CONFLIST_DIR"
 	EnvCNIIPAMType               = "AZURE_CNI_" + strings.ToUpper(FlagIPAM)
 	EnvCNIMode                   = "AZURE_CNI_" + strings.ToUpper(FlagMode)
-	EnvCNIExemptBins             = "AZURE_CNI_EXCEMPT_BINS"
+	EnvCNIExemptBins             = "AZURE_CNI_" + strings.ToUpper(FlagExempt)
 	EnvCNILogFile                = "AZURE_CNI_LOG_FILE"
 
 	Defaults = map[string]string{
@@ -79,7 +79,7 @@ var (
 		FlagTarget:                   Local,
 		FlagBinDirectory:             DefaultBinDirLinux,
 		FlagConflistDirectory:        DefaultConflistDirLinux,
-		FlagVersion:                  Latest,
+		FlagVersion:                  Packaged,
 		FlagLogFilePath:              DefaultLogFile,
 		EnvCNILogFile:                EnvCNILogFile,
 		EnvCNISourceDir:              DefaultSrcDirLinux,

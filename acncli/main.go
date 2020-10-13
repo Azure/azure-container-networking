@@ -11,7 +11,7 @@ import (
 
 var (
 	rootCmd *cobra.Command
-	version string
+	version = ""
 )
 
 func main() {

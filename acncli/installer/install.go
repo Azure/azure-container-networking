@@ -63,28 +63,37 @@ func (i *InstallerConfig) SetCNIDatapathMode(cniMode string) error {
 }
 
 func InstallLocal(installerConf InstallerConfig) error {
+	fmt.Printf("📁 - Checking if destination bin directory (%s) exists...\n", installerConf.DstBinDir)
 	if _, err := os.Stat(installerConf.DstBinDir); os.IsNotExist(err) {
-		os.MkdirAll(installerConf.DstBinDir, c.BinPerm)
+		fmt.Printf("Destination bin directory does not exist, creating...\n", installerConf.DstBinDir)
+		err = os.MkdirAll(installerConf.DstBinDir, c.BinPerm)
+		if err != nil {
+			return err
+		}
 	} else if err != nil {
 		return fmt.Errorf("Failed to create destination bin %v directory: %v", installerConf.DstBinDir, err)
 	}
 
+	fmt.Printf("📂 - Checking if destination conflist directory (%s) exists...\n", installerConf.DstConflistDir)
 	if _, err := os.Stat(installerConf.DstConflistDir); os.IsNotExist(err) {
 		os.MkdirAll(installerConf.DstConflistDir, c.ConflistPerm)
 	} else if err != nil {
 		return fmt.Errorf("Failed to create destination conflist %v directory: %v with err %v", installerConf.DstConflistDir, installerConf.DstBinDir, err)
 	}
 
+	fmt.Printf("📦 - Getting binary and conflist paths in (%s)...\n", installerConf.SrcDir)
 	binaries, conflists, err := getFiles(installerConf.SrcDir)
 	if err != nil {
 		return fmt.Errorf("Failed to get CNI related file paths with err: %v", err)
 	}
 
+	fmt.Printf("🚚 - Copying binaries...\n")
 	err = copyBinaries(binaries, installerConf, c.BinPerm)
 	if err != nil {
 		return fmt.Errorf("Failed to copy CNI binaries with err: %v", err)
 	}
 
+	fmt.Printf("🚛 - Copying conflists...\n")
 	for _, conf := range conflists {
 		err = ModifyConflists(conf, installerConf, c.ConflistPerm)
 		if err != nil {
@@ -92,7 +101,7 @@ func InstallLocal(installerConf InstallerConfig) error {
 		}
 	}
 
-	fmt.Printf("Successfully installed Azure CNI  and binaries to %s and conflist to %s\n", installerConf.DstBinDir, installerConf.DstConflistDir)
+	fmt.Printf("🚀 - Successfully installed Azure CNI and binaries to %s and conflist to %s\n", installerConf.DstBinDir, installerConf.DstConflistDir)
 	return nil
 }
 

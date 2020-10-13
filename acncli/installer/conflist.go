@@ -87,7 +87,7 @@ func ModifyConflists(conflistpath string, installerConf InstallerConfig, perm os
 		return err
 	}
 
-	fmt.Printf("Installing %v...\n", dstFile)
+	fmt.Printf("🚛 - Installing %v...\n", dstFile)
 	return ioutil.WriteFile(dstFile, filebytes, perm)
 }
 

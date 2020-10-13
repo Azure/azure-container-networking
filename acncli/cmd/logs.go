@@ -11,13 +11,13 @@ import (
 
 // installCmd can register an object
 func LogsCmd() *cobra.Command {
-	var registercmd = &cobra.Command{
+	var cmd = &cobra.Command{
 		Use:   "logs",
 		Short: "Fetches the logs of an ACN component",
 		Long:  "The logs command is used to fetch and/or watch the logs of an ACN component",
 	}
-	registercmd.AddCommand(LogsCNICmd())
-	return registercmd
+	cmd.AddCommand(LogsCNICmd())
+	return cmd
 }
 
 func LogsCNICmd() *cobra.Command {
@@ -25,8 +25,8 @@ func LogsCNICmd() *cobra.Command {
 		Use:   "cni",
 		Short: fmt.Sprintf("Retrieves the logs of %s binary", c.AzureCNIBin),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Printf("📃 - started watching %s\n", viper.GetString(c.FlagLogFilePath))
 
-			fmt.Printf("%+v", viper.GetBool(c.FlagFollow))
 			// this loop exists for when the logfile gets rotated, and tail loses the original file
 			for {
 				t, err := tail.TailFile(viper.GetString(c.FlagLogFilePath), tail.Config{Follow: viper.GetBool(c.FlagFollow)})

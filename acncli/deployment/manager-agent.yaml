@@ -25,18 +25,18 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-cni-installer
-          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.1.8-4-g4d14734-dirty-3
+          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.1.8-6-ga574a6b-dirty-8
           imagePullPolicy: Always
           env:
-            - name: CNI_OS
+            - name: AZURE_CNI_OS
               value: linux
-            - name: CNI_TYPE
+            - name: AZURE_CNI_TENANCY
               value: singletenancy
-            - name: CNI_MODE
+            - name: AZURE_CNI_MODE
               value: transparent
-            - name: CNI_IPAM_TYPE
+            - name: AZURE_CNI_IPAM
               value: azure-cns
-            - name: CNI_EXCEMPT_BINS
+            - name: AZURE_CNI_EXEMPT
               value: azure-vnet-telemetry,azure-vnet-telemetry.config
           securityContext:
             privileged: true

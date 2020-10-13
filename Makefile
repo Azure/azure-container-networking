@@ -242,7 +242,7 @@ all-binaries-platforms:
 
 # CNI Manager
 .PHONY: azure-cni-manager
-azure-cni-manager: all-binaries-platforms
+azure-cni-manager: all-binaries
 	docker build -f ./acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
 
 

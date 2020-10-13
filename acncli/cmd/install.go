@@ -12,12 +12,12 @@ import (
 
 // installCmd can register an object
 func InstallCmd() *cobra.Command {
-	var registercmd = &cobra.Command{
+	var cmd = &cobra.Command{
 		Use:   "install",
 		Short: "Installs an ACN component",
 	}
-	registercmd.AddCommand(InstallCNICmd())
-	return registercmd
+	cmd.AddCommand(InstallCNICmd())
+	return cmd
 }
 
 func InstallCNICmd() *cobra.Command {
@@ -47,13 +47,7 @@ func InstallCNICmd() *cobra.Command {
 
 			envs.SetExempt(strings.Split(strings.Replace(strings.ToLower(viper.GetString(c.FlagExempt)), " ", "", -1), ","))
 
-			version := viper.GetString(c.FlagVersion)
-			if version == c.Packaged {
-				envs.SrcDir = fmt.Sprintf("%s%s/%s/", c.DefaultSrcDirLinux, envs.OSType, envs.CNITenancy)
-			} else {
-				return fmt.Errorf("Version \"%s\" not supported yet", version)
-			}
-
+			envs.SrcDir = fmt.Sprintf("%s%s/%s/", c.DefaultSrcDirLinux, envs.OSType, envs.CNITenancy)
 			envs.DstBinDir = viper.GetString(c.FlagBinDirectory)
 			envs.DstConflistDir = viper.GetString(c.FlagConflistDirectory)
 			envs.IPAMType = viper.GetString(c.FlagIPAM)
@@ -69,9 +63,7 @@ func InstallCNICmd() *cobra.Command {
 	cmd.Flags().String(c.FlagTenancy, c.Defaults[c.FlagTenancy], fmt.Sprintf("Tenancy option for Azure CNI, options are %s and %s", c.Singletenancy, c.Multitenancy))
 	cmd.Flags().String(c.FlagBinDirectory, c.Defaults[c.FlagBinDirectory], "Destination where Azure CNI binaries will be installed")
 	cmd.Flags().String(c.FlagConflistDirectory, c.Defaults[c.FlagConflistDirectory], "Destination where Azure CNI conflists will be installed")
-	cmd.Flags().String(c.FlagVersion, c.Defaults[c.FlagVersion], fmt.Sprintf("Version of Azure CNI to be installed, when running in manager mode, use %s as the version to install", c.Packaged))
+	cmd.Flags().String(c.FlagExempt, c.Defaults[c.FlagExempt], "Exempt files that won't be installed")
 
-	cmd.MarkFlagRequired(c.FlagMode)
-	cmd.MarkFlagRequired(c.FlagIPAM)
 	return cmd
 }

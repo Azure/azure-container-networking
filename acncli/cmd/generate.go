@@ -11,13 +11,13 @@ import (
 
 // installCmd can register an object
 func GenerateCmd() *cobra.Command {
-	var registercmd = &cobra.Command{
+	var cmd = &cobra.Command{
 		Use:   "generate",
 		Short: "Generates a conflist or manifest for a specific component",
 		Long:  "The logs command is used to fetch and/or watch the logs of an ACN component",
 	}
-	registercmd.AddCommand(LogsCNICmd())
-	return registercmd
+	cmd.AddCommand(LogsCNICmd())
+	return cmd
 }
 
 func GenerateConflistCmd() *cobra.Command {
