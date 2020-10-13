@@ -247,17 +247,20 @@ func SNATfromSubnetToDNSWithNCPrimaryIP(ipForSNAT net.IP, snattedAddressSpace ne
 	// Check if theres a primary IP
 	if ipForSNAT != nil {
 		// Create SWIFT chain, this checks if the chain already exists
+		log.Printf("Creating SWIFT chain...")
 		err := iptables.CreateChain(iptables.V4, iptables.Nat, iptables.Swift)
 		if err != nil {
 			return err
 		}
 
+		log.Printf("Creating SWIFT chain jump from POSTROUTING")
 		// add jump to SWIFT chain from POSTROUTING
 		err = iptables.AppendIptableRule(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift)
 		if err != nil {
 			return err
 		}
 
+		log.Printf("Adding rule to SNAT subnet %v DNS requests with ip %v", snattedAddressSpace, ipForSNAT)
 		// SNAT requests to Azure DNS
 		azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", snattedAddressSpace.String(), iptables.AzureDNS, iptables.UDP, iptables.DNSPort)
 		snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, ipForSNAT)
@@ -265,7 +268,6 @@ func SNATfromSubnetToDNSWithNCPrimaryIP(ipForSNAT net.IP, snattedAddressSpace ne
 		if err != nil {
 			return err
 		}
-
 	}
 
 	return nil

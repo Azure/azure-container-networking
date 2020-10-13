@@ -29,7 +29,7 @@ func LogsCNICmd() *cobra.Command {
 
 			// this loop exists for when the logfile gets rotated, and tail loses the original file
 			for {
-				t, err := tail.TailFile(viper.GetString(c.FlagLogFilePath), tail.Config{Follow: viper.GetBool(c.FlagFollow)})
+				t, err := tail.TailFile(viper.GetString(c.FlagLogFilePath), tail.Config{Follow: viper.GetBool(c.FlagFollow), ReOpen: true})
 
 				if err != nil {
 					return err
@@ -44,7 +44,6 @@ func LogsCNICmd() *cobra.Command {
 		}}
 
 	cmd.Flags().BoolP(c.FlagFollow, "f", c.DefaultToggles[c.FlagFollow], fmt.Sprintf("Follow the log file, similar to 'tail -f'"))
-
 	cmd.Flags().String(c.FlagLogFilePath, c.Defaults[c.FlagLogFilePath], fmt.Sprintf("Path of the Azure CNI log file"))
 
 	return cmd

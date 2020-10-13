@@ -287,7 +287,7 @@ func (service *HTTPRestService) AllocateAnyAvailableIPConfig(podInfo cns.Kuberne
 		}
 	}
 
-	return podIpInfo, fmt.Errorf("No more free IP's available, trigger batch")
+	return podIpInfo, fmt.Errorf("No more free IP's available, waiting on Azure CNS to allocated more IP's...")
 }
 
 // If IPConfig is already allocated for pod, it returns that else it returns one of the available ipconfigs.

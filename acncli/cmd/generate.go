@@ -50,8 +50,5 @@ func GenerateConflistCmd() *cobra.Command {
 	cmd.Flags().String(c.FlagConflistDirectory, c.Defaults[c.FlagConflistDirectory], "Destination where Azure CNI conflists will be installed")
 	cmd.Flags().String(c.FlagVersion, c.Defaults[c.FlagVersion], fmt.Sprintf("Version of Azure CNI to be installed, when running in manager mode, use %s as the version to install", c.Packaged))
 
-	cmd.MarkFlagRequired(c.FlagMode)
-	cmd.MarkFlagRequired(c.FlagIPAM)
-
 	return cmd
 }

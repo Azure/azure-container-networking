@@ -72,7 +72,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, subnetPrefix *net.I
 	// set the NC Primary IP in options
 	options[network.SNATIPKey] = resultIPv4.ncPrimaryIP
 
-	log.Printf("Received IP %v for pod %v", resultIPv4.podIPAddress, podInfo)
+	log.Printf("Received result %+v for pod %v", resultIPv4, podInfo)
 
 	result, err := getCNIIPv4Result(resultIPv4, subnetPrefix)
 	if err != nil {
