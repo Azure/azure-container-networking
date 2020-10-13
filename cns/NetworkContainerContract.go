@@ -61,6 +61,7 @@ const (
 	Available      = "Available"
 	Allocated      = "Allocated"
 	PendingRelease = "PendingRelease"
+	PendingProgram = "PendingProgram"
 )
 
 // ChannelMode :- CNS channel modes

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -236,7 +237,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	}
 
 	// Add the newIpConfigs, ignore if ip state is already in the map
-	service.addIPConfigStateUntransacted(req.NetworkContainerid, newIPConfigs)
+	service.addIPConfigStateUntransacted(req.NCVersion, req.NetworkContainerid, newIPConfigs)
 
 	return 0, ""
 }
@@ -244,27 +245,50 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, ipconfigs map[string]cns.SecondaryIPConfig) {
-	// add ipconfigs to state
-	for ipId, ipconfig := range ipconfigs {
-		// if this IPConfig already exists in the map, then ignore as this is an idempotent state
-		if _, exists := service.PodIPConfigState[ipId]; exists {
-			continue
+func (service *HTTPRestService) addIPConfigStateUntransacted(ncVersion, ncId string, ipconfigs map[string]cns.SecondaryIPConfig) {
+
+	existingNCStatus, _ := service.state.ContainerStatus[ncId]
+	existingNCVersion, _ := strconv.Atoi(existingNCStatus.CreateNetworkContainerRequest.NCVersion)
+	nmAgentNCVersion := getNCVersionFromNMAgent(ncId)
+	newNCVersion, _ := strconv.Atoi(ncVersion)
+
+	if nmAgentNCVersion >= newNCVersion { // add ipconfigs to state
+		for ipId, ipconfig := range ipconfigs {
+			// if this IPConfig already exists in the map, then ignore as this is an idempotent state
+			if _, exists := service.PodIPConfigState[ipId]; exists {
+				continue
+			}
+
+			// add the new State
+			ipconfigStatus := cns.IPConfigurationStatus{
+				NCID:                ncId,
+				ID:                  ipId,
+				IPAddress:           ipconfig.IPAddress,
+				State:               cns.Available,
+				OrchestratorContext: nil,
+			}
+
+			service.PodIPConfigState[ipId] = ipconfigStatus
+
+			// Todo Update batch API and maintain the count
+
+			existingNCStatus.CreateNetworkContainerRequest.NCVersion = strconv.Itoa(newNCVersion)
 		}
-
-		// add the new State
-		ipconfigStatus := cns.IPConfigurationStatus{
-			NCID:                ncId,
-			ID:                  ipId,
-			IPAddress:           ipconfig.IPAddress,
-			State:               cns.Available,
-			OrchestratorContext: nil,
+	} else {
+		if nmAgentNCVersion >= existingNCVersion {
+			// todo, update all pending program IP to available.
+			// Unconmment the following command when getNCVersionFromNMAgent function finished.
+			// existingNCStatus.CreateNetworkContainerRequest.NCVersion = strconv.Itoa(nmAgentNCVersion)
+		} else {
+			// todo, update IPs in ipconfigs which is not in the map to pending program.
 		}
-
-		service.PodIPConfigState[ipId] = ipconfigStatus
-
-		// Todo Update batch API and maintain the count
 	}
+}
+
+// To do, complete this logic according to getNetworkContainerStatus
+func getNCVersionFromNMAgent(ncid string) int {
+	// return a largest int to not break current.
+	return math.MaxInt64
 }
 
 // Todo: call this when request is received

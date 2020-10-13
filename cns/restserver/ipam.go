@@ -118,6 +118,15 @@ func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigura
 	return service.PodIPConfigState
 }
 
+// GetPendingProgramIPConfigs returns list of IPs which are in pending program status
+func (service *HTTPRestService) GetPendingProgramIPConfigs() []cns.IPConfigurationStatus {
+	service.RLock()
+	defer service.RUnlock()
+	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
+		return ipconfig.State == cns.PendingProgram
+	})
+}
+
 func (service *HTTPRestService) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()

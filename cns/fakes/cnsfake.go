@@ -58,6 +58,7 @@ func (stack *StringStack) Pop() (string, error) {
 }
 
 type IPStateManager struct {
+	PendingProgramIPConfigState map[string]cns.IPConfigurationStatus
 	AvailableIPConfigState      map[string]cns.IPConfigurationStatus
 	AllocatedIPConfigState      map[string]cns.IPConfigurationStatus
 	PendingReleaseIPConfigState map[string]cns.IPConfigurationStatus
@@ -67,6 +68,7 @@ type IPStateManager struct {
 
 func NewIPStateManager() IPStateManager {
 	return IPStateManager{
+		PendingProgramIPConfigState: make(map[string]cns.IPConfigurationStatus),
 		AvailableIPConfigState:      make(map[string]cns.IPConfigurationStatus),
 		AllocatedIPConfigState:      make(map[string]cns.IPConfigurationStatus),
 		PendingReleaseIPConfigState: make(map[string]cns.IPConfigurationStatus),
@@ -81,6 +83,8 @@ func (ipm *IPStateManager) AddIPConfigs(ipconfigs []cns.IPConfigurationStatus) {
 	for i := 0; i < len(ipconfigs); i++ {
 
 		switch {
+		case ipconfigs[i].State == cns.PendingProgram:
+			ipm.PendingProgramIPConfigState[ipconfigs[i].ID] = ipconfigs[i]
 		case ipconfigs[i].State == cns.Available:
 			ipm.AvailableIPConfigState[ipconfigs[i].ID] = ipconfigs[i]
 			ipm.AvailableIPIDStack.Push(ipconfigs[i].ID)
