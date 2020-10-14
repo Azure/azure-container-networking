@@ -12,9 +12,9 @@ The network and IPAM plugins are designed to work together. The IPAM plugin can 
 This page describes how to setup the CNI plugins manually on Azure IaaS VMs. If you are planning to deploy an ACS cluster, see [ACS](acs.md) instead.
 
 ## Install
-Copy the plugin package from the [release](https://github.com/Azure/azure-container-networking/releases) share to your Azure VM and extract the contents to the CNI directories.
+To install or update, copy the plugin package from the [release](https://github.com/Azure/azure-container-networking/releases) share to your Azure VM and extract the contents to the CNI directories.
 
-You can also install by running the `install-cni-plugin.sh` (Linux) or `install-cni-plugin.ps1` (Windows) scripts provided in the scripts directory of this repository.
+You can also do this by running the `install-cni-plugin.sh` (Linux) or `install-cni-plugin.ps1` (Windows) scripts provided in the scripts directory of this repository.
 
 ```bash
 $ scripts/install-cni-plugin.sh [version]
