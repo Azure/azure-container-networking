@@ -24,6 +24,18 @@ $ scripts/install-cni-plugin.sh [version]
 PS> scripts\install-cni-plugin.ps1 [version]
 ```
 
+## Version
+To see the version of CNI running on your vm, run the following command:
+
+Linux
+```
+/opt/cni/bin/azure-vnet --version 
+```
+Windows
+```
+C:\k\azurecni\bin\azure-vnet.exe --version
+```
+
 The plugin package comes with a simple network configuration file that works out of the box. See the [network configuration](https://github.com/Azure/azure-container-networking/blob/master/docs/cni.md#network-configuration) section below for customization options.
 
 ## Build
