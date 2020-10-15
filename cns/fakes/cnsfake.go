@@ -225,6 +225,15 @@ func (fake *HTTPServiceFake) SyncNodeStatus(string, string, string, json.RawMess
 	return 0, ""
 }
 
+func (fake *HTTPServiceFake) GetPendingProgramIPConfigs() []cns.IPConfigurationStatus {
+	ipconfigs := []cns.IPConfigurationStatus{}
+	for _, ipconfig := range fake.IPStateManager.PendingProgramIPConfigState {
+		ipconfigs = append(ipconfigs, ipconfig)
+	}
+
+	return ipconfigs
+}
+
 func (fake *HTTPServiceFake) GetAvailableIPConfigs() []cns.IPConfigurationStatus {
 	ipconfigs := []cns.IPConfigurationStatus{}
 	for _, ipconfig := range fake.IPStateManager.AvailableIPConfigState {

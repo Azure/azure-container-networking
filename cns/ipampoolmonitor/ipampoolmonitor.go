@@ -64,7 +64,7 @@ func (pm *CNSIPAMPoolMonitor) Start(ctx context.Context, poolMonitorRefreshMilli
 
 func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	cnsPodIPConfigCount := len(pm.cns.GetPodIPConfigState())
-	pendingProgramCount := len(pm.cns.GetPendingProgramIPConfigs())
+	pendingProgramCount := len(pm.cns.GetPendingProgramIPConfigs()) // TODO: add pending program count to real cns
 	allocatedPodIPCount := len(pm.cns.GetAllocatedIPConfigs())
 	pendingReleaseIPCount := len(pm.cns.GetPendingReleaseIPConfigs())
 	availableIPConfigCount := len(pm.cns.GetAvailableIPConfigs()) // TODO: add pending allocation count to real cns
