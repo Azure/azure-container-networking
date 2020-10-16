@@ -112,8 +112,12 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
 	var hostVersion string
+	var existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig //uuid is key
+	var existingNCVersion string
 	if ok {
 		hostVersion = existingNCStatus.HostVersion
+		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
+		existingNCVersion = existingNCStatus.VMVersion
 	}
 
 	service.state.ContainerStatus[req.NetworkContainerid] =
@@ -165,7 +169,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
-			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingNCStatus)
+			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, existingNCVersion)
 			if returnCode != 0 {
 				return returnCode, returnMesage
 			}
@@ -195,14 +199,14 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted)
 // from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingNCStatus containerstatus) (int, string) {
+func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, existingNCVersion string) (int, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
 
 	// Populate the ToBeDeleted list, Secondary IPs which doesnt exist in New request anymore.
 	// We will later remove them from the in-memory cache
-	for secondaryIpId, existingIPConfig := range existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs {
+	for secondaryIpId, existingIPConfig := range existingSecondaryIPConfigs {
 		_, exists := newIPConfigs[secondaryIpId]
 		if !exists {
 			// IP got removed in the updated request, add it in tobeDeletedIps
@@ -235,7 +239,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	}
 
 	// Add the newIpConfigs, ignore if ip state is already in the map
-	service.addIPConfigStateUntransacted(req.Version, existingNCStatus, newIPConfigs)
+	service.addIPConfigStateUntransacted(req, existingNCVersion, newIPConfigs)
 
 	return 0, ""
 }
@@ -243,12 +247,13 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(version string, existingNCStatus containerstatus, ipconfigs map[string]cns.SecondaryIPConfig) {
+func (service *HTTPRestService) addIPConfigStateUntransacted(req cns.CreateNetworkContainerRequest, existingNCVersionInString string, ipconfigs map[string]cns.SecondaryIPConfig) {
 
 	var newNCVersion int
-	newNCVersion, _ = strconv.Atoi(version)
-	existingNCVersion, _ := strconv.Atoi(existingNCStatus.CreateNetworkContainerRequest.Version)
-	nmAgentNCVersion := getNCVersionFromNMAgent(existingNCStatus.ID)
+	var existingNCVersion int
+	newNCVersion, _ = strconv.Atoi(req.Version)
+	existingNCVersion, _ = strconv.Atoi(existingNCVersionInString)
+	nmAgentNCVersion := getNCVersionFromNMAgent(req.NetworkContainerid)
 
 	if nmAgentNCVersion >= newNCVersion { // add ipconfigs to state
 		for ipId, ipconfig := range ipconfigs {
@@ -259,7 +264,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(version string, exi
 
 			// add the new State
 			ipconfigStatus := cns.IPConfigurationStatus{
-				NCID:                existingNCStatus.ID,
+				NCID:                req.NetworkContainerid,
 				ID:                  ipId,
 				IPAddress:           ipconfig.IPAddress,
 				State:               cns.Available,
