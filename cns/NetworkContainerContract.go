@@ -58,10 +58,10 @@ const (
 
 // IPConfig States for CNS IPAM
 const (
-	Available      = "Available"
-	Allocated      = "Allocated"
-	PendingRelease = "PendingRelease"
-	PendingProgram = "PendingProgram"
+	Available          = "Available"
+	Allocated          = "Allocated"
+	PendingRelease     = "PendingRelease"
+	PendingProgramming = "PendingProgramming"
 )
 
 // ChannelMode :- CNS channel modes
@@ -74,7 +74,6 @@ const (
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
 	Version                    string
-	NCVersion                  string
 	NetworkContainerType       string
 	NetworkContainerid         string // Mandatory input.
 	PrimaryInterfaceIdentifier string // Primary CA.

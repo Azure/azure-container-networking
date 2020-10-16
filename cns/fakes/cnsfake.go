@@ -83,7 +83,7 @@ func (ipm *IPStateManager) AddIPConfigs(ipconfigs []cns.IPConfigurationStatus) {
 	for i := 0; i < len(ipconfigs); i++ {
 
 		switch {
-		case ipconfigs[i].State == cns.PendingProgram:
+		case ipconfigs[i].State == cns.PendingProgramming:
 			ipm.PendingProgramIPConfigState[ipconfigs[i].ID] = ipconfigs[i]
 		case ipconfigs[i].State == cns.Available:
 			ipm.AvailableIPConfigState[ipconfigs[i].ID] = ipconfigs[i]

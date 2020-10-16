@@ -123,7 +123,7 @@ func (service *HTTPRestService) GetPendingProgramIPConfigs() []cns.IPConfigurati
 	service.RLock()
 	defer service.RUnlock()
 	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
-		return ipconfig.State == cns.PendingProgram
+		return ipconfig.State == cns.PendingProgramming
 	})
 }
 
