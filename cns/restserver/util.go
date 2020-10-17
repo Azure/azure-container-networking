@@ -279,8 +279,51 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(req cns.CreateNetwo
 	} else {
 		if nmAgentNCVersion >= existingNCVersion {
 			// todo, update all pending program IP to available.
+			for ipId, ipconfig := range ipconfigs {
+				// if this IPConfig already exists in the map, then ignore as this is an idempotent state
+				if existingPodIpConfigStatus, exists := service.PodIPConfigState[ipId]; exists {
+					if existingPodIpConfigStatus.State == cns.PendingProgramming {
+						existingPodIpConfigStatus.State = cns.Available
+					}
+					continue
+				}
+
+				// add the new State
+				ipconfigStatus := cns.IPConfigurationStatus{
+					NCID:                req.NetworkContainerid,
+					ID:                  ipId,
+					IPAddress:           ipconfig.IPAddress,
+					State:               cns.PendingProgramming,
+					OrchestratorContext: nil,
+				}
+
+				service.PodIPConfigState[ipId] = ipconfigStatus
+
+				// Todo Update batch API and maintain the count
+
+			}
 		} else {
 			// todo, update IPs in ipconfigs which is not in the map to pending program.
+			for ipId, ipconfig := range ipconfigs {
+				// if this IPConfig already exists in the map, then ignore as this is an idempotent state
+				if _, exists := service.PodIPConfigState[ipId]; exists {
+					continue
+				}
+
+				// add the new State
+				ipconfigStatus := cns.IPConfigurationStatus{
+					NCID:                req.NetworkContainerid,
+					ID:                  ipId,
+					IPAddress:           ipconfig.IPAddress,
+					State:               cns.PendingProgramming,
+					OrchestratorContext: nil,
+				}
+
+				service.PodIPConfigState[ipId] = ipconfigStatus
+
+				// Todo Update batch API and maintain the count
+
+			}
 		}
 	}
 }
