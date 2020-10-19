@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -113,17 +112,14 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
 	var hostVersion string
 	var existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig //uuid is key
-	var existingNCVersion string
 	if ok {
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
-		existingNCVersion = existingNCStatus.VMVersion
 	} else {
 		// Host version is the NC version from NMAgent, set it -2 to indicate no result from NMAgent yet.
 		// Existing NC status will be set as -1 to indicate no version exist yet.
 		// Intentionally set default host version smaller than existing NC version.
-		hostVersion = "-2"
-		existingNCVersion = "-1"
+		hostVersion = "-1"
 	}
 
 	service.state.ContainerStatus[req.NetworkContainerid] =
@@ -175,7 +171,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
-			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, existingNCVersion)
+			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs)
 			if returnCode != 0 {
 				return returnCode, returnMesage
 			}
@@ -197,7 +193,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, existingNCVersionInString string) (int, string) {
+func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) (int, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
@@ -236,30 +232,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 		}
 	}
 
-	// Add the newIpConfigs for 3 different conditions
-	// 1. If NC version from NMAgent is larger or same as new NC version, add new IP as available.
-	// 2. If NC version from NMAgent is larger or same as existing NC version, set existing pending programming IP as available and add new IP as pending programming.
-	// 3. If NC version from NMAgent is smaller than existing NC version, add new IP as pending programming.
-	var newNCVersion int
-	var existingNCVersion int
-	newNCVersion, _ = strconv.Atoi(req.Version)
-	existingNCVersion, _ = strconv.Atoi(existingNCVersionInString)
-	// Wait for Ashvin's thread update which querying NMAgent to get latest NC version and save it locally.
-	nmAgentNCVersion := getNCVersionFromNMAgent(req.NetworkContainerid)
-	if nmAgentNCVersion >= newNCVersion {
-		service.addIPConfigStateUntransacted(cns.Available, cns.Available, req.NetworkContainerid, newIPConfigs)
-	} else {
-		if nmAgentNCVersion >= existingNCVersion {
-			service.addIPConfigStateUntransacted(cns.Available, cns.PendingProgramming, req.NetworkContainerid, newIPConfigs)
-		} else {
-			service.addIPConfigStateUntransacted(cns.PendingProgramming, cns.PendingProgramming, req.NetworkContainerid, newIPConfigs)
-		}
-	}
-
-	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
-	if ok {
-		existingNCStatus.HostVersion = strconv.Itoa(nmAgentNCVersion)
-	}
+	service.addIPConfigStateUntransacted(cns.Available, req.NetworkContainerid, newIPConfigs)
 
 	return 0, ""
 }
@@ -267,13 +240,10 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(updatedExistingIPCNSStatus, newIPCNSStatus, ncId string, ipconfigs map[string]cns.SecondaryIPConfig) {
+func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncId string, ipconfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
 	for ipId, ipconfig := range ipconfigs {
-		if existingPodIpConfigStatus, exists := service.PodIPConfigState[ipId]; exists {
-			if existingPodIpConfigStatus.State == cns.PendingProgramming {
-				existingPodIpConfigStatus.State = updatedExistingIPCNSStatus
-			}
+		if _, exists := service.PodIPConfigState[ipId]; exists {
 			continue
 		}
 		// add the new State
@@ -284,17 +254,12 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(updatedExistingIPCN
 			State:               newIPCNSStatus,
 			OrchestratorContext: nil,
 		}
+		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
 		service.PodIPConfigState[ipId] = ipconfigStatus
 
 		// Todo Update batch API and maintain the count
 	}
-}
-
-// To do, complete this logic according to getNetworkContainerStatus
-func getNCVersionFromNMAgent(ncid string) int {
-	// return a largest int to not break current.
-	return math.MaxInt64
 }
 
 // Todo: call this when request is received
