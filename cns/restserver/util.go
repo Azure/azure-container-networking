@@ -116,9 +116,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 	} else {
-		// Host version is the NC version from NMAgent, set it -2 to indicate no result from NMAgent yet.
-		// Existing NC status will be set as -1 to indicate no version exist yet.
-		// Intentionally set default host version smaller than existing NC version.
+		// Host version is the NC version from NMAgent, set it -1 to indicate no result from NMAgent yet.
 		hostVersion = "-1"
 	}
 
