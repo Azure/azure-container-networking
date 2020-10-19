@@ -254,12 +254,12 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	// Wait for Ashvin's thread update which querying NMAgent to get latest NC version and save it locally.
 	nmAgentNCVersion := getNCVersionFromNMAgent(req.NetworkContainerid)
 	if nmAgentNCVersion >= newNCVersion {
-		service.addIPConfigStateUntransacted(cns.Available, cns.Available, newIPConfigs)
+		service.addIPConfigStateUntransacted(cns.Available, cns.Available, req.NetworkContainerid, newIPConfigs)
 	} else {
 		if nmAgentNCVersion >= existingNCVersion {
-			service.addIPConfigStateUntransacted(cns.Available, cns.PendingProgramming, newIPConfigs)
+			service.addIPConfigStateUntransacted(cns.Available, cns.PendingProgramming, req.NetworkContainerid, newIPConfigs)
 		} else {
-			service.addIPConfigStateUntransacted(cns.PendingProgramming, cns.PendingProgramming, newIPConfigs)
+			service.addIPConfigStateUntransacted(cns.PendingProgramming, cns.PendingProgramming, req.NetworkContainerid, newIPConfigs)
 		}
 	}
 
@@ -271,7 +271,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(updatedExistingIPCNSStatus, newIPCNSStatus string, ipconfigs map[string]cns.SecondaryIPConfig) {
+func (service *HTTPRestService) addIPConfigStateUntransacted(updatedExistingIPCNSStatus, newIPCNSStatus, ncId string, ipconfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
 	for ipId, ipconfig := range ipconfigs {
 		if existingPodIpConfigStatus, exists := service.PodIPConfigState[ipId]; exists {
@@ -281,7 +281,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(updatedExistingIPCN
 			continue
 		}
 		ipconfigStatus := cns.IPConfigurationStatus{
-			NCID:                req.NetworkContainerid,
+			NCID:                ncId,
 			ID:                  ipId,
 			IPAddress:           ipconfig.IPAddress,
 			State:               newIPCNSStatus,
