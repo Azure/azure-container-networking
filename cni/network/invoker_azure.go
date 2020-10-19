@@ -44,7 +44,7 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, subnetPrefix *net
 	defer func() {
 		if err != nil {
 			if len(result.IPs) > 0 {
-				invoker.plugin.ipamInvoker.Delete(result.IPs[0].Address, nwCfg, options)
+				invoker.plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, options)
 			} else {
 				err = fmt.Errorf("No IP's to delete on error: %v", err)
 			}
@@ -73,7 +73,7 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, subnetPrefix *net
 	return result, resultV6, err
 }
 
-func (invoker *AzureIPAMInvoker) Delete(address net.IPNet, nwCfg *cni.NetworkConfig, options map[string]interface{}) error {
+func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, options map[string]interface{}) error {
 	var err error
 
 	if len(address.IP.To4()) == 4 {
@@ -104,8 +104,12 @@ func (invoker *AzureIPAMInvoker) Delete(address net.IPNet, nwCfg *cni.NetworkCon
 			log.Printf("Failed to release ipv6 address: %v", err)
 			err = invoker.plugin.Errorf("Failed to release ipv6 address: %v", err)
 		}
+	} else if address == nil {
+		if err = invoker.plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg); err != nil {
+			log.Printf("Network not found, attempted to release address with error:  %v", err)
+		}
 	} else {
-		err = fmt.Errorf("Address is of invalid type: raw %s", address.String())
+		err = fmt.Errorf("Address is incorrect, not valid IPv4 or IPv6")
 	}
 
 	return err
