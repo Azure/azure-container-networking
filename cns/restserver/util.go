@@ -276,6 +276,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(updatedExistingIPCN
 			}
 			continue
 		}
+		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
 			NCID:                ncId,
 			ID:                  ipId,
