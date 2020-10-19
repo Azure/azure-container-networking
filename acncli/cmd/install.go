@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// installCmd can register an object
+// install CNI will install CNI to a local machine
 func InstallCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "install",

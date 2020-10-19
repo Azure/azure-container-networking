@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// installCmd can register an object
+// LogsCmd will write the logs of the Azure CNI logs
 func LogsCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "logs",

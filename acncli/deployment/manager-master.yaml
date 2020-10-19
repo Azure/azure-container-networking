@@ -25,7 +25,7 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-cni-installer
-          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.1.8-4-g4d14734-dirty-3
+          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.1.8-10-g9d03b4c-dirty
           imagePullPolicy: Always
           env:
             - name: CNI_OS
@@ -38,8 +38,6 @@ spec:
               value: azure-cns
             - name: CNI_EXCEMPT_BINS
               value: azure-vnet-telemetry,azure-vnet-telemetry.config
-          securityContext:
-            privileged: true
           volumeMounts:
             - name: cni-bin
               mountPath: /opt/cni/bin

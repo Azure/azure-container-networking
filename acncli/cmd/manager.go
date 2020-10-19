@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// installCmd can register an object
+// ManagerCmd starts the manager mode, which installs CNI+Conflists, then watches logs
 func ManagerCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "manager",

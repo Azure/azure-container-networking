@@ -12,6 +12,7 @@ import (
 func NewRootCmd(version string) *cobra.Command {
 	var rootCmd = &cobra.Command{
 		SilenceUsage: true,
+		Version:      version,
 	}
 
 	viper.New()
@@ -34,6 +35,6 @@ func NewRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(InstallCmd())
 	rootCmd.AddCommand(LogsCmd())
 	rootCmd.AddCommand(ManagerCmd())
-
+	rootCmd.SetVersionTemplate(version)
 	return rootCmd
 }
