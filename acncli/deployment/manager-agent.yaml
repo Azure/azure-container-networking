@@ -5,11 +5,11 @@ metadata:
 spec:
   selector:
     matchLabels:
-      acn: cni-installer
+      acn: azure-cni-manager
   template:
     metadata:
       labels:
-        acn: cni-installer
+        acn: azure-cni-manager
     spec:
       affinity:
         nodeAffinity:
