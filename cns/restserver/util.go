@@ -169,7 +169,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
-			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs)
+			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, hostVersion)
 			if returnCode != 0 {
 				return returnCode, returnMesage
 			}
@@ -191,7 +191,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) (int, string) {
+func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string) (int, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
@@ -230,7 +230,17 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 		}
 	}
 
-	service.addIPConfigStateUntransacted(cns.Available, req.NetworkContainerid, newIPConfigs)
+	newNCVersion, _ := strconv.Atoi(req.Version)
+	nmagentNCVersion, _ := strconv.Atoi(hostVersion)
+
+	// TODO, remove this override when background thread which update nmagent version is ready.
+	nmagentNCVersion = service.imdsClient.GetNMagentVersion()
+
+	if nmagentNCVersion >= newNCVersion {
+		service.addIPConfigStateUntransacted(cns.Available, req.NetworkContainerid, newIPConfigs)
+	} else {
+		service.addIPConfigStateUntransacted(cns.PendingProgramming, req.NetworkContainerid, newIPConfigs)
+	}
 
 	return 0, ""
 }

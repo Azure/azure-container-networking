@@ -35,8 +35,17 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	// NC version set as 0 which is the default initial value.
+	validateCreateOrUpdateNCInternal(t, 2, "0")
+}
 
-	validateCreateOrUpdateNCInternal(t, 2)
+func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
+	restartService()
+
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	// NC version set as 1 which is larger than NC version get from mock nmagent.
+	validateCreateOrUpdateNCInternal(t, 2, "1")
 }
 
 func TestReconcileNCWithEmptyState(t *testing.T) {
@@ -69,7 +78,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
 	}
-	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1")
+	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "0")
 
 	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
 	expectedAllocatedPods["10.0.0.6"] = cns.KubernetesPodInfo{
@@ -106,7 +115,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
 	}
-	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String())
+	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String(), "0")
 
 	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
 	expectedAllocatedPods["10.0.0.6"] = cns.KubernetesPodInfo{
@@ -135,7 +144,7 @@ func setOrchestratorTypeInternal(orchestratorType string) {
 	svc.state.OrchestratorType = orchestratorType
 }
 
-func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int) {
+func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	ncId := "testNc1"
 
@@ -148,7 +157,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int) {
 		startingIndex++
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 
 	// now Validate Update, add more secondaryIpConfig and it should handle the update
 	fmt.Println("Validate Scaleup")
@@ -160,7 +169,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int) {
 		startingIndex++
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 
 	// now Scale down, delete 3 ipaddresses from secondaryIpConfig req
 	fmt.Println("Validate Scale down")
@@ -174,7 +183,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int) {
 		}
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 
 	// Cleanup all SecondaryIps
 	fmt.Println("Validate no SecondaryIpconfigs")
@@ -182,11 +191,11 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int) {
 		delete(secondaryIPConfigs, ipid)
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 }
 
-func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncId string) {
-	req := generateNetworkContainerRequest(secondaryIPConfigs, ncId)
+func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncId, ncVersion string) {
+	req := generateNetworkContainerRequest(secondaryIPConfigs, ncId, ncVersion)
 	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
@@ -216,6 +225,12 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 		t.Fatalf("Failed as Secondary IP count doesnt match in PodIpConfig state, expected:%d, actual %d", len(req.SecondaryIPConfigs), len(svc.PodIPConfigState))
 	}
 
+	var expectedIPStatus string
+	if containerStatus.VMVersion > containerStatus.HostVersion {
+		expectedIPStatus = cns.PendingProgramming
+	} else {
+		expectedIPStatus = cns.Available
+	}
 	var alreadyValidated = make(map[string]string)
 	for ipid, ipStatus := range svc.PodIPConfigState {
 		if ipaddress, found := alreadyValidated[ipid]; !found {
@@ -240,7 +255,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 					} else {
 						t.Fatalf("Failed to find podContext for allocated ip: %+v, podinfo :%+v", ipStatus, podInfo)
 					}
-				} else if ipStatus.State != cns.Available {
+				} else if ipStatus.State != expectedIPStatus {
 					// Todo: Validate for pendingRelease as well
 					t.Fatalf("IPId: %s State is not Available, ipStatus: %+v", ipid, ipStatus)
 				}
@@ -256,7 +271,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 	}
 }
 
-func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConfig, ncId string) cns.CreateNetworkContainerRequest {
+func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConfig, ncId string, ncVersion string) cns.CreateNetworkContainerRequest {
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = dnsservers
 	ipConfig.GatewayIPAddress = gatewayIp
@@ -269,6 +284,7 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 		NetworkContainerType: dockerContainerType,
 		NetworkContainerid:   ncId,
 		IPConfiguration:      ipConfig,
+		Version:              ncVersion,
 	}
 
 	req.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig)

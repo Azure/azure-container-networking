@@ -47,3 +47,11 @@ func (imdsClient *ImdsClientTest) GetPrimaryInterfaceInfoFromMemory() (*imdsclie
 
 	return imdsClient.GetPrimaryInterfaceInfoFromHost()
 }
+
+// GetNMagentVersion - Mock implementation to return host NMAgent NC version
+// Set it as 0 which is the same as default initial NC version for testing purpose
+func (imdsClient *ImdsClientTest) GetNMagentVersion() int {
+	logger.Printf("[Azure CNS] GetNMagentVersionFromNMAgent")
+
+	return 0
+}
