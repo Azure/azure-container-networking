@@ -226,11 +226,13 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 	}
 
 	var expectedIPStatus string
-	if containerStatus.VMVersion > containerStatus.HostVersion {
+	// 0 is the default NMAgent version return from fake GetNMagentVersion
+	if containerStatus.VMVersion > "0" {
 		expectedIPStatus = cns.PendingProgramming
 	} else {
 		expectedIPStatus = cns.Available
 	}
+	t.Logf("VMVersion is %s, HostVersion is %s", containerStatus.VMVersion, containerStatus.HostVersion)
 	var alreadyValidated = make(map[string]string)
 	for ipid, ipStatus := range svc.PodIPConfigState {
 		if ipaddress, found := alreadyValidated[ipid]; !found {
@@ -257,7 +259,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 					}
 				} else if ipStatus.State != expectedIPStatus {
 					// Todo: Validate for pendingRelease as well
-					t.Fatalf("IPId: %s State is not Available, ipStatus: %+v", ipid, ipStatus)
+					t.Fatalf("IPId: %s State is not as expected, ipStatus is : %+v, expected status is %+v", ipid, ipStatus.State, expectedIPStatus)
 				}
 
 				alreadyValidated[ipid] = ipStatus.IPAddress
