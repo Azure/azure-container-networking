@@ -112,6 +112,25 @@ func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]c
 	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
 }
 
+// UpdatePendingProgrammingIPs will update pending programming IPs to available if
+// NMAgent side's programmed NC version keep up with NC version attached with secondary IP.
+func (service *HTTPRestService) UpdatePendingProgrammingIPs(nmagentNCVersion string) error {
+	service.Lock()
+	defer service.Unlock()
+	for uuid, ipConfigurationStatus := range service.PodIPConfigState {
+		for _, containerstatus := range service.state.ContainerStatus {
+			for uuidFromNCRq, secondaryIPConfigs := range containerstatus.CreateNetworkContainerRequest.SecondaryIPConfigs {
+				// Change cns.Available to cns.PendingProgramming. Change IPAddress to NCVersion
+				if ipConfigurationStatus.State == cns.Available && uuid == uuidFromNCRq && secondaryIPConfigs.IPAddress <= nmagentNCVersion {
+					ipConfigurationStatus.State = cns.Available
+					logger.Printf("Change ip %s with uuid %s from pending programming to %s", ipConfigurationStatus.IPAddress, uuid, cns.Available)
+				}
+			}
+		}
+	}
+	return fmt.Errorf("Failed to mark IP's from pending programming to available")
+}
+
 func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
