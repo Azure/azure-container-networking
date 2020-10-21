@@ -57,12 +57,16 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 			if ip = net.ParseIP(ipAssignment.IP); ip == nil {
 				return ncRequest, fmt.Errorf("Invalid SecondaryIP %s:", ipAssignment.IP)
 			}
-			ncVersion, _ := strconv.Atoi(ncRequest.Version)
-			secondaryIPConfig = cns.SecondaryIPConfig{
-				IPAddress: ip.String(),
-				NCVersion: ncVersion,
+
+			ipConfig, ok := ncRequest.SecondaryIPConfigs[ipAssignment.Name]
+			if !ok || (ok && ipConfig.IPAddress != ip.String()) {
+				ncVersion, _ := strconv.Atoi(ncRequest.Version)
+				secondaryIPConfig = cns.SecondaryIPConfig{
+					IPAddress: ip.String(),
+					NCVersion: ncVersion,
+				}
+				ncRequest.SecondaryIPConfigs[ipAssignment.Name] = secondaryIPConfig
 			}
-			ncRequest.SecondaryIPConfigs[ipAssignment.Name] = secondaryIPConfig
 		}
 	}
 
