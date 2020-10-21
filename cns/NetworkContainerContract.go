@@ -131,6 +131,7 @@ type IPConfiguration struct {
 // SecondaryIPConfig contains IP info of SecondaryIP
 type SecondaryIPConfig struct {
 	IPAddress string
+	NCVersion int
 }
 
 // IPSubnet contains ip subnet.

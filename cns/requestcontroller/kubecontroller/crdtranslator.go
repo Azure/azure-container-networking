@@ -3,6 +3,7 @@ package kubecontroller
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
@@ -56,9 +57,10 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 			if ip = net.ParseIP(ipAssignment.IP); ip == nil {
 				return ncRequest, fmt.Errorf("Invalid SecondaryIP %s:", ipAssignment.IP)
 			}
-
+			ncVersion, _ := strconv.Atoi(ncRequest.Version)
 			secondaryIPConfig = cns.SecondaryIPConfig{
 				IPAddress: ip.String(),
+				NCVersion: ncVersion,
 			}
 			ncRequest.SecondaryIPConfigs[ipAssignment.Name] = secondaryIPConfig
 		}
