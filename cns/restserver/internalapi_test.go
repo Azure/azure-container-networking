@@ -324,7 +324,12 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 
 	// validate rest of Secondary IPs in Available state
 	if ncRequest != nil {
+		ncRequestVersion, _ := strconv.Atoi(ncRequest.Version)
 		for secIpId, secIpConfig := range ncRequest.SecondaryIPConfigs {
+			if secIpConfig.NCVersion != ncRequestVersion {
+				t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, they are not equal",
+					ncRequestVersion, secIpConfig.IPAddress, secIpConfig.NCVersion)
+			}
 			if _, exists := expectedAllocatedPods[secIpConfig.IPAddress]; exists {
 				continue
 			}
