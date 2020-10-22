@@ -21,7 +21,7 @@ func NewFakeImdsClient() *ImdsClientTest {
 	return &ImdsClientTest{}
 }
 
-// GetNetworkContainerInfoFromHost- Mock implementation to return Container version info.
+// GetNetworkContainerInfoFromHost - Mock implementation to return Container version info.
 func (imdsClient *ImdsClientTest) GetNetworkContainerInfoFromHost(networkContainerID string, primaryAddress string, authToken string, apiVersion string) (*imdsclient.ContainerVersion, error) {
 
 	ret := &imdsclient.ContainerVersion{}
@@ -48,10 +48,10 @@ func (imdsClient *ImdsClientTest) GetPrimaryInterfaceInfoFromMemory() (*imdsclie
 	return imdsClient.GetPrimaryInterfaceInfoFromHost()
 }
 
-// GetNMagentVersion - Mock implementation to return host NMAgent NC version
+// GetNetworkContainerInfoFromHostWithoutToken - Mock implementation to return host NMAgent NC version
 // Set it as 0 which is the same as default initial NC version for testing purpose
-func (imdsClient *ImdsClientTest) GetNMagentVersion() int {
-	logger.Printf("[Azure CNS] GetNMagentVersionFromNMAgent")
+func (imdsClient *ImdsClientTest) GetNetworkContainerInfoFromHostWithoutToken() int {
+	logger.Printf("[Azure CNS] get the NC version from NMAgent")
 
 	return 0
 }

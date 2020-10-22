@@ -226,7 +226,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 	}
 
 	var expectedIPStatus string
-	// 0 is the default NMAgent version return from fake GetNMagentVersion
+	// 0 is the default NMAgent version return from fake GetNetworkContainerInfoFromHost
 	if containerStatus.VMVersion > "0" {
 		expectedIPStatus = cns.PendingProgramming
 	} else {

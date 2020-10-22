@@ -134,9 +134,9 @@ func (imdsClient *ImdsClient) GetPrimaryInterfaceInfoFromMemory() (*InterfaceInf
 	return iface, err
 }
 
-// GetNMagentVersion is a temp implementation which will be removed once background thread
+// GetNetworkContainerInfoFromHostWithoutToken is a temp implementation which will be removed once background thread
 // updating host version is ready. Return max integer value to regress current AKS scenario
-func (imdsClient *ImdsClient) GetNMagentVersion() int {
+func (imdsClient *ImdsClient) GetNetworkContainerInfoFromHostWithoutToken() int {
 	logger.Printf("[Azure CNS] GetNMagentVersionFromNMAgent")
 
 	return math.MaxInt64

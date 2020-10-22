@@ -234,7 +234,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	nmagentNCVersion, _ := strconv.Atoi(hostVersion)
 
 	// TODO, remove this override when background thread which update nmagent version is ready.
-	nmagentNCVersion = service.imdsClient.GetNMagentVersion()
+	nmagentNCVersion = service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
 
 	if nmagentNCVersion >= newNCVersion {
 		service.addIPConfigStateUntransacted(cns.Available, req.NetworkContainerid, newIPConfigs)
