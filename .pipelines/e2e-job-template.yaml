@@ -28,8 +28,6 @@ stages:
           Tag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.Tag'] ]
           CommitHash: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.CommitHash'] ]
           StorageID: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.StorageID'] ]
-          CLEANUP_ON_EXIT: true
-          CLEANUP_IF_FAIL: true
         steps:
           - template: e2e-step-template.yaml
             parameters:

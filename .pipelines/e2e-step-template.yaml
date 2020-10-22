@@ -85,7 +85,8 @@ steps:
       export CLIENT_SECRET=$(AKS_ENGINE_CLIENT_SECRET) 
       export TENANT_ID=$(AKS_ENGINE_TENANT_ID) 
       export SUBSCRIPTION_ID=$(AKS_ENGINE_SUBSCRIPTION_ID) 
-      export CLEANUP_ON_EXIT=true 
+      export CLEANUP_ON_EXIT=false
+      export CLEANUP_IF_FAIL=false
       export REGIONS=$(AKS_ENGINE_REGION) 
       export IS_JENKINS=false 
       export DEBUG_CRASHING_PODS=true
@@ -93,3 +94,15 @@ steps:
     name: DeployAKSEngine
     displayName: Run AKS-Engine E2E Tests
     workingDirectory: "$(modulePath)"
+
+  - task: CopyFiles@2
+    inputs:
+      sourceFolder: "$(modulePath)/_output"
+      targetFolder: $(Build.ArtifactStagingDirectory)/${{ parameters.name }}
+    condition: always()
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      artifactName: ${{ parameters.name }}
+      pathtoPublish: "$(Build.ArtifactStagingDirectory)/${{ parameters.name }}"
+    condition: always()
