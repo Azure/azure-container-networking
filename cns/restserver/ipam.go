@@ -117,13 +117,16 @@ func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]c
 func (service *HTTPRestService) UpdatePendingProgrammingIPs(nmagentNCVersion string) error {
 	service.Lock()
 	defer service.Unlock()
-	for uuid, ipConfigurationStatus := range service.PodIPConfigState {
-		for _, containerstatus := range service.state.ContainerStatus {
-			for uuidFromNCRq, secondaryIPConfigs := range containerstatus.CreateNetworkContainerRequest.SecondaryIPConfigs {
-				// Change cns.Available to cns.PendingProgramming. Change IPAddress to NCVersion
-				if ipConfigurationStatus.State == cns.Available && uuid == uuidFromNCRq && secondaryIPConfigs.IPAddress <= nmagentNCVersion {
-					ipConfigurationStatus.State = cns.Available
-					logger.Printf("Change ip %s with uuid %s from pending programming to %s", ipConfigurationStatus.IPAddress, uuid, cns.Available)
+	//for uuid, ipConfigurationStatus := range service.PodIPConfigState {
+	for _, containerstatus := range service.state.ContainerStatus {
+		for uuid, secondaryIPConfigs := range containerstatus.CreateNetworkContainerRequest.SecondaryIPConfigs {
+			ipConfigStatus, exist := service.PodIPConfigState[uuid]
+			if exist {
+				// TODO change cns.Available to cns.PendingProgrammiong when #690 merged.
+				// TODO change ipConfigStatus.IPAddress to ipConfigStatus.NCVersion when #697 merged.
+				if ipConfigStatus.State == cns.Available && secondaryIPConfigs.IPAddress <= nmagentNCVersion {
+					ipConfigStatus.State = cns.Available
+					logger.Printf("Change ip %s with uuid %s from pending programming to %s", ipConfigStatus.IPAddress, uuid, cns.Available)
 				}
 			}
 		}
