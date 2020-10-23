@@ -57,13 +57,28 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	ncVersion := 0
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	ncID := "testNc1"
-	addSecondaryIPsToConfig("10.0.0.16", ncVersion, secondaryIPConfigs)
+
+	// Build secondaryIPConfig, it will have one item as {IPAddress:"10.0.0.16", NCVersion: 0}
+	ipAddress := "10.0.0.16"
+	secIPConfig := newSecondaryIPConfig(ipAddress, ncVersion)
+	ipID := uuid.New()
+	secondaryIPConfigs[ipID.String()] = secIPConfig
 	req := createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
 	validateSecondaryIPsNCVersion(t, req)
 
-	// now Validate Update, add more secondaryIpConfig and it should handle the update
+	// now Validate Update, simulate the CRD status where have 2 IP addresses as "10.0.0.16" and "10.0.0.17" with NC version 1
+	// The secondaryIPConfigs build from CRD will be {[IPAddress:"10.0.0.16", NCVersion: 1,]; [IPAddress:"10.0.0.17", NCVersion: 1,]}
+	// However, when CNS saveNetworkContainerGoalState, since "10.0.0.16" already with NC version 0, it will set it back to 0.
 	ncVersion++
-	addSecondaryIPsToConfig("10.0.0.17", ncVersion, secondaryIPConfigs)
+	secIPConfig = newSecondaryIPConfig(ipAddress, ncVersion)
+	// "10.0.0.16" will be update to NC version 1 in CRD, reuse the same uuid with it.
+	secondaryIPConfigs[ipID.String()] = secIPConfig
+
+	// Add {IPAddress:"10.0.0.17", NCVersion: 1} in secondaryIPConfig
+	ipAddress = "10.0.0.17"
+	secIPConfig = newSecondaryIPConfig(ipAddress, ncVersion)
+	ipID = uuid.New()
+	secondaryIPConfigs[ipID.String()] = secIPConfig
 	req = createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
 	validateSecondaryIPsNCVersion(t, req)
 }
@@ -382,12 +397,6 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 	}
 }
 
-func addSecondaryIPsToConfig(ipaddress string, ncVersion int, secondaryIPConfigs map[string]cns.SecondaryIPConfig) {
-	secIPConfig := newSecondaryIPConfig(ipaddress, ncVersion)
-	ipID := uuid.New()
-	secondaryIPConfigs[ipID.String()] = secIPConfig
-}
-
 func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncID, ncVersion string) cns.CreateNetworkContainerRequest {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, ncID, ncVersion)
 	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
@@ -402,18 +411,11 @@ func validateSecondaryIPsNCVersion(t *testing.T, req cns.CreateNetworkContainerR
 	// Validate secondary IPs' NC version has been updated by NC request
 	ncVersion, _ := strconv.Atoi(containerStatus.VMVersion)
 	for _, secIPConfig := range containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs {
-		if secIPConfig.IPAddress == "10.0.0.16" {
-			// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
-			if secIPConfig.NCVersion != 0 {
-				t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
-					ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
-			}
-		}
-		if secIPConfig.IPAddress == "10.0.0.17" {
-			if secIPConfig.NCVersion != 1 {
-				t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 1",
-					ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
-			}
+		// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
+		if (secIPConfig.IPAddress == "10.0.0.16" && secIPConfig.NCVersion != 0) ||
+			(secIPConfig.IPAddress == "10.0.0.17" && secIPConfig.NCVersion != 1) {
+			t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
+				ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
 		}
 	}
 }

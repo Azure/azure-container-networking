@@ -255,6 +255,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncI
 		// Set it back to previous NC version if IP already exist.
 		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipID]; existsInPreviousIPConfig && existingIPConfig.IPAddress == ipconfig.IPAddress {
 			ipconfig.NCVersion = existingIPConfig.NCVersion
+			ipconfigs[ipID] = ipconfig
 		}
 		if _, exists := service.PodIPConfigState[ipID]; exists {
 			continue
