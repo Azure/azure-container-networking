@@ -1,6 +1,7 @@
 package kubecontroller
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -234,5 +235,10 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 
 	if secondaryIP.IPAddress != testSecIp1 {
 		t.Fatalf("Expected %v as the secondary IP config but got %v", testSecIp1, secondaryIP.IPAddress)
+	}
+
+	ncVersionInInt, _ := strconv.Atoi(version)
+	if secondaryIP.NCVersion != ncVersionInInt {
+		t.Fatalf("Expected %d as the secondary IP config NC version but got %v", ncVersionInInt, secondaryIP.NCVersion)
 	}
 }

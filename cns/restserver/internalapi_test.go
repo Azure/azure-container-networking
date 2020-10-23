@@ -48,6 +48,26 @@ func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
 	validateCreateOrUpdateNCInternal(t, 2, "1")
 }
 
+func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
+	restartService()
+
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	// NC version set as 0 which is the default initial value.
+	ncVersion := 0
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	ncID := "testNc1"
+	addSecondaryIPsToConfig("10.0.0.16", ncVersion, secondaryIPConfigs)
+	req := createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
+	validateSecondaryIPsNCVersion(t, req)
+
+	// now Validate Update, add more secondaryIpConfig and it should handle the update
+	ncVersion++
+	addSecondaryIPsToConfig("10.0.0.17", ncVersion, secondaryIPConfigs)
+	req = createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
+	validateSecondaryIPsNCVersion(t, req)
+}
+
 func TestReconcileNCWithEmptyState(t *testing.T) {
 	restartService()
 	setEnv(t)
@@ -73,7 +93,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	var startingIndex = 6
 	for i := 0; i < 4; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress)
+		secIpConfig := newSecondaryIPConfig(ipaddress, 0)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
@@ -110,7 +130,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	var startingIndex = 6
 	for i := 0; i < 4; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress)
+		secIpConfig := newSecondaryIPConfig(ipaddress, 0)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
@@ -151,7 +171,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 	var startingIndex = 6
 	for i := 0; i < secondaryIpCount; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress)
+		secIpConfig := newSecondaryIPConfig(ipaddress, 0)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
@@ -163,7 +183,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 	fmt.Println("Validate Scaleup")
 	for i := 0; i < secondaryIpCount; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress)
+		secIpConfig := newSecondaryIPConfig(ipaddress, 1)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
@@ -289,9 +309,12 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 		Version:              ncVersion,
 	}
 
+	ncVersionInInt, _ := strconv.Atoi(ncVersion)
 	req.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig)
 	for k, v := range secondaryIps {
 		req.SecondaryIPConfigs[k] = v
+		ipconfig, _ := req.SecondaryIPConfigs[k]
+		ipconfig.NCVersion = ncVersionInInt
 	}
 
 	fmt.Printf("NC Request %+v", req)
@@ -342,12 +365,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 
 	// validate rest of Secondary IPs in Available state
 	if ncRequest != nil {
-		ncRequestVersion, _ := strconv.Atoi(ncRequest.Version)
 		for secIpId, secIpConfig := range ncRequest.SecondaryIPConfigs {
-			if secIpConfig.NCVersion != ncRequestVersion {
-				t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, they are not equal",
-					ncRequestVersion, secIpConfig.IPAddress, secIpConfig.NCVersion)
-			}
 			if _, exists := expectedAllocatedPods[secIpConfig.IPAddress]; exists {
 				continue
 			}
@@ -359,6 +377,42 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 				}
 			} else {
 				t.Fatalf("IPId: %s, IpAddress: %+v State doesnt exists in PodIp Map", secIpId, secIpConfig)
+			}
+		}
+	}
+}
+
+func addSecondaryIPsToConfig(ipaddress string, ncVersion int, secondaryIPConfigs map[string]cns.SecondaryIPConfig) {
+	secIPConfig := newSecondaryIPConfig(ipaddress, ncVersion)
+	ipID := uuid.New()
+	secondaryIPConfigs[ipID.String()] = secIPConfig
+}
+
+func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncID, ncVersion string) cns.CreateNetworkContainerRequest {
+	req := generateNetworkContainerRequest(secondaryIPConfigs, ncID, ncVersion)
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	if returnCode != 0 {
+		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
+	}
+	return req
+}
+
+func validateSecondaryIPsNCVersion(t *testing.T, req cns.CreateNetworkContainerRequest) {
+	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+	// Validate secondary IPs' NC version has been updated by NC request
+	ncVersion, _ := strconv.Atoi(containerStatus.VMVersion)
+	for _, secIPConfig := range containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs {
+		if secIPConfig.IPAddress == "10.0.0.16" {
+			// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
+			if secIPConfig.NCVersion != 0 {
+				t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
+					ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
+			}
+		}
+		if secIPConfig.IPAddress == "10.0.0.17" {
+			if secIPConfig.NCVersion != 1 {
+				t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 1",
+					ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
 			}
 		}
 	}
