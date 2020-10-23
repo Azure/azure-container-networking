@@ -11,13 +11,6 @@ spec:
       labels:
         acn: azure-cni-manager
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: node-role.kubernetes.io/agent
-                    operator: Exists
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/master
