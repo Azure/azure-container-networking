@@ -11,11 +11,20 @@ import (
 )
 
 const (
-	// protocolTcp indicates tcp protocol id for portmapping
+	// protocolTcp indicates tcp protocol id for portmapping/ACL policy
 	protocolTcp = 6
 
-	// protocolUdp indicates udp protocol id for portmapping
+	// protocolUdp indicates udp protocol id for portmapping/ACL policy
 	protocolUdp = 17
+
+	// protocolIcmpv4 indicates icmpv4 id for ACL policy
+	protocolIcmpv4 = 1
+
+	// protocolIcmpv6 indicates icmpv6 id for ACL policy
+	protocolIcmpv6 = 58
+
+	// protocolIgmp indicates igmp protocol id for ACL policy
+	protocolIgmp = 2
 
 	// CnetAddressSpace indicates constant for the key string
 	CnetAddressSpace = "cnetAddressSpace"
@@ -43,6 +52,25 @@ type KVPairRoute struct {
 	Type              CNIPolicyType `json:"Type"`
 	DestinationPrefix string        `json:"DestinationPrefix"`
 	NeedEncap         bool          `json:"NeedEncap"`
+}
+
+// ServiceName is excluded because it is N/A for l2bridge and l2tunnel
+// Inernal Port also has been excluded for same reasons.
+type KVPairACLPolicy struct {
+	// comma indicates that in JSON as Key "Type" (the default)
+	Type            CNIPolicyType `json:","`
+	Protocol        uint16        `json:","` // Only support in Hnsv1
+	Protocols       string        `json:",omitempty"`
+	Action          string        `json:","`
+	Direction       string        `json:","`
+	LocalAddresses  string        `json:","`
+	RemoteAddresses string        `json:","`
+	LocalPorts      string        `json:",omitempty"`
+	LocalPort       uint16        `json:","` // Only supported in Hnsv1
+	RemotePorts     string        `json:",omitempty"`
+	RemotePort      uint16        `json:","`
+	RuleType        string        `json:","`
+	Priority        uint16        `json:","`
 }
 
 var ValidWinVerForDnsNat bool
@@ -173,6 +201,14 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 	if err := json.Unmarshal(policy.Data, &dataPortMapping); err == nil {
 		if dataPortMapping.Type == PortMappingPolicy {
 			return PortMappingPolicy
+		}
+	}
+
+	// TO DO : Move to just using Policy struct to determine type.
+	var aclPolicySetting KVPairACLPolicy
+	if err := json.Unmarshal(policy.Data, &aclPolicySetting); err == nil {
+		if dataRoute.Type == ACLPolicy {
+			return ACLPolicy
 		}
 	}
 
@@ -343,6 +379,27 @@ func GetHcnPortMappingPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 	return portMappingPolicy, nil
 }
 
+// GetHcnACLPolicy returns ACL policy.
+func GetHcnACLPolicy(policy Policy) (hcn.EndpointPolicy, error) {
+	aclEndpolicySetting := hcn.EndpointPolicy{
+		Type: hcn.ACL,
+	}
+
+	var aclPolicySetting hcn.AclPolicySetting
+	if err := json.Unmarshal(policy.Data, &aclPolicySetting); err != nil {
+		return aclEndpolicySetting, err
+	}
+
+	aclPolicySettingBytes, err := json.Marshal(aclPolicySetting)
+	if err != nil {
+		return aclEndpolicySetting, err
+	}
+
+	aclEndpolicySetting.Settings = aclPolicySettingBytes
+
+	return aclEndpolicySetting, nil
+}
+
 // GetHcnEndpointPolicies returns array of all endpoint policies.
 func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatForDns, enableMultiTenancy bool) ([]hcn.EndpointPolicy, error) {
 	var (
@@ -363,6 +420,8 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 				endpointPolicy, err = GetHcnRoutePolicy(policy)
 			case PortMappingPolicy:
 				endpointPolicy, err = GetHcnPortMappingPolicy(policy)
+			case ACLPolicy:
+				endpointPolicy, err = GetHcnACLPolicy(policy)
 			default:
 				// return error as we should be able to parse all the policies specified
 				return hcnEndPointPolicies, fmt.Errorf("Failed to set Policy: Type: %s, Data: %s", policy.Type, policy.Data)
@@ -411,3 +470,26 @@ func AddDnsNATPolicyV2() (hcn.EndpointPolicy, error) {
 		Settings: outBoundNatPolicySettingsBytes}
 	return endpointPolicy, err
 }
+
+/*func getProtocolInt(protocolStr string) (uint64, error) {
+
+	var protocolInt uint64
+	protocol := strings.ToUpper(strings.TrimSpace(protocolStr))
+
+	switch protocol {
+	case "TCP":
+		protocolInt = protocolTcp
+	case "UDP":
+		protocolInt = protocolUdp
+	case "ICMPV4":
+		protocolInt = protocolIcmpv4
+	case "ICMPV6":
+		protocolInt = protocolIcmpv6
+	case "IGMP":
+		protocolInt = protocolIgmp
+	default:
+		return protocolInt, fmt.Errorf("Invalid protocol specified: %s", protocol)
+	}
+
+	return protocolInt, nil
+}*/

@@ -10,6 +10,7 @@ const (
 	OutBoundNatPolicy CNIPolicyType = "OutBoundNAT"
 	RoutePolicy       CNIPolicyType = "ROUTE"
 	PortMappingPolicy CNIPolicyType = "NAT"
+	ACLPolicy         CNIPolicyType = "ACL"
 )
 
 type CNIPolicyType string
