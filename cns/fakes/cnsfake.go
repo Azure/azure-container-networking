@@ -225,6 +225,11 @@ func (fake *HTTPServiceFake) SyncNodeStatus(string, string, string, json.RawMess
 	return 0, ""
 }
 
+// SyncHostNCVersion will update HostVersion in containerstatus.
+func (fake *HTTPServiceFake) SyncHostNCVersion(string) {
+	return
+}
+
 func (fake *HTTPServiceFake) GetPendingProgramIPConfigs() []cns.IPConfigurationStatus {
 	ipconfigs := []cns.IPConfigurationStatus{}
 	for _, ipconfig := range fake.IPStateManager.PendingProgramIPConfigState {
