@@ -256,8 +256,8 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncI
 		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipId]; existsInPreviousIPConfig && existingIPConfig.IPAddress == ipconfig.IPAddress {
 			ipconfig.NCVersion = existingIPConfig.NCVersion
 			ipconfigs[ipId] = ipconfig
-			logger.Printf("[Azure-Cns] Set IP %s version from %d back to %d", ipconfig.IPAddress, ipconfig.NCVersion, existingIPConfig.NCVersion)
 		}
+		logger.Printf("[Azure-Cns] Set IP %s version to %d", ipconfig.IPAddress, ipconfig.NCVersion)
 		if _, exists := service.PodIPConfigState[ipId]; exists {
 			continue
 		}
