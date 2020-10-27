@@ -633,6 +633,14 @@ func main() {
 		}
 	}
 
+	go func() {
+		// Periodically poll NC version from NMAgent
+		for {
+			<-time.NewTicker(time.Duration(cnsconfig.SyncHostNCVersionIntervalSec) * time.Second).C
+			httpRestService.SyncHostNCVersion(config.ChannelMode)
+		}
+	}()
+
 	// Relay these incoming signals to OS signal channel.
 	osSignalChannel := make(chan os.Signal, 1)
 	signal.Notify(osSignalChannel, os.Interrupt, os.Kill, syscall.SIGTERM)

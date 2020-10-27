@@ -17,14 +17,14 @@ const (
 )
 
 type CNSConfig struct {
-	TelemetrySettings  TelemetrySettings
-	ManagedSettings    ManagedSettings
-	ChannelMode        string
-	UseHTTPS           bool
-	TLSSubjectName     string
-	TLSCertificatePath string
-	TLSPort            string
-	WireserverIP       string
+	TelemetrySettings            TelemetrySettings
+	ManagedSettings              ManagedSettings
+	ChannelMode                  string
+	UseHTTPS                     bool
+	TLSSubjectName               string
+	TLSCertificatePath           string
+	TLSPort                      string
+	SyncHostNCVersionIntervalSec int
 }
 
 type TelemetrySettings struct {
@@ -128,4 +128,5 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
 	}
+	config.SyncHostNCVersionIntervalSec = 30
 }
