@@ -61,8 +61,8 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	// Build secondaryIPConfig, it will have one item as {IPAddress:"10.0.0.16", NCVersion: 0}
 	ipAddress := "10.0.0.16"
 	secIPConfig := newSecondaryIPConfig(ipAddress, ncVersion)
-	ipID := uuid.New()
-	secondaryIPConfigs[ipID.String()] = secIPConfig
+	ipId := uuid.New()
+	secondaryIPConfigs[ipId.String()] = secIPConfig
 	req := createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
 	validateSecondaryIPsNCVersion(t, req)
 
@@ -72,13 +72,13 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	ncVersion++
 	secIPConfig = newSecondaryIPConfig(ipAddress, ncVersion)
 	// "10.0.0.16" will be update to NC version 1 in CRD, reuse the same uuid with it.
-	secondaryIPConfigs[ipID.String()] = secIPConfig
+	secondaryIPConfigs[ipId.String()] = secIPConfig
 
 	// Add {IPAddress:"10.0.0.17", NCVersion: 1} in secondaryIPConfig
 	ipAddress = "10.0.0.17"
 	secIPConfig = newSecondaryIPConfig(ipAddress, ncVersion)
-	ipID = uuid.New()
-	secondaryIPConfigs[ipID.String()] = secIPConfig
+	ipId = uuid.New()
+	secondaryIPConfigs[ipId.String()] = secIPConfig
 	req = createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
 	validateSecondaryIPsNCVersion(t, req)
 }

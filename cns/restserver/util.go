@@ -250,27 +250,28 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // acquire/release the service lock.
 func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncId string, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
-	for ipID, ipconfig := range ipconfigs {
+	for ipId, ipconfig := range ipconfigs {
 		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new NC version
 		// Set it back to previous NC version if IP already exist.
-		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipID]; existsInPreviousIPConfig && existingIPConfig.IPAddress == ipconfig.IPAddress {
+		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipId]; existsInPreviousIPConfig && existingIPConfig.IPAddress == ipconfig.IPAddress {
 			ipconfig.NCVersion = existingIPConfig.NCVersion
-			ipconfigs[ipID] = ipconfig
+			ipconfigs[ipId] = ipconfig
+			logger.Printf("[Azure-Cns] Set IP %s version from %d back to %d", ipconfig.IPAddress, ipconfig.NCVersion, existingIPConfig.NCVersion)
 		}
-		if _, exists := service.PodIPConfigState[ipID]; exists {
+		if _, exists := service.PodIPConfigState[ipId]; exists {
 			continue
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
 			NCID:                ncId,
-			ID:                  ipID,
+			ID:                  ipId,
 			IPAddress:           ipconfig.IPAddress,
 			State:               newIPCNSStatus,
 			OrchestratorContext: nil,
 		}
 		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
-		service.PodIPConfigState[ipID] = ipconfigStatus
+		service.PodIPConfigState[ipId] = ipconfigStatus
 
 		// Todo Update batch API and maintain the count
 	}

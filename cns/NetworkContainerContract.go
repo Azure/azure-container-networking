@@ -131,6 +131,7 @@ type IPConfiguration struct {
 // SecondaryIPConfig contains IP info of SecondaryIP
 type SecondaryIPConfig struct {
 	IPAddress string
+	// NCVesion will help in determining whether IP is in pending programming or available when reconciling.
 	NCVersion int
 }
 
