@@ -424,20 +424,6 @@ func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.Seconda
 	return req
 }
 
-func validateSecondaryIPsNCVersion(t *testing.T, req cns.CreateNetworkContainerRequest) {
-	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	// Validate secondary IPs' NC version has been updated by NC request
-	ncVersion, _ := strconv.Atoi(containerStatus.VMVersion)
-	for _, secIPConfig := range containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs {
-		// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
-		if (secIPConfig.IPAddress == "10.0.0.16" && secIPConfig.NCVersion != 0) ||
-			(secIPConfig.IPAddress == "10.0.0.17" && secIPConfig.NCVersion != 1) {
-			t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
-				ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
-		}
-	}
-}
-
 func restartService() {
 	fmt.Println("Restart Service")
 
