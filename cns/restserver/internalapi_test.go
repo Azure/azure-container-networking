@@ -56,6 +56,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	// NC version set as 0 which is the default initial value.
 	ncVersion := 0
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	receivedSecondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	ncID := "testNc1"
 
 	// Build secondaryIPConfig, it will have one item as {IPAddress:"10.0.0.16", NCVersion: 0}
@@ -64,7 +65,16 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	ipId := uuid.New()
 	secondaryIPConfigs[ipId.String()] = secIPConfig
 	req := createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
-	validateSecondaryIPsNCVersion(t, req)
+	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+	// Validate secondary IPs' NC version has been updated by NC request
+	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
+	for _, secIPConfig := range receivedSecondaryIPConfigs {
+		// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
+		if secIPConfig.IPAddress != "10.0.0.16" && secIPConfig.NCVersion != 0 {
+			t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
+				ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
+		}
+	}
 
 	// now Validate Update, simulate the CRD status where have 2 IP addresses as "10.0.0.16" and "10.0.0.17" with NC version 1
 	// The secondaryIPConfigs build from CRD will be {[IPAddress:"10.0.0.16", NCVersion: 1,]; [IPAddress:"10.0.0.17", NCVersion: 1,]}
@@ -80,7 +90,15 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	ipId = uuid.New()
 	secondaryIPConfigs[ipId.String()] = secIPConfig
 	req = createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
-	validateSecondaryIPsNCVersion(t, req)
+
+	for _, secIPConfig := range receivedSecondaryIPConfigs {
+		// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
+		if (secIPConfig.IPAddress == "10.0.0.16" && secIPConfig.NCVersion != 0) ||
+			(secIPConfig.IPAddress == "10.0.0.17" && secIPConfig.NCVersion != 1) {
+			t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
+				ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
+		}
+	}
 }
 
 func TestReconcileNCWithEmptyState(t *testing.T) {

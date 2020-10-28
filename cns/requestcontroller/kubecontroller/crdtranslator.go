@@ -52,7 +52,10 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 		ipSubnet.PrefixLength = uint8(size)
 		ncRequest.IPConfiguration.IPSubnet = ipSubnet
 		ncRequest.IPConfiguration.GatewayIPAddress = nc.DefaultGateway
-		ncVersion, _ := strconv.Atoi(ncRequest.Version)
+		var ncVersion int
+		if ncVersion, err = strconv.Atoi(ncRequest.Version); err != nil {
+			return ncRequest, fmt.Errorf("Invalid ncRequest.Version is %s in CRD, err:%s", ncRequest.Version, err)
+		}
 
 		for _, ipAssignment = range nc.IPAssignments {
 			if ip = net.ParseIP(ipAssignment.IP); ip == nil {
