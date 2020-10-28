@@ -50,13 +50,11 @@ func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
 
 func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	restartService()
-
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	// NC version set as 0 which is the default initial value.
 	ncVersion := 0
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	receivedSecondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	ncID := "testNc1"
 
 	// Build secondaryIPConfig, it will have one item as {IPAddress:"10.0.0.16", NCVersion: 0}
@@ -67,9 +65,11 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	req := createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
 	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
 	// Validate secondary IPs' NC version has been updated by NC request
-	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
+	receivedSecondaryIPConfigs := containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
+	if len(receivedSecondaryIPConfigs) != 1 {
+		t.Fatalf("receivedSecondaryIPConfigs lenth must be 1, but recieved %d", len(receivedSecondaryIPConfigs))
+	}
 	for _, secIPConfig := range receivedSecondaryIPConfigs {
-		// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
 		if secIPConfig.IPAddress != "10.0.0.16" || secIPConfig.NCVersion != 0 {
 			t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
 				ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
@@ -91,12 +91,26 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	secondaryIPConfigs[ipId.String()] = secIPConfig
 	req = createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
 	// Validate secondary IPs' NC version has been updated by NC request
+	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
+	if len(receivedSecondaryIPConfigs) != 2 {
+		t.Fatalf("receivedSecondaryIPConfigs must be 2, but received %d", len(receivedSecondaryIPConfigs))
+	}
 	for _, secIPConfig := range receivedSecondaryIPConfigs {
-		// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
-		if (secIPConfig.IPAddress == "10.0.0.16" && secIPConfig.NCVersion != 0) ||
-			(secIPConfig.IPAddress == "10.0.0.17" && secIPConfig.NCVersion != 1) {
-			t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
+		switch secIPConfig.IPAddress {
+		case "10.0.0.16":
+			// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
+			if secIPConfig.NCVersion != 0 {
+				t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
+					ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
+			}
+		case "10.0.0.17":
+			if secIPConfig.NCVersion != 1 {
+				t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 1",
+					ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
+			}
+		default:
+			t.Fatalf("nc request version is %d, secondary ip %s nc version is %d should not exist in receivedSecondaryIPConfigs map",
 				ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
 		}
 	}
