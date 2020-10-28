@@ -70,7 +70,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 	for _, secIPConfig := range receivedSecondaryIPConfigs {
 		// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
-		if secIPConfig.IPAddress != "10.0.0.16" && secIPConfig.NCVersion != 0 {
+		if secIPConfig.IPAddress != "10.0.0.16" || secIPConfig.NCVersion != 0 {
 			t.Fatalf("nc request version is %d, secondary ip %s nc version is %d, expected nc version is 0",
 				ncVersion, secIPConfig.IPAddress, secIPConfig.NCVersion)
 		}
@@ -90,7 +90,8 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	ipId = uuid.New()
 	secondaryIPConfigs[ipId.String()] = secIPConfig
 	req = createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
-
+	// Validate secondary IPs' NC version has been updated by NC request
+	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 	for _, secIPConfig := range receivedSecondaryIPConfigs {
 		// Though "10.0.0.16" IP exists in NC version 1, secodanry IP still keep its original NC version 0
 		if (secIPConfig.IPAddress == "10.0.0.16" && secIPConfig.NCVersion != 0) ||
