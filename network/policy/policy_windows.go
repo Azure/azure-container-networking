@@ -17,15 +17,6 @@ const (
 	// protocolUdp indicates udp protocol id for portmapping/ACL policy
 	protocolUdp = 17
 
-	// protocolIcmpv4 indicates icmpv4 id for ACL policy
-	protocolIcmpv4 = 1
-
-	// protocolIcmpv6 indicates icmpv6 id for ACL policy
-	protocolIcmpv6 = 58
-
-	// protocolIgmp indicates igmp protocol id for ACL policy
-	protocolIgmp = 2
-
 	// CnetAddressSpace indicates constant for the key string
 	CnetAddressSpace = "cnetAddressSpace"
 )
@@ -56,7 +47,7 @@ type KVPairRoute struct {
 
 // ServiceName is excluded because it is N/A for l2bridge and l2tunnel
 // Inernal Port also has been excluded for same reasons.
-type KVPairACLPolicy struct {
+/*type KVPairACLPolicy struct {
 	// comma indicates that in JSON as Key "Type" (the default)
 	Type            CNIPolicyType `json:","`
 	Protocol        uint16        `json:","` // Only support in Hnsv1
@@ -71,7 +62,7 @@ type KVPairACLPolicy struct {
 	RemotePort      uint16        `json:","`
 	RuleType        string        `json:","`
 	Priority        uint16        `json:","`
-}
+}*/
 
 var ValidWinVerForDnsNat bool
 
@@ -204,12 +195,8 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 		}
 	}
 
-	// TO DO : Move to just using Policy struct to determine type.
-	var aclPolicySetting KVPairACLPolicy
-	if err := json.Unmarshal(policy.Data, &aclPolicySetting); err == nil {
-		if dataRoute.Type == ACLPolicy {
-			return ACLPolicy
-		}
+	if dataRoute.Type == ACLPolicy {
+		return ACLPolicy
 	}
 
 	// Return empty string if the policy type is invalid
@@ -470,26 +457,3 @@ func AddDnsNATPolicyV2() (hcn.EndpointPolicy, error) {
 		Settings: outBoundNatPolicySettingsBytes}
 	return endpointPolicy, err
 }
-
-/*func getProtocolInt(protocolStr string) (uint64, error) {
-
-	var protocolInt uint64
-	protocol := strings.ToUpper(strings.TrimSpace(protocolStr))
-
-	switch protocol {
-	case "TCP":
-		protocolInt = protocolTcp
-	case "UDP":
-		protocolInt = protocolUdp
-	case "ICMPV4":
-		protocolInt = protocolIcmpv4
-	case "ICMPV6":
-		protocolInt = protocolIcmpv6
-	case "IGMP":
-		protocolInt = protocolIgmp
-	default:
-		return protocolInt, fmt.Errorf("Invalid protocol specified: %s", protocol)
-	}
-
-	return protocolInt, nil
-}*/
