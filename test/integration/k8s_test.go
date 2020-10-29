@@ -99,13 +99,14 @@ func TestPodScaling(t *testing.T) {
 		}
 	})
 
-	counts := []int{10, 20, 50, 10}
+	counts := []int{10, 20, 10}
 
 	for _, c := range counts {
 		count := c
 		t.Run(fmt.Sprintf("replica count %d", count), func(t *testing.T) {
-			replicaCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
+			//replicaCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			//defer cancel()
+			replicaCtx := context.Background()
 
 			if err := updateReplicaCount(t, replicaCtx, deploymentsClient, deployment.Name, count); err != nil {
 				t.Fatalf("could not scale deployment: %v", err)
@@ -187,6 +188,8 @@ func TestPodScaling(t *testing.T) {
 
 					return errors.New("not all pings are healthy")
 				}
+
+				fmt.Println("here")
 				retrier := retry.Retrier{Attempts: 10, Delay: 5 * time.Second}
 				if err := retrier.Do(clusterCheckCtx, clusterCheckFn); err != nil {
 					t.Fatalf("cluster could not reach healthy state: %v", err)

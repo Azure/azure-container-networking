@@ -16,26 +16,29 @@ type Retrier struct {
 }
 
 func (r Retrier) Do(ctx context.Context, f func() error) error {
-	done := make(chan struct{})
-	var err error
-	go func() {
-		defer func() { done <- struct{}{} }()
+	done := make(chan error)
+	go func(dchan chan error) {
+		var err error
+		defer func() {
+			dchan <- err
+		}()
 		for i := 0; i < r.Attempts; i++ {
 			err = f()
 			if err == nil {
-				break
+				return
 			}
 			time.Sleep(r.Delay)
 			if r.ExpBackoff {
 				r.Delay *= 2
 			}
 		}
-	}()
+		return
+	}(done)
 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-done:
+	case err := <-done:
 		return err
 	}
 }
