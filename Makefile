@@ -181,11 +181,12 @@ all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
 endif
 
 ifeq ($(GOOS),linux)
-all-images: azure-npm-image azure-vnet-telemetry-image
+all-images: azure-npm-image azure-cns-aks-swift-image azure-cni-manager
 else
 all-images:
 	@echo "Nothing to build. Skip."
 endif
+
 
 # Clean all build artifacts.
 .PHONY: clean

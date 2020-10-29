@@ -80,8 +80,6 @@ stages:
             displayName: "Install Go dependencies"
 
           - script: |
-              echo Building in $(pwd)
-              echo Build tag is $(EnvironmentalVariables.Tag)
               export GOOS=windows
               make all-binaries VERSION=$(EnvironmentalVariables.Tag)
             workingDirectory: "$(modulePath)"
@@ -109,11 +107,10 @@ stages:
             displayName: "Run Tests"
 
           - script: |
-              make all-binaries VERSION=$(EnvironmentalVariables.Tag)
-              sudo make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
+              sudo make all-images VERSION=$(EnvironmentalVariables.Tag)
             workingDirectory: "$(modulePath)"
-            name: "BuildNPMImage"
-            displayName: "Build NPM Image"
+            name: "BuildImages"
+            displayName: "Build Images"
 
           - bash: |
               export CODECOV_TOKEN=$(CODECOV_TOKEN)
@@ -130,6 +127,12 @@ stages:
               docker tag $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
               docker push $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
 
+              docker tag $IMAGE_REGISTRY/azure-cns:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+              docker push $IMAGE_REGISTRY/azure-cns:$(EnvironmentalVariables.Tag)-test
+
+              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+              docker push $IMAGE_REGISTRY/azure-cni-manager:$(EnvironmentalVariables.Tag)-test
+
               function auto-retry()
               {
                   export i="1"
@@ -139,7 +142,10 @@ stages:
                     printf "Attempt $i/$attempts - " && "$@" && break ||  sleep 3 &&  i=$[$i+1] && false
                   done
               }
+
               auto-retry docker pull $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+              auto-retry docker pull $IMAGE_REGISTRY/azure-cns:$(EnvironmentalVariables.Tag)-test
+              auto-retry docker pull $IMAGE_REGISTRY/azure-cni-manager:$(EnvironmentalVariables.Tag)-test
             workingDirectory: "$(modulePath)"
             name: "mcrreplication"
             displayName: "Push NPM Image and Wait for Repository"
