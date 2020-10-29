@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	// protocolTcp indicates tcp protocol id for portmapping/ACL policy
+	// protocolTcp indicates tcp protocol id for portmapping
 	protocolTcp = 6
 
-	// protocolUdp indicates udp protocol id for portmapping/ACL policy
+	// protocolUdp indicates udp protocol id for portmapping
 	protocolUdp = 17
 
 	// CnetAddressSpace indicates constant for the key string
@@ -44,25 +44,6 @@ type KVPairRoute struct {
 	DestinationPrefix string        `json:"DestinationPrefix"`
 	NeedEncap         bool          `json:"NeedEncap"`
 }
-
-// ServiceName is excluded because it is N/A for l2bridge and l2tunnel
-// Inernal Port also has been excluded for same reasons.
-/*type KVPairACLPolicy struct {
-	// comma indicates that in JSON as Key "Type" (the default)
-	Type            CNIPolicyType `json:","`
-	Protocol        uint16        `json:","` // Only support in Hnsv1
-	Protocols       string        `json:",omitempty"`
-	Action          string        `json:","`
-	Direction       string        `json:","`
-	LocalAddresses  string        `json:","`
-	RemoteAddresses string        `json:","`
-	LocalPorts      string        `json:",omitempty"`
-	LocalPort       uint16        `json:","` // Only supported in Hnsv1
-	RemotePorts     string        `json:",omitempty"`
-	RemotePort      uint16        `json:","`
-	RuleType        string        `json:","`
-	Priority        uint16        `json:","`
-}*/
 
 var ValidWinVerForDnsNat bool
 
