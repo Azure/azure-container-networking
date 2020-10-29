@@ -48,18 +48,9 @@
                         "Action":  "Allow",
                         "Direction":  "Out",
                         "RemoteAddresses":  "168.63.129.16/32",
+                        "Protocols": "17",
                         "RemotePorts":  "53",
                         "Priority":  200
-                    }
-                }
-                {
-                    "Name":  "EndpointPolicy",
-                    "Value":  {
-                        "Type":  "ACL",
-                        "Action":  "Block",
-                        "Direction":  "Out",
-                        "RemoteAddresses":  "169.254.169.254/32",
-                        "Priority":  65498
                     }
                 },
                 {
@@ -69,15 +60,15 @@
                         "Action":  "Block",
                         "Direction":  "Out",
                         "RemoteAddresses":  "168.63.129.16/32",
-                        "Priority":  65499
+                        "Priority":  65000
                     }
                 },
-                {
+                                {
                     "Name":  "EndpointPolicy",
                     "Value":  {
                         "Type":  "ACL",
                         "Action":  "Allow",
-                        "Direction":  "In",
+                        "Direction":  "Out",
                         "Priority":  65500
                     }
                 },
@@ -86,7 +77,7 @@
                     "Value":  {
                         "Type":  "ACL",
                         "Action":  "Allow",
-                        "Direction":  "Out",
+                        "Direction":  "In",
                         "Priority":  65500
                     }
                 }
