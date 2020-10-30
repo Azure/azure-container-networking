@@ -156,8 +156,9 @@ stages:
               scriptLocation: "inlineScript"
               addSpnToEnvironment: true
               inlineScript: |
-                az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME)
-                az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME) > ~/.kube/config
+                mkdir -p ~/.kube/
+                az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
+                az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/config
               workingDirectory: "$(modulePath)"
             displayName: Pull Kubeconfig from
             condition: succeeded()
