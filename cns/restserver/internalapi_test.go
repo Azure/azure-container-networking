@@ -44,8 +44,8 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
-	// NC version set as 0 which is the default initial value.
-	validateCreateOrUpdateNCInternal(t, 2, "0")
+	// NC version set as -1 which is the same as default host version value.
+	validateCreateOrUpdateNCInternal(t, 2, "-1")
 }
 
 func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
@@ -230,7 +230,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
 	}
-	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "0")
+	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
 
 	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
 	expectedAllocatedPods["10.0.0.6"] = cns.KubernetesPodInfo{
@@ -267,7 +267,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
 	}
-	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String(), "0")
+	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String(), "-1")
 
 	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
 	expectedAllocatedPods["10.0.0.6"] = cns.KubernetesPodInfo{
