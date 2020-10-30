@@ -179,12 +179,6 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			// Delete first.
 			returnCode, returnMesage := service.deleteIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, hostVersion)
 			// Add new IPs
-			// // TODO, will udpate NC version related variable to int, change it from string to int is a pains
-			//var nmagentNCVersion int
-			// var err error
-			// if nmagentNCVersion, err = strconv.Atoi(hostVersion); err != nil {
-			// 	return UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
-			// }
 			// TODO, remove this override when background thread which update nmagent version is ready.
 			nmagentNCVersion := service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
 			service.addIPConfigStateUntransacted(req.NetworkContainerid, nmagentNCVersion, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
