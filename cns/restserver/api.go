@@ -784,7 +784,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			existing, ok := service.getNetworkContainerDetails(req.NetworkContainerid)
 
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
-			if !ok || (ok && existing.VMVersion != req.Version) {
+			if !ok || (ok && existing.DncNCVersion != req.Version) {
 				nc := service.networkContainer
 				if err = nc.Create(req); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
@@ -797,7 +797,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			existing, ok := service.getNetworkContainerDetails(req.NetworkContainerid)
 
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
-			if ok && existing.VMVersion != req.Version {
+			if ok && existing.DncNCVersion != req.Version {
 				nc := service.networkContainer
 				netPluginConfig := service.getNetPluginDetails()
 				if err = nc.Update(req, netPluginConfig); err != nil {
@@ -974,8 +974,8 @@ func (service *HTTPRestService) getNetworkContainerStatus(w http.ResponseWriter,
 		containerDetails, ok = containerInfo[req.NetworkContainerid]
 	}
 
-	var hostVersion string
-	var vmVersion string
+	var hostNCVersion string
+	var dncNCVersion string
 
 	if ok {
 		savedReq := containerDetails.CreateNetworkContainerRequest
@@ -988,7 +988,7 @@ func (service *HTTPRestService) getNetworkContainerStatus(w http.ResponseWriter,
 			returnCode = CallToHostFailed
 			returnMessage = err.Error()
 		} else {
-			hostVersion = containerVersion.ProgrammedVersion
+			hostNCVersion = containerVersion.ProgrammedVersion
 		}
 	} else {
 		returnMessage = "[Azure CNS] Never received call to create this container."
@@ -1003,8 +1003,8 @@ func (service *HTTPRestService) getNetworkContainerStatus(w http.ResponseWriter,
 	networkContainerStatusReponse := cns.GetNetworkContainerStatusResponse{
 		Response:           resp,
 		NetworkContainerid: req.NetworkContainerid,
-		AzureHostVersion:   hostVersion,
-		Version:            vmVersion,
+		AzureHostVersion:   hostNCVersion,
+		Version:            dncNCVersion,
 	}
 
 	err = service.Listener.Encode(w, &networkContainerStatusReponse)

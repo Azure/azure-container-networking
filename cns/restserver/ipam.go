@@ -114,20 +114,41 @@ func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]c
 	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
 }
 
-// UpdatePendingProgrammingIPs will update pending programming IPs to available if
-// NMAgent side's programmed NC version keep up with NC version with secondary IP.
-// This function must be called in a service lock.
-func (service *HTTPRestService) UpdatePendingProgrammingIPs(nmagentNCVersion string, req cns.CreateNetworkContainerRequest) {
-	for uuid, secondaryIPConfigs := range req.SecondaryIPConfigs {
-		ipConfigStatus, exist := service.PodIPConfigState[uuid]
-		if exist {
-			if ipConfigStatus.State == cns.PendingProgramming && strconv.Itoa(secondaryIPConfigs.NCVersion) <= nmagentNCVersion {
-				ipConfigStatus.State = cns.Available
-				service.PodIPConfigState[uuid] = ipConfigStatus
-				logger.Printf("Change ip %s with uuid %s from pending programming to %s", ipConfigStatus.IPAddress, uuid, cns.Available)
+// MarkAllPendingProgrammingIpsAsAvailableUntransacted is the function to update pending programming IPs to available
+// when get NC version failed and we don't want to block IP allocation.
+// Note: this func is an untransacted API as the caller will take a Service lock
+func (service *HTTPRestService) MarkAllPendingProgrammingIpsAsAvailableUntransacted() {
+	for _, ipConfigStatus := range service.PodIPConfigState {
+		if ipConfigStatus.State == cns.PendingProgramming {
+			ipConfigStatus.State = cns.Available
+			service.PodIPConfigState[ipConfigStatus.ID] = ipConfigStatus
+		}
+	}
+}
+
+// MarkIpsAsAvailableUntransacted will update pending programming IPs to available if NMAgent side's programmed nc version keep up with nc version.
+// Note: this func is an untransacted API as the caller will take a Service lock
+func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newHostNCVersion int) {
+	// Check whether it exist in service state and get the related nc info
+	if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
+		logger.Errorf("Can't find NC with ID %s in service state, stop updating its pending programming IP status", ncID)
+	} else {
+		previousHostNCVersion := ncInfo.HostNCVersion
+		// We only need to handle the situation when dnc nc version is larger than programmed nc version
+		if previousHostNCVersion < ncInfo.DncNCVersion && previousHostNCVersion < strconv.Itoa(newHostNCVersion) {
+			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
+				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
+					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
+				} else if ipConfigStatus.State == cns.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
+					ipConfigStatus.State = cns.Available
+					service.PodIPConfigState[uuid] = ipConfigStatus
+					// Following 2 sentence assign new host version to secondary ip config.
+					secondaryIPConfigs.NCVersion = newHostNCVersion
+					ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
+					logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %v", ipConfigStatus.IPAddress, uuid, cns.Available,
+						ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid])
+				}
 			}
-		} else {
-			logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
 		}
 	}
 }
