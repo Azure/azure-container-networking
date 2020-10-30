@@ -209,7 +209,6 @@ func TestPodScaling(t *testing.T) {
 					return errors.New("not all pings are healthy")
 				}
 
-				fmt.Println("here")
 				retrier := retry.Retrier{Attempts: 10, Delay: 5 * time.Second}
 				if err := retrier.Do(clusterCheckCtx, clusterCheckFn); err != nil {
 					t.Fatalf("cluster could not reach healthy state: %v", err)

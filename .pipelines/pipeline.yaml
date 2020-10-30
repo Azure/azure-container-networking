@@ -35,7 +35,6 @@ stages:
               sudo rm -rf $(System.DefaultWorkingDirectory)/*
               sudo rm /run/docker/plugins/test.sock || true
               sudo ip link del dev dummy || true
-              sudo docker system prune -f
             displayName: "Set up OS environment"
 
           - checkout: self
@@ -76,6 +75,7 @@ stages:
               go get github.com/axw/gocov/gocov
               go get github.com/AlekSi/gocov-xml
               go get github.com/matm/gocov-html
+              go get github.com/rakyll/gotest
             workingDirectory: "$(modulePath)"
             name: "GoDependencies"
             displayName: "Install Go dependencies"
@@ -286,5 +286,7 @@ stages:
                 BUILD_NUMBER=${BUILD_NUMBER//./-}
                 echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
                 az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
+                echo Pruning old docker images...
+                sudo docker system prune -f
               workingDirectory: "$(modulePath)"
             displayName: Cleanup remote Azure storage container

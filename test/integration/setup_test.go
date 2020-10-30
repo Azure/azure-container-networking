@@ -78,6 +78,11 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 		cns v1.DaemonSet
 	)
 
+	// setup the CNS configmap
+	if err := mustSetupConfigMap(ctx, clientset, cnsConfigMapPath); err != nil {
+		return err
+	}
+
 	// setup daemonset
 	if cns, err = mustParseDaemonSet(cnsDaemonSetPath); err != nil {
 		return err
@@ -99,11 +104,6 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 
 	// setup RBAC, Role, RoleBinding
 	if err := mustSetUpRBAC(ctx, clientset, cnsRolePath, cnsRoleBindingPath); err != nil {
-		return err
-	}
-
-	// setup the CNS configmap
-	if err := mustSetupConfigMap(ctx, clientset, cnsConfigMapPath); err != nil {
 		return err
 	}
 

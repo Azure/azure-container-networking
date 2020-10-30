@@ -451,6 +451,9 @@ ifeq ($(GOOS),linux)
 	chown $(BUILD_USER):$(BUILD_USER) $(NPM_BUILD_DIR)/$(NPM_ARCHIVE_NAME)
 endif
 
+
+PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
+
 # run all tests
 .PHONY: test-all
 test-all:
