@@ -290,11 +290,11 @@ func setOrchestratorTypeInternal(orchestratorType string) {
 func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	ncId := "testNc1"
-
+	ncVersionInInt, _ := strconv.Atoi(ncVersion)
 	var startingIndex = 6
 	for i := 0; i < secondaryIpCount; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress, 0)
+		secIpConfig := newSecondaryIPConfig(ipaddress, ncVersionInInt)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
@@ -306,7 +306,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 	fmt.Println("Validate Scaleup")
 	for i := 0; i < secondaryIpCount; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress, 1)
+		secIpConfig := newSecondaryIPConfig(ipaddress, ncVersionInInt)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
