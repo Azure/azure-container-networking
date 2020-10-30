@@ -151,10 +151,10 @@ stages:
             displayName: "Push NPM Image and Wait for Repository"
 
           - script: |
-              echo '$(AKS_SWIFT_KUBECONFIG)' 
-              echo '$(AKS_SWIFT_KUBECONFIG)' > ~/.kube/config
+              echo $(AKS_SWIFT_KUBECONFIG)
+              echo $(AKS_SWIFT_KUBECONFIG) > ~/.kube/config
               cat ~/.kube/config
-              sudo make test-integration VERSION=$(EnvironmentalVariables.Tag)
+              sudo -E env "PATH=$PATH" make test-integration VERSION=$(EnvironmentalVariables.Tag)
             workingDirectory: "$(modulePath)"
             name: "aksswifte2e"
             displayName: "Run AKS Swift E2E"
