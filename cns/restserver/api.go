@@ -786,7 +786,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			existing, ok := service.getNetworkContainerDetails(req.NetworkContainerid)
 
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
-			if !ok || (ok && existing.VMVersion != req.Version) {
+			if !ok || (ok && existing.DncNCVersion != req.Version) {
 				nc := service.networkContainer
 				if err = nc.Create(req); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
@@ -799,7 +799,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			existing, ok := service.getNetworkContainerDetails(req.NetworkContainerid)
 
 			// create/update nc only if it doesn't exist or it exists and the requested version is different from the saved version
-			if ok && existing.VMVersion != req.Version {
+			if ok && existing.DncNCVersion != req.Version {
 				nc := service.networkContainer
 				netPluginConfig := service.getNetPluginDetails()
 				if err = nc.Update(req, netPluginConfig); err != nil {

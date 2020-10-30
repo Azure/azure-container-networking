@@ -38,6 +38,7 @@ const (
 	NetworkContainerVfpProgramComplete     = 35
 	NetworkContainerVfpProgramCheckSkipped = 36
 	NmAgentSupportedApisError              = 37
+	UnsupportedNCVersion                   = 37
 	UnexpectedError                        = 99
 )
 

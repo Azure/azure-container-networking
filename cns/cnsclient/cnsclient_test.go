@@ -53,6 +53,7 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	for _, secIpAddress := range secondaryIps {
 		secIpConfig := cns.SecondaryIPConfig{
 			IPAddress: secIpAddress,
+			NCVersion: -1,
 		}
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
@@ -125,7 +126,7 @@ func TestMain(m *testing.M) {
 	logger.InitLogger(logName, 0, 0, tmpLogDir+"/")
 	config := common.ServiceConfig{}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, fakes.NewFakeImdsClient())
+	httpRestService, err := restserver.NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	svc = httpRestService.(*restserver.HTTPRestService)
 	svc.Name = "cns-test-server"
 	svc.IPAMPoolMonitor = fakes.NewIPAMPoolMonitorFake()

@@ -912,7 +912,7 @@ func startService() {
 	var err error
 	// Create the service.
 	config := common.ServiceConfig{}
-	service, err = NewHTTPRestService(&config, fakes.NewFakeImdsClient())
+	service, err = NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	if err != nil {
 		fmt.Printf("Failed to create CNS object %v\n", err)
 		os.Exit(1)

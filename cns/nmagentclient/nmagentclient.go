@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/common"
@@ -13,12 +16,14 @@ import (
 
 const (
 	//GetNmAgentSupportedApiURLFmt Api endpoint to get supported Apis of NMAgent
-	GetNmAgentSupportedApiURLFmt     = "http://%s/machine/plugins/?comp=nmagent&type=GetSupportedApis"
-	GetNetworkContainerVersionURLFmt = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/version/authenticationToken/%s/api-version/1"
+	GetNmAgentSupportedApiURLFmt       = "http://%s/machine/plugins/?comp=nmagent&type=GetSupportedApis"
+	GetNetworkContainerVersionURLFmt   = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/version/authenticationToken/%s/api-version/1"
+	GetNcVersionListWithOutTokenURLFmt = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/%s"
 )
 
 //WireServerIP - wire server ip
 var WireserverIP = "168.63.129.16"
+var getNcVersionListWithOutTokenURLVersion = "2"
 
 // NMANetworkContainerResponse - NMAgent response.
 type NMANetworkContainerResponse struct {
@@ -29,6 +34,36 @@ type NMANetworkContainerResponse struct {
 
 type NMAgentSupportedApisResponseXML struct {
 	SupportedApis []string `xml:"type"`
+}
+
+type ContainerInfo struct {
+	NetworkContainerID string `json:"networkContainerId"`
+	Version            string `json:"version"`
+}
+
+type NMANetworkContainerListResponse struct {
+	ResponseCode string          `json:"httpStatusCode"`
+	Containers   []ContainerInfo `json:"networkContainers"`
+}
+
+// NMAgentClient is client to handle queries to nmagent
+type NMAgentClient struct {
+	connectionURL string
+}
+
+// NMAgentClientInterface has interface that nmagent client will handle
+type NMAgentClientInterface interface {
+	GetNcVersionListWithOutToken(ncNeedUpdateList []string) map[string]int
+}
+
+// NewNMAgentClient create a new nmagent client.
+func NewNMAgentClient(url string) (*NMAgentClient, error) {
+	if url == "" {
+		url = fmt.Sprintf(GetNcVersionListWithOutTokenURLFmt, WireserverIP, getNcVersionListWithOutTokenURLVersion)
+	}
+	return &NMAgentClient{
+		connectionURL: url,
+	}, nil
 }
 
 // JoinNetwork joins the given network
@@ -148,4 +183,43 @@ func GetNmAgentSupportedApis(
 
 	logger.Printf("[NMAgentClient][Response] GetNmAgentSupportedApis. Response: %+v.", response)
 	return xmlDoc.SupportedApis, nil
+}
+
+// GetNcVersionListWithOutToken query nmagent for programmed container version.
+func (nmagentclient *NMAgentClient) GetNcVersionListWithOutToken(ncNeedUpdateList []string) map[string]int {
+	ncVersionList := make(map[string]int)
+	now := time.Now()
+	response, err := http.Get(nmagentclient.connectionURL)
+	latency := time.Since(now)
+	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %+v. QueryURL is %s, latency is %v", response, nmagentclient.connectionURL, latency)
+
+	if response.StatusCode != http.StatusOK {
+		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken failed with %d, err is %v", response.StatusCode, err)
+		return nil
+	}
+
+	var nmaNcListResponse NMANetworkContainerListResponse
+	rBytes, _ := ioutil.ReadAll(response.Body)
+	logger.Printf("Response body is %v", rBytes)
+	json.Unmarshal(rBytes, &nmaNcListResponse)
+	if nmaNcListResponse.ResponseCode != "200" {
+		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken unmarshal failed with %s", rBytes)
+		return nil
+	}
+
+	var receivedNcVersionListInMap = make(map[string]string)
+	for _, containers := range nmaNcListResponse.Containers {
+		receivedNcVersionListInMap[containers.NetworkContainerID] = containers.Version
+	}
+	for _, ncID := range ncNeedUpdateList {
+		if val, ok := receivedNcVersionListInMap[ncID]; ok {
+			if valInInt, err := strconv.Atoi(val); err != nil {
+				logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken translate version %s to int failed with %s", val, err)
+			} else {
+				ncVersionList[ncID] = valInInt
+				logger.Printf("Containers id is %s, version is %d", ncID, valInInt)
+			}
+		}
+	}
+	return ncVersionList
 }
