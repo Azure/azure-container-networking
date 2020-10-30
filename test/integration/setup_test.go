@@ -4,7 +4,6 @@ package k8s
 
 import (
 	"context"
-	"flag"
 	"log"
 	"os"
 	"testing"
@@ -67,12 +66,6 @@ func TestMain(m *testing.M) {
 	exitCode = m.Run()
 }
 
-func pullKubeConfig() {
-	var tmpkubeconfig string
-
-	flag.Set("test-kubeconfig", tmpkubeconfig)
-}
-
 func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag string) error {
 	var (
 		err error
@@ -87,6 +80,8 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 	image, _ := parseImageString(cns.Spec.Template.Spec.Containers[0].Image)
 	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
+
+	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
 	if err = mustCreateDaemonSet(ctx, cnsDaemonsetClient, cns); err != nil {
 		return err
 	}
@@ -123,6 +118,8 @@ func installCNI(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 	image, _ := parseImageString(cni.Spec.Template.Spec.Containers[0].Image)
 	cni.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
 	cniDaemonsetClient := clientset.AppsV1().DaemonSets(cni.Namespace)
+
+	log.Printf("Installing CNI with image %s", cni.Spec.Template.Spec.Containers[0].Image)
 	if err = mustCreateDaemonSet(ctx, cniDaemonsetClient, cni); err != nil {
 		return err
 	}

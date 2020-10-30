@@ -164,8 +164,7 @@ stages:
             condition: succeeded()
 
           - script: |
-              ls -lah
-              sudo -E env "PATH=$PATH" make test-integration VERSION=$(EnvironmentalVariables.Tag)
+              sudo -E env "PATH=$PATH" VERSION=$(EnvironmentalVariables.Tag) make test-integration 
             workingDirectory: "$(modulePath)"
             name: "aksswifte2e"
             displayName: "Run AKS Swift E2E"
