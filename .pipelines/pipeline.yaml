@@ -154,9 +154,14 @@ stages:
             inputs:
               azureSubscription: $(ARTIFACT_SUBSCRIPTION)
               scriptLocation: "inlineScript"
+              addSpnToEnvironment: true
               inlineScript: |
+                echo $servicePrincipalId
+                echo $servicePrincipalId > ~/azaccount
+                az account show > ~/.azaccount2
                 az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME)
                 az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME) > ~/.kube/config
+                sleep 1000000
               workingDirectory: "$(modulePath)"
             displayName: Pull Kubeconfig from
             condition: succeeded()
