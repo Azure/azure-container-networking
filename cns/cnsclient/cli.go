@@ -2,7 +2,6 @@ package cnsclient
 
 import (
 	"fmt"
-	"net"
 	"sort"
 	"strings"
 
@@ -20,6 +19,8 @@ const (
 
 	eth0InterfaceName   = "eth0"
 	azure0InterfaceName = "azure0"
+
+	defaultCNSURl = "http://localhost:10090"
 )
 
 var (
@@ -35,29 +36,7 @@ var (
 )
 
 func HandleCNSClientCommands(cmd, arg string) error {
-	var ip net.IP
-
-	// retrieve the primary interface that CNS is listening on
-	interfaces, _ := net.Interfaces()
-FindIP:
-	for _, iface := range interfaces {
-		if iface.Name == eth0InterfaceName || iface.Name == azure0InterfaceName {
-			addrs, _ := iface.Addrs()
-			for _, address := range addrs {
-				if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-					ip = ipnet.IP
-					break FindIP
-				}
-			}
-		}
-	}
-
-	if ip == nil {
-		return fmt.Errorf("Primary IP not found")
-	}
-
-	cnsurl := "http://" + ip.String() + ":10090"
-	cnsClient, err := InitCnsClient(cnsurl)
+	cnsClient, err := InitCnsClient(defaultCNSURl)
 	if err != nil {
 		return err
 	}
