@@ -4,20 +4,18 @@ package k8s
 
 import (
 	"context"
+	"log"
+	"strings"
+
 	//crd "dnc/requestcontroller/kubernetes"
 	"os"
 	"testing"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
-	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
-	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	typedrbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -27,16 +25,16 @@ const (
 	SubnetNameLabel        = "kubernetes.azure.com/podnetwork-subnet"
 )
 
-func mustGetClientset(t *testing.T) *kubernetes.Clientset {
+func mustGetClientset() (*kubernetes.Clientset, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	return clientset
+	return clientset, nil
 }
 
 func mustGetRestConfig(t *testing.T) *rest.Config {
@@ -47,85 +45,18 @@ func mustGetRestConfig(t *testing.T) *rest.Config {
 	return config
 }
 
-func mustParseResource(t *testing.T, path string, out interface{}) {
+func mustParseResource(path string, out interface{}) error {
 	f, err := os.Open(path)
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 	defer func() { _ = f.Close() }()
 
 	if err := yaml.NewYAMLOrJSONDecoder(f, 0).Decode(out); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func mustParseDeployment(t *testing.T, path string) appsv1.Deployment {
-	var depl appsv1.Deployment
-	mustParseResource(t, path, &depl)
-	return depl
-}
-
-func mustParseServiceAccount(t *testing.T, path string) corev1.ServiceAccount {
-	var svcAcct corev1.ServiceAccount
-	mustParseResource(t, path, &svcAcct)
-	return svcAcct
-}
-
-func mustParseClusterRole(t *testing.T, path string) rbacv1.ClusterRole {
-	var cr rbacv1.ClusterRole
-	mustParseResource(t, path, &cr)
-	return cr
-}
-
-func mustParseClusterRoleBinding(t *testing.T, path string) rbacv1.ClusterRoleBinding {
-	var crb rbacv1.ClusterRoleBinding
-	mustParseResource(t, path, &crb)
-	return crb
-}
-
-func mustCreateDeployment(t *testing.T, ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) {
-	if err := deployments.Delete(ctx, d.Name, metav1.DeleteOptions{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			t.Fatal(err)
-		}
+		return err
 	}
 
-	if _, err := deployments.Create(ctx, &d, metav1.CreateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func mustCreateServiceAccount(t *testing.T, ctx context.Context, svcAccounts typedcorev1.ServiceAccountInterface, s corev1.ServiceAccount) {
-	if err := svcAccounts.Delete(ctx, s.Name, metav1.DeleteOptions{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			t.Fatal(err)
-		}
-	}
-	if _, err := svcAccounts.Create(ctx, &s, metav1.CreateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func mustCreateClusterRole(t *testing.T, ctx context.Context, clusterRoles typedrbacv1.ClusterRoleInterface, cr rbacv1.ClusterRole) {
-	if err := clusterRoles.Delete(ctx, cr.Name, metav1.DeleteOptions{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			t.Fatal(err)
-		}
-	}
-	if _, err := clusterRoles.Create(ctx, &cr, metav1.CreateOptions{}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func mustCreateClusterRoleBinding(t *testing.T, ctx context.Context, crBindings typedrbacv1.ClusterRoleBindingInterface, crb rbacv1.ClusterRoleBinding) {
-	if err := crBindings.Delete(ctx, crb.Name, metav1.DeleteOptions{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			t.Fatal(err)
-		}
-	}
-	if _, err := crBindings.Create(ctx, &crb, metav1.CreateOptions{}); err != nil {
-		t.Fatal(err)
-	}
+	return err
 }
 
 func mustLabelSwiftNodes(t *testing.T, ctx context.Context, clientset *kubernetes.Clientset, delegatedSubnetID, delegatedSubnetName string) {
@@ -147,36 +78,99 @@ func mustLabelSwiftNodes(t *testing.T, ctx context.Context, clientset *kubernete
 	}
 }
 
-func mustSetUpRBAC(t *testing.T, ctx context.Context, clientset *kubernetes.Clientset) (cleanUpFunc func(t *testing.T)) {
-	clusterRole := mustParseClusterRole(t, "testdata/goldpinger/cluster-role.yaml")
-	clusterRoleBinding := mustParseClusterRoleBinding(t, "testdata/goldpinger/cluster-role-binding.yaml")
-	serviceAccount := mustParseServiceAccount(t, "testdata/goldpinger/service-account.yaml")
+func mustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, clusterRolePath, clusterRoleBindingPath, serviceAccountPath string) (func(), error) {
+	var (
+		err                error
+		clusterRole        v1.ClusterRole
+		clusterRoleBinding v1.ClusterRoleBinding
+		serviceAccount     corev1.ServiceAccount
+	)
+
+	if clusterRole, err = mustParseClusterRole(clusterRolePath); err != nil {
+		return nil, err
+	}
+
+	if clusterRoleBinding, err = mustParseClusterRoleBinding(clusterRoleBindingPath); err != nil {
+		return nil, err
+	}
+
+	if serviceAccount, err = mustParseServiceAccount(serviceAccountPath); err != nil {
+		return nil, err
+	}
 
 	clusterRoles := clientset.RbacV1().ClusterRoles()
 	clusterRoleBindings := clientset.RbacV1().ClusterRoleBindings()
 	serviceAccounts := clientset.CoreV1().ServiceAccounts(serviceAccount.Namespace)
 
-	mustCreateServiceAccount(t, ctx, serviceAccounts, serviceAccount)
-	mustCreateClusterRole(t, ctx, clusterRoles, clusterRole)
-	mustCreateClusterRoleBinding(t, ctx, clusterRoleBindings, clusterRoleBinding)
-
-	t.Log("rbac set up")
-
-	return func(t *testing.T) {
-		t.Log("cleaning up rbac")
+	cleanupFunc := func() {
+		log.Printf("cleaning up rbac")
 
 		if err := serviceAccounts.Delete(ctx, serviceAccount.Name, metav1.DeleteOptions{}); err != nil {
-			t.Log(err)
+			log.Print(err)
 		}
 		if err := clusterRoleBindings.Delete(ctx, clusterRoleBinding.Name, metav1.DeleteOptions{}); err != nil {
-			t.Log(err)
+			log.Print(err)
 		}
 		if err := clusterRoles.Delete(ctx, clusterRole.Name, metav1.DeleteOptions{}); err != nil {
-			t.Log(err)
+			log.Print(err)
 		}
 
-		t.Log("rbac cleaned up")
+		log.Print("rbac cleaned up")
 	}
+
+	if err = mustCreateServiceAccount(ctx, serviceAccounts, serviceAccount); err != nil {
+		return cleanupFunc, err
+	}
+
+	if err = mustCreateClusterRole(ctx, clusterRoles, clusterRole); err != nil {
+		return cleanupFunc, err
+	}
+
+	if err = mustCreateClusterRoleBinding(ctx, clusterRoleBindings, clusterRoleBinding); err != nil {
+		return cleanupFunc, err
+	}
+
+	log.Printf("rbac set up")
+
+	return cleanupFunc, nil
+}
+
+func mustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePath, roleBindingPath string) error {
+	var (
+		err         error
+		role        v1.Role
+		roleBinding v1.RoleBinding
+	)
+
+	if role, err = mustParseRole(rolePath); err != nil {
+		return err
+	}
+
+	if roleBinding, err = mustParseRoleBinding(roleBindingPath); err != nil {
+		return err
+	}
+
+	roles := clientset.RbacV1().Roles(role.Namespace)
+	roleBindings := clientset.RbacV1().RoleBindings(roleBinding.Namespace)
+
+	if err = mustCreateRole(ctx, roles, role); err != nil {
+		return err
+	}
+
+	if err = mustCreateRoleBinding(ctx, roleBindings, roleBinding); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func int32ptr(i int32) *int32 { return &i }
+
+func parseImageString(s string) (image, version string) {
+	sl := strings.Split(s, ":")
+	return sl[0], sl[1]
+}
+
+func getImageString(image, version string) string {
+	return image + ":" + version
+}

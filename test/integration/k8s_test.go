@@ -32,6 +32,10 @@ var (
 const (
 	subnetIDNodeLabelEnvVar   = "DELEGATED_SUBNET_ID_NODE_LABEL"
 	subnetNameNodeLabelEnvVar = "SUBNET_NAME_NODE_LABEL"
+
+	gpClusterRolePath        = "testdata/goldpinger/cluster-role.yaml"
+	gpClusterRoleBindingPath = "testdata/goldpinger/cluster-role-binding.yaml"
+	gpServiceAccountPath     = "testdata/goldpinger/service-account.yaml"
 )
 
 func shouldLabelNodes() bool {
@@ -74,9 +78,16 @@ todo:
 */
 
 func TestPodScaling(t *testing.T) {
-	clientset := mustGetClientset(t)
+	clientset, err := mustGetClientset()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	restConfig := mustGetRestConfig(t)
-	deployment := mustParseDeployment(t, "testdata/goldpinger/deployment.yaml")
+	deployment, err := mustParseDeployment("manifests/deployment.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ctx := context.Background()
 
@@ -86,9 +97,12 @@ func TestPodScaling(t *testing.T) {
 		t.Log("swift node labels not passed or set. skipping labeling")
 	}
 
-	rbacCleanUpFn := mustSetUpRBAC(t, ctx, clientset)
+	rbacCleanUpFn := mustSetUpClusterRBAC(t, ctx, clientset)
 	deploymentsClient := clientset.AppsV1().Deployments(deployment.Namespace)
-	mustCreateDeployment(t, ctx, deploymentsClient, deployment)
+	err = mustCreateDeployment(ctx, deploymentsClient, deployment)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Cleanup(func() {
 		t.Log("cleaning up resources")
