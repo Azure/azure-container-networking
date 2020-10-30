@@ -35,6 +35,7 @@ stages:
               sudo rm -rf $(System.DefaultWorkingDirectory)/*
               sudo rm /run/docker/plugins/test.sock || true
               sudo ip link del dev dummy || true
+              sudo docker system prune -f
             displayName: "Set up OS environment"
 
           - checkout: self
@@ -164,7 +165,7 @@ stages:
             condition: succeeded()
 
           - script: |
-              sudo -E env "PATH=$PATH" VERSION=$(EnvironmentalVariables.Tag) make test-integration 
+              sudo -E env "PATH=$PATH" VERSION=$(EnvironmentalVariables.Tag) make test-integration
             workingDirectory: "$(modulePath)"
             name: "aksswifte2e"
             displayName: "Run AKS Swift E2E"
