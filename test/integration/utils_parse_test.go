@@ -49,3 +49,9 @@ func mustParseRoleBinding(path string) (rbacv1.RoleBinding, error) {
 	err := mustParseResource(path, &rb)
 	return rb, err
 }
+
+func mustParseConfigMap(path string) (corev1.ConfigMap, error) {
+	var cm corev1.ConfigMap
+	err := mustParseResource(path, &cm)
+	return cm, err
+}

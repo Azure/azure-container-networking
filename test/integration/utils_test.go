@@ -164,6 +164,21 @@ func mustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 	return nil
 }
 
+func mustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) error {
+	var (
+		err error
+		cm  corev1.ConfigMap
+	)
+
+	if cm, err = mustParseConfigMap(configMapPath); err != nil {
+		return err
+	}
+
+	configmaps := clientset.CoreV1().ConfigMaps(cm.Namespace)
+
+	return mustCreateConfigMap(ctx, configmaps, cm)
+}
+
 func int32ptr(i int32) *int32 { return &i }
 
 func parseImageString(s string) (image, version string) {

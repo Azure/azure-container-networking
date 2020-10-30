@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"testing"
@@ -64,6 +65,12 @@ func TestMain(m *testing.M) {
 	exitCode = m.Run()
 }
 
+func pullKubeConfig() {
+	var tmpkubeconfig string
+
+	flag.Set("test-kubeconfig", tmpkubeconfig)
+}
+
 func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag string) error {
 	var (
 		err error
@@ -83,11 +90,19 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 	}
 
 	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-	if _, err := mustSetUpClusterRBAC(ctx, clientset, cnsRolePath, cnsRoleBindingPath, cnsServiceAccountPath); err != nil {
+	if _, err := mustSetUpClusterRBAC(ctx, clientset, cnsClusterRolePath, cnsClusterRoleBindingPath, cnsServiceAccountPath); err != nil {
 		return err
 	}
 
-	// setup
+	// setup RBAC, Role, RoleBinding
+	if err := mustSetUpRBAC(ctx, clientset, cnsRolePath, cnsRoleBindingPath); err != nil {
+		return err
+	}
+
+	// setup the CNS configmap
+	if err := mustSetupConfigMap(ctx, clientset, cnsConfigMapPath); err != nil {
+		return err
+	}
 
 	return nil
 }

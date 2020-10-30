@@ -151,6 +151,15 @@ stages:
             displayName: "Push NPM Image and Wait for Repository"
 
           - script: |
+              echo '$(AKS_SWIFT_KUBECONFIG)' 
+              echo '$(AKS_SWIFT_KUBECONFIG)' > ~/.kube/config
+              cat ~/.kube/config
+              sudo make test-integration VERSION=$(EnvironmentalVariables.Tag)
+            workingDirectory: "$(modulePath)"
+            name: "aksswifte2e"
+            displayName: "Run AKS Swift E2E"
+
+          - script: |
               cd ./output 
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
               sudo find . -mindepth 2 -type f -print -exec mv {} . \;

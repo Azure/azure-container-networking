@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	defaultRetrier      = retry.Retrier{Attempts: 15, Delay: time.Second}
+	defaultRetrier      = retry.Retrier{Attempts: 5, Delay: time.Second}
 	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
@@ -33,9 +33,10 @@ const (
 	subnetIDNodeLabelEnvVar   = "DELEGATED_SUBNET_ID_NODE_LABEL"
 	subnetNameNodeLabelEnvVar = "SUBNET_NAME_NODE_LABEL"
 
-	gpClusterRolePath        = "testdata/goldpinger/cluster-role.yaml"
-	gpClusterRoleBindingPath = "testdata/goldpinger/cluster-role-binding.yaml"
-	gpServiceAccountPath     = "testdata/goldpinger/service-account.yaml"
+	gpFolder                 = "manifests"
+	gpClusterRolePath        = gpFolder + "/cluster-role.yaml"
+	gpClusterRoleBindingPath = gpFolder + "/cluster-role-binding.yaml"
+	gpServiceAccountPath     = gpFolder + "/service-account.yaml"
 )
 
 func shouldLabelNodes() bool {
@@ -97,7 +98,12 @@ func TestPodScaling(t *testing.T) {
 		t.Log("swift node labels not passed or set. skipping labeling")
 	}
 
-	rbacCleanUpFn := mustSetUpClusterRBAC(t, ctx, clientset)
+	rbacCleanUpFn, err := mustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
+	if err != nil {
+		t.Log(os.Getwd())
+		t.Fatal(err)
+	}
+
 	deploymentsClient := clientset.AppsV1().Deployments(deployment.Namespace)
 	err = mustCreateDeployment(ctx, deploymentsClient, deployment)
 	if err != nil {
@@ -106,7 +112,7 @@ func TestPodScaling(t *testing.T) {
 
 	t.Cleanup(func() {
 		t.Log("cleaning up resources")
-		rbacCleanUpFn(t)
+		rbacCleanUpFn()
 
 		if err := deploymentsClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{}); err != nil {
 			t.Log(err)
