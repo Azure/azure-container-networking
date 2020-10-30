@@ -151,8 +151,10 @@ stages:
             displayName: "Push NPM Image and Wait for Repository"
 
           - script: |
-              echo $(AKS_SWIFT_KUBECONFIG)
-              echo $(AKS_SWIFT_KUBECONFIG) > ~/.kube/config
+              ls -lah
+              cat ./test/integration/k8s_test.go
+              echo '$(AKS_SWIFT_KUBECONFIG)'
+              echo '$(AKS_SWIFT_KUBECONFIG)' > ~/.kube/config
               cat ~/.kube/config
               sudo -E env "PATH=$PATH" make test-integration VERSION=$(EnvironmentalVariables.Tag)
             workingDirectory: "$(modulePath)"
