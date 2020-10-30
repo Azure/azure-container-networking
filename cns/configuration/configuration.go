@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -24,7 +25,8 @@ type CNSConfig struct {
 	TLSSubjectName               string
 	TLSCertificatePath           string
 	TLSEndpoint                  string
-	SyncHostNCVersionIntervalSec int
+	SyncHostNCVersionIntervalSec time.Duration
+	SyncHostNCTimeoutMilliSec    time.Duration
 }
 
 type TelemetrySettings struct {
@@ -128,5 +130,6 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
 	}
-	config.SyncHostNCVersionIntervalSec = 30
+	config.SyncHostNCVersionIntervalSec = 1
+	config.SyncHostNCTimeoutMilliSec = 500
 }

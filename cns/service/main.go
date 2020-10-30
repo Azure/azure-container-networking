@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,7 +17,10 @@ import (
 	"syscall"
 	"time"
 
+	localtls "github.com/Azure/azure-container-networking/server/tls"
+
 	"github.com/Azure/azure-container-networking/cns/ipampoolmonitor"
+	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cnm/ipam"
@@ -398,8 +400,13 @@ func main() {
 		return
 	}
 
+	nmaclient, err := nmagentclient.NewNMAgentClient("")
+	if err != nil {
+		logger.Errorf("Failed to start nmagent client due to error %v\n", err)
+		return
+	}
 	// Create CNS object.
-	httpRestService, err := restserver.NewHTTPRestService(&config, new(imdsclient.ImdsClient))
+	httpRestService, err := restserver.NewHTTPRestService(&config, new(imdsclient.ImdsClient), nmaclient)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -499,6 +506,15 @@ func main() {
 			return
 		}
 
+		logger.Printf("Starting SyncHostNCVersion")
+		go func() {
+			// Periodically poll vfp programmed NC version from NMAgent
+			for {
+				<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalSec * time.Second).C
+				httpRestServiceImplementation.SyncHostNCVersion(config.ChannelMode, cnsconfig.SyncHostNCTimeoutMilliSec)
+			}
+		}()
+
 		// initialize the ipam pool monitor
 		httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
 
@@ -569,14 +585,6 @@ func main() {
 			return
 		}
 	}
-
-	go func() {
-		// Periodically poll NC version from NMAgent
-		for {
-			<-time.NewTicker(time.Duration(cnsconfig.SyncHostNCVersionIntervalSec) * time.Second).C
-			httpRestService.SyncHostNCVersion(config.ChannelMode)
-		}
-	}()
 
 	// Relay these incoming signals to OS signal channel.
 	osSignalChannel := make(chan os.Signal, 1)
