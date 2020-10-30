@@ -4,6 +4,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -15,7 +16,7 @@ import (
 const (
 	exitFail = 1
 
-	envImageTag = "TAG"
+	envImageTag = "VERSION"
 
 	// relative azure-cni-manager path
 	cniDaemonSetPath = "../../acncli/deployment/manager.yaml"
@@ -51,6 +52,11 @@ func TestMain(m *testing.M) {
 	}
 
 	testTag := os.Getenv(envImageTag)
+	if testTag == "" {
+		err = fmt.Errorf("Tag for CNI and CNS is nil")
+		return
+	}
+
 	ctx := context.Background()
 
 	// create dirty cni-manager ds
