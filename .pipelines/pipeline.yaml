@@ -120,8 +120,6 @@ stages:
               bash <(curl -s https://codecov.io/bash)
               gocov convert coverage.out > coverage.json
               gocov-xml < coverage.json > coverage.xml
-              echo listing cluster definitions
-              ls $(modulePath)/test/e2e/kubernetes/*
             workingDirectory: "$(modulePath)"
             name: "Coverage"
             displayName: "Generate Coverage Reports"
@@ -181,7 +179,7 @@ stages:
               pathtoPublish: "$(Build.ArtifactStagingDirectory)"
             condition: succeeded()
 
-          - publish: $(modulePath)/test/e2e/kubernetes/
+          - publish: $(modulePath)/test/apimodels/
             artifact: clusterdefinitions
 
           - task: AzureCLI@1

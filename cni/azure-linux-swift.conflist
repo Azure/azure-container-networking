@@ -1,0 +1,21 @@
+{
+   "cniVersion":"0.3.0",
+   "name":"azure",
+   "plugins":[
+      {
+         "type":"azure-vnet",
+         "mode":"transparent",
+         "ipsToRouteViaHost":["169.254.20.10"],
+         "ipam":{
+            "type":"azure-cns"
+         }
+      },
+      {
+         "type":"portmap",
+         "capabilities":{
+            "portMappings":true
+         },
+         "snat":true
+      }
+   ]
+}

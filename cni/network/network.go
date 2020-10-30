@@ -449,10 +449,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 				if err != nil {
 					options[optReleasePool] = optValPool
 					if result != nil && len(result.IPs) > 0 {
-						plugin.ipamInvoker.Delete(result.IPs[0].Address, nwCfg, options)
+						plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, options)
 					}
 					if resultV6 != nil && len(result.IPs) > 0 {
-						plugin.ipamInvoker.Delete(resultV6.IPs[0].Address, nwCfg, options)
+						plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, options)
 					}
 				}
 			}()
@@ -552,7 +552,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			defer func() {
 				if err != nil {
 					nwInfo.Options[optReleasePool] = ""
-					plugin.ipamInvoker.Delete(result.IPs[0].Address, nwCfg, nwInfo.Options)
+					plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, nwInfo.Options)
 				}
 			}()
 		}
@@ -797,6 +797,17 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		cnsclient.InitCnsClient(nwCfg.CNSUrl)
 	}
 
+	switch nwCfg.Ipam.Type {
+	case network.AzureCNS:
+		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+		if err != nil {
+			log.Printf("[cni-net] Creating network %v failed with err %v.", networkId, err)
+			return err
+		}
+	default:
+		plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
+	}
+
 	// Initialize values from network config.
 	networkId, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
 
@@ -818,7 +829,8 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		if !nwCfg.MultiTenancy {
 			// attempt to release address associated with this Endpoint id
 			// This is to ensure clean up is done even in failure cases
-			if err = plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg); err != nil {
+			err = plugin.ipamInvoker.Delete(nil, nwCfg, nwInfo.Options)
+			if err != nil {
 				log.Printf("Network not found, attempted to release address with error:  %v", err)
 			}
 		}
@@ -835,7 +847,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		if !nwCfg.MultiTenancy {
 			// attempt to release address associated with this Endpoint id
 			// This is to ensure clean up is done even in failure cases
-			if err = plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg); err != nil {
+			if err = plugin.ipamInvoker.Delete(nil, nwCfg, nwInfo.Options); err != nil {
 				log.Printf("Endpoint not found, attempted to release address with error: %v", err)
 			}
 		}
@@ -863,23 +875,12 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	switch nwCfg.Ipam.Type {
-	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
-		if err != nil {
-			log.Printf("[cni-net] Creating network %v failed with err %v.", networkId, err)
-			return err
-		}
-	default:
-		plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
-	}
-
 	if !nwCfg.MultiTenancy {
 		// Call into IPAM plugin to release the endpoint's addresses.
 		for _, address := range epInfo.IPAddresses {
 			nwCfg.Ipam.Address = address.IP.String()
 			nwInfo.Options[optReleasePool] = ""
-			err = plugin.ipamInvoker.Delete(address, nwCfg, nwInfo.Options)
+			err = plugin.ipamInvoker.Delete(&address, nwCfg, nwInfo.Options)
 			if err != nil {
 				err = plugin.Errorf("Failed to release address %v with error: %v", address, err)
 				return err
@@ -888,7 +889,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	} else if epInfo.EnableInfraVnet {
 		nwCfg.Ipam.Subnet = nwInfo.Subnets[0].Prefix.String()
 		nwCfg.Ipam.Address = epInfo.InfraVnetIP.IP.String()
-		err = plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg)
+		err = plugin.ipamInvoker.Delete(nil, nwCfg, nwInfo.Options)
 		if err != nil {
 			log.Printf("Failed to release address: %v", err)
 			err = plugin.Errorf("Failed to release address %v with error: %v", nwCfg.Ipam.Address, err)

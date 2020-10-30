@@ -237,9 +237,9 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	nmagentNCVersion = service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
 
 	if nmagentNCVersion >= newNCVersion {
-		service.addIPConfigStateUntransacted(cns.Available, req.NetworkContainerid, newIPConfigs)
+		service.addIPConfigStateUntransacted(cns.Available, req.NetworkContainerid, newIPConfigs, existingSecondaryIPConfigs)
 	} else {
-		service.addIPConfigStateUntransacted(cns.PendingProgramming, req.NetworkContainerid, newIPConfigs)
+		service.addIPConfigStateUntransacted(cns.PendingProgramming, req.NetworkContainerid, newIPConfigs, existingSecondaryIPConfigs)
 	}
 
 	return 0, ""
@@ -248,9 +248,16 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncId string, ipconfigs map[string]cns.SecondaryIPConfig) {
+func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncId string, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
 	for ipId, ipconfig := range ipconfigs {
+		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new NC version
+		// Set it back to previous NC version if IP already exist.
+		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipId]; existsInPreviousIPConfig {
+			ipconfig.NCVersion = existingIPConfig.NCVersion
+			ipconfigs[ipId] = ipconfig
+		}
+		logger.Printf("[Azure-Cns] Set IP %s version to %d", ipconfig.IPAddress, ipconfig.NCVersion)
 		if _, exists := service.PodIPConfigState[ipId]; exists {
 			continue
 		}
