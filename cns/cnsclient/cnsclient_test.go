@@ -63,6 +63,9 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 		NetworkContainerid:   "testNcId1",
 		IPConfiguration:      ipConfig,
 		SecondaryIPConfigs:   secondaryIPConfigs,
+		// Set it as -1 to be same as default host version.
+		// It will allow secondary IPs status to be set as available.
+		Version: "-1",
 	}
 
 	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))

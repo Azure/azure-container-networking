@@ -145,7 +145,7 @@ func UpdatePodIpConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 		secondaryIPConfigs[ipId] = secIpConfig
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "0")
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "-1")
 
 	// update ipconfigs to expected state
 	for ipId, ipconfig := range ipconfigs {
