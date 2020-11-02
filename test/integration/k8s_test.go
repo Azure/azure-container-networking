@@ -91,6 +91,9 @@ func TestPodScaling(t *testing.T) {
 	}
 
 	daemonset, err := mustParseDaemonSet("manifests/daemonset.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ctx := context.Background()
 
@@ -123,6 +126,10 @@ func TestPodScaling(t *testing.T) {
 		rbacCleanUpFn()
 
 		if err := deploymentsClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{}); err != nil {
+			t.Log(err)
+		}
+
+		if err := daemonsetClient.Delete(ctx, daemonset.Name, metav1.DeleteOptions{}); err != nil {
 			t.Log(err)
 		}
 	})
@@ -226,6 +233,7 @@ func TestPodScaling(t *testing.T) {
 			})
 		})
 	}
+
 }
 
 func updateReplicaCount(t *testing.T, ctx context.Context, deployments v1.DeploymentInterface, name string, replicas int) error {
