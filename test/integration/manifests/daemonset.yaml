@@ -7,10 +7,12 @@ spec:
   selector:
     matchLabels:
       app: goldpinger
+      type: goldpinger-host
   template:
     metadata:
       labels:
         app: goldpinger
+        type: goldpinger-host
     spec:
       tolerations:
         - effect: NoSchedule

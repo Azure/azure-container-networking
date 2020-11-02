@@ -193,7 +193,7 @@ func TestPodScaling(t *testing.T) {
 				var streamHandle PortForwardStreamHandle
 				portForwardFn := func() error {
 					t.Log("attempting port forward")
-					handle, err := pf.Forward(ctx, "default", "app=goldpinger", 9090, 8080)
+					handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 9090, 8080)
 					if err != nil {
 						return err
 					}

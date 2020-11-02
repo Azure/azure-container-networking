@@ -8,10 +8,12 @@ spec:
   selector:
     matchLabels:
       app: goldpinger
+      type: goldpinger-pod
   template:
     metadata:
       labels:
         app: goldpinger
+        type: goldpinger-pod
     spec:
       serviceAccount: "goldpinger-serviceaccount"
       securityContext:
