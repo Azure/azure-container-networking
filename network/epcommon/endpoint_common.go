@@ -240,6 +240,39 @@ func AddSnatRule(match string, ip net.IP) error {
 	return iptables.InsertIptableRule(version, iptables.Nat, iptables.Postrouting, match, target)
 }
 
+// SNATfromSubnetToDNSWithNCPrimaryIP snat's the snattedAddressSpace with the ipForSnat IP
+func SNATfromSubnetToDNSWithNCPrimaryIP(ipForSNAT net.IP, snattedAddressSpace net.IPNet) (err error) {
+
+	// Create SWIFT chain, this checks if the chain already exists
+	// Check if theres a primary IP
+	if ipForSNAT != nil {
+		// Create SWIFT chain, this checks if the chain already exists
+		log.Printf("Creating SWIFT chain...")
+		err := iptables.CreateChain(iptables.V4, iptables.Nat, iptables.Swift)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("Creating SWIFT chain jump from POSTROUTING")
+		// add jump to SWIFT chain from POSTROUTING
+		err = iptables.AppendIptableRule(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("Adding rule to SNAT subnet %v DNS requests with ip %v", snattedAddressSpace, ipForSNAT)
+		// SNAT requests to Azure DNS
+		azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", snattedAddressSpace.String(), iptables.AzureDNS, iptables.UDP, iptables.DNSPort)
+		snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, ipForSNAT)
+		err = iptables.InsertIptableRule(iptables.V4, iptables.Nat, iptables.Swift, azureDNSMatch, snatPrimaryIPJump)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func DisableRAForInterface(ifName string) error {
 	raFilePath := fmt.Sprintf(acceptRAV6File, ifName)
 	exist, err := common.CheckIfFileExists(raFilePath)

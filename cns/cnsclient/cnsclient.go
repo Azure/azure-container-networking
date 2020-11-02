@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/log"
 )
 
@@ -44,15 +45,20 @@ func GetCnsClient() (*CNSClient, error) {
 	var err error
 
 	if cnsClient == nil {
-		err = fmt.Errorf("[Azure CNSClient] CNS Client not initialized")
+		err = &CNSClientError{
+			restserver.UnexpectedError,
+			fmt.Errorf("[Azure CNSClient] CNS Client not initialized")}
 	}
 
 	return cnsClient, err
 }
 
 // GetNetworkConfiguration Request to get network config.
-func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
-	var body bytes.Buffer
+func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) (
+	*cns.GetNetworkContainerResponse, error) {
+	var (
+		body bytes.Buffer
+	)
 
 	httpc := &http.Client{}
 	url := cnsClient.connectionURL + cns.GetNetworkContainerByOrchestratorContext
@@ -65,13 +71,13 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	err := json.NewEncoder(&body).Encode(payload)
 	if err != nil {
 		log.Errorf("encoding json failed with %v", err)
-		return nil, err
+		return nil, &CNSClientError{restserver.UnexpectedError, err}
 	}
 
 	res, err := httpc.Post(url, contentTypeJSON, &body)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
-		return nil, err
+		return nil, &CNSClientError{restserver.UnexpectedError, err}
 	}
 
 	defer res.Body.Close()
@@ -79,7 +85,7 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	if res.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("[Azure CNSClient] GetNetworkConfiguration invalid http status code: %v", res.StatusCode)
 		log.Errorf(errMsg)
-		return nil, fmt.Errorf(errMsg)
+		return nil, &CNSClientError{restserver.UnexpectedError, fmt.Errorf(errMsg)}
 	}
 
 	var resp cns.GetNetworkContainerResponse
@@ -87,12 +93,15 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] Error received while parsing GetNetworkConfiguration response resp:%v err:%v", res.Body, err.Error())
-		return nil, err
+		return nil, &CNSClientError{restserver.UnexpectedError, err}
 	}
 
 	if resp.Response.ReturnCode != 0 {
-		log.Errorf("[Azure CNSClient] GetNetworkConfiguration received error response :%v", resp.Response.Message)
-		return nil, fmt.Errorf(resp.Response.Message)
+		log.Errorf(
+			"[Azure CNSClient] GetNetworkConfiguration received error response :%v , Code : %d",
+			resp.Response.Message,
+			resp.Response.ReturnCode)
+		return nil, &CNSClientError{resp.Response.ReturnCode, fmt.Errorf(resp.Response.Message)}
 	}
 
 	return &resp, nil
@@ -200,11 +209,11 @@ func (cnsClient *CNSClient) DeleteHostNCApipaEndpoint(networkContainerID string)
 }
 
 // RequestIPAddress calls the requestIPAddress in CNS
-func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.GetIPConfigResponse, error) {
+func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.IPConfigResponse, error) {
 	var (
 		err      error
 		res      *http.Response
-		response *cns.GetIPConfigResponse
+		response *cns.IPConfigResponse
 	)
 
 	defer func() {
@@ -218,7 +227,7 @@ func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.G
 	httpc := &http.Client{}
 	url := cnsClient.connectionURL + cns.RequestIPConfig
 
-	payload := &cns.GetIPConfigRequest{
+	payload := &cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
 	}
 
@@ -268,7 +277,7 @@ func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
 	url := cnsClient.connectionURL + cns.ReleaseIPConfig
 	log.Printf("ReleaseIPAddress url %v", url)
 
-	payload := &cns.GetIPConfigRequest{
+	payload := &cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
 	}
 
@@ -306,4 +315,59 @@ func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
 	}
 
 	return err
+}
+
+// GetIPAddressesWithStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states
+// usage GetIPAddressesWithStates(cns.Available, cns.Allocated)
+func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) ([]cns.IPAddressState, error) {
+	var (
+		resp cns.GetIPAddressStateResponse
+		err  error
+		res  *http.Response
+		body bytes.Buffer
+	)
+
+	if len(StateFilter) == 0 {
+		return []cns.IPAddressState{}, nil
+	}
+
+	url := cnsClient.connectionURL + cns.GetIPAddresses
+	log.Printf("GetIPAddressesMatchingStates url %v", url)
+
+	payload := &cns.GetIPAddressesRequest{
+		IPConfigStateFilter: StateFilter,
+	}
+
+	err = json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		log.Errorf("encoding json failed with %v", err)
+		return resp.IPAddresses, err
+	}
+
+	res, err = http.Post(url, contentTypeJSON, &body)
+	if err != nil {
+		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
+		return resp.IPAddresses, err
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("[Azure CNSClient] GetIPAddressesMatchingStates invalid http status code: %v", res.StatusCode)
+		log.Errorf(errMsg)
+		return resp.IPAddresses, fmt.Errorf(errMsg)
+	}
+
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		log.Errorf("[Azure CNSClient] Error received while parsing GetIPAddressesMatchingStates response resp:%v err:%v", res.Body, err.Error())
+		return resp.IPAddresses, err
+	}
+
+	if resp.Response.ReturnCode != 0 {
+		log.Errorf("[Azure CNSClient] GetIPAddressesMatchingStates received error response :%v", resp.Response.Message)
+		return resp.IPAddresses, fmt.Errorf(resp.Response.Message)
+	}
+
+	return resp.IPAddresses, err
 }

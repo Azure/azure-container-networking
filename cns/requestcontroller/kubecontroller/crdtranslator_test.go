@@ -1,6 +1,7 @@
 package kubecontroller
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -17,6 +18,7 @@ const (
 	subnetAddressSpace = "10.0.0.0/24"
 	subnetPrefixLen    = 24
 	testSecIp1         = "10.0.0.2"
+	version            = "1"
 )
 
 func TestStatusToNCRequestMalformedPrimaryIP(t *testing.T) {
@@ -193,6 +195,7 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 				SubnetName:         subnetName,
 				DefaultGateway:     defaultGateway,
 				SubnetAddressSpace: subnetAddressSpace,
+				Version:            version,
 			},
 		},
 	}
@@ -233,57 +236,9 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 	if secondaryIP.IPAddress != testSecIp1 {
 		t.Fatalf("Expected %v as the secondary IP config but got %v", testSecIp1, secondaryIP.IPAddress)
 	}
-}
 
-func TestSecondaryIPsToCRDSpecNilMap(t *testing.T) {
-	var (
-		secondaryIPs map[string]cns.SecondaryIPConfig
-		ipCount      int
-		err          error
-	)
-
-	ipCount = 10
-
-	// Test with nil secondaryIPs map
-	_, err = CNSToCRDSpec(secondaryIPs, ipCount)
-
-	if err == nil {
-		t.Fatalf("Expected error when converting nil map of secondary IPs into crd spec")
-	}
-}
-
-func TestSecondaryIPsToCRDSpecSuccess(t *testing.T) {
-	var (
-		secondaryIPs map[string]cns.SecondaryIPConfig
-		spec         nnc.NodeNetworkConfigSpec
-		ipCount      int
-		err          error
-	)
-
-	ipCount = 10
-
-	secondaryIPs = map[string]cns.SecondaryIPConfig{
-		allocatedUUID: {
-			IPAddress: testSecIp1,
-		},
-	}
-
-	// Test with secondary ip with ip and mask length correct
-	spec, err = CNSToCRDSpec(secondaryIPs, ipCount)
-
-	if err != nil {
-		t.Fatalf("Expected no error when converting secondary ips into crd spec but got %v", err)
-	}
-
-	if len(spec.IPsNotInUse) != 1 {
-		t.Fatalf("Expected crd spec's IPsNotInUse to have length 1, but has length %v", len(spec.IPsNotInUse))
-	}
-
-	if spec.IPsNotInUse[0] != allocatedUUID {
-		t.Fatalf("Expected crd's spec to contain UUID %v but got %v", allocatedUUID, spec.IPsNotInUse[0])
-	}
-
-	if spec.RequestedIPCount != int64(ipCount) {
-		t.Fatalf("Expected crd's spec RequestedIPCount to be equal to ipCount %v but got %v", ipCount, spec.RequestedIPCount)
+	ncVersionInInt, _ := strconv.Atoi(version)
+	if secondaryIP.NCVersion != ncVersionInInt {
+		t.Fatalf("Expected %d as the secondary IP config NC version but got %v", ncVersionInInt, secondaryIP.NCVersion)
 	}
 }

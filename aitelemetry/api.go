@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Microsoft/ApplicationInsights-Go/appinsights"
+	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 )
 
 // Application trace/log structure

@@ -51,6 +51,10 @@ func updateOVSConfig(option string) error {
 	return nil
 }
 
+func (client *OVSNetworkClient) AddRoutes(nwInfo *NetworkInfo, interfaceName string) error {
+	return nil
+}
+
 func NewOVSClient(bridgeName, hostInterfaceName string) *OVSNetworkClient {
 	ovsClient := &OVSNetworkClient{
 		bridgeName:        bridgeName,

@@ -15,9 +15,10 @@ import (
 
 // CrdReconciler watches for CRD status changes
 type CrdReconciler struct {
-	KubeClient KubeClient
-	NodeName   string
-	CNSClient  cnsclient.APIClient
+	KubeClient      KubeClient
+	NodeName        string
+	CNSClient       cnsclient.APIClient
+	IPAMPoolMonitor cns.IPAMPoolMonitor
 }
 
 // Reconcile is called on CRD status changes
@@ -55,13 +56,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
-	scalarUnits := cns.ScalarUnits{
-		BatchSize:               nodeNetConfig.Status.Scaler.BatchSize,
-		RequestThresholdPercent: nodeNetConfig.Status.Scaler.RequestThresholdPercent,
-		ReleaseThresholdPercent: nodeNetConfig.Status.Scaler.ReleaseThresholdPercent,
-	}
-
-	if err = r.CNSClient.CreateOrUpdateNC(ncRequest, scalarUnits); err != nil {
+	if err = r.CNSClient.CreateOrUpdateNC(ncRequest, nodeNetConfig.Status.Scaler, nodeNetConfig.Spec); err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 		// requeue
 		return reconcile.Result{}, err

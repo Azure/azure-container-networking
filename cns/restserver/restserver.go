@@ -42,8 +42,8 @@ type HTTPRestService struct {
 	PodIPIDByOrchestratorContext map[string]string                    // OrchestratorContext is key and value is Pod IP uuid.
 	PodIPConfigState             map[string]cns.IPConfigurationStatus // seondaryipid(uuid) is key
 	AllocatedIPCount             map[string]allocatedIPCount          // key - ncid
+	IPAMPoolMonitor              cns.IPAMPoolMonitor
 	routingTable                 *routes.RoutingTable
-	PoolMonitor                  cns.IPAMPoolMonitor
 	store                        store.KeyValueStore
 	state                        *httpRestServiceState
 	sync.RWMutex
@@ -176,6 +176,7 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.UnpublishNetworkContainer, service.unpublishNetworkContainer)
 	listener.AddHandler(cns.RequestIPConfig, service.requestIPConfigHandler)
 	listener.AddHandler(cns.ReleaseIPConfig, service.releaseIPConfigHandler)
+	listener.AddHandler(cns.GetIPAddresses, service.getIPAddressesHandler)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)

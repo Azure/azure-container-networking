@@ -3,6 +3,7 @@ package kubecontroller
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
@@ -36,6 +37,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 		ncRequest.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig)
 		ncRequest.NetworkContainerid = nc.ID
 		ncRequest.NetworkContainerType = cns.Docker
+		ncRequest.Version = nc.Version
 
 		if ip = net.ParseIP(nc.PrimaryIP); ip == nil {
 			return ncRequest, fmt.Errorf("Invalid PrimaryIP %s:", nc.PrimaryIP)
@@ -50,14 +52,18 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 		ipSubnet.PrefixLength = uint8(size)
 		ncRequest.IPConfiguration.IPSubnet = ipSubnet
 		ncRequest.IPConfiguration.GatewayIPAddress = nc.DefaultGateway
+		var ncVersion int
+		if ncVersion, err = strconv.Atoi(ncRequest.Version); err != nil {
+			return ncRequest, fmt.Errorf("Invalid ncRequest.Version is %s in CRD, err:%s", ncRequest.Version, err)
+		}
 
 		for _, ipAssignment = range nc.IPAssignments {
 			if ip = net.ParseIP(ipAssignment.IP); ip == nil {
 				return ncRequest, fmt.Errorf("Invalid SecondaryIP %s:", ipAssignment.IP)
 			}
-
 			secondaryIPConfig = cns.SecondaryIPConfig{
 				IPAddress: ip.String(),
+				NCVersion: ncVersion,
 			}
 			ncRequest.SecondaryIPConfigs[ipAssignment.Name] = secondaryIPConfig
 		}
@@ -65,24 +71,4 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 
 	//Only returning the first network container for now, later we will return a list
 	return ncRequest, nil
-}
-
-// CNSToCRDSpec translates CNS's map of Ips to be released and requested ip count into a CRD Spec
-func CNSToCRDSpec(toBeDeletedSecondaryIPConfigs map[string]cns.SecondaryIPConfig, ipCount int) (nnc.NodeNetworkConfigSpec, error) {
-	var (
-		spec nnc.NodeNetworkConfigSpec
-		uuid string
-	)
-
-	if toBeDeletedSecondaryIPConfigs == nil {
-		return spec, fmt.Errorf("Error when translating toBeDeletedSecondaryIPConfigs to CRD spec, map is nil")
-	}
-
-	spec.RequestedIPCount = int64(ipCount)
-
-	for uuid = range toBeDeletedSecondaryIPConfigs {
-		spec.IPsNotInUse = append(spec.IPsNotInUse, uuid)
-	}
-
-	return spec, nil
 }

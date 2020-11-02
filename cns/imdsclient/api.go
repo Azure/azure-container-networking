@@ -74,4 +74,5 @@ type ImdsClientInterface interface {
 	GetNetworkContainerInfoFromHost(networkContainerID string, primaryAddress string, authToken string, apiVersion string) (*ContainerVersion, error)
 	GetPrimaryInterfaceInfoFromHost() (*InterfaceInfo, error)
 	GetPrimaryInterfaceInfoFromMemory() (*InterfaceInfo, error)
+	GetNetworkContainerInfoFromHostWithoutToken() int
 }

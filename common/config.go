@@ -114,4 +114,12 @@ const (
 	// Managed mode
 	OptManaged      = "managed"
 	OptManagedAlias = "m"
+
+	// Client mode, cmd
+	OptDebugCmd      = "debugcmd"
+	OptDebugCmdAlias = "cmd"
+
+	// Client mode, args for cmd
+	OptDebugArg      = "debugarg"
+	OptDebugArgAlias = "darg"
 )

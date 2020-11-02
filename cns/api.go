@@ -4,9 +4,11 @@
 package cns
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/Azure/azure-container-networking/cns/common"
+	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
 // Container Network Service remote API Contract
@@ -35,9 +37,12 @@ type HTTPService interface {
 	SendNCSnapShotPeriodically(int, chan bool)
 	SetNodeOrchestrator(*SetOrchestratorTypeRequest)
 	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
+	GetPendingProgramIPConfigs() []IPConfigurationStatus
 	GetAvailableIPConfigs() []IPConfigurationStatus
+	GetAllocatedIPConfigs() []IPConfigurationStatus
+	GetPendingReleaseIPConfigs() []IPConfigurationStatus
 	GetPodIPConfigState() map[string]IPConfigurationStatus
-	MarkIPsAsPending(numberToMark int) (map[string]SecondaryIPConfig, error)
+	MarkIPsAsPending(numberToMark int) (map[string]IPConfigurationStatus, error)
 }
 
 // This is used for KubernetesCRD orchastrator Type where NC has multiple ips.
@@ -160,16 +165,9 @@ type NodeConfiguration struct {
 	NodeID     string
 	NodeSubnet Subnet
 }
-
 type IPAMPoolMonitor interface {
-	Start() error
-	UpdatePoolLimitsTransacted(ScalarUnits)
-}
-
-type ScalarUnits struct {
-	BatchSize               int64
-	RequestThresholdPercent int64
-	ReleaseThresholdPercent int64
+	Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error
+	Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
 }
 
 // Response describes generic response from CNS.

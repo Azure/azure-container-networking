@@ -120,6 +120,9 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
+	} else {
+		// Host version is the NC version from NMAgent, set it -1 to indicate no result from NMAgent yet.
+		hostVersion = "-1"
 	}
 
 	service.state.ContainerStatus[req.NetworkContainerid] =
@@ -172,7 +175,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
-			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs)
+			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, hostVersion)
 			if returnCode != 0 {
 				return returnCode, returnMesage
 			}
@@ -192,10 +195,9 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	return 0, ""
 }
 
-// This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted)
-// from the inmemory map
+// This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) (int, string) {
+func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string) (int, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
@@ -234,8 +236,17 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 		}
 	}
 
-	// Add the newIpConfigs, ignore if ip state is already in the map
-	service.addIPConfigStateUntransacted(req.NetworkContainerid, newIPConfigs)
+	newNCVersion, _ := strconv.Atoi(req.Version)
+	nmagentNCVersion, _ := strconv.Atoi(hostVersion)
+
+	// TODO, remove this override when background thread which update nmagent version is ready.
+	nmagentNCVersion = service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
+
+	if nmagentNCVersion >= newNCVersion {
+		service.addIPConfigStateUntransacted(cns.Available, req.NetworkContainerid, newIPConfigs, existingSecondaryIPConfigs)
+	} else {
+		service.addIPConfigStateUntransacted(cns.PendingProgramming, req.NetworkContainerid, newIPConfigs, existingSecondaryIPConfigs)
+	}
 
 	return 0, ""
 }
@@ -243,22 +254,28 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, ipconfigs map[string]cns.SecondaryIPConfig) {
+func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncId string, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
 	for ipId, ipconfig := range ipconfigs {
-		// if this IPConfig already exists in the map, then ignore as this is an idempotent state
+		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new NC version
+		// Set it back to previous NC version if IP already exist.
+		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipId]; existsInPreviousIPConfig {
+			ipconfig.NCVersion = existingIPConfig.NCVersion
+			ipconfigs[ipId] = ipconfig
+		}
+		logger.Printf("[Azure-Cns] Set IP %s version to %d", ipconfig.IPAddress, ipconfig.NCVersion)
 		if _, exists := service.PodIPConfigState[ipId]; exists {
 			continue
 		}
-
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
 			NCID:                ncId,
 			ID:                  ipId,
 			IPAddress:           ipconfig.IPAddress,
-			State:               cns.Available,
+			State:               newIPCNSStatus,
 			OrchestratorContext: nil,
 		}
+		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
 		service.PodIPConfigState[ipId] = ipconfigStatus
 
@@ -642,7 +659,7 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ncSnapshotIntervalInM
 	}
 }
 
-func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.GetIPConfigRequest) (cns.KubernetesPodInfo, int, string) {
+func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPConfigRequest) (cns.KubernetesPodInfo, int, string) {
 	var podInfo cns.KubernetesPodInfo
 
 	if service.state.OrchestratorType != cns.KubernetesCRD {
@@ -688,6 +705,7 @@ func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus 
 
 	podIpInfo.HostPrimaryIPInfo.PrimaryIP = hostInterfaceInfo.PrimaryIP
 	podIpInfo.HostPrimaryIPInfo.Subnet = hostInterfaceInfo.Subnet
+	podIpInfo.HostPrimaryIPInfo.Gateway = hostInterfaceInfo.Gateway
 
 	return nil
 }

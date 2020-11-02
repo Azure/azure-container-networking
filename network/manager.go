@@ -4,6 +4,7 @@
 package network
 
 import (
+	"net"
 	"sync"
 	"time"
 
@@ -18,7 +19,14 @@ const (
 	// Network store key.
 	storeKey    = "Network"
 	VlanIDKey   = "VlanID"
+	AzureCNS    = "azure-cns"
+	SNATIPKey   = "NCPrimaryIPKey"
+	HostGWKey   = "HostGatewayIP"
 	genericData = "com.docker.network.generic"
+)
+
+var (
+	Ipv4DefaultRouteDstPrefix = net.IPNet{net.IPv4zero, net.IPv4Mask(0, 0, 0, 0)}
 )
 
 type NetworkClient interface {
@@ -28,6 +36,7 @@ type NetworkClient interface {
 	DeleteL2Rules(extIf *externalInterface)
 	SetBridgeMasterToHostInterface() error
 	SetHairpinOnHostInterface(bool) error
+	AddRoutes(nwInfo *NetworkInfo, interfaceName string) error
 }
 
 type EndpointClient interface {

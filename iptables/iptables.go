@@ -22,6 +22,9 @@ const (
 	Forward     = "FORWARD"
 	Prerouting  = "PREROUTING"
 	Postrouting = "POSTROUTING"
+	Swift       = "SWIFT"
+	Snat        = "SNAT"
+	Return      = "RETURN"
 )
 
 // Standard Table names
@@ -60,6 +63,22 @@ const (
 const (
 	V4 = "4"
 	V6 = "6"
+)
+
+// known ports
+const (
+	DNSPort = 53
+)
+
+// known protocols
+const (
+	UDP = "udp"
+	TCP = "tcp"
+)
+
+// known IP's
+const (
+	AzureDNS = "168.63.129.16"
 )
 
 var (

@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/store"
-	"github.com/Microsoft/ApplicationInsights-Go/appinsights"
+	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 )
 
 const (

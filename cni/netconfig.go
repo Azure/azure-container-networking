@@ -42,11 +42,11 @@ type RuntimeDNSConfig struct {
 
 // NetworkConfig represents Azure CNI plugin network configuration.
 type NetworkConfig struct {
-	CNIVersion                    string   `json:"cniVersion"`
-	Name                          string   `json:"name"`
-	Type                          string   `json:"type"`
-	Mode                          string   `json:"mode"`
-	Master                        string   `json:"master"`
+	CNIVersion                    string   `json:"cniVersion,omitempty"`
+	Name                          string   `json:"name,omitempty"`
+	Type                          string   `json:"type,omitempty"`
+	Mode                          string   `json:"mode,omitempty"`
+	Master                        string   `json:"master,omitempty"`
 	Bridge                        string   `json:"bridge,omitempty"`
 	LogLevel                      string   `json:"logLevel,omitempty"`
 	LogTarget                     string   `json:"logTarget,omitempty"`
@@ -69,10 +69,10 @@ type NetworkConfig struct {
 		Subnet        string `json:"subnet,omitempty"`
 		Address       string `json:"ipAddress,omitempty"`
 		QueryInterval string `json:"queryInterval,omitempty"`
-	}
-	DNS            cniTypes.DNS  `json:"dns"`
-	RuntimeConfig  RuntimeConfig `json:"runtimeConfig"`
-	AdditionalArgs []KVPair
+	} `json:"ipam,omitempty"`
+	DNS            cniTypes.DNS  `json:"dns,omitempty"`
+	RuntimeConfig  RuntimeConfig `json:"runtimeConfig,omitempty"`
+	AdditionalArgs []KVPair      `json:"AdditionalArgs,omitempty"`
 }
 
 type K8SPodEnvArgs struct {

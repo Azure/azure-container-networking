@@ -421,6 +421,11 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		log.Printf("[net] Applied dns config %v on %v", extIf.DNSInfo, bridgeName)
 	}
 
+	err = networkClient.AddRoutes(nwInfo, bridgeName)
+	if err != nil {
+		return err
+	}
+
 	if nwInfo.IPV6Mode == IPV6Nat {
 		// adds pod cidr gateway ip to bridge
 		if err = addIpv6NatGateway(nwInfo); err != nil {

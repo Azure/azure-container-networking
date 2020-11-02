@@ -99,12 +99,12 @@ type MockCNSClient struct {
 }
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
-func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest, scalarUnits cns.ScalarUnits) error {
+func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
 	mi.MockCNSUpdated = true
 	return nil
 }
 
-func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.KubernetesPodInfo, scalarUnits cns.ScalarUnits) error {
+func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.KubernetesPodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
 	mi.MockCNSInitialized = true
 	mi.Pods = podInfoByIP
 	mi.NCRequest = ncRequest
@@ -366,21 +366,13 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	ipConfig1 := cns.SecondaryIPConfig{
-		IPAddress: "10.0.0.1",
+	spec := nnc.NodeNetworkConfigSpec{
+		RequestedIPCount: int64(10),
+		IPsNotInUse: []string{
+			allocatedUUID,
+			allocatedUUID2,
+		},
 	}
-
-	ipConfig2 := cns.SecondaryIPConfig{
-		IPAddress: "10.0.0.2",
-	}
-
-	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
-		allocatedUUID:  ipConfig1,
-		allocatedUUID2: ipConfig2,
-	}
-	ipCount := 10
-
-	spec, _ := CNSToCRDSpec(secondaryIPConfigs, ipCount)
 
 	//Test updating spec for existing NodeNetworkConfig
 	err := rc.UpdateCRDSpec(context.Background(), spec)
@@ -415,22 +407,13 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	ipConfig1 := cns.SecondaryIPConfig{
-		IPAddress: "10.0.0.1",
+	spec := nnc.NodeNetworkConfigSpec{
+		RequestedIPCount: int64(10),
+		IPsNotInUse: []string{
+			allocatedUUID,
+			allocatedUUID2,
+		},
 	}
-
-	ipConfig2 := cns.SecondaryIPConfig{
-		IPAddress: "10.0.0.2",
-	}
-
-	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
-		allocatedUUID:  ipConfig1,
-		allocatedUUID2: ipConfig2,
-	}
-
-	ipCount := 10
-
-	spec, _ := CNSToCRDSpec(secondaryIPConfigs, ipCount)
 
 	//Test update spec for existing NodeNetworkConfig
 	err := rc.UpdateCRDSpec(context.Background(), spec)
@@ -609,6 +592,7 @@ func TestInitRequestController(t *testing.T) {
 						},
 					},
 					SubnetAddressSpace: subnetRange,
+					Version:            "1",
 				},
 			},
 		},

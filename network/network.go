@@ -60,6 +60,7 @@ type NetworkInfo struct {
 	Id                            string
 	Mode                          string
 	Subnets                       []SubnetInfo
+	PodSubnet                     SubnetInfo
 	DNS                           DNSInfo
 	Policies                      []policy.Policy
 	BridgeName                    string
@@ -68,14 +69,16 @@ type NetworkInfo struct {
 	Options                       map[string]interface{}
 	DisableHairpinOnHostInterface bool
 	IPV6Mode                      string
+	IPAMType                      string
 	ServiceCidrs                  string
 }
 
 // SubnetInfo contains subnet information for a container network.
 type SubnetInfo struct {
-	Family  platform.AddressFamily
-	Prefix  net.IPNet
-	Gateway net.IP
+	Family    platform.AddressFamily
+	Prefix    net.IPNet
+	Gateway   net.IP
+	PrimaryIP net.IP
 }
 
 // DNSInfo contains DNS information for a container network or endpoint.

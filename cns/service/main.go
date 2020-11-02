@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
@@ -38,11 +40,12 @@ import (
 
 const (
 	// Service name.
-	name                            = "azure-cns"
-	pluginName                      = "azure-vnet"
-	defaultCNINetworkConfigFileName = "10-azure.conflist"
-	configFileName                  = "config.json"
-	dncApiVersion                   = "?api-version=2018-03-01"
+	name                              = "azure-cns"
+	pluginName                        = "azure-vnet"
+	defaultCNINetworkConfigFileName   = "10-azure.conflist"
+	configFileName                    = "config.json"
+	dncApiVersion                     = "?api-version=2018-03-01"
+	poolIPAMRefreshRateInMilliseconds = 1000
 )
 
 // Version is populated by make during build.
@@ -220,6 +223,20 @@ var args = acn.ArgumentList{
 		Type:         "bool",
 		DefaultValue: false,
 	},
+	{
+		Name:         acn.OptDebugCmd,
+		Shorthand:    acn.OptDebugCmdAlias,
+		Description:  "Debug flag to retrieve IPconfigs, available values: allocated, available, all",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptDebugArg,
+		Shorthand:    acn.OptDebugArgAlias,
+		Description:  "Argument flag to be paired with the 'debugcmd' flag.",
+		Type:         "string",
+		DefaultValue: "",
+	},
 }
 
 // Prints description and version information.
@@ -292,6 +309,8 @@ func main() {
 	privateEndpoint := acn.GetArg(acn.OptPrivateEndpoint).(string)
 	infravnet := acn.GetArg(acn.OptInfrastructureNetworkID).(string)
 	nodeID := acn.GetArg(acn.OptNodeID).(string)
+	clientDebugCmd := acn.GetArg(acn.OptDebugCmd).(string)
+	clientDebugArg := acn.GetArg(acn.OptDebugArg).(string)
 
 	if vers {
 		printVersion()
@@ -311,6 +330,15 @@ func main() {
 
 	// Create logging provider.
 	logger.InitLogger(name, logLevel, logTarget, logDirectory)
+
+	if clientDebugCmd != "" {
+		err := cnsclient.HandleCNSClientCommands(clientDebugCmd, clientDebugArg)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	if !telemetryEnabled {
 		logger.Errorf("[Azure CNS] Cannot disable telemetry via cmdline. Update cns_config.json to disable telemetry.")
@@ -462,6 +490,9 @@ func main() {
 			return
 		}
 
+		// initialize the ipam pool monitor
+		httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
+
 		//Start the RequestController which starts the reconcile loop
 		requestControllerStopChannel := make(chan struct{})
 		defer close(requestControllerStopChannel)
@@ -472,9 +503,12 @@ func main() {
 			}
 		}()
 
-		poolMonitor := ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestService, requestController)
-
-		httpRestServiceImplementation.PoolMonitor = poolMonitor
+		ctx := context.Background()
+		go func() {
+			if err := httpRestServiceImplementation.IPAMPoolMonitor.Start(ctx, poolIPAMRefreshRateInMilliseconds); err != nil {
+				logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", err)
+			}
+		}()
 	}
 
 	var netPlugin network.NetPlugin

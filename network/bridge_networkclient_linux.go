@@ -1,7 +1,9 @@
 package network
 
 import (
+	"fmt"
 	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
@@ -44,6 +46,59 @@ func (client *LinuxBridgeClient) CreateBridge() error {
 	}
 
 	return epcommon.DisableRAForInterface(client.bridgeName)
+}
+
+func (client *LinuxBridgeClient) AddRoutes(nwInfo *NetworkInfo, interfaceName string) error {
+	if client.nwInfo.IPAMType == AzureCNS {
+
+		// fetch the host gateway IP from options
+		gwIP := client.nwInfo.Options[HostGWKey]
+		if gwIP == nil {
+			return fmt.Errorf("Host gateway IP in Options not set")
+		}
+
+		gatewayIP := net.ParseIP(gwIP.(string))
+		if gatewayIP == nil {
+			return fmt.Errorf("Invalid host gateway IP: %+v", gwIP)
+		}
+
+		// add host gateway as the default gateway for pod IP's
+		devIf, _ := net.InterfaceByName(interfaceName)
+		ifIndex := devIf.Index
+		family := netlink.GetIpAddressFamily(gatewayIP)
+
+		nlRoute := &netlink.Route{
+			Family:    family,
+			Dst:       &client.nwInfo.PodSubnet.Prefix,
+			Gw:        gatewayIP,
+			LinkIndex: ifIndex,
+		}
+
+		log.Printf("Adding Swift route %+v", nlRoute)
+
+		if err := netlink.AddIpRoute(nlRoute); err != nil {
+			if !strings.Contains(strings.ToLower(err.Error()), "file exists") {
+				return fmt.Errorf("Failed to add route to host interface with error: %v", err)
+			}
+			log.Printf("[cni-cns-net] route already exists: dst %+v, gw %+v, interfaceName %v", nlRoute.Dst, nlRoute.Gw, interfaceName)
+		}
+
+		// Add snat Rules
+		snatIP := client.nwInfo.Options[SNATIPKey]
+		if snatIP == nil {
+			return fmt.Errorf("snatIP in Options not set %v", snatIP)
+		}
+
+		ncPrimaryIP := net.ParseIP(fmt.Sprintf("%v", snatIP))
+		if ncPrimaryIP == nil {
+			return fmt.Errorf("Failed to parse SNAT IP from options %v", client.nwInfo.Options)
+		}
+
+		log.Printf("Adding SNAT rule with snat IP %+v for subnet %s", ncPrimaryIP, client.nwInfo.PodSubnet.Prefix)
+		return epcommon.SNATfromSubnetToDNSWithNCPrimaryIP(ncPrimaryIP, client.nwInfo.PodSubnet.Prefix)
+
+	}
+	return nil
 }
 
 func (client *LinuxBridgeClient) DeleteBridge() error {

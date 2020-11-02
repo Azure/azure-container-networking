@@ -4,8 +4,7 @@
    "plugins":[
       {
          "type":"azure-vnet",
-         "mode":"bridge",
-         "bridge":"azure0",
+         "mode":"transparent",
          "ipsToRouteViaHost":["169.254.20.10"],
          "ipam":{
             "type":"azure-vnet-ipam"

@@ -177,7 +177,6 @@ func (crdRC *crdRequestController) initCNS() error {
 		cntxt         context.Context
 		ncRequest     cns.CreateNetworkContainerRequest
 		err           error
-		scalarUnits   cns.ScalarUnits
 	)
 
 	cntxt = context.Background()
@@ -190,15 +189,14 @@ func (crdRC *crdRequestController) initCNS() error {
 			os.Exit(1)
 		}
 
-		scalarUnits = cns.ScalarUnits{
-			BatchSize:               nodeNetConfig.Status.Scaler.BatchSize,
-			RequestThresholdPercent: nodeNetConfig.Status.Scaler.RequestThresholdPercent,
-			ReleaseThresholdPercent: nodeNetConfig.Status.Scaler.ReleaseThresholdPercent,
+		if nodeNetConfig == nil {
+			logger.Errorf("NodeNetworkConfig is not present on cluster")
+			return nil
 		}
 
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
-			return crdRC.CNSClient.ReconcileNCState(nil, nil, scalarUnits)
+			return crdRC.CNSClient.ReconcileNCState(nil, nil, nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
 		}
 
 		// If it's any other error, log it and return
@@ -208,7 +206,7 @@ func (crdRC *crdRequestController) initCNS() error {
 
 	// If there are no NCs, pass nil to CNSClient
 	if len(nodeNetConfig.Status.NetworkContainers) == 0 {
-		return crdRC.CNSClient.ReconcileNCState(nil, nil, scalarUnits)
+		return crdRC.CNSClient.ReconcileNCState(nil, nil, nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
 	}
 
 	// Convert to CreateNetworkContainerRequest
@@ -239,7 +237,7 @@ func (crdRC *crdRequestController) initCNS() error {
 	}
 
 	// Call cnsclient init cns passing those two things
-	return crdRC.CNSClient.ReconcileNCState(&ncRequest, podInfoByIP, scalarUnits)
+	return crdRC.CNSClient.ReconcileNCState(&ncRequest, podInfoByIP, nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
 
 }
 
@@ -251,8 +249,12 @@ func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec 
 		return err
 	}
 
+	logger.Printf("[cns-rc] Received update for IP count %+v", crdSpec)
+
 	//Update the CRD spec
 	crdSpec.DeepCopyInto(&nodeNetworkConfig.Spec)
+
+	logger.Printf("[cns-rc] After deep copy %+v", nodeNetworkConfig.Spec)
 
 	//Send update to API server
 	if err := crdRC.updateNodeNetConfig(cntxt, nodeNetworkConfig); err != nil {

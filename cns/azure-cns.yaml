@@ -93,7 +93,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: mcr.microsoft.com/containernetworking/azure-cns:v1.1.1
+          image: mcr.microsoft.com/containernetworking/azure-cns:v1.1.9-alpha
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           volumeMounts:
@@ -107,9 +107,7 @@ spec:
             - containerPort: 10090
           env:
             - name: CNSIpAddress
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
+              value: "127.0.0.1"
             - name: CNSPort
               value: "10090"
             - name: CNSLogTarget

@@ -878,6 +878,8 @@ func startService() {
 		return
 	}
 
+	svc.IPAMPoolMonitor = fakes.NewIPAMPoolMonitorFake()
+
 	if service != nil {
 		err = service.Start(&config)
 		if err != nil {
