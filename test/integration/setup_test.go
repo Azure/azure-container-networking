@@ -83,6 +83,16 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 		return err
 	}
 
+	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
+	if _, err := mustSetUpClusterRBAC(ctx, clientset, cnsClusterRolePath, cnsClusterRoleBindingPath, cnsServiceAccountPath); err != nil {
+		return err
+	}
+
+	// setup RBAC, Role, RoleBinding
+	if err := mustSetUpRBAC(ctx, clientset, cnsRolePath, cnsRoleBindingPath); err != nil {
+		return err
+	}
+
 	// setup daemonset
 	if cns, err = mustParseDaemonSet(cnsDaemonSetPath); err != nil {
 		return err
@@ -93,17 +103,7 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
 	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
-	if err = mustCreateDaemonSet(ctx, cnsDaemonsetClient, cns); err != nil {
-		return err
-	}
-
-	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-	if _, err := mustSetUpClusterRBAC(ctx, clientset, cnsClusterRolePath, cnsClusterRoleBindingPath, cnsServiceAccountPath); err != nil {
-		return err
-	}
-
-	// setup RBAC, Role, RoleBinding
-	if err := mustSetUpRBAC(ctx, clientset, cnsRolePath, cnsRoleBindingPath); err != nil {
+	if err = mustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
 		return err
 	}
 
@@ -126,7 +126,7 @@ func installCNI(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 	cniDaemonsetClient := clientset.AppsV1().DaemonSets(cni.Namespace)
 
 	log.Printf("Installing CNI with image %s", cni.Spec.Template.Spec.Containers[0].Image)
-	if err = mustCreateDaemonSet(ctx, cniDaemonsetClient, cni); err != nil {
+	if err = mustCreateDaemonset(ctx, cniDaemonsetClient, cni); err != nil {
 		return err
 	}
 

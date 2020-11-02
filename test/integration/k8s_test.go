@@ -90,6 +90,8 @@ func TestPodScaling(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	daemonset, err := mustParseDaemonSet("manifests/daemonset.yaml")
+
 	ctx := context.Background()
 
 	if shouldLabelNodes() {
@@ -106,6 +108,12 @@ func TestPodScaling(t *testing.T) {
 
 	deploymentsClient := clientset.AppsV1().Deployments(deployment.Namespace)
 	err = mustCreateDeployment(ctx, deploymentsClient, deployment)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
+	err = mustCreateDaemonset(ctx, daemonsetClient, daemonset)
 	if err != nil {
 		t.Fatal(err)
 	}

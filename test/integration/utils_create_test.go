@@ -17,8 +17,8 @@ import (
 	typedrbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 )
 
-func mustCreateDaemonSet(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
-	if err := mustDeleteDaemonSet(ctx, daemonsets, ds); err != nil {
+func mustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
+	if err := mustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
 		return err
 	}
 
