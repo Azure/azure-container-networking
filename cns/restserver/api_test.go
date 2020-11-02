@@ -305,7 +305,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println("Now calling getNetworkContainerStatus")
+	fmt.Println("Now calling getNetworkContainerByContext")
 	err = getNetworkContainerByContext(t, params)
 	if err != nil {
 		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
@@ -350,7 +350,7 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 	}
 
 	fmt.Println("Now calling getInterfaceForContainer")
-	err = getInterfaceForContainer(t, "ethWebApp")
+	err = getInterfaceForContainer(t, params)
 	if err != nil {
 		t.Errorf("getInterfaceForContainer failed Err:%+v", err)
 		t.Fatal(err)
@@ -781,39 +781,12 @@ func getNetworkContainerByContextExpectedError(t *testing.T, params createOrUpda
 	return nil
 }
 
-func getNetworkContainerStatus(t *testing.T, name string) error {
-	var body bytes.Buffer
-	var resp cns.GetNetworkContainerStatusResponse
-
-	getReq := &cns.GetNetworkContainerStatusRequest{
-		NetworkContainerid: name,
-	}
-
-	json.NewEncoder(&body).Encode(getReq)
-	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerStatus, &body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	err = decodeResponse(w, &resp)
-	if err != nil || resp.Response.ReturnCode != 0 {
-		t.Errorf("GetNetworkContainerStatus failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
-	}
-
-	fmt.Printf("**GetNetworkContainerStatus succeded with response %+v, raw:%+v\n", resp, w.Body)
-	return nil
-}
-
-func getInterfaceForContainer(t *testing.T, name string) error {
+func getInterfaceForContainer(t *testing.T, params createOrUpdateNetworkContainerParams) error {
 	var body bytes.Buffer
 	var resp cns.GetInterfaceForContainerResponse
 
 	getReq := &cns.GetInterfaceForContainerRequest{
-		NetworkContainerID: name,
+		NetworkContainerID: cns.SwiftPrefix + params.ncID,
 	}
 
 	json.NewEncoder(&body).Encode(getReq)
