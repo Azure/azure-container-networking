@@ -373,6 +373,5 @@ func (networkContainerRequestPolicy *NetworkContainerRequestPolicies) Validate()
 
 // NodeInfoResponse - Struct to hold the node info response.
 type NodeInfoResponse struct {
-	NetworkContainers  []CreateNetworkContainerRequest
-	GetNCVersionURLFmt string
+	NetworkContainers []CreateNetworkContainerRequest
 }
