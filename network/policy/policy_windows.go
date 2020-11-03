@@ -176,7 +176,8 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 		}
 	}
 
-	if dataRoute.Type == ACLPolicy {
+	// Check if the type is ACLPolicy
+	if policy.Type == ACLPolicy {
 		return ACLPolicy
 	}
 
@@ -353,6 +354,8 @@ func GetHcnACLPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 		Type: hcn.ACL,
 	}
 
+	// Check beforehand, the input meets the expected format
+	// otherwise, endpoint creation will fail later on.
 	var aclPolicySetting hcn.AclPolicySetting
 	if err := json.Unmarshal(policy.Data, &aclPolicySetting); err != nil {
 		return aclEndpolicySetting, err
@@ -364,7 +367,6 @@ func GetHcnACLPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 	}
 
 	aclEndpolicySetting.Settings = aclPolicySettingBytes
-
 	return aclEndpolicySetting, nil
 }
 
