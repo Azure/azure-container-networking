@@ -515,7 +515,8 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		}
 
 		if ar == nil {
-			return "", errNoAvailableAddresses
+			err = errNoAvailableAddresses
+			return "", err
 		}
 	}
 
