@@ -197,6 +197,7 @@ func TestPodScaling(t *testing.T) {
 					if err != nil {
 						return err
 					}
+
 					streamHandle = handle
 					return nil
 				}
