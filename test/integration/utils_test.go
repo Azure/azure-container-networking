@@ -130,8 +130,6 @@ func mustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, 
 		return cleanupFunc, err
 	}
 
-	log.Printf("rbac set up")
-
 	return cleanupFunc, nil
 }
 

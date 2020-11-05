@@ -4,6 +4,7 @@ package k8s
 
 import (
 	"context"
+	"log"
 
 	//crd "dnc/requestcontroller/kubernetes"
 
@@ -21,7 +22,7 @@ func mustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetIn
 	if err := mustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
 		return err
 	}
-
+	log.Printf("Creating Daemonset %v", ds.Name)
 	if _, err := daemonsets.Create(ctx, &ds, metav1.CreateOptions{}); err != nil {
 		return err
 	}
@@ -33,7 +34,7 @@ func mustCreateDeployment(ctx context.Context, deployments typedappsv1.Deploymen
 	if err := mustDeleteDeployment(ctx, deployments, d); err != nil {
 		return err
 	}
-
+	log.Printf("Creating Deployment %v", d.Name)
 	if _, err := deployments.Create(ctx, &d, metav1.CreateOptions{}); err != nil {
 		return err
 	}
@@ -47,6 +48,7 @@ func mustCreateServiceAccount(ctx context.Context, svcAccounts typedcorev1.Servi
 			return err
 		}
 	}
+	log.Printf("Creating ServiceAccount %v", s.Name)
 	if _, err := svcAccounts.Create(ctx, &s, metav1.CreateOptions{}); err != nil {
 		return err
 	}
@@ -60,6 +62,7 @@ func mustCreateClusterRole(ctx context.Context, clusterRoles typedrbacv1.Cluster
 			return err
 		}
 	}
+	log.Printf("Creating ClusterRoles %v", cr.Name)
 	if _, err := clusterRoles.Create(ctx, &cr, metav1.CreateOptions{}); err != nil {
 		return err
 	}
@@ -73,6 +76,7 @@ func mustCreateClusterRoleBinding(ctx context.Context, crBindings typedrbacv1.Cl
 			return err
 		}
 	}
+	log.Printf("Creating RoleBinding %v", crb.Name)
 	if _, err := crBindings.Create(ctx, &crb, metav1.CreateOptions{}); err != nil {
 		return err
 	}
@@ -86,6 +90,7 @@ func mustCreateRole(ctx context.Context, rs typedrbacv1.RoleInterface, r rbacv1.
 			return err
 		}
 	}
+	log.Printf("Creating Role %v", r.Name)
 	if _, err := rs.Create(ctx, &r, metav1.CreateOptions{}); err != nil {
 		return err
 	}
@@ -99,6 +104,7 @@ func mustCreateRoleBinding(ctx context.Context, rbi typedrbacv1.RoleBindingInter
 			return err
 		}
 	}
+	log.Printf("Creating RoleBinding %v", rb.Name)
 	if _, err := rbi.Create(ctx, &rb, metav1.CreateOptions{}); err != nil {
 		return err
 	}
@@ -112,6 +118,7 @@ func mustCreateConfigMap(ctx context.Context, cmi typedcorev1.ConfigMapInterface
 			return err
 		}
 	}
+	log.Printf("Creating ConfigMap %v", cm.Name)
 	if _, err := cmi.Create(ctx, &cm, metav1.CreateOptions{}); err != nil {
 		return err
 	}

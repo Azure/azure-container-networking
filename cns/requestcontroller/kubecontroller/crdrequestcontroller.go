@@ -190,7 +190,7 @@ func (crdRC *crdRequestController) initCNS() error {
 		}
 
 		if nodeNetConfig == nil {
-			logger.Errorf("NodeNetworkConfig is not present on cluster")
+			logger.Errorf("NodeNetworkConfig is not present on cluster for nodeName %v in namespace %v", crdRC.nodeName)
 			return nil
 		}
 

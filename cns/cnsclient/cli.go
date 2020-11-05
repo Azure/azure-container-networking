@@ -2,6 +2,7 @@ package cnsclient
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -20,7 +21,8 @@ const (
 	eth0InterfaceName   = "eth0"
 	azure0InterfaceName = "azure0"
 
-	defaultCNSURl = "http://localhost:10090"
+	envCNSIPAddress = "CNSIpAddress"
+	envCNSPort      = "CNSPort"
 )
 
 var (
@@ -36,7 +38,11 @@ var (
 )
 
 func HandleCNSClientCommands(cmd, arg string) error {
-	cnsClient, err := InitCnsClient(defaultCNSURl)
+
+	cnsIPAddress := os.Getenv(envCNSIPAddress)
+	cnsPort := os.Getenv(envCNSPort)
+
+	cnsClient, err := InitCnsClient("http://" + cnsIPAddress + ":" + cnsPort)
 	if err != nil {
 		return err
 	}

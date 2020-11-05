@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 	"testing"
 
 	v1 "k8s.io/api/apps/v1"
@@ -27,7 +28,7 @@ const (
 	cnsClusterRolePath        = cnsManifestFolder + "/clusterrole.yaml"
 	cnsClusterRoleBindingPath = cnsManifestFolder + "/clusterrolebinding.yaml"
 	cnsConfigMapPath          = cnsManifestFolder + "/configmap.yaml"
-	cnsRolePath               = cnsManifestFolder + "/configmap.yaml"
+	cnsRolePath               = cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath        = cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath     = cnsManifestFolder + "/serviceaccount.yaml"
 )
@@ -40,6 +41,11 @@ func TestMain(m *testing.M) {
 	)
 
 	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(string(debug.Stack()))
+			exitCode = exitFail
+		}
+
 		if err != nil {
 			log.Print(err)
 			exitCode = exitFail
@@ -61,6 +67,7 @@ func TestMain(m *testing.M) {
 
 	// create dirty cni-manager ds
 	if err = installCNI(ctx, clientset, testTag); err != nil {
+		log.Print(err)
 		return
 	}
 
@@ -78,6 +85,13 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 		cns v1.DaemonSet
 	)
 
+	// setup daemonset
+	if cns, err = mustParseDaemonSet(cnsDaemonSetPath); err != nil {
+		return err
+	}
+
+	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
+
 	// setup the CNS configmap
 	if err := mustSetupConfigMap(ctx, clientset, cnsConfigMapPath); err != nil {
 		return err
@@ -93,16 +107,10 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 		return err
 	}
 
-	// setup daemonset
-	if cns, err = mustParseDaemonSet(cnsDaemonSetPath); err != nil {
-		return err
-	}
-
 	image, _ := parseImageString(cns.Spec.Template.Spec.Containers[0].Image)
 	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
-	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
 	if err = mustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
 		return err
 	}
@@ -120,12 +128,13 @@ func installCNI(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 		return err
 	}
 
+	log.Printf("Installing CNI with image %s", cni.Spec.Template.Spec.Containers[0].Image)
+
 	// set the custom image tag and install
 	image, _ := parseImageString(cni.Spec.Template.Spec.Containers[0].Image)
 	cni.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
 	cniDaemonsetClient := clientset.AppsV1().DaemonSets(cni.Namespace)
 
-	log.Printf("Installing CNI with image %s", cni.Spec.Template.Spec.Containers[0].Image)
 	if err = mustCreateDaemonset(ctx, cniDaemonsetClient, cni); err != nil {
 		return err
 	}

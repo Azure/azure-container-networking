@@ -37,6 +37,8 @@ const (
 	gpClusterRolePath        = gpFolder + "/cluster-role.yaml"
 	gpClusterRoleBindingPath = gpFolder + "/cluster-role-binding.yaml"
 	gpServiceAccountPath     = gpFolder + "/service-account.yaml"
+
+	retryWindow = 30 * time.Second
 )
 
 func shouldLabelNodes() bool {
@@ -187,13 +189,14 @@ func TestPodScaling(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				portForwardCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-				defer cancel()
+				//portForwardCtx, cancel := context.WithTimeout(ctx, retryWindow)
+				portForwardCtx := context.Background()
+				//defer cancel()
 
 				var streamHandle PortForwardStreamHandle
 				portForwardFn := func() error {
 					t.Log("attempting port forward")
-					handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 9090, 8080)
+					handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 8080, 8080)
 					if err != nil {
 						return err
 					}
@@ -202,7 +205,7 @@ func TestPodScaling(t *testing.T) {
 					return nil
 				}
 				if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-					t.Fatalf("could not start port forward within 30s: %v", err)
+					t.Fatalf("could not start port forward within %v: %v", retryWindow.String(), err)
 				}
 				defer streamHandle.Stop()
 
