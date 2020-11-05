@@ -139,6 +139,7 @@ func UpdatePodIpConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 	for _, ipconfig := range ipconfigs {
 		secIpConfig := cns.SecondaryIPConfig{
 			IPAddress: ipconfig.IPAddress,
+			NCVersion: -1,
 		}
 
 		ipId := ipconfig.ID

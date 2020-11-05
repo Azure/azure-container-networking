@@ -216,7 +216,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	var startingIndex = 6
 	for i := 0; i < 4; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress, 0)
+		secIpConfig := newSecondaryIPConfig(ipaddress, -1)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
@@ -253,7 +253,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	var startingIndex = 6
 	for i := 0; i < 4; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress, 0)
+		secIpConfig := newSecondaryIPConfig(ipaddress, -1)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
