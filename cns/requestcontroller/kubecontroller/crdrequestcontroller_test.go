@@ -592,7 +592,7 @@ func TestInitRequestController(t *testing.T) {
 						},
 					},
 					SubnetAddressSpace: subnetRange,
-					Version:            "1",
+					Version:            1,
 				},
 			},
 		},

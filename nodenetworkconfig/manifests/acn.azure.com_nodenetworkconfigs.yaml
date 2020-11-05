@@ -76,7 +76,8 @@ spec:
                   subnetName:
                     type: string
                   version:
-                    type: string
+                    format: int64
+                    type: integer
                 type: object
               type: array
             scaler:
