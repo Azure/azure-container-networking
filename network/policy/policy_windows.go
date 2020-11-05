@@ -176,6 +176,11 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 		}
 	}
 
+	// Check if the type is ACLPolicy
+	if policy.Type == ACLPolicy {
+		return ACLPolicy
+	}
+
 	// Return empty string if the policy type is invalid
 	log.Printf("Returning policyType INVALID")
 	return ""
@@ -343,6 +348,28 @@ func GetHcnPortMappingPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 	return portMappingPolicy, nil
 }
 
+// GetHcnACLPolicy returns ACL policy.
+func GetHcnACLPolicy(policy Policy) (hcn.EndpointPolicy, error) {
+	aclEndpolicySetting := hcn.EndpointPolicy{
+		Type: hcn.ACL,
+	}
+
+	// Check beforehand, the input meets the expected format
+	// otherwise, endpoint creation will fail later on.
+	var aclPolicySetting hcn.AclPolicySetting
+	if err := json.Unmarshal(policy.Data, &aclPolicySetting); err != nil {
+		return aclEndpolicySetting, err
+	}
+
+	aclPolicySettingBytes, err := json.Marshal(aclPolicySetting)
+	if err != nil {
+		return aclEndpolicySetting, err
+	}
+
+	aclEndpolicySetting.Settings = aclPolicySettingBytes
+	return aclEndpolicySetting, nil
+}
+
 // GetHcnEndpointPolicies returns array of all endpoint policies.
 func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatForDns, enableMultiTenancy bool) ([]hcn.EndpointPolicy, error) {
 	var (
@@ -363,6 +390,8 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 				endpointPolicy, err = GetHcnRoutePolicy(policy)
 			case PortMappingPolicy:
 				endpointPolicy, err = GetHcnPortMappingPolicy(policy)
+			case ACLPolicy:
+				endpointPolicy, err = GetHcnACLPolicy(policy)
 			default:
 				// return error as we should be able to parse all the policies specified
 				return hcnEndPointPolicies, fmt.Errorf("Failed to set Policy: Type: %s, Data: %s", policy.Type, policy.Data)
