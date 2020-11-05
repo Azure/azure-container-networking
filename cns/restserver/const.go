@@ -37,6 +37,7 @@ const (
 	UnsupportedOrchestratorContext         = 34
 	NetworkContainerVfpProgramComplete     = 35
 	NetworkContainerVfpProgramCheckSkipped = 36
+	UnsupportedNCVersion                   = 37
 	UnexpectedError                        = 99
 )
 
