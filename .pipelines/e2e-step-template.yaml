@@ -85,7 +85,7 @@ steps:
       export CLIENT_SECRET=$(AKS_ENGINE_CLIENT_SECRET) 
       export TENANT_ID=$(AKS_ENGINE_TENANT_ID) 
       export SUBSCRIPTION_ID=$(AKS_ENGINE_SUBSCRIPTION_ID) 
-      export CLEANUP_ON_EXIT=false
+      export CLEANUP_ON_EXIT=true
       export CLEANUP_IF_FAIL=false
       export REGIONS=$(AKS_ENGINE_REGION) 
       export IS_JENKINS=false 
