@@ -57,7 +57,7 @@ stages:
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=CommitHash;isOutput=true]$(git rev-parse HEAD)"
-              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
+              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)-test"
               export BRANCH=$(Build.SourceBranchName)
               echo Building branch $BRANCH from $(Build.SourceBranch) 
               if [[ "$BRANCH" == "master" ]]; then
@@ -151,20 +151,6 @@ stages:
             name: "mcrreplication"
             displayName: "Push NPM Image and Wait for Repository"
 
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(ARTIFACT_SUBSCRIPTION)
-              scriptLocation: "inlineScript"
-              addSpnToEnvironment: true
-              inlineScript: |
-                mkdir -p ~/.kube/
-                az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
-                az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/config
-              workingDirectory: "$(modulePath)"
-            displayName: Pull Kubeconfig from
-            condition: succeeded()
-
-
           - script: |
               cd ./output 
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
@@ -220,7 +206,7 @@ stages:
       name: "aks_on_swift_e2e"
       displayName: AKS on Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      imageVersionTag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.Tag'] ]-test
+      imageVersionTag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.Tag'] ]
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
