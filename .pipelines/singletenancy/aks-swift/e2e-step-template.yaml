@@ -33,7 +33,7 @@ steps:
     condition: succeeded()
 
   - script: |
-      sudo -E env "PATH=$PATH" VERSION=$(EnvironmentalVariables.Tag) make test-integration
+      sudo -E env "PATH=$PATH" VERSION=${{ parameters.imageVersionTag }} make test-integration
     workingDirectory: "$(modulePath)"
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"

@@ -57,12 +57,8 @@ stages:
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=CommitHash;isOutput=true]$(git rev-parse HEAD)"
-              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)-test"
-              export BRANCH=$(Build.SourceBranchName)
-              echo Building branch $BRANCH from $(Build.SourceBranch) 
-              if [[ "$BRANCH" == "master" ]]; then
-                echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --abbrev=0)"
-              fi
+              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
+              echo "##vso[task.setvariable variable=ImageTag;isOutput=true]$(git describe --tags --always --dirty)-test"
             workingDirectory: "$(modulePath)"
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
@@ -206,7 +202,7 @@ stages:
       name: "aks_on_swift_e2e"
       displayName: AKS on Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      imageVersionTag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.Tag'] ]
+      imageVersionTag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.ImageTag'] ]
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
