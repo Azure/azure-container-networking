@@ -3,7 +3,6 @@ parameters:
   imageVersionTag: ""
 
 steps:
-  - checkout: none
   - bash: |
       go version
       go env
@@ -19,4 +18,11 @@ steps:
       echo ${{ parameters.imageVersionTag }}
     displayName: Echo Tag
     workingDirectory: "$(modulePath)"
+
+  - script: |
+      sudo -E env "PATH=$PATH" VERSION=$(EnvironmentalVariables.Tag)-test make test-integration
+    workingDirectory: "$(modulePath)"
+    name: "aksswifte2e"
+    displayName: "Run AKS Swift E2E"
+
 
