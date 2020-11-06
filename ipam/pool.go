@@ -474,24 +474,22 @@ func (ap *addressPool) newAddressRecord(addr *net.IP) (*addressRecord, error) {
 func (ap *addressPool) requestAddress(address string, options map[string]string) (string, error) {
 	var ar *addressRecord
 	var addr *net.IPNet
-	var err error
 	id := options[OptAddressID]
 
 	log.Printf("[ipam] Requesting address with address:%v options:%+v.", address, options)
-	defer func() { log.Printf("[ipam] Address request completed with address:%v err:%v.", addr, err) }()
 
 	if address != "" {
 		// Return the specific address requested.
 		ar = ap.Addresses[address]
 		if ar == nil {
-			err = errAddressNotFound
-			return "", err
+			log.Printf("[ipam] Address request failed with %v", errAddressNotFound)
+			return "", errAddressNotFound
 		}
 		if ar.InUse {
 			// Return the same address if IDs match.
 			if id == "" || id != ar.ID {
-				err = errAddressInUse
-				return "", err
+				log.Printf("[ipam] Address request failed with %v", errAddressInUse)
+				return "", errAddressInUse
 			}
 		}
 	} else if options[OptAddressType] == OptAddressTypeGateway {
@@ -515,8 +513,8 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		}
 
 		if ar == nil {
-			err = errNoAvailableAddresses
-			return "", err
+			log.Printf("[ipam] Address request failed with %v", errNoAvailableAddresses)
+			return "", errNoAvailableAddresses
 		}
 	}
 
@@ -532,6 +530,8 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		IP:   ar.Addr,
 		Mask: ap.Subnet.Mask,
 	}
+
+	log.Printf("[ipam] Address request completed with address:%v", addr)
 
 	return addr.String(), nil
 }
