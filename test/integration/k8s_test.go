@@ -4,6 +4,8 @@ package k8s
 
 import (
 	"context"
+	"log"
+
 	//"dnc/test/integration/goldpinger"
 	"errors"
 	"flag"
@@ -23,7 +25,7 @@ import (
 )
 
 var (
-	defaultRetrier      = retry.Retrier{Attempts: 5, Delay: time.Second}
+	defaultRetrier      = retry.Retrier{Attempts: 3, Delay: 20 * time.Second}
 	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
@@ -136,7 +138,7 @@ func TestPodScaling(t *testing.T) {
 		}
 	})
 
-	counts := []int{10, 20, 10}
+	counts := []int{10}
 
 	for _, c := range counts {
 		count := c
@@ -149,7 +151,7 @@ func TestPodScaling(t *testing.T) {
 				t.Fatalf("could not scale deployment: %v", err)
 			}
 
-			t.Run("all pods have IPs assigned", func(t *testing.T) {
+			if !t.Run("all pods have IPs assigned", func(t *testing.T) {
 				podsClient := clientset.CoreV1().Pods(deployment.Namespace)
 
 				checkPodIPsFn := func() error {
@@ -181,7 +183,10 @@ func TestPodScaling(t *testing.T) {
 					t.Fatalf("not all pods were allocated IPs: %v", err)
 				}
 				t.Log("all pods have been allocated IPs")
-			})
+			}) {
+				errors.New("Pods don't have IP's")
+				return
+			}
 
 			t.Run("all pods can ping each other", func(t *testing.T) {
 				pf, err := NewPortForwarder(restConfig)
@@ -195,8 +200,8 @@ func TestPodScaling(t *testing.T) {
 
 				var streamHandle PortForwardStreamHandle
 				portForwardFn := func() error {
-					t.Log("attempting port forward")
-					handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 8080, 8080)
+					log.Printf("attempting port forward")
+					handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 9090, 8080)
 					if err != nil {
 						return err
 					}
