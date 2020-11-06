@@ -158,7 +158,7 @@ func (s *azureSource) refresh() error {
 				continue
 			}
 
-			addesscount := 0
+			addressCount := 0
 			// For each address in the subnet...
 			for _, a := range s.IPAddress {
 				// Primary addresses are reserved for the host.
@@ -173,9 +173,9 @@ func (s *azureSource) refresh() error {
 					log.Printf("[ipam] Failed to create address:%v err:%v.", address, err)
 					continue
 				}
-				addesscount++
+				addressCount++
 			}
-			log.Printf("[ipam] got %d addresses from interface %s, subnet %s", ifName, subnet)
+			log.Printf("[ipam] got %d addresses from interface %s, subnet %s", addressCount, ifName, subnet)
 		}
 	}
 
