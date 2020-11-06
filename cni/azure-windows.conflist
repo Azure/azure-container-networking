@@ -40,46 +40,6 @@
                         "DestinationPrefix": "10.0.0.0/8",
                         "NeedEncap": true
                     }
-                },
-                {
-                    "Name": "EndpointPolicy",
-                    "Value": {
-                        "Type": "ACL",
-                        "Action": "Allow",
-                        "Direction": "Out",
-                        "RemoteAddresses": "168.63.129.16/32",
-                        "Protocols": "17",
-                        "RemotePorts": "53",
-                        "Priority": 200
-                    }
-                },
-                {
-                    "Name": "EndpointPolicy",
-                    "Value": {
-                        "Type": "ACL",
-                        "Action": "Block",
-                        "Direction": "Out",
-                        "RemoteAddresses": "168.63.129.16/32",
-                        "Priority": 65000
-                    }
-                },
-                {
-                    "Name": "EndpointPolicy",
-                    "Value": {
-                        "Type": "ACL",
-                        "Action": "Allow",
-                        "Direction": "Out",
-                        "Priority": 65500
-                    }
-                },
-                {
-                    "Name": "EndpointPolicy",
-                    "Value": {
-                        "Type": "ACL",
-                        "Action": "Allow",
-                        "Direction": "In",
-                        "Priority": 65500
-                    }
                 }
             ]
         }
