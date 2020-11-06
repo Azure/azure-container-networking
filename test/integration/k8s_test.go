@@ -210,7 +210,7 @@ func TestPodScaling(t *testing.T) {
 					return nil
 				}
 				if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-					t.Fatalf("could not start port forward within %v: %v", retryWindow.String(), err)
+					t.Fatalf("could  not start port forward within %v: %v", retryWindow.String(), err)
 				}
 				defer streamHandle.Stop()
 

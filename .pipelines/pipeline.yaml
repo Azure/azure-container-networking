@@ -220,7 +220,14 @@ stages:
             displayName: Create artifact storage container
             condition: succeeded()
 
-  - template: e2e-job-template.yaml
+  - template: singletenancy/aks-swift/e2e-job-template.yaml
+    parameters:
+      name: "aks_on_swift_e2e"
+      displayName: AKS on Swift
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      imageVersionTag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.Tag'] ]-test
+
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "ubuntu_16_04_linux_e2e"
       displayName: Ubuntu 16.04
@@ -230,7 +237,7 @@ stages:
       clusterDefinitionCniBuildOS: "linux"
       clusterDefinitionCniBuildExt: ".tgz"
 
-  - template: e2e-job-template.yaml
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "ubuntu_18_04_linux_e2e"
       displayName: Ubuntu 18.04
@@ -240,7 +247,7 @@ stages:
       clusterDefinitionCniBuildOS: "linux"
       clusterDefinitionCniBuildExt: ".tgz"
 
-  - template: e2e-job-template.yaml
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "windows_18_09_e2e"
       displayName: "Windows 1809"
@@ -250,7 +257,7 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
-  - template: e2e-job-template.yaml
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "windows_19_03_e2e"
       displayName: "Windows 1903"

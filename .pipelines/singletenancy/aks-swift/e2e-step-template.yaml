@@ -1,0 +1,22 @@
+parameters:
+  name: ""
+  imageVersionTag: ""
+
+steps:
+  - checkout: none
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - bash: |
+      echo ${{ parameters.imageVersionTag }}
+    displayName: Echo Tag
+    workingDirectory: "$(modulePath)"
+
