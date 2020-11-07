@@ -15,8 +15,9 @@
         "NodeSyncIntervalInSeconds": 30
     },
     "ChannelMode": "Direct",
-    "UseHTTPS" : false,
-    "TLSSubjectName" : "",
-    "TLSCertificatePath" : "",
-    "TLSEndpoint" : "localhost:10091"
+    "UseHTTPS": false,
+    "TLSSubjectName": "",
+    "TLSCertificatePath": "",
+    "TLSEndpoint": "localhost:10091",
+    "SyncHostNCVersionIntervalSec": 1
 }

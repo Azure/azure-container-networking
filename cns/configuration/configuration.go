@@ -128,5 +128,5 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
 	}
-	config.SyncHostNCVersionIntervalSec = 30
+	config.SyncHostNCVersionIntervalSec = 1
 }

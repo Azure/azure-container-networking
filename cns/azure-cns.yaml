@@ -157,5 +157,6 @@ data:
           "NodeID": "",
           "NodeSyncIntervalInSeconds": 30
       },
-      "ChannelMode": "CRD"
+      "ChannelMode": "CRD",
+      "SyncHostNCVersionIntervalSec": 1
     }
