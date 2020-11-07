@@ -186,9 +186,10 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			// 	return UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
 			// }
 			// TODO, remove this override when background thread which update nmagent version is ready.
-			//nmagentNCVersion := service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
-			hostVersionInInt, _ := strconv.Atoi(hostVersion)
-			service.addIPConfigStateUntransacted(req.NetworkContainerid, hostVersionInInt, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
+			nmagentNCVersion := service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
+			//hostVersionInInt, _ := strconv.Atoi(hostVersion)
+			//service.addIPConfigStateUntransacted(req.NetworkContainerid, hostVersionInInt, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
+			service.addIPConfigStateUntransacted(req.NetworkContainerid, nmagentNCVersion, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
 
 			if returnCode != 0 {
 				return returnCode, returnMesage
