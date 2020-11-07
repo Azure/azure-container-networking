@@ -258,7 +258,7 @@ func (service *HTTPRestService) deleteIpConfigsStateUntransacted(req cns.CreateN
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
 func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, nmagentNCVersion int, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
-	var newIPCNSStatus string
+	newIPCNSStatus := cns.Available
 	// add ipconfigs to state
 	for ipId, ipconfig := range ipconfigs {
 		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new NC version
@@ -273,9 +273,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, nmagen
 		}
 		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
 		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
-		if nmagentNCVersion >= ipconfig.NCVersion {
-			newIPCNSStatus = cns.Available
-		} else {
+		if nmagentNCVersion < ipconfig.NCVersion {
 			newIPCNSStatus = cns.PendingProgramming
 		}
 		// add the new State
