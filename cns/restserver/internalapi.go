@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -148,17 +147,8 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 // If NMAgent updated, CNS will refresh the pending programming IP status.
 func (service *HTTPRestService) SyncHostNCVersion(channelMode string) {
 	for i, containerstatus := range service.state.ContainerStatus {
-		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
-		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
-		if err != nil {
-			log.Errorf("Received err when chagne containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
-			return
-		}
-		vmVersion, err := strconv.Atoi(containerstatus.VMVersion)
-		if err != nil {
-			log.Errorf("Received err when chagne containerstatus.VMVersion %s to int, err msg %v", containerstatus.VMVersion, err)
-			return
-		}
+		hostVersion := containerstatus.HostVersion
+		vmVersion := containerstatus.VMVersion
 		// host NC version is the NC version from NMAgent, if it's already keep up with NC version exist in VM, no update needed.
 		if hostVersion >= vmVersion {
 			continue
@@ -166,9 +156,9 @@ func (service *HTTPRestService) SyncHostNCVersion(channelMode string) {
 			newHostNCVersion := service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
 			service.Lock()
 			if channelMode == cns.KubernetesCRD {
-				service.UpdatePendingProgrammingIPs(strconv.Itoa(newHostNCVersion), containerstatus.CreateNetworkContainerRequest)
+				service.UpdatePendingProgrammingIPs(newHostNCVersion, containerstatus.CreateNetworkContainerRequest)
 			}
-			containerstatus.HostVersion = strconv.Itoa(newHostNCVersion)
+			containerstatus.HostVersion = newHostNCVersion
 			service.state.ContainerStatus[i] = containerstatus
 			service.Unlock()
 		}

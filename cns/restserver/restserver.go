@@ -57,8 +57,8 @@ type allocatedIPCount struct {
 // containerstatus is used to save status of an existing container
 type containerstatus struct {
 	ID                            string
-	VMVersion                     string
-	HostVersion                   string
+	VMVersion                     int
+	HostVersion                   int
 	CreateNetworkContainerRequest cns.CreateNetworkContainerRequest
 	VfpUpdateComplete             bool // True when VFP programming is completed for the NC
 }

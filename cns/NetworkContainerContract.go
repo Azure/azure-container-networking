@@ -74,7 +74,7 @@ const (
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
-	Version                    string
+	Version                    int
 	NetworkContainerType       string
 	NetworkContainerid         string // Mandatory input.
 	PrimaryInterfaceIdentifier string // Primary CA.
@@ -260,7 +260,7 @@ type GetInterfaceForContainerRequest struct {
 
 // GetInterfaceForContainerResponse specifies the interface for a given container ID.
 type GetInterfaceForContainerResponse struct {
-	NetworkContainerVersion string
+	NetworkContainerVersion int
 	NetworkInterface        NetworkInterface
 	CnetAddressSpace        []IPSubnet
 	DNSServers              []string

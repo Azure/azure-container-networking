@@ -19,7 +19,7 @@ var WireserverIP = "168.63.129.16"
 type NMANetworkContainerResponse struct {
 	ResponseCode       string `json:"httpStatusCode"`
 	NetworkContainerID string `json:"networkContainerId"`
-	Version            string `json:"version"`
+	Version            int    `json:"version"`
 }
 
 // JoinNetwork joins the given network

@@ -1030,7 +1030,7 @@ func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, 
 	var ipaddress string
 	var cnetSpace []cns.IPSubnet
 	var dnsServers []string
-	var version string
+	var version int
 
 	if ok {
 		savedReq := containerDetails.CreateNetworkContainerRequest
@@ -1044,7 +1044,7 @@ func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, 
 		returnCode = UnknownContainerID
 		interfaceName = ""
 		ipaddress = ""
-		version = ""
+		version = 0
 	}
 
 	resp := cns.Response{

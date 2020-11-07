@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -117,11 +116,11 @@ func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]c
 // UpdatePendingProgrammingIPs will update pending programming IPs to available if
 // NMAgent side's programmed NC version keep up with NC version with secondary IP.
 // This function must be called in a service lock.
-func (service *HTTPRestService) UpdatePendingProgrammingIPs(nmagentNCVersion string, req cns.CreateNetworkContainerRequest) {
+func (service *HTTPRestService) UpdatePendingProgrammingIPs(nmagentNCVersion int, req cns.CreateNetworkContainerRequest) {
 	for uuid, secondaryIPConfigs := range req.SecondaryIPConfigs {
 		ipConfigStatus, exist := service.PodIPConfigState[uuid]
 		if exist {
-			if ipConfigStatus.State == cns.PendingProgramming && strconv.Itoa(secondaryIPConfigs.NCVersion) <= nmagentNCVersion {
+			if ipConfigStatus.State == cns.PendingProgramming && secondaryIPConfigs.NCVersion <= nmagentNCVersion {
 				ipConfigStatus.State = cns.Available
 				service.PodIPConfigState[uuid] = ipConfigStatus
 				logger.Printf("Change ip %s with uuid %s from pending programming to %s", ipConfigStatus.IPAddress, uuid, cns.Available)

@@ -36,7 +36,7 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	// NC version set as -1 which is the same as default host version value.
-	validateCreateOrUpdateNCInternal(t, 2, "-1")
+	validateCreateOrUpdateNCInternal(t, 2, -1)
 }
 
 func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
@@ -45,7 +45,7 @@ func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	// NC version set as 1 which is larger than NC version get from mock nmagent.
-	validateCreateOrUpdateNCInternal(t, 2, "1")
+	validateCreateOrUpdateNCInternal(t, 2, 1)
 }
 
 func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
@@ -62,7 +62,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	secIPConfig := newSecondaryIPConfig(ipAddress, ncVersion)
 	ipId := uuid.New()
 	secondaryIPConfigs[ipId.String()] = secIPConfig
-	req := createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
+	req := createNCReqInternal(t, secondaryIPConfigs, ncID, ncVersion)
 	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
 	// Validate secondary IPs' NC version has been updated by NC request
 	receivedSecondaryIPConfigs := containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
@@ -89,7 +89,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	secIPConfig = newSecondaryIPConfig(ipAddress, ncVersion)
 	ipId = uuid.New()
 	secondaryIPConfigs[ipId.String()] = secIPConfig
-	req = createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
+	req = createNCReqInternal(t, secondaryIPConfigs, ncID, ncVersion)
 	// Validate secondary IPs' NC version has been updated by NC request
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
@@ -127,20 +127,20 @@ func TestSyncHostNCVersion(t *testing.T) {
 func testSyncHostNCVersion(t *testing.T, orchestratorType string) {
 	req := createNCReqeustForSyncHostNCVersion(t)
 	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostVersion != "-1" {
-		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be -1 in string", containerStatus.HostVersion)
+	if containerStatus.HostVersion != -1 {
+		t.Errorf("Unexpected containerStatus.HostVersion %d, expeted host version should be -1 in string", containerStatus.HostVersion)
 	}
-	if containerStatus.VMVersion != "0" {
-		t.Errorf("Unexpected containerStatus.VMVersion %s, expeted VM version should be 0 in string", containerStatus.VMVersion)
+	if containerStatus.VMVersion != 0 {
+		t.Errorf("Unexpected containerStatus.VMVersion %d, expeted VM version should be 0 in string", containerStatus.VMVersion)
 	}
 	// When sync host NC version, it will use the orchestratorType pass in.
 	svc.SyncHostNCVersion(orchestratorType)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostVersion != "0" {
-		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be 0 in string", containerStatus.HostVersion)
+	if containerStatus.HostVersion != 0 {
+		t.Errorf("Unexpected containerStatus.HostVersion %d, expeted host version should be 0 in string", containerStatus.HostVersion)
 	}
-	if containerStatus.VMVersion != "0" {
-		t.Errorf("Unexpected containerStatus.VMVersion %s, expeted VM version should be 0 in string", containerStatus.VMVersion)
+	if containerStatus.VMVersion != 0 {
+		t.Errorf("Unexpected containerStatus.VMVersion %d, expeted VM version should be 0 in string", containerStatus.VMVersion)
 	}
 }
 
@@ -188,7 +188,7 @@ func createNCReqeustForSyncHostNCVersion(t *testing.T) cns.CreateNetworkContaine
 	secIPConfig := newSecondaryIPConfig(ipAddress, ncVersion)
 	ipID := uuid.New()
 	secondaryIPConfigs[ipID.String()] = secIPConfig
-	req := createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
+	req := createNCReqInternal(t, secondaryIPConfigs, ncID, ncVersion)
 	return req
 }
 func TestReconcileNCWithEmptyState(t *testing.T) {
@@ -221,7 +221,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
 	}
-	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
+	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", -1)
 
 	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
 	expectedAllocatedPods["10.0.0.6"] = cns.KubernetesPodInfo{
@@ -258,7 +258,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
 	}
-	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String(), "-1")
+	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String(), -1)
 
 	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
 	expectedAllocatedPods["10.0.0.6"] = cns.KubernetesPodInfo{
@@ -287,14 +287,13 @@ func setOrchestratorTypeInternal(orchestratorType string) {
 	svc.state.OrchestratorType = orchestratorType
 }
 
-func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
+func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVersion int) {
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	ncId := "testNc1"
-	ncVersionInInt, _ := strconv.Atoi(ncVersion)
 	var startingIndex = 6
 	for i := 0; i < secondaryIpCount; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress, ncVersionInInt)
+		secIpConfig := newSecondaryIPConfig(ipaddress, ncVersion)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
@@ -306,7 +305,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 	fmt.Println("Validate Scaleup")
 	for i := 0; i < secondaryIpCount; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress, ncVersionInInt)
+		secIpConfig := newSecondaryIPConfig(ipaddress, ncVersion)
 		ipId := uuid.New()
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 		startingIndex++
@@ -337,7 +336,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 }
 
-func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncId, ncVersion string) {
+func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncId string, ncVersion int) {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, ncId, ncVersion)
 	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 	if returnCode != 0 {
@@ -370,12 +369,12 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 
 	var expectedIPStatus string
 	// 0 is the default NMAgent version return from fake GetNetworkContainerInfoFromHost
-	if containerStatus.VMVersion > "0" {
+	if containerStatus.VMVersion > 0 {
 		expectedIPStatus = cns.PendingProgramming
 	} else {
 		expectedIPStatus = cns.Available
 	}
-	t.Logf("VMVersion is %s, HostVersion is %s", containerStatus.VMVersion, containerStatus.HostVersion)
+	t.Logf("VMVersion is %d, HostVersion is %d", containerStatus.VMVersion, containerStatus.HostVersion)
 	var alreadyValidated = make(map[string]string)
 	for ipid, ipStatus := range svc.PodIPConfigState {
 		if ipaddress, found := alreadyValidated[ipid]; !found {
@@ -416,7 +415,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 	}
 }
 
-func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConfig, ncId string, ncVersion string) cns.CreateNetworkContainerRequest {
+func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConfig, ncId string, ncVersion int) cns.CreateNetworkContainerRequest {
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = dnsservers
 	ipConfig.GatewayIPAddress = gatewayIp
@@ -432,12 +431,11 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 		Version:              ncVersion,
 	}
 
-	ncVersionInInt, _ := strconv.Atoi(ncVersion)
 	req.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig)
 	for k, v := range secondaryIps {
 		req.SecondaryIPConfigs[k] = v
 		ipconfig, _ := req.SecondaryIPConfigs[k]
-		ipconfig.NCVersion = ncVersionInInt
+		ipconfig.NCVersion = ncVersion
 	}
 
 	fmt.Printf("NC Request %+v", req)
@@ -505,7 +503,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 	}
 }
 
-func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncID, ncVersion string) cns.CreateNetworkContainerRequest {
+func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncID string, ncVersion int) cns.CreateNetworkContainerRequest {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, ncID, ncVersion)
 	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 	if returnCode != 0 {

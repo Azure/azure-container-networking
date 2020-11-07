@@ -83,7 +83,7 @@ type createOrUpdateNetworkContainerParams struct {
 	ncID         string
 	ncIP         string
 	ncType       string
-	ncVersion    string
+	ncVersion    int
 	vnetID       string
 	podName      string
 	podNamespace string
@@ -100,22 +100,22 @@ func nmagentHandler(w http.ResponseWriter, r *http.Request) {
 
 	if strings.Contains(r.RequestURI, "nc-nma-success") {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-success","version":"0"}`))
+		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-success","version":0}`))
 	}
 
 	if strings.Contains(r.RequestURI, "nc-nma-fail-version-mismatch") {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-fail-version-mismatch","version":"0"}`))
+		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-fail-version-mismatch","version":0}`))
 	}
 
 	if strings.Contains(r.RequestURI, "nc-nma-fail-500") {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-fail-500","version":"0"}`))
+		w.Write([]byte(`{"httpStatusCode":"200","networkContainerId":"nc-nma-fail-500","version":0}`))
 	}
 
 	if strings.Contains(r.RequestURI, "nc-nma-fail-unavailable") {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"httpStatusCode":"401","networkContainerId":"nc-nma-fail-unavailable","version":"0"}`))
+		w.Write([]byte(`{"httpStatusCode":"401","networkContainerId":"nc-nma-fail-unavailable","version":0}`))
 	}
 }
 
@@ -198,7 +198,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		ncID:         "testJobObject",
 		ncIP:         "10.1.0.5",
 		ncType:       "JobObject",
-		ncVersion:    "0",
+		ncVersion:    0,
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
 	}
@@ -223,7 +223,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		ncID:         "ethWebApp",
 		ncIP:         "192.0.0.5",
 		ncType:       "WebApps",
-		ncVersion:    "0",
+		ncVersion:    0,
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
 	}
@@ -238,7 +238,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		ncID:         "ethWebApp",
 		ncIP:         "192.0.0.6",
 		ncType:       "WebApps",
-		ncVersion:    "0",
+		ncVersion:    0,
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
 	}
@@ -262,7 +262,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		ncID:         "testCOWContainer",
 		ncIP:         "10.0.0.5",
 		ncType:       "COW",
-		ncVersion:    "0",
+		ncVersion:    0,
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
 	}
@@ -294,7 +294,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 		ncID:         "ethWebApp",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
-		ncVersion:    "0",
+		ncVersion:    0,
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
 	}
@@ -338,7 +338,7 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 		ncID:         "ethWebApp",
 		ncIP:         "11.0.0.5",
 		ncType:       "WebApps",
-		ncVersion:    "0",
+		ncVersion:    0,
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
 	}
@@ -401,7 +401,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		ncID:         "nc-nma-success",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
-		ncVersion:    "0",
+		ncVersion:    0,
 		vnetID:       "vnet1",
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
@@ -432,7 +432,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		ncID:         "nc-nma-fail-version-mismatch",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
-		ncVersion:    "1",
+		ncVersion:    1,
 		vnetID:       "vnet1",
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
@@ -456,7 +456,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		ncID:         "nc-nma-fail-500",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
-		ncVersion:    "0",
+		ncVersion:    0,
 		vnetID:       "vnet1",
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",
@@ -479,7 +479,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		ncID:         "nc-nma-fail-unavailable",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
-		ncVersion:    "0",
+		ncVersion:    0,
 		vnetID:       "vnet1",
 		podName:      "testpod",
 		podNamespace: "testpodnamespace",

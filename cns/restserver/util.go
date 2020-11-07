@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -106,7 +105,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	defer service.Unlock()
 
 	var (
-		hostVersion                string
+		hostVersion                int
 		existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig //uuid is key
 		vfpUpdateComplete          bool
 	)
@@ -123,7 +122,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	} else {
 		// Host version is the NC version from NMAgent, set it -1 to indicate no result from NMAgent yet.
 		// TODO, query NMAgent and with aggresive time out and assign latest host version.
-		hostVersion = "-1"
+		hostVersion = -1
 	}
 
 	service.state.ContainerStatus[req.NetworkContainerid] =
@@ -177,17 +176,10 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
 			// Delete first.
-			returnCode, returnMesage := service.deleteIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, hostVersion)
+			returnCode, returnMesage := service.deleteIpConfigsStateUntransacted(req, existingSecondaryIPConfigs)
 			// Add new IPs
-			// // TODO, will udpate NC version related variable to int, change it from string to int is a pains
-			//var nmagentNCVersion int
-			// var err error
-			// if nmagentNCVersion, err = strconv.Atoi(hostVersion); err != nil {
-			// 	return UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
-			// }
 			// TODO, remove this override when background thread which update nmagent version is ready.
 			nmagentNCVersion := service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
-			//hostVersionInInt, _ := strconv.Atoi(hostVersion)
 			//service.addIPConfigStateUntransacted(req.NetworkContainerid, hostVersionInInt, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
 			service.addIPConfigStateUntransacted(req.NetworkContainerid, nmagentNCVersion, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
 
@@ -212,7 +204,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 // This func will compute the deltaIpConfigState which needs to be deleted from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) deleteIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string) (int, string) {
+func (service *HTTPRestService) deleteIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) (int, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
@@ -722,13 +714,13 @@ func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus 
 // isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version
 // Return error and waitingForUpdate as true only CNS gets response from NMAgent indicating the VFP programming is pending
 // This returns success / waitingForUpdate as false in all other cases.
-func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (waitingForUpdate bool, returnCode int, message string) {
+func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion int, ncid string) (waitingForUpdate bool, returnCode int, message string) {
 	waitingForUpdate = true
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
 		if ncStatus.VfpUpdateComplete &&
 			(ncStatus.CreateNetworkContainerRequest.Version == ncVersion) {
-			logger.Printf("[Azure CNS] Network container: %s, version: %s has VFP programming already completed", ncid, ncVersion)
+			logger.Printf("[Azure CNS] Network container: %s, version: %d has VFP programming already completed", ncid, ncVersion)
 			returnCode = NetworkContainerVfpProgramCheckSkipped
 			waitingForUpdate = false
 			return
@@ -767,17 +759,15 @@ func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (wa
 		return
 	}
 
-	ncTargetVersion, _ := strconv.Atoi(ncVersion)
-	nmaProgrammedNCVersion, _ := strconv.Atoi(versionResponse.Version)
-	if ncTargetVersion > nmaProgrammedNCVersion {
+	if ncVersion > versionResponse.Version {
 		returnCode = NetworkContainerVfpProgramPending
 		message = fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",
-			ncid, ncTargetVersion, nmaProgrammedNCVersion)
+			ncid, ncVersion, versionResponse.Version)
 	} else {
 		returnCode = NetworkContainerVfpProgramComplete
 		waitingForUpdate = false
 		message = fmt.Sprintf("Vfp programming complete")
-		logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
+		logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncVersion)
 	}
 
 	return
