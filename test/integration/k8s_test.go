@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	defaultRetrier      = retry.Retrier{Attempts: 3, Delay: 20 * time.Second}
+	defaultRetrier      = retry.Retrier{Attempts: 20, Delay: 3 * time.Second}
 	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
@@ -138,7 +138,7 @@ func TestPodScaling(t *testing.T) {
 		}
 	})
 
-	counts := []int{10}
+	counts := []int{5, 15, 5}
 
 	for _, c := range counts {
 		count := c
@@ -233,7 +233,7 @@ func TestPodScaling(t *testing.T) {
 					return errors.New("not all pings are healthy")
 				}
 
-				retrier := retry.Retrier{Attempts: 10, Delay: 5 * time.Second}
+				retrier := retry.Retrier{Attempts: 3, Delay: 20 * time.Second}
 				if err := retrier.Do(clusterCheckCtx, clusterCheckFn); err != nil {
 					t.Fatalf("cluster could not reach healthy state: %v", err)
 				}

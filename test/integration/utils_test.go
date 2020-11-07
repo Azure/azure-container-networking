@@ -4,13 +4,17 @@ package k8s
 
 import (
 	"context"
+	"errors"
 	"log"
 	"strings"
+	"time"
 
 	//crd "dnc/requestcontroller/kubernetes"
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/test/integration/retry"
+	apiv1 "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -186,4 +190,36 @@ func parseImageString(s string) (image, version string) {
 
 func getImageString(image, version string) string {
 	return image + ":" + version
+}
+
+func waitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
+	podsClient := clientset.CoreV1().Pods(namespace)
+
+	checkPodIPsFn := func() error {
+		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
+		if err != nil {
+			return err
+		}
+
+		if len(podList.Items) == 0 {
+			return errors.New("no pods scheduled")
+		}
+
+		for _, pod := range podList.Items {
+			if pod.Status.Phase == apiv1.PodPending {
+				return errors.New("some pods still pending")
+			}
+		}
+
+		for _, pod := range podList.Items {
+			if pod.Status.PodIP == "" {
+				return errors.New("a pod has not been allocated an IP")
+			}
+		}
+
+		return nil
+	}
+
+	retrier := retry.Retrier{Attempts: 10, Delay: 2 * time.Second}
+	return retrier.Do(ctx, checkPodIPsFn)
 }

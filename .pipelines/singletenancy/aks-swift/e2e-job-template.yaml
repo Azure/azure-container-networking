@@ -10,7 +10,7 @@ stages:
     dependsOn: build_and_test
     jobs:
       - job: ${{ parameters.name }}
-        displayName: Singletenancy AKS Engine Suite - (${{ parameters.name }})
+        displayName: Singletenancy AKS on Swift Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: Networking-ContainerNetworking
