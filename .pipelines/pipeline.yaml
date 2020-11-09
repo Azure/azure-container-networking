@@ -202,7 +202,6 @@ stages:
       name: "aks_on_swift_e2e"
       displayName: AKS on Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      imageVersionTag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.ImageTag'] ]
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:

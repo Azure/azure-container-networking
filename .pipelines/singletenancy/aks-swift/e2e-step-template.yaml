@@ -1,8 +1,14 @@
 parameters:
   name: ""
-  imageVersionTag: ""
 
 steps:
+  - bash: |
+      echo $UID
+      sudo rm -rf $(System.DefaultWorkingDirectory)/*
+    displayName: "Set up OS environment"
+
+  - checkout: self
+
   - bash: |
       go version
       go env
@@ -15,7 +21,7 @@ steps:
     displayName: "Set up the Go environment"
 
   - bash: |
-      echo ${{ parameters.imageVersionTag }}
+      echo $(ImageTag)
     displayName: Echo Tag
     workingDirectory: "$(modulePath)"
 
@@ -33,7 +39,9 @@ steps:
     condition: succeeded()
 
   - script: |
-      sudo -E env "PATH=$PATH" VERSION=${{ parameters.imageVersionTag }} make test-integration
+      ls -lah
+      pwd
+      sudo -E env "PATH=$PATH" VERSION=$(ImageTag) make test-integration
     workingDirectory: "$(modulePath)"
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
