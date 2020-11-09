@@ -23,7 +23,6 @@ steps:
   - bash: |
       echo $(ImageTag)
     displayName: Echo Tag
-    workingDirectory: "$(modulePath)"
 
   - task: AzureCLI@1
     inputs:
@@ -34,7 +33,6 @@ steps:
         mkdir -p ~/.kube/
         az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
         az keyvault secret show --name $(KV_AKS_SWIFT_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/config
-      workingDirectory: "$(modulePath)"
     displayName: Pull Kubeconfig from Keyvault
     condition: succeeded()
 
@@ -42,7 +40,6 @@ steps:
       ls -lah
       pwd
       sudo -E env "PATH=$PATH" VERSION=$(ImageTag) make test-integration
-    workingDirectory: "$(modulePath)"
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
 
