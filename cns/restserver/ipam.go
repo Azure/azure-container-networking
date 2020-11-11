@@ -12,6 +12,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/log"
 )
 
 // used to request an IPConfig from the CNS state
@@ -114,20 +115,40 @@ func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]c
 	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
 }
 
-// UpdatePendingProgrammingIPs will update pending programming IPs to available if
+// MarkIpsAsAvailableUntransacted will update pending programming IPs to available if
 // NMAgent side's programmed NC version keep up with NC version with secondary IP.
 // This function must be called in a service lock.
-func (service *HTTPRestService) UpdatePendingProgrammingIPs(nmagentNCVersion string, req cns.CreateNetworkContainerRequest) {
-	for uuid, secondaryIPConfigs := range req.SecondaryIPConfigs {
-		ipConfigStatus, exist := service.PodIPConfigState[uuid]
-		if exist {
-			if ipConfigStatus.State == cns.PendingProgramming && strconv.Itoa(secondaryIPConfigs.NCVersion) <= nmagentNCVersion {
-				ipConfigStatus.State = cns.Available
-				service.PodIPConfigState[uuid] = ipConfigStatus
-				logger.Printf("Change ip %s with uuid %s from pending programming to %s", ipConfigStatus.IPAddress, uuid, cns.Available)
+func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(nmagentNCVersion int) {
+	service.Lock()
+	defer service.Unlock()
+	for i, containerstatus := range service.state.ContainerStatus {
+		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
+		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
+		if err != nil {
+			log.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
+			return
+		}
+		vmVersion, err := strconv.Atoi(containerstatus.VMVersion)
+		if err != nil {
+			log.Errorf("Received err when change containerstatus.VMVersion %s to int, err msg %v", containerstatus.VMVersion, err)
+			return
+		}
+		// host NC version is the NC version from NMAgent, if it's already keep up with NC version exist in VM, no update needed.
+		if hostVersion < vmVersion && hostVersion < nmagentNCVersion {
+			for uuid, secondaryIPConfigs := range containerstatus.CreateNetworkContainerRequest.SecondaryIPConfigs {
+				ipConfigStatus, exist := service.PodIPConfigState[uuid]
+				if exist {
+					if ipConfigStatus.State == cns.PendingProgramming && secondaryIPConfigs.NCVersion <= nmagentNCVersion {
+						ipConfigStatus.State = cns.Available
+						service.PodIPConfigState[uuid] = ipConfigStatus
+						logger.Printf("Change ip %s with uuid %s from pending programming to %s", ipConfigStatus.IPAddress, uuid, cns.Available)
+					}
+				} else {
+					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
+				}
 			}
-		} else {
-			logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
+			containerstatus.HostVersion = strconv.Itoa(nmagentNCVersion)
+			service.state.ContainerStatus[i] = containerstatus
 		}
 	}
 }

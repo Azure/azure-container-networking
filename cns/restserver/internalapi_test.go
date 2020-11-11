@@ -118,7 +118,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 
 func TestSyncHostNCVersion(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
-	orchestratorTypes := [6]string{cns.Kubernetes, cns.KubernetesCRD}
+	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
 	for _, orchestratorType := range orchestratorTypes {
 		testSyncHostNCVersion(t, orchestratorType)
 	}

@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	localtls "github.com/Azure/azure-container-networking/server/tls"
 
 	"github.com/Azure/azure-container-networking/cns/ipampoolmonitor"
 
@@ -499,6 +500,15 @@ func main() {
 			return
 		}
 
+		logger.Printf("Starting SyncHostNCVersion")
+		go func() {
+			// Periodically poll NC version from NMAgent
+			for {
+				<-time.NewTicker(time.Duration(cnsconfig.SyncHostNCVersionIntervalSec) * time.Second).C
+				httpRestServiceImplementation.SyncHostNCVersion(config.ChannelMode)
+			}
+		}()
+
 		// initialize the ipam pool monitor
 		httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
 
@@ -569,14 +579,6 @@ func main() {
 			return
 		}
 	}
-
-	go func() {
-		// Periodically poll NC version from NMAgent
-		for {
-			<-time.NewTicker(time.Duration(cnsconfig.SyncHostNCVersionIntervalSec) * time.Second).C
-			httpRestService.SyncHostNCVersion(config.ChannelMode)
-		}
-	}()
 
 	// Relay these incoming signals to OS signal channel.
 	osSignalChannel := make(chan os.Signal, 1)

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -147,31 +148,34 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 // SyncHostNCVersion will check NC version from NMAgent and save it as host version in container status.
 // If NMAgent updated, CNS will refresh the pending programming IP status.
 func (service *HTTPRestService) SyncHostNCVersion(channelMode string) {
-	for i, containerstatus := range service.state.ContainerStatus {
+	hostNCVersionNeedUpdate := false
+	var newHostNCVersion int
+	service.RLock()
+	for _, containerstatus := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
 		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
 		if err != nil {
-			log.Errorf("Received err when chagne containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
+			log.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
 			return
 		}
 		vmVersion, err := strconv.Atoi(containerstatus.VMVersion)
 		if err != nil {
-			log.Errorf("Received err when chagne containerstatus.VMVersion %s to int, err msg %v", containerstatus.VMVersion, err)
+			log.Errorf("Received err when change containerstatus.VMVersion %s to int, err msg %v", containerstatus.VMVersion, err)
 			return
 		}
 		// host NC version is the NC version from NMAgent, if it's already keep up with NC version exist in VM, no update needed.
-		if hostVersion >= vmVersion {
-			continue
-		} else {
-			newHostNCVersion := service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
-			service.Lock()
-			if channelMode == cns.KubernetesCRD {
-				service.UpdatePendingProgrammingIPs(strconv.Itoa(newHostNCVersion), containerstatus.CreateNetworkContainerRequest)
-			}
-			containerstatus.HostVersion = strconv.Itoa(newHostNCVersion)
-			service.state.ContainerStatus[i] = containerstatus
-			service.Unlock()
+		if hostVersion < vmVersion {
+			hostNCVersionNeedUpdate = true
 		}
+	}
+	service.RUnlock()
+	if hostNCVersionNeedUpdate {
+		now := time.Now()
+		// Current AKS on Swift only has 1 container so only one newHostNCVersion
+		newHostNCVersion = service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
+		latency := time.Since(now)
+		log.Logf("New host nc version is %d. Get new host nc version takes %v time", newHostNCVersion, latency)
+		service.MarkIpsAsAvailableUntransacted(newHostNCVersion)
 	}
 }
 

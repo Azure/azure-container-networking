@@ -22,6 +22,16 @@ type NMANetworkContainerResponse struct {
 	Version            string `json:"version"`
 }
 
+type ContainerInfo struct {
+	NetworkContainerID string `json:"networkContainerId"`
+	Version            string `json:"version"`
+}
+
+type NMANetworkContainerResponseWithoutToken struct {
+	ResponseCode string          `json:"httpStatusCode"`
+	Containers   []ContainerInfo `json:"networkContainerId, version"`
+}
+
 // JoinNetwork joins the given network
 func JoinNetwork(
 	networkID string,
