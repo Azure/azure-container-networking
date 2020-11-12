@@ -139,9 +139,10 @@ func (ipm *IPStateManager) MarkIPsAsPending(numberOfIPsToMark int) (map[string]c
 	defer func() {
 		// if there was an error, and not all ip's have been freed, restore state
 		if err != nil && len(pendingRelease) != numberOfIPsToMark {
-			for uuid, _ := range pendingRelease {
+			for uuid, ipState := range pendingRelease {
+				ipState.State = cns.Available
 				ipm.AvailableIPIDStack.Push(pendingRelease[uuid].ID)
-				ipm.AvailableIPConfigState[pendingRelease[uuid].ID] = pendingRelease[uuid]
+				ipm.AvailableIPConfigState[pendingRelease[uuid].ID] = ipState
 				delete(ipm.PendingReleaseIPConfigState, pendingRelease[uuid].ID)
 			}
 		}
@@ -154,7 +155,10 @@ func (ipm *IPStateManager) MarkIPsAsPending(numberOfIPsToMark int) (map[string]c
 		}
 
 		// add all pending release to a slice
-		pendingRelease[id] = ipm.AvailableIPConfigState[id]
+		ipConfig := ipm.AvailableIPConfigState[id]
+		ipConfig.State = cns.PendingRelease
+		pendingRelease[id] = ipConfig
+
 		delete(ipm.AvailableIPConfigState, id)
 	}
 
