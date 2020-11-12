@@ -141,7 +141,11 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(nmagentNCVersion 
 					if ipConfigStatus.State == cns.PendingProgramming && secondaryIPConfigs.NCVersion <= nmagentNCVersion {
 						ipConfigStatus.State = cns.Available
 						service.PodIPConfigState[uuid] = ipConfigStatus
-						logger.Printf("Change ip %s with uuid %s from pending programming to %s", ipConfigStatus.IPAddress, uuid, cns.Available)
+						// Following 2 sentence assign new host version to secondary ip config.
+						secondaryIPConfigs.NCVersion = nmagentNCVersion
+						containerstatus.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
+						logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %v", ipConfigStatus.IPAddress, uuid, cns.Available,
+							containerstatus.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid])
 					}
 				} else {
 					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)

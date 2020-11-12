@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/common"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
@@ -267,6 +268,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, nmagen
 		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipId]; existsInPreviousIPConfig {
 			ipconfig.NCVersion = existingIPConfig.NCVersion
 			ipconfigs[ipId] = ipconfig
+			nmagentNCVersion = existingIPConfig.NCVersion
 		}
 		logger.Printf("[Azure-Cns] Set IP %s version to %d, programmed host nc version is %d", ipconfig.IPAddress, ipconfig.NCVersion, nmagentNCVersion)
 		if _, exists := service.PodIPConfigState[ipId]; exists {
@@ -663,6 +665,29 @@ func (service *HTTPRestService) logNCSnapshots() {
 		latency := time.Since(now)
 		log.Logf("GetNetworkContainerInfoFromHost cost %d time", latency)
 
+		hostQueryURLForProgrammedVersionWithoutToken := "http://168.63.129.16/machine/plugins/?comp=nmagent&type=%s/NetworkManagement/interfaces/api-version/%s"
+		queryURL := fmt.Sprintf(hostQueryURLForProgrammedVersionWithoutToken, ncStatus.CreateNetworkContainerRequest.NetworkContainerid, 2)
+		response, err := common.GetHttpClient().Get(queryURL)
+
+		logger.Printf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken NC: %s. Response: %+v. Error: %v, queryURL is %s",
+			ncStatus.CreateNetworkContainerRequest.NetworkContainerid, response, err, hostQueryURLForProgrammedVersionWithoutToken)
+
+		if response.StatusCode != http.StatusOK {
+			log.Logf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken failed with %d.", response.StatusCode)
+		}
+
+		var versionResponseWithoutToken nmagentclient.NMANetworkContainerResponseWithoutToken
+		rBytes, _ := ioutil.ReadAll(response.Body)
+		json.Unmarshal(rBytes, &versionResponseWithoutToken)
+		if versionResponseWithoutToken.ResponseCode != "200" {
+			log.Logf("Failed to get NC version status from NMAgent. NC: %s, Response %s", ncStatus.ID, rBytes)
+			return
+		}
+
+		for ncid, version := range versionResponseWithoutToken.Containers {
+			logger.Printf("Containers id is %d and version is %v", ncid, version)
+		}
+
 		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
 		primaryInterfaceIdentifier := ncStatus.CreateNetworkContainerRequest.PrimaryInterfaceIdentifier
 		//authToken := getAuthTokenFromCreateNetworkContainerURL(req.CreateNetworkContainerURL)
@@ -683,7 +708,7 @@ func (service *HTTPRestService) logNCSnapshots() {
 			return
 		}
 		//response, err := nmagentclient.GetNetworkContainerVersion(ncStatus.ID, getNCVersionURL.(string))
-		response, err := nmagentclient.GetNetworkContainerVersion(ncStatus.ID, getNCVersionURLNew.(string))
+		response, err = nmagentclient.GetNetworkContainerVersion(ncStatus.ID, getNCVersionURLNew.(string))
 		if err != nil {
 			log.Logf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
 				"Skipping GetNCVersionStatus check from NMAgent, getNCVersionURL is %v", err, getNCVersionURL)
@@ -697,7 +722,7 @@ func (service *HTTPRestService) logNCSnapshots() {
 		}
 
 		var versionResponse nmagentclient.NMANetworkContainerResponse
-		rBytes, _ := ioutil.ReadAll(response.Body)
+		rBytes, _ = ioutil.ReadAll(response.Body)
 		json.Unmarshal(rBytes, &versionResponse)
 		if versionResponse.ResponseCode != "200" {
 			log.Logf("Failed to get NC version status from NMAgent. NC: %s, Response %s", ncStatus.ID, rBytes)
