@@ -105,7 +105,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 	pm.cachedNNC.Spec.RequestedIPCount += pm.scalarUnits.BatchSize
 
 	// pass nil map to CNStoCRDSpec because we don't want to modify the to be deleted ipconfigs
-	pm.cachedNNC.Spec, err = CreateNNCSpecForCRD(nil, false, pm.cachedNNC.Spec)
+	pm.cachedNNC.Spec, err = pm.createNNCSpecForCRD(false)
 	if err != nil {
 		return err
 	}
@@ -122,13 +122,15 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize() error {
 	pm.cachedNNC.Spec.RequestedIPCount -= pm.scalarUnits.BatchSize
 
 	// mark n number of IP's as pending
-	pendingIPAddresses, err := pm.cns.MarkIPsAsPending(int(pm.scalarUnits.BatchSize))
+	pendingIpAddresses, err := pm.cns.MarkIPsAsPending(int(pm.scalarUnits.BatchSize))
 	if err != nil {
 		return err
 	}
 
+	logger.Printf("[ipam-pool-monitor] Updated Requested count %v, Releasing ips: %+v", pm.cachedNNC.Spec.RequestedIPCount, pendingIpAddresses)
+
 	// convert the pending IP addresses to a spec
-	pm.cachedNNC.Spec, err = CreateNNCSpecForCRD(pendingIPAddresses, false, pm.cachedNNC.Spec)
+	pm.cachedNNC.Spec, err = pm.createNNCSpecForCRD(false)
 	if err != nil {
 		return err
 	}
@@ -144,7 +146,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease() error {
 	defer pm.mu.Unlock()
 
 	var err error
-	pm.cachedNNC.Spec, err = CreateNNCSpecForCRD(nil, true, pm.cachedNNC.Spec)
+	pm.cachedNNC.Spec, err = pm.createNNCSpecForCRD(true)
 	if err != nil {
 		logger.Printf("[ipam-pool-monitor] Failed to translate ")
 	}
@@ -154,20 +156,22 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease() error {
 }
 
 // CNSToCRDSpec translates CNS's map of Ips to be released and requested ip count into a CRD Spec
-func CreateNNCSpecForCRD(toBeDeletedSecondaryIPConfigs map[string]cns.IPConfigurationStatus, resetNotInUseList bool, nncSpec nnc.NodeNetworkConfigSpec) (nnc.NodeNetworkConfigSpec, error) {
+func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD(resetNotInUseList bool) (nnc.NodeNetworkConfigSpec, error) {
 	var (
 		spec nnc.NodeNetworkConfigSpec
-		uuid string
 	)
 
-	// Deep Copy the existing NNC cached spec list into spec
-	nncSpec.DeepCopyInto(&spec)
+	// DUpdate the count from cached spec
+	spec.RequestedIPCount = pm.cachedNNC.Spec.RequestedIPCount
 
+	// Discard the ToBeDeleted list if requested. This happens if DNC has cleaned up the pending ips and CNS has also updated its state.
 	if resetNotInUseList == true {
 		spec.IPsNotInUse = make([]string, 0)
-	} else if toBeDeletedSecondaryIPConfigs != nil {
-		for uuid = range toBeDeletedSecondaryIPConfigs {
-			spec.IPsNotInUse = append(spec.IPsNotInUse, uuid)
+	} else {
+		// Get All Pending IPs from CNS and populate it again.
+		pendingIps := pm.cns.GetPendingReleaseIPConfigs()
+		for _, pendingIp := range pendingIps {
+			spec.IPsNotInUse = append(spec.IPsNotInUse, pendingIp.ID)
 		}
 	}
 
