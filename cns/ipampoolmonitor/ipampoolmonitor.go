@@ -105,12 +105,12 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 	pm.cachedNNC.Spec.RequestedIPCount += pm.scalarUnits.BatchSize
 
 	// pass nil map to CNStoCRDSpec because we don't want to modify the to be deleted ipconfigs
-	pm.cachedNNC.Spec, err = MarkIPsAsPendingInCRD(nil, pm.cachedNNC.Spec.RequestedIPCount)
+	pm.cachedNNC.Spec, err = CreateNNCSpecForCRD(nil, false, pm.cachedNNC.Spec)
 	if err != nil {
 		return err
 	}
 
-	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IP's:%v", len(pm.cns.GetPodIPConfigState()), pm.cachedNNC.Spec.RequestedIPCount, len(pm.cns.GetAllocatedIPConfigs()))
+	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IP's:%v, ToBeDeleted Count: %v", len(pm.cns.GetPodIPConfigState()), pm.cachedNNC.Spec.RequestedIPCount, len(pm.cns.GetAllocatedIPConfigs()), len(pm.cachedNNC.Spec.IPsNotInUse))
 	return pm.rc.UpdateCRDSpec(context.Background(), pm.cachedNNC.Spec)
 }
 
@@ -128,12 +128,12 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize() error {
 	}
 
 	// convert the pending IP addresses to a spec
-	pm.cachedNNC.Spec, err = MarkIPsAsPendingInCRD(pendingIPAddresses, pm.cachedNNC.Spec.RequestedIPCount)
+	pm.cachedNNC.Spec, err = CreateNNCSpecForCRD(pendingIPAddresses, false, pm.cachedNNC.Spec)
 	if err != nil {
 		return err
 	}
 	pm.pendingRelease = true
-	logger.Printf("[ipam-pool-monitor] Decreasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IP's: %v", len(pm.cns.GetPodIPConfigState()), pm.cachedNNC.Spec.RequestedIPCount, len(pm.cns.GetAllocatedIPConfigs()))
+	logger.Printf("[ipam-pool-monitor] Decreasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IP's: %v, ToBeDeleted Count: %v", len(pm.cns.GetPodIPConfigState()), pm.cachedNNC.Spec.RequestedIPCount, len(pm.cns.GetAllocatedIPConfigs()), len(pm.cachedNNC.Spec.IPsNotInUse))
 	return pm.rc.UpdateCRDSpec(context.Background(), pm.cachedNNC.Spec)
 }
 
@@ -144,7 +144,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease() error {
 	defer pm.mu.Unlock()
 
 	var err error
-	pm.cachedNNC.Spec, err = MarkIPsAsPendingInCRD(nil, pm.cachedNNC.Spec.RequestedIPCount)
+	pm.cachedNNC.Spec, err = CreateNNCSpecForCRD(nil, true, pm.cachedNNC.Spec)
 	if err != nil {
 		logger.Printf("[ipam-pool-monitor] Failed to translate ")
 	}
@@ -154,17 +154,18 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease() error {
 }
 
 // CNSToCRDSpec translates CNS's map of Ips to be released and requested ip count into a CRD Spec
-func MarkIPsAsPendingInCRD(toBeDeletedSecondaryIPConfigs map[string]cns.IPConfigurationStatus, ipCount int64) (nnc.NodeNetworkConfigSpec, error) {
+func CreateNNCSpecForCRD(toBeDeletedSecondaryIPConfigs map[string]cns.IPConfigurationStatus, resetNotInUseList bool, nncSpec nnc.NodeNetworkConfigSpec) (nnc.NodeNetworkConfigSpec, error) {
 	var (
 		spec nnc.NodeNetworkConfigSpec
 		uuid string
 	)
 
-	spec.RequestedIPCount = ipCount
+	// Deep Copy the existing NNC cached spec list into spec
+	nncSpec.DeepCopyInto(&spec)
 
-	if toBeDeletedSecondaryIPConfigs == nil {
+	if resetNotInUseList == true {
 		spec.IPsNotInUse = make([]string, 0)
-	} else {
+	} else if toBeDeletedSecondaryIPConfigs != nil {
 		for uuid = range toBeDeletedSecondaryIPConfigs {
 			spec.IPsNotInUse = append(spec.IPsNotInUse, uuid)
 		}

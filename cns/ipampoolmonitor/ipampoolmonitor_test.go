@@ -313,3 +313,85 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 		t.Fatalf("Expected IP's not in use to be 0 after reconcile, expected %v, actual %v", (initialIPConfigCount - batchSize), len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
 	}
 }
+
+func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
+	var (
+		batchSize               = 10
+		initialIPConfigCount    = 30
+		requestThresholdPercent = 30
+		releaseThresholdPercent = 100
+	)
+
+	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent)
+
+	log.Printf("Min free IP's %v", poolmonitor.MinimumFreeIps)
+	log.Printf("Max free IP %v", poolmonitor.MaximumFreeIps)
+
+	// initial pool count is 30, set 23 of them to be allocated
+	err := fakecns.SetNumberOfAllocatedIPs(23)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Pool monitor does nothing, as the current number of IP's falls in the threshold
+	err = poolmonitor.Reconcile()
+	if err != nil {
+		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
+	}
+
+	// Now Drop the Allocated count to really low, say 3. This should trigger release in 2 batches
+	err = fakecns.SetNumberOfAllocatedIPs(3)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Pool monitor does nothing, as the current number of IP's falls in the threshold
+	t.Logf("Reconcile after Allocated count from 33 -> 3, Exepected free count = 10")
+	err = poolmonitor.Reconcile()
+	if err != nil {
+		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
+	}
+
+	// Ensure the size of the requested spec is still the same
+	if len(poolmonitor.cachedNNC.Spec.IPsNotInUse) != batchSize {
+		t.Fatalf("Expected IP's not in use is not correct, expected %v, actual %v", batchSize, len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
+	}
+
+	// Ensure the request ipcount is now one batch size smaller than the inital IP count
+	if poolmonitor.cachedNNC.Spec.RequestedIPCount != int64(initialIPConfigCount-batchSize) {
+		t.Fatalf("Expected pool size to be one batch size smaller after reconcile, expected %v, actual %v", (initialIPConfigCount - batchSize), len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
+	}
+
+	// Reconcile again, it should release the second batch
+	t.Logf("Reconcile again - 2, Exepected free count = 20")
+	err = poolmonitor.Reconcile()
+	if err != nil {
+		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
+	}
+
+	// Ensure the size of the requested spec is still the same
+	if len(poolmonitor.cachedNNC.Spec.IPsNotInUse) != batchSize*2 {
+		t.Fatalf("Expected IP's not in use is not correct, expected %v, actual %v", batchSize*2, len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
+	}
+
+	// Ensure the request ipcount is now one batch size smaller than the inital IP count
+	if poolmonitor.cachedNNC.Spec.RequestedIPCount != int64(initialIPConfigCount-(batchSize*2)) {
+		t.Fatalf("Expected pool size to be one batch size smaller after reconcile, expected %v, actual %v", (initialIPConfigCount - batchSize), len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
+	}
+
+	t.Logf("Update Request Controller")
+	err = fakerc.Reconcile()
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = poolmonitor.Reconcile()
+	if err != nil {
+		t.Errorf("Expected no pool monitor failure after request controller reconcile: %v", err)
+	}
+
+	// Ensure the spec doesn't have any IPsNotInUse after request controller has reconciled
+	if len(poolmonitor.cachedNNC.Spec.IPsNotInUse) != 0 {
+		t.Fatalf("Expected IP's not in use to be 0 after reconcile, expected %v, actual %v", (initialIPConfigCount - batchSize), len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
+	}
+}
