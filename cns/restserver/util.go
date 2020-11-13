@@ -666,11 +666,11 @@ func (service *HTTPRestService) logNCSnapshots() {
 		log.Logf("GetNetworkContainerInfoFromHost cost %d time", latency)
 
 		hostQueryURLForProgrammedVersionWithoutToken := "http://168.63.129.16/machine/plugins/?comp=nmagent&type=%s/NetworkManagement/interfaces/api-version/%s"
-		queryURL := fmt.Sprintf(hostQueryURLForProgrammedVersionWithoutToken, ncStatus.CreateNetworkContainerRequest.NetworkContainerid, 2)
+		queryURL := fmt.Sprintf(hostQueryURLForProgrammedVersionWithoutToken, ncStatus.CreateNetworkContainerRequest.NetworkContainerid, "2")
 		response, err := common.GetHttpClient().Get(queryURL)
 
-		logger.Printf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken NC: %s. Response: %+v. Error: %v, queryURL is %s",
-			ncStatus.CreateNetworkContainerRequest.NetworkContainerid, response, err, hostQueryURLForProgrammedVersionWithoutToken)
+		log.Logf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken NC: %s. Response: %+v. Error: %v, queryURL is %s",
+			ncStatus.CreateNetworkContainerRequest.NetworkContainerid, response, err, queryURL)
 
 		if response.StatusCode != http.StatusOK {
 			log.Logf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken failed with %d.", response.StatusCode)
@@ -680,12 +680,12 @@ func (service *HTTPRestService) logNCSnapshots() {
 		rBytes, _ := ioutil.ReadAll(response.Body)
 		json.Unmarshal(rBytes, &versionResponseWithoutToken)
 		if versionResponseWithoutToken.ResponseCode != "200" {
-			log.Logf("Failed to get NC version status from NMAgent. NC: %s, Response %s", ncStatus.ID, rBytes)
-			return
+			log.Logf("versionResponseWithoutToken Failed to get NC version status from NMAgent. NC: %s, Response %s", ncStatus.ID, rBytes)
 		}
 
+		log.Logf("VersionResponseWithoutToken.Containers is %v", versionResponseWithoutToken.Containers)
 		for ncid, version := range versionResponseWithoutToken.Containers {
-			logger.Printf("Containers id is %d and version is %v", ncid, version)
+			log.Logf("Containers id is %d and version is %v", ncid, version)
 		}
 
 		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
