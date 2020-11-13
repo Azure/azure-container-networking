@@ -29,7 +29,7 @@ type ContainerInfo struct {
 
 type NMANetworkContainerResponseWithoutToken struct {
 	ResponseCode string          `json:"httpStatusCode"`
-	Containers   []ContainerInfo `json:"networkContainerId,version"`
+	Containers   []ContainerInfo `json:"networkContainers"`
 }
 
 // JoinNetwork joins the given network

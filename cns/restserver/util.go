@@ -651,26 +651,12 @@ func (service *HTTPRestService) logNCSnapshots() {
 		logNCSnapshot(ncStatus.CreateNetworkContainerRequest)
 		// Please remove it after testing if finished.
 		now := time.Now()
-		containerVersion, err := service.imdsClient.GetNetworkContainerInfoFromHost(
-			ncStatus.CreateNetworkContainerRequest.NetworkContainerid,
-			ncStatus.CreateNetworkContainerRequest.PrimaryInterfaceIdentifier,
-			ncStatus.CreateNetworkContainerRequest.AuthorizationToken, swiftAPIVersion)
 
-		if err != nil {
-			log.Errorf("Failed GetNetworkContainerInfoFromHost with err %v", err)
-		} else {
-			hostVersion := containerVersion.ProgrammedVersion
-			log.Logf("GetNetworkContainerInfoFromHost succeed, ProgrammedVersion is %s", hostVersion)
-		}
-		latency := time.Since(now)
-		log.Logf("GetNetworkContainerInfoFromHost cost %d time", latency)
-
-		hostQueryURLForProgrammedVersionWithoutToken := "http://168.63.129.16/machine/plugins/?comp=nmagent&type=%s/NetworkManagement/interfaces/api-version/%s"
-		queryURL := fmt.Sprintf(hostQueryURLForProgrammedVersionWithoutToken, ncStatus.CreateNetworkContainerRequest.NetworkContainerid, "2")
+		hostQueryURLForProgrammedVersionWithoutToken := "http://168.63.129.16/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/%s"
+		queryURL := fmt.Sprintf(hostQueryURLForProgrammedVersionWithoutToken, "2")
 		response, err := common.GetHttpClient().Get(queryURL)
-
-		log.Logf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken NC: %s. Response: %+v. Error: %v, queryURL is %s",
-			ncStatus.CreateNetworkContainerRequest.NetworkContainerid, response, err, queryURL)
+		latency := time.Since(now)
+		log.Logf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken response: %+v. Error: %v, queryURL is %s, latency", response, err, queryURL, latency)
 
 		if response.StatusCode != http.StatusOK {
 			log.Logf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken failed with %d.", response.StatusCode)
@@ -678,60 +664,16 @@ func (service *HTTPRestService) logNCSnapshots() {
 
 		var versionResponseWithoutToken nmagentclient.NMANetworkContainerResponseWithoutToken
 		rBytes, _ := ioutil.ReadAll(response.Body)
+		log.Logf("Response body is %v", rBytes)
 		json.Unmarshal(rBytes, &versionResponseWithoutToken)
 		if versionResponseWithoutToken.ResponseCode != "200" {
-			log.Logf("versionResponseWithoutToken Failed to get NC version status from NMAgent. NC: %s, Response %s", ncStatus.ID, rBytes)
+			log.Logf("VersionResponseWithoutToken Failed to get NC version status from NMAgent. NC: %s, Response %s", rBytes)
 		}
 
-		log.Logf("VersionResponseWithoutToken.Containers is %v", versionResponseWithoutToken.Containers)
+		log.Logf("VersionResponseWithoutToken.Containers is %v", versionResponseWithoutToken)
 		for ncid, version := range versionResponseWithoutToken.Containers {
 			log.Logf("Containers id is %d and version is %v", ncid, version)
 		}
-
-		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
-		primaryInterfaceIdentifier := ncStatus.CreateNetworkContainerRequest.PrimaryInterfaceIdentifier
-		//authToken := getAuthTokenFromCreateNetworkContainerURL(req.CreateNetworkContainerURL)
-		authToken := ncStatus.CreateNetworkContainerRequest.AuthorizationToken
-		ncGetVersionURL := fmt.Sprintf(nmagentclient.GetNetworkContainerVersionURLFmt,
-			nmagentclient.WireserverIP,
-			primaryInterfaceIdentifier,
-			ncStatus.ID,
-			authToken)
-		log.Logf("[Azure CNS] ncGetVersionURL is %v", ncGetVersionURL)
-		ncVersionURLs.Store(cns.SwiftPrefix+ncStatus.ID, ncGetVersionURL)
-		getNCVersionURL, ok := ncVersionURLs.Load(ncStatus.ID)
-		getNCVersionURLNew, ok := ncVersionURLs.Load(cns.SwiftPrefix + ncStatus.ID)
-		log.Logf("[Azure CNS] getNCVersionURL is %v, getNCVersionURLNew is %v", getNCVersionURL, getNCVersionURLNew)
-		if !ok {
-			log.Logf("[Azure CNS] getNCVersionURL for Network container %s not found. Skipping GetNCVersionStatus check from NMAgent",
-				ncStatus.ID)
-			return
-		}
-		//response, err := nmagentclient.GetNetworkContainerVersion(ncStatus.ID, getNCVersionURL.(string))
-		response, err = nmagentclient.GetNetworkContainerVersion(ncStatus.ID, getNCVersionURLNew.(string))
-		if err != nil {
-			log.Logf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
-				"Skipping GetNCVersionStatus check from NMAgent, getNCVersionURL is %v", err, getNCVersionURL)
-			return
-		}
-
-		if response.StatusCode != http.StatusOK {
-			log.Logf("[Azure CNS] Failed to get NC version status from NMAgent with http status %d. "+
-				"Skipping GetNCVersionStatus check from NMAgent", response.StatusCode)
-			return
-		}
-
-		var versionResponse nmagentclient.NMANetworkContainerResponse
-		rBytes, _ = ioutil.ReadAll(response.Body)
-		json.Unmarshal(rBytes, &versionResponse)
-		if versionResponse.ResponseCode != "200" {
-			log.Logf("Failed to get NC version status from NMAgent. NC: %s, Response %s", ncStatus.ID, rBytes)
-			return
-		}
-
-		nmaProgrammedNCVersion, _ := strconv.Atoi(versionResponse.Version)
-		log.Logf("Network container: %s programmed version: %d",
-			ncStatus.ID, nmaProgrammedNCVersion)
 	}
 
 	logger.Printf("[Azure CNS] Logging periodic NC snapshots. NC Count %d", len(service.state.ContainerStatus))
