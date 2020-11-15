@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -145,37 +144,49 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	return
 }
 
-// SyncHostNCVersion will check NC version from NMAgent and save it as host version in container status.
-// If NMAgent updated, CNS will refresh the pending programming IP status.
+// SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
+// If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
 func (service *HTTPRestService) SyncHostNCVersion(channelMode string) {
-	hostNCVersionNeedUpdate := false
-	var newHostNCVersion int
+	var hostVersionNeedUpdateNcList []string
 	service.RLock()
 	for _, containerstatus := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
-		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
+		hostNcVersion, err := strconv.Atoi(containerstatus.HostNCVersion)
 		if err != nil {
-			log.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
+			log.Errorf("Received err when change containerstatus.HostNCVersion %s to int, err msg %v", containerstatus.HostNCVersion, err)
 			return
 		}
-		vmVersion, err := strconv.Atoi(containerstatus.VMVersion)
+		dncNcVersion, err := strconv.Atoi(containerstatus.DncNCVersion)
 		if err != nil {
-			log.Errorf("Received err when change containerstatus.VMVersion %s to int, err msg %v", containerstatus.VMVersion, err)
+			log.Errorf("Received err when change containerstatus.DncNCVersion %s to int, err msg %v", containerstatus.DncNCVersion, err)
 			return
 		}
-		// host NC version is the NC version from NMAgent, if it's already keep up with NC version exist in VM, no update needed.
-		if hostVersion < vmVersion {
-			hostNCVersionNeedUpdate = true
+		// host NC version is the NC version from NMAgent, if it's smaller than
+		if hostNcVersion < dncNcVersion {
+			hostVersionNeedUpdateNcList = append(hostVersionNeedUpdateNcList, containerstatus.ID)
 		}
 	}
 	service.RUnlock()
-	if hostNCVersionNeedUpdate {
-		now := time.Now()
-		// Current AKS on Swift only has 1 container so only one newHostNCVersion
-		newHostNCVersion = service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
-		latency := time.Since(now)
-		log.Logf("New host nc version is %d. Get new host nc version takes %v time", newHostNCVersion, latency)
-		service.MarkIpsAsAvailableUntransacted(newHostNCVersion)
+	if len(hostVersionNeedUpdateNcList) > 0 {
+		newHostNCVersionList := service.nmagentClient.GetNcVersionListWithOutToken(hostVersionNeedUpdateNcList)
+		if newHostNCVersionList == nil {
+			logger.Errorf("Can't get vfp programmed NC version list from url without token")
+			return
+		}
+		service.Lock()
+		for ncID, newHostNCVersion := range newHostNCVersionList {
+			// Check whether it exist in service state and get the related nc info
+			if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
+				logger.Errorf("Can't find NC with ID %s in service state, stop updating this host NC version", ncID)
+			} else {
+				if channelMode == cns.CRD {
+					service.MarkIpsAsAvailableUntransacted(ncInfo.ID, newHostNCVersion)
+				}
+				ncInfo.HostNCVersion = strconv.Itoa(newHostNCVersion)
+				service.state.ContainerStatus[ncID] = ncInfo
+			}
+		}
+		service.Unlock()
 	}
 }
 

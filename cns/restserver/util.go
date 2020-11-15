@@ -17,9 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
-	"github.com/Azure/azure-container-networking/common"
 	acn "github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 )
@@ -108,7 +106,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	defer service.Unlock()
 
 	var (
-		hostVersion                string
+		hostNCVersion              string
 		existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig //uuid is key
 		vfpUpdateComplete          bool
 	)
@@ -119,22 +117,22 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 	existingNCStatus, ok := service.state.ContainerStatus[req.NetworkContainerid]
 	if ok {
-		hostVersion = existingNCStatus.HostVersion
+		hostNCVersion = existingNCStatus.HostNCVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
 	}
-	if hostVersion == "" {
+	if hostNCVersion == "" {
 		// Host version is the NC version from NMAgent, set it -1 to indicate no result from NMAgent yet.
 		// TODO, query NMAgent and with aggresive time out and assign latest host version.
-		hostVersion = "-1"
+		hostNCVersion = "-1"
 	}
 
 	service.state.ContainerStatus[req.NetworkContainerid] =
 		containerstatus{
 			ID:                            req.NetworkContainerid,
-			VMVersion:                     req.Version,
+			DncNCVersion:                  req.Version,
 			CreateNetworkContainerRequest: req,
-			HostVersion:                   hostVersion,
+			HostNCVersion:                 hostNCVersion,
 			VfpUpdateComplete:             vfpUpdateComplete}
 
 	switch req.NetworkContainerType {
@@ -180,18 +178,16 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
 			// Delete first.
-			returnCode, returnMesage := service.deleteIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, hostVersion)
+			returnCode, returnMesage := service.deleteIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, hostNCVersion)
 			// Add new IPs
 			// TODO, will udpate NC version related variable to int, change it from string to int is a pains
 			// TODO, remove this override when background thread which update nmagent version is ready.
 			var hostNCVersionInInt int
 			var err error
-			if hostNCVersionInInt, err = strconv.Atoi(hostVersion); err != nil {
-				return UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
+			if hostNCVersionInInt, err = strconv.Atoi(hostNCVersion); err != nil {
+				return UnsupportedNCVersion, fmt.Sprintf("Invalid hostNCVersion is %s, err:%s", hostNCVersion, err)
 			}
 			service.addIPConfigStateUntransacted(req.NetworkContainerid, hostNCVersionInInt, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
-			//nmagentNCVersion := service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
-			//service.addIPConfigStateUntransacted(req.NetworkContainerid, nmagentNCVersion, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
 
 			if returnCode != 0 {
 				return returnCode, returnMesage
@@ -214,7 +210,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 // This func will compute the deltaIpConfigState which needs to be deleted from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) deleteIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string) (int, string) {
+func (service *HTTPRestService) deleteIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostNCVersion string) (int, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
@@ -259,7 +255,7 @@ func (service *HTTPRestService) deleteIpConfigsStateUntransacted(req cns.CreateN
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, nmagentNCVersion int, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
+func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostNCVersion int, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	newIPCNSStatus := cns.Available
 	// add ipconfigs to state
 	for ipId, ipconfig := range ipconfigs {
@@ -268,15 +264,15 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, nmagen
 		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipId]; existsInPreviousIPConfig {
 			ipconfig.NCVersion = existingIPConfig.NCVersion
 			ipconfigs[ipId] = ipconfig
-			nmagentNCVersion = existingIPConfig.NCVersion
+			hostNCVersion = existingIPConfig.NCVersion
 		}
-		logger.Printf("[Azure-Cns] Set IP %s version to %d, programmed host nc version is %d", ipconfig.IPAddress, ipconfig.NCVersion, nmagentNCVersion)
+		logger.Printf("[Azure-Cns] Set IP %s version to %d, programmed host nc version is %d", ipconfig.IPAddress, ipconfig.NCVersion, hostNCVersion)
 		if _, exists := service.PodIPConfigState[ipId]; exists {
 			continue
 		}
 		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
 		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
-		if nmagentNCVersion < ipconfig.NCVersion {
+		if hostNCVersion < ipconfig.NCVersion {
 			newIPCNSStatus = cns.PendingProgramming
 		}
 		// add the new State
@@ -649,31 +645,6 @@ func (service *HTTPRestService) logNCSnapshots() {
 
 	for _, ncStatus := range service.state.ContainerStatus {
 		logNCSnapshot(ncStatus.CreateNetworkContainerRequest)
-		// Please remove it after testing if finished.
-		now := time.Now()
-
-		hostQueryURLForProgrammedVersionWithoutToken := "http://168.63.129.16/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/%s"
-		queryURL := fmt.Sprintf(hostQueryURLForProgrammedVersionWithoutToken, "2")
-		response, err := common.GetHttpClient().Get(queryURL)
-		latency := time.Since(now)
-		log.Logf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken response: %+v. Error: %v, queryURL is %s, latency", response, err, queryURL, latency)
-
-		if response.StatusCode != http.StatusOK {
-			log.Logf("[NMAgentClient][Response] GetNetworkContainerVersionWithoutToken failed with %d.", response.StatusCode)
-		}
-
-		var versionResponseWithoutToken nmagentclient.NMANetworkContainerResponseWithoutToken
-		rBytes, _ := ioutil.ReadAll(response.Body)
-		log.Logf("Response body is %v", rBytes)
-		json.Unmarshal(rBytes, &versionResponseWithoutToken)
-		if versionResponseWithoutToken.ResponseCode != "200" {
-			log.Logf("VersionResponseWithoutToken Failed to get NC version status from NMAgent. NC: %s, Response %s", rBytes)
-		}
-
-		log.Logf("VersionResponseWithoutToken.Containers is %v", versionResponseWithoutToken)
-		for ncid, version := range versionResponseWithoutToken.Containers {
-			log.Logf("Containers id is %d and version is %v", ncid, version)
-		}
 	}
 
 	logger.Printf("[Azure CNS] Logging periodic NC snapshots. NC Count %d", len(service.state.ContainerStatus))

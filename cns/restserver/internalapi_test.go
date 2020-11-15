@@ -45,7 +45,7 @@ func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	// NC version set as 1 which is larger than NC version get from mock nmagent.
-	validateCreateOrUpdateNCInternal(t, 2, "1")
+	validateCreateNCInternal(t, 2, "1")
 }
 
 func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
@@ -127,20 +127,20 @@ func TestSyncHostNCVersion(t *testing.T) {
 func testSyncHostNCVersion(t *testing.T, orchestratorType string) {
 	req := createNCReqeustForSyncHostNCVersion(t)
 	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostVersion != "-1" {
-		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be -1 in string", containerStatus.HostVersion)
+	if containerStatus.HostNCVersion != "-1" {
+		t.Errorf("Unexpected containerStatus.HostNCVersion %s, expeted host version should be -1 in string", containerStatus.HostNCVersion)
 	}
-	if containerStatus.VMVersion != "0" {
-		t.Errorf("Unexpected containerStatus.VMVersion %s, expeted VM version should be 0 in string", containerStatus.VMVersion)
+	if containerStatus.DncNCVersion != "0" {
+		t.Errorf("Unexpected containerStatus.DncNCVersion %s, expeted VM version should be 0 in string", containerStatus.DncNCVersion)
 	}
 	// When sync host NC version, it will use the orchestratorType pass in.
 	svc.SyncHostNCVersion(orchestratorType)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostVersion != "0" {
-		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be 0 in string", containerStatus.HostVersion)
+	if containerStatus.HostNCVersion != "0" {
+		t.Errorf("Unexpected containerStatus.HostNCVersion %s, expeted host version should be 0 in string", containerStatus.HostNCVersion)
 	}
-	if containerStatus.VMVersion != "0" {
-		t.Errorf("Unexpected containerStatus.VMVersion %s, expeted VM version should be 0 in string", containerStatus.VMVersion)
+	if containerStatus.DncNCVersion != "0" {
+		t.Errorf("Unexpected containerStatus.DncNCVersion %s, expeted VM version should be 0 in string", containerStatus.DncNCVersion)
 	}
 }
 
@@ -158,7 +158,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, cns.PendingProgramming, podIPConfigState.State, podIPConfigState.IPAddress)
 		}
 	}
-	svc.SyncHostNCVersion(cns.KubernetesCRD)
+	svc.SyncHostNCVersion(cns.CRD)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
@@ -287,6 +287,22 @@ func setOrchestratorTypeInternal(orchestratorType string) {
 	svc.state.OrchestratorType = orchestratorType
 }
 
+func validateCreateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	ncId := "testNc1"
+	ncVersionInInt, _ := strconv.Atoi(ncVersion)
+	var startingIndex = 6
+	for i := 0; i < secondaryIpCount; i++ {
+		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
+		secIpConfig := newSecondaryIPConfig(ipaddress, ncVersionInInt)
+		ipId := uuid.New()
+		secondaryIPConfigs[ipId.String()] = secIpConfig
+		startingIndex++
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
+}
+
 func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	ncId := "testNc1"
@@ -370,12 +386,12 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 
 	var expectedIPStatus string
 	// 0 is the default NMAgent version return from fake GetNetworkContainerInfoFromHost
-	if containerStatus.VMVersion > "0" {
+	if containerStatus.DncNCVersion > "0" {
 		expectedIPStatus = cns.PendingProgramming
 	} else {
 		expectedIPStatus = cns.Available
 	}
-	t.Logf("VMVersion is %s, HostVersion is %s", containerStatus.VMVersion, containerStatus.HostVersion)
+	t.Logf("DncNCVersion is %s, HostNCVersion is %s", containerStatus.DncNCVersion, containerStatus.HostNCVersion)
 	var alreadyValidated = make(map[string]string)
 	for ipid, ipStatus := range svc.PodIPConfigState {
 		if ipaddress, found := alreadyValidated[ipid]; !found {

@@ -225,7 +225,7 @@ func (fake *HTTPServiceFake) SyncNodeStatus(string, string, string, json.RawMess
 	return 0, ""
 }
 
-// SyncHostNCVersion will update HostVersion in containerstatus.
+// SyncHostNCVersion will update HostNCVersion in containerstatus.
 func (fake *HTTPServiceFake) SyncHostNCVersion(string) {
 	return
 }
