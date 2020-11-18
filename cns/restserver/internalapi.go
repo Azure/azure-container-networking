@@ -5,13 +5,13 @@ package restserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -147,7 +147,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
-func (service *HTTPRestService) SyncHostNCVersion(channelMode string, syncHostNCTimeoutMilliSec time.Duration) {
+func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) {
 	var hostVersionNeedUpdateNcList []string
 	service.RLock()
 	for _, containerstatus := range service.state.ContainerStatus {
@@ -196,7 +196,7 @@ func (service *HTTPRestService) SyncHostNCVersion(channelMode string, syncHostNC
 				}
 			}
 			service.Unlock()
-		case <-time.After(syncHostNCTimeoutMilliSec * time.Millisecond):
+		case <-ctx.Done():
 			logger.Errorf("Timeout when getting vfp programmed NC version list from url without token")
 		}
 	}

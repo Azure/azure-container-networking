@@ -4,6 +4,7 @@
 package restserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -143,7 +144,7 @@ func testSyncHostNCVersion(t *testing.T, orchestratorType string) {
 		t.Errorf("Unexpected containerStatus.DncNCVersion %s, expeted VM version should be 0 in string", containerStatus.DncNCVersion)
 	}
 	// When sync host NC version, it will use the orchestratorType pass in.
-	svc.SyncHostNCVersion(orchestratorType, 500)
+	svc.SyncHostNCVersion(context.Background(), orchestratorType)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 	if containerStatus.HostNCVersion != "0" {
 		t.Errorf("Unexpected containerStatus.HostNCVersion %s, expeted host version should be 0 in string", containerStatus.HostNCVersion)
@@ -167,7 +168,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, cns.PendingProgramming, podIPConfigState.State, podIPConfigState.IPAddress)
 		}
 	}
-	svc.SyncHostNCVersion(cns.CRD, 500)
+	svc.SyncHostNCVersion(context.Background(), cns.CRD)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
