@@ -3807,7 +3807,7 @@ func TestNamedPorts(t *testing.T) {
 	}
 
 	expectedNamedPorts := []string{
-		"port:serve-80",
+		"namedport:serve-80",
 	}
 	if !reflect.DeepEqual(namedPorts, expectedNamedPorts) {
 		t.Errorf("translatedPolicy failed @ ALLOW-ALL-TCP-PORT-serve-80-TO-app:server-IN-ns-test-policy namedPorts comparison")
@@ -3840,7 +3840,7 @@ func TestNamedPorts(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
 				util.IptablesMatchSetFlag,
-				util.GetHashedName("serve-80"),
+				util.GetHashedName("namedport:serve-80"),
 				util.IptablesDstFlag + "," + util.IptablesDstFlag,
 				util.IptablesJumpFlag,
 				util.IptablesAccept,

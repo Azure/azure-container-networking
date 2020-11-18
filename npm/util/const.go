@@ -111,7 +111,7 @@ const (
 	IpsetNomatch string = "nomatch"
 
 	//Prefixes for ipsets
-	NamedPortIPSetPrefix string = "port:"
+	NamedPortIPSetPrefix string = "namedport:"
 )
 
 //NPM telemetry constants.
