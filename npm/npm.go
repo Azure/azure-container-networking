@@ -11,6 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -187,6 +188,12 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	log.Logf("Azure-NPM creating, cleaning iptables")
 	iptMgr := iptm.NewIptablesManager()
 	iptMgr.UninitNpmChains()
+
+	log.Logf("Azure-NPM creating, cleaning existing IPSets")
+	destroyErr := ipsm.NewIpsetManager().Destroy()
+	if destroyErr != nil {
+		log.Logf("Azure-NPM error occurred while destroying existing IPSets err: %s", destroyErr.Error())
+	}
 
 	var (
 		podInformer   = informerFactory.Core().V1().Pods()
