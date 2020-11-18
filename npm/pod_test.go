@@ -70,11 +70,26 @@ func TestAddPod(t *testing.T) {
 			Phase: "Running",
 			PodIP: "1.2.3.4",
 		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				corev1.Container{
+					Ports: []corev1.ContainerPort{
+						corev1.ContainerPort{
+							Name:          "app:test-pod",
+							ContainerPort: 8080,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	npMgr.Lock()
 	if err := npMgr.AddPod(podObj); err != nil {
 		t.Errorf("TestAddPod failed @ AddPod")
+	}
+	if !ipsMgr.Exists(util.GetHashedName("app:test-pod"), "1.2.3.4,8080", "") {
+		t.Errorf("TestAddPod failed @ AddPod, Checking Port named same as Label")
 	}
 	npMgr.Unlock()
 }

@@ -109,6 +109,9 @@ const (
 	IpsetMaxelemNum  string = "4294967295"
 
 	IpsetNomatch string = "nomatch"
+
+	//Prefixes for ipsets
+	NamedPortIPSetPrefix string = "port_"
 )
 
 //NPM telemetry constants.
