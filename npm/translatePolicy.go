@@ -38,6 +38,19 @@ func craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort, s
 	return partialSpec
 }
 
+func getPortType(portRule networkingv1.NetworkPolicyPort) string {
+	if portRule.Port == nil {
+		return "invalid"
+	} else if portRule.Port.IntValue() == 0 && portRule.Port.String() == "" {
+		return "invalid"
+	} else if portRule.Port.IntValue() == 0 && portRule.Port.String() != "" {
+		return "namedport"
+	} else if portRule.Port.IntValue() != 0 {
+		return "validport"
+	}
+	return "invalid"
+}
+
 func craftPartialIptablesCommentFromPort(portRule networkingv1.NetworkPolicyPort, sPortOrDPortFlag string) string {
 	partialComment := ""
 	if portRule.Protocol != nil {
@@ -231,7 +244,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		// Only Ports rules exist
 		if portRuleExists && !fromRuleExists && !allowExternal {
 			for _, portRule := range rule.Ports {
-				if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+				switch portCheck := getPortType(portRule); portCheck {
+				case "namedport":
 					portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 					namedPorts = append(namedPorts, portName)
 					entry := &iptm.IptEntry{
@@ -255,7 +269,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							"-TO-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
-				} else {
+				case "validport":
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureIngressPortChain,
 						Specs: craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag),
@@ -273,6 +287,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							"-TO-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
+				default:
+					log.Logf("Invalid NetworkPolicyPort.")
 				}
 			}
 			continue
@@ -297,7 +313,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 					}
 					if portRuleExists {
 						for _, portRule := range rule.Ports {
-							if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+							switch portCheck := getPortType(portRule); portCheck {
+							case "namedport":
 								portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 								namedPorts = append(namedPorts, portName)
 								entry := &iptm.IptEntry{
@@ -329,7 +346,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 										"-TO-"+targetSelectorComment,
 								)
 								fromRuleEntries = append(fromRuleEntries, entry)
-							} else {
+							case "validport":
 								entry := &iptm.IptEntry{
 									Chain: util.IptablesAzureIngressPortChain,
 									Specs: append([]string(nil), targetSelectorIptEntrySpec...),
@@ -358,6 +375,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 										"-TO-"+targetSelectorComment,
 								)
 								fromRuleEntries = append(fromRuleEntries, entry)
+							default:
+								log.Logf("Invalid NetworkPolicyPort.")
 							}
 						}
 					} else {
@@ -413,7 +432,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				iptPartialNsComment := craftPartialIptablesCommentFromSelector("", fromRule.NamespaceSelector, true)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
-						if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+						switch portCheck := getPortType(portRule); portCheck {
+						case "namedport":
 							portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 							namedPorts = append(namedPorts, portName)
 							entry := &iptm.IptEntry{
@@ -441,7 +461,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
-						} else {
+						case "validport":
 							entry := &iptm.IptEntry{
 								Chain: util.IptablesAzureIngressPortChain,
 								Specs: append([]string(nil), targetSelectorIptEntrySpec...),
@@ -466,6 +486,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
+						default:
+							log.Logf("Invalid NetworkPolicyPort.")
 						}
 					}
 				} else {
@@ -507,7 +529,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, fromRule.PodSelector, false)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
-						if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+						switch portCheck := getPortType(portRule); portCheck {
+						case "namedport":
 							portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 							namedPorts = append(namedPorts, portName)
 							entry := &iptm.IptEntry{
@@ -535,7 +558,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
-						} else {
+						case "validport":
 							entry := &iptm.IptEntry{
 								Chain: util.IptablesAzureIngressPortChain,
 								Specs: append([]string(nil), targetSelectorIptEntrySpec...),
@@ -560,6 +583,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
+						default:
+							log.Logf("Invalid NetworkPolicyPort.")
 						}
 					}
 				} else {
@@ -614,7 +639,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			iptPartialPodComment := craftPartialIptablesCommentFromSelector("", fromRule.PodSelector, false)
 			if portRuleExists {
 				for _, portRule := range rule.Ports {
-					if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+					switch portCheck := getPortType(portRule); portCheck {
+					case "namedport":
 						portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 						namedPorts = append(namedPorts, portName)
 						entry := &iptm.IptEntry{
@@ -647,7 +673,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								"-TO-"+targetSelectorComment,
 						)
 						entries = append(entries, entry)
-					} else {
+					case "validport":
 						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureIngressPortChain,
 							Specs: append([]string(nil), iptPartialNsSpec...),
@@ -677,6 +703,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								"-TO-"+targetSelectorComment,
 						)
 						entries = append(entries, entry)
+					default:
+						log.Logf("Invalid NetworkPolicyPort.")
 					}
 				}
 			} else {
@@ -869,7 +897,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 		// Only Ports rules exist
 		if portRuleExists && !toRuleExists && !allowExternal {
 			for _, portRule := range rule.Ports {
-				if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+				switch portCheck := getPortType(portRule); portCheck {
+				case "namedport":
 					portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 					namedPorts = append(namedPorts, portName)
 					entry := &iptm.IptEntry{
@@ -893,7 +922,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 							"-FROM-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
-				} else {
+				case "validport":
 					entry := &iptm.IptEntry{
 						Chain: util.IptablesAzureEgressPortChain,
 						Specs: craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag),
@@ -911,6 +940,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 							"-FROM-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
+				default:
+					log.Logf("Invalid NetworkPolicyPort.")
 				}
 			}
 			continue
@@ -935,7 +966,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 					}
 					if portRuleExists {
 						for _, portRule := range rule.Ports {
-							if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+							switch portCheck := getPortType(portRule); portCheck {
+							case "namedport":
 								portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 								namedPorts = append(namedPorts, portName)
 								entry := &iptm.IptEntry{
@@ -967,7 +999,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 										"-FROM-"+targetSelectorComment,
 								)
 								toRuleEntries = append(toRuleEntries, entry)
-							} else {
+							case "validport":
 								entry := &iptm.IptEntry{
 									Chain: util.IptablesAzureEgressPortChain,
 									Specs: craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag),
@@ -996,6 +1028,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 										"-FROM-"+targetSelectorComment,
 								)
 								toRuleEntries = append(toRuleEntries, entry)
+							default:
+								log.Logf("Invalid NetworkPolicyPort.")
 							}
 						}
 					} else {
@@ -1057,7 +1091,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 				iptPartialNsComment := craftPartialIptablesCommentFromSelector("", toRule.NamespaceSelector, true)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
-						if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+						switch portCheck := getPortType(portRule); portCheck {
+						case "namedport":
 							portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 							namedPorts = append(namedPorts, portName)
 							entry := &iptm.IptEntry{
@@ -1085,7 +1120,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									"-FROM-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
-						} else {
+						case "validport":
 							entry := &iptm.IptEntry{
 								Chain: util.IptablesAzureEgressPortChain,
 								Specs: append([]string(nil), iptPartialNsSpec...),
@@ -1110,6 +1145,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									"-FROM-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
+						default:
+							log.Logf("Invalid NetworkPolicyPort.")
 						}
 					}
 				} else {
@@ -1151,7 +1188,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 				iptPartialPodComment := craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
-						if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+						switch portCheck := getPortType(portRule); portCheck {
+						case "namedport":
 							portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 							namedPorts = append(namedPorts, portName)
 							entry := &iptm.IptEntry{
@@ -1179,7 +1217,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									"-FROM-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
-						} else {
+						case "validport":
 							entry := &iptm.IptEntry{
 								Chain: util.IptablesAzureEgressPortChain,
 								Specs: append([]string(nil), iptPartialPodSpec...),
@@ -1204,6 +1242,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									"-FROM-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
+						default:
+							log.Logf("Invalid NetworkPolicyPort.")
 						}
 					}
 				} else {
@@ -1258,7 +1298,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 			iptPartialPodComment := craftPartialIptablesCommentFromSelector("", toRule.PodSelector, false)
 			if portRuleExists {
 				for _, portRule := range rule.Ports {
-					if portRule.Port != nil && portRule.Port.IntValue() == 0 {
+					switch portCheck := getPortType(portRule); portCheck {
+					case "namedport":
 						portName := util.NamedPortIPSetPrefix + portRule.Port.String()
 						namedPorts = append(namedPorts, portName)
 						entry := &iptm.IptEntry{
@@ -1291,7 +1332,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag),
 						)
 						entries = append(entries, entry)
-					} else {
+					case "validport":
 						entry := &iptm.IptEntry{
 							Chain: util.IptablesAzureEgressPortChain,
 							Specs: append([]string(nil), targetSelectorIptEntrySpec...),
@@ -1321,6 +1362,8 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag),
 						)
 						entries = append(entries, entry)
+					default:
+						log.Logf("Invalid NetworkPolicyPort.")
 					}
 				}
 			} else {
