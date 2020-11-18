@@ -547,7 +547,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 
 func TestTranslateIngress(t *testing.T) {
 	ns := "testnamespace"
-    name := "testnetworkpolicyname"
+	name := "testnetworkpolicyname"
 	targetSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"context": "dev",
@@ -3057,15 +3057,15 @@ func TestComplexPolicy(t *testing.T) {
 		t.Errorf("expectedLists: %v", expectedLists)
 	}
 
-	expectedIngressIPCidrs := [][]string {
+	expectedIngressIPCidrs := [][]string{
 		{"", "", "", "172.17.0.0/16", "172.17.1.0/24nomatch"},
 	}
 
-	expectedEgressIPCidrs := [][]string {
+	expectedEgressIPCidrs := [][]string{
 		{"", "10.0.0.0/24", "10.0.0.1/32nomatch"},
 	}
 
-	if !reflect.DeepEqual(ingressIPCidrs, expectedIngressIPCidrs) || !reflect.DeepEqual(ingressIPCidrsDiffOrder, expectedIngressIPCidrs){
+	if !reflect.DeepEqual(ingressIPCidrs, expectedIngressIPCidrs) || !reflect.DeepEqual(ingressIPCidrsDiffOrder, expectedIngressIPCidrs) {
 		t.Errorf("translatedPolicy failed @ k8s-example-policy ingress IP Cidrs comparison")
 		t.Errorf("ingress IP Cidrs: %v", ingressIPCidrs)
 		t.Errorf("expected ingress IP Cidrs: %v", expectedIngressIPCidrs)
@@ -3807,7 +3807,7 @@ func TestNamedPorts(t *testing.T) {
 	}
 
 	expectedNamedPorts := []string{
-		"serve-80",
+		"port:serve-80",
 	}
 	if !reflect.DeepEqual(namedPorts, expectedNamedPorts) {
 		t.Errorf("translatedPolicy failed @ ALLOW-ALL-TCP-PORT-serve-80-TO-app:server-IN-ns-test-policy namedPorts comparison")
