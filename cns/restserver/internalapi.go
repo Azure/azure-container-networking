@@ -12,6 +12,7 @@ import (
 	"reflect"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/dncclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/common"
@@ -39,30 +40,10 @@ func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRe
 	service.setOrchestratorType(httptest.NewRecorder(), req)
 }
 
-// SyncNodeStatus :- Retrieve the latest node state from DNC & returns the first occurence of returnCode and error with respect to contextFromCNI
-func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode int, errStr string) {
-	logger.Printf("[Azure CNS] SyncNodeStatus")
-	var (
-		response         *http.Response
-		err              error
-		nodeInfoResponse cns.NodeInfoResponse
-		req              *http.Request
-		body             []byte
-		httpc            = common.GetHttpClient()
-	)
-
-	// try to retrieve NodeInfoResponse from mDNC
-	response, err = httpc.Get(fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, dncEP, infraVnet, nodeID, dncApiVersion))
-	if err == nil {
-		if response.StatusCode == http.StatusOK {
-			err = json.NewDecoder(response.Body).Decode(&nodeInfoResponse)
-		} else {
-			err = fmt.Errorf("%d", response.StatusCode)
-		}
-
-		response.Body.Close()
-	}
-
+// SyncNodeNcStatus :- Retrieve the latest NCs scheduled on this node by DNC & returns the first occurence of returnCode and error with respect to contextFromCNI
+func (service *HTTPRestService) SyncNodeNcStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode int, errStr string) {
+	logger.Printf("[Azure CNS] SyncNodeNcStatus")
+	nodeInfoResponse, err := dncclient.SyncNodeNcStatus(dncEP, infraVnet, nodeID)
 	if err != nil {
 		returnCode = UnexpectedError
 		errStr = fmt.Sprintf("[Azure-CNS] Failed to sync node with error: %+v", err)
@@ -104,8 +85,8 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		ncVersionURLs.Store(nc.NetworkContainerid, versionURL)
 		waitingForUpdate, _, _ := service.isNCWaitingForUpdate(nc.Version, nc.NetworkContainerid)
 
-		body, _ = json.Marshal(nc)
-		req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
+		body, _ := json.Marshal(nc)
+		req, _ := http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
 		req.Header.Set(common.ContentType, common.JsonContent)
 		service.createOrUpdateNetworkContainer(w, req)
 		if w.Result().StatusCode == http.StatusOK {
@@ -129,7 +110,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		var body bytes.Buffer
 		json.NewEncoder(&body).Encode(&cns.DeleteNetworkContainerRequest{NetworkContainerid: nc})
 
-		req, err = http.NewRequest(http.MethodPost, "", &body)
+		req, err := http.NewRequest(http.MethodPost, "", &body)
 		if err == nil {
 			req.Header.Set(common.JsonContent, common.JsonContent)
 			service.deleteNetworkContainer(httptest.NewRecorder(), req)

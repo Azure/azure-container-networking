@@ -52,6 +52,7 @@ CNSFILES = \
 	$(wildcard cns/requestcontroller/*.go) \
 	$(wildcard cns/requestcontroller/kubecontroller/*.go) \
 	$(wildcard cns/fakes/*.go) \
+	$(wildcard cns/dncclient/*.go) \
 	$(COREFILES) \
 	$(CNMFILES)
 

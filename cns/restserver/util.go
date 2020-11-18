@@ -384,7 +384,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 			)
 
 			service.Unlock()
-			getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.SyncNodeStatus(dncEP, infraVnet, nodeID, req.OrchestratorContext)
+			getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.SyncNodeNcStatus(dncEP, infraVnet, nodeID, req.OrchestratorContext)
 			service.Lock()
 			if getNetworkContainerResponse.Response.ReturnCode == NotFound {
 				return getNetworkContainerResponse
@@ -508,7 +508,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				nodeID    = service.GetOption(acn.OptNodeID).(string)
 			)
 
-			returnCode, msg := service.SyncNodeStatus(dncEP, infraVnet, nodeID, json.RawMessage{})
+			returnCode, msg := service.SyncNodeNcStatus(dncEP, infraVnet, nodeID, json.RawMessage{})
 			if returnCode != Success {
 				return cns.Response{
 					ReturnCode: returnCode,
