@@ -123,7 +123,7 @@ func setManagedSettingDefaults(managedSettings *ManagedSettings) {
 	}
 }
 
-// Set Default values of CNS config if not specified
+// SetCNSConfigDefaults set default values of CNS config if not specified
 func SetCNSConfigDefaults(config *CNSConfig) {
 	setTelemetrySettingDefaults(&config.TelemetrySettings)
 	setManagedSettingDefaults(&config.ManagedSettings)
