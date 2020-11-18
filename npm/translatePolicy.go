@@ -40,7 +40,7 @@ func craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort, s
 
 func getPortType(portRule networkingv1.NetworkPolicyPort) string {
 	if portRule.Port == nil {
-		return "invalid"
+		return "validport"
 	} else if portRule.Port.IntValue() == 0 && portRule.Port.String() == "" {
 		return "invalid"
 	} else if portRule.Port.IntValue() == 0 && portRule.Port.String() != "" {
