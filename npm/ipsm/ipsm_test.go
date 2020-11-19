@@ -521,6 +521,28 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestDestroyNpmIpsets(t *testing.T) {
+	ipsMgr := NewIpsetManager()
+
+	err := ipsMgr.CreateSet("azure-npm-123456", []string{"nethash"})
+	if err != nil {
+		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.CreateSet")
+		t.Errorf(err.Error())
+	}
+
+	err = ipsMgr.CreateSet("azure-npm-56543", []string{"nethash"})
+	if err != nil {
+		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.CreateSet")
+		t.Errorf(err.Error())
+	}
+
+	err = ipsMgr.DestroyNpmIpsets()
+	if err != nil {
+		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.DestroyNpmIpsets")
+		t.Errorf(err.Error())
+	}
+}
+
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	ipsMgr := NewIpsetManager()

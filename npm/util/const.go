@@ -110,6 +110,8 @@ const (
 
 	IpsetNomatch string = "nomatch"
 
+	IpsetGetNPMSets string = " | grep \"Name: azure-npm\" | awk '{print $2}' ORS=' '"
+
 	//Prefixes for ipsets
 	NamedPortIPSetPrefix string = "namedport:"
 )

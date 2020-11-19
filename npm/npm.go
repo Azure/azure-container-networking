@@ -189,8 +189,8 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	iptMgr := iptm.NewIptablesManager()
 	iptMgr.UninitNpmChains()
 
-	log.Logf("Azure-NPM creating, cleaning existing IPSets")
-	destroyErr := ipsm.NewIpsetManager().Destroy()
+	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
+	destroyErr := ipsm.NewIpsetManager().DestroyNpmIpsets()
 	if destroyErr != nil {
 		log.Logf("Azure-NPM error occurred while destroying existing IPSets err: %s", destroyErr.Error())
 	}

@@ -6,6 +6,7 @@ package ipsm
 import (
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -70,12 +71,12 @@ func (ipsMgr *IpsetManager) Exists(key string, val string, kind string) bool {
 
 // SetExists checks whehter an ipset exists.
 func (ipsMgr *IpsetManager) SetExists(setName, kind string) bool {
-    m := ipsMgr.setMap
-    if kind == util.IpsetSetListFlag {
-        m = ipsMgr.listMap
-    }
-    _, exists := m[setName]
-    return exists
+	m := ipsMgr.setMap
+	if kind == util.IpsetSetListFlag {
+		m = ipsMgr.listMap
+	}
+	_, exists := m[setName]
+	return exists
 }
 
 func isNsSet(setName string) bool {
@@ -457,6 +458,78 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 	cmd.Wait()
 
 	//TODO based on the set name and number of entries in the config file, update IPSetInventory
+
+	return nil
+}
+
+// DestroyNpmIpsets destroys only ipsets created by NPM
+func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
+
+	cmdName := util.Ipset
+	cmdArgs := util.IPsetCheckListFlag
+
+	reply, err := exec.Command(cmdName, cmdArgs).Output()
+	if msg, failed := err.(*exec.ExitError); failed {
+		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
+		if errCode > 0 {
+			log.Logf("Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+			metrics.SendErrorMetric(util.IpsmID, "Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+		}
+
+		return err
+	}
+	if reply == nil {
+		log.Logf("Received empty string from ipset list while destroying azure-npm ipsets")
+		return nil
+	}
+
+	log.Logf("Reply from command executed is %s", reply)
+	re := regexp.MustCompile("Name: (azure-npm-\\d+)")
+	ipsetRegexSlice := re.FindAllSubmatch(reply, -1)
+
+	if len(ipsetRegexSlice) == 0 {
+		log.Logf("No Azure-NPM IPsets are found in the Node.")
+		return nil
+	}
+
+	ipsetLists := make([]string, 3)
+	for _, matchedItem := range ipsetRegexSlice {
+		if len(matchedItem) == 2 {
+			itemString := string(matchedItem[1])
+			if strings.Contains(itemString, "azure-npm") {
+				ipsetLists = append(ipsetLists, itemString)
+			}
+		}
+	}
+
+	if len(ipsetLists) == 0 {
+		return nil
+	}
+
+	entry := &ipsEntry{
+		operationFlag: util.IpsetFlushFlag,
+	}
+
+	for _, ipsetName := range ipsetLists {
+		entry := &ipsEntry{
+			operationFlag: util.IpsetFlushFlag,
+			set:           ipsetName,
+		}
+
+		if _, err := ipsMgr.Run(entry); err != nil {
+			metrics.SendErrorMetric(util.IpsmID, "Error: failed to flush ipset %s", ipsetName)
+			log.Logf("Error: failed to flush ipset %s", ipsetName)
+		}
+	}
+
+	for _, ipsetName := range ipsetLists {
+		entry.operationFlag = util.IpsetDestroyFlag
+		entry.set = ipsetName
+		if _, err := ipsMgr.Run(entry); err != nil {
+			metrics.SendErrorMetric(util.IpsmID, "Error: failed to destroy ipset %s", ipsetName)
+			log.Logf("Error: failed to destroy ipset %s", ipsetName)
+		}
+	}
 
 	return nil
 }
