@@ -190,10 +190,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	iptMgr.UninitNpmChains()
 
 	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
-	destroyErr := ipsm.NewIpsetManager().DestroyNpmIpsets()
-	if destroyErr != nil {
-		log.Logf("Azure-NPM error occurred while destroying existing IPSets err: %s", destroyErr.Error())
-	}
+	ipsm.NewIpsetManager().DestroyNpmIpsets()
 
 	var (
 		podInformer   = informerFactory.Core().V1().Pods()

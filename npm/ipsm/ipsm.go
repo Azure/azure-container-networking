@@ -495,7 +495,7 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	for _, matchedItem := range ipsetRegexSlice {
 		if len(matchedItem) == 2 {
 			itemString := string(matchedItem[1])
-			if strings.Contains(itemString, "azure-npm") {
+			if strings.Contains(itemString, util.AzureNpmFlag) {
 				ipsetLists = append(ipsetLists, itemString)
 			}
 		}
