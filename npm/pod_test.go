@@ -88,12 +88,6 @@ func TestAddPod(t *testing.T) {
 	if err := npMgr.AddPod(podObj); err != nil {
 		t.Errorf("TestAddPod failed @ AddPod")
 	}
-	if !ipsMgr.Exists(util.NamedPortIPSetPrefix+"app:test-pod", "1.2.3.4,8080", "") {
-		t.Errorf("TestAddPod failed @ AddPod, Checking Port named same as Label")
-	}
-	if !ipsMgr.Exists("app:test-pod", "1.2.3.4", "") {
-		t.Errorf("TestAddPod failed @ AddPod, Checking LabelKeyValue named same as Port")
-	}
 	npMgr.Unlock()
 }
 
