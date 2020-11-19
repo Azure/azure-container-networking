@@ -472,19 +472,18 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {
-			log.Logf("Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
-			metrics.SendErrorMetric(util.IpsmID, "Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+			metrics.SendErrorMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
 		}
 
 		return err
 	}
 	if reply == nil {
-		log.Logf("Received empty string from ipset list while destroying azure-npm ipsets")
+		metrics.SendErrorMetric(util.IpsmID, "{DestroyNpmIpsets} Received empty string from ipset list while destroying azure-npm ipsets")
 		return nil
 	}
 
-	log.Logf("Reply from command executed is %s", reply)
-	re := regexp.MustCompile("Name: (azure-npm-\\d+)")
+	log.Logf("{DestroyNpmIpsets} Reply from command %s executed is %s", cmdName+" "+cmdArgs, reply)
+	re := regexp.MustCompile("Name: (" + util.AzureNpmPrefix + "\\d+)")
 	ipsetRegexSlice := re.FindAllSubmatch(reply, -1)
 
 	if len(ipsetRegexSlice) == 0 {
@@ -517,8 +516,7 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 		}
 
 		if _, err := ipsMgr.Run(entry); err != nil {
-			metrics.SendErrorMetric(util.IpsmID, "Error: failed to flush ipset %s", ipsetName)
-			log.Logf("Error: failed to flush ipset %s", ipsetName)
+			metrics.SendErrorMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to flush ipset %s", ipsetName)
 		}
 	}
 
@@ -526,8 +524,7 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 		entry.operationFlag = util.IpsetDestroyFlag
 		entry.set = ipsetName
 		if _, err := ipsMgr.Run(entry); err != nil {
-			metrics.SendErrorMetric(util.IpsmID, "Error: failed to destroy ipset %s", ipsetName)
-			log.Logf("Error: failed to destroy ipset %s", ipsetName)
+			metrics.SendErrorMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to destroy ipset %s", ipsetName)
 		}
 	}
 

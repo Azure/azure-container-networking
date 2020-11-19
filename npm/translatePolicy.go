@@ -39,14 +39,10 @@ func craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort, s
 }
 
 func getPortType(portRule networkingv1.NetworkPolicyPort) string {
-	if portRule.Port == nil {
+	if portRule.Port == nil || portRule.Port.IntValue() != 0 {
 		return "validport"
-	} else if portRule.Port.IntValue() == 0 && portRule.Port.String() == "" {
-		return "invalid"
 	} else if portRule.Port.IntValue() == 0 && portRule.Port.String() != "" {
 		return "namedport"
-	} else if portRule.Port.IntValue() != 0 {
-		return "validport"
 	}
 	return "invalid"
 }
