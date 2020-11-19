@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"testing"
 
 	v1 "k8s.io/api/apps/v1"
@@ -17,7 +18,9 @@ import (
 const (
 	exitFail = 1
 
-	envImageTag = "VERSION"
+	envImageTag   = "VERSION"
+	envInstallCNI = "INSTALL_CNI"
+	envInstallCNS = "INSTALL_CNS"
 
 	// relative azure-cni-manager path
 	cniDaemonSetPath = "../../acncli/deployment/manager.yaml"
@@ -40,13 +43,13 @@ func TestMain(m *testing.M) {
 		err        error
 		exitCode   int
 		clientset  *kubernetes.Clientset
-		cnicleanup func() error
-		cnscleanup func() error
+		cnicleanup func() error = func() error { return nil }
+		cnscleanup func() error = func() error { return nil }
 	)
 
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println(string(debug.Stack()))
+			log.Println(string(debug.Stack()))
 			exitCode = exitFail
 		}
 
@@ -67,27 +70,40 @@ func TestMain(m *testing.M) {
 
 	testTag := os.Getenv(envImageTag)
 	if testTag == "" {
-		err = fmt.Errorf("Tag for CNI and CNS is nil")
+		err = fmt.Errorf("Env %v for CNI and CNS is nil", envImageTag)
 		return
 	}
 
 	ctx := context.Background()
 
 	// create dirty cni-manager ds
-	if cnicleanup, err = installCNI(ctx, clientset, testTag); err != nil {
-		log.Print(err)
+	installCNI, err := strconv.ParseBool(os.Getenv(envInstallCNI))
+	if installCNI && err != nil {
+		if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, testTag); err != nil {
+			log.Print(err)
+			return
+		}
+	} else if installCNI == false {
+		log.Printf("Env %v not set to true, skipping", envInstallCNI)
+	} else {
 		return
 	}
 
 	// create dirty cns ds
-	if cnscleanup, err = installCNS(ctx, clientset, testTag); err != nil {
+	installCNS, err := strconv.ParseBool(os.Getenv(envInstallCNS))
+	if installCNS && err != nil {
+		if cnscleanup, err = installCNSDaemonset(ctx, clientset, testTag); err != nil {
+			return
+		}
+	} else if installCNS == false {
+		log.Printf("Env %v not set to true, skipping", envInstallCNS)
+	} else {
 		return
 	}
-
 	exitCode = m.Run()
 }
 
-func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag string) (func() error, error) {
+func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, imageTag string) (func() error, error) {
 	var (
 		err error
 		cns v1.DaemonSet
@@ -137,7 +153,7 @@ func installCNS(ctx context.Context, clientset *kubernetes.Clientset, imageTag s
 	return cleanupds, nil
 }
 
-func installCNI(ctx context.Context, clientset *kubernetes.Clientset, imageTag string) (func() error, error) {
+func installCNIManagerDaemonset(ctx context.Context, clientset *kubernetes.Clientset, imageTag string) (func() error, error) {
 	var (
 		err error
 		cni v1.DaemonSet
