@@ -139,7 +139,7 @@ func (npMgr *NetworkPolicyManager) restore() {
 		time.Sleep(restoreRetryWaitTimeInSeconds * time.Second)
 	}
 
-	metrics.SendErrorMetric(util.NpmID, "Error: timeout restoring Azure-NPM states")
+	metrics.SendErrorLogAndMetric(util.NpmID, "Error: timeout restoring Azure-NPM states")
 	panic(err.Error)
 }
 
@@ -151,7 +151,7 @@ func (npMgr *NetworkPolicyManager) backup() {
 		time.Sleep(backupWaitTimeInSeconds * time.Second)
 
 		if err = iptMgr.Save(util.IptablesConfigFile); err != nil {
-			metrics.SendErrorMetric(util.NpmID, "Error: failed to back up Azure-NPM states")
+			metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states")
 		}
 	}
 }
@@ -163,17 +163,17 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 
 	// Wait for the initial sync of local cache.
 	if !cache.WaitForCacheSync(stopCh, npMgr.podInformer.Informer().HasSynced) {
-		metrics.SendErrorMetric(util.NpmID, "Pod informer failed to sync")
+		metrics.SendErrorLogAndMetric(util.NpmID, "Pod informer failed to sync")
 		return fmt.Errorf("Pod informer failed to sync")
 	}
 
 	if !cache.WaitForCacheSync(stopCh, npMgr.nsInformer.Informer().HasSynced) {
-		metrics.SendErrorMetric(util.NpmID, "Namespace informer failed to sync")
+		metrics.SendErrorLogAndMetric(util.NpmID, "Namespace informer failed to sync")
 		return fmt.Errorf("Namespace informer failed to sync")
 	}
 
 	if !cache.WaitForCacheSync(stopCh, npMgr.npInformer.Informer().HasSynced) {
-		metrics.SendErrorMetric(util.NpmID, "Network policy informer failed to sync")
+		metrics.SendErrorLogAndMetric(util.NpmID, "Network policy informer failed to sync")
 		return fmt.Errorf("Network policy informer failed to sync")
 	}
 
@@ -208,13 +208,13 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		}
 	}
 	if err != nil {
-		metrics.SendErrorMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
 		panic(err.Error)
 	}
 	log.Logf("API server version: %+v", serverVersion)
 
 	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
-		metrics.SendErrorMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
 		panic(err.Error)
 	}
 
@@ -245,7 +245,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	// Create ipset for the namespace.
 	kubeSystemNs := "ns-" + util.KubeSystemFlag
 	if err := allNs.ipsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
-		metrics.SendErrorMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
 	}
 
 	podInformer.Informer().AddEventHandler(

@@ -50,8 +50,8 @@ func CreateTelemetryHandle(version, aiMetadata string) error {
 	return nil
 }
 
-// SendErrorMetric is responsible for sending error metrics trhough AI telemetry
-func SendErrorMetric(operationID int, format string, args ...interface{}) {
+// SendErrorLogAndMetric is responsible for sending log and error metrics through AI telemetry
+func SendErrorLogAndMetric(operationID int, format string, args ...interface{}) {
 	// Send error metrics
 	customDimensions := map[string]string{
 		util.ErrorCode: strconv.Itoa(operationID),
