@@ -491,7 +491,7 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 		return nil
 	}
 
-	ipsetLists := make([]string, 3)
+	ipsetLists := make([]string, 0)
 	for _, matchedItem := range ipsetRegexSlice {
 		if len(matchedItem) == 2 {
 			itemString := string(matchedItem[1])
