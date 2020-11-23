@@ -43,8 +43,8 @@ func TestMain(m *testing.M) {
 		err        error
 		exitCode   int
 		clientset  *kubernetes.Clientset
-		cnicleanup func() error = func() error { return nil }
-		cnscleanup func() error = func() error { return nil }
+		cnicleanup func() error
+		cnscleanup func() error
 	)
 
 	defer func() {
@@ -57,8 +57,12 @@ func TestMain(m *testing.M) {
 			log.Print(err)
 			exitCode = exitFail
 		} else {
-			cnicleanup()
-			cnscleanup()
+			if cnicleanup != nil {
+				cnicleanup()
+			}
+			if cnscleanup != nil {
+				cnscleanup()
+			}
 		}
 
 		os.Exit(exitCode)
@@ -68,18 +72,12 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	testTag := os.Getenv(envImageTag)
-	if testTag == "" {
-		err = fmt.Errorf("Env %v for CNI and CNS is nil", envImageTag)
-		return
-	}
-
 	ctx := context.Background()
 
 	// create dirty cni-manager ds
 	installCNI, err := strconv.ParseBool(os.Getenv(envInstallCNI))
 	if installCNI && err != nil {
-		if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, testTag); err != nil {
+		if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, os.Getenv(envImageTag)); err != nil {
 			log.Print(err)
 			return
 		}
@@ -92,7 +90,7 @@ func TestMain(m *testing.M) {
 	// create dirty cns ds
 	installCNS, err := strconv.ParseBool(os.Getenv(envInstallCNS))
 	if installCNS && err != nil {
-		if cnscleanup, err = installCNSDaemonset(ctx, clientset, testTag); err != nil {
+		if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envImageTag)); err != nil {
 			return
 		}
 	} else if installCNS == false {
@@ -109,6 +107,10 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 		cns v1.DaemonSet
 	)
 
+	if imageTag == "" {
+		return nil, fmt.Errorf("Azure CNS image tag not set")
+	}
+
 	// setup daemonset
 	if cns, err = mustParseDaemonSet(cnsDaemonSetPath); err != nil {
 		return nil, err
@@ -118,7 +120,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
-	log.Printf("Installing CNS with  image %s", cns.Spec.Template.Spec.Containers[0].Image)
+	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
 
 	// setup the CNS configmap
 	if err := mustSetupConfigMap(ctx, clientset, cnsConfigMapPath); err != nil {

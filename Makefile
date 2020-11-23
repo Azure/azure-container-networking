@@ -234,7 +234,7 @@ $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT): $(NPMFILES)
 .PHONY: all-containerized
 all-containerized:
 	pwd && ls -l
-	docker build -f Dockerfile.build -t $(BUILD_CONTAINER_IMAGE):$(VERSION) .
+	docker build -f Dockerfile.build -t $(BUILD_CONTAINER_IMAGE):$(VERSION) --no-cache .
 	docker run --name $(BUILD_CONTAINER_NAME) \
 		-v /usr/bin/docker:/usr/bin/docker \
 		-v /var/run/docker.sock:/var/run/docker.sock \
@@ -270,7 +270,7 @@ hack-images:
 azure-vnet-plugin-image: azure-cnm-plugin
 	# Build the plugin image, keeping any old image during build for cache, but remove it afterwards.
 	docker images -q $(CNM_PLUGIN_ROOTFS):$(VERSION) > cid
-	docker build \
+	docker build --no-cache \
 		-f Dockerfile.cnm \
 		-t $(CNM_PLUGIN_ROOTFS):$(VERSION) \
 		--build-arg CNM_BUILD_DIR=$(CNM_BUILD_DIR) \
