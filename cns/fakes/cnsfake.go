@@ -1,9 +1,11 @@
 package fakes
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -231,7 +233,7 @@ func (fake *HTTPServiceFake) SyncNodeStatus(string, string, string, json.RawMess
 }
 
 // SyncHostNCVersion will update HostNCVersion in containerstatus.
-func (fake *HTTPServiceFake) SyncHostNCVersion(string) {
+func (fake *HTTPServiceFake) SyncHostNCVersion(context.Context, string, time.Time, time.Duration) {
 	return
 }
 
