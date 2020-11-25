@@ -35,10 +35,7 @@ type NMANetworkContainerResponse struct {
 type NMAgentSupportedApisResponseXML struct {
 	SupportedApis []string `xml:"type"`
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> Resovle merge conflict from master.
 type ContainerInfo struct {
 	NetworkContainerID string `json:"networkContainerId"`
 	Version            string `json:"version"`
