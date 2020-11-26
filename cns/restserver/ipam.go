@@ -100,7 +100,7 @@ func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]c
 	defer service.Unlock()
 	for uuid, _ := range service.PodIPConfigState {
 		mutableIPConfig := service.PodIPConfigState[uuid]
-		if mutableIPConfig.State == cns.Available {
+		if mutableIPConfig.State == cns.Available || mutableIPConfig.State == cns.PendingProgramming {
 			mutableIPConfig.State = cns.PendingRelease
 			service.PodIPConfigState[uuid] = mutableIPConfig
 			pendingReleaseIPs[uuid] = mutableIPConfig

@@ -568,13 +568,12 @@ func main() {
 		}
 
 		logger.Printf("Starting SyncHostNCVersion")
-		lastUpdatedHostNCTimeStamp := time.Now()
 		rootCxt := context.Background()
 		go func() {
 			// Periodically poll vfp programmed NC version from NMAgent
 			for {
 				<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalMilliSec * time.Millisecond).C
-				httpRestServiceImplementation.SyncHostNCVersion(rootCxt, config.ChannelMode, lastUpdatedHostNCTimeStamp, cnsconfig.ForceMarkIPAvailableTimeRange, cnsconfig.SyncHostNCTimeoutMilliSec)
+				httpRestServiceImplementation.SyncHostNCVersion(rootCxt, config.ChannelMode, cnsconfig.SyncHostNCTimeoutMilliSec)
 			}
 		}()
 

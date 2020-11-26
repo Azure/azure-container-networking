@@ -148,7 +148,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
-func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string, lastUpdatedHostNCTimeStamp time.Time, forceMarkIPAvailableTimeRange, syncHostNCTimeoutMilliSec time.Duration) {
+func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string, syncHostNCTimeoutMilliSec time.Duration) {
 	var hostVersionNeedUpdateNcList []string
 	service.RLock()
 	for _, containerstatus := range service.state.ContainerStatus {
@@ -181,11 +181,6 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 			service.Lock()
 			if newHostNCVersionList == nil {
 				logger.Errorf("Can't get vfp programmed NC version list from url without token")
-				if channelMode == cns.CRD && time.Since(lastUpdatedHostNCTimeStamp) > forceMarkIPAvailableTimeRange {
-					service.MarkAllPendingProgrammingIpsAsAvailableUntransacted()
-					lastUpdatedHostNCTimeStamp = time.Now()
-					logger.Printf("Can't get vfp programmed NC version list from url without token and performed force update.")
-				}
 			} else {
 				for ncID, newHostNCVersion := range newHostNCVersionList {
 					// Check whether it exist in service state and get the related nc info
@@ -199,14 +194,11 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 						service.state.ContainerStatus[ncID] = ncInfo
 					}
 				}
-				lastUpdatedHostNCTimeStamp = time.Now()
 			}
 			service.Unlock()
 		case <-ctxWithTimeout.Done():
 			logger.Errorf("Timeout when getting vfp programmed NC version list from url without token")
 		}
-	} else {
-		lastUpdatedHostNCTimeStamp = time.Now()
 	}
 }
 

@@ -30,7 +30,6 @@ type CNSConfig struct {
 	SyncHostNCVersionIntervalSec      int
 	SyncHostNCVersionIntervalMilliSec time.Duration
 	SyncHostNCTimeoutMilliSec         time.Duration
-	ForceMarkIPAvailableTimeRange     time.Duration
 }
 
 type TelemetrySettings struct {
@@ -136,5 +135,4 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	}
 	config.SyncHostNCVersionIntervalMilliSec = 1000
 	config.SyncHostNCTimeoutMilliSec = 500
-	config.ForceMarkIPAvailableTimeRange = 5000
 }
