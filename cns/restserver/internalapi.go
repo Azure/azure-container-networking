@@ -153,18 +153,18 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	service.RLock()
 	for _, containerstatus := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
-		hostNcVersion, err := strconv.Atoi(containerstatus.HostNCVersion)
+		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
 		if err != nil {
-			log.Errorf("Received err when change containerstatus.HostNCVersion %s to int, err msg %v", containerstatus.HostNCVersion, err)
+			log.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
 			return
 		}
-		dncNcVersion, err := strconv.Atoi(containerstatus.DncNCVersion)
+		dncNcVersion, err := strconv.Atoi(containerstatus.CreateNetworkContainerRequest.Version)
 		if err != nil {
-			log.Errorf("Received err when change containerstatus.DncNCVersion %s to int, err msg %v", containerstatus.DncNCVersion, err)
+			log.Errorf("Received err when change nc version %s in containerstatusto int, err msg %v", containerstatus.CreateNetworkContainerRequest.Version, err)
 			return
 		}
 		// host NC version is the NC version from NMAgent, if it's smaller than
-		if hostNcVersion < dncNcVersion {
+		if hostVersion < dncNcVersion {
 			hostVersionNeedUpdateNcList = append(hostVersionNeedUpdateNcList, containerstatus.ID)
 		}
 	}
@@ -190,7 +190,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 						if channelMode == cns.CRD {
 							service.MarkIpsAsAvailableUntransacted(ncInfo.ID, newHostNCVersion)
 						}
-						ncInfo.HostNCVersion = strconv.Itoa(newHostNCVersion)
+						ncInfo.HostVersion = strconv.Itoa(newHostNCVersion)
 						service.state.ContainerStatus[ncID] = ncInfo
 					}
 				}

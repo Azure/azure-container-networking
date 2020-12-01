@@ -133,9 +133,9 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 	if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
 		logger.Errorf("Can't find NC with ID %s in service state, stop updating its pending programming IP status", ncID)
 	} else {
-		previousHostNCVersion := ncInfo.HostNCVersion
+		previousHostNCVersion := ncInfo.HostVersion
 		// We only need to handle the situation when dnc nc version is larger than programmed nc version
-		if previousHostNCVersion < ncInfo.DncNCVersion && previousHostNCVersion < strconv.Itoa(newHostNCVersion) {
+		if previousHostNCVersion < ncInfo.CreateNetworkContainerRequest.Version && previousHostNCVersion < strconv.Itoa(newHostNCVersion) {
 			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
 				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
 					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)

@@ -138,20 +138,20 @@ func TestSyncHostNCVersion(t *testing.T) {
 func testSyncHostNCVersion(t *testing.T, orchestratorType string) {
 	req := createNCReqeustForSyncHostNCVersion(t)
 	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostNCVersion != "-1" {
-		t.Errorf("Unexpected containerStatus.HostNCVersion %s, expeted host version should be -1 in string", containerStatus.HostNCVersion)
+	if containerStatus.HostVersion != "-1" {
+		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be -1 in string", containerStatus.HostVersion)
 	}
-	if containerStatus.DncNCVersion != "0" {
-		t.Errorf("Unexpected containerStatus.DncNCVersion %s, expeted VM version should be 0 in string", containerStatus.DncNCVersion)
+	if containerStatus.CreateNetworkContainerRequest.Version != "0" {
+		t.Errorf("Unexpected nc version in containerStatus as %s, expeted VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
 	}
 	// When sync host NC version, it will use the orchestratorType pass in.
 	svc.SyncHostNCVersion(context.Background(), orchestratorType, 500*time.Millisecond)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostNCVersion != "0" {
-		t.Errorf("Unexpected containerStatus.HostNCVersion %s, expeted host version should be 0 in string", containerStatus.HostNCVersion)
+	if containerStatus.HostVersion != "0" {
+		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be 0 in string", containerStatus.HostVersion)
 	}
-	if containerStatus.DncNCVersion != "0" {
-		t.Errorf("Unexpected containerStatus.DncNCVersion %s, expeted VM version should be 0 in string", containerStatus.DncNCVersion)
+	if containerStatus.CreateNetworkContainerRequest.Version != "0" {
+		t.Errorf("Unexpected nc version in containerStatus as %s, expeted VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
 	}
 }
 
@@ -397,12 +397,12 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 
 	var expectedIPStatus string
 	// 0 is the default NMAgent version return from fake GetNetworkContainerInfoFromHost
-	if containerStatus.DncNCVersion > "0" {
+	if containerStatus.CreateNetworkContainerRequest.Version > "0" {
 		expectedIPStatus = cns.PendingProgramming
 	} else {
 		expectedIPStatus = cns.Available
 	}
-	t.Logf("DncNCVersion is %s, HostNCVersion is %s", containerStatus.DncNCVersion, containerStatus.HostNCVersion)
+	t.Logf("NC version in container status is %s, HostVersion is %s", containerStatus.CreateNetworkContainerRequest.Version, containerStatus.HostVersion)
 	var alreadyValidated = make(map[string]string)
 	for ipid, ipStatus := range svc.PodIPConfigState {
 		if ipaddress, found := alreadyValidated[ipid]; !found {
