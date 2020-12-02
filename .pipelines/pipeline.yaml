@@ -124,10 +124,10 @@ stages:
               docker tag $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
               docker push $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
 
-              docker tag $IMAGE_REGISTRY/azure-cns:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+              docker tag $IMAGE_REGISTRY/azure-cns:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-cns:$(EnvironmentalVariables.Tag)-test
               docker push $IMAGE_REGISTRY/azure-cns:$(EnvironmentalVariables.Tag)-test
 
-              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-cni-manager:$(EnvironmentalVariables.Tag)-test
               docker push $IMAGE_REGISTRY/azure-cni-manager:$(EnvironmentalVariables.Tag)-test
 
               function auto-retry()
