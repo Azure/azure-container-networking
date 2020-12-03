@@ -17,7 +17,9 @@ stages:
         timeoutInMinutes: 120
         pool:
           name: Networking-ContainerNetworking
-          demands: agent.os -equals Linux
+          demands: 
+          - agent.os -equals Linux
+          - Role -equals Build
         container:
           image: ${{ parameters.pipelineBuildImage }}
         variables:

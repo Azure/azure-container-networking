@@ -16,7 +16,9 @@ stages:
         displayName: CNI, NPM, CNS, CNM
         pool:
           name: Networking-ContainerNetworking
-          demands: agent.os -equals Linux
+          demands: 
+          - agent.os -equals Linux
+          - Role -equals Build
 
         container:
           image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
