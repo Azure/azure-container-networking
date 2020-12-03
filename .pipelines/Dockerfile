@@ -22,3 +22,4 @@ RUN go get github.com/jstemmer/go-junit-report
 RUN go get github.com/axw/gocov/gocov
 RUN go get github.com/AlekSi/gocov-xml
 RUN go get -u gopkg.in/matm/v1/gocov-html
+RUN go get -u github.com/onsi/ginkgo/ginkgo

@@ -16,8 +16,6 @@ stages:
           demands: 
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        container:
-          image: ${{ parameters.pipelineBuildImage }}
         variables:
           GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
           GOBIN: "$(GOPATH)/bin" # Go binaries path
