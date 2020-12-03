@@ -248,6 +248,7 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
+      - "aks_on_swift_e2e"
       - "ubuntu_16_04_linux_e2e"
       - "ubuntu_18_04_linux_e2e"
       - "windows_18_09_e2e"

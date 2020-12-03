@@ -143,9 +143,8 @@ func TestPodScaling(t *testing.T) {
 	for _, c := range counts {
 		count := c
 		t.Run(fmt.Sprintf("replica count %d", count), func(t *testing.T) {
-			//replicaCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			//defer cancel()
-			replicaCtx := context.Background()
+			replicaCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
 
 			if err := updateReplicaCount(t, replicaCtx, deploymentsClient, deployment.Name, count); err != nil {
 				t.Fatalf("could not scale deployment: %v", err)
@@ -194,9 +193,8 @@ func TestPodScaling(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				//portForwardCtx, cancel := context.WithTimeout(ctx, retryWindow)
-				portForwardCtx := context.Background()
-				//defer cancel()
+				portForwardCtx, cancel := context.WithTimeout(ctx, retryWindow)
+				defer cancel()
 
 				var streamHandle PortForwardStreamHandle
 				portForwardFn := func() error {
@@ -216,7 +214,7 @@ func TestPodScaling(t *testing.T) {
 
 				gpClient := goldpinger.Client{Host: streamHandle.Url()}
 
-				clusterCheckCtx, cancel := context.WithTimeout(ctx, time.Minute)
+				clusterCheckCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				defer cancel()
 				clusterCheckFn := func() error {
 					clusterState, err := gpClient.CheckAll(clusterCheckCtx)
