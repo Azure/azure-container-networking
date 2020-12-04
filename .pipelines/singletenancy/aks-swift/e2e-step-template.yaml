@@ -39,7 +39,7 @@ steps:
   - script: |
       ls -lah
       pwd
-      sudo -E env "PATH=$PATH" VERSION=$(ImageTag) make test-integration
+      sudo -E env "PATH=$PATH" VERSION=$(ImageTag) INSTALL_CNI=true INSTALL_CNS=true make test-integration
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
 

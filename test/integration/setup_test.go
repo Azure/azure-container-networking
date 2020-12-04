@@ -73,31 +73,29 @@ func TestMain(m *testing.M) {
 	}
 
 	ctx := context.Background()
-
-	// create dirty cni-manager ds
-	installCNI, err := strconv.ParseBool(os.Getenv(envInstallCNI))
-	if installCNI && err != nil {
-		if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, os.Getenv(envImageTag)); err != nil {
-			log.Print(err)
-			return
+	if installopt := os.Getenv(envInstallCNI); installopt != "" {
+		// create dirty cni-manager ds
+		if installCNI, err := strconv.ParseBool(installopt); err != nil && installCNI == true {
+			if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, os.Getenv(envImageTag)); err != nil {
+				log.Print(err)
+				return
+			}
 		}
-	} else if installCNI == false {
+	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallCNI)
-	} else {
-		return
 	}
 
-	// create dirty cns ds
-	installCNS, err := strconv.ParseBool(os.Getenv(envInstallCNS))
-	if installCNS && err != nil {
-		if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envImageTag)); err != nil {
-			return
+	if installopt := os.Getenv(envInstallCNS); installopt != "" {
+		// create dirty cns ds
+		if installCNS, err := strconv.ParseBool(installopt); err != nil && installCNS == true {
+			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envImageTag)); err != nil {
+				return
+			}
 		}
-	} else if installCNS == false {
-		log.Printf("Env %v not set to true, skipping", envInstallCNS)
 	} else {
-		return
+		log.Printf("Env %v not set to true, skipping", envInstallCNS)
 	}
+
 	exitCode = m.Run()
 }
 
