@@ -35,10 +35,12 @@ const (
 	subnetIDNodeLabelEnvVar   = "DELEGATED_SUBNET_ID_NODE_LABEL"
 	subnetNameNodeLabelEnvVar = "SUBNET_NAME_NODE_LABEL"
 
-	gpFolder                 = "manifests"
+	gpFolder                 = "manifests/goldpinger"
 	gpClusterRolePath        = gpFolder + "/cluster-role.yaml"
 	gpClusterRoleBindingPath = gpFolder + "/cluster-role-binding.yaml"
 	gpServiceAccountPath     = gpFolder + "/service-account.yaml"
+	gpDaemonset              = gpFolder + "/daemonset.yaml"
+	gpDeployment             = gpFolder + "/deployment.yaml"
 
 	retryWindow = 30 * time.Second
 )
@@ -89,12 +91,12 @@ func TestPodScaling(t *testing.T) {
 	}
 
 	restConfig := mustGetRestConfig(t)
-	deployment, err := mustParseDeployment("manifests/deployment.yaml")
+	deployment, err := mustParseDeployment(gpDeployment)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	daemonset, err := mustParseDaemonSet("manifests/daemonset.yaml")
+	daemonset, err := mustParseDaemonSet(gpDaemonset)
 	if err != nil {
 		t.Fatal(err)
 	}

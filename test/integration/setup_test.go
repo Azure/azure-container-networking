@@ -23,11 +23,11 @@ const (
 	envInstallCNS = "INSTALL_CNS"
 
 	// relative azure-cni-manager path
-	cniDaemonSetPath = "../../acncli/deployment/manager.yaml"
+	cniDaemonSetPath = "manifests/cni/manager.yaml"
 	cniLabelSelector = "acn=azure-cni-manager"
 
 	// relative cns manifest paths
-	cnsManifestFolder         = "../../cns/deployment"
+	cnsManifestFolder         = "manifests/cns"
 	cnsDaemonSetPath          = cnsManifestFolder + "/daemonset.yaml"
 	cnsClusterRolePath        = cnsManifestFolder + "/clusterrole.yaml"
 	cnsClusterRoleBindingPath = cnsManifestFolder + "/clusterrolebinding.yaml"
