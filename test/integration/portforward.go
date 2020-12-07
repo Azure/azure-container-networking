@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,7 +60,8 @@ func (p *PortForwarder) Forward(ctx context.Context, namespace, labelSelector st
 	if len(pods.Items) < 1 {
 		return PortForwardStreamHandle{}, fmt.Errorf("no pods found in %q with label %q", namespace, labelSelector)
 	}
-	podName := pods.Items[0].Name
+	randomIndex := rand.Intn(len(pods.Items))
+	podName := pods.Items[randomIndex].Name
 	portForwardURL := p.clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Namespace(namespace).

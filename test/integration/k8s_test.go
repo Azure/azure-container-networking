@@ -190,35 +190,37 @@ func TestPodScaling(t *testing.T) {
 			}
 
 			t.Run("all pods can ping each other", func(t *testing.T) {
-				pf, err := NewPortForwarder(restConfig)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				portForwardCtx, cancel := context.WithTimeout(ctx, retryWindow)
-				defer cancel()
-
-				var streamHandle PortForwardStreamHandle
-				portForwardFn := func() error {
-					log.Printf("attempting port forward")
-					handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 9090, 8080)
-					if err != nil {
-						return err
-					}
-
-					streamHandle = handle
-					return nil
-				}
-				if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-					t.Fatalf("could  not start port forward within %v: %v", retryWindow.String(), err)
-				}
-				defer streamHandle.Stop()
-
-				gpClient := goldpinger.Client{Host: streamHandle.Url()}
 
 				clusterCheckCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				defer cancel()
 				clusterCheckFn := func() error {
+
+					pf, err := NewPortForwarder(restConfig)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					portForwardCtx, cancel := context.WithTimeout(ctx, retryWindow)
+					defer cancel()
+
+					var streamHandle PortForwardStreamHandle
+					portForwardFn := func() error {
+						log.Printf("attempting port forward")
+						handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 9090, 8080)
+						if err != nil {
+							return err
+						}
+
+						streamHandle = handle
+						return nil
+					}
+					if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
+						t.Fatalf("could  not start port forward within %v: %v", retryWindow.String(), err)
+					}
+					defer streamHandle.Stop()
+
+					gpClient := goldpinger.Client{Host: streamHandle.Url()}
+
 					clusterState, err := gpClient.CheckAll(clusterCheckCtx)
 					if err != nil {
 						return err
