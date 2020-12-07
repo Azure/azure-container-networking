@@ -24,13 +24,6 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-var (
-	defaultRetrier      = retry.Retrier{Attempts: 20, Delay: 3 * time.Second}
-	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
-	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
-)
-
 const (
 	subnetIDNodeLabelEnvVar   = "DELEGATED_SUBNET_ID_NODE_LABEL"
 	subnetNameNodeLabelEnvVar = "SUBNET_NAME_NODE_LABEL"
@@ -42,7 +35,14 @@ const (
 	gpDaemonset              = gpFolder + "/daemonset.yaml"
 	gpDeployment             = gpFolder + "/deployment.yaml"
 
-	retryWindow = 30 * time.Second
+	retryWindow = 10 * time.Second
+)
+
+var (
+	defaultRetrier      = retry.Retrier{Attempts: 5, Delay: retryWindow}
+	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
+	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
 )
 
 func shouldLabelNodes() bool {
@@ -140,12 +140,12 @@ func TestPodScaling(t *testing.T) {
 		}
 	})
 
-	counts := []int{5, 15, 5}
+	counts := []int{15, 5, 15}
 
 	for _, c := range counts {
 		count := c
 		t.Run(fmt.Sprintf("replica count %d", count), func(t *testing.T) {
-			replicaCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			replicaCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
 
 			if err := updateReplicaCount(t, replicaCtx, deploymentsClient, deployment.Name, count); err != nil {
@@ -191,7 +191,7 @@ func TestPodScaling(t *testing.T) {
 
 			t.Run("all pods can ping each other", func(t *testing.T) {
 
-				clusterCheckCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				clusterCheckCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 				defer cancel()
 				clusterCheckFn := func() error {
 
