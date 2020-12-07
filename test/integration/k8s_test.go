@@ -35,11 +35,11 @@ const (
 	gpDaemonset              = gpFolder + "/daemonset.yaml"
 	gpDeployment             = gpFolder + "/deployment.yaml"
 
-	retryWindow = 10 * time.Second
+	retryWindow = 5 * time.Second
 )
 
 var (
-	defaultRetrier      = retry.Retrier{Attempts: 5, Delay: retryWindow}
+	defaultRetrier      = retry.Retrier{Attempts: 20, Delay: retryWindow}
 	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
@@ -145,7 +145,7 @@ func TestPodScaling(t *testing.T) {
 	for _, c := range counts {
 		count := c
 		t.Run(fmt.Sprintf("replica count %d", count), func(t *testing.T) {
-			replicaCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			replicaCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 			defer cancel()
 
 			if err := updateReplicaCount(t, replicaCtx, deploymentsClient, deployment.Name, count); err != nil {

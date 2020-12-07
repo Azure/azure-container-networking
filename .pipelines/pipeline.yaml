@@ -106,6 +106,7 @@ stages:
             displayName: "Run Tests"
 
           - script: |
+              sudo make hack-images VERSION=$(EnvironmentalVariables.Tag)
               sudo make all-images VERSION=$(EnvironmentalVariables.Tag)
             workingDirectory: "$(modulePath)"
             name: "BuildImages"

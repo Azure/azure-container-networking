@@ -3,6 +3,7 @@ WORKDIR /go/src/github.com/Azure/azure-container-networking/
 ADD . . 
 ARG VERSION
 RUN make all-binaries
+RUN make acncli
 RUN rm -rf ./output/windows*
 RUN rm -rf ./output/linux_amd64/npm/*
 RUN mv ./output /output

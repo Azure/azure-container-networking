@@ -181,7 +181,7 @@ all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
 endif
 
 ifeq ($(GOOS),linux)
-all-images: azure-npm-image azure-cns-aks-swift-image azure-cni-manager
+all-images: azure-npm-image azure-cns-aks-swift-image 
 else
 all-images:
 	@echo "Nothing to build. Skip."
@@ -458,3 +458,8 @@ PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 .PHONY: test-all
 test-all:
 	go test -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out ./...
+
+# run all tests
+.PHONY: test-integration
+test-integration:
+	go test -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
