@@ -5,6 +5,7 @@ package common
 
 import (
 	"errors"
+
 	"github.com/Azure/azure-container-networking/server/tls"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -72,7 +73,7 @@ func (service *Service) Initialize(config *ServiceConfig) error {
 	service.Version = config.Version
 	service.ChannelMode = config.ChannelMode
 
-	logger.Debugf("[Azure CNS] nitialized service: %+v with config: %+v.", service, config)
+	logger.Debugf("[Azure CNS] Initialized service: %+v with config: %+v.", service, config)
 
 	return nil
 }

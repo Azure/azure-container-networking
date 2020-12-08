@@ -9,10 +9,15 @@
         "SnapshotIntervalInMins": 60
     },
     "ManagedSettings": {
-        "PrivateEndpoint": "",
+        "DncEndpointDns": "",
         "InfrastructureNetworkID": "",
         "NodeID": "",
+        "NodeManagedIdentity": "",
         "NodeSyncIntervalInSeconds": 30
+    },
+    "HttpClientSettings": {
+        "ConnectionTimeout": 5,
+        "ResponseHeaderTimeout": 120
     },
     "ChannelMode": "Direct",
     "UseHTTPS" : false,

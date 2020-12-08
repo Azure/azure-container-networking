@@ -19,6 +19,7 @@ const (
 type CNSConfig struct {
 	TelemetrySettings  TelemetrySettings
 	ManagedSettings    ManagedSettings
+	HttpClientSettings HttpClientSettings
 	ChannelMode        string
 	UseHTTPS           bool
 	TLSSubjectName     string
@@ -52,11 +53,26 @@ type TelemetrySettings struct {
 	SnapshotIntervalInMins int
 }
 
+// ManagedSettings indicate settings when CNS is running with managed DNC
 type ManagedSettings struct {
-	PrivateEndpoint           string
-	InfrastructureNetworkID   string
-	NodeID                    string
+	// DNS for DNC endpoint
+	DncEndpointDns string
+	// Network ID of the node where CNS is running
+	InfrastructureNetworkID string
+	// ID of the node where CNS is running
+	NodeID string
+	// Managed identity (MSI) client ID
+	NodeManagedIdentity string
+	// Interval between successive node sync call from CNS to DNC
 	NodeSyncIntervalInSeconds int
+}
+
+// HttpClientSettings - Http client settings to be used when making http calls
+type HttpClientSettings struct {
+	// ConnectionTimeout indicates the timeout used to establish the connection
+	ConnectionTimeout int
+	// ResponseHeaderTimeout indicates the timeout used to get the header
+	ResponseHeaderTimeout int
 }
 
 // This functions reads cns config file and save it in a structure
@@ -125,7 +141,35 @@ func setManagedSettingDefaults(managedSettings *ManagedSettings) {
 func SetCNSConfigDefaults(config *CNSConfig) {
 	setTelemetrySettingDefaults(&config.TelemetrySettings)
 	setManagedSettingDefaults(&config.ManagedSettings)
+	setHttpSettingDefaults(&config.HttpClientSettings)
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
 	}
+}
+
+func setHttpSettingDefaults(httpClientSettings *HttpClientSettings) {
+	if httpClientSettings.ConnectionTimeout == 0 {
+		// set the default connection timeout to 5 seconds
+		httpClientSettings.ConnectionTimeout = 5
+	}
+
+	if httpClientSettings.ResponseHeaderTimeout == 0 {
+		// set the default response header timeout to 120 seconds
+		httpClientSettings.ResponseHeaderTimeout = 120
+	}
+}
+
+// ValidateManagedSettings validates the ManagedSettings if CNS is running is the managed mode.
+// This function validates if all the required fields are set in the configuration.
+func ValidateManagedSettings(config *CNSConfig) bool {
+	if config.ChannelMode == cns.Managed {
+		if config.ManagedSettings.DncEndpointDns == "" ||
+			config.ManagedSettings.InfrastructureNetworkID == "" ||
+			config.ManagedSettings.NodeID == "" ||
+			config.ManagedSettings.NodeManagedIdentity == "" {
+			return false
+		}
+	}
+
+	return true
 }

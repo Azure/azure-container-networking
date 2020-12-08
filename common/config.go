@@ -99,22 +99,6 @@ const (
 	OptStoreFileLocation      = "store-file-path"
 	OptStoreFileLocationAlias = "storefilepath"
 
-	// Private Endpoint
-	OptPrivateEndpoint      = "private-endpoint"
-	OptPrivateEndpointAlias = "pe"
-
-	// Infrastructure Network
-	OptInfrastructureNetworkID      = "infra-vnet"
-	OptInfrastructureNetworkIDAlias = "iv"
-
-	// Node ID/Name
-	OptNodeID      = "node-id"
-	OptNodeIDAlias = "n"
-
-	// Managed mode
-	OptManaged      = "managed"
-	OptManagedAlias = "m"
-
 	// Client mode, cmd
 	OptDebugCmd      = "debugcmd"
 	OptDebugCmdAlias = "cmd"
