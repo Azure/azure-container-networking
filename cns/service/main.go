@@ -455,7 +455,7 @@ func main() {
 
 	nmaclient, err := nmagentclient.NewNMAgentClient("")
 	if err != nil {
-		logger.Errorf("Failed to start nmagent client due to error %v\n", err)
+		logger.Errorf("Failed to start nmagent client due to error %v", err)
 		return
 	}
 	// Create CNS object.
@@ -572,8 +572,8 @@ func main() {
 		go func() {
 			// Periodically poll vfp programmed NC version from NMAgent
 			for {
-				<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalMilliSec * time.Millisecond).C
-				httpRestServiceImplementation.SyncHostNCVersion(rootCxt, config.ChannelMode, cnsconfig.SyncHostNCTimeoutMilliSec)
+				<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond).C
+				httpRestServiceImplementation.SyncHostNCVersion(rootCxt, config.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
 			}
 		}()
 

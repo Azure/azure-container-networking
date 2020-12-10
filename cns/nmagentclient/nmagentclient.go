@@ -191,7 +191,7 @@ func (nmagentclient *NMAgentClient) GetNcVersionListWithOutToken(ncNeedUpdateLis
 	now := time.Now()
 	response, err := http.Get(nmagentclient.connectionURL)
 	latency := time.Since(now)
-	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %+v. QueryURL is %s, latency is %v", response, nmagentclient.connectionURL, latency)
+	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %+v, latency is %d", response, latency.Milliseconds())
 
 	if response.StatusCode != http.StatusOK {
 		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken failed with %d, err is %v", response.StatusCode, err)
@@ -202,7 +202,7 @@ func (nmagentclient *NMAgentClient) GetNcVersionListWithOutToken(ncNeedUpdateLis
 	rBytes, _ := ioutil.ReadAll(response.Body)
 	logger.Printf("Response body is %v", rBytes)
 	json.Unmarshal(rBytes, &nmaNcListResponse)
-	if nmaNcListResponse.ResponseCode != "200" {
+	if nmaNcListResponse.ResponseCode != strconv.Itoa(http.StatusOK) {
 		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken unmarshal failed with %s", rBytes)
 		return nil
 	}
@@ -212,12 +212,12 @@ func (nmagentclient *NMAgentClient) GetNcVersionListWithOutToken(ncNeedUpdateLis
 		receivedNcVersionListInMap[containers.NetworkContainerID] = containers.Version
 	}
 	for _, ncID := range ncNeedUpdateList {
-		if val, ok := receivedNcVersionListInMap[ncID]; ok {
-			if valInInt, err := strconv.Atoi(val); err != nil {
-				logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken translate version %s to int failed with %s", val, err)
+		if version, ok := receivedNcVersionListInMap[ncID]; ok {
+			if versionInInt, err := strconv.Atoi(version); err != nil {
+				logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken translate version %s to int failed with %s", version, err)
 			} else {
-				ncVersionList[ncID] = valInInt
-				logger.Printf("Containers id is %s, version is %d", ncID, valInInt)
+				ncVersionList[ncID] = versionInInt
+				logger.Printf("Containers id is %s, programmed NC version is %d", ncID, versionInInt)
 			}
 		}
 	}

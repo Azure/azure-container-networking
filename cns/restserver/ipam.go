@@ -114,18 +114,6 @@ func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]c
 	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
 }
 
-// MarkAllPendingProgrammingIpsAsAvailableUntransacted is the function to update pending programming IPs to available
-// when get NC version failed and we don't want to block IP allocation.
-// Note: this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) MarkAllPendingProgrammingIpsAsAvailableUntransacted() {
-	for _, ipConfigStatus := range service.PodIPConfigState {
-		if ipConfigStatus.State == cns.PendingProgramming {
-			ipConfigStatus.State = cns.Available
-			service.PodIPConfigState[ipConfigStatus.ID] = ipConfigStatus
-		}
-	}
-}
-
 // MarkIpsAsAvailableUntransacted will update pending programming IPs to available if NMAgent side's programmed nc version keep up with nc version.
 // Note: this func is an untransacted API as the caller will take a Service lock
 func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newHostNCVersion int) {

@@ -69,7 +69,7 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 			ncRequest.SecondaryIPConfigs[ipAssignment.Name] = secondaryIPConfig
 			log.Debugf("Seconday IP Configs got set, name is %s, config is %v", ipAssignment.Name, secondaryIPConfig)
 		}
-		log.Printf("Set nc request info with NetworkContainerid %s, NetworkContainerType %s, NC Version %s",
+		log.Printf("Set NC request info with NetworkContainerid %s, NetworkContainerType %s, NC Version %s",
 			ncRequest.NetworkContainerid, ncRequest.NetworkContainerType, ncRequest.Version)
 	}
 

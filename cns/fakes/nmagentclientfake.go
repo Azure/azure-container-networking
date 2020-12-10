@@ -1,4 +1,4 @@
-// Copyright 2017 Microsoft. All rights reserved.
+// Copyright 2020 Microsoft. All rights reserved.
 // MIT License
 
 package fakes

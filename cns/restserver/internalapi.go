@@ -156,32 +156,34 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
 		if err != nil {
 			log.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
-			return
+			continue
 		}
 		dncNcVersion, err := strconv.Atoi(containerstatus.CreateNetworkContainerRequest.Version)
 		if err != nil {
-			log.Errorf("Received err when change nc version %s in containerstatusto int, err msg %v", containerstatus.CreateNetworkContainerRequest.Version, err)
-			return
+			log.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", containerstatus.CreateNetworkContainerRequest.Version, err)
+			continue
 		}
-		// host NC version is the NC version from NMAgent, if it's smaller than
+		// host NC version is the NC version from NMAgent, if it's smaller than NC version from DNC, then append it to indicate it needs update.
 		if hostVersion < dncNcVersion {
 			hostVersionNeedUpdateNcList = append(hostVersionNeedUpdateNcList, containerstatus.ID)
+		} else if hostVersion > dncNcVersion {
+			log.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", hostVersion, dncNcVersion)
 		}
 	}
 	service.RUnlock()
 	if len(hostVersionNeedUpdateNcList) > 0 {
-		c1 := make(chan map[string]int)
+		ncVersionChannel := make(chan map[string]int)
 		ctxWithTimeout, _ := context.WithTimeout(ctx, syncHostNCTimeoutMilliSec*time.Millisecond)
 		go func() {
-			c1 <- service.nmagentClient.GetNcVersionListWithOutToken(hostVersionNeedUpdateNcList)
-			close(c1)
+			ncVersionChannel <- service.nmagentClient.GetNcVersionListWithOutToken(hostVersionNeedUpdateNcList)
+			close(ncVersionChannel)
 		}()
 		select {
-		case newHostNCVersionList := <-c1:
-			service.Lock()
+		case newHostNCVersionList := <-ncVersionChannel:
 			if newHostNCVersionList == nil {
 				logger.Errorf("Can't get vfp programmed NC version list from url without token")
 			} else {
+				service.Lock()
 				for ncID, newHostNCVersion := range newHostNCVersionList {
 					// Check whether it exist in service state and get the related nc info
 					if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
@@ -194,8 +196,8 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 						service.state.ContainerStatus[ncID] = ncInfo
 					}
 				}
+				service.Unlock()
 			}
-			service.Unlock()
 		case <-ctxWithTimeout.Done():
 			logger.Errorf("Timeout when getting vfp programmed NC version list from url without token")
 		}
