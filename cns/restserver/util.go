@@ -276,6 +276,8 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVe
 		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
 		if hostVersion < ipconfig.NCVersion {
 			newIPCNSStatus = cns.PendingProgramming
+		} else {
+			newIPCNSStatus = cns.Available
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{

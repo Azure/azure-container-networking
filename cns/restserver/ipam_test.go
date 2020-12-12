@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -37,6 +38,9 @@ var (
 		PodName:      "testpod3",
 		PodNamespace: "testpod3namespace",
 	}
+
+	testIP4      = "10.0.0.4"
+	testPod4GUID = "718e04ac-5a13-4dce-84b3-040accaa9b42"
 )
 
 func getTestService() *HTTPRestService {
@@ -575,6 +579,87 @@ func TestIPAMMarkIPCountAsPending(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
+}
+
+func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
+	svc := getTestService()
+
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	// Default Programmed NC version is -1, set nc version as 0 will result in pending programming state.
+	constructSecondaryIPConfigs(testIP1, testPod1GUID, 0, secondaryIPConfigs)
+	constructSecondaryIPConfigs(testIP3, testPod3GUID, 0, secondaryIPConfigs)
+	// Default Programmed NC version is -1, set nc version as -1 will result in available state.
+	constructSecondaryIPConfigs(testIP2, testPod2GUID, -1, secondaryIPConfigs)
+	constructSecondaryIPConfigs(testIP4, testPod4GUID, -1, secondaryIPConfigs)
+
+	// createNCRequest with NC version 0
+	req := generateNetworkContainerRequest(secondaryIPConfigs, testNCID, strconv.Itoa(0))
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	if returnCode != 0 {
+		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
+	}
+
+	// Release pending programming IPs
+	ips, err := svc.MarkIPsAsPending(2)
+	if err != nil {
+		t.Fatalf("Unexpected failure releasing IP: %+v", err)
+	}
+	// Check returning released IPs are from pod 1 and 3
+	if _, exists := ips[testPod1GUID]; !exists {
+		t.Fatalf("Expected ID not marked as pending: %+v, ips is %s", err, ips)
+	}
+	if _, exists := ips[testPod3GUID]; !exists {
+		t.Fatalf("Expected ID not marked as pending: %+v, ips is %s", err, ips)
+	}
+
+	pendingRelease := svc.GetPendingReleaseIPConfigs()
+	if len(pendingRelease) != 2 {
+		t.Fatalf("Expected 2 pending release IPs but got %d pending release IP", len(pendingRelease))
+	}
+	// Check pending release IDs are from pod 1 and 3
+	for _, config := range pendingRelease {
+		if config.ID != testPod1GUID && config.ID != testPod3GUID {
+			t.Fatalf("Expected pending release ID is either from pod 1 or pod 3 but got ID as %s ", config.ID)
+		}
+	}
+
+	available := svc.GetAvailableIPConfigs()
+	if len(available) != 2 {
+		t.Fatalf("Expected 1 available IP with test pod 2 but got available %d IP", len(available))
+	}
+
+	// Call release again, should be fine
+	err = svc.releaseIPConfig(testPod1Info)
+	if err != nil {
+		t.Fatalf("Unexpected failure releasing IP: %+v", err)
+	}
+
+	// Release 2 more IPs
+	ips, err = svc.MarkIPsAsPending(2)
+	if err != nil {
+		t.Fatalf("Unexpected failure releasing IP: %+v", err)
+	}
+	// Make sure newly released IPs are from pod 2 and pod 4
+	if _, exists := ips[testPod2GUID]; !exists {
+		t.Fatalf("Expected ID not marked as pending: %+v, ips is %s", err, ips)
+	}
+	if _, exists := ips[testPod4GUID]; !exists {
+		t.Fatalf("Expected ID not marked as pending: %+v, ips is %s", err, ips)
+	}
+
+	// Get all pending release IPs and check total number is 4
+	pendingRelease = svc.GetPendingReleaseIPConfigs()
+	if len(pendingRelease) != 4 {
+		t.Fatalf("Expected 4 pending release IPs but got %d pending release IP", len(pendingRelease))
+	}
+}
+
+func constructSecondaryIPConfigs(ipAddress, uuid string, ncVersion int, secondaryIPConfigs map[string]cns.SecondaryIPConfig) {
+	secIpConfig := cns.SecondaryIPConfig{
+		IPAddress: ipAddress,
+		NCVersion: ncVersion,
+	}
+	secondaryIPConfigs[uuid] = secIpConfig
 }
 
 func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {

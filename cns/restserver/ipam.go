@@ -92,26 +92,38 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	return
 }
 
+// MarkIPsAsPending will mark IPs to pending release state.
 func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]cns.IPConfigurationStatus, error) {
 	pendingReleaseIPs := make(map[string]cns.IPConfigurationStatus)
-	markedIPCount := 0
+	// Ensure PendingProgramming IPs will be release before Available ones.
+	ipStateTypes := [2]string{cns.PendingProgramming, cns.Available}
 
 	service.Lock()
 	defer service.Unlock()
-	for uuid, _ := range service.PodIPConfigState {
+	for _, ipStateType := range ipStateTypes {
+		pendingReleaseIPs := service.markSepcificIPTypeAsPending(numberToMark, len(pendingReleaseIPs), ipStateType, pendingReleaseIPs)
+		alreadyMarkedNum := len(pendingReleaseIPs)
+		if alreadyMarkedNum == numberToMark {
+			return pendingReleaseIPs, nil
+		}
+	}
+	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
+}
+
+func (service *HTTPRestService) markSepcificIPTypeAsPending(numberToMark, markedIPCount int, ipStateType string, pendingReleaseIPs map[string]cns.IPConfigurationStatus) map[string]cns.IPConfigurationStatus {
+	for uuid := range service.PodIPConfigState {
 		mutableIPConfig := service.PodIPConfigState[uuid]
-		if mutableIPConfig.State == cns.Available || mutableIPConfig.State == cns.PendingProgramming {
+		if mutableIPConfig.State == ipStateType {
 			mutableIPConfig.State = cns.PendingRelease
 			service.PodIPConfigState[uuid] = mutableIPConfig
 			pendingReleaseIPs[uuid] = mutableIPConfig
 			markedIPCount++
 			if markedIPCount == numberToMark {
-				return pendingReleaseIPs, nil
+				return pendingReleaseIPs
 			}
 		}
 	}
-
-	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
+	return pendingReleaseIPs
 }
 
 // MarkIpsAsAvailableUntransacted will update pending programming IPs to available if NMAgent side's programmed nc version keep up with nc version.
