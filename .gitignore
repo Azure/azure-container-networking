@@ -14,3 +14,8 @@ ipam-*.xml
 
 # Goland
 .idea/*
+
+# test binaries
+*.test
+*.profile
+*.coverprofile
