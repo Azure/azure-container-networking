@@ -110,7 +110,7 @@ stages:
 
           - script: |
               make all-binaries VERSION=$(EnvironmentalVariables.Tag)
-              sudo make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
+              sudo -E make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
             workingDirectory: "$(modulePath)"
             name: "BuildNPMImage"
             displayName: "Build NPM Image"
