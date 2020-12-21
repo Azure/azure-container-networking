@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM sbidprod.azurecr.io/quinault:latest
 RUN apt -y update
 RUN apt-get -y upgrade
 RUN apt install -y ebtables
