@@ -115,13 +115,6 @@ stages:
             name: "BuildNPMImage"
             displayName: "Build NPM Image"
 
-          - script: |
-              make all-binaries VERSION=$(EnvironmentalVariables.Tag)
-              make azure-cnms-image VERSION=$(EnvironmentalVariables.Tag)
-            workingDirectory: "$(modulePath)"
-            name: "BuildCNMSImage"
-            displayName: "Build CNMS Image"
-
           - bash: |
               export CODECOV_TOKEN=$(CODECOV_TOKEN)
               bash <(curl -s https://codecov.io/bash)
@@ -150,25 +143,6 @@ stages:
             workingDirectory: "$(modulePath)"
             name: "mcrreplication"
             displayName: "Push NPM Image and Wait for Repository"
-
-          - script: |
-              echo '$(DOCKER_PASSWORD)' | docker login $IMAGE_REGISTRY -u '$(DOCKER_USERNAME)' --password-stdin
-              docker tag $IMAGE_REGISTRY/networkmonitor:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/networkmonitor:$(EnvironmentalVariables.Tag)-test
-              docker push $IMAGE_REGISTRY/networkmonitor:$(EnvironmentalVariables.Tag)-test
-
-              function auto-retry()
-              {
-                  export i="1"
-                  export attempts="300"
-                  false
-                  while [[ $? -ne 0 ]] && [[ $i -lt $attempts ]]; do
-                    printf "Attempt $i/$attempts - " && "$@" && break ||  sleep 3 &&  i=$[$i+1] && false
-                  done
-              }
-              auto-retry docker pull $IMAGE_REGISTRY/networkmonitor:$(EnvironmentalVariables.Tag)-test
-            workingDirectory: "$(modulePath)"
-            name: "mcrreplication_cnms"
-            displayName: "Push CNMS Image and Wait for Repository"
 
           - script: |
               cd ./output 

@@ -23,16 +23,6 @@
                         "image": ""
                      }
                   ]
-                },
-                {
-                  "name": "azure-cni-networkmonitor",
-                  "enabled": true,
-                  "containers": [
-                    {
-                      "name": "azure-cni-networkmonitor",
-                      "image": ""
-                    }
-                  ]
                 }
             ]
          }
