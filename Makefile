@@ -128,6 +128,7 @@ CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNMS_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_IMAGE_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNMS_IMAGE_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 TELEMETRY_IMAGE_ARCHIVE_NAME = azure-vnet-telemetry-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_IMAGE_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 
@@ -139,6 +140,9 @@ IMAGE_REGISTRY ?= acnpublic.azurecr.io
 
 # Azure network policy manager parameters.
 AZURE_NPM_IMAGE ?= $(IMAGE_REGISTRY)/azure-npm
+
+# Azure cnms parameters
+AZURE_CNMS_IMAGE ?= $(IMAGE_REGISTRY)/networkmonitor
 
 # Azure CNI installer parameters
 AZURE_CNI_IMAGE = $(IMAGE_REGISTRY)/azure-cni-manager
@@ -314,6 +318,19 @@ endif
 .PHONY: publish-azure-npm-image
 publish-azure-npm-image:
 	docker push $(AZURE_NPM_IMAGE):$(VERSION)
+
+# Build the Azure CNMS image
+.PHONY: azure-cnms-image
+azure-cnms-image: azure-cnms
+ifeq ($(GOOS),linux)
+	docker build \
+	--no-cache \
+	-f cnms/Dockerfile \
+	-t $(AZURE_CNMS_IMAGE):$(VERSION) \
+	--build-arg CNMS_BUILD_DIR=$(CNMS_BUILD_DIR) \
+	.
+	docker save $(AZURE_CNMS_IMAGE):$(VERSION) | gzip -c > $(CNMS_BUILD_DIR)/$(CNMS_IMAGE_ARCHIVE_NAME)
+endif
 
 # Build the Azure vnet telemetry image
 .PHONY: azure-vnet-telemetry-image

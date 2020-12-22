@@ -30,7 +30,7 @@
                 "containers": [
                   {
                     "name": "azure-cni-networkmonitor",
-                    "image": "mcr.microsoft.com/containernetworking/networkmonitor:v1.1.8-alpha"
+                    "image": ""
                   }
                 ]
               }
