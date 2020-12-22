@@ -167,7 +167,7 @@ stages:
               }
               auto-retry docker pull $IMAGE_REGISTRY/networkmonitor:$(EnvironmentalVariables.Tag)-test
             workingDirectory: "$(modulePath)"
-            name: "mcrreplication"
+            name: "mcrreplication-cnms"
             displayName: "Push CNMS Image and Wait for Repository"
 
           - script: |
