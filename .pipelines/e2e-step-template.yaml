@@ -65,8 +65,7 @@ steps:
       cat '${{ parameters.clusterDefinition }}' | jq --arg cnikey $CNI_TYPE --arg cniurl $CNI_URL '.properties.orchestratorProfile.kubernetesConfig[$cnikey]= $cniurl' > '${{ parameters.clusterDefinition }}'.tmp	
       cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
       cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage $IMAGE_REGISTRY/azure-npm:$(Tag)-test '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
-      cat '${{ parameters.clusterDefinition }}' | jq --arg cnmsimage $IMAGE_REGISTRY/networkmonitor:$(Tag)-test '.properties.orchestratorProfile.kubernetesConfig.addons[1].containers[0].image = $cnmsimage' > '${{ parameters.clusterDefinition }}'.tmp
-      mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
+      cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg cnmsimage $IMAGE_REGISTRY/networkmonitor:$(Tag)-test '.properties.orchestratorProfile.kubernetesConfig.addons[1].containers[0].image = $cnmsimage' > '${{ parameters.clusterDefinition }}'
       echo "Running E2E tests against a cluster built with the following API model:"
       cat '${{ parameters.clusterDefinition }}'
       cp ${{ parameters.clusterDefinition }} clusterDefinition.json
