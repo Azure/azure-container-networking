@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/Azure/azure-container-networking/cni/utils"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 )
@@ -90,7 +91,7 @@ func (plugin *Plugin) EnableDiscovery() error {
 	// Write the listener URL to the spec file.
 	fileName := path + plugin.Name + ".spec"
 	url := plugin.Listener.URL.String()
-	err := ioutil.WriteFile(fileName, []byte(url), 0644)
+	err := utils.WriteFile(fileName, []byte(url), 0644)
 	return err
 }
 

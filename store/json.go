@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni/utils"
 	"github.com/Azure/azure-container-networking/log"
 )
 
@@ -109,10 +110,7 @@ func (kvs *jsonFileStore) Flush() error {
 
 // Lock-free flush for internal callers.
 func (kvs *jsonFileStore) flush() error {
-	file, err := os.Create(kvs.fileName)
-	if err != nil {
-		return err
-	}
+
 	defer file.Close()
 
 	buf, err := json.MarshalIndent(&kvs.data, "", "\t")
@@ -120,7 +118,7 @@ func (kvs *jsonFileStore) flush() error {
 		return err
 	}
 
-	if _, err := file.Write(buf); err != nil {
+	if _, err := utils.WriteFile(kvs.fileName, buf, 0666); err != nil {
 		return err
 	}
 	return nil

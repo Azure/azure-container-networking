@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	ccn "github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/utils"
 	c "github.com/Azure/azure-container-networking/hack/acncli/api"
 )
 
@@ -96,7 +97,7 @@ func ModifyConflists(conflistpath string, installerConf InstallerConfig, perm os
 	}
 
 	fmt.Printf("🚛 - Installing %v...\n", dstFile)
-	return ioutil.WriteFile(dstFile, filebytes, perm)
+	return utils.WriteFile(dstFile, filebytes, perm)
 }
 
 func PrettyPrint(o interface{}) {

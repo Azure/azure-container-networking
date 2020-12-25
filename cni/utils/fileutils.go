@@ -1,16 +1,18 @@
 package utils
 
-// we need to write the file in transaction
+import (
+	"io/ioutil"
+	"os"
+)
+
+// WriteFile provide one way to write the file in one transaction.
 // or when the process crash or the system reboot, we will have one incomplete file.
-func WriteFile(dstFile string, b []byte) {
+func WriteFile(dstFile string, b []byte, perm os.FileMode) error {
+	tempFilePath := fmt.Sprintf("%s.tmp", dstFile)
+	err := ioutil.WriteFile(tempFilePath, b, perm)
+	if err != nil {
+		return err
+	}
 
-	// fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0664))
-	// 				if err == nil {
-	// 					fp.Write(jsonStr)
-	// 					fp.Close()
-	// 				} else {
-	// 					log.Errorf("[cni-net] failed to save snat settings to %s with error: %+v", snatConfigFile, err)
-	// 				}
+	return os.Rename(tempFilePath, dstFile)
 }
-
-// ioutil.WriteFile(dstFile, filebytes, perm)
