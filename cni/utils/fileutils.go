@@ -1,6 +1,7 @@
 package utils
 
-// we need to write
+// we need to write the file in transaction
+// or when the process crash or the system reboot, we will have one incomplete file.
 func WriteFile(dstFile string, b []byte) {
 
 	// fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0664))
