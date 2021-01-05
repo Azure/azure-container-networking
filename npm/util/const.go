@@ -40,6 +40,7 @@ const (
 	IptablesAccept            string = "ACCEPT"
 	IptablesReject            string = "REJECT"
 	IptablesDrop              string = "DROP"
+	IptablesReturn            string = "RETURN"
 	IptablesSrcFlag           string = "src"
 	IptablesDstFlag           string = "dst"
 	IptablesNotFlag           string = "!"

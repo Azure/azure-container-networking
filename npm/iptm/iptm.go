@@ -151,20 +151,22 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	}
 
 	// Append AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.
-	entry.Chain = util.IptablesAzureChain
-	entry.Specs = []string{util.IptablesJumpFlag, util.IptablesAzureTargetSetsChain}
-	exists, err = iptMgr.Exists(entry)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		iptMgr.OperationFlag = util.IptablesAppendFlag
-		if _, err := iptMgr.Run(entry); err != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.")
+	/*
+		entry.Chain = util.IptablesAzureChain
+		entry.Specs = []string{util.IptablesJumpFlag, util.IptablesAzureTargetSetsChain}
+		exists, err = iptMgr.Exists(entry)
+		if err != nil {
 			return err
 		}
-	}
+
+		if !exists {
+			iptMgr.OperationFlag = util.IptablesAppendFlag
+			if _, err := iptMgr.Run(entry); err != nil {
+				metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.")
+				return err
+			}
+		}
+	*/
 
 	// Add default allow CONNECTED/RELATED rule to AZURE-NPM chain.
 	entry.Chain = util.IptablesAzureChain
