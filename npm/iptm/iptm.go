@@ -114,9 +114,63 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		}
 	}
 
+	// Insert a RETURN on MARK rule for INGRESS in in AZURE-NPM-INGRESS-PORT chain
+	entry.Chain = util.IptablesAzureIngressPortChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesReturn,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureIngressMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"RETURN-on-INGRESS-mark-0x2000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add default RETURN on INGRESS mark in AZURE-NPM-INGRESS-PORT chain.")
+			return err
+		}
+	}
+
 	// Create AZURE-NPM-INGRESS-FROM chain.
 	if err = iptMgr.AddChain(util.IptablesAzureIngressFromChain); err != nil {
 		return err
+	}
+
+	// Insert a RETURN on MARK rule for INGRESS in in AZURE-NPM-INGRESS-FROM chain
+	entry.Chain = util.IptablesAzureIngressFromChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesReturn,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureIngressMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"RETURN-on-INGRESS-mark-0x2000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add default RETURN on INGRESS mark in AZURE-NPM-INGRESS-FROM chain.")
+			return err
+		}
 	}
 
 	// Create AZURE-NPM-EGRESS-PORT chain.
@@ -135,7 +189,61 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	if !exists {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM-INGRESS-PORT chain to AZURE-NPM chain.")
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM-EGRESS-PORT chain to AZURE-NPM chain.")
+			return err
+		}
+	}
+
+	// Insert a RETURN on MARK rule for EGRESS in AZURE-NPM-EGRESS-PORT
+	entry.Chain = util.IptablesAzureEgressPortChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesReturn,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureEgressMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"RETURN-on-EGRESS-mark-0x1000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add default RETURN on EGRESS mark in AZURE-NPM-EGRESS-PORT chain.")
+			return err
+		}
+	}
+
+	// Insert a RETURN on MARK rule for EGRESS + INGRESS in AZURE-NPM-EGRESS-PORT
+	entry.Chain = util.IptablesAzureEgressPortChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesReturn,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureAcceptMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"RETURN-on-EGRESS-and-INGRESS-mark-0x3000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add default RETURN on EGRESS and INGRESS mark in AZURE-NPM-EGRESS-PORT chain.")
 			return err
 		}
 	}
@@ -150,23 +258,102 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		return err
 	}
 
-	// Append AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.
-	/*
-		entry.Chain = util.IptablesAzureChain
-		entry.Specs = []string{util.IptablesJumpFlag, util.IptablesAzureTargetSetsChain}
-		exists, err = iptMgr.Exists(entry)
-		if err != nil {
+	// Insert a RETURN on MARK rule for EGRESS in AZURE-NPM-EGRESS-TO
+	entry.Chain = util.IptablesAzureEgressToChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesReturn,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureEgressMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"RETURN-on-EGRESS-mark-0x1000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add default RETURN on EGRESS mark in AZURE-NPM-EGRESS-TO chain.")
 			return err
 		}
+	}
 
-		if !exists {
-			iptMgr.OperationFlag = util.IptablesAppendFlag
-			if _, err := iptMgr.Run(entry); err != nil {
-				metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.")
-				return err
-			}
+	// Insert a RETURN on MARK rule for EGRESS + INGRESS in AZURE-NPM-EGRESS-TO
+	entry.Chain = util.IptablesAzureEgressToChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesReturn,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureAcceptMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"RETURN-on-EGRESS-and-INGRESS-mark-0x3000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add default RETURN on EGRESS and INGRESS mark in AZURE-NPM-EGRESS-TO chain.")
+			return err
 		}
-	*/
+	}
+
+	// Insert a ACCEPT rule for marked packets
+	entry.Chain = util.IptablesAzureChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesAccept,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureAcceptMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"ACCEPT-on-INGRESS-and-EGRESS-mark-0x3000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add marked ACCEPT rule to AZURE-NPM chain.")
+			return err
+		}
+	}
+
+	// Append AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.
+	entry.Chain = util.IptablesAzureChain
+	entry.Specs = []string{util.IptablesJumpFlag, util.IptablesAzureTargetSetsChain}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesAppendFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM-TARGET-SETS chain to AZURE-NPM chain.")
+			return err
+		}
+	}
 
 	// Add default allow CONNECTED/RELATED rule to AZURE-NPM chain.
 	entry.Chain = util.IptablesAzureChain
