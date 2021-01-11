@@ -225,7 +225,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	entry.Chain = util.IptablesAzureEgressPortChain
 	entry.Specs = []string{
 		util.IptablesJumpFlag,
-		util.IptablesReturn,
+		util.IptablesAccept,
 		util.IptablesModuleFlag,
 		util.IptablesMarkVerb,
 		util.IptablesMarkFlag,
@@ -289,7 +289,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	entry.Chain = util.IptablesAzureEgressToChain
 	entry.Specs = []string{
 		util.IptablesJumpFlag,
-		util.IptablesReturn,
+		util.IptablesAccept,
 		util.IptablesModuleFlag,
 		util.IptablesMarkVerb,
 		util.IptablesMarkFlag,
@@ -312,7 +312,8 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		}
 	}
 
-	// Insert a ACCEPT rule for marked packets
+	// TODO move this in to a function for readability
+	// Insert a ACCEPT rule for INGRESS-and-EGRESS marked packets
 	entry.Chain = util.IptablesAzureChain
 	entry.Specs = []string{
 		util.IptablesJumpFlag,
@@ -332,9 +333,63 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	}
 
 	if !exists {
-		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
 			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add marked ACCEPT rule to AZURE-NPM chain.")
+			return err
+		}
+	}
+
+	// Insert a ACCEPT rule for INGRESS marked packets
+	entry.Chain = util.IptablesAzureChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesAccept,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureIngressMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"ACCEPT-on-INGRESS-mark-0x2000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesAppendFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add marked ACCEPT rule for INGRESS mark 0x2000 to AZURE-NPM chain.")
+			return err
+		}
+	}
+
+	// Insert a ACCEPT rule for EGRESS marked packets
+	entry.Chain = util.IptablesAzureChain
+	entry.Specs = []string{
+		util.IptablesJumpFlag,
+		util.IptablesAccept,
+		util.IptablesModuleFlag,
+		util.IptablesMarkVerb,
+		util.IptablesMarkFlag,
+		util.IptablesAzureEgressMarkHex,
+		util.IptablesModuleFlag,
+		util.IptablesCommentModuleFlag,
+		util.IptablesCommentFlag,
+		"ACCEPT-on-EGRESS-mark-0x1000",
+	}
+	exists, err = iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		iptMgr.OperationFlag = util.IptablesAppendFlag
+		if _, err := iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add marked ACCEPT rule for EGRESS mark 0x1000 to AZURE-NPM chain.")
 			return err
 		}
 	}

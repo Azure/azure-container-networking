@@ -82,7 +82,8 @@ const (
 	IptablesAzureEgressToPodChain    string = "AZURE-NPM-EGRESS-TO-POD"
 	// Below are the ctmark NPM will use for different criteria
 	IptablesAzureIngressMarkHex string = "0x2000"
-	IptablesAzureEgressMarkHex  string = "0x1000/0x1000"
+	IptablesAzureEgressXMarkHex string = "0x1000/0x1000"
+	IptablesAzureEgressMarkHex  string = "0x1000"
 	IptablesAzureAcceptMarkHex  string = "0x3000"
 )
 
