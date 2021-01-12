@@ -554,7 +554,7 @@ func TestIPAMMarkIPCountAsPending(t *testing.T) {
 	}
 
 	// Release Test Pod 1
-	ips, err := svc.MarkIPsAsPending(1)
+	ips, err := svc.MarkIPAsPendingRelease(1)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
@@ -579,6 +579,12 @@ func TestIPAMMarkIPCountAsPending(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
+
+	// Try to release IP when no IP can be released. It should return error and ips will be nil
+	ips, err = svc.MarkIPAsPendingRelease(1)
+	if err == nil || ips != nil {
+		t.Fatalf("We are expecting err and ips should be nil, however, return these IP %v", ips)
+	}
 }
 
 func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
@@ -600,7 +606,7 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	}
 
 	// Release pending programming IPs
-	ips, err := svc.MarkIPsAsPending(2)
+	ips, err := svc.MarkIPAsPendingRelease(2)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
@@ -635,7 +641,7 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	}
 
 	// Release 2 more IPs
-	ips, err = svc.MarkIPsAsPending(2)
+	ips, err = svc.MarkIPAsPendingRelease(2)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}

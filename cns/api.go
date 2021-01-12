@@ -43,7 +43,7 @@ type HTTPService interface {
 	GetAllocatedIPConfigs() []IPConfigurationStatus
 	GetPendingReleaseIPConfigs() []IPConfigurationStatus
 	GetPodIPConfigState() map[string]IPConfigurationStatus
-	MarkIPsAsPending(numberToMark int) (map[string]IPConfigurationStatus, error)
+	MarkIPAsPendingRelease(numberToMark int) (map[string]IPConfigurationStatus, error)
 }
 
 // This is used for KubernetesCRD orchastrator Type where NC has multiple ips.

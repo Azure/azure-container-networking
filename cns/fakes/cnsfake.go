@@ -132,7 +132,7 @@ func (ipm *IPStateManager) ReleaseIPConfig(ipconfigID string) (cns.IPConfigurati
 	return ipm.AvailableIPConfigState[ipconfigID], nil
 }
 
-func (ipm *IPStateManager) MarkIPsAsPending(numberOfIPsToMark int) (map[string]cns.IPConfigurationStatus, error) {
+func (ipm *IPStateManager) MarkIPAsPendingRelease(numberOfIPsToMark int) (map[string]cns.IPConfigurationStatus, error) {
 	ipm.Lock()
 	defer ipm.Unlock()
 
@@ -292,8 +292,8 @@ func (fake *HTTPServiceFake) GetPodIPConfigState() map[string]cns.IPConfiguratio
 }
 
 // TODO: Populate on scale down
-func (fake *HTTPServiceFake) MarkIPsAsPending(numberToMark int) (map[string]cns.IPConfigurationStatus, error) {
-	return fake.IPStateManager.MarkIPsAsPending(numberToMark)
+func (fake *HTTPServiceFake) MarkIPAsPendingRelease(numberToMark int) (map[string]cns.IPConfigurationStatus, error) {
+	return fake.IPStateManager.MarkIPAsPendingRelease(numberToMark)
 }
 
 func (fake *HTTPServiceFake) GetOption(string) interface{} {

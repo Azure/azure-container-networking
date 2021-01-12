@@ -92,33 +92,35 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	return
 }
 
-// MarkIPsAsPending will mark IPs to pending release state.
-func (service *HTTPRestService) MarkIPsAsPending(numberToMark int) (map[string]cns.IPConfigurationStatus, error) {
-	pendingReleaseIPs := make(map[string]cns.IPConfigurationStatus)
+// MarkIPAsPendingRelease will mark IPs to pending release state.
+func (service *HTTPRestService) MarkIPAsPendingRelease(numberToMark int) (map[string]cns.IPConfigurationStatus, error) {
+	allReleasedIPs := make(map[string]cns.IPConfigurationStatus)
 	// Ensure PendingProgramming IPs will be release before Available ones.
 	ipStateTypes := [2]string{cns.PendingProgramming, cns.Available}
 
 	service.Lock()
 	defer service.Unlock()
 	for _, ipStateType := range ipStateTypes {
-		pendingReleaseIPs := service.markSepcificIPTypeAsPending(numberToMark, len(pendingReleaseIPs), ipStateType, pendingReleaseIPs)
-		alreadyMarkedNum := len(pendingReleaseIPs)
-		if alreadyMarkedNum == numberToMark {
-			return pendingReleaseIPs, nil
+		pendingReleaseIPs := service.markSpecificIPTypeAsPending(numberToMark, ipStateType)
+		for uuid, pependingReleaseIP := range pendingReleaseIPs {
+			allReleasedIPs[uuid] = pependingReleaseIP
+		}
+		numberToMark -= len(pendingReleaseIPs)
+		if numberToMark == 0 {
+			return allReleasedIPs, nil
 		}
 	}
-	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(pendingReleaseIPs))
+	return nil, fmt.Errorf("Failed to mark %d IP's as pending, only marked %d IP's", numberToMark, len(allReleasedIPs))
 }
 
-func (service *HTTPRestService) markSepcificIPTypeAsPending(numberToMark, markedIPCount int, ipStateType string, pendingReleaseIPs map[string]cns.IPConfigurationStatus) map[string]cns.IPConfigurationStatus {
-	for uuid := range service.PodIPConfigState {
-		mutableIPConfig := service.PodIPConfigState[uuid]
+func (service *HTTPRestService) markSpecificIPTypeAsPending(numberToMark int, ipStateType string) map[string]cns.IPConfigurationStatus {
+	pendingReleaseIPs := make(map[string]cns.IPConfigurationStatus)
+	for uuid, mutableIPConfig := range service.PodIPConfigState {
 		if mutableIPConfig.State == ipStateType {
 			mutableIPConfig.State = cns.PendingRelease
 			service.PodIPConfigState[uuid] = mutableIPConfig
 			pendingReleaseIPs[uuid] = mutableIPConfig
-			markedIPCount++
-			if markedIPCount == numberToMark {
+			if len(pendingReleaseIPs) == numberToMark {
 				return pendingReleaseIPs
 			}
 		}

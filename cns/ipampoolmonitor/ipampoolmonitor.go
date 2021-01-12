@@ -124,7 +124,7 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize() error {
 	pm.cachedNNC.Spec.RequestedIPCount -= pm.scalarUnits.BatchSize
 
 	// mark n number of IP's as pending
-	pendingIpAddresses, err := pm.cns.MarkIPsAsPending(int(pm.scalarUnits.BatchSize))
+	pendingIpAddresses, err := pm.cns.MarkIPAsPendingRelease(int(pm.scalarUnits.BatchSize))
 	if err != nil {
 		return err
 	}
