@@ -749,7 +749,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 					util.IptablesJumpFlag,
 					util.IptablesMark,
 					util.IptablesSetMarkFlag,
-					util.IptablesAzureEgressXMarkHex,
+					util.IptablesAzureIngressMarkHex,
 					util.IptablesModuleFlag,
 					util.IptablesCommentModuleFlag,
 					util.IptablesCommentFlag,
