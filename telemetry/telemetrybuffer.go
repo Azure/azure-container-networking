@@ -559,7 +559,6 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
 		} else {
 			tb.Connected = true
-			log.Logf("Connected to telemetry service")
 			return
 		}
 	}
@@ -573,7 +572,6 @@ func (tb *TelemetryBuffer) TryToConnectToTelemetryService() {
 	}
 
 	tb.Connected = true
-	log.Logf("Connected to telemetry service")
 }
 
 func getTelemetryServiceDirectory() (path string, dir string) {

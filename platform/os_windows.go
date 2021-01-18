@@ -93,8 +93,6 @@ func GetLastRebootTime() (time.Time, error) {
 	bootSec := systemBootupTime[12:14]
 	systemBootTime := bootYear + "-" + bootMonth + "-" + bootDay + " " + bootHour + ":" + bootMin + ":" + bootSec
 
-	log.Printf("Formatted Boot time: %s", systemBootTime)
-
 	// Parse the boot time.
 	layout := "2006-01-02 15:04:05"
 	rebootTime, err := time.ParseInLocation(layout, systemBootTime, time.Local)

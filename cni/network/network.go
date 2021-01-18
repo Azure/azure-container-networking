@@ -102,6 +102,19 @@ func (plugin *netPlugin) SetCNIReport(report *telemetry.CNIReport, tb *telemetry
 	plugin.tb = tb
 }
 
+// LogEnvironment logs the plugin environment
+func (plugin *netPlugin) LogEnvironment() {
+  // Check CNI_COMMAND value for logging purposes.
+	cniCmd := os.Getenv(cni.Cmd)
+  log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
+  
+  // Log platform information.
+	log.Printf("[cni-net] Plugin %v version %v.", plugin.Name, plugin.Version)
+	log.Printf("[cni-net] Running on %v", platform.GetOSInfo())
+	platform.PrintDependencyPackageDetails()
+	common.LogNetworkInterfaces()
+}
+
 // Starts the plugin.
 func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	// Initialize base plugin.
@@ -110,12 +123,6 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 		log.Printf("[cni-net] Failed to initialize base plugin, err:%v.", err)
 		return err
 	}
-
-	// Log platform information.
-	log.Printf("[cni-net] Plugin %v version %v.", plugin.Name, plugin.Version)
-	log.Printf("[cni-net] Running on %v", platform.GetOSInfo())
-	platform.PrintDependencyPackageDetails()
-	common.LogNetworkInterfaces()
 
 	// Initialize network manager.
 	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)
@@ -268,8 +275,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		enableSnatForDns bool
 		nwDNSInfo        network.DNSInfo
 		cniMetric        telemetry.AIMetric
-	)
-
+  )
+  
+  plugin.LogEnvironment()
 	startTime := time.Now()
 
 	log.Printf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
@@ -661,8 +669,9 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 		k8sPodName   string
 		k8sNamespace string
 		networkId    string
-	)
-
+  )
+  
+  plugin.LogEnvironment()
 	log.Printf("[cni-net] Processing GET command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path)
 
@@ -766,6 +775,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		msg          string
 	)
 
+  plugin.LogEnvironment()
 	startTime := time.Now()
 
 	log.Printf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",
@@ -914,8 +924,9 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		orchestratorContext []byte
 		targetNetworkConfig *cns.GetNetworkContainerResponse
 		cniMetric           telemetry.AIMetric
-	)
+  )
 
+  plugin.LogEnvironment()
 	startTime := time.Now()
 
 	log.Printf("[cni-net] Processing UPDATE command with args {Netns:%v Args:%v Path:%v}.",
