@@ -80,7 +80,7 @@ const (
 	IptablesAzureIngressFromPodChain string = "AZURE-NPM-INGRESS-FROM-POD"
 	IptablesAzureEgressToNsChain     string = "AZURE-NPM-EGRESS-TO-NS"
 	IptablesAzureEgressToPodChain    string = "AZURE-NPM-EGRESS-TO-POD"
-	// Below are the ctmark NPM will use for different criteria
+	// Below are the skb->mark NPM will use for different criteria
 	IptablesAzureIngressMarkHex string = "0x2000"
 	IptablesAzureEgressXMarkHex string = "0x1000/0x1000"
 	IptablesAzureEgressMarkHex  string = "0x1000"
