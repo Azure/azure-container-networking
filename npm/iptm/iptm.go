@@ -4,6 +4,7 @@
 package iptm
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -126,7 +127,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"RETURN-on-INGRESS-mark-0x2000",
+		fmt.Sprintf("RETURN-on-INGRESS-mark-%s", util.IptablesAzureIngressMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -158,7 +159,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"RETURN-on-INGRESS-mark-0x2000",
+		fmt.Sprintf("RETURN-on-INGRESS-mark-%s", util.IptablesAzureIngressMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -206,7 +207,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"RETURN-on-EGRESS-mark-0x1000",
+		fmt.Sprintf("RETURN-on-EGRESS-mark-%s", util.IptablesAzureEgressMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -225,7 +226,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	entry.Chain = util.IptablesAzureEgressPortChain
 	entry.Specs = []string{
 		util.IptablesJumpFlag,
-		util.IptablesAccept,
+		util.IptablesReturn,
 		util.IptablesModuleFlag,
 		util.IptablesMarkVerb,
 		util.IptablesMarkFlag,
@@ -233,7 +234,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"RETURN-on-EGRESS-and-INGRESS-mark-0x3000",
+		fmt.Sprintf("RETURN-on-EGRESS-and-INGRESS-mark-%s", util.IptablesAzureAcceptMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -270,7 +271,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"RETURN-on-EGRESS-mark-0x1000",
+		fmt.Sprintf("RETURN-on-EGRESS-mark-%s", util.IptablesAzureEgressMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -289,7 +290,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	entry.Chain = util.IptablesAzureEgressToChain
 	entry.Specs = []string{
 		util.IptablesJumpFlag,
-		util.IptablesAccept,
+		util.IptablesReturn,
 		util.IptablesModuleFlag,
 		util.IptablesMarkVerb,
 		util.IptablesMarkFlag,
@@ -297,7 +298,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"RETURN-on-EGRESS-and-INGRESS-mark-0x3000",
+		fmt.Sprintf("RETURN-on-EGRESS-and-INGRESS-mark-%s", util.IptablesAzureAcceptMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -325,7 +326,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"ACCEPT-on-INGRESS-and-EGRESS-mark-0x3000",
+		fmt.Sprintf("ACCEPT-on-INGRESS-and-EGRESS-mark-%s", util.IptablesAzureAcceptMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -352,7 +353,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"ACCEPT-on-INGRESS-mark-0x2000",
+		fmt.Sprintf("ACCEPT-on-INGRESS-mark-%s", util.IptablesAzureIngressMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -362,7 +363,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	if !exists {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add marked ACCEPT rule for INGRESS mark 0x2000 to AZURE-NPM chain.")
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add marked ACCEPT rule for INGRESS mark to AZURE-NPM chain.")
 			return err
 		}
 	}
@@ -379,7 +380,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
 		util.IptablesCommentFlag,
-		"ACCEPT-on-EGRESS-mark-0x1000",
+		fmt.Sprintf("ACCEPT-on-EGRESS-mark-%s", util.IptablesAzureEgressMarkHex),
 	}
 	exists, err = iptMgr.Exists(entry)
 	if err != nil {
@@ -389,7 +390,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	if !exists {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 		if _, err := iptMgr.Run(entry); err != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add marked ACCEPT rule for EGRESS mark 0x1000 to AZURE-NPM chain.")
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add marked ACCEPT rule for EGRESS mark to AZURE-NPM chain.")
 			return err
 		}
 	}

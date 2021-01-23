@@ -82,9 +82,13 @@ const (
 	IptablesAzureEgressToPodChain    string = "AZURE-NPM-EGRESS-TO-POD"
 	// Below are the skb->mark NPM will use for different criteria
 	IptablesAzureIngressMarkHex string = "0x2000"
+	// IptablesAzureEgressXMarkHex is used for us to not override but append to the existing MARK
+	// https://unix.stackexchange.com/a/283455 comment contains the explanation on
+	// MARK manipulations with offset.
 	IptablesAzureEgressXMarkHex string = "0x1000/0x1000"
-	IptablesAzureEgressMarkHex  string = "0x1000"
-	IptablesAzureAcceptMarkHex  string = "0x3000"
+	// IptablesAzureEgressMarkHex is for checking the absolute value of the mark
+	IptablesAzureEgressMarkHex string = "0x1000"
+	IptablesAzureAcceptMarkHex string = "0x3000"
 )
 
 //ipset related constants.
