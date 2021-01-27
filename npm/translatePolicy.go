@@ -809,7 +809,6 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
-		comment += "ALLOW-ALL-TO-" + targetSelectorComment + "-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain
 		entry.Specs = append(
 			entry.Specs,
 			util.IptablesJumpFlag,
@@ -817,7 +816,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			comment,
+			"ALLOW-ALL-TO-"+targetSelectorComment+"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
 		)
 		entries = append(entries, entry)
 	} else if addedIngressFromEntry {
@@ -826,8 +825,6 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
-		portcomment = commnent + "ALLOW-ALL-TO-" + targetSelectorComment + "-TO-JUMP-TO-" + util.IptablesAzureIngressFromChain
-		comment = "ALLOW-ALL-TO-" + targetSelectorComment + "-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain
 		portEntry.Specs = append(
 			portEntry.Specs,
 			util.IptablesJumpFlag,
@@ -835,7 +832,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			portcomment,
+			"ALLOW-ALL-TO-"+targetSelectorComment+"-TO-JUMP-TO-"+util.IptablesAzureIngressFromChain,
 		)
 		entries = append(entries, portEntry)
 		entry := &iptm.IptEntry{
@@ -850,7 +847,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			comment,
+			"ALLOW-ALL-TO-"+targetSelectorComment+"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
 		)
 		entries = append(entries, entry)
 	}
