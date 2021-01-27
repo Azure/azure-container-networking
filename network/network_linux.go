@@ -231,14 +231,25 @@ func readDnsInfo(ifName string) (DNSInfo, error) {
 		return dnsInfo, fmt.Errorf("[net] Console output doesn't have any lines")
 	}
 
+	dnsServerFound := false
 	for _, line := range lineArr {
 		if strings.Contains(line, dnsServersStr) {
 			dnsServerSplit := strings.Split(line, colonDelimiter)
 			if len(dnsServerSplit) > 1 {
+				dnsServerFound = true
 				dnsServerSplit[1] = strings.TrimSpace(dnsServerSplit[1])
 				dnsInfo.Servers = append(dnsInfo.Servers, dnsServerSplit[1])
 			}
-		} else if strings.Contains(line, dnsDomainStr) {
+		} else if !strings.Contains(line, colonDelimiter) && dnsServerFound {
+			dnsServer := strings.TrimSpace(line)
+			dnsInfo.Servers = append(dnsInfo.Servers, dnsServer)
+		} else {
+			dnsServerFound = false
+		}
+	}
+
+	for _, line := range lineArr {
+		if strings.Contains(line, dnsDomainStr) {
 			dnsDomainSplit := strings.Split(line, colonDelimiter)
 			if len(dnsDomainSplit) > 1 {
 				dnsInfo.Suffix = strings.TrimSpace(dnsDomainSplit[1])
@@ -292,10 +303,23 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 }
 
 func applyDnsConfig(extIf *externalInterface, ifName string) error {
-	var err error
+	var (
+		setDnsList string
+		err        error
+	)
 
-	if extIf != nil && len(extIf.DNSInfo.Servers) > 0 {
-		cmd := fmt.Sprintf("systemd-resolve --interface=%s --set-dns=%s", ifName, extIf.DNSInfo.Servers[0])
+	if extIf != nil {
+		for _, server := range extIf.DNSInfo.Servers {
+			if net.ParseIP(server).To4() == nil {
+				log.Errorf("invalid dns ip %s. Shouldn't happen", server)
+				continue
+			}
+
+			buf := fmt.Sprintf("--set-dns=%s", server)
+			setDnsList = setDnsList + " " + buf
+		}
+
+		cmd := fmt.Sprintf("systemd-resolve --interface=%s%s", ifName, setDnsList)
 		_, err = platform.ExecuteCommand(cmd)
 		if err != nil {
 			return err
