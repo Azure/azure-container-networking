@@ -189,6 +189,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		fromRuleExists := false
 		addedPortEntry = addedPortEntry || portRuleExists
 		ipCidrs[i] = make([]string, len(rule.From))
+		comment := ns + "/" + policyName
 
 		if rule.From != nil {
 			if len(rule.From) == 0 {
@@ -221,6 +222,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				util.IptablesSrcFlag,
 			)
 			entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
+			comment += "ALLOW-ALL-TO-" + targetSelectorComment + "-FROM-" + util.KubeAllNamespacesFlag
 			entry.Specs = append(
 				entry.Specs,
 				util.IptablesJumpFlag,
@@ -230,8 +232,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-"+targetSelectorComment+
-					"-FROM-"+util.KubeAllNamespacesFlag,
+				comment,
 			)
 
 			entries = append(entries, entry)
@@ -250,6 +251,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						Chain: util.IptablesAzureIngressPortChain,
 						Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 					}
+					comment += "ALLOW-ALL-" +
+						craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+						"-TO-" + targetSelectorComment
 					entry.Specs = append(
 						entry.Specs,
 						util.IptablesModuleFlag,
@@ -264,9 +268,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						util.IptablesModuleFlag,
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
-						"ALLOW-ALL-"+
-							craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-							"-TO-"+targetSelectorComment,
+						comment,
 					)
 					entries = append(entries, entry)
 				case "validport":
@@ -275,6 +277,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						Specs: craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag),
 					}
 					entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
+					comment += "ALLOW-ALL-" +
+						craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+						"-TO-" + targetSelectorComment
 					entry.Specs = append(
 						entry.Specs,
 						util.IptablesJumpFlag,
@@ -284,9 +289,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						util.IptablesModuleFlag,
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
-						"ALLOW-ALL-"+
-							craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-							"-TO-"+targetSelectorComment,
+						comment,
 					)
 					entries = append(entries, entry)
 				default:
@@ -331,6 +334,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.GetHashedName(cidrIpsetName),
 									util.IptablesSrcFlag,
 								)
+								comment += "ALLOW-" + cidrIpsetName +
+									"-AND-" + craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+									"-TO-" + targetSelectorComment
 								entry.Specs = append(
 									entry.Specs,
 									util.IptablesModuleFlag,
@@ -345,9 +351,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.IptablesModuleFlag,
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
-									"ALLOW-"+cidrIpsetName+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-										"-TO-"+targetSelectorComment,
+									comment,
 								)
 								fromRuleEntries = append(fromRuleEntries, entry)
 							case "validport":
@@ -367,6 +371,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									entry.Specs,
 									craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 								)
+								comment += "ALLOW-" + cidrIpsetName +
+									"-AND-" + craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+									"-TO-" + targetSelectorComment
 								entry.Specs = append(
 									entry.Specs,
 									util.IptablesJumpFlag,
@@ -376,9 +383,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.IptablesModuleFlag,
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
-									"ALLOW-"+cidrIpsetName+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-										"-TO-"+targetSelectorComment,
+									comment,
 								)
 								fromRuleEntries = append(fromRuleEntries, entry)
 							default:
@@ -404,8 +409,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
-							"ALLOW-"+cidrIpsetName+
-								"-TO-"+targetSelectorComment,
+							comment,
 						)
 						fromRuleEntries = append(fromRuleEntries, entry)
 						addedIngressFromEntry = true
@@ -452,6 +456,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								entry.Specs,
 								iptPartialNsSpec...,
 							)
+							comment += "ALLOW-" + iptPartialNsComment +
+								"-AND-" + craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+								"-TO-" + targetSelectorComment
 							entry.Specs = append(
 								entry.Specs,
 								util.IptablesModuleFlag,
@@ -466,9 +473,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								util.IptablesModuleFlag,
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
-								"ALLOW-"+iptPartialNsComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-									"-TO-"+targetSelectorComment,
+								comment,
 							)
 							entries = append(entries, entry)
 						case "validport":
@@ -484,6 +489,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								entry.Specs,
 								craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 							)
+							comment += "ALLOW-" + iptPartialNsComment +
+								"-AND-" + craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+								"-TO-" + targetSelectorComment
 							entry.Specs = append(
 								entry.Specs,
 								util.IptablesJumpFlag,
@@ -493,9 +501,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								util.IptablesModuleFlag,
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
-								"ALLOW-"+iptPartialNsComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-									"-TO-"+targetSelectorComment,
+								comment,
 							)
 							entries = append(entries, entry)
 						default:
@@ -511,6 +517,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						entry.Specs,
 						targetSelectorIptEntrySpec...,
 					)
+					comment += "ALLOW-" + iptPartialNsComment +
+						"-TO-" + targetSelectorComment
 					entry.Specs = append(
 						entry.Specs,
 						util.IptablesJumpFlag,
@@ -520,8 +528,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						util.IptablesModuleFlag,
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
-						"ALLOW-"+iptPartialNsComment+
-							"-TO-"+targetSelectorComment,
+						comment,
 					)
 					entries = append(entries, entry)
 					addedIngressFromEntry = true
@@ -555,6 +562,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								entry.Specs,
 								iptPartialPodSpec...,
 							)
+							comment += "ALLOW-" + iptPartialPodComment +
+								"-AND-" + craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+								"-TO-" + targetSelectorComment
 							entry.Specs = append(
 								entry.Specs,
 								util.IptablesModuleFlag,
@@ -569,9 +579,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								util.IptablesModuleFlag,
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
-								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-									"-TO-"+targetSelectorComment,
+								comment,
 							)
 							entries = append(entries, entry)
 						case "validport":
@@ -587,6 +595,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								entry.Specs,
 								craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 							)
+							comment += "ALLOW-" + iptPartialPodComment +
+								"-AND-" + craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+								"-TO-" + targetSelectorComment
 							entry.Specs = append(
 								entry.Specs,
 								util.IptablesJumpFlag,
@@ -596,9 +607,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								util.IptablesModuleFlag,
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
-								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-									"-TO-"+targetSelectorComment,
+								comment,
 							)
 							entries = append(entries, entry)
 						default:
@@ -614,6 +623,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						entry.Specs,
 						targetSelectorIptEntrySpec...,
 					)
+					comment += "ALLOW-" + iptPartialPodComment + "-TO-" + targetSelectorComment
 					entry.Specs = append(
 						entry.Specs,
 						util.IptablesJumpFlag,
@@ -623,8 +633,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						util.IptablesModuleFlag,
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
-						"ALLOW-"+iptPartialPodComment+
-							"-TO-"+targetSelectorComment,
+						comment,
 					)
 					entries = append(entries, entry)
 					addedIngressFromEntry = true
@@ -675,6 +684,10 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							entry.Specs,
 							targetSelectorIptEntrySpec...,
 						)
+						comment += "ALLOW-" + iptPartialNsComment +
+							"-AND-" + iptPartialPodComment +
+							"-AND-" + craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+							"-TO-" + targetSelectorComment
 						entry.Specs = append(
 							entry.Specs,
 							util.IptablesModuleFlag,
@@ -689,10 +702,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
-							"ALLOW-"+iptPartialNsComment+
-								"-AND-"+iptPartialPodComment+
-								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-								"-TO-"+targetSelectorComment,
+							comment,
 						)
 						entries = append(entries, entry)
 					case "validport":
@@ -712,6 +722,10 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							entry.Specs,
 							craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
 						)
+						comment += "ALLOW-" + iptPartialNsComment +
+							"-AND-" + iptPartialPodComment +
+							"-AND-" + craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag) +
+							"-TO-" + targetSelectorComment
 						entry.Specs = append(
 							entry.Specs,
 							util.IptablesJumpFlag,
@@ -721,10 +735,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							util.IptablesModuleFlag,
 							util.IptablesCommentModuleFlag,
 							util.IptablesCommentFlag,
-							"ALLOW-"+iptPartialNsComment+
-								"-AND-"+iptPartialPodComment+
-								"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-								"-TO-"+targetSelectorComment,
+							comment,
 						)
 						entries = append(entries, entry)
 					default:
@@ -744,6 +755,9 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 					entry.Specs,
 					iptPartialPodSpec...,
 				)
+				comment += "ALLOW-" + iptPartialNsComment +
+					"-AND-" + iptPartialPodComment +
+					"-TO-" + targetSelectorComment
 				entry.Specs = append(
 					entry.Specs,
 					util.IptablesJumpFlag,
@@ -753,9 +767,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 					util.IptablesModuleFlag,
 					util.IptablesCommentModuleFlag,
 					util.IptablesCommentFlag,
-					"ALLOW-"+iptPartialNsComment+
-						"-AND-"+iptPartialPodComment+
-						"-TO-"+targetSelectorComment,
+					comment,
 				)
 				entries = append(entries, entry)
 				addedIngressFromEntry = true
@@ -767,6 +779,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				Chain: util.IptablesAzureIngressPortChain,
 				Specs: append([]string(nil), targetSelectorIptEntrySpec...),
 			}
+			comment += "ALLOW-ALL-TO-" +
+				targetSelectorComment
 			entry.Specs = append(
 				entry.Specs,
 				util.IptablesJumpFlag,
@@ -776,8 +790,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-"+
-					targetSelectorComment,
+				comment,
 			)
 			entries = append(entries, entry)
 			continue
@@ -796,6 +809,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
+		comment += "ALLOW-ALL-TO-" + targetSelectorComment + "-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain
 		entry.Specs = append(
 			entry.Specs,
 			util.IptablesJumpFlag,
@@ -803,9 +817,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			"ALLOW-ALL-TO-"+
-				targetSelectorComment+
-				"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
+			comment,
 		)
 		entries = append(entries, entry)
 	} else if addedIngressFromEntry {
@@ -814,6 +826,8 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			Specs:       append([]string(nil), targetSelectorIptEntrySpec...),
 			IsJumpEntry: true,
 		}
+		portcomment = commnent + "ALLOW-ALL-TO-" + targetSelectorComment + "-TO-JUMP-TO-" + util.IptablesAzureIngressFromChain
+		comment = "ALLOW-ALL-TO-" + targetSelectorComment + "-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain
 		portEntry.Specs = append(
 			portEntry.Specs,
 			util.IptablesJumpFlag,
@@ -821,9 +835,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			"ALLOW-ALL-TO-"+
-				targetSelectorComment+
-				"-TO-JUMP-TO-"+util.IptablesAzureIngressFromChain,
+			portcomment,
 		)
 		entries = append(entries, portEntry)
 		entry := &iptm.IptEntry{
@@ -838,9 +850,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			"ALLOW-ALL-TO-"+
-				targetSelectorComment+
-				"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
+			comment,
 		)
 		entries = append(entries, entry)
 	}
