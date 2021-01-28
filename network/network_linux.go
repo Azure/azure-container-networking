@@ -311,7 +311,7 @@ func applyDnsConfig(extIf *externalInterface, ifName string) error {
 	if extIf != nil {
 		for _, server := range extIf.DNSInfo.Servers {
 			if net.ParseIP(server).To4() == nil {
-				log.Errorf("invalid dns ip %s. Shouldn't happen", server)
+				log.Errorf("[net] Invalid dns ip %s.", server)
 				continue
 			}
 
