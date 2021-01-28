@@ -399,6 +399,9 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		log.Printf("[net] Failed to save IP configuration for interface %v: %v.", hostIf.Name, err)
 	}
 
+	/*
+		If custom dns server is updated, VM needs reboot for the change to take effect.
+	*/
 	isGreaterOrEqualUbuntu17 := isGreaterOrEqaulUbuntuVersion(ubuntuVersion17)
 	if isGreaterOrEqualUbuntu17 {
 		log.Printf("[net] Saving dns config from %v", extIf.Name)
