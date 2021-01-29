@@ -135,6 +135,114 @@ func TestUpdateNamespace(t *testing.T) {
 	npMgr.Unlock()
 }
 
+func TestAddNamespaceLabel(t *testing.T) {
+	npMgr := &NetworkPolicyManager{
+		nsMap:            make(map[string]*namespace),
+		TelemetryEnabled: false,
+	}
+
+	allNs, err := newNs(util.KubeAllNamespacesFlag)
+	if err != nil {
+		panic(err.Error)
+	}
+	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+
+	ipsMgr := ipsm.NewIpsetManager()
+	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
+		t.Errorf("TestAddNamespaceLabel failed @ ipsMgr.Save")
+	}
+
+	defer func() {
+		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
+			t.Errorf("TestAddNamespaceLabel failed @ ipsMgr.Restore")
+		}
+	}()
+
+	oldNsObj := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "old-test-namespace",
+			Labels: map[string]string{
+				"app": "old-test-namespace",
+			},
+		},
+	}
+
+	newNsObj := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "old-test-namespace",
+			Labels: map[string]string{
+				"app":    "old-test-namespace",
+				"update": "true",
+			},
+		},
+	}
+
+	npMgr.Lock()
+	if err := npMgr.AddNamespace(oldNsObj); err != nil {
+		t.Errorf("TestAddNamespaceLabel failed @ npMgr.AddNamespace")
+	}
+
+	if err := npMgr.UpdateNamespace(oldNsObj, newNsObj); err != nil {
+		t.Errorf("TestAddNamespaceLabel failed @ npMgr.UpdateNamespace")
+	}
+	npMgr.Unlock()
+}
+
+func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
+	npMgr := &NetworkPolicyManager{
+		nsMap:            make(map[string]*namespace),
+		TelemetryEnabled: false,
+	}
+
+	allNs, err := newNs(util.KubeAllNamespacesFlag)
+	if err != nil {
+		panic(err.Error)
+	}
+	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+
+	ipsMgr := ipsm.NewIpsetManager()
+	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
+		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ ipsMgr.Save")
+	}
+
+	defer func() {
+		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
+			t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ ipsMgr.Restore")
+		}
+	}()
+
+	oldNsObj := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "old-test-namespace",
+			Labels: map[string]string{
+				"app":    "old-test-namespace",
+				"update": "true",
+				"group":  "test",
+			},
+		},
+	}
+
+	newNsObj := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "old-test-namespace",
+			Labels: map[string]string{
+				"app":    "old-test-namespace",
+				"update": "false",
+			},
+		},
+	}
+
+	npMgr.Lock()
+	if err := npMgr.AddNamespace(oldNsObj); err != nil {
+		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.AddNamespace")
+	}
+
+	if err := npMgr.UpdateNamespace(oldNsObj, newNsObj); err != nil {
+		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.UpdateNamespace")
+	}
+	npMgr.Unlock()
+}
+
 func TestDeleteNamespace(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		nsMap:            make(map[string]*namespace),
