@@ -21,14 +21,17 @@ func isSystemPod(podObj *corev1.Pod) bool {
 	return podObj.ObjectMeta.Namespace == util.KubeSystemFlag
 }
 
+func isHostNetworkPod(podObj *corev1.Pod) bool {
+	return podObj.Spec.HostNetwork
+}
+
 func isInvalidPodUpdate(oldPodObj, newPodObj *corev1.Pod) (isInvalidUpdate bool) {
 	isInvalidUpdate = oldPodObj.ObjectMeta.Namespace == newPodObj.ObjectMeta.Namespace &&
 		oldPodObj.ObjectMeta.Name == newPodObj.ObjectMeta.Name &&
 		oldPodObj.Status.Phase == newPodObj.Status.Phase &&
 		oldPodObj.Status.PodIP == newPodObj.Status.PodIP &&
 		newPodObj.ObjectMeta.DeletionTimestamp == nil &&
-		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil &&
-		newPodObj.Spec.HostNetwork //Ignore if HostNetwork pod
+		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil
 	isInvalidUpdate = isInvalidUpdate && reflect.DeepEqual(oldPodObj.ObjectMeta.Labels, newPodObj.ObjectMeta.Labels)
 
 	return
@@ -63,7 +66,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	}
 
 	// Ignore adding the HostNetwork pod to any ipsets.
-	if podObj.Spec.HostNetwork {
+	if isHostNetworkPod(podObj) {
 		log.Logf("HostNetwork POD IGNORED: [%s%s/%s/%s%+v%s]", podUid, podNs, podName, podNodeName, podLabels, podIP)
 		return nil
 	}
@@ -146,6 +149,17 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 		oldPodObjNs, oldPodObjName, oldPodObjLabel, oldPodObjPhase, oldPodObjIP,
 		newPodObjNs, newPodObjName, newPodObjLabel, newPodObjPhase, newPodObjIP,
 	)
+
+	// today K8s does not allow updating HostNetwork flag for an existing Pod. So NPM can safely
+	// check on the oldPodObj for hostNework value
+	if isHostNetworkPod(oldPodObj) {
+		log.Logf(
+			"POD UPDATING ignored for HostNetwork Pod:\n old pod: [%s/%s/%+v/%s/%s]\n new pod: [%s/%s/%+v/%s/%s]",
+			oldPodObjNs, oldPodObjName, oldPodObjLabel, oldPodObjPhase, oldPodObjIP,
+			newPodObjNs, newPodObjName, newPodObjLabel, newPodObjPhase, newPodObjIP,
+		)
+		return nil
+	}
 
 	// Todo: Update if cached ip and podip changed and it is not a delete event
 
