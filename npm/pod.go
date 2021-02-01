@@ -27,7 +27,8 @@ func isInvalidPodUpdate(oldPodObj, newPodObj *corev1.Pod) (isInvalidUpdate bool)
 		oldPodObj.Status.Phase == newPodObj.Status.Phase &&
 		oldPodObj.Status.PodIP == newPodObj.Status.PodIP &&
 		newPodObj.ObjectMeta.DeletionTimestamp == nil &&
-		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil
+		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil &&
+		newPodObj.Spec.HostNetwork //Ignore if HostNetwork pod
 	isInvalidUpdate = isInvalidUpdate && reflect.DeepEqual(oldPodObj.ObjectMeta.Labels, newPodObj.ObjectMeta.Labels)
 
 	return
@@ -59,6 +60,12 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		if err = ipsMgr.CreateSet(podNs, append([]string{util.IpsetNetHashFlag})); err != nil {
 			log.Logf("Error creating ipset %s", podNs)
 		}
+	}
+
+	// Ignore adding the HostNetwork pod to any ipsets.
+	if podObj.Spec.HostNetwork {
+		log.Logf("HostNetwork POD IGNORED: [%s%s/%s/%s%+v%s]", podUid, podNs, podName, podNodeName, podLabels, podIP)
+		return nil
 	}
 
 	// Add the pod to its namespace's ipset.
