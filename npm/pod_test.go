@@ -202,3 +202,183 @@ func TestDeletePod(t *testing.T) {
 	}
 	npMgr.Unlock()
 }
+
+func TestAddHostNetworkPod(t *testing.T) {
+	npMgr := &NetworkPolicyManager{
+		nsMap:            make(map[string]*namespace),
+		podMap:           make(map[string]string),
+		TelemetryEnabled: false,
+	}
+
+	allNs, err := newNs(util.KubeAllNamespacesFlag)
+	if err != nil {
+		panic(err.Error)
+	}
+	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+
+	ipsMgr := ipsm.NewIpsetManager()
+	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
+		t.Errorf("TestAddHostNetworkPod failed @ ipsMgr.Save")
+	}
+
+	defer func() {
+		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
+			t.Errorf("TestAddHostNetworkPod failed @ ipsMgr.Restore")
+		}
+	}()
+
+	podObj := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "test-pod",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: "Running",
+			PodIP: "1.2.3.4",
+		},
+		Spec: corev1.PodSpec{
+			HostNetwork: true,
+		},
+	}
+
+	npMgr.Lock()
+	if err := npMgr.AddPod(podObj); err != nil {
+		t.Errorf("TestAddHostNetworkPod failed @ AddPod")
+	}
+
+	if len(npMgr.podMap) >= 1 {
+		t.Errorf("TestAddHostNetworkPod failed @ podMap length check")
+	}
+	npMgr.Unlock()
+}
+
+func TestUpdateHostNetworkPod(t *testing.T) {
+	npMgr := &NetworkPolicyManager{
+		nsMap:            make(map[string]*namespace),
+		podMap:           make(map[string]string),
+		TelemetryEnabled: false,
+	}
+
+	allNs, err := newNs(util.KubeAllNamespacesFlag)
+	if err != nil {
+		panic(err.Error)
+	}
+	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+
+	ipsMgr := ipsm.NewIpsetManager()
+	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
+		t.Errorf("TestUpdateHostNetworkPod failed @ ipsMgr.Save")
+	}
+
+	defer func() {
+		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
+			t.Errorf("TestUpdateHostNetworkPod failed @ ipsMgr.Restore")
+		}
+	}()
+
+	// HostNetwork check is done on the oldPodObj,
+	// so intentionally not adding hostnet true in newPodObj
+	oldPodObj := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "old-test-pod",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "old-test-pod",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: "Running",
+			PodIP: "1.2.3.4",
+		},
+		Spec: corev1.PodSpec{
+			HostNetwork: true,
+		},
+	}
+
+	newPodObj := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "new-test-pod",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "new-test-pod",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: "Running",
+			PodIP: "4.3.2.1",
+		},
+	}
+
+	npMgr.Lock()
+	if err := npMgr.AddPod(oldPodObj); err != nil {
+		t.Errorf("TestUpdateHostNetworkPod failed @ AddPod")
+	}
+
+	if err := npMgr.UpdatePod(oldPodObj, newPodObj); err != nil {
+		t.Errorf("TestUpdateHostNetworkPod failed @ UpdatePod")
+	}
+
+	if len(npMgr.podMap) >= 1 {
+		t.Errorf("TestUpdateHostNetworkPod failed @ podMap length check")
+	}
+	npMgr.Unlock()
+}
+
+func TestDeleteHostNetworkPod(t *testing.T) {
+	npMgr := &NetworkPolicyManager{
+		nsMap:            make(map[string]*namespace),
+		podMap:           make(map[string]string),
+		TelemetryEnabled: false,
+	}
+
+	allNs, err := newNs(util.KubeAllNamespacesFlag)
+	if err != nil {
+		panic(err.Error)
+	}
+	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+
+	ipsMgr := ipsm.NewIpsetManager()
+	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
+		t.Errorf("TestDeleteHostNetworkPod failed @ ipsMgr.Save")
+	}
+
+	defer func() {
+		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
+			t.Errorf("TestDeleteHostNetworkPod failed @ ipsMgr.Restore")
+		}
+	}()
+
+	podObj := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "test-pod",
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: "Running",
+			PodIP: "1.2.3.4",
+		},
+		Spec: corev1.PodSpec{
+			HostNetwork: true,
+		},
+	}
+
+	npMgr.Lock()
+	if err := npMgr.AddPod(podObj); err != nil {
+		t.Errorf("TestDeleteHostNetworkPod failed @ AddPod")
+	}
+
+	if len(npMgr.podMap) >= 1 {
+		t.Errorf("TestDeleteHostNetworkPod failed @ podMap length check")
+	}
+
+	if err := npMgr.DeletePod(podObj); err != nil {
+		t.Errorf("TestDeleteHostNetworkPod failed @ DeletePod")
+	}
+	npMgr.Unlock()
+}
