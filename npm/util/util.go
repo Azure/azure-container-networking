@@ -110,6 +110,16 @@ func UniqueStrSlice(s []string) []string {
 	return unique
 }
 
+// ClearAndAppendMap clears base and appends new to base.
+func ClearAndAppendMap(base, new map[string]string) map[string]string {
+	base = make(map[string]string)
+	for k, v := range new {
+		base[k] = v
+	}
+
+	return base
+}
+
 // AppendMap appends new to base.
 func AppendMap(base, new map[string]string) map[string]string {
 	for k, v := range new {
