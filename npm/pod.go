@@ -21,6 +21,10 @@ func isSystemPod(podObj *corev1.Pod) bool {
 	return podObj.ObjectMeta.Namespace == util.KubeSystemFlag
 }
 
+func isHostNetworkPod(podObj *corev1.Pod) bool {
+	return podObj.Spec.HostNetwork
+}
+
 func isInvalidPodUpdate(oldPodObj, newPodObj *corev1.Pod) (isInvalidUpdate bool) {
 	isInvalidUpdate = oldPodObj.ObjectMeta.Namespace == newPodObj.ObjectMeta.Namespace &&
 		oldPodObj.ObjectMeta.Name == newPodObj.ObjectMeta.Name &&
@@ -59,6 +63,12 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		if err = ipsMgr.CreateSet(podNs, append([]string{util.IpsetNetHashFlag})); err != nil {
 			log.Logf("Error creating ipset %s", podNs)
 		}
+	}
+
+	// Ignore adding the HostNetwork pod to any ipsets.
+	if isHostNetworkPod(podObj) {
+		log.Logf("HostNetwork POD IGNORED: [%s%s/%s/%s%+v%s]", podUid, podNs, podName, podNodeName, podLabels, podIP)
+		return nil
 	}
 
 	// Add the pod to its namespace's ipset.
@@ -113,6 +123,17 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 // UpdatePod handles updating pod ip in its label's ipset.
 func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) error {
 	if !isValidPod(newPodObj) {
+		return nil
+	}
+
+	// today K8s does not allow updating HostNetwork flag for an existing Pod. So NPM can safely
+	// check on the oldPodObj for hostNework value
+	if isHostNetworkPod(oldPodObj) {
+		log.Logf(
+			"POD UPDATING ignored for HostNetwork Pod:\n old pod: [%s/%s/%+v/%s/%s]\n new pod: [%s/%s/%+v/%s/%s]",
+			oldPodObj.ObjectMeta.Namespace, oldPodObj.ObjectMeta.Name, oldPodObj.Status.PodIP,
+			newPodObj.ObjectMeta.Namespace, newPodObj.ObjectMeta.Name, newPodObj.Status.PodIP,
+		)
 		return nil
 	}
 
