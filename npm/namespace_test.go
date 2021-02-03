@@ -4,6 +4,7 @@ package npm
 
 import (
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/iptm"
@@ -143,7 +144,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
 	if err != nil {
-		panic(err.Error)
+		t.Fatal(err.Error())
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
@@ -185,6 +186,11 @@ func TestAddNamespaceLabel(t *testing.T) {
 	if err := npMgr.UpdateNamespace(oldNsObj, newNsObj); err != nil {
 		t.Errorf("TestAddNamespaceLabel failed @ npMgr.UpdateNamespace")
 	}
+
+	if !reflect.DeepEqual(npMgr.nsMap["ns-"+newNsObj.Name].labelsMap, newNsObj.ObjectMeta.Labels) {
+		t.Errorf("TestAddNamespaceLabel failed @ npMgr.nsMap labelMap check")
+	}
+
 	npMgr.Unlock()
 }
 
@@ -196,7 +202,7 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 
 	allNs, err := newNs(util.KubeAllNamespacesFlag)
 	if err != nil {
-		panic(err.Error)
+		t.Fatal(err.Error())
 	}
 	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
 
@@ -240,6 +246,10 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	if err := npMgr.UpdateNamespace(oldNsObj, newNsObj); err != nil {
 		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.UpdateNamespace")
 	}
+
+	if !reflect.DeepEqual(npMgr.nsMap["ns-"+newNsObj.Name].labelsMap, newNsObj.ObjectMeta.Labels) {
+		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap labelMap check")
+	}
 	npMgr.Unlock()
 }
 
@@ -282,6 +292,10 @@ func TestDeleteNamespace(t *testing.T) {
 
 	if err := npMgr.DeleteNamespace(nsObj); err != nil {
 		t.Errorf("TestDeleteNamespace @ npMgr.DeleteNamespace")
+	}
+
+	if _, exists := npMgr.nsMap["ns-"+nsObj.Name]; exists {
+		t.Errorf("TestDeleteNamespace failed @ npMgr.nsMap check")
 	}
 	npMgr.Unlock()
 }
