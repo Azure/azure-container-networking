@@ -138,12 +138,7 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 		return err
 	}
 
-	err = service.restoreState()
-	if err != nil {
-		logger.Errorf("[Azure CNS]  Failed to restore service state, err:%v.", err)
-		return err
-	}
-
+	service.restoreState()
 	err = service.restoreNetworkState()
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)
