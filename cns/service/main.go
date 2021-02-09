@@ -395,7 +395,7 @@ func main() {
 	if !telemetryEnabled {
 		logger.Errorf("[Azure CNS] Cannot disable telemetry via cmdline. Update cns_config.json to disable telemetry.")
 	}
-	
+
 	cnsconfig, err := configuration.ReadConfig()
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error reading cns config: %v", err)
