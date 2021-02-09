@@ -18,6 +18,7 @@ type KeyValueStore interface {
 	GetModificationTime() (time.Time, error)
 	GetLockFileModificationTime() (time.Time, error)
 	GetLockFileName() string
+	Remove()
 }
 
 var (

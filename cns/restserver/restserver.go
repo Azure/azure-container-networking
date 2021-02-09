@@ -132,7 +132,6 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 
 // Start starts the CNS listener.
 func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
-
 	err := service.Initialize(config)
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to initialize base service, err:%v.", err)

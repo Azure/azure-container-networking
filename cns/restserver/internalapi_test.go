@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"testing"
@@ -545,5 +546,8 @@ func restartService() {
 	fmt.Println("Restart Service")
 
 	service.Stop()
-	startService()
+	if err := startService(); err != nil {
+		fmt.Printf("Failed to restart CNS Service. Error: %v", err)
+		os.Exit(1)
+	}
 }

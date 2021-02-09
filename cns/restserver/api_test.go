@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"github.com/Azure/azure-container-networking/store"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -26,6 +27,7 @@ import (
 const (
 	defaultCnsURL   = "http://localhost:10090"
 	contentTypeJSON = "application/json"
+	cnsJsonFileName = "azure-cns.json"
 )
 
 type IPAddress struct {
@@ -125,7 +127,10 @@ func TestMain(m *testing.M) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 
 	// Create the service.
-	startService()
+	if err = startService(); err != nil {
+		fmt.Printf("Failed to start CNS Service. Error: %v", err)
+		os.Exit(1)
+	}
 
 	// Setup mock nmagent server
 	u, err := url.Parse("tcp://" + nmagentEndpoint)
@@ -908,34 +913,50 @@ func setEnv(t *testing.T) *httptest.ResponseRecorder {
 	return w
 }
 
-func startService() {
+func startService() error {
 	var err error
 	// Create the service.
 	config := common.ServiceConfig{}
+	// Create the key value store.
+	if config.Store, err = store.NewJsonFileStore(cnsJsonFileName); err != nil {
+		logger.Errorf("Failed to create store file: %s, due to error %v\n", cnsJsonFileName, err)
+		return err
+	}
+
 	service, err = NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	if err != nil {
-		fmt.Printf("Failed to create CNS object %v\n", err)
-		os.Exit(1)
+		return err
 	}
 	svc = service.(*HTTPRestService)
 	svc.Name = "cns-test-server"
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
-		return
+		return err
 	}
 
 	svc.IPAMPoolMonitor = fakes.NewIPAMPoolMonitorFake()
 
 	if service != nil {
+		// Create empty azure-cns.json. CNS should start successfully by deleting this file
+		file, _ := os.Create(cnsJsonFileName)
+		file.Close()
+
 		err = service.Start(&config)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
-			return
+			return err
+		}
+
+		if _, err := os.Stat(cnsJsonFileName); err == nil || !os.IsNotExist(err) {
+			logger.Errorf("Failed to remove empty CNS state file: %s, err:%v", cnsJsonFileName, err)
+			return err
 		}
 	}
 
 	// Get the internal http mux as test hook.
 	mux = service.(*HTTPRestService).Listener.GetMux()
+
+	return nil
 }
 
 // IGNORE TEST AS IT IS FAILING. TODO:- Fix it https://msazure.visualstudio.com/One/_workitems/edit/7720083

@@ -47,3 +47,7 @@ func (store *KeyValueStoreMock) GetLockFileName() string {
 	return ""
 }
 
+func (store *KeyValueStoreMock) Remove() {
+	return
+}
+

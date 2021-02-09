@@ -148,7 +148,6 @@ func (kvs *jsonFileStore) flush() error {
 		return fmt.Errorf("temp file close failed with: %v", err)
 	}
 
-	log.Printf("renaming temp file %v to state file", tmpFileName)
 	// atomic replace
 	if err = platform.ReplaceFile(tmpFileName, kvs.fileName); err != nil {
 		return fmt.Errorf("rename temp file to state file failed:%v", err)
@@ -275,4 +274,12 @@ func (kvs *jsonFileStore) GetLockFileModificationTime() (time.Time, error) {
 
 func (kvs *jsonFileStore) GetLockFileName() string {
 	return kvs.fileName + lockExtension
+}
+
+func (kvs *jsonFileStore) Remove() {
+	kvs.Mutex.Lock()
+	if err := os.Remove(kvs.fileName); err != nil {
+		log.Errorf("could not remove file %s. Error: %v", kvs.fileName, err)
+	}
+	kvs.Mutex.Unlock()
 }
