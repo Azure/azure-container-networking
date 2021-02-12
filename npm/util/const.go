@@ -72,6 +72,7 @@ const (
 	IptablesAzureEgressPortChain  string = "AZURE-NPM-EGRESS-PORT"
 	IptablesAzureEgressToChain    string = "AZURE-NPM-EGRESS-TO"
 	IptablesAzureTargetSetsChain  string = "AZURE-NPM-TARGET-SETS"
+	IptablesKubeServersChain      string = "KUBE-SERVICES"
 	IptablesForwardChain          string = "FORWARD"
 	IptablesInputChain            string = "INPUT"
 	// Below chains exists only for before Azure-NPM:v1.0.27

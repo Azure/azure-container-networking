@@ -54,44 +54,14 @@ func NewIptablesManager() *IptablesManager {
 func (iptMgr *IptablesManager) InitNpmChains() error {
 	log.Logf("Initializing AZURE-NPM chains.")
 
-	if err := iptMgr.AddChain(util.IptablesAzureChain); err != nil {
-		return err
-	}
-
-	// Insert AZURE-NPM chain to FORWARD chain.
-	entry := &IptEntry{
-		Chain: util.IptablesForwardChain,
-		Specs: []string{
-			util.IptablesJumpFlag,
-			util.IptablesAzureChain,
-		},
-	}
-	exists, err := iptMgr.Exists(entry)
+	err := iptMgr.CheckAndAddForwardChain()
 	if err != nil {
-		return err
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
 	}
 
-	if !exists {
-		// retrieve KUBE-SERVICES index
-		index := "1"
-		iptFilterEntries := exec.Command(util.Iptables, "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers")
-		grep := exec.Command("grep", "KUBE-SERVICES")
-		pipe, _ := iptFilterEntries.StdoutPipe()
-		grep.Stdin = pipe
-		iptFilterEntries.Start()
-		output, err := grep.CombinedOutput()
-		if err == nil && len(output) > 2 {
-			tmpIndex, _ := strconv.Atoi(string(output[0]))
-			index = strconv.Itoa(tmpIndex + 1)
-		}
-		pipe.Close()
-		// position Azure-NPM chain after Kube-Forward and Kube-Service chains if it exists
-		iptMgr.OperationFlag = util.IptablesInsertionFlag
-		entry.Specs = append([]string{index}, entry.Specs...)
-		if _, err = iptMgr.Run(entry); err != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
-			return err
-		}
+	entry := &IptEntry{
+		Chain: util.IptablesAzureChain,
+		Specs: []string{},
 	}
 
 	// Create AZURE-NPM-INGRESS-PORT chain.
@@ -102,7 +72,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	// Append AZURE-NPM-INGRESS-PORT chain to AZURE-NPM chain.
 	entry.Chain = util.IptablesAzureChain
 	entry.Specs = []string{util.IptablesJumpFlag, util.IptablesAzureIngressPortChain}
-	exists, err = iptMgr.Exists(entry)
+	exists, err := iptMgr.Exists(entry)
 	if err != nil {
 		return err
 	}
@@ -437,6 +407,77 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 	return nil
 }
 
+// CheckAndAddForwardChain initializes and reconciles Azure-NPM chain in right order
+func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
+
+	// TODO Adding this chain is printing error messages try to clean it up
+	if err := iptMgr.AddChain(util.IptablesAzureChain); err != nil {
+		return err
+	}
+
+	// Insert AZURE-NPM chain to FORWARD chain.
+	entry := &IptEntry{
+		Chain: util.IptablesForwardChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesAzureChain,
+		},
+	}
+	exists, err := iptMgr.Exists(entry)
+	if err != nil {
+		return err
+	}
+
+	index := 1
+	// retrieve KUBE-SERVICES index
+	kubeServicesLine, err := iptMgr.GetChainLineNumber(util.IptablesKubeServersChain, util.IptablesForwardChain)
+	if kubeServicesLine > 0 {
+		index = kubeServicesLine + 1
+	}
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of KUBE-SERVICES in FORWARD chain with error: ", err.Error())
+	}
+
+	if !exists {
+		// position Azure-NPM chain after Kube-Forward and Kube-Service chains if it exists
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+		entry.Specs = append([]string{strconv.Itoa(index)}, entry.Specs...)
+		if _, err = iptMgr.Run(entry); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
+			return err
+		}
+
+		return nil
+	}
+
+	npmChainLine, err := iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of AZURE-NPM in FORWARD chain with error: ", err.Error())
+	}
+
+	// Kube-services line number is less than npm chain line number then all good
+	if kubeServicesLine > 0 && npmChainLine == index {
+		return nil
+	}
+
+	// NPM Chain number is less than KUBE-SERVICES then
+	// delete existing NPM chain and add it in the right order
+	iptMgr.OperationFlag = util.IptablesDeletionFlag
+	if _, err = iptMgr.Run(entry); err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
+		return err
+	}
+	iptMgr.OperationFlag = util.IptablesInsertionFlag
+	// Reduce index for deleted AZURE-NPM chain
+	entry.Specs = append([]string{strconv.Itoa(index - 1)}, entry.Specs...)
+	if _, err = iptMgr.Run(entry); err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
+		return err
+	}
+
+	return nil
+}
+
 // UninitNpmChains uninitializes Azure NPM chains in iptables.
 func (iptMgr *IptablesManager) UninitNpmChains() error {
 	IptablesAzureChainList := []string{
@@ -516,6 +557,24 @@ func (iptMgr *IptablesManager) AddChain(chain string) error {
 	}
 
 	return nil
+}
+
+// GetChainLineNumber given a Chain and its parent chain returns line number
+func (iptMgr *IptablesManager) GetChainLineNumber(chain string, parentChain string) (int, error) {
+
+	iptFilterEntries := exec.Command(util.Iptables, "-t", "filter", "-n", "--list", parentChain, "--line-numbers")
+	grep := exec.Command("grep", chain)
+	pipe, _ := iptFilterEntries.StdoutPipe()
+	grep.Stdin = pipe
+	defer pipe.Close()
+	iptFilterEntries.Start()
+	output, err := grep.CombinedOutput()
+	if err == nil && len(output) > 2 {
+		lineNum, _ := strconv.Atoi(string(output[0]))
+		return lineNum, err
+	}
+
+	return 0, err
 }
 
 // DeleteChain deletes a chain from iptables.
@@ -605,7 +664,11 @@ func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 && iptMgr.OperationFlag != util.IptablesCheckFlag {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+			msgStr := strings.TrimSuffix(string(msg.Stderr), "\n")
+			if strings.Contains(msgStr, "Chain already exists") && iptMgr.OperationFlag == util.IptablesChainCreationFlag {
+				return 0, nil
+			}
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, msgStr)
 		}
 
 		return errCode, err

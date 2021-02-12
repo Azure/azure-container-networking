@@ -35,6 +35,7 @@ const (
 	backupWaitTimeInSeconds       = 60
 	telemetryRetryTimeInSeconds   = 60
 	heartbeatIntervalInMinutes    = 30
+	reconcileChainTimeInMinutes   = 5
 )
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
@@ -177,6 +178,7 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 		return fmt.Errorf("Network policy informer failed to sync")
 	}
 
+	go npMgr.reconcileChains()
 	go npMgr.backup()
 
 	return nil
@@ -312,4 +314,17 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	)
 
 	return npMgr
+}
+
+// reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
+func (npMgr *NetworkPolicyManager) reconcileChains() {
+	iptMgr := iptm.NewIptablesManager()
+	var err error
+	for {
+		time.Sleep(reconcileChainTimeInMinutes * time.Minute)
+
+		if err = iptMgr.CheckAndAddForwardChain(); err != nil {
+			metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
+		}
+	}
 }
