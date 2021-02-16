@@ -66,6 +66,7 @@ func main() {
 	// Adding some randomness so all NPM pods will not request for info at once.
 	factor := rand.Float64() + 1
 	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
+	log.Logf("[INFO] Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
