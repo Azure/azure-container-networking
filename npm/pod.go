@@ -126,18 +126,18 @@ func (npMgr *NetworkPolicyManager) UpdatePod(oldPodObj, newPodObj *corev1.Pod) e
 		return nil
 	}
 
+	if isInvalidPodUpdate(oldPodObj, newPodObj) {
+		return nil
+	}
+
 	// today K8s does not allow updating HostNetwork flag for an existing Pod. So NPM can safely
 	// check on the oldPodObj for hostNework value
 	if isHostNetworkPod(oldPodObj) {
 		log.Logf(
-			"POD UPDATING ignored for HostNetwork Pod:\n old pod: [%s/%s/%+v/%s/%s]\n new pod: [%s/%s/%+v/%s/%s]",
+			"POD UPDATING ignored for HostNetwork Pod:\n old pod: [%s/%s/%s]\n new pod: [%s/%s/%s]",
 			oldPodObj.ObjectMeta.Namespace, oldPodObj.ObjectMeta.Name, oldPodObj.Status.PodIP,
 			newPodObj.ObjectMeta.Namespace, newPodObj.ObjectMeta.Name, newPodObj.Status.PodIP,
 		)
-		return nil
-	}
-
-	if isInvalidPodUpdate(oldPodObj, newPodObj) {
 		return nil
 	}
 

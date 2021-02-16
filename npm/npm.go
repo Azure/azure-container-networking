@@ -116,10 +116,16 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 
 	for {
 		<-heartbeat
-		clusterState := npMgr.GetClusterState()
-		podCount.Value = float64(clusterState.PodCount)
-		nsCount.Value = float64(clusterState.NsCount)
-		nwPolicyCount.Value = float64(clusterState.NwPolicyCount)
+		npMgr.Lock()
+		podCount.Value = float64(len(npMgr.podMap))
+		//Reducing one to remove all-namespaces ns obj
+		nsCount.Value = float64(len(npMgr.nsMap) - 1)
+		nwPolCount := 0
+		for _, ns := range npMgr.nsMap {
+			nwPolCount = nwPolCount + len(ns.rawNpMap)
+		}
+		nwPolicyCount.Value = float64(nwPolCount)
+		npMgr.Unlock()
 
 		metrics.SendMetric(podCount)
 		metrics.SendMetric(nsCount)
