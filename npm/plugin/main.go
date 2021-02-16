@@ -3,7 +3,6 @@
 package main
 
 import (
-	"math/rand"
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
@@ -16,7 +15,6 @@ import (
 )
 
 const waitForTelemetryInSeconds = 60
-const resyncPeriodInMinutes = 15
 
 // Version is populated by make during build.
 var version string
@@ -60,14 +58,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	// Setting reSyncPeriod to 15 secs
-	minResyncPeriod := resyncPeriodInMinutes * time.Minute
-
-	// Adding some randomness so all NPM pods will not request for info at once.
-	factor := rand.Float64() + 1
-	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
-	log.Logf("[INFO] Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
-	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
+	factory := informers.NewSharedInformerFactory(clientset, time.Hour*24)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
 	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
