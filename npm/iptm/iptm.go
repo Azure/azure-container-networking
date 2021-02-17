@@ -435,7 +435,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 		index = kubeServicesLine + 1
 	}
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of KUBE-SERVICES in FORWARD chain with error: ", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of KUBE-SERVICES in FORWARD chain with error: %s", err.Error())
 	}
 
 	if !exists {
@@ -452,11 +452,13 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 
 	npmChainLine, err := iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of AZURE-NPM in FORWARD chain with error: ", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of AZURE-NPM in FORWARD chain with error: %s", err.Error())
 	}
 
 	// Kube-services line number is less than npm chain line number then all good
 	if kubeServicesLine > 0 && npmChainLine == index {
+		return nil
+	} else if kubeServicesLine <= 0 {
 		return nil
 	}
 
@@ -468,8 +470,12 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 		return err
 	}
 	iptMgr.OperationFlag = util.IptablesInsertionFlag
+
 	// Reduce index for deleted AZURE-NPM chain
-	entry.Specs = append([]string{strconv.Itoa(index - 1)}, entry.Specs...)
+	if index > 1 {
+		index = index - 1
+	}
+	entry.Specs = append([]string{strconv.Itoa(index)}, entry.Specs...)
 	if _, err = iptMgr.Run(entry); err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
 		return err
@@ -562,13 +568,19 @@ func (iptMgr *IptablesManager) AddChain(chain string) error {
 // GetChainLineNumber given a Chain and its parent chain returns line number
 func (iptMgr *IptablesManager) GetChainLineNumber(chain string, parentChain string) (int, error) {
 
-	iptFilterEntries := exec.Command(util.Iptables, "-t", "filter", "-n", "--list", parentChain, "--line-numbers")
+	cmdName := util.Iptables
+	cmdArgs := []string{"-t", "filter", "-n", "--list", parentChain, "--line-numbers"}
+
+	iptFilterEntries := exec.Command(cmdName, cmdArgs...)
 	grep := exec.Command("grep", chain)
 	pipe, _ := iptFilterEntries.StdoutPipe()
 	grep.Stdin = pipe
 	defer pipe.Close()
 	iptFilterEntries.Start()
 	output, err := grep.CombinedOutput()
+
+	// Without this wait, defunct iptable child process are created
+	iptFilterEntries.Wait()
 	if err == nil && len(output) > 2 {
 		lineNum, _ := strconv.Atoi(string(output[0]))
 		return lineNum, err
