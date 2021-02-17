@@ -317,14 +317,13 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 }
 
 // reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
-func (npMgr *NetworkPolicyManager) reconcileChains() {
+func (npMgr *NetworkPolicyManager) reconcileChains() error {
 	iptMgr := iptm.NewIptablesManager()
-	var err error
-	for {
-		time.Sleep(reconcileChainTimeInMinutes * time.Minute)
-
-		if err = iptMgr.CheckAndAddForwardChain(); err != nil {
-			metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
+	select {
+	case <-time.After(reconcileChainTimeInMinutes * time.Minute):
+		if err := iptMgr.CheckAndAddForwardChain(); err != nil {
+			return err
 		}
 	}
+	return nil
 }

@@ -56,7 +56,7 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 
 	err := iptMgr.CheckAndAddForwardChain()
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain. %s", err.Error())
 	}
 
 	entry := &IptEntry{
@@ -431,12 +431,12 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 	index := 1
 	// retrieve KUBE-SERVICES index
 	kubeServicesLine, err := iptMgr.GetChainLineNumber(util.IptablesKubeServersChain, util.IptablesForwardChain)
-	if kubeServicesLine > 0 {
-		index = kubeServicesLine + 1
-	}
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of KUBE-SERVICES in FORWARD chain with error: %s", err.Error())
+		return err
 	}
+
+	index = kubeServicesLine + 1
 
 	if !exists {
 		// position Azure-NPM chain after Kube-Forward and Kube-Service chains if it exists
@@ -453,10 +453,11 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 	npmChainLine, err := iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of AZURE-NPM in FORWARD chain with error: %s", err.Error())
+		return err
 	}
 
 	// Kube-services line number is less than npm chain line number then all good
-	if kubeServicesLine > 0 && npmChainLine == index {
+	if kubeServicesLine < npmChainLine {
 		return nil
 	} else if kubeServicesLine <= 0 {
 		return nil
@@ -465,15 +466,15 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 	// NPM Chain number is less than KUBE-SERVICES then
 	// delete existing NPM chain and add it in the right order
 	iptMgr.OperationFlag = util.IptablesDeletionFlag
+	metrics.SendErrorLogAndMetric(util.IptmID, "Info: Reconciler deleting and re-adding AZURE-NPM in FORWARD table.")
 	if _, err = iptMgr.Run(entry); err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to delete AZURE-NPM chain from FORWARD chain.")
 		return err
 	}
 	iptMgr.OperationFlag = util.IptablesInsertionFlag
-
 	// Reduce index for deleted AZURE-NPM chain
 	if index > 1 {
-		index = index - 1
+		index--
 	}
 	entry.Specs = append([]string{strconv.Itoa(index)}, entry.Specs...)
 	if _, err = iptMgr.Run(entry); err != nil {
@@ -568,25 +569,39 @@ func (iptMgr *IptablesManager) AddChain(chain string) error {
 // GetChainLineNumber given a Chain and its parent chain returns line number
 func (iptMgr *IptablesManager) GetChainLineNumber(chain string, parentChain string) (int, error) {
 
+	var (
+		output []byte
+		err    error
+	)
+
 	cmdName := util.Iptables
 	cmdArgs := []string{"-t", "filter", "-n", "--list", parentChain, "--line-numbers"}
 
 	iptFilterEntries := exec.Command(cmdName, cmdArgs...)
 	grep := exec.Command("grep", chain)
-	pipe, _ := iptFilterEntries.StdoutPipe()
-	grep.Stdin = pipe
+	pipe, err := iptFilterEntries.StdoutPipe()
+	if err != nil {
+		return 0, err
+	}
 	defer pipe.Close()
-	iptFilterEntries.Start()
-	output, err := grep.CombinedOutput()
+	grep.Stdin = pipe
 
+	if err = iptFilterEntries.Start(); err != nil {
+		return 0, err
+	}
 	// Without this wait, defunct iptable child process are created
-	iptFilterEntries.Wait()
-	if err == nil && len(output) > 2 {
-		lineNum, _ := strconv.Atoi(string(output[0]))
-		return lineNum, err
+	defer iptFilterEntries.Wait()
+
+	if output, err = grep.CombinedOutput(); err != nil {
+		// grep returns err status 1 if not found
+		return 0, nil
 	}
 
-	return 0, err
+	if len(output) > 2 {
+		lineNum, _ := strconv.Atoi(string(output[0]))
+		return lineNum, nil
+	}
+	return 0, nil
 }
 
 // DeleteChain deletes a chain from iptables.
