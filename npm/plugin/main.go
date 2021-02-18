@@ -3,6 +3,7 @@
 package main
 
 import (
+	"math/rand"
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
@@ -14,7 +15,10 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-const waitForTelemetryInSeconds = 60
+const (
+	waitForTelemetryInSeconds = 60
+	resyncPeriodInMinutes     = 15
+)
 
 // Version is populated by make during build.
 var version string
@@ -58,7 +62,15 @@ func main() {
 		panic(err.Error())
 	}
 
-	factory := informers.NewSharedInformerFactory(clientset, time.Hour*24)
+	// Setting reSyncPeriod to 15 mins
+	minResyncPeriod := resyncPeriodInMinutes * time.Minute
+
+	// Adding some randomness so all NPM pods will not request for info at once.
+	factor := rand.Float64() + 1
+	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
+
+	log.Logf("[INFO] Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
+	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
 	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
