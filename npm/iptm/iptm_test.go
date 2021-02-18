@@ -245,7 +245,7 @@ func TestGetChainLineNumber(t *testing.T) {
 		}
 	}()
 
-	if err = iptMgr.AddChain(util.IptablesKubeServersChain); err != nil {
+	if err = iptMgr.AddChain(util.IptablesKubeServicesChain); err != nil {
 		t.Errorf("TestGetChainLineNumber failed @ kube-services chain iptMgr.AddChain error: %s", err.Error())
 	}
 
@@ -254,7 +254,7 @@ func TestGetChainLineNumber(t *testing.T) {
 		Chain: util.IptablesForwardChain,
 		Specs: []string{
 			util.IptablesJumpFlag,
-			util.IptablesKubeServersChain,
+			util.IptablesKubeServicesChain,
 		},
 	}
 

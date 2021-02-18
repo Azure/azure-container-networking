@@ -426,7 +426,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 
 	index := 1
 	// retrieve KUBE-SERVICES index
-	kubeServicesLine, err := iptMgr.GetChainLineNumber(util.IptablesKubeServersChain, util.IptablesForwardChain)
+	kubeServicesLine, err := iptMgr.GetChainLineNumber(util.IptablesKubeServicesChain, util.IptablesForwardChain)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of KUBE-SERVICES in FORWARD chain with error: %s", err.Error())
 		return err
