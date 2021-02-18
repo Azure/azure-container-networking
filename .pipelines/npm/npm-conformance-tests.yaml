@@ -14,30 +14,46 @@ variables:
 jobs:
 
 - job: Build_test
+
+  variables:
+    GOBIN: "$(GOPATH)/bin" # Go binaries path
+    GOPATH: "$(System.DefaultWorkingDirectory)/gopath" # Go workspace path
+
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   steps:
+
+  - checkout: self
+
   - script: |
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
       BUILD_NUMBER=$(Build.BuildNumber)
       echo "##vso[task.setvariable variable=ResourceGroup;isOutput=true]$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")"
-      echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
-    workingDirectory: "$(modulePath)"
+      echo "##vso[task.setvariable variable=Tag;isOutput=true]$(Build.BuildNumber)$(git describe --tags --always --dirty)"
     name: "EnvironmentalVariables"
     displayName: "Set environmental variables"
     condition: always()
 
-  - task: GoTool@0
-    inputs:
-      version: '1.15.6'
 
   - checkout: self
+
   - script: |
-      make azure-npm-image
+      go env
+      ls
+      VERSION=$(EnvironmentalVariables.Tag)-conformance-test make azure-npm-image
       echo '$(DOCKER_PASSWORD)' | docker login $IMAGE_REGISTRY -u '$(DOCKER_USERNAME)' --password-stdin
-      docker tag $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-conformance-test
       docker push $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-conformance-test
     displayName: 'build and push azure-npm'
 
-
-  - script: git clone https://github.com/vakalapa/kubernetes.git
+  - script: git clone --depth=1 https://github.com/vakalapa/kubernetes.git
     displayName: 'clone kubernetes repo'
   - bash: |
       cd kubernetes
@@ -49,11 +65,20 @@ jobs:
 
 
 - job: Create_cluster
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+
   dependsOn: [Build_test]
   steps:
   - task: AzureCLI@2
     inputs:
-      azureSubscription: 'Nills''s Cloud-scale Datacenter(d19dddf3-9520-4226-a313-ae8ee08675e5)'
+      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
@@ -77,13 +102,20 @@ jobs:
         -o table --no-wait
 
 - job: Run_test
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [Create_cluster, Build_test]
   steps:
   - download: current
     artifact: Test
   - task: AzureCLI@2
     inputs:
-      azureSubscription: $(ARTIFACT_SUBSCRIPTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
@@ -111,13 +143,22 @@ jobs:
       ls ~
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
       KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+
 - job: Clean_up
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   condition: always()
   dependsOn: Run_test
   steps:
     - task: AzureCLI@2
       inputs:
-        azureSubscription: 'Nills''s Cloud-scale Datacenter(d19dddf3-9520-4226-a313-ae8ee08675e5)'
+        azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
