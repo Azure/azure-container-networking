@@ -245,6 +245,10 @@ func TestGetChainLineNumber(t *testing.T) {
 		}
 	}()
 
+	if err = iptMgr.AddChain(util.IptablesKubeServersChain); err != nil {
+		t.Errorf("TestGetChainLineNumber failed @ kube-services chain iptMgr.AddChain error: %s", err.Error())
+	}
+
 	iptMgr.OperationFlag = util.IptablesCheckFlag
 	entry := &IptEntry{
 		Chain: util.IptablesForwardChain,
@@ -266,9 +270,8 @@ func TestGetChainLineNumber(t *testing.T) {
 		},
 	}
 
-	if npmExists, err = iptMgr.Exists(entry); err != nil {
-		t.Errorf("TestGetChainLineNumber failed @ azure-npm chain iptMgr.Exists error: %s", err.Error())
-	}
+	// Ignore not exists errors
+	npmExists, _ = iptMgr.Exists(entry)
 
 	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	if err != nil {
