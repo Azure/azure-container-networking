@@ -1,0 +1,124 @@
+trigger:
+- main
+pool:
+  vmImage: 'ubuntu-20.04'
+variables:
+- name: AZURE_CLUSTER
+  value: azure-npm
+- name: VNET_NAME
+  value: npm-vnet
+- name: LOCATION
+  value: westus2
+- name: FQDN
+  value: empty
+jobs:
+
+- job: Build_test
+  steps:
+  - script: |
+      BUILD_NUMBER=$(Build.BuildNumber)
+      echo "##vso[task.setvariable variable=ResourceGroup;isOutput=true]$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")"
+      echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
+    workingDirectory: "$(modulePath)"
+    name: "EnvironmentalVariables"
+    displayName: "Set environmental variables"
+    condition: always()
+
+  - task: GoTool@0
+    inputs:
+      version: '1.15.6'
+
+  - checkout: self
+  - script: |
+      make azure-npm-image
+      echo '$(DOCKER_PASSWORD)' | docker login $IMAGE_REGISTRY -u '$(DOCKER_USERNAME)' --password-stdin
+      docker tag $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag) $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-conformance-test
+      docker push $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-conformance-test
+    displayName: 'build and push azure-npm'
+
+
+  - script: git clone https://github.com/vakalapa/kubernetes.git
+    displayName: 'clone kubernetes repo'
+  - bash: |
+      cd kubernetes
+      git checkout vakr/sleepinnpmtests
+      make WHAT=test/e2e/e2e.test
+    displayName: 'build e2e.test'
+  - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+    artifact: Test
+
+
+- job: Create_cluster
+  dependsOn: [Build_test]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'Nills''s Cloud-scale Datacenter(d19dddf3-9520-4226-a313-ae8ee08675e5)'
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        az group create -n $(EnvironmentalVariables.ResourceGroup) -l $(LOCATION) -o table
+        echo "created RG"
+        az network vnet create -g $(EnvironmentalVariables.ResourceGroup) -n $(VNET_NAME) \
+        --address-prefix 10.0.0.0/8 --subnet-name $(AZURE_CLUSTER) \
+        --subnet-prefix 10.240.0.0/16 -o table
+        echo "created vnet"
+        azure_subnet_id=$(az network vnet subnet show --resource-group $(EnvironmentalVariables.ResourceGroup) --vnet-name $(VNET_NAME) --name $(AZURE_CLUSTER) --query id -o tsv)
+        echo "got subnet"
+        az version
+        az extension add --name aks-preview
+        az aks create --no-ssh-key \
+        --resource-group $(EnvironmentalVariables.ResourceGroup) \
+        --name $(AZURE_CLUSTER) \
+        --network-plugin azure \
+        --vnet-subnet-id $azure_subnet_id \
+        --service-principal $(CLIENT-ID) \
+        --client-secret $(CLIENT-SECRET) \
+        -o table --no-wait
+
+- job: Run_test
+  dependsOn: [Create_cluster, Build_test]
+  steps:
+  - download: current
+    artifact: Test
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(ARTIFACT_SUBSCRIPTION)
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        az aks get-credentials -n $(AZURE_CLUSTER) -g $(EnvironmentalVariables.ResourceGroup) --file ./kubeconfig
+
+        # get kubectl 
+        curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
+        chmod +x kubectl
+
+        # deploy azure-npm
+        ./kubectl --kubeconfig=./kubeconfig https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+
+        # swap azure-npm image with one built during run
+        ./kubectl --kubeconifg=./kubeconifg set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-conformance-test
+
+        FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(EnvironmentalVariables.ResourceGroup) --query fqdn -o tsv`
+        echo "##vso[task.setvariable variable=FQDN]$FQDN"
+
+  - bash: |
+      ls -la
+      ls
+      ls -la $(Pipeline.Workspace)
+      ls -la $(Pipeline.Workspace)/Test
+      echo $FQDN
+      ls ~
+      chmod +x $(Pipeline.Workspace)/Test/e2e.test
+      KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+- job: Clean_up
+  condition: always()
+  dependsOn: Run_test
+  steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'Nills''s Cloud-scale Datacenter(d19dddf3-9520-4226-a313-ae8ee08675e5)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az group delete -n $(EnvironmentalVariables.ResourceGroup) --yes
