@@ -34,8 +34,12 @@ jobs:
       BUILD_NUMBER=$(Build.BuildNumber)
       RG=$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")
       TAG=$(git describe --tags --always --dirty)-conformance-test
+      echo "Resource group: $RG"
+      echo "Image tag: $TAG"
+
       echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true;]$RG"
       echo "##vso[task.setvariable variable=TAG;isOutput=true;]$TAG"
+
     name: "EnvironmentalVariables"
     displayName: "Set environmental variables"
     condition: always()
@@ -52,8 +56,8 @@ jobs:
   variables:
     GOBIN: "$(GOPATH)/bin" # Go binaries path
     GOPATH: "$(System.DefaultWorkingDirectory)/gopath" # Go workspace path
-    RESOURCE_GROUP: $[ dependencies.setup.outputs['RESOURCE_GROUP'] ]
-    TAG: $[ dependencies.setup.outputs['TAG'] ]
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+    TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
 
   steps:
   - script: |
@@ -98,11 +102,11 @@ jobs:
     image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [setup]
   variables:
-    RESOURCE_GROUP: $[ dependencies.setup.outputs['RESOURCE_GROUP'] ]
-    TAG: $[ dependencies.setup.outputs['TAG'] ]
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+    TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
   steps:
   - script: |
-      rm -rf ./*
+      sudo rm -rf ./*
     displayName: "Set up OS environment"
 
   - checkout: self
@@ -131,8 +135,8 @@ jobs:
     image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [Create_cluster, Build_test]
   variables:
-    RESOURCE_GROUP: $[ dependencies.setup.outputs['RESOURCE_GROUP'] ]
-    TAG: $[ dependencies.setup.outputs['TAG'] ]
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+    TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
   steps:
   - download: current
     artifact: Test
@@ -142,8 +146,12 @@ jobs:
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
+        echo Cluster $(AZURE_CLUSTER)
+        echo Resource $(RESOURCE_GROUP)
+        ls -lah
         az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
-
+        echo ------
+        ls -lah
         # get kubectl 
         curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
         chmod +x kubectl
@@ -152,7 +160,7 @@ jobs:
         ./kubectl --kubeconfig=./kubeconfig https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
 
         # swap azure-npm image with one built during run
-        ./kubectl --kubeconifg=./kubeconifg set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
+        ./kubectl --kubeconfig=./kubeconifg set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
 
         FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
         echo "##vso[task.setvariable variable=FQDN]$FQDN"
@@ -168,17 +176,25 @@ jobs:
       KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
 
 - job: Clean_up
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   condition: always()
   dependsOn: Run_test
   variables:
-    RESOURCE_GROUP: $[ dependencies.setup.outputs['RESOURCE_GROUP'] ]
-    TAG: $[ dependencies.setup.outputs['TAG'] ]
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+    TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
   steps:
+    - checkout: none
     - task: AzureCLI@2
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
+          echo Deleting $(RESOURCE_GROUP)
           az group delete -n $(RESOURCE_GROUP) --yes
-          az acr repository delete --name $IMAGE_REGISTRY --image azure-npm:$(TAG) --yes
