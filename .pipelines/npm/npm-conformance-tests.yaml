@@ -17,6 +17,37 @@ variables:
   value: empty
 jobs:
 
+- job: Create_cluster
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+
+  #dependsOn: [Build_test]
+  steps:
+  - script: |
+      rm -rf ./*
+    displayName: "Set up OS environment"
+
+  - checkout: self
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
+        echo "created RG"
+        az version
+        az aks create --no-ssh-key \
+        --resource-group $(RESOURCE_GROUP) \
+        --name $(AZURE_CLUSTER) 
+
 - job: Build_test
 
   variables:
@@ -63,7 +94,7 @@ jobs:
       docker push $IMAGE_REGISTRY/azure-npm:$(TAG)
     displayName: 'build and push azure-npm'
 
-  - script: git clone --depth=1 https://github.com/vakalapa/kubernetes.git
+  - script: git clone https://github.com/vakalapa/kubernetes.git
     displayName: 'clone kubernetes repo'
   - bash: |
       cd kubernetes
@@ -74,40 +105,7 @@ jobs:
     artifact: Test
 
 
-- job: Create_cluster
-  pool:
-    name: Networking-ContainerNetworking
-    demands: 
-    - agent.os -equals Linux
-    - Role -equals Build
 
-  container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
-
-  dependsOn: [Build_test]
-  steps:
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
-      scriptType: 'bash'
-      scriptLocation: 'inlineScript'
-      inlineScript: |
-        az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
-        echo "created RG"
-        az network vnet create -g $(Tag) -n $(VNET_NAME) \
-        --address-prefix 10.0.0.0/8 --subnet-name $(AZURE_CLUSTER) \
-        --subnet-prefix 10.240.0.0/16 -o table
-        echo "created vnet"
-        azure_subnet_id=$(az network vnet subnet show --resource-group $(RESOURCE_GROUP) --vnet-name $(VNET_NAME) --name $(AZURE_CLUSTER) --query id -o tsv)
-        echo "got subnet"
-        az version
-        az extension add --name aks-preview
-        az aks create --no-ssh-key \
-        --resource-group $((RESOURCE_GROUP) \
-        --name $(AZURE_CLUSTER) \
-        --network-plugin azure \
-        --vnet-subnet-id $azure_subnet_id \
-        -o table --no-wait
 
 - job: Run_test
   pool:
