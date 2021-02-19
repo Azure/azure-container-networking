@@ -157,10 +157,10 @@ jobs:
         chmod +x kubectl
 
         # deploy azure-npm
-        ./kubectl --kubeconfig=./kubeconfig https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+        ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
 
         # swap azure-npm image with one built during run
-        ./kubectl --kubeconfig=./kubeconifg set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
+        ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
 
         FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
         echo "##vso[task.setvariable variable=FQDN]$FQDN"
