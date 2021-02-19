@@ -11,10 +11,9 @@ variables:
 - name: FQDN
   value: empty
 
-
-
 jobs:
 - job: setup
+  displayName: "Configure Test Environment"
   pool:
     name: Networking-ContainerNetworking
     demands: 
@@ -45,6 +44,7 @@ jobs:
     condition: always()
 
 - job: Build_test
+  displayName: "Build NPM and Kubernetes Test Suite"
   pool:
     name: Networking-ContainerNetworking
     demands: 
@@ -68,31 +68,26 @@ jobs:
 
   - script: |
       go env
-      echo -----
-      ls
-      echo -----
-      pwd
-      echo ------
-      echo $(TAG)
-      echo $(RESOURCE_GROUP)
-      echo ------
+      echo Tag: $(TAG)
+      echo ResourceGroup: $(RESOURCE_GROUP)
       VERSION=$(TAG) make azure-npm-image
       echo '$(DOCKER_PASSWORD)' | docker login $IMAGE_REGISTRY -u '$(DOCKER_USERNAME)' --password-stdin
       docker push $IMAGE_REGISTRY/azure-npm:$(TAG)
-    displayName: 'build and push azure-npm'
+    displayName: 'Build and Push NPM Image'
 
   - script: git clone https://github.com/vakalapa/kubernetes.git
-    displayName: 'clone kubernetes repo'
+    displayName: 'Clone Kubernetes Repo'
   - bash: |
       cd kubernetes
       git checkout vakr/sleepinnpmtests
       make WHAT=test/e2e/e2e.test
-    displayName: 'build e2e.test'
+    displayName: 'Build Kubernetes e2e.test'
   - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
     artifact: Test
 
 
 - job: Create_cluster
+  displayName: "Deploy AKS Cluster"
   pool:
     name: Networking-ContainerNetworking
     demands: 
@@ -112,6 +107,7 @@ jobs:
   - checkout: self
 
   - task: AzureCLI@2
+    displayName: "Deploy"
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
       scriptType: 'bash'
@@ -126,6 +122,7 @@ jobs:
         --network-plugin azure
 
 - job: Run_test
+  displayName: "Run Kubernetes Network Policy Test Suite"
   pool:
     name: Networking-ContainerNetworking
     demands: 
@@ -141,6 +138,7 @@ jobs:
   - download: current
     artifact: Test
   - task: AzureCLI@2
+    displayName: "Deploy NPM to Test Cluster"
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
       scriptType: 'bash'
@@ -148,10 +146,8 @@ jobs:
       inlineScript: |
         echo Cluster $(AZURE_CLUSTER)
         echo Resource $(RESOURCE_GROUP)
-        ls -lah
+
         az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
-        echo ------
-        ls -lah
         # get kubectl 
         curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
         chmod +x kubectl
@@ -161,6 +157,8 @@ jobs:
 
         # swap azure-npm image with one built during run
         ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
+
+        ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
 
         FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
         echo "##vso[task.setvariable variable=FQDN]$FQDN"
@@ -174,8 +172,10 @@ jobs:
       ls ~
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
       KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+    displayName: "Run Test Suite"
 
 - job: Clean_up
+  displayName: "Cleanup"
   pool:
     name: Networking-ContainerNetworking
     demands: 
@@ -191,6 +191,7 @@ jobs:
   steps:
     - checkout: none
     - task: AzureCLI@2
+      displayName: "Delete Test Cluster Resource Group"
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
         scriptType: 'bash'
