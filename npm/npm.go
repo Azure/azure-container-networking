@@ -412,7 +412,7 @@ func (npMgr *NetworkPolicyManager) reconcileChains() error {
 	iptMgr := iptm.NewIptablesManager()
 	select {
 	case <-time.After(reconcileChainTimeInMinutes * time.Minute):
-		if err := iptMgr.CheckAndAddForwardChain(); err != nil {
+		if err := iptMgr.CheckAndAddToForwardChain(); err != nil {
 			return err
 		}
 	}
