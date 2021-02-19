@@ -31,7 +31,7 @@ jobs:
       mkdir -p '$(GOBIN)'
       mkdir -p '$(GOPATH)/pkg'
       BUILD_NUMBER=$(Build.BuildNumber)
-      RG=$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")
+      RG=kubernetes-$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")
       TAG=$(git describe --tags --always --dirty)-conformance-test
       echo "Resource group: $RG"
       echo "Image tag: $TAG"
