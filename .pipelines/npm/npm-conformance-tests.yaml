@@ -1,14 +1,6 @@
 trigger:
 - main
 
-pool:
-  name: Networking-ContainerNetworking
-  demands: 
-  - agent.os -equals Linux
-  - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
-
 variables:
 - name: AZURE_CLUSTER
   value: azure-npm
@@ -26,6 +18,13 @@ variables:
 
 jobs:
 - job: setup
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   steps:
   - script: |
       go env
@@ -40,6 +39,13 @@ jobs:
     condition: always()
 
 - job: Build_test
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [setup]
   variables:
     GOBIN: "$(GOPATH)/bin" # Go binaries path
@@ -50,7 +56,7 @@ jobs:
       rm -rf ./*
     displayName: "Set up OS environment"
 
-  - checkout: self
+
 
   - script: |
       go env
@@ -79,6 +85,13 @@ jobs:
 
 
 - job: Create_cluster
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [setup]
   steps:
   - script: |
@@ -102,6 +115,13 @@ jobs:
         --network-plugin azure
 
 - job: Run_test
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [Create_cluster, Build_test]
   steps:
   - download: current
