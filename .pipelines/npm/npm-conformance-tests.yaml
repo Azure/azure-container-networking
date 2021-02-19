@@ -17,57 +17,21 @@ variables:
   value: empty
 jobs:
 
-- job: Create_cluster
-  pool:
-    name: Networking-ContainerNetworking
-    demands: 
-    - agent.os -equals Linux
-    - Role -equals Build
-
-  container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
-
-  #dependsOn: [Build_test]
-  steps:
-  - script: |
-      rm -rf ./*
-    displayName: "Set up OS environment"
-
-  - checkout: self
-
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
-      scriptType: 'bash'
-      scriptLocation: 'inlineScript'
-      inlineScript: |
-        az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
-        echo "created RG"
-        az version
-        az aks create --no-ssh-key \
-        --resource-group $(RESOURCE_GROUP) \
-        --name $(AZURE_CLUSTER) 
-
 - job: Build_test
-
   variables:
     GOBIN: "$(GOPATH)/bin" # Go binaries path
     GOPATH: "$(System.DefaultWorkingDirectory)/gopath" # Go workspace path
-
   pool:
     name: Networking-ContainerNetworking
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-
   container:
     image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   steps:
-
   - script: |
       rm -rf ./*
     displayName: "Set up OS environment"
-
 
   - checkout: self
 
@@ -81,7 +45,6 @@ jobs:
     name: "EnvironmentalVariables"
     displayName: "Set environmental variables"
     condition: always()
-
 
   - script: |
       go env
@@ -105,7 +68,34 @@ jobs:
     artifact: Test
 
 
+- job: Create_cluster
+  pool:
+    name: Networking-ContainerNetworking
+    demands: 
+    - agent.os -equals Linux
+    - Role -equals Build
+  container:
+    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+  steps:
+  - script: |
+      rm -rf ./*
+    displayName: "Set up OS environment"
 
+  - checkout: self
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
+        echo "created RG"
+        az version
+        az aks create --no-ssh-key \
+        --resource-group $(RESOURCE_GROUP) \
+        --name $(AZURE_CLUSTER) \
+        --network-plugin azure
 
 - job: Run_test
   pool:
