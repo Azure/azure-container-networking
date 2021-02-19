@@ -10,10 +10,7 @@ variables:
   value: westus2
 - name: FQDN
   value: empty
-- name: TAG
-  value: empty
-- name: RESOURCE_GROUP
-  value: empty
+
 
 
 jobs:
@@ -26,14 +23,19 @@ jobs:
   container:
     image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   steps:
+
+  - checkout: self
+
   - script: |
       go env
       go version
       mkdir -p '$(GOBIN)'
       mkdir -p '$(GOPATH)/pkg'
       BUILD_NUMBER=$(Build.BuildNumber)
-      echo "##vso[task.setvariable variable=RESOURCE_GROUP]$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")"
-      echo "##vso[task.setvariable variable=TAG]$(git describe --tags --always --dirty)-conformance-test"
+      RG=$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")
+      TAG=$(git describe --tags --always --dirty)-conformance-test
+      echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true;]$RG"
+      echo "##vso[task.setvariable variable=TAG;isOutput=true;]$TAG"
     name: "EnvironmentalVariables"
     displayName: "Set environmental variables"
     condition: always()
@@ -50,13 +52,15 @@ jobs:
   variables:
     GOBIN: "$(GOPATH)/bin" # Go binaries path
     GOPATH: "$(System.DefaultWorkingDirectory)/gopath" # Go workspace path
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['RESOURCE_GROUP'] ]
+    TAG: $[ dependencies.setup.outputs['TAG'] ]
 
   steps:
   - script: |
       rm -rf ./*
     displayName: "Set up OS environment"
 
-
+  - checkout: self
 
   - script: |
       go env
@@ -93,6 +97,9 @@ jobs:
   container:
     image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [setup]
+  variables:
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['RESOURCE_GROUP'] ]
+    TAG: $[ dependencies.setup.outputs['TAG'] ]
   steps:
   - script: |
       rm -rf ./*
@@ -123,6 +130,9 @@ jobs:
   container:
     image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [Create_cluster, Build_test]
+  variables:
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['RESOURCE_GROUP'] ]
+    TAG: $[ dependencies.setup.outputs['TAG'] ]
   steps:
   - download: current
     artifact: Test
@@ -160,6 +170,9 @@ jobs:
 - job: Clean_up
   condition: always()
   dependsOn: Run_test
+  variables:
+    RESOURCE_GROUP: $[ dependencies.setup.outputs['RESOURCE_GROUP'] ]
+    TAG: $[ dependencies.setup.outputs['TAG'] ]
   steps:
     - task: AzureCLI@2
       inputs:
