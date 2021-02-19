@@ -11,6 +11,10 @@ variables:
   value: westus2
 - name: FQDN
   value: empty
+- name: TAG
+  value: empty
+- name: RESOURCE_GROUP
+  value: empty
 jobs:
 
 - job: Build_test
@@ -29,6 +33,11 @@ jobs:
     image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   steps:
 
+  - script: |
+      rm -rf ./*
+    displayName: "Set up OS environment"
+
+
   - checkout: self
 
   - script: |
@@ -36,21 +45,22 @@ jobs:
       mkdir -p '$(GOBIN)'
       mkdir -p '$(GOPATH)/pkg'
       BUILD_NUMBER=$(Build.BuildNumber)
-      echo "##vso[task.setvariable variable=ResourceGroup;isOutput=true]$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")"
-      echo "##vso[task.setvariable variable=Tag;isOutput=true]$(Build.BuildNumber)$(git describe --tags --always --dirty)"
+      echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true]$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")"
+      echo "##vso[task.setvariable variable=TAG;isOutput=true]$(git describe --tags --always --dirty)-conformance-test"
     name: "EnvironmentalVariables"
     displayName: "Set environmental variables"
     condition: always()
 
 
-  - checkout: self
-
   - script: |
       go env
+      echo -----
       ls
-      VERSION=$(EnvironmentalVariables.Tag)-conformance-test make azure-npm-image
+      echo -----
+      pwd
+      VERSION=$(TAG) make azure-npm-image
       echo '$(DOCKER_PASSWORD)' | docker login $IMAGE_REGISTRY -u '$(DOCKER_USERNAME)' --password-stdin
-      docker push $IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-conformance-test
+      docker push $IMAGE_REGISTRY/azure-npm:$(TAG)
     displayName: 'build and push azure-npm'
 
   - script: git clone --depth=1 https://github.com/vakalapa/kubernetes.git
@@ -82,23 +92,21 @@ jobs:
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
-        az group create -n $(EnvironmentalVariables.ResourceGroup) -l $(LOCATION) -o table
+        az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
         echo "created RG"
-        az network vnet create -g $(EnvironmentalVariables.ResourceGroup) -n $(VNET_NAME) \
+        az network vnet create -g $(Tag) -n $(VNET_NAME) \
         --address-prefix 10.0.0.0/8 --subnet-name $(AZURE_CLUSTER) \
         --subnet-prefix 10.240.0.0/16 -o table
         echo "created vnet"
-        azure_subnet_id=$(az network vnet subnet show --resource-group $(EnvironmentalVariables.ResourceGroup) --vnet-name $(VNET_NAME) --name $(AZURE_CLUSTER) --query id -o tsv)
+        azure_subnet_id=$(az network vnet subnet show --resource-group $(RESOURCE_GROUP) --vnet-name $(VNET_NAME) --name $(AZURE_CLUSTER) --query id -o tsv)
         echo "got subnet"
         az version
         az extension add --name aks-preview
         az aks create --no-ssh-key \
-        --resource-group $(EnvironmentalVariables.ResourceGroup) \
+        --resource-group $((RESOURCE_GROUP) \
         --name $(AZURE_CLUSTER) \
         --network-plugin azure \
         --vnet-subnet-id $azure_subnet_id \
-        --service-principal $(CLIENT-ID) \
-        --client-secret $(CLIENT-SECRET) \
         -o table --no-wait
 
 - job: Run_test
@@ -119,7 +127,7 @@ jobs:
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
-        az aks get-credentials -n $(AZURE_CLUSTER) -g $(EnvironmentalVariables.ResourceGroup) --file ./kubeconfig
+        az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
 
         # get kubectl 
         curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
@@ -129,9 +137,9 @@ jobs:
         ./kubectl --kubeconfig=./kubeconfig https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
 
         # swap azure-npm image with one built during run
-        ./kubectl --kubeconifg=./kubeconifg set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-conformance-test
+        ./kubectl --kubeconifg=./kubeconifg set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
 
-        FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(EnvironmentalVariables.ResourceGroup) --query fqdn -o tsv`
+        FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
         echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
   - bash: |
@@ -162,4 +170,5 @@ jobs:
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          az group delete -n $(EnvironmentalVariables.ResourceGroup) --yes
+          az group delete -n $(RESOURCE_GROUP) --yes
+          az acr repository delete --name $IMAGE_REGISTRY --image azure-npm:$(TAG) --yes
