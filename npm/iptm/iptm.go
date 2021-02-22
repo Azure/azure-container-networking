@@ -26,6 +26,7 @@ const (
 )
 
 var (
+	// IptablesAzureChainList contains list of all NPM chains
 	IptablesAzureChainList = []string{
 		util.IptablesAzureChain,
 		util.IptablesAzureIngressPortChain,
