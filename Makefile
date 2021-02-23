@@ -195,40 +195,40 @@ clean:
 
 # Build the Azure CNM plugin.
 $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT): $(CNMFILES)
-	go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNM_DIR)/*.go
+	go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNM_DIR)/*.go
 
 # Build the Azure CNI network plugin.
 $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT): $(CNIFILES)
-	go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_NET_DIR)/*.go
+	go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_NET_DIR)/*.go
 
 # Build the Azure CNI IPAM plugin.
 $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT): $(CNIFILES)
-	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_IPAM_DIR)/*.go
+	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_IPAM_DIR)/*.go
 
 # Build the Azure CNI IPAMV6 plugin.
 $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT): $(CNIFILES)
-	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_IPAMV6_DIR)/*.go
+	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_IPAMV6_DIR)/*.go
 
 # Build the Azure CNI telemetry plugin.
 $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT): $(CNIFILES)
-	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/telemetry.aiMetadata=$(CNI_AI_ID) -s -w" $(CNI_TELEMETRY_DIR)/*.go
+	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/telemetry.aiMetadata=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true" $(CNI_TELEMETRY_DIR)/*.go
 
 # Build the Azure CLI network plugin.
 $(ACNCLI_BUILD_DIR)/acncli$(EXE_EXT): $(CNIFILES)
-	CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(ACNCLI_DIR)/*.go
+	CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(ACNCLI_DIR)/*.go
  
 # Build the Azure CNS Service.
 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
-	go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(cnsaipath)=$(CNS_AI_ID) -s -w" $(CNS_DIR)/*.go
+	go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(cnsaipath)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true" $(CNS_DIR)/*.go
 
 # Build the Azure CNMS Service.
 $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT): $(CNMSFILES)
-	go build -v -o $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNMS_DIR)/*.go
+	go build -v -o $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNMS_DIR)/*.go
 
 # Build the Azure NPM plugin.
 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT): $(NPMFILES)
-	go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -s -w" $(CNI_TELEMETRY_DIR)/*.go
-	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/npm.aiMetadata=$(NPM_AI_ID) -s -w" $(NPM_DIR)/*.go
+	go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_TELEMETRY_DIR)/*.go
+	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/npm.aiMetadata=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true" $(NPM_DIR)/*.go
 
 # Build all binaries in a container.
 .PHONY: all-containerized

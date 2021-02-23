@@ -90,6 +90,7 @@ steps:
       export REGIONS=$(AKS_ENGINE_REGION) 
       export IS_JENKINS=false 
       export DEBUG_CRASHING_PODS=true
+      export AZURE_CORE_ONLY_SHOW_ERRORS=True
       export
       make test-kubernetes
     name: DeployAKSEngine

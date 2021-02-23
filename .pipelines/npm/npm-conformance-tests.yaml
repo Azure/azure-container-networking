@@ -7,7 +7,7 @@ variables:
 - name: VNET_NAME
   value: npm-vnet
 - name: LOCATION
-  value: westus2
+  value: $(LOCATION)
 - name: FQDN
   value: empty
 
@@ -122,6 +122,7 @@ jobs:
         --network-plugin azure
 
 - job: Run_test
+  timeoutInMinutes: 360
   displayName: "Run Kubernetes Network Policy Test Suite"
   pool:
     name: Networking-ContainerNetworking
@@ -135,6 +136,7 @@ jobs:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
     TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
   steps:
+  - checkout: none
   - download: current
     artifact: Test
   - task: AzureCLI@2
