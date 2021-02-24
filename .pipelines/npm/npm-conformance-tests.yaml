@@ -6,8 +6,6 @@ variables:
   value: azure-npm
 - name: VNET_NAME
   value: npm-vnet
-- name: LOCATION
-  value: $(LOCATION)
 - name: FQDN
   value: empty
 
