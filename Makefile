@@ -353,7 +353,7 @@ publish-azure-vnet-telemetry-image:
 
 # Build the Azure CNS image (right one).
 .PHONY: azure-cns-image
-azure-cns-image:
+azure-cns-image: azure-cns
 ifeq ($(GOOS),linux)
 	mkdir -p $(IMAGE_DIR)
 	docker build \
