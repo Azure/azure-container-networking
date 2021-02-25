@@ -87,6 +87,10 @@ CNMS_DIR = cnms/service
 NPM_DIR = npm/plugin
 OUTPUT_DIR = output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
+IMAGE_DIR  = $(OUTPUT_DIR)/images/
+NPM_IMAGE_OUTPUT_DIR = $(IMAGE_DIR)/npm/
+CNS_IMAGE_OUTPUT_DIR = $(IMAGE_DIR)/cns/
+CNI_MANAGER_IMAGE_OUTPUT_DIR = $(IMAGE_DIR)/cni-manager/
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
 ACNCLI_BUILD_DIR = $(BUILD_DIR)/acncli
@@ -306,13 +310,14 @@ publish-azure-vnet-plugin-image:
 .PHONY: azure-npm-image
 azure-npm-image: azure-npm
 ifeq ($(GOOS),linux)
+	mkdir -p $(NPM_IMAGE_OUTPUT_DIR)
 	docker build \
 	--no-cache \
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(VERSION) \
 	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
 	.
-	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(NPM_BUILD_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
+	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(NPM_IMAGE_OUTPUT_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
 endif
 
 # Publish the Azure NPM image to a Docker registry
@@ -365,6 +370,7 @@ endif
 .PHONY: azure-cns-aks-swift-image
 azure-cns-aks-swift-image:
 ifeq ($(GOOS),linux)
+	mkdir -p $(CNS_IMAGE_OUTPUT_DIR)
 	docker build \
 	-f cns/aks.Dockerfile \
 	-t $(AZURE_CNS_IMAGE):$(VERSION) \
@@ -372,6 +378,8 @@ ifeq ($(GOOS),linux)
 	--build-arg CNS_AI_PATH=$(cnsaipath) \
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
 	.
+
+	docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(CNS_IMAGE_OUTPUT_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
 endif
 
 # Publish the Azure NPM image to a Docker registry
@@ -451,6 +459,10 @@ ifeq ($(GOOS),linux)
 	chown $(BUILD_USER):$(BUILD_USER) $(NPM_BUILD_DIR)/$(NPM_ARCHIVE_NAME)
 endif
 
+.PHONY: release
+release:
+	./scripts/semver-release.sh
+	
 
 PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 

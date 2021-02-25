@@ -3,7 +3,7 @@ FROM alpine:latest as certs
 RUN apk --update add ca-certificates
 
 # Build cns
-FROM golang:1.14-alpine AS builder
+FROM golang:1.16-alpine AS builder
 # Build ars
 ARG VERSION
 ARG CNS_AI_PATH
