@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
@@ -155,19 +154,19 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
 		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
 		if err != nil {
-			log.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
+			logger.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
 			continue
 		}
 		dncNcVersion, err := strconv.Atoi(containerstatus.CreateNetworkContainerRequest.Version)
 		if err != nil {
-			log.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", containerstatus.CreateNetworkContainerRequest.Version, err)
+			logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", containerstatus.CreateNetworkContainerRequest.Version, err)
 			continue
 		}
 		// host NC version is the NC version from NMAgent, if it's smaller than NC version from DNC, then append it to indicate it needs update.
 		if hostVersion < dncNcVersion {
 			hostVersionNeedUpdateNcList = append(hostVersionNeedUpdateNcList, containerstatus.ID)
 		} else if hostVersion > dncNcVersion {
-			log.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", hostVersion, dncNcVersion)
+			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", hostVersion, dncNcVersion)
 		}
 	}
 	service.RUnlock()
@@ -208,7 +207,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIp map[string]cns.KubernetesPodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
 	// check if ncRequest is null, then return as there is no CRD state yet
 	if ncRequest == nil {
-		log.Logf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIp))
+		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIp))
 		return Success
 	}
 
@@ -222,7 +221,7 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 	// now parse the secondaryIP list, if it exists in PodInfo list, then allocate that ip
 	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
 		if podInfo, exists := podInfoByIp[secIpConfig.IPAddress]; exists {
-			log.Logf("SecondaryIP %+v is allocated to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
+			logger.Printf("SecondaryIP %+v is allocated to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
 
 			kubernetesPodInfo := cns.KubernetesPodInfo{
 				PodName:      podInfo.PodName,
@@ -236,11 +235,11 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 			}
 
 			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
-				log.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIpConfig, podInfo, ncRequest.NetworkContainerid, err)
+				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIpConfig, podInfo, ncRequest.NetworkContainerid, err)
 				return FailedToAllocateIpConfig
 			}
 		} else {
-			log.Logf("SecondaryIP %+v is not allocated. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
+			logger.Printf("SecondaryIP %+v is not allocated. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
 		}
 	}
 
