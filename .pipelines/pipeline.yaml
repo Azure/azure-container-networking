@@ -151,10 +151,16 @@ stages:
             displayName: "Push NPM Image and Wait for Repository"
 
           - script: |
-              cd ./output 
+              mkdir -p ./output/bins
+              cd ./output/linux_amd64
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
-              sudo find . -mindepth 2 -type f -print -exec mv {} . \;
+              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
               sudo rm -R -- */ && cd ..
+              cd ./windows_amd64
+              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
+              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
+              sudo rm -R -- */ && cd ..
+              rmdir ./linux_amd64 && ./windows_amd64
             workingDirectory: "$(modulePath)"
             name: "PrepareArtifacts"
             displayName: "Prepare Artifacts"
