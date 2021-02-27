@@ -353,18 +353,18 @@ publish-azure-vnet-telemetry-image:
 
 # Build the Azure CNS image
 .PHONY: azure-cns-image
-azure-cns-aks-swift-image:
+azure-cns-image:
 ifeq ($(GOOS),linux)
-  mkdir -p $(IMAGE_DIR)
-  docker build \
-  --no-cache \
-  -f cns/Dockerfile \
-  -t $(AZURE_CNS_IMAGE):$(VERSION) \
-  --build-arg VERSION=$(VERSION) \
-  --build-arg CNS_AI_PATH=$(cnsaipath) \
-  --build-arg CNS_AI_ID=$(CNS_AI_ID) \
-  .
-  docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
+	mkdir -p $(IMAGE_DIR)
+	docker build \
+	--no-cache \
+	-f cns/Dockerfile \
+	-t $(AZURE_CNS_IMAGE):$(VERSION) \
+	--build-arg VERSION=$(VERSION) \
+	--build-arg CNS_AI_PATH=$(cnsaipath) \
+	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	.
+	docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
 endif
 
 # Publish the Azure NPM image to a Docker registry
