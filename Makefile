@@ -351,7 +351,7 @@ azure-vnet-telemetry-image: azure-vnet-telemetry
 publish-azure-vnet-telemetry-image:
 	docker push $(AZURE_VNET_TELEMETRY_IMAGE):$(VERSION)
 
-# Build the Azure CNS image (right one).
+# Build the Azure CNS image
 .PHONY: azure-cns-image
 azure-cns-image: azure-cns
 ifeq ($(GOOS),linux)
