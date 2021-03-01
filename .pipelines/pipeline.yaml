@@ -160,7 +160,7 @@ stages:
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
               sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
               sudo rm -R -- */ && cd ..
-              rmdir ./linux_amd64 && ./windows_amd64
+              rmdir ./linux_amd64 && rmdir ./windows_amd64
             workingDirectory: "$(modulePath)"
             name: "PrepareArtifacts"
             displayName: "Prepare Artifacts"
