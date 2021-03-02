@@ -150,6 +150,9 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 	}
 
 	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), iptables.AzureDNS, iptables.UDP, iptables.DNSPort)
+
+	// TODO remove this rule once we remove adding MASQUEARDE from AgentBaker, check below PR
+	// https://github.com/Azure/AgentBaker/pull/367/files
 	podTrafficAccept := fmt.Sprintf(" -m iprange  ! --dst-range 168.63.129.16-168.63.129.16  -s %s ", ncSubnetPrefix.String())
 	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
 	options[network.IPTablesKey] = []iptables.IPTableEntry{
