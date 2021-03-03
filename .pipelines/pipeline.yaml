@@ -201,7 +201,7 @@ stages:
               inlineScript: |
                 echo Creating storage container with name acn-$(EnvironmentalVariables.StorageID) and account name $(STORAGE_ACCOUNT_NAME)
                 az storage container create -n acn-$(EnvironmentalVariables.StorageID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
-                az storage blob upload-batch -d acn-$(EnvironmentalVariables.StorageID) -s ./output/  --account-name $(STORAGE_ACCOUNT_NAME)
+                az storage blob upload-batch -d acn-$(EnvironmentalVariables.StorageID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
               workingDirectory: "$(modulePath)"
             displayName: Create artifact storage container
             condition: succeeded()
