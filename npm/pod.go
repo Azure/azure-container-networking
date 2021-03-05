@@ -165,6 +165,8 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		return nil
 	}
 
+	// K8s categorizes Succeeded abd Failed pods be terminated and will not restart them
+	// So NPM will ignorer adding these pods
 	if podObj.Status.Phase == v1.PodSucceeded || podObj.Status.Phase == v1.PodFailed {
 		return nil
 	}
@@ -418,8 +420,8 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		containerPorts = getContainerPortList(podObj)
 	)
 
-	_, exists := npMgr.nsMap[podNs]
-	if exists {
+	_, nsExists := npMgr.nsMap[podNs]
+	if nsExists {
 		cachedPodObj, podExists := npMgr.nsMap[podNs].podMap[string(podObj.ObjectMeta.UID)]
 		if podExists {
 			cachedPodIP = cachedPodObj.podIP
@@ -461,7 +463,9 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		log.Errorf("Error: failed to delete pod from namespace ipset.")
 	}
 
-	delete(npMgr.nsMap[podNs].podMap, podUID)
+	if nsExists {
+		delete(npMgr.nsMap[podNs].podMap, podUID)
+	}
 
 	return nil
 }
