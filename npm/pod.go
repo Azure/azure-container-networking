@@ -402,6 +402,9 @@ func (npMgr *NetworkPolicyManager) UpdatePod(newPodObj *corev1.Pod) error {
 
 // DeletePod handles deleting pod from its label's ipset.
 func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
+	if isHostNetworkPod(podObj) {
+		return nil
+	}
 
 	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	var (
