@@ -18,7 +18,7 @@ func (npMgr *NetworkPolicyManager) canCleanUpNpmChains() bool {
 		return false
 	}
 
-	for _, ns := range npMgr.nsMap {
+	for _, ns := range npMgr.NsMap {
 		if len(ns.processedNpMap) > 0 {
 			return false
 		}
@@ -31,22 +31,22 @@ func (npMgr *NetworkPolicyManager) canCleanUpNpmChains() bool {
 func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	var (
 		err    error
-		ns     *namespace
+		ns     *Namespace
 		exists bool
 		npNs   = "ns-" + npObj.ObjectMeta.Namespace
 		npName = npObj.ObjectMeta.Name
-		allNs  = npMgr.nsMap[util.KubeAllNamespacesFlag]
+		allNs  = npMgr.NsMap[util.KubeAllNamespacesFlag]
 		timer  = metrics.StartNewTimer()
 	)
 
 	log.Logf("NETWORK POLICY CREATING: NameSpace%s, Name:%s", npNs, npName)
 
-	if ns, exists = npMgr.nsMap[npNs]; !exists {
+	if ns, exists = npMgr.NsMap[npNs]; !exists {
 		ns, err = newNs(npNs)
 		if err != nil {
 			log.Logf("Error creating namespace %s\n", npNs)
 		}
-		npMgr.nsMap[npNs] = ns
+		npMgr.NsMap[npNs] = ns
 	}
 
 	if ns.policyExists(npObj) {
@@ -54,7 +54,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	if !npMgr.isAzureNpmChainCreated {
-		if err = allNs.ipsMgr.CreateSet(util.KubeSystemFlag, append([]string{util.IpsetNetHashFlag})); err != nil {
+		if err = allNs.IpsMgr.CreateSet(util.KubeSystemFlag, append([]string{util.IpsetNetHashFlag})); err != nil {
 			log.Errorf("Error: failed to initialize kube-system ipset.")
 			return err
 		}
@@ -73,7 +73,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		sets, namedPorts, lists       []string
 		ingressIPCidrs, egressIPCidrs [][]string
 		iptEntries                    []*iptm.IptEntry
-		ipsMgr                        = allNs.ipsMgr
+		ipsMgr                        = allNs.IpsMgr
 	)
 
 	// Remove the existing policy from processed (merged) network policy map
@@ -149,20 +149,20 @@ func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.Ne
 func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	var (
 		err   error
-		ns    *namespace
-		allNs = npMgr.nsMap[util.KubeAllNamespacesFlag]
+		ns    *Namespace
+		allNs = npMgr.NsMap[util.KubeAllNamespacesFlag]
 	)
 
 	npNs, npName := "ns-"+npObj.ObjectMeta.Namespace, npObj.ObjectMeta.Name
 	log.Logf("NETWORK POLICY DELETING: Namespace: %s, Name:%s", npNs, npName)
 
 	var exists bool
-	if ns, exists = npMgr.nsMap[npNs]; !exists {
+	if ns, exists = npMgr.NsMap[npNs]; !exists {
 		ns, err = newNs(npName)
 		if err != nil {
 			log.Logf("Error creating namespace %s", npNs)
 		}
-		npMgr.nsMap[npNs] = ns
+		npMgr.NsMap[npNs] = ns
 	}
 
 	_, _, _, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(npObj)
@@ -174,8 +174,8 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		}
 	}
 
-	removeCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, allNs.ipsMgr)
-	removeCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, allNs.ipsMgr)
+	removeCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, allNs.IpsMgr)
+	removeCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, allNs.IpsMgr)
 
 	delete(ns.rawNpMap, npObj.ObjectMeta.Name)
 

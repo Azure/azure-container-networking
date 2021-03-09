@@ -47,7 +47,7 @@ func TestAllNsList(t *testing.T) {
 
 func TestAddNamespace(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
 		TelemetryEnabled: false,
 	}
 
@@ -55,7 +55,7 @@ func TestAddNamespace(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -86,7 +86,7 @@ func TestAddNamespace(t *testing.T) {
 
 func TestUpdateNamespace(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
 		TelemetryEnabled: false,
 	}
 
@@ -94,7 +94,7 @@ func TestUpdateNamespace(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -138,7 +138,7 @@ func TestUpdateNamespace(t *testing.T) {
 
 func TestAddNamespaceLabel(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
 		TelemetryEnabled: false,
 	}
 
@@ -146,7 +146,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -187,7 +187,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 		t.Errorf("TestAddNamespaceLabel failed @ npMgr.UpdateNamespace")
 	}
 
-	if !reflect.DeepEqual(npMgr.nsMap["ns-"+newNsObj.Name].labelsMap, newNsObj.ObjectMeta.Labels) {
+	if !reflect.DeepEqual(npMgr.NsMap["ns-"+newNsObj.Name].LabelsMap, newNsObj.ObjectMeta.Labels) {
 		t.Errorf("TestAddNamespaceLabel failed @ npMgr.nsMap labelMap check")
 	}
 
@@ -196,7 +196,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 
 func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
 		TelemetryEnabled: false,
 	}
 
@@ -204,7 +204,7 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -247,7 +247,7 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.UpdateNamespace")
 	}
 
-	if !reflect.DeepEqual(npMgr.nsMap["ns-"+newNsObj.Name].labelsMap, newNsObj.ObjectMeta.Labels) {
+	if !reflect.DeepEqual(npMgr.NsMap["ns-"+newNsObj.Name].LabelsMap, newNsObj.ObjectMeta.Labels) {
 		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap labelMap check")
 	}
 	npMgr.Unlock()
@@ -255,7 +255,7 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 
 func TestDeleteNamespace(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
 		TelemetryEnabled: false,
 	}
 
@@ -263,7 +263,7 @@ func TestDeleteNamespace(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -294,7 +294,7 @@ func TestDeleteNamespace(t *testing.T) {
 		t.Errorf("TestDeleteNamespace @ npMgr.DeleteNamespace")
 	}
 
-	if _, exists := npMgr.nsMap["ns-"+nsObj.Name]; exists {
+	if _, exists := npMgr.NsMap["ns-"+nsObj.Name]; exists {
 		t.Errorf("TestDeleteNamespace failed @ npMgr.nsMap check")
 	}
 	npMgr.Unlock()

@@ -52,13 +52,13 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		podLabels     = podObj.ObjectMeta.Labels
 		podIP         = podObj.Status.PodIP
 		podContainers = podObj.Spec.Containers
-		ipsMgr        = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
+		ipsMgr        = npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	)
 
 	log.Logf("POD CREATING: [%s%s/%s/%s%+v%s]", podUid, podNs, podName, podNodeName, podLabels, podIP)
 
 	// Add pod namespace if it doesn't exist
-	if _, exists := npMgr.nsMap[podNs]; !exists {
+	if _, exists := npMgr.NsMap[podNs]; !exists {
 		log.Logf("Creating set: %v, hashedSet: %v", podNs, util.GetHashedName(podNs))
 		if err = ipsMgr.CreateSet(podNs, append([]string{util.IpsetNetHashFlag})); err != nil {
 			log.Logf("Error creating ipset %s", podNs)
@@ -115,7 +115,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	}
 
 	// add the Pod info to the podMap
-	npMgr.podMap[podUid] = podIP
+	npMgr.PodMap[podUid] = podIP
 
 	return nil
 }
@@ -190,10 +190,10 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		podNodeName   = podObj.Spec.NodeName
 		podLabels     = podObj.ObjectMeta.Labels
 		podContainers = podObj.Spec.Containers
-		ipsMgr        = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
+		ipsMgr        = npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	)
 
-	cachedPodIp, exists := npMgr.podMap[podUid]
+	cachedPodIp, exists := npMgr.PodMap[podUid]
 	if !exists {
 		return nil
 	}
@@ -247,7 +247,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		}
 	}
 
-	delete(npMgr.podMap, podUid)
+	delete(npMgr.PodMap, podUid)
 
 	return nil
 }

@@ -19,7 +19,7 @@ import (
 
 func TestAddNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
 		TelemetryEnabled: false,
 	}
 
@@ -27,7 +27,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	iptMgr := iptm.NewIptablesManager()
 	if err := iptMgr.Save(util.IptablesTestConfigFile); err != nil {
@@ -110,14 +110,14 @@ func TestAddNetworkPolicy(t *testing.T) {
 	}
 	npMgr.Unlock()
 
-	ipsMgr = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
+	ipsMgr = npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 
 	// Check whether 0.0.0.0/0 got translated to 1.0.0.0/1 and 128.0.0.0/1
-	if ! ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "1.0.0.0/1", util.IpsetNetHashFlag) {
+	if !ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "1.0.0.0/1", util.IpsetNetHashFlag) {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
-	if ! ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "128.0.0.0/1", util.IpsetNetHashFlag) {
+	if !ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "128.0.0.0/1", util.IpsetNetHashFlag) {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
@@ -163,7 +163,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 
 func TestUpdateNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
 		TelemetryEnabled: false,
 	}
 
@@ -171,7 +171,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	iptMgr := iptm.NewIptablesManager()
 	if err := iptMgr.Save(util.IptablesTestConfigFile); err != nil {
@@ -275,7 +275,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 
 func TestDeleteNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
 		TelemetryEnabled: false,
 	}
 
@@ -283,7 +283,7 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	iptMgr := iptm.NewIptablesManager()
 	if err := iptMgr.Save(util.IptablesTestConfigFile); err != nil {

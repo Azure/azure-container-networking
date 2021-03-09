@@ -49,8 +49,8 @@ type NetworkPolicyManager struct {
 	npInformer      networkinginformers.NetworkPolicyInformer
 
 	nodeName                     string
-	nsMap                        map[string]*namespace
-	podMap                       map[string]string // Key: Pod uuid, Value: PodIp
+	NsMap                        map[string]*Namespace
+	PodMap                       map[string]string // Key: Pod uuid, Value: PodIp
 	isAzureNpmChainCreated       bool
 	isSafeToCleanUpAzureNpmChain bool
 
@@ -118,11 +118,11 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	for {
 		<-heartbeat
 		npMgr.Lock()
-		podCount.Value = float64(len(npMgr.podMap))
+		podCount.Value = float64(len(npMgr.PodMap))
 		//Reducing one to remove all-namespaces ns obj
-		nsCount.Value = float64(len(npMgr.nsMap) - 1)
+		nsCount.Value = float64(len(npMgr.NsMap) - 1)
 		nwPolCount := 0
-		for _, ns := range npMgr.nsMap {
+		for _, ns := range npMgr.NsMap {
 			nwPolCount = nwPolCount + len(ns.rawNpMap)
 		}
 		nwPolicyCount.Value = float64(nwPolCount)
@@ -233,8 +233,8 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		nsInformer:                   nsInformer,
 		npInformer:                   npInformer,
 		nodeName:                     os.Getenv("HOSTNAME"),
-		nsMap:                        make(map[string]*namespace),
-		podMap:                       make(map[string]string),
+		NsMap:                        make(map[string]*Namespace),
+		PodMap:                       make(map[string]string),
 		isAzureNpmChainCreated:       false,
 		isSafeToCleanUpAzureNpmChain: false,
 		clusterState: telemetry.ClusterState{
@@ -248,11 +248,11 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	}
 
 	allNs, _ := newNs(util.KubeAllNamespacesFlag)
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	// Create ipset for the namespace.
 	kubeSystemNs := "ns-" + util.KubeSystemFlag
-	if err := allNs.ipsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
+	if err := allNs.IpsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
 	}
 

@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
@@ -530,10 +529,6 @@ func grabIptablesLocks() (*os.File, error) {
 
 	success = true
 	return l, nil
-}
-
-func grabIptablesFileLock(f *os.File) error {
-	return unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 }
 
 // TO-DO :- Use iptables-restore to update iptables.
