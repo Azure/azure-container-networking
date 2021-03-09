@@ -228,16 +228,6 @@ stages:
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
-      name: "windows_18_09_e2e"
-      displayName: "Windows 1809"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows1809.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
-
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
       name: "windows_19_03_e2e"
       displayName: "Windows 1903"
       pipelineBuildImage: "$(BUILD_IMAGE)"
@@ -252,7 +242,6 @@ stages:
       - "aks_on_swift_e2e"
       - "ubuntu_16_04_linux_e2e"
       - "ubuntu_18_04_linux_e2e"
-      - "windows_18_09_e2e"
       - "windows_19_03_e2e"
     jobs:
       - job: delete_remote_artifacts
