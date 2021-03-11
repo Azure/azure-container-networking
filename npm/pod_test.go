@@ -152,7 +152,9 @@ func TestUpdatePod(t *testing.T) {
 		t.Errorf("TestUpdatePod failed @ UpdatePod")
 	}
 
-	cachedPodObj, exists := npMgr.NsMap["ns-"+newPodObj.Namespace].PodMap[string(newPodObj.ObjectMeta.UID)]
+	podKey := GetPodKey(newPodObj)
+
+	cachedPodObj, exists := npMgr.PodMap[podKey]
 	if !exists {
 		t.Errorf("TestUpdatePod failed @ pod exists check")
 	}
@@ -225,7 +227,9 @@ func TestOldRVUpdatePod(t *testing.T) {
 		t.Errorf("TestOldRVUpdatePod failed @ UpdatePod")
 	}
 
-	cachedPodObj, exists := npMgr.NsMap["ns-"+newPodObj.Namespace].PodMap[string(newPodObj.ObjectMeta.UID)]
+	podKey := GetPodKey(newPodObj)
+
+	cachedPodObj, exists := npMgr.PodMap[podKey]
 	if !exists {
 		t.Errorf("TestOldRVUpdatePod failed @ pod exists check")
 	}
@@ -287,7 +291,7 @@ func TestDeletePod(t *testing.T) {
 		t.Errorf("TestDeletePod failed @ DeletePod")
 	}
 
-	if len(npMgr.NsMap["ns-"+podObj.Namespace].PodMap) > 1 {
+	if len(npMgr.PodMap) > 1 {
 		t.Errorf("TestDeletePod failed @ podMap length check")
 	}
 	npMgr.Unlock()
@@ -471,4 +475,36 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 		t.Errorf("TestDeleteHostNetworkPod failed @ DeletePod")
 	}
 	npMgr.Unlock()
+}
+
+func TestGetPodKey(t *testing.T) {
+	podObj := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "test-pod",
+			},
+			UID: "1234",
+		},
+		Status: corev1.PodStatus{
+			Phase: "Running",
+			PodIP: "1.2.3.4",
+		},
+		Spec: corev1.PodSpec{
+			HostNetwork: true,
+		},
+	}
+
+	podKey := GetPodKey(podObj)
+
+	// 2 characters are /
+	if len(podKey) <= 2 {
+		t.Errorf("TestGetPodKey failed @ podKey length check %s", podKey)
+	}
+
+	expectedKey := util.GetNSNameWithPrefix("test-namespace/test-pod/1234")
+	if podKey != expectedKey {
+		t.Errorf("TestGetPodKey failed @ podKey did not match expected value %s", podKey)
+	}
 }

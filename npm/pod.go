@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 
 	corev1 "k8s.io/api/core/v1"
@@ -153,6 +154,17 @@ func appendNamedPortIpsets(ipsMgr *ipsm.IpsetManager, portList []v1.ContainerPor
 	return nil
 }
 
+// GetPodKey will return podKey
+func GetPodKey(podObj *corev1.Pod) string {
+	podKey, err := util.GetObjKeyFunc(podObj)
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.PodID, "[Util] {GetPodKey} Error: while running MetaNamespaceKeyFunc err: %s", err)
+		return ""
+	}
+	podKey = podKey + "/" + string(podObj.GetObjectMeta().GetUID())
+	return util.GetNSNameWithPrefix(podKey)
+}
+
 // AddPod handles adding pod ip to its label's ipset.
 func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	if !isValidPod(podObj) {
@@ -179,6 +191,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 
 	var (
 		err               error
+		podKey            = GetPodKey(podObj)
 		podNs             = util.GetNSNameWithPrefix(npmPodObj.Namespace)
 		podUID            = npmPodObj.PodUID
 		podName           = npmPodObj.Name
@@ -229,7 +242,7 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	}
 
 	// add the Pod info to the podMap
-	npMgr.NsMap[podNs].PodMap[podUID] = npmPodObj
+	npMgr.PodMap[podKey] = npmPodObj
 
 	return nil
 }
@@ -252,6 +265,7 @@ func (npMgr *NetworkPolicyManager) UpdatePod(newPodObj *corev1.Pod) error {
 
 	var (
 		err            error
+		podKey         = GetPodKey(newPodObj)
 		newPodObjNs    = util.GetNSNameWithPrefix(newPodObj.ObjectMeta.Namespace)
 		newPodObjName  = newPodObj.ObjectMeta.Name
 		newPodObjLabel = newPodObj.ObjectMeta.Labels
@@ -272,7 +286,7 @@ func (npMgr *NetworkPolicyManager) UpdatePod(newPodObj *corev1.Pod) error {
 		}
 	}
 
-	cachedPodObj, exists := npMgr.NsMap[newPodObjNs].PodMap[string(newPodObj.ObjectMeta.UID)]
+	cachedPodObj, exists := npMgr.PodMap[podKey]
 	if !exists {
 		if addErr := npMgr.AddPod(newPodObj); addErr != nil {
 			log.Errorf("Error: failed to add pod during update with error %+v", addErr)
@@ -394,7 +408,7 @@ func (npMgr *NetworkPolicyManager) UpdatePod(newPodObj *corev1.Pod) error {
 	}
 
 	// Updating pod cache with new information
-	npMgr.NsMap[newPodObjNs].PodMap[cachedPodObj.PodUID], err = newNpmPod(newPodObj)
+	npMgr.PodMap[podKey], err = newNpmPod(newPodObj)
 	if err != nil {
 		return err
 	}
@@ -410,25 +424,23 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 
 	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	var (
-		err            error
-		podName        = podObj.ObjectMeta.Name
-		podNodeName    = podObj.Spec.NodeName
-		podLabels      = podObj.ObjectMeta.Labels
-		ipsMgr         = npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
-		podUID         = string(podObj.ObjectMeta.UID)
-		cachedPodIP    = podObj.Status.PodIP
-		containerPorts = getContainerPortList(podObj)
+		err         error
+		podKey      = GetPodKey(podObj)
+		podName     = podObj.ObjectMeta.Name
+		podNodeName = podObj.Spec.NodeName
+		ipsMgr      = npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
+		podUID      = string(podObj.ObjectMeta.UID)
 	)
 
-	_, nsExists := npMgr.NsMap[podNs]
-	if nsExists {
-		cachedPodObj, podExists := npMgr.NsMap[podNs].PodMap[string(podObj.ObjectMeta.UID)]
-		if podExists {
-			cachedPodIP = cachedPodObj.PodIP
-			podLabels = cachedPodObj.Labels
-			containerPorts = cachedPodObj.ContainerPorts
-		}
+	cachedPodObj, podExists := npMgr.PodMap[podKey]
+	if !podExists {
+		return nil
 	}
+	var (
+		cachedPodIP    = cachedPodObj.PodIP
+		podLabels      = cachedPodObj.Labels
+		containerPorts = cachedPodObj.ContainerPorts
+	)
 
 	// if the podIp exists, it must match the cachedIp
 	if len(podObj.Status.PodIP) > 0 && cachedPodIP != podObj.Status.PodIP {
@@ -463,9 +475,7 @@ func (npMgr *NetworkPolicyManager) DeletePod(podObj *corev1.Pod) error {
 		log.Errorf("Error: failed to delete pod from namespace ipset.")
 	}
 
-	if nsExists {
-		delete(npMgr.NsMap[podNs].PodMap, podUID)
-	}
+	delete(npMgr.PodMap, podKey)
 
 	return nil
 }

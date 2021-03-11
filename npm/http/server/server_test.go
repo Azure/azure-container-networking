@@ -15,13 +15,9 @@ import (
 func TestGetNpmMgrHandler(t *testing.T) {
 	assert := assert.New(t)
 	npMgr := &npm.NetworkPolicyManager{
-		NsMap: map[string]*npm.Namespace{
-			"test": &npm.Namespace{
-				PodMap: map[string]*npm.NpmPod{
-					"": &npm.NpmPod{
-						Name: "testpod",
-					},
-				},
+		PodMap: map[string]*npm.NpmPod{
+			"": &npm.NpmPod{
+				Name: "testpod",
 			},
 		},
 	}

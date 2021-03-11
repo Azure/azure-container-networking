@@ -179,7 +179,9 @@ jobs:
       mkdir -p $(System.DefaultWorkingDirectory)/npmLogs
       for npm in $npmPodList; do kubectl logs -n kube-system $npm > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
     displayName: "Gather NPM Logs"
+    condition: always()
   - publish: $(System.DefaultWorkingDirectory)/npmLogs
+    condition: always()
 
 - job: Clean_up
   displayName: "Cleanup"

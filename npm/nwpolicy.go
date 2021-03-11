@@ -13,18 +13,61 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
+// GetNetworkPolicyKey will return netpolKey
+func GetNetworkPolicyKey(npObj *networkingv1.NetworkPolicy) string {
+	netpolKey, err := util.GetObjKeyFunc(npObj)
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.NetpolID, "[Util] {GetNetworkPolicyKey} Error: while running MetaNamespaceKeyFunc err: %s", err)
+		return ""
+	}
+	return util.GetNSNameWithPrefix(netpolKey)
+}
+
+// GetProcessedNPKey will return netpolKey
+func GetProcessedNPKey(npObj *networkingv1.NetworkPolicy, hashSelector string) string {
+	netpolKey := npObj.GetNamespace() + "/" + hashSelector
+	return util.GetNSNameWithPrefix(netpolKey)
+}
+
 func (npMgr *NetworkPolicyManager) canCleanUpNpmChains() bool {
 	if !npMgr.isSafeToCleanUpAzureNpmChain {
 		return false
 	}
 
-	for _, ns := range npMgr.NsMap {
-		if len(ns.ProcessedNpMap) > 0 {
-			return false
-		}
+	if len(npMgr.ProcessedNpMap) > 0 {
+		return false
 	}
 
 	return true
+}
+
+func (npMgr *NetworkPolicyManager) policyExists(npObj *networkingv1.NetworkPolicy) bool {
+	npKey := GetNetworkPolicyKey(npObj)
+	if npKey == "" {
+
+		// TODO check this case
+		return false
+	}
+
+	np, exists := npMgr.RawNpMap[npKey]
+	if !exists {
+		return false
+	}
+
+	if !util.CompareResourceVersions(np.ObjectMeta.ResourceVersion, npObj.ObjectMeta.ResourceVersion) {
+		log.Logf("Cached Network Policy has larger ResourceVersion number than new Obj. Name: %s Cached RV: %d New RV: %d\n",
+			npObj.ObjectMeta.Name,
+			np.ObjectMeta.ResourceVersion,
+			npObj.ObjectMeta.ResourceVersion,
+		)
+		return true
+	}
+
+	if isSamePolicy(np, npObj) {
+		return true
+	}
+
+	return false
 }
 
 // AddNetworkPolicy handles adding network policy to iptables.
@@ -49,7 +92,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		npMgr.NsMap[npNs] = ns
 	}
 
-	if ns.policyExists(npObj) {
+	if npMgr.policyExists(npObj) {
 		return nil
 	}
 
@@ -69,6 +112,8 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	var (
 		hashedSelector                = HashSelector(&npObj.Spec.PodSelector)
+		npKey                         = GetNetworkPolicyKey(npObj)
+		npProcessedKey                = GetProcessedNPKey(npObj, hashedSelector)
 		addedPolicy                   *networkingv1.NetworkPolicy
 		sets, namedPorts, lists       []string
 		ingressIPCidrs, egressIPCidrs [][]string
@@ -77,14 +122,14 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	)
 
 	// Remove the existing policy from processed (merged) network policy map
-	if oldPolicy, oldPolicyExists := ns.rawNpMap[npObj.ObjectMeta.Name]; oldPolicyExists {
+	if oldPolicy, oldPolicyExists := npMgr.RawNpMap[npKey]; oldPolicyExists {
 		npMgr.isSafeToCleanUpAzureNpmChain = false
 		npMgr.DeleteNetworkPolicy(oldPolicy)
 		npMgr.isSafeToCleanUpAzureNpmChain = true
 	}
 
 	// Add (merge) the new policy with others who apply to the same pods
-	if oldPolicy, oldPolicyExists := ns.ProcessedNpMap[hashedSelector]; oldPolicyExists {
+	if oldPolicy, oldPolicyExists := npMgr.ProcessedNpMap[npProcessedKey]; oldPolicyExists {
 		addedPolicy, err = addPolicy(oldPolicy, npObj)
 		if err != nil {
 			log.Logf("Error adding policy %s to %s", npName, oldPolicy.ObjectMeta.Name)
@@ -92,12 +137,12 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 
 	if addedPolicy != nil {
-		ns.ProcessedNpMap[hashedSelector] = addedPolicy
+		npMgr.ProcessedNpMap[npProcessedKey] = addedPolicy
 	} else {
-		ns.ProcessedNpMap[hashedSelector] = npObj
+		npMgr.ProcessedNpMap[npProcessedKey] = npObj
 	}
 
-	ns.rawNpMap[npObj.ObjectMeta.Name] = npObj
+	npMgr.RawNpMap[npKey] = npObj
 
 	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries = translatePolicy(npObj)
 	for _, set := range sets {
@@ -148,9 +193,12 @@ func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.Ne
 // DeleteNetworkPolicy handles deleting network policy from iptables.
 func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	var (
-		err   error
-		ns    *Namespace
-		allNs = npMgr.NsMap[util.KubeAllNamespacesFlag]
+		err            error
+		ns             *Namespace
+		allNs          = npMgr.NsMap[util.KubeAllNamespacesFlag]
+		hashedSelector = HashSelector(&npObj.Spec.PodSelector)
+		npKey          = GetNetworkPolicyKey(npObj)
+		npProcessedKey = GetProcessedNPKey(npObj, hashedSelector)
 	)
 
 	npNs, npName := util.GetNSNameWithPrefix(npObj.ObjectMeta.Namespace), npObj.ObjectMeta.Name
@@ -177,19 +225,18 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	removeCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, allNs.IpsMgr)
 	removeCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, allNs.IpsMgr)
 
-	delete(ns.rawNpMap, npObj.ObjectMeta.Name)
+	delete(npMgr.RawNpMap, npKey)
 
-	hashedSelector := HashSelector(&npObj.Spec.PodSelector)
-	if oldPolicy, oldPolicyExists := ns.ProcessedNpMap[hashedSelector]; oldPolicyExists {
+	if oldPolicy, oldPolicyExists := npMgr.ProcessedNpMap[npProcessedKey]; oldPolicyExists {
 		deductedPolicy, err := deductPolicy(oldPolicy, npObj)
 		if err != nil {
 			log.Logf("Error deducting policy %s from %s", npName, oldPolicy.ObjectMeta.Name)
 		}
 
 		if deductedPolicy == nil {
-			delete(ns.ProcessedNpMap, hashedSelector)
+			delete(npMgr.ProcessedNpMap, npProcessedKey)
 		} else {
-			ns.ProcessedNpMap[hashedSelector] = deductedPolicy
+			npMgr.ProcessedNpMap[npProcessedKey] = deductedPolicy
 		}
 	}
 

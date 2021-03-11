@@ -11,16 +11,12 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 )
 
 type Namespace struct {
 	name            string
 	LabelsMap       map[string]string // NameSpace labels
 	SetMap          map[string]string
-	PodMap          map[string]*NpmPod // Key is PodUID
-	rawNpMap        map[string]*networkingv1.NetworkPolicy
-	ProcessedNpMap  map[string]*networkingv1.NetworkPolicy
 	IpsMgr          *ipsm.IpsetManager
 	iptMgr          *iptm.IptablesManager
 	resourceVersion uint64 // NameSpace ResourceVersion
@@ -29,14 +25,11 @@ type Namespace struct {
 // newNS constructs a new namespace object.
 func newNs(name string) (*Namespace, error) {
 	ns := &Namespace{
-		name:           name,
-		LabelsMap:      make(map[string]string),
-		SetMap:         make(map[string]string),
-		PodMap:         make(map[string]*NpmPod),
-		rawNpMap:       make(map[string]*networkingv1.NetworkPolicy),
-		ProcessedNpMap: make(map[string]*networkingv1.NetworkPolicy),
-		IpsMgr:         ipsm.NewIpsetManager(),
-		iptMgr:         iptm.NewIptablesManager(),
+		name:      name,
+		LabelsMap: make(map[string]string),
+		SetMap:    make(map[string]string),
+		IpsMgr:    ipsm.NewIpsetManager(),
+		iptMgr:    iptm.NewIptablesManager(),
 		// resource version is converted to uint64
 		// so make sure it is initialized to "0"
 		resourceVersion: 0,
@@ -61,28 +54,6 @@ func isInvalidNamespaceUpdate(oldNsObj, newNsObj *corev1.Namespace) (isInvalidUp
 	isInvalidUpdate = isInvalidUpdate && reflect.DeepEqual(oldNsObj.ObjectMeta.Labels, newNsObj.ObjectMeta.Labels)
 
 	return
-}
-
-func (ns *Namespace) policyExists(npObj *networkingv1.NetworkPolicy) bool {
-	np, exists := ns.rawNpMap[npObj.ObjectMeta.Name]
-	if !exists {
-		return false
-	}
-
-	if !util.CompareResourceVersions(np.ObjectMeta.ResourceVersion, npObj.ObjectMeta.ResourceVersion) {
-		log.Logf("Cached Network Policy has larger ResourceVersion number than new Obj. Name: %s Cached RV: %d New RV: %d\n",
-			npObj.ObjectMeta.Name,
-			np.ObjectMeta.ResourceVersion,
-			npObj.ObjectMeta.ResourceVersion,
-		)
-		return true
-	}
-
-	if isSamePolicy(np, npObj) {
-		return true
-	}
-
-	return false
 }
 
 // InitAllNsList syncs all-namespace ipset list.
@@ -223,8 +194,8 @@ func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, n
 	//if no change in labels then return
 	if reflect.DeepEqual(curNsObj.LabelsMap, newNsLabel) {
 		log.Logf(
-			"NAMESPACE UPDATING:\n nothing to delete or add. old namespace: [%s/%v]\n cache namespace: [%s/%v] new namespace: [%s/%v]",
-			oldNsNs, oldNsLabel, curNsObj.name, curNsObj.LabelsMap, newNsNs, newNsLabel,
+			"NAMESPACE UPDATING: nothing to delete or add. namespace: [%s/%v]",
+			newNsNs, newNsLabel,
 		)
 		return nil
 	}

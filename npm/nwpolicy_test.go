@@ -368,3 +368,34 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 		t.Errorf("Change in policy number didn't register in prometheus")
 	}
 }
+func TestGetNetworkPolicyKey(t *testing.T) {
+	npObj := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "allow-egress",
+			Namespace: "test-nwpolicy",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				networkingv1.NetworkPolicyEgressRule{
+					To: []networkingv1.NetworkPolicyPeer{{
+						NamespaceSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"ns": "test"},
+						},
+					}},
+				},
+			},
+		},
+	}
+
+	netpolKey := GetNetworkPolicyKey(npObj)
+
+	// 2 characters are /
+	if len(netpolKey) <= 2 {
+		t.Errorf("TestGetNetworkPolicyKey failed @ netpolKey length check %s", netpolKey)
+	}
+
+	expectedKey := util.GetNSNameWithPrefix("test-nwpolicy/allow-egress")
+	if netpolKey != expectedKey {
+		t.Errorf("TestGetNetworkPolicyKey failed @ netpolKey did not match expected value %s", netpolKey)
+	}
+}

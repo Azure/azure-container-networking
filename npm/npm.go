@@ -50,6 +50,9 @@ type NetworkPolicyManager struct {
 
 	NodeName                     string
 	NsMap                        map[string]*Namespace
+	PodMap                       map[string]*NpmPod                     // Key is ns-<nsname>/<podname>/<poduuid>
+	RawNpMap                     map[string]*networkingv1.NetworkPolicy // Key is ns-<nsname>/<policyname>
+	ProcessedNpMap               map[string]*networkingv1.NetworkPolicy // Key is ns-<nsname>/<podSelectorHash>
 	isAzureNpmChainCreated       bool
 	isSafeToCleanUpAzureNpmChain bool
 
@@ -120,10 +123,8 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 		podCount.Value = 0
 		//Reducing one to remove all-namespaces ns obj
 		nsCount.Value = float64(len(npMgr.NsMap) - 1)
-		for _, ns := range npMgr.NsMap {
-			nwPolicyCount.Value += float64(len(ns.rawNpMap))
-			podCount.Value += float64(len(ns.PodMap))
-		}
+		nwPolicyCount.Value += float64(len(npMgr.RawNpMap))
+		podCount.Value += float64(len(npMgr.PodMap))
 		npMgr.Unlock()
 
 		metrics.SendMetric(podCount)
@@ -232,6 +233,9 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		npInformer:                   npInformer,
 		NodeName:                     os.Getenv("HOSTNAME"),
 		NsMap:                        make(map[string]*Namespace),
+		PodMap:                       make(map[string]*NpmPod),
+		RawNpMap:                     make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:               make(map[string]*networkingv1.NetworkPolicy),
 		isAzureNpmChainCreated:       false,
 		isSafeToCleanUpAzureNpmChain: false,
 		clusterState: telemetry.ClusterState{
