@@ -20,6 +20,9 @@ import (
 func TestAddNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -164,6 +167,9 @@ func TestAddNetworkPolicy(t *testing.T) {
 func TestUpdateNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -276,6 +282,9 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 func TestDeleteNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 

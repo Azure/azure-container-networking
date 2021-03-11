@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -38,6 +39,9 @@ func TestIsSystemPod(t *testing.T) {
 func TestAddPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -94,6 +98,9 @@ func TestAddPod(t *testing.T) {
 func TestUpdatePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -168,6 +175,9 @@ func TestUpdatePod(t *testing.T) {
 func TestOldRVUpdatePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -248,6 +258,9 @@ func TestOldRVUpdatePod(t *testing.T) {
 func TestDeletePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -300,6 +313,9 @@ func TestDeletePod(t *testing.T) {
 func TestAddHostNetworkPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -351,6 +367,9 @@ func TestAddHostNetworkPod(t *testing.T) {
 func TestUpdateHostNetworkPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -425,6 +444,9 @@ func TestUpdateHostNetworkPod(t *testing.T) {
 func TestDeleteHostNetworkPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
