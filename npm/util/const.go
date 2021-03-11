@@ -165,13 +165,21 @@ const (
 	GetEnvRetryWaitTimeInSecs int = 3
 	AiInitializeRetryCount    int = 3
 	AiInitializeRetryInMin    int = 1
-	// These ID represents where did the error log generate from.
-	// It's for better query purpose.
-	NpmID  int = 1
-	IpsmID int = 2
-	IptmID int = 3
 
 	DebugMode bool = true
 
 	ErrorValue float64 = 1
+)
+
+// These ID represents where did the error log generate from.
+// It's for better query purpose. In Kusto these value are used in
+// OperationID column
+const (
+	NpmID int = iota + 1
+	IpsmID
+	IptmID
+	NSID
+	PodID
+	NetpolID
+	UtilID
 )
