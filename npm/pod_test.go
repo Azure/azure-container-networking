@@ -215,7 +215,7 @@ func TestOldRVUpdatePod(t *testing.T) {
 
 	newPodObj := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "new-test-pod",
+			Name:      "old-test-pod",
 			Namespace: "test-namespace",
 			Labels: map[string]string{
 				"app": "new-test-pod",
