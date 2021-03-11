@@ -88,7 +88,7 @@ func TestAddToList(t *testing.T) {
 		t.Errorf("TestAddToList failed @ ipsMgr.AddToList")
 	}
 
-	if err := ipsMgr.AddToList("test-list", "test-set2"); err != nil {
+	if err := ipsMgr.AddToList("", ""); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.AddToList when set doesn't exist")
 	}
 }
@@ -291,6 +291,11 @@ func TestAddToSet(t *testing.T) {
 
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4/nomatch", util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet")
+	}
+
+	// expect to fail when ip being added is empty
+	if err := ipsMgr.AddToSet(testSetName, "", util.IpsetNetHashFlag, ""); err == nil {
+		t.Errorf("TestAddToSet failed @ ipsMgr.AddToSet when IP is empty")
 	}
 
 	testSetCount, err1 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSetName))

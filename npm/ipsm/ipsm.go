@@ -4,6 +4,7 @@
 package ipsm
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -133,8 +134,9 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		return nil
 	}
 
+	// ensure set being added to list exists
 	if !ipsMgr.SetExists(setName, util.IpsetSetListFlag) {
-		return nil
+		return fmt.Errorf("Set does not exist [%s] when attempting to add to list [%s]", setName, listName)
 	}
 
 	if ipsMgr.Exists(listName, setName, util.IpsetSetListFlag) {
@@ -269,6 +271,10 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 		}
 
 		return nil
+	}
+
+	if ip == "" {
+		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty, spec: %+v", setName, spec)
 	}
 
 	if !ipsMgr.SetExists(setName, spec) {
