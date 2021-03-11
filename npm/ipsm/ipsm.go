@@ -133,6 +133,10 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		return nil
 	}
 
+	if !ipsMgr.SetExists(setName, util.IpsetSetListFlag) {
+		return nil
+	}
+
 	if ipsMgr.Exists(listName, setName, util.IpsetSetListFlag) {
 		return nil
 	}

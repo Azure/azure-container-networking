@@ -87,6 +87,10 @@ func TestAddToList(t *testing.T) {
 	if err := ipsMgr.AddToList("test-list", "test-set"); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.AddToList")
 	}
+
+	if err := ipsMgr.AddToList("test-list", "test-set2"); err != nil {
+		t.Errorf("TestAddToList failed @ ipsMgr.AddToList when set doesn't exist")
+	}
 }
 
 func TestDeleteFromList(t *testing.T) {
