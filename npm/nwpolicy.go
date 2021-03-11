@@ -17,7 +17,7 @@ import (
 func GetNetworkPolicyKey(npObj *networkingv1.NetworkPolicy) string {
 	netpolKey, err := util.GetObjKeyFunc(npObj)
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.NetpolID, "[Util] {GetNetworkPolicyKey} Error: while running MetaNamespaceKeyFunc err: %s", err)
+		metrics.SendErrorLogAndMetric(util.NetpolID, "[GetNetworkPolicyKey] Error: while running MetaNamespaceKeyFunc err: %s", err)
 		return ""
 	}
 	return util.GetNSNameWithPrefix(netpolKey)
@@ -98,12 +98,12 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 
 	if !npMgr.isAzureNpmChainCreated {
 		if err = allNs.IpsMgr.CreateSet(util.KubeSystemFlag, append([]string{util.IpsetNetHashFlag})); err != nil {
-			log.Errorf("Error: failed to initialize kube-system ipset.")
+			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: failed to initialize kube-system ipset with err %s.", err)
 			return err
 		}
 
 		if err = allNs.iptMgr.InitNpmChains(); err != nil {
-			log.Errorf("Error: failed to initialize azure-npm chains.")
+			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: failed to initialize azure-npm chains with err %s.", err)
 			return err
 		}
 
@@ -170,7 +170,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
 		if err = iptMgr.Add(iptEntry); err != nil {
-			log.Errorf("Error: failed to apply iptables rule. Rule: %+v", iptEntry)
+			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: failed to apply iptables rule. Rule: %+v", iptEntry)
 		}
 	}
 
@@ -194,7 +194,6 @@ func (npMgr *NetworkPolicyManager) UpdateNetworkPolicy(oldNpObj *networkingv1.Ne
 func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	var (
 		err            error
-		ns             *Namespace
 		allNs          = npMgr.NsMap[util.KubeAllNamespacesFlag]
 		hashedSelector = HashSelector(&npObj.Spec.PodSelector)
 		npKey          = GetNetworkPolicyKey(npObj)
@@ -204,21 +203,12 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	npNs, npName := util.GetNSNameWithPrefix(npObj.ObjectMeta.Namespace), npObj.ObjectMeta.Name
 	log.Logf("NETWORK POLICY DELETING: Namespace: %s, Name:%s", npNs, npName)
 
-	var exists bool
-	if ns, exists = npMgr.NsMap[npNs]; !exists {
-		ns, err = newNs(npName)
-		if err != nil {
-			log.Logf("Error creating namespace %s", npNs)
-		}
-		npMgr.NsMap[npNs] = ns
-	}
-
 	_, _, _, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(npObj)
 
 	iptMgr := allNs.iptMgr
 	for _, iptEntry := range iptEntries {
 		if err = iptMgr.Delete(iptEntry); err != nil {
-			log.Errorf("Error: failed to apply iptables rule. Rule: %+v", iptEntry)
+			metrics.SendErrorLogAndMetric(util.NetpolID, "[DeleteNetworkPolicy] Error: failed to apply iptables rule. Rule: %+v", iptEntry)
 		}
 	}
 
@@ -243,7 +233,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	if npMgr.canCleanUpNpmChains() {
 		npMgr.isAzureNpmChainCreated = false
 		if err = iptMgr.UninitNpmChains(); err != nil {
-			log.Errorf("Error: failed to uninitialize azure-npm chains.")
+			metrics.SendErrorLogAndMetric(util.NetpolID, "[DeleteNetworkPolicy] Error: failed to uninitialize azure-npm chains with err: %s.", err)
 			return err
 		}
 	}
