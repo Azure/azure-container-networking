@@ -100,33 +100,33 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	defer service.Unlock()
 
 	for uuid, existingIpConfig := range service.PodIPConfigState {
-        if existingIpConfig.State == cns.PendingProgramming {
-        	updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.OrchestratorContext)
-        	if err != nil {
-                return nil, err
-            }
+		if existingIpConfig.State == cns.PendingProgramming {
+			updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.OrchestratorContext)
+			if err != nil {
+				return nil, err
+			}
 
-            pendingReleasedIps[uuid] = updatedIpConfig
+			pendingReleasedIps[uuid] = updatedIpConfig
 			if len(pendingReleasedIps) == totalIpsToRelease {
 				return pendingReleasedIps, nil
 			}
-    	}
+		}
 	}
-	
-	// if not all expected IPs are set to PendingRelease, then check the Available IPs 
-	for uuid, existingIpConfig := range service.PodIPConfigState {
-        if existingIpConfig.State == cns.Available {
-            updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.OrchestratorContext)
-            if err != nil {
-                return nil, err
-            }
 
-            pendingReleasedIps[uuid] = updatedIpConfig
-			
+	// if not all expected IPs are set to PendingRelease, then check the Available IPs
+	for uuid, existingIpConfig := range service.PodIPConfigState {
+		if existingIpConfig.State == cns.Available {
+			updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.OrchestratorContext)
+			if err != nil {
+				return nil, err
+			}
+
+			pendingReleasedIps[uuid] = updatedIpConfig
+
 			if len(pendingReleasedIps) == totalIpsToRelease {
 				return pendingReleasedIps, nil
-			}	
-    	} 
+			}
+		}
 	}
 
 	logger.Printf("[MarkIPAsPendingRelease] Set total ips to PendingRelease %d, expected %d", len(pendingReleasedIps), totalIpsToRelease)
@@ -140,9 +140,9 @@ func (service *HTTPRestService) updateIPConfigState(ipId string, updatedState st
 		ipConfig.OrchestratorContext = orchestratorContext
 		service.PodIPConfigState[ipId] = ipConfig
 		return ipConfig, nil
-	} 
-	
-	return  cns.IPConfigurationStatus{}, fmt.Errorf("[updateIPConfigState] Failed to update state %s for the IPConfig. ID %s not found PodIPConfigState", updatedState, ipId)
+	}
+
+	return cns.IPConfigurationStatus{}, fmt.Errorf("[updateIPConfigState] Failed to update state %s for the IPConfig. ID %s not found PodIPConfigState", updatedState, ipId)
 }
 
 // MarkIpsAsAvailableUntransacted will update pending programming IPs to available if NMAgent side's programmed nc version keep up with nc version.
@@ -152,9 +152,13 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 	if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
 		logger.Errorf("Can't find NC with ID %s in service state, stop updating its pending programming IP status", ncID)
 	} else {
-		previousHostNCVersion := ncInfo.HostVersion
+		previousHostNCVersion, err := strconv.Atoi(ncInfo.HostVersion)
+		if err != nil {
+			logger.Printf("[MarkIpsAsAvailableUntransacted] Get int value from ncInfo.HostVersion %s failed: %v, can't proceed", ncInfo.HostVersion, err)
+			return
+		}
 		// We only need to handle the situation when dnc nc version is larger than programmed nc version
-		if previousHostNCVersion < ncInfo.CreateNetworkContainerRequest.Version && previousHostNCVersion < strconv.Itoa(newHostNCVersion) {
+		if previousHostNCVersion < newHostNCVersion {
 			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
 				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
 					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
@@ -348,7 +352,7 @@ func (service *HTTPRestService) MarkExistingIPsAsPending(pendingIPIDs []string) 
 				return fmt.Errorf("Failed to mark IP [%v] as pending, currently allocated", id)
 			}
 
-            logger.Printf("[MarkExistingIPsAsPending]: Marking IP [%+v] to PendingRelease", ipconfig)
+			logger.Printf("[MarkExistingIPsAsPending]: Marking IP [%+v] to PendingRelease", ipconfig)
 			ipconfig.State = cns.PendingRelease
 			service.PodIPConfigState[id] = ipconfig
 		} else {

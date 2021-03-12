@@ -171,6 +171,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	}
 	service.RUnlock()
 	if len(hostVersionNeedUpdateNcList) > 0 {
+		logger.Printf("Updating version of the following NC IDs: %v", hostVersionNeedUpdateNcList)
 		ncVersionChannel := make(chan map[string]int)
 		ctxWithTimeout, _ := context.WithTimeout(ctx, syncHostNCTimeoutMilliSec*time.Millisecond)
 		go func() {
@@ -191,8 +192,10 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 						if channelMode == cns.CRD {
 							service.MarkIpsAsAvailableUntransacted(ncInfo.ID, newHostNCVersion)
 						}
+						oldHostNCVersion := ncInfo.HostVersion
 						ncInfo.HostVersion = strconv.Itoa(newHostNCVersion)
 						service.state.ContainerStatus[ncID] = ncInfo
+						logger.Printf("Updated NC %s host version from %s to %s", ncID, oldHostNCVersion, ncInfo.HostVersion)
 					}
 				}
 				service.Unlock()
