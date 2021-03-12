@@ -291,6 +291,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 		return nil
 	}
 
+	// possible ip values
 	if ip == "" {
 		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty, spec: %+v", setName, spec)
 	}
@@ -298,7 +299,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 	// check if the set exists, ignore the type of the set being added if it exists since the only purpose is to see if it's created or not
 	exists, _ := ipsMgr.SetExists(setName)
 
-	if exists {
+	if !exists {
 		if err := ipsMgr.CreateSet(setName, append([]string{spec})); err != nil {
 			return err
 		}

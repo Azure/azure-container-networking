@@ -200,7 +200,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 		t.Fatalf("TestAddNamespaceLabel failed @ npMgr.UpdateNamespace with err %v", err)
 	}
 
-	if !reflect.DeepEqual(npMgr.nsMap["ns-"+newNsObj.Name].labelsMap, newNsObj.ObjectMeta.Labels) {
+	if !reflect.DeepEqual(npMgr.NsMap["ns-"+newNsObj.Name].LabelsMap, newNsObj.ObjectMeta.Labels) {
 		t.Fatalf("TestAddNamespaceLabel failed @ npMgr.nsMap labelMap check")
 	}
 
