@@ -182,6 +182,7 @@ jobs:
     condition: always()
   - publish: $(System.DefaultWorkingDirectory)/npmLogs
     condition: always()
+    artifact: NpmLogs
 
 - job: Clean_up
   displayName: "Cleanup"
