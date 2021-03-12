@@ -217,6 +217,11 @@ func TestCreateSet(t *testing.T) {
 		t.Errorf("AddToSet failed @ ipsMgr.CreateSet when set port")
 	}
 
+	// should fail when attempting to entry to set with no ip and port/protocol specified
+	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err == nil {
+		t.Errorf("Expected AddToSet failed @ ipsMgr.CreateSet when set port specified without ip: %+v", err)
+	}
+
 	newGaugeVal, err3 := promutil.GetValue(metrics.NumIPSets)
 	newCountVal, err4 := promutil.GetCountValue(metrics.AddIPSetExecTime)
 	testSet1Count, err5 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSet1Name))
