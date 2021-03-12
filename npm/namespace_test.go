@@ -193,15 +193,15 @@ func TestAddNamespaceLabel(t *testing.T) {
 
 	npMgr.Lock()
 	if err := npMgr.AddNamespace(oldNsObj); err != nil {
-		t.Errorf("TestAddNamespaceLabel failed @ npMgr.AddNamespace")
+		t.Fatalf("TestAddNamespaceLabel failed @ npMgr.AddNamespace with err %v", err)
 	}
 
 	if err := npMgr.UpdateNamespace(oldNsObj, newNsObj); err != nil {
-		t.Errorf("TestAddNamespaceLabel failed @ npMgr.UpdateNamespace")
+		t.Fatalf("TestAddNamespaceLabel failed @ npMgr.UpdateNamespace with err %v", err)
 	}
 
-	if !reflect.DeepEqual(npMgr.NsMap["ns-"+newNsObj.Name].LabelsMap, newNsObj.ObjectMeta.Labels) {
-		t.Errorf("TestAddNamespaceLabel failed @ npMgr.nsMap labelMap check")
+	if !reflect.DeepEqual(npMgr.nsMap["ns-"+newNsObj.Name].labelsMap, newNsObj.ObjectMeta.Labels) {
+		t.Fatalf("TestAddNamespaceLabel failed @ npMgr.nsMap labelMap check")
 	}
 
 	npMgr.Unlock()
