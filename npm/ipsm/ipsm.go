@@ -53,31 +53,42 @@ func NewIpsetManager() *IpsetManager {
 }
 
 // Exists checks if an element exists in setMap/listMap.
-func (ipsMgr *IpsetManager) Exists(key string, val string, kind string) bool {
-	m := ipsMgr.SetMap
+func (ipsMgr *IpsetManager) Exists(listName string, setName string, kind string) bool {
+	m := ipsMgr.setMap
 	if kind == util.IpsetSetListFlag {
 		m = ipsMgr.ListMap
 	}
 
-	if _, exists := m[key]; !exists {
+	if _, exists := m[listName]; !exists {
 		return false
 	}
 
-	if _, exists := m[key].elements[val]; !exists {
+	if _, exists := m[listName].elements[setName]; !exists {
 		return false
 	}
 
 	return true
 }
 
-// SetExists checks whehter an ipset exists.
-func (ipsMgr *IpsetManager) SetExists(setName, kind string) bool {
-	m := ipsMgr.SetMap
-	if kind == util.IpsetSetListFlag {
-		m = ipsMgr.ListMap
+// SetExists checks if an ipset exists, and returns the type
+func (ipsMgr *IpsetManager) SetExists(setName string) (bool, string, error) {
+	val, exists := ipsMgr.setMap[setName]
+	if exists {
+		if val == nil {
+			return exists, util.IpsetSetGenericFlag, nil
+		}
+		return exists, "", fmt.Errorf("State mismatch, set [%s] exists in ipsMgr.SetMap, but value is nil")
 	}
-	_, exists := m[setName]
-	return exists
+
+	val, exists = ipsMgr.listMap[setName]
+	if exists {
+		if val == nil {
+			return exists, util.IpsetSetListFlag, nil
+		}
+		return exists, "", fmt.Errorf("State mismatch, set [%s] exists in ipsMgr.ListMap, but value is nil")
+	}
+
+	return exists, "", nil
 }
 
 func isNsSet(setName string) bool {
@@ -129,22 +140,43 @@ func (ipsMgr *IpsetManager) DeleteList(listName string) error {
 }
 
 // AddToList inserts an ipset to an ipset list.
-func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
+func (ipsMgr *IpsetManager) AddToList(listName string, setName string, setkind string) error {
 	if listName == setName {
 		return nil
 	}
 
-	// ensure set being added to list exists
-	if !ipsMgr.SetExists(setName, util.IpsetSetListFlag) {
-		return fmt.Errorf("Set does not exist [%s] when attempting to add to list [%s]", setName, listName)
+	//Check if list being added exists in the listmap, if it exists we don't care about the set type
+	exists, _, err := ipsMgr.SetExists(setName)
+	if err != nil {
+		return fmt.Errorf("Failed to check if set name [%s] exists in AddToList, error: %v", err)
 	}
 
+	// if set does not exist, then return because the ipset call will fail due to set not existing
+	if !exists {
+		return fmt.Errorf("Set [%s] does not exist when attempting to add to list [%s]", setName, listName)
+	}
+
+	// Check if the list that is being added to exists
+	exists, listtype, err := ipsMgr.SetExists(listName)
+	if err != nil {
+		return fmt.Errorf("Failed to check if set name [%s] exists in AddToList, error: %v", err)
+	}
+
+	// Make sure that set returned is of list type, otherwise return because we can't add a set to a non setlist type
+	if listtype != util.IpsetSetListFlag {
+		return fmt.Errorf("Failed to add set [%s] to list [%s], but list is of type [%s]", setName, listName)
+	}
+
+	// if the list doesn't exist, create it
+	if !exists {
+		if err := ipsMgr.CreateList(listName); err != nil {
+			return err
+		}
+	}
+
+	// check if set already exists in the list
 	if ipsMgr.Exists(listName, setName, util.IpsetSetListFlag) {
 		return nil
-	}
-
-	if err := ipsMgr.CreateList(listName); err != nil {
-		return err
 	}
 
 	entry := &ipsEntry{
@@ -153,9 +185,9 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		spec:          []string{util.GetHashedName(setName)},
 	}
 
+	// add set to list
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset rules. rule: %+v", entry)
-		return err
+		return fmt.Errorf("Error: failed to create ipset rules. rule: %+v, error: %v", entry, err)
 	}
 
 	ipsMgr.ListMap[listName].elements[setName] = ""
@@ -277,11 +309,18 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty, spec: %+v", setName, spec)
 	}
 
-	if !ipsMgr.SetExists(setName, spec) {
+	// check if the set exists, ignore the type of the set being added if it exists since the only purpose is to see if it's created or not
+	exists, _, err := ipsMgr.SetExists(setName)
+	if err != nil {
+		return fmt.Errorf("Failed to add ip [%s] when checking if set [%s] exists, with err: %v", ip, setName, err)
+	}
+
+	if exists {
 		if err := ipsMgr.CreateSet(setName, append([]string{spec})); err != nil {
 			return err
 		}
 	}
+
 	var resultSpec []string
 	if strings.Contains(ip, util.IpsetNomatch) {
 		ip = strings.Trim(ip, util.IpsetNomatch)
