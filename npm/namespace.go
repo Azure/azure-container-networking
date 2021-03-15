@@ -66,7 +66,7 @@ func (npMgr *NetworkPolicyManager) InitAllNsList() error {
 		}
 
 		if err := allNs.IpsMgr.AddToList(util.KubeAllNamespacesFlag, ns); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[InitAllNsList] Error: failed to add namespace set %s to ipset list %s", ns, util.KubeAllNamespacesFlag)
+			metrics.SendErrorLogAndMetric(util.NSID, "[InitAllNsList] Error: failed to add namespace set %s to ipset list %s with err: %v", ns, util.KubeAllNamespacesFlag, err)
 			return err
 		}
 	}
@@ -83,7 +83,7 @@ func (npMgr *NetworkPolicyManager) UninitAllNsList() error {
 		}
 
 		if err := allNs.IpsMgr.DeleteFromList(util.KubeAllNamespacesFlag, ns); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[UninitAllNsList] Error: failed to delete namespace set %s from list %s", ns, util.KubeAllNamespacesFlag)
+			metrics.SendErrorLogAndMetric(util.NSID, "[UninitAllNsList] Error: failed to delete namespace set %s from list %s with err: %v", ns, util.KubeAllNamespacesFlag, err)
 			return err
 		}
 	}
@@ -101,12 +101,12 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	ipsMgr := npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	// Create ipset for the namespace.
 	if err = ipsMgr.CreateSet(nsName, append([]string{util.IpsetNetHashFlag})); err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to create ipset for namespace %s.", nsName)
+		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to create ipset for namespace %s with err: %v", nsName, err)
 		return err
 	}
 
 	if err = ipsMgr.AddToList(util.KubeAllNamespacesFlag, nsName); err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to add %s to all-namespace ipset list.", nsName)
+		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to add %s to all-namespace ipset list with err: %v", nsName, err)
 		return err
 	}
 
@@ -116,21 +116,21 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 		labelKey := util.GetNSNameWithPrefix(nsLabelKey)
 		log.Logf("Adding namespace %s to ipset list %s", nsName, labelKey)
 		if err = ipsMgr.AddToList(labelKey, nsName); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to add namespace %s to ipset list %s", nsName, labelKey)
+			metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to add namespace %s to ipset list %s with err: %v", nsName, labelKey, err)
 			return err
 		}
 
 		label := util.GetNSNameWithPrefix(nsLabelKey + ":" + nsLabelVal)
 		log.Logf("Adding namespace %s to ipset list %s", nsName, label)
 		if err = ipsMgr.AddToList(label, nsName); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to add namespace %s to ipset list %s", nsName, label)
+			metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to add namespace %s to ipset list %s with err: %v", nsName, label, err)
 			return err
 		}
 	}
 
 	ns, err := newNs(nsName)
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to create namespace %s", nsName)
+		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to create namespace %s with err: %v", nsName, err)
 	}
 	setResourceVersion(ns, nsObj.GetObjectMeta().GetResourceVersion())
 
@@ -210,7 +210,7 @@ func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, n
 		labelKey := util.GetNSNameWithPrefix(nsLabelVal)
 		log.Logf("Deleting namespace %s from ipset list %s", oldNsNs, labelKey)
 		if err = ipsMgr.DeleteFromList(labelKey, oldNsNs); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to delete namespace %s from ipset list %s", oldNsNs, labelKey)
+			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", oldNsNs, labelKey, err)
 			return err
 		}
 	}
@@ -220,7 +220,7 @@ func (npMgr *NetworkPolicyManager) UpdateNamespace(oldNsObj *corev1.Namespace, n
 		labelKey := util.GetNSNameWithPrefix(nsLabelVal)
 		log.Logf("Adding namespace %s to ipset list %s", oldNsNs, labelKey)
 		if err = ipsMgr.AddToList(labelKey, oldNsNs); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to add namespace %s to ipset list %s", oldNsNs, labelKey)
+			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to add namespace %s to ipset list %s with err: %v", oldNsNs, labelKey, err)
 			return err
 		}
 	}
@@ -253,27 +253,27 @@ func (npMgr *NetworkPolicyManager) DeleteNamespace(nsObj *corev1.Namespace) erro
 		labelKey := util.GetNSNameWithPrefix(nsLabelKey)
 		log.Logf("Deleting namespace %s from ipset list %s", nsName, labelKey)
 		if err = ipsMgr.DeleteFromList(labelKey, nsName); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s", nsName, labelKey)
+			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", nsName, labelKey, err)
 			return err
 		}
 
 		label := util.GetNSNameWithPrefix(nsLabelKey + ":" + nsLabelVal)
 		log.Logf("Deleting namespace %s from ipset list %s", nsName, label)
 		if err = ipsMgr.DeleteFromList(label, nsName); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s", nsName, label)
+			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", nsName, label, err)
 			return err
 		}
 	}
 
 	// Delete the namespace from all-namespace ipset list.
 	if err = ipsMgr.DeleteFromList(util.KubeAllNamespacesFlag, nsName); err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s", nsName, util.KubeAllNamespacesFlag)
+		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", nsName, util.KubeAllNamespacesFlag, err)
 		return err
 	}
 
 	// Delete ipset for the namespace.
 	if err = ipsMgr.DeleteSet(nsName); err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete ipset for namespace %s.", nsName)
+		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete ipset for namespace %s with err: %v", nsName, err)
 		return err
 	}
 
