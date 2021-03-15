@@ -398,8 +398,7 @@ func TestGetNetworkPolicyKey(t *testing.T) {
 
 	netpolKey := GetNetworkPolicyKey(npObj)
 
-	// 2 characters are /
-	if len(netpolKey) <= 2 {
+	if netpolKey == "" {
 		t.Errorf("TestGetNetworkPolicyKey failed @ netpolKey length check %s", netpolKey)
 	}
 
