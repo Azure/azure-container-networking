@@ -5,7 +5,6 @@ package ipsm
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"regexp"
@@ -300,10 +299,6 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 	ipDetails := strings.Split(ip, ",")
 	if len(ipDetails) > 0 && ipDetails[0] == "" {
 		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty, spec: %+v", setName, spec)
-	}
-
-	if ipcheck := net.ParseIP(ipDetails[0]); ipcheck == nil {
-		return fmt.Errorf("Failed to parse ip [%s], not a valid ip format, full ip value: [%s]", ipDetails[0], ip)
 	}
 
 	// check if the set exists, ignore the type of the set being added if it exists since the only purpose is to see if it's created or not

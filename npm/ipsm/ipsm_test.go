@@ -87,10 +87,6 @@ func TestAddToList(t *testing.T) {
 	if err := ipsMgr.AddToList("test-list", "test-set"); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.AddToList")
 	}
-
-	if err := ipsMgr.AddToList("", ""); err != nil {
-		t.Errorf("TestAddToList failed @ ipsMgr.AddToList when set doesn't exist")
-	}
 }
 
 func TestDeleteFromList(t *testing.T) {
@@ -199,37 +195,22 @@ func TestCreateSet(t *testing.T) {
 
 	testSet1Name := "test-set"
 	if err := ipsMgr.CreateSet(testSet1Name, []string{util.IpsetNetHashFlag}); err != nil {
-		t.Fatalf("TestCreateSet failed @ ipsMgr.CreateSet")
+		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet")
 	}
 
 	testSet2Name := "test-set-with-maxelem"
 	spec := append([]string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum})
 	if err := ipsMgr.CreateSet(testSet2Name, spec); err != nil {
-		t.Fatalf("TestCreateSet failed @ ipsMgr.CreateSet when set maxelem")
+		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when set maxelem")
 	}
 
 	testSet3Name := "test-set-with-port"
 	spec = append([]string{util.IpsetIPPortHashFlag})
 	if err := ipsMgr.CreateSet(testSet3Name, spec); err != nil {
-		t.Fatalf("TestCreateSet failed @ ipsMgr.CreateSet when creating port set")
+		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when creating port set")
 	}
 	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err != nil {
-		t.Fatalf("AddToSet failed @ ipsMgr.CreateSet when set port")
-	}
-
-	// should fail when attempting to entry to set with no ip and port/protocol specified
-	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err == nil {
-		t.Fatalf("Expected AddToSet failed @ ipsMgr.CreateSet when set port specified without ip: %+v", err)
-	}
-
-	// should fail when attempting to entry to set with no ip and port/protocol specified
-	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,", ""), util.IpsetIPPortHashFlag, "0"); err == nil {
-		t.Fatalf("Expected AddToSet failed @ ipsMgr.CreateSet when set no port specified and no ip: %+v", err)
-	}
-
-	// should fail when attempting to entry to set with no ip entry that is passed is not a real ip type
-	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,", "notarealip"), util.IpsetIPPortHashFlag, "0"); err == nil {
-		t.Fatalf("Expected AddToSet failed @ ipsMgr.CreateSet when invalid ip is supplied: %+v", err)
+		t.Errorf("AddToSet failed @ ipsMgr.CreateSet when set port")
 	}
 
 	newGaugeVal, err3 := promutil.GetValue(metrics.NumIPSets)
@@ -240,13 +221,13 @@ func TestCreateSet(t *testing.T) {
 	entryCount, err8 := promutil.GetValue(metrics.NumIPSetEntries)
 	promutil.NotifyIfErrors(t, err1, err2, err3, err4, err5, err6, err7, err8)
 	if newGaugeVal != gaugeVal+3 {
-		t.Fatalf("Change in ipset number didn't register in Prometheus")
+		t.Errorf("Change in ipset number didn't register in Prometheus")
 	}
 	if newCountVal != countVal+3 {
-		t.Fatalf("Execution time didn't register in Prometheus")
+		t.Errorf("Execution time didn't register in Prometheus")
 	}
 	if testSet1Count != 0 || testSet2Count != 0 || testSet3Count != 1 || entryCount != 1 {
-		t.Fatalf("Prometheus IPSet count has incorrect number of entries")
+		t.Errorf("Prometheus IPSet count has incorrect number of entries")
 	}
 }
 
@@ -290,34 +271,29 @@ func TestAddToSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
 	ipsMgr := NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestAddToSet failed @ ipsMgr.Save")
+		t.Fatalf("TestAddToSet failed @ ipsMgr.Save")
 	}
 
 	defer func() {
 		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestAddToSet failed @ ipsMgr.Restore")
+			t.Fatalf("TestAddToSet failed @ ipsMgr.Restore")
 		}
 	}()
 
 	testSetName := "test-set"
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
-		t.Errorf("TestAddToSet failed @ ipsMgr.AddToSet")
+		t.Fatalf("TestAddToSet failed @ ipsMgr.AddToSet")
 	}
 
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4/nomatch", util.IpsetNetHashFlag, ""); err != nil {
-		t.Errorf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet")
-	}
-
-	// expect to fail when ip being added is empty
-	if err := ipsMgr.AddToSet(testSetName, "", util.IpsetNetHashFlag, ""); err == nil {
-		t.Errorf("TestAddToSet failed @ ipsMgr.AddToSet when IP is empty")
+		t.Fatalf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet %v", err)
 	}
 
 	testSetCount, err1 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSetName))
 	entryCount, err2 := promutil.GetValue(metrics.NumIPSetEntries)
 	promutil.NotifyIfErrors(t, err1, err2)
 	if testSetCount != 2 || entryCount != 2 {
-		t.Errorf("Prometheus IPSet count has incorrect number of entries")
+		t.Fatalf("Prometheus IPSet count has incorrect number of entries, testSetCount %d, entryCount %d", testSetCount, entryCount)
 	}
 }
 
