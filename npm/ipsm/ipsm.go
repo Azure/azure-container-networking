@@ -183,6 +183,27 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 
 // DeleteFromList removes an ipset to an ipset list.
 func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) error {
+
+	//Check if list being added exists in the listmap, if it exists we don't care about the set type
+	exists, _ := ipsMgr.SetExists(setName)
+
+	// if set does not exist, then return because the ipset call will fail due to set not existing
+	if !exists {
+		return fmt.Errorf("Set [%s] does not exist when attempting to delete from list [%s]", setName, listName)
+	}
+
+	//Check if list being added exists in the listmap, if it exists we don't care about the set type
+	exists, listtype := ipsMgr.SetExists(listName)
+
+	// if set does not exist, then return because the ipset call will fail due to set not existing
+	if !exists {
+		return fmt.Errorf("Set [%s] does not exist when attempting to add to list [%s]", setName, listName)
+	}
+
+	if listtype != util.IpsetSetListFlag {
+		return fmt.Errorf("Set [%s] is of the wrong type when attempting to delete list [%s], actual type [%s]", setName, listName, listtype)
+	}
+
 	if _, exists := ipsMgr.ListMap[listName]; !exists {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "ipset list with name %s not found", listName)
 		return nil

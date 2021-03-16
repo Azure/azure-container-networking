@@ -134,7 +134,17 @@ func TestDeleteFromList(t *testing.T) {
 
 	// Delete set from list and validate set is not in list anymore.
 	if err := ipsMgr.DeleteFromList(listName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList")
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
+	}
+
+	// Delete set from list and validate set is not in list anymore.
+	if err := ipsMgr.DeleteFromList(listName, "nonexistentsetname"); err == nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
+	}
+
+	// Delete set from list, but list isn't of list type
+	if err := ipsMgr.DeleteFromList(setName, setName); err == nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
 	}
 
 	entry = &ipsEntry{
