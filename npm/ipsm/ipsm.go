@@ -368,6 +368,16 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
 		return nil
 	}
 
+	// possible formats
+	//192.168.0.1
+	//192.168.0.1,tcp:25227
+	// todo: handle ip and port with protocol, plus just ip
+	// always guaranteed to have ip, not guaranteed to have port + protocol
+	ipDetails := strings.Split(ip, ",")
+	if len(ipDetails) > 0 && ipDetails[0] == "" {
+		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty", setName)
+	}
+
 	if _, exists := ipsMgr.SetMap[setName].elements[ip]; exists {
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
 		cachedPodUid := ipSet.elements[ip]
