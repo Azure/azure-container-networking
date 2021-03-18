@@ -177,12 +177,6 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 		return nil
 	}
 
-	// K8s categorizes Succeeded abd Failed pods be terminated and will not restart them
-	// So NPM will ignorer adding these pods
-	if podObj.Status.Phase == v1.PodSucceeded || podObj.Status.Phase == v1.PodFailed {
-		return nil
-	}
-
 	npmPodObj, podErr := newNpmPod(podObj)
 	if podErr != nil {
 		metrics.SendErrorLogAndMetric(util.PodID, "[AddPod] Error: failed to create namespace %s, %+v with err %v", podObj.ObjectMeta.Name, podObj, podErr)
@@ -203,6 +197,13 @@ func (npMgr *NetworkPolicyManager) AddPod(podObj *corev1.Pod) error {
 	)
 
 	log.Logf("POD CREATING: [%s%s/%s/%s%+v%s]", podUID, podNs, podName, podNodeName, podLabels, podIP)
+
+	// K8s categorizes Succeeded abd Failed pods be terminated and will not restart them
+	// So NPM will ignorer adding these pods
+	if podObj.Status.Phase == v1.PodSucceeded || podObj.Status.Phase == v1.PodFailed {
+		log.Logf("Skipping pod, pod marked as %+v: [%s%s/%s/%s%+v%s]", podObj.Status.Phase, podUID, podNs, podName, podNodeName, podLabels, podIP)
+		return nil
+	}
 
 	if podKey == "" {
 		err = fmt.Errorf("[AddPod] Error: podKey is empty for %s pod in %s with UID %s", podName, podNs, podUID)
