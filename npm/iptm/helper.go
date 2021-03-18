@@ -10,6 +10,7 @@ import (
 func getAllChainsAndRules() [][]string {
 	funcList := []func() [][]string{
 		getAzureNPMChainRules,
+		getAzureNPMAcceptChainRules,
 		getAzureNPMIngressChainRules,
 		getAzureNPMIngressPortChainRules,
 		getAzureNPMIngressFromChainRules,
@@ -96,6 +97,7 @@ func getAzureNPMChainRules() [][]string {
 	}
 }
 
+// getAzureNPMAcceptChainRules clears all marks and accepts packets
 func getAzureNPMAcceptChainRules() [][]string {
 	return [][]string{
 		{
