@@ -28,6 +28,7 @@ var (
 	// IptablesAzureChainList contains list of all NPM chains
 	IptablesAzureChainList = []string{
 		util.IptablesAzureChain,
+		util.IptablesAzureAcceptChain,
 		util.IptablesAzureIngressChain,
 		util.IptablesAzureEgressChain,
 		util.IptablesAzureIngressPortChain,
@@ -182,8 +183,15 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		return err
 	}
 
+	// For backward compatibility, we should be cleaning older chains
+	allAzureChains := append(
+		IptablesAzureChainList,
+		util.IptablesAzureTargetSetsChain,
+		util.IptablesAzureIngressWrongDropsChain,
+	)
+
 	iptMgr.OperationFlag = util.IptablesFlushFlag
-	for _, chain := range IptablesAzureChainList {
+	for _, chain := range allAzureChains {
 		entry := &IptEntry{
 			Chain: chain,
 		}
@@ -193,7 +201,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		}
 	}
 
-	for _, chain := range IptablesAzureChainList {
+	for _, chain := range allAzureChains {
 		if err := iptMgr.DeleteChain(chain); err != nil {
 			return err
 		}

@@ -131,6 +131,7 @@ func (npMgr *NetworkPolicyManager) AddNamespace(nsObj *corev1.Namespace) error {
 	ns, err := newNs(nsName)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to create namespace %s with err: %v", nsName, err)
+		return err
 	}
 	setResourceVersion(ns, nsObj.GetObjectMeta().GetResourceVersion())
 

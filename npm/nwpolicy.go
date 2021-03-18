@@ -103,6 +103,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		ns, err = newNs(npNs)
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: creating namespace %s with err: %v", npNs, err)
+			return err
 		}
 		npMgr.NsMap[npNs] = ns
 	}
@@ -145,6 +146,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		addedPolicy, err = addPolicy(oldPolicy, npObj)
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: adding policy %s to %s with err: %v", npName, oldPolicy.ObjectMeta.Name, err)
+			return err
 		}
 	}
 
@@ -161,21 +163,25 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		log.Logf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = ipsMgr.CreateSet(set, append([]string{util.IpsetNetHashFlag})); err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: creating ipset %s with err: %v", set, err)
+			return err
 		}
 	}
 	for _, set := range namedPorts {
 		log.Logf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = ipsMgr.CreateSet(set, append([]string{util.IpsetIPPortHashFlag})); err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: creating ipset named port %s with err: %v", set, err)
+			return err
 		}
 	}
 	for _, list := range lists {
 		if err = ipsMgr.CreateList(list); err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: creating ipset list %s with err: %v", list, err)
+			return err
 		}
 	}
 	if err = npMgr.InitAllNsList(); err != nil {
 		metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: initializing all-namespace ipset list with err: %v", err)
+		return err
 	}
 	createCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, ipsMgr)
 	createCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, ipsMgr)
@@ -183,6 +189,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	for _, iptEntry := range iptEntries {
 		if err = iptMgr.Add(iptEntry); err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: failed to apply iptables rule. Rule: %+v with err: %v", iptEntry, err)
+			return err
 		}
 	}
 
@@ -227,6 +234,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	for _, iptEntry := range iptEntries {
 		if err = iptMgr.Delete(iptEntry); err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[DeleteNetworkPolicy] Error: failed to apply iptables rule. Rule: %+v with err: %v", iptEntry, err)
+			return err
 		}
 	}
 
@@ -239,6 +247,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		deductedPolicy, err := deductPolicy(oldPolicy, npObj)
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[DeleteNetworkPolicy] Error: deducting policy %s from %s with err: %v", npName, oldPolicy.ObjectMeta.Name, err)
+			return err
 		}
 
 		if deductedPolicy == nil {
