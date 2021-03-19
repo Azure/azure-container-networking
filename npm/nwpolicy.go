@@ -156,8 +156,6 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		npMgr.ProcessedNpMap[npProcessedKey] = npObj
 	}
 
-	npMgr.RawNpMap[npKey] = npObj
-
 	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries = translatePolicy(npObj)
 	for _, set := range sets {
 		log.Logf("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
@@ -192,6 +190,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 			return err
 		}
 	}
+	npMgr.RawNpMap[npKey] = npObj
 
 	metrics.NumPolicies.Inc()
 	timer.StopAndRecord(metrics.AddPolicyExecTime)
@@ -241,8 +240,6 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 	removeCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, allNs.IpsMgr)
 	removeCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, allNs.IpsMgr)
 
-	delete(npMgr.RawNpMap, npKey)
-
 	if oldPolicy, oldPolicyExists := npMgr.ProcessedNpMap[npProcessedKey]; oldPolicyExists {
 		deductedPolicy, err := deductPolicy(oldPolicy, npObj)
 		if err != nil {
@@ -264,6 +261,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 			return err
 		}
 	}
+	delete(npMgr.RawNpMap, npKey)
 
 	metrics.NumPolicies.Dec()
 
