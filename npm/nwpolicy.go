@@ -179,6 +179,7 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 	}
 	if err = npMgr.InitAllNsList(); err != nil {
 		metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: initializing all-namespace ipset list with err: %v", err)
+		return err
 	}
 	createCidrsRule("in", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, ingressIPCidrs, ipsMgr)
 	createCidrsRule("out", npObj.ObjectMeta.Name, npObj.ObjectMeta.Namespace, egressIPCidrs, ipsMgr)
@@ -257,6 +258,7 @@ func (npMgr *NetworkPolicyManager) DeleteNetworkPolicy(npObj *networkingv1.Netwo
 		npMgr.isAzureNpmChainCreated = false
 		if err = iptMgr.UninitNpmChains(); err != nil {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[DeleteNetworkPolicy] Error: failed to uninitialize azure-npm chains with err: %s", err)
+			return err
 		}
 	}
 	delete(npMgr.RawNpMap, npKey)
