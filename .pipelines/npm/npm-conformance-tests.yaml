@@ -175,7 +175,7 @@ jobs:
     displayName: "Run Test Suite"
   - bash: |
       ls -al
-      npmPodList=`ksgp | grep npm | awk '{print $1}'`
+      npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
       mkdir -p $(System.DefaultWorkingDirectory)/npmLogs
       for npm in $npmPodList; do kubectl logs -n kube-system $npm > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
     displayName: "Gather NPM Logs"
