@@ -137,9 +137,15 @@ func TestMain(m *testing.M) {
 	}
 
 	if httpRestService != nil {
+		err = httpRestService.Init(&config)
+		if err != nil {
+			logger.Errorf("Failed to initialize HttpService, err:%v.\n", err)
+			return
+		}
+
 		err = httpRestService.Start(&config)
 		if err != nil {
-			logger.Errorf("Failed to start CNS, err:%v.\n", err)
+			logger.Errorf("Failed to start HttpService, err:%v.\n", err)
 			return
 		}
 	}

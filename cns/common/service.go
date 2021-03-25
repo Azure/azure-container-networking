@@ -24,6 +24,7 @@ type Service struct {
 
 // ServiceAPI defines base interface.
 type ServiceAPI interface {
+	Init(*ServiceConfig) error
 	Start(*ServiceConfig) error
 	Stop()
 	GetOption(string) interface{}

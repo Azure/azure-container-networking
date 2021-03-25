@@ -29,11 +29,14 @@ var (
 	// IptablesAzureChainList contains list of all NPM chains
 	IptablesAzureChainList = []string{
 		util.IptablesAzureChain,
+		util.IptablesAzureIngressChain,
+		util.IptablesAzureEgressChain,
 		util.IptablesAzureIngressPortChain,
 		util.IptablesAzureIngressFromChain,
 		util.IptablesAzureEgressPortChain,
 		util.IptablesAzureEgressToChain,
-		util.IptablesAzureTargetSetsChain,
+		util.IptablesAzureIngressDropsChain,
+		util.IptablesAzureEgressDropsChain,
 	}
 )
 

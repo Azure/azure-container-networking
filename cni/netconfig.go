@@ -47,6 +47,7 @@ type NetworkConfig struct {
 	Type                          string   `json:"type,omitempty"`
 	Mode                          string   `json:"mode,omitempty"`
 	Master                        string   `json:"master,omitempty"`
+	AdapterName                   string   `json:"adapterName,omitempty"`
 	Bridge                        string   `json:"bridge,omitempty"`
 	LogLevel                      string   `json:"logLevel,omitempty"`
 	LogTarget                     string   `json:"logTarget,omitempty"`

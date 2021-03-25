@@ -8,8 +8,10 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Masterminds/semver"
 	"k8s.io/apimachinery/pkg/version"
 )
@@ -69,26 +71,38 @@ func SortMap(m *map[string]string) ([]string, []string) {
 	return sortedKeys, sortedVals
 }
 
-// CompareMapDiff will compare two maps string[string] and returns
-// missing values in both
-func CompareMapDiff(orig map[string]string, new map[string]string) (map[string]string, map[string]string) {
-	notInOrig := make(map[string]string)
-	notInNew := make(map[string]string)
+// GetIPSetListFromLabels combine Labels into a single slice
+func GetIPSetListFromLabels(labels map[string]string) []string {
+	var (
+		ipsetList = []string{}
+	)
+	for labelKey, labelVal := range labels {
+		ipsetList = append(ipsetList, labelKey, labelKey+":"+labelVal)
+
+	}
+	return ipsetList
+}
+
+// GetIPSetListCompareLabels compares Labels and
+// returns a delete ipset list and add ipset list
+func GetIPSetListCompareLabels(orig map[string]string, new map[string]string) ([]string, []string) {
+	notInOrig := []string{}
+	notInNew := []string{}
 
 	for keyOrig, valOrig := range orig {
 		if valNew, ok := new[keyOrig]; ok {
 			if valNew != valOrig {
-				notInNew[keyOrig] = valOrig
-				notInOrig[keyOrig] = valNew
+				notInNew = append(notInNew, keyOrig+":"+valOrig)
+				notInOrig = append(notInOrig, keyOrig+":"+valNew)
 			}
 		} else {
-			notInNew[keyOrig] = valOrig
+			notInNew = append(notInNew, keyOrig, keyOrig+":"+valOrig)
 		}
 	}
 
 	for keyNew, valNew := range new {
 		if _, ok := orig[keyNew]; !ok {
-			notInOrig[keyNew] = valNew
+			notInOrig = append(notInOrig, keyNew, keyNew+":"+valNew)
 		}
 	}
 
@@ -237,4 +251,43 @@ func DropEmptyFields(s []string) []string {
 	}
 
 	return s
+}
+
+// GetNSNameWithPrefix returns Namespace name with ipset prefix
+func GetNSNameWithPrefix(nsName string) string {
+	return NamespacePrefix + nsName
+}
+
+// CompareResourceVersions take in two resource versions and returns true if new is greater than old
+func CompareResourceVersions(rvOld string, rvNew string) bool {
+	// Ignore oldRV error as we care about new RV
+	tempRvOld := ParseResourceVersion(rvOld)
+	tempRvnew := ParseResourceVersion(rvNew)
+	if tempRvnew > tempRvOld {
+		return true
+	}
+
+	return false
+}
+
+// CompareUintResourceVersions take in two resource versions as uint and returns true if new is greater than old
+func CompareUintResourceVersions(rvOld uint64, rvNew uint64) bool {
+	if rvNew > rvOld {
+		return true
+	}
+
+	return false
+}
+
+// ParseResourceVersion get uint64 version of ResourceVersion
+func ParseResourceVersion(rv string) uint64 {
+	if rv == "" {
+		return 0
+	}
+	rvInt, err := strconv.ParseUint(rv, 10, 64)
+	if err != nil {
+		log.Logf("Error: while parsing resource version to uint64 %s", rv)
+	}
+
+	return rvInt
 }

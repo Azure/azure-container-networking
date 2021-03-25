@@ -580,10 +580,10 @@ func TestIPAMMarkIPCountAsPending(t *testing.T) {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
 
-	// Try to release IP when no IP can be released. It should return error and ips will be nil
+	// Try to release IP when no IP can be released. It will not return error and return 0 IPs
 	ips, err = svc.MarkIPAsPendingRelease(1)
-	if err == nil || ips != nil {
-		t.Fatalf("We are expecting err and ips should be nil, however, return these IP %v", ips)
+	if err != nil || len(ips) != 0 {
+		t.Fatalf("We are not either expecting err [%v] or ips as non empty [%v]", err, ips)
 	}
 }
 

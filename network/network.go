@@ -57,6 +57,7 @@ type network struct {
 // NetworkInfo contains read-only information about a container network.
 type NetworkInfo struct {
 	MasterIfName                  string
+	AdapterName                   string
 	Id                            string
 	Mode                          string
 	Subnets                       []SubnetInfo

@@ -219,6 +219,11 @@ type IPConfigRequest struct {
 	OrchestratorContext json.RawMessage
 }
 
+func (i IPConfigRequest) String() string {
+	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, OrchestratorContext %s]",
+		i.DesiredIPAddress, string(i.OrchestratorContext))
+}
+
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
 	PodIpInfo PodIpInfo

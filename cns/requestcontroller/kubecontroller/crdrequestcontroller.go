@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
@@ -42,6 +43,9 @@ type crdRequestController struct {
 	CNSClient       cnsclient.APIClient
 	nodeName        string //name of node running this program
 	Reconciler      *CrdReconciler
+	initialized     bool
+	Started         bool
+	lock            sync.Mutex
 }
 
 // GetKubeConfig precedence
@@ -139,19 +143,37 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 	return &crdRequestController, nil
 }
 
+// InitRequestController will initialize/reconcile the CNS state
+func (crdRC *crdRequestController) InitRequestController() error {
+	logger.Printf("InitRequestController")
+
+	defer crdRC.lock.Unlock()
+	crdRC.lock.Lock()
+
+	if err := crdRC.initCNS(); err != nil {
+		logger.Errorf("[cns-rc] Error initializing cns state: %v", err)
+		return err
+	}
+
+	crdRC.initialized = true
+	return nil
+}
+
 // StartRequestController starts the Reconciler loop which watches for CRD status updates
 // Blocks until SIGINT or SIGTERM is received
 // Notifies exitChan when kill signal received
 func (crdRC *crdRequestController) StartRequestController(exitChan <-chan struct{}) error {
-	var (
-		err error
-	)
+	logger.Printf("StartRequestController")
 
-	logger.Printf("Initializing CNS state")
-	if err = crdRC.initCNS(); err != nil {
-		logger.Errorf("[cns-rc] Error initializing cns state: %v", err)
-		return err
+	crdRC.lock.Lock()
+	if crdRC.initialized != true {
+		crdRC.lock.Unlock()
+		return fmt.Errorf("Failed to start requestController, state is not initialized [%v]", crdRC)
 	}
+
+	// Setting the started state
+	crdRC.Started = true
+	crdRC.lock.Unlock()
 
 	logger.Printf("Starting reconcile loop")
 	if err := crdRC.mgr.Start(exitChan); err != nil {
@@ -164,6 +186,13 @@ func (crdRC *crdRequestController) StartRequestController(exitChan <-chan struct
 	}
 
 	return nil
+}
+
+// return if RequestController is started
+func (crdRC *crdRequestController) IsStarted() bool {
+	defer crdRC.lock.Unlock()
+	crdRC.lock.Lock()
+	return crdRC.Started
 }
 
 // InitCNS initializes cns by passing pods and a createnetworkcontainerrequest
@@ -242,7 +271,7 @@ func (crdRC *crdRequestController) initCNS() error {
 }
 
 // UpdateCRDSpec updates the CRD spec
-func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec nnc.NodeNetworkConfigSpec) error {
+func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec nnc.NodeNetworkConfigSpec)  error {
 	nodeNetworkConfig, err := crdRC.getNodeNetConfig(cntxt, crdRC.nodeName, k8sNamespace)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error getting CRD when updating spec %v", err)

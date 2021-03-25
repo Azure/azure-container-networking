@@ -62,8 +62,16 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 	return cnsIPConfigs
 }
 
+func (rc *RequestControllerFake) InitRequestController() error {
+	return nil
+}
+
 func (rc *RequestControllerFake) StartRequestController(exitChan <-chan struct{}) error {
 	return nil
+}
+
+func (rc *RequestControllerFake) IsStarted() bool {
+	return true
 }
 
 func (rc *RequestControllerFake) UpdateCRDSpec(cntxt context.Context, desiredSpec nnc.NodeNetworkConfigSpec) error {

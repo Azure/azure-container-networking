@@ -941,6 +941,12 @@ func startService() error {
 		file, _ := os.Create(cnsJsonFileName)
 		file.Close()
 
+		err = service.Init(&config)
+		if err != nil {
+			logger.Errorf("Failed to Init CNS, err:%v.\n", err)
+			return err
+		}
+
 		err = service.Start(&config)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)

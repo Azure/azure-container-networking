@@ -9,7 +9,7 @@ import (
 func TestGetAllChainsAndRules(t *testing.T) {
 	allChainsandRules := getAllChainsAndRules()
 
-	parentNpmRulesCount := 7
+	parentNpmRulesCount := 6
 
 	if len(allChainsandRules[0]) > 3 {
 		t.Errorf("TestGetAllChainsAndRules failed @ INGRESS target check")

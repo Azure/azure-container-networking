@@ -65,16 +65,21 @@ const (
 	IptablesCommentModuleFlag string = "comment"
 	IptablesCommentFlag       string = "--comment"
 	IptablesAddCommentFlag
-	IptablesAzureChain            string = "AZURE-NPM"
-	IptablesAzureKubeSystemChain  string = "AZURE-NPM-KUBE-SYSTEM"
-	IptablesAzureIngressPortChain string = "AZURE-NPM-INGRESS-PORT"
-	IptablesAzureIngressFromChain string = "AZURE-NPM-INGRESS-FROM"
-	IptablesAzureEgressPortChain  string = "AZURE-NPM-EGRESS-PORT"
-	IptablesAzureEgressToChain    string = "AZURE-NPM-EGRESS-TO"
-	IptablesAzureTargetSetsChain  string = "AZURE-NPM-TARGET-SETS"
-	IptablesKubeServicesChain     string = "KUBE-SERVICES"
-	IptablesForwardChain          string = "FORWARD"
-	IptablesInputChain            string = "INPUT"
+	IptablesAzureChain             string = "AZURE-NPM"
+	IptablesAzureKubeSystemChain   string = "AZURE-NPM-KUBE-SYSTEM"
+	IptablesAzureIngressChain      string = "AZURE-NPM-INGRESS"
+	IptablesAzureIngressPortChain  string = "AZURE-NPM-INGRESS-PORT"
+	IptablesAzureIngressFromChain  string = "AZURE-NPM-INGRESS-FROM"
+	IptablesAzureEgressChain       string = "AZURE-NPM-EGRESS"
+	IptablesAzureEgressPortChain   string = "AZURE-NPM-EGRESS-PORT"
+	IptablesAzureEgressToChain     string = "AZURE-NPM-EGRESS-TO"
+	IptablesKubeServicesChain      string = "KUBE-SERVICES"
+	IptablesForwardChain           string = "FORWARD"
+	IptablesInputChain             string = "INPUT"
+	IptablesAzureIngressDropsChain string = "AZURE-NPM-INRGESS-DROPS"
+	IptablesAzureEgressDropsChain  string = "AZURE-NPM-EGRESS-DROPS"
+	// Below chain exists only in NPM before v1.2.6
+	IptablesAzureTargetSetsChain string = "AZURE-NPM-TARGET-SETS"
 	// Below chains exists only for before Azure-NPM:v1.0.27
 	// and should be removed after a baking period.
 	IptablesAzureIngressFromNsChain  string = "AZURE-NPM-INGRESS-FROM-NS"
@@ -116,6 +121,7 @@ const (
 
 	IpsetUDPFlag  string = "udp:"
 	IpsetSCTPFlag string = "sctp:"
+	IpsetTCPFlag  string = "tcp:"
 
 	AzureNpmFlag   string = "azure-npm"
 	AzureNpmPrefix string = "azure-npm-"
@@ -127,6 +133,8 @@ const (
 
 	//Prefixes for ipsets
 	NamedPortIPSetPrefix string = "namedport:"
+
+	NamespacePrefix string = "ns-"
 )
 
 //NPM telemetry constants.

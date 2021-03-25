@@ -2,6 +2,7 @@ package npm
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -401,7 +402,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 
 	expectedIptIngressEntries := []*iptm.IptEntry{
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -441,7 +442,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 
 	expectedIptEgressEntries := []*iptm.IptEntry{
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureEgressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -481,7 +482,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 
 	expectedIptIngressEgressEntries := []*iptm.IptEntry{
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -508,7 +509,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureEgressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -837,11 +838,12 @@ func TestTranslateIngress(t *testing.T) {
 				util.GetHashedName("testNotIn:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
+				fmt.Sprintf("ALLOW-ALL-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace-TO-JUMP-TO-%s",
+					util.IptablesAzureIngressDropsChain),
 			},
 		},
 	}
@@ -1148,11 +1150,12 @@ func TestTranslateEgress(t *testing.T) {
 				util.GetHashedName("testNotIn:frontend"),
 				util.IptablesSrcFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureEgressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
+				fmt.Sprintf("ALLOW-ALL-FROM-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace-TO-JUMP-TO-%s",
+					util.IptablesAzureEgressDropsChain),
 			},
 		},
 	}
@@ -1311,16 +1314,16 @@ func TestAllowBackendToFrontend(t *testing.T) {
 				util.GetHashedName("app:backend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
 				"ALLOW-ALL-TO-app:backend-IN-ns-testnamespace-TO-JUMP-TO-" +
-					util.IptablesAzureTargetSetsChain,
+					util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -1543,16 +1546,16 @@ func TestNamespaceToFrontend(t *testing.T) {
 				util.GetHashedName("app:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
 				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" +
-					util.IptablesAzureTargetSetsChain,
+					util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -1678,16 +1681,16 @@ func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
 				util.GetHashedName("app:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
 				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" +
-					util.IptablesAzureTargetSetsChain,
+					util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -1828,16 +1831,16 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 				util.GetHashedName("app:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
 				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" +
-					util.IptablesAzureTargetSetsChain,
+					util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -2014,16 +2017,16 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 				util.GetHashedName("k1:v1"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
 				"ALLOW-ALL-TO-app:frontend-AND-!k0-AND-k1:v0-AND-k1:v1-IN-ns-testnamespace-TO-JUMP-TO-" +
-					util.IptablesAzureTargetSetsChain,
+					util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -2174,16 +2177,16 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 				util.GetHashedName("app:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
 				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" +
-					util.IptablesAzureTargetSetsChain,
+					util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -2357,15 +2360,15 @@ func TestAllowBackendToFrontendPort8000(t *testing.T) {
 				util.GetHashedName("app:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
+				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -2474,15 +2477,15 @@ func TestAllowBackendToFrontendWithMissingPort(t *testing.T) {
 				util.GetHashedName("app:frontend"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
+				"ALLOW-ALL-TO-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -2681,15 +2684,15 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 				util.GetHashedName("team:aks"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-app:k8s-AND-team:aks-IN-ns-acn-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
+				"ALLOW-ALL-TO-app:k8s-AND-team:aks-IN-ns-acn-TO-JUMP-TO-" + util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -2828,11 +2831,12 @@ func TestAllowAllFromAppBackend(t *testing.T) {
 				util.GetHashedName("app:backend"),
 				util.IptablesSrcFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureEgressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-app:backend-IN-ns-testnamespace-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
+				fmt.Sprintf("ALLOW-ALL-FROM-app:backend-IN-ns-testnamespace-TO-JUMP-TO-%s",
+					util.IptablesAzureEgressDropsChain),
 			},
 		},
 	}
@@ -3031,15 +3035,15 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 				util.GetHashedName("app:frontend"),
 				util.IptablesSrcFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureEgressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
+				"ALLOW-ALL-FROM-app:frontend-IN-ns-testnamespace-TO-JUMP-TO-" + util.IptablesAzureEgressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureEgressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -3263,11 +3267,11 @@ func TestComplexPolicy(t *testing.T) {
 				util.GetHashedName("role:db"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
+				"ALLOW-ALL-TO-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureIngressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
@@ -3339,15 +3343,15 @@ func TestComplexPolicy(t *testing.T) {
 				util.GetHashedName("role:db"),
 				util.IptablesSrcFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureEgressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureTargetSetsChain,
+				"ALLOW-ALL-FROM-role:db-IN-ns-default-TO-JUMP-TO-" + util.IptablesAzureEgressDropsChain,
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -3368,7 +3372,7 @@ func TestComplexPolicy(t *testing.T) {
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureEgressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -3535,7 +3539,7 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 
 	nonKubeSystemEntries := []*iptm.IptEntry{
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -3685,11 +3689,12 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				util.GetHashedName("testIn:pod-A"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-app:test-AND-testIn:pod-A-IN-ns-default-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
+				fmt.Sprintf("ALLOW-ALL-TO-app:test-AND-testIn:pod-A-IN-ns-default-TO-JUMP-TO-%s",
+					util.IptablesAzureIngressDropsChain),
 			},
 		},
 		&iptm.IptEntry{
@@ -3773,15 +3778,16 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 				util.GetHashedName("testIn:pod-A"),
 				util.IptablesSrcFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureEgressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-app:test-AND-testIn:pod-A-IN-ns-default-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
+				fmt.Sprintf("ALLOW-ALL-FROM-app:test-AND-testIn:pod-A-IN-ns-default-TO-JUMP-TO-%s",
+					util.IptablesAzureEgressDropsChain),
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -3807,7 +3813,7 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureEgressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,
@@ -3925,15 +3931,16 @@ func TestNamedPorts(t *testing.T) {
 				util.GetHashedName("app:server"),
 				util.IptablesDstFlag,
 				util.IptablesJumpFlag,
-				util.IptablesAzureTargetSetsChain,
+				util.IptablesAzureIngressDropsChain,
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-app:server-IN-ns-test-TO-JUMP-TO-AZURE-NPM-TARGET-SETS",
+				fmt.Sprintf("ALLOW-ALL-TO-app:server-IN-ns-test-TO-JUMP-TO-%s",
+					util.IptablesAzureIngressDropsChain),
 			},
 		},
 		&iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: []string{
 				util.IptablesModuleFlag,
 				util.IptablesSetModuleFlag,

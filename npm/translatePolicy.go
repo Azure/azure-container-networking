@@ -799,13 +799,13 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		entry.Specs = append(
 			entry.Specs,
 			util.IptablesJumpFlag,
-			util.IptablesAzureTargetSetsChain,
+			util.IptablesAzureIngressDropsChain,
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
 			"ALLOW-ALL-TO-"+
 				targetSelectorComment+
-				"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
+				"-TO-JUMP-TO-"+util.IptablesAzureIngressDropsChain,
 		)
 		entries = append(entries, entry)
 	} else if addedIngressFromEntry {
@@ -834,13 +834,13 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		entry.Specs = append(
 			entry.Specs,
 			util.IptablesJumpFlag,
-			util.IptablesAzureTargetSetsChain,
+			util.IptablesAzureIngressDropsChain,
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
 			"ALLOW-ALL-TO-"+
 				targetSelectorComment+
-				"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
+				"-TO-JUMP-TO-"+util.IptablesAzureIngressDropsChain,
 		)
 		entries = append(entries, entry)
 	}
@@ -1491,13 +1491,13 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 		entry.Specs = append(
 			entry.Specs,
 			util.IptablesJumpFlag,
-			util.IptablesAzureTargetSetsChain,
+			util.IptablesAzureEgressDropsChain,
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
 			"ALLOW-ALL-FROM-"+
 				targetSelectorComment+
-				"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
+				"-TO-JUMP-TO-"+util.IptablesAzureEgressDropsChain,
 		)
 		entries = append(entries, entry)
 	} else if addedEgressToEntry {
@@ -1526,13 +1526,13 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 		entry.Specs = append(
 			entry.Specs,
 			util.IptablesJumpFlag,
-			util.IptablesAzureTargetSetsChain,
+			util.IptablesAzureEgressDropsChain,
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
 			"ALLOW-ALL-FROM-"+
 				targetSelectorComment+
-				"-TO-JUMP-TO-"+util.IptablesAzureTargetSetsChain,
+				"-TO-JUMP-TO-"+util.IptablesAzureEgressDropsChain,
 		)
 		entries = append(entries, entry)
 	}
@@ -1554,7 +1554,7 @@ func getDefaultDropEntries(ns string, targetSelector metav1.LabelSelector, hasIn
 
 	if hasIngress {
 		entry := &iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureIngressDropsChain,
 			Specs: append([]string(nil), targetSelectorIngressIptEntrySpec...),
 		}
 		entry.Specs = append(
@@ -1571,7 +1571,7 @@ func getDefaultDropEntries(ns string, targetSelector metav1.LabelSelector, hasIn
 
 	if hasEgress {
 		entry := &iptm.IptEntry{
-			Chain: util.IptablesAzureTargetSetsChain,
+			Chain: util.IptablesAzureEgressDropsChain,
 			Specs: append([]string(nil), targetSelectorEgressIptEntrySpec...),
 		}
 		entry.Specs = append(

@@ -5,9 +5,12 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Azure/azure-container-networking/cns/ipampoolmonitor"
+	"github.com/Azure/azure-container-networking/cns/requestcontroller"
+	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubecontroller"
+	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,11 +20,9 @@ import (
 	"syscall"
 	"time"
 
-	localtls "github.com/Azure/azure-container-networking/server/tls"
-
-	"github.com/Azure/azure-container-networking/cns/ipampoolmonitor"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 
+	"context"
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
@@ -32,8 +33,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubecontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -483,7 +482,7 @@ func main() {
 		}
 	}
 
-	// Start CNS.
+	logger.Printf("[Azure CNS] Initialize HTTPRestService")
 	if httpRestService != nil {
 		if cnsconfig.UseHTTPS {
 			config.TlsSettings = localtls.TlsSettings{
@@ -493,6 +492,23 @@ func main() {
 			}
 		}
 
+		err = httpRestService.Init(&config)
+		if err != nil {
+			logger.Errorf("Failed to init HTTPService, err:%v.\n", err)
+			return
+		}
+	}
+
+	// Initialze state in if CNS is running in CRD mode
+	// State must be initialized before we start HTTPRestService
+	if config.ChannelMode == cns.CRD {
+		requestControllerStopChannel := make(chan struct{})
+		defer close(requestControllerStopChannel)
+		IniitalizeCRDState(httpRestService, cnsconfig, requestControllerStopChannel)
+	}
+
+	logger.Printf("[Azure CNS] Start HTTP listener")
+	if (httpRestService != nil) {
 		err = httpRestService.Start(&config)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
@@ -536,66 +552,6 @@ func main() {
 				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
 			}
 		}(privateEndpoint, infravnet, nodeID)
-	} else if config.ChannelMode == cns.CRD {
-		var requestController requestcontroller.RequestController
-
-		logger.Printf("[Azure CNS] Starting request controller")
-
-		kubeConfig, err := kubecontroller.GetKubeConfig()
-		if err != nil {
-			logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
-			return
-		}
-
-		//convert interface type to implementation type
-		httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
-		if !ok {
-			logger.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v", httpRestService)
-			return
-		}
-
-		// Set orchestrator type
-		orchestrator := cns.SetOrchestratorTypeRequest{
-			OrchestratorType: cns.KubernetesCRD,
-		}
-		httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
-
-		// Get crd implementation of request controller
-		requestController, err = kubecontroller.NewCrdRequestController(httpRestServiceImplementation, kubeConfig)
-		if err != nil {
-			logger.Errorf("[Azure CNS] Failed to make crd request controller :%v", err)
-			return
-		}
-
-		logger.Printf("Starting SyncHostNCVersion")
-		rootCxt := context.Background()
-		go func() {
-			// Periodically poll vfp programmed NC version from NMAgent
-			for {
-				<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond).C
-				httpRestServiceImplementation.SyncHostNCVersion(rootCxt, config.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
-			}
-		}()
-
-		// initialize the ipam pool monitor
-		httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
-
-		//Start the RequestController which starts the reconcile loop
-		requestControllerStopChannel := make(chan struct{})
-		defer close(requestControllerStopChannel)
-		go func() {
-			if err := requestController.StartRequestController(requestControllerStopChannel); err != nil {
-				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
-				return
-			}
-		}()
-
-		ctx := context.Background()
-		go func() {
-			if err := httpRestServiceImplementation.IPAMPoolMonitor.Start(ctx, poolIPAMRefreshRateInMilliseconds); err != nil {
-				logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", err)
-			}
-		}()
 	}
 
 	var netPlugin network.NetPlugin
@@ -708,4 +664,95 @@ func main() {
 
 	logger.Printf("CNS exited")
 	logger.Close()
+}
+
+// initializeCRD state
+func IniitalizeCRDState(httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig, exitChan <-chan struct{}) {
+	var requestController requestcontroller.RequestController
+
+	logger.Printf("[Azure CNS] Starting request controller")
+
+	kubeConfig, err := kubecontroller.GetKubeConfig()
+	if err != nil {
+		logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
+		return
+	}
+
+	//convert interface type to implementation type
+	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
+	if !ok {
+		logger.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v", httpRestService)
+		return
+	}
+
+	// Set orchestrator type
+	orchestrator := cns.SetOrchestratorTypeRequest{
+		OrchestratorType: cns.KubernetesCRD,
+	}
+	httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
+
+	// Get crd implementation of request controller
+	requestController, err = kubecontroller.NewCrdRequestController(httpRestServiceImplementation, kubeConfig)
+	if err != nil {
+		logger.Errorf("[Azure CNS] Failed to make crd request controller :%v", err)
+		return
+	}
+
+    // initialize the ipam pool monitor
+	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
+
+	err = requestController.InitRequestController()
+	if err != nil {
+		logger.Errorf("[Azure CNS] Failed to initialized cns state :%v", err)
+		return
+	}
+
+	//Start the RequestController which starts the reconcile loop
+	go func() {
+		for {
+			if err := requestController.StartRequestController(exitChan); err != nil {
+				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
+				// retry to start the request controller
+				// todo: add a CNS metric to count # of failures
+			} else {
+				logger.Printf("[Azure CNS] Exiting RequestController")
+				return
+			}
+
+			// Retry after 1sec
+			time.Sleep(time.Second)
+		}
+	}()
+
+	for {
+		if requestController.IsStarted() {
+			logger.Printf("RequestController is started")
+			break
+		}
+
+		logger.Printf("Waiting for requestController to start...")
+		time.Sleep(time.Millisecond * 500)
+	}
+
+	ctx := context.Background()
+	logger.Printf("Starting IPAM Pool Monitor")
+	go func() {
+		if err := httpRestServiceImplementation.IPAMPoolMonitor.Start(ctx, poolIPAMRefreshRateInMilliseconds); err != nil {
+			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", err)
+		}
+
+		logger.Printf("[Azure CNS] Exiting IPAM Pool Monitor")
+	}()
+
+	logger.Printf("Starting SyncHostNCVersion")
+	rootCxt := context.Background()
+	go func() {
+		// Periodically poll vfp programmed NC version from NMAgent
+		for {
+			<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond).C
+			httpRestServiceImplementation.SyncHostNCVersion(rootCxt, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+		}
+
+		logger.Printf("[Azure CNS] Exiting SyncHostNCVersion")
+	}()
 }

@@ -10,8 +10,10 @@ import (
 func getAllChainsAndRules() [][]string {
 	funcList := []func() [][]string{
 		getAzureNPMChainRules,
+		getAzureNPMIngressChainRules,
 		getAzureNPMIngressPortChainRules,
 		getAzureNPMIngressFromChainRules,
+		getAzureNPMEgressChainRules,
 		getAzureNPMEgressPortChainRules,
 		getAzureNPMEgressToChainRules,
 	}
@@ -32,12 +34,12 @@ func getAzureNPMChainRules() [][]string {
 		{
 			util.IptablesAzureChain,
 			util.IptablesJumpFlag,
-			util.IptablesAzureIngressPortChain,
+			util.IptablesAzureIngressChain,
 		},
 		{
 			util.IptablesAzureChain,
 			util.IptablesJumpFlag,
-			util.IptablesAzureEgressPortChain,
+			util.IptablesAzureEgressChain,
 		},
 		{
 			util.IptablesAzureChain,
@@ -80,11 +82,6 @@ func getAzureNPMChainRules() [][]string {
 		},
 		{
 			util.IptablesAzureChain,
-			util.IptablesJumpFlag,
-			util.IptablesAzureTargetSetsChain,
-		},
-		{
-			util.IptablesAzureChain,
 			util.IptablesModuleFlag,
 			util.IptablesStateModuleFlag,
 			util.IptablesStateFlag,
@@ -95,6 +92,35 @@ func getAzureNPMChainRules() [][]string {
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
 			fmt.Sprintf("ACCEPT-on-connection-state"),
+		},
+	}
+}
+
+// getAzureNPMIngressChainRules returns rules for AZURE-NPM-INGRESS-PORT
+func getAzureNPMIngressChainRules() [][]string {
+	return [][]string{
+		{
+			util.IptablesAzureIngressChain,
+			util.IptablesJumpFlag,
+			util.IptablesAzureIngressPortChain,
+		},
+		{
+			util.IptablesAzureIngressChain,
+			util.IptablesJumpFlag,
+			util.IptablesReturn,
+			util.IptablesModuleFlag,
+			util.IptablesMarkVerb,
+			util.IptablesMarkFlag,
+			util.IptablesAzureIngressMarkHex,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			fmt.Sprintf("RETURN-on-INGRESS-mark-%s", util.IptablesAzureIngressMarkHex),
+		},
+		{
+			util.IptablesAzureIngressChain,
+			util.IptablesJumpFlag,
+			util.IptablesAzureIngressDropsChain,
 		},
 	}
 }
@@ -133,6 +159,48 @@ func getAzureNPMIngressFromChainRules() [][]string {
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
 			fmt.Sprintf("RETURN-on-INGRESS-mark-%s", util.IptablesAzureIngressMarkHex),
+		},
+	}
+}
+
+// getAzureNPMEgressChainRules returns rules for AZURE-NPM-INGRESS-PORT
+func getAzureNPMEgressChainRules() [][]string {
+	return [][]string{
+		{
+			util.IptablesAzureEgressChain,
+			util.IptablesJumpFlag,
+			util.IptablesAzureEgressPortChain,
+		},
+		{
+			util.IptablesAzureEgressChain,
+			util.IptablesJumpFlag,
+			util.IptablesReturn,
+			util.IptablesModuleFlag,
+			util.IptablesMarkVerb,
+			util.IptablesMarkFlag,
+			util.IptablesAzureAcceptMarkHex,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			fmt.Sprintf("RETURN-on-EGRESS-and-INGRESS-mark-%s", util.IptablesAzureAcceptMarkHex),
+		},
+		{
+			util.IptablesAzureEgressChain,
+			util.IptablesJumpFlag,
+			util.IptablesReturn,
+			util.IptablesModuleFlag,
+			util.IptablesMarkVerb,
+			util.IptablesMarkFlag,
+			util.IptablesAzureEgressMarkHex,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			fmt.Sprintf("RETURN-on-EGRESS-mark-%s", util.IptablesAzureEgressMarkHex),
+		},
+		{
+			util.IptablesAzureEgressChain,
+			util.IptablesJumpFlag,
+			util.IptablesAzureEgressDropsChain,
 		},
 	}
 }

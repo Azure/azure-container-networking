@@ -38,7 +38,6 @@ var (
 )
 
 func HandleCNSClientCommands(cmd, arg string) error {
-
 	cnsIPAddress := os.Getenv(envCNSIPAddress)
 	cnsPort := os.Getenv(envCNSPort)
 
