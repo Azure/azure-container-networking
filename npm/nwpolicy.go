@@ -99,15 +99,6 @@ func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkP
 		return err
 	}
 
-	if ns, exists = npMgr.NsMap[npNs]; !exists {
-		ns, err = newNs(npNs)
-		if err != nil {
-			metrics.SendErrorLogAndMetric(util.NetpolID, "[AddNetworkPolicy] Error: creating namespace %s with err: %v", npNs, err)
-			return err
-		}
-		npMgr.NsMap[npNs] = ns
-	}
-
 	if npMgr.policyExists(npObj) {
 		return nil
 	}
