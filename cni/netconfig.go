@@ -63,6 +63,7 @@ type NetworkConfig struct {
 	DisableHairpinOnHostInterface bool     `json:"disableHairpinOnHostInterface,omitempty"`
 	DisableIPTableLock            bool     `json:"disableIPTableLock,omitempty"`
 	CNSUrl                        string   `json:"cnsurl,omitempty"`
+	ExecutionMode                 string   `json:"executionMode,omitempty"`
 	Ipam                          struct {
 		Type          string `json:"type"`
 		Environment   string `json:"environment,omitempty"`

@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network"
 	acnnetwork "github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 )
@@ -21,7 +22,8 @@ func TestPlugin(t *testing.T) {
 
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 
-	plugin, _ := NewPlugin(pluginName, config)
+	grpcClient := &nns.MockGrpcClient{}
+	plugin, _ := NewPlugin(pluginName, config, grpcClient)
 	plugin.report = &telemetry.CNIReport{}
 	plugin.nm = mockNetworkManager
 
