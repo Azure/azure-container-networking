@@ -4,7 +4,6 @@
 package ipsm
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -53,36 +52,31 @@ func NewIpsetManager() *IpsetManager {
 }
 
 // Exists checks if an element exists in setMap/listMap.
-func (ipsMgr *IpsetManager) Exists(listName string, setName string, kind string) bool {
+func (ipsMgr *IpsetManager) Exists(key string, val string, kind string) bool {
 	m := ipsMgr.SetMap
 	if kind == util.IpsetSetListFlag {
 		m = ipsMgr.ListMap
 	}
 
-	if _, exists := m[listName]; !exists {
+	if _, exists := m[key]; !exists {
 		return false
 	}
 
-	if _, exists := m[listName].elements[setName]; !exists {
+	if _, exists := m[key].elements[val]; !exists {
 		return false
 	}
 
 	return true
 }
 
-// SetExists checks if an ipset exists, and returns the type
-func (ipsMgr *IpsetManager) SetExists(setName string) (bool, string) {
-	_, exists := ipsMgr.SetMap[setName]
-	if exists {
-		return exists, util.IpsetSetGenericFlag
+// SetExists checks whehter an ipset exists.
+func (ipsMgr *IpsetManager) SetExists(setName, kind string) bool {
+	m := ipsMgr.SetMap
+	if kind == util.IpsetSetListFlag {
+		m = ipsMgr.ListMap
 	}
-
-	_, exists = ipsMgr.ListMap[setName]
-	if exists {
-		return exists, util.IpsetSetListFlag
-	}
-
-	return exists, ""
+	_, exists := m[setName]
+	return exists
 }
 
 func isNsSet(setName string) bool {
@@ -139,30 +133,12 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		return nil
 	}
 
-	//Check if list being added exists in the listmap, if it exists we don't care about the set type
-	exists, _ := ipsMgr.SetExists(setName)
-
-	// if set does not exist, then return because the ipset call will fail due to set not existing
-	if !exists {
-		return fmt.Errorf("Set [%s] does not exist when attempting to add to list [%s]", setName, listName)
-	}
-
-	// Check if the list that is being added to exists
-	exists, listtype := ipsMgr.SetExists(listName)
-
-	// Make sure that set returned is of list type, otherwise return because we can't add a set to a non setlist type
-	if exists && listtype != util.IpsetSetListFlag {
-		return fmt.Errorf("Failed to add set [%s] to list [%s], but list is of type [%s]", setName, listName, listtype)
-	} else if !exists {
-		// if the list doesn't exist, create it
-		if err := ipsMgr.CreateList(listName); err != nil {
-			return err
-		}
-	}
-
-	// check if set already exists in the list
 	if ipsMgr.Exists(listName, setName, util.IpsetSetListFlag) {
 		return nil
+	}
+
+	if err := ipsMgr.CreateList(listName); err != nil {
+		return err
 	}
 
 	entry := &ipsEntry{
@@ -171,9 +147,9 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		spec:          []string{util.GetHashedName(setName)},
 	}
 
-	// add set to list
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		return fmt.Errorf("Error: failed to create ipset rules. rule: %+v, error: %v", entry, err)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset rules. rule: %+v", entry)
+		return err
 	}
 
 	ipsMgr.ListMap[listName].elements[setName] = ""
@@ -183,27 +159,6 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 
 // DeleteFromList removes an ipset to an ipset list.
 func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) error {
-
-	//Check if list being added exists in the listmap, if it exists we don't care about the set type
-	exists, _ := ipsMgr.SetExists(setName)
-
-	// if set does not exist, then return because the ipset call will fail due to set not existing
-	if !exists {
-		return fmt.Errorf("Set [%s] does not exist when attempting to delete from list [%s]", setName, listName)
-	}
-
-	//Check if list being added exists in the listmap, if it exists we don't care about the set type
-	exists, listtype := ipsMgr.SetExists(listName)
-
-	// if set does not exist, then return because the ipset call will fail due to set not existing
-	if !exists {
-		return fmt.Errorf("Set [%s] does not exist when attempting to add to list [%s]", setName, listName)
-	}
-
-	if listtype != util.IpsetSetListFlag {
-		return fmt.Errorf("Set [%s] is of the wrong type when attempting to delete list [%s], actual type [%s]", setName, listName, listtype)
-	}
-
 	if _, exists := ipsMgr.ListMap[listName]; !exists {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "ipset list with name %s not found", listName)
 		return nil
@@ -312,25 +267,11 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 		return nil
 	}
 
-	// possible formats
-	//192.168.0.1
-	//192.168.0.1,tcp:25227
-	// todo: handle ip and port with protocol, plus just ip
-	// always guaranteed to have ip, not guaranteed to have port + protocol
-	ipDetails := strings.Split(ip, ",")
-	if len(ipDetails) > 0 && ipDetails[0] == "" {
-		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty, spec: %+v", setName, spec)
-	}
-
-	// check if the set exists, ignore the type of the set being added if it exists since the only purpose is to see if it's created or not
-	exists, _ := ipsMgr.SetExists(setName)
-
-	if !exists {
+	if !ipsMgr.SetExists(setName, spec) {
 		if err := ipsMgr.CreateSet(setName, append([]string{spec})); err != nil {
 			return err
 		}
 	}
-
 	var resultSpec []string
 	if strings.Contains(ip, util.IpsetNomatch) {
 		ip = strings.Trim(ip, util.IpsetNomatch)
@@ -345,7 +286,6 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 		spec:          resultSpec,
 	}
 
-	// todo: check err handling besides error code, corrupt state possible here
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset rules. %+v", entry)
 		return err
@@ -366,16 +306,6 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
 	if !exists {
 		log.Logf("ipset with name %s not found", setName)
 		return nil
-	}
-
-	// possible formats
-	//192.168.0.1
-	//192.168.0.1,tcp:25227
-	// todo: handle ip and port with protocol, plus just ip
-	// always guaranteed to have ip, not guaranteed to have port + protocol
-	ipDetails := strings.Split(ip, ",")
-	if len(ipDetails) > 0 && ipDetails[0] == "" {
-		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty", setName)
 	}
 
 	if _, exists := ipsMgr.SetMap[setName].elements[ip]; exists {

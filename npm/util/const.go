@@ -120,7 +120,6 @@ const (
 	IPsetCheckListFlag string = "list"
 	IpsetTestFlag      string = "test"
 
-	IpsetSetGenericFlag string = "setgeneric" // not used in ipset commands, used as an internal identifier for nethash/hash:ip,port
 	IpsetSetListFlag    string = "setlist"
 	IpsetNetHashFlag    string = "nethash"
 	IpsetIPPortHashFlag string = "hash:ip,port"

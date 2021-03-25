@@ -134,17 +134,7 @@ func TestDeleteFromList(t *testing.T) {
 
 	// Delete set from list and validate set is not in list anymore.
 	if err := ipsMgr.DeleteFromList(listName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
-	}
-
-	// Delete set from list and validate set is not in list anymore.
-	if err := ipsMgr.DeleteFromList(listName, "nonexistentsetname"); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
-	}
-
-	// Delete set from list, but list isn't of list type
-	if err := ipsMgr.DeleteFromList(setName, setName); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList")
 	}
 
 	entry = &ipsEntry{
@@ -281,49 +271,29 @@ func TestAddToSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
 	ipsMgr := NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Fatalf("TestAddToSet failed @ ipsMgr.Save")
+		t.Errorf("TestAddToSet failed @ ipsMgr.Save")
 	}
 
 	defer func() {
 		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Fatalf("TestAddToSet failed @ ipsMgr.Restore")
+			t.Errorf("TestAddToSet failed @ ipsMgr.Restore")
 		}
 	}()
 
 	testSetName := "test-set"
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
-		t.Fatalf("TestAddToSet failed @ ipsMgr.AddToSet")
+		t.Errorf("TestAddToSet failed @ ipsMgr.AddToSet")
 	}
 
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4/nomatch", util.IpsetNetHashFlag, ""); err != nil {
-		t.Fatalf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet %v", err)
-	}
-
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,%s:%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err != nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when set port: %v", err)
-	}
-
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,:", "1.1.1.1"), util.IpsetIPPortHashFlag, "0"); err != nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when set port is empty: %v", err)
-	}
-
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,%s:%d", "", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err == nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when port is specified but ip is empty: %v", err)
-	}
-
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s", "1.1.1.1"), util.IpsetIPPortHashFlag, "0"); err != nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when only ip is specified: %v", err)
-	}
-
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf(""), util.IpsetIPPortHashFlag, "0"); err == nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when no ip is specified: %v", err)
+		t.Errorf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet")
 	}
 
 	testSetCount, err1 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSetName))
 	entryCount, err2 := promutil.GetValue(metrics.NumIPSetEntries)
 	promutil.NotifyIfErrors(t, err1, err2)
-	if testSetCount != 5 || entryCount != 5 {
-		t.Fatalf("Prometheus IPSet count has incorrect number of entries, testSetCount %d, entryCount %d", testSetCount, entryCount)
+	if testSetCount != 2 || entryCount != 2 {
+		t.Errorf("Prometheus IPSet count has incorrect number of entries")
 	}
 }
 
