@@ -80,8 +80,6 @@ func (npMgr *NetworkPolicyManager) policyExists(npObj *networkingv1.NetworkPolic
 func (npMgr *NetworkPolicyManager) AddNetworkPolicy(npObj *networkingv1.NetworkPolicy) error {
 	var (
 		err            error
-		ns             *Namespace
-		exists         bool
 		npNs           = util.GetNSNameWithPrefix(npObj.ObjectMeta.Namespace)
 		npName         = npObj.ObjectMeta.Name
 		allNs          = npMgr.NsMap[util.KubeAllNamespacesFlag]
