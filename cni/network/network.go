@@ -4,6 +4,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -24,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
+	nnscontracts "github.com/Azure/azure-container-networking/proto/nodenetworkservice/3.302.0.744"
 	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -34,8 +36,8 @@ const (
 	dockerNetworkOption = "com.docker.network.generic"
 	opModeTransparent   = "transparent"
 	// Supported IP version. Currently support only IPv4
-	ipVersion      = "4"
-	ipamV6         = "azure-vnet-ipamv6"
+	ipVersion = "4"
+	ipamV6    = "azure-vnet-ipamv6"
 )
 
 // CNI Operation Types
@@ -60,6 +62,13 @@ const (
 	jsonFileExtension = ".json"
 )
 
+type ExecutionMode string
+
+const (
+	Default   ExecutionMode = "default"
+	Baremetal ExecutionMode = "baremetal"
+)
+
 // NetPlugin represents the CNI network plugin.
 type netPlugin struct {
 	*cni.Plugin
@@ -67,6 +76,20 @@ type netPlugin struct {
 	ipamInvoker IPAMInvoker
 	report      *telemetry.CNIReport
 	tb          *telemetry.TelemetryBuffer
+	nnsClient   NnsClient
+}
+
+// client for node network service
+type NnsClient interface {
+	// Do network port programming for the pod via node network service.
+	// podName - name of the pod as received from containerD
+	// nwNamesapce - network namespace name as received from containerD
+	AddContainerNetworking(ctx context.Context, podName, nwNamespace string) (error, *nnscontracts.ConfigureContainerNetworkingResponse)
+
+	// Undo or delete network port programming for the pod via node network service.
+	// podName - name of the pod as received from containerD
+	// nwNamesapce - network namespace name as received from containerD
+	DeleteContainerNetworking(ctx context.Context, podName, nwNamespace string) (error, *nnscontracts.ConfigureContainerNetworkingResponse)
 }
 
 // snatConfiguration contains a bool that determines whether CNI enables snat on host and snat for dns
@@ -76,7 +99,7 @@ type snatConfiguration struct {
 }
 
 // NewPlugin creates a new netPlugin object.
-func NewPlugin(name string, config *common.PluginConfig) (*netPlugin, error) {
+func NewPlugin(name string, config *common.PluginConfig, client NnsClient) (*netPlugin, error) {
 	// Setup base plugin.
 	plugin, err := cni.NewPlugin(name, config.Version)
 	if err != nil {
@@ -92,8 +115,9 @@ func NewPlugin(name string, config *common.PluginConfig) (*netPlugin, error) {
 	config.NetApi = nm
 
 	return &netPlugin{
-		Plugin: plugin,
-		nm:     nm,
+		Plugin:    plugin,
+		nm:        nm,
+		nnsClient: client,
 	}, nil
 }
 
@@ -342,11 +366,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	plugin.report.ContainerName = k8sPodName + ":" + k8sNamespace
 
-	if nwCfg.MultiTenancy {
-		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl)
-	}
-
 	k8sContainerID := args.ContainerID
 	if len(k8sContainerID) == 0 {
 		errMsg := "Container ID not specified in CNI Args"
@@ -359,6 +378,24 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		errMsg := "Interfacename not specified in CNI Args"
 		log.Printf(errMsg)
 		return plugin.Errorf(errMsg)
+	}
+
+	log.Printf("Execution mode :%s", nwCfg.ExecutionMode)
+	if nwCfg.ExecutionMode == string(Baremetal) {
+		var res *nnscontracts.ConfigureContainerNetworkingResponse
+		log.Printf("Baremetal mode. Calling vnet agent for ADD")
+		err, res = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
+
+		if err == nil {
+			result = convertNnsToCniResult(res, args.IfName, k8sPodName, "AddContainerNetworking")
+		}
+
+		return err
+	}
+
+	if nwCfg.MultiTenancy {
+		// Initialize CNSClient
+		cnsclient.InitCnsClient(nwCfg.CNSUrl)
 	}
 
 	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
@@ -489,7 +526,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			Id:           networkId,
 			Mode:         nwCfg.Mode,
 			MasterIfName: masterIfName,
-			AdapterName: nwCfg.AdapterName,
+			AdapterName:  nwCfg.AdapterName,
 			Subnets: []network.SubnetInfo{
 				{
 					Family:  platform.AfINET,
@@ -792,6 +829,28 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	plugin.setCNIReportDetails(nwCfg, CNI_DEL, "")
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
+	sendMetricFunc := func() {
+		operationTimeMs := time.Since(startTime).Milliseconds()
+		cniMetric.Metric = aitelemetry.Metric{
+			Name:             telemetry.CNIDelTimeMetricStr,
+			Value:            float64(operationTimeMs),
+			CustomDimensions: make(map[string]string),
+		}
+		SetCustomDimensions(&cniMetric, nwCfg, err)
+		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
+	}
+
+	log.Printf("Execution mode :%s", nwCfg.ExecutionMode)
+	if nwCfg.ExecutionMode == string(Baremetal) {
+
+		log.Printf("Baremetal mode. Calling vnet agent for delete container")
+
+		// schedule send metric before attempting delete
+		defer sendMetricFunc()
+		err, _ = plugin.nnsClient.DeleteContainerNetworking(context.Background(), k8sPodName, args.Netns)
+		return err
+	}
+
 	if nwCfg.MultiTenancy {
 		// Initialize CNSClient
 		cnsclient.InitCnsClient(nwCfg.CNSUrl)
@@ -859,17 +918,8 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	defer func() {
-		operationTimeMs := time.Since(startTime).Milliseconds()
-		cniMetric.Metric = aitelemetry.Metric{
-			Name:             telemetry.CNIDelTimeMetricStr,
-			Value:            float64(operationTimeMs),
-			CustomDimensions: make(map[string]string),
-		}
-		SetCustomDimensions(&cniMetric, nwCfg, err)
-		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
-	}()
-
+	// schedule send metric before attempting delete
+	defer sendMetricFunc()
 	// Delete the endpoint.
 	if err = plugin.nm.DeleteEndpoint(networkId, endpointId); err != nil {
 		err = plugin.Errorf("Failed to delete endpoint: %v", err)
@@ -1142,4 +1192,48 @@ func determineSnat() (bool, bool, error) {
 	}
 
 	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
+}
+
+func convertNnsToCniResult(
+	netRes *nnscontracts.ConfigureContainerNetworkingResponse,
+	ifName string,
+	podName string,
+	operationName string) *cniTypesCurr.Result {
+
+	// This function does not add interfaces to CNI result. Reason being CRI (containerD in baremetal case)
+	// only looks for default interface named "eth0" and this default interface is added in the defer
+	// method of ADD method
+	result := &cniTypesCurr.Result{}
+	var resultIpconfigs []*cniTypesCurr.IPConfig
+
+	if netRes.Interfaces != nil {
+		for i, ni := range netRes.Interfaces {
+
+			intIndex := i
+			for _, ip := range ni.Ipaddresses {
+
+				ipWithPrefix := fmt.Sprintf("%s/%s", ip.Ip, ip.PrefixLength)
+				_, ipNet, err := net.ParseCIDR(ipWithPrefix)
+				if err != nil {
+					log.Printf("Error while converting to cni result for %s operation on pod %s. %s",
+						operationName, podName, err)
+					continue
+				}
+
+				gateway := net.ParseIP(ip.DefaultGateway)
+				ipConfig := &cniTypesCurr.IPConfig{
+					Address:   *ipNet,
+					Gateway:   gateway,
+					Version:   ip.Version,
+					Interface: &intIndex,
+				}
+
+				resultIpconfigs = append(resultIpconfigs, ipConfig)
+			}
+		}
+	}
+
+	result.IPs = resultIpconfigs
+
+	return result
 }

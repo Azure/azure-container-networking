@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Azure/azure-container-networking/nns"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -173,7 +174,7 @@ func main() {
 
 	cniReport.GetReport(pluginName, version, ipamQueryURL)
 
-	netPlugin, err := network.NewPlugin(name, &config)
+	netPlugin, err := network.NewPlugin(name, &config, &nns.GrpcClient{})
 	if err != nil {
 		log.Printf("Failed to create network plugin, err:%v.\n", err)
 		return
