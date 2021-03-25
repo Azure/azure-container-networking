@@ -1,8 +1,11 @@
 package metrics
 
 import (
+	"net/http"
+
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const namespace = "npm"
@@ -74,14 +77,19 @@ func InitializeAll() {
 	}
 }
 
+// getHandler returns the HTTP handler for the metrics endpoint
+func GetHandler(isNodeLevel bool) http.Handler {
+	return promhttp.HandlerFor(GetRegistry(isNodeLevel), promhttp.HandlerOpts{})
+}
+
 func register(collector prometheus.Collector, name string, isNodeLevel bool) {
-	err := getRegistry(isNodeLevel).Register(collector)
+	err := GetRegistry(isNodeLevel).Register(collector)
 	if err != nil {
 		log.Errorf("Error creating metric %s", name)
 	}
 }
 
-func getRegistry(isNodeLevel bool) *prometheus.Registry {
+func GetRegistry(isNodeLevel bool) *prometheus.Registry {
 	registry := clusterLevelRegistry
 	if isNodeLevel {
 		registry = nodeLevelRegistry

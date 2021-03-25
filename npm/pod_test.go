@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -37,7 +38,10 @@ func TestIsSystemPod(t *testing.T) {
 
 func TestAddPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -45,7 +49,7 @@ func TestAddPod(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -93,7 +97,10 @@ func TestAddPod(t *testing.T) {
 
 func TestUpdatePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -101,7 +108,7 @@ func TestUpdatePod(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -152,12 +159,14 @@ func TestUpdatePod(t *testing.T) {
 		t.Errorf("TestUpdatePod failed @ UpdatePod")
 	}
 
-	cachedPodObj, exists := npMgr.nsMap["ns-"+newPodObj.Namespace].podMap[string(newPodObj.ObjectMeta.UID)]
+	podKey := GetPodKey(newPodObj)
+
+	cachedPodObj, exists := npMgr.PodMap[podKey]
 	if !exists {
 		t.Errorf("TestUpdatePod failed @ pod exists check")
 	}
 
-	if !reflect.DeepEqual(cachedPodObj.labels, newPodObj.Labels) {
+	if !reflect.DeepEqual(cachedPodObj.Labels, newPodObj.Labels) {
 		t.Errorf("TestUpdatePod failed @ labels check")
 	}
 	npMgr.Unlock()
@@ -165,7 +174,10 @@ func TestUpdatePod(t *testing.T) {
 
 func TestOldRVUpdatePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -173,7 +185,7 @@ func TestOldRVUpdatePod(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -203,7 +215,7 @@ func TestOldRVUpdatePod(t *testing.T) {
 
 	newPodObj := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "new-test-pod",
+			Name:      "old-test-pod",
 			Namespace: "test-namespace",
 			Labels: map[string]string{
 				"app": "new-test-pod",
@@ -225,16 +237,18 @@ func TestOldRVUpdatePod(t *testing.T) {
 		t.Errorf("TestOldRVUpdatePod failed @ UpdatePod")
 	}
 
-	cachedPodObj, exists := npMgr.nsMap["ns-"+newPodObj.Namespace].podMap[string(newPodObj.ObjectMeta.UID)]
+	podKey := GetPodKey(newPodObj)
+
+	cachedPodObj, exists := npMgr.PodMap[podKey]
 	if !exists {
 		t.Errorf("TestOldRVUpdatePod failed @ pod exists check")
 	}
 
-	if cachedPodObj.resourceVersion != 1 {
+	if cachedPodObj.ResourceVersion != 1 {
 		t.Errorf("TestOldRVUpdatePod failed @ resourceVersion check")
 	}
 
-	if !reflect.DeepEqual(cachedPodObj.labels, oldPodObj.Labels) {
+	if !reflect.DeepEqual(cachedPodObj.Labels, oldPodObj.Labels) {
 		t.Errorf("TestOldRVUpdatePod failed @ labels check")
 	}
 
@@ -243,7 +257,10 @@ func TestOldRVUpdatePod(t *testing.T) {
 
 func TestDeletePod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -251,7 +268,7 @@ func TestDeletePod(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -287,7 +304,7 @@ func TestDeletePod(t *testing.T) {
 		t.Errorf("TestDeletePod failed @ DeletePod")
 	}
 
-	if len(npMgr.nsMap["ns-"+podObj.Namespace].podMap) > 1 {
+	if len(npMgr.PodMap) > 1 {
 		t.Errorf("TestDeletePod failed @ podMap length check")
 	}
 	npMgr.Unlock()
@@ -295,7 +312,10 @@ func TestDeletePod(t *testing.T) {
 
 func TestAddHostNetworkPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -303,7 +323,7 @@ func TestAddHostNetworkPod(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -338,7 +358,7 @@ func TestAddHostNetworkPod(t *testing.T) {
 		t.Errorf("TestAddHostNetworkPod failed @ AddPod")
 	}
 
-	if len(npMgr.nsMap) > 1 {
+	if len(npMgr.NsMap) > 1 {
 		t.Errorf("TestAddHostNetworkPod failed @ nsMap length check")
 	}
 	npMgr.Unlock()
@@ -346,7 +366,10 @@ func TestAddHostNetworkPod(t *testing.T) {
 
 func TestUpdateHostNetworkPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -354,7 +377,7 @@ func TestUpdateHostNetworkPod(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -412,7 +435,7 @@ func TestUpdateHostNetworkPod(t *testing.T) {
 		t.Errorf("TestUpdateHostNetworkPod failed @ UpdatePod")
 	}
 
-	if len(npMgr.nsMap) > 1 {
+	if len(npMgr.NsMap) > 1 {
 		t.Errorf("TestUpdateHostNetworkPod failed @ podMap length check")
 	}
 	npMgr.Unlock()
@@ -420,7 +443,10 @@ func TestUpdateHostNetworkPod(t *testing.T) {
 
 func TestDeleteHostNetworkPod(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -428,7 +454,7 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	ipsMgr := ipsm.NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
@@ -463,7 +489,7 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 		t.Errorf("TestDeleteHostNetworkPod failed @ AddPod")
 	}
 
-	if len(npMgr.nsMap) > 1 {
+	if len(npMgr.NsMap) > 1 {
 		t.Errorf("TestDeleteHostNetworkPod failed @ podMap length check")
 	}
 
@@ -471,4 +497,36 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 		t.Errorf("TestDeleteHostNetworkPod failed @ DeletePod")
 	}
 	npMgr.Unlock()
+}
+
+func TestGetPodKey(t *testing.T) {
+	podObj := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				"app": "test-pod",
+			},
+			UID: "1234",
+		},
+		Status: corev1.PodStatus{
+			Phase: "Running",
+			PodIP: "1.2.3.4",
+		},
+		Spec: corev1.PodSpec{
+			HostNetwork: true,
+		},
+	}
+
+	podKey := GetPodKey(podObj)
+
+	// 2 characters are /
+	if len(podKey) <= 2 {
+		t.Errorf("TestGetPodKey failed @ podKey length check %s", podKey)
+	}
+
+	expectedKey := util.GetNSNameWithPrefix("test-namespace/test-pod/1234")
+	if podKey != expectedKey {
+		t.Errorf("TestGetPodKey failed @ podKey did not match expected value %s", podKey)
+	}
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Masterminds/semver"
 	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/tools/cache"
 )
 
 // IsNewNwPolicyVerFlag indicates if the current kubernetes version is newer than 1.11 or not
@@ -290,4 +291,9 @@ func ParseResourceVersion(rv string) uint64 {
 	}
 
 	return rvInt
+}
+
+// GetObjKeyFunc will return obj's key
+func GetObjKeyFunc(obj interface{}) (string, error) {
+	return cache.MetaNamespaceKeyFunc(obj)
 }

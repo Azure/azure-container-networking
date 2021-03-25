@@ -245,4 +245,5 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	if ipaddresses[0].IPAddress != desiredIpAddress && ipaddresses[0].State != cns.Available {
 		t.Fatalf("Available IP address does not match expected, address state: %+v", ipaddresses)
 	}
+	fmt.Println(ipaddresses)
 }

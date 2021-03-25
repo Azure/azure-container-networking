@@ -134,7 +134,17 @@ func TestDeleteFromList(t *testing.T) {
 
 	// Delete set from list and validate set is not in list anymore.
 	if err := ipsMgr.DeleteFromList(listName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList")
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
+	}
+
+	// Delete set from list and validate set is not in list anymore.
+	if err := ipsMgr.DeleteFromList(listName, "nonexistentsetname"); err == nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
+	}
+
+	// Delete set from list, but list isn't of list type
+	if err := ipsMgr.DeleteFromList(setName, setName); err == nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
 	}
 
 	entry = &ipsEntry{
@@ -271,29 +281,49 @@ func TestAddToSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
 	ipsMgr := NewIpsetManager()
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestAddToSet failed @ ipsMgr.Save")
+		t.Fatalf("TestAddToSet failed @ ipsMgr.Save")
 	}
 
 	defer func() {
 		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestAddToSet failed @ ipsMgr.Restore")
+			t.Fatalf("TestAddToSet failed @ ipsMgr.Restore")
 		}
 	}()
 
 	testSetName := "test-set"
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
-		t.Errorf("TestAddToSet failed @ ipsMgr.AddToSet")
+		t.Fatalf("TestAddToSet failed @ ipsMgr.AddToSet")
 	}
 
 	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4/nomatch", util.IpsetNetHashFlag, ""); err != nil {
-		t.Errorf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet")
+		t.Fatalf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet %v", err)
+	}
+
+	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,%s:%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err != nil {
+		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when set port: %v", err)
+	}
+
+	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,:", "1.1.1.1"), util.IpsetIPPortHashFlag, "0"); err != nil {
+		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when set port is empty: %v", err)
+	}
+
+	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,%s:%d", "", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err == nil {
+		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when port is specified but ip is empty: %v", err)
+	}
+
+	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s", "1.1.1.1"), util.IpsetIPPortHashFlag, "0"); err != nil {
+		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when only ip is specified: %v", err)
+	}
+
+	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf(""), util.IpsetIPPortHashFlag, "0"); err == nil {
+		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when no ip is specified: %v", err)
 	}
 
 	testSetCount, err1 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSetName))
 	entryCount, err2 := promutil.GetValue(metrics.NumIPSetEntries)
 	promutil.NotifyIfErrors(t, err1, err2)
-	if testSetCount != 2 || entryCount != 2 {
-		t.Errorf("Prometheus IPSet count has incorrect number of entries")
+	if testSetCount != 5 || entryCount != 5 {
+		t.Fatalf("Prometheus IPSet count has incorrect number of entries, testSetCount %d, entryCount %d", testSetCount, entryCount)
 	}
 }
 
@@ -317,7 +347,7 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 	}
 
 	// validate if Pod1 exists
-	cachedPodUid := ipsMgr.setMap[setname].elements[ip]
+	cachedPodUid := ipsMgr.SetMap[setname].elements[ip]
 	if cachedPodUid != pod1 {
 		t.Errorf("setname: %s, hashedname: %s is added with wrong podUid: %s, expected: %s", setname, util.GetHashedName(setname), cachedPodUid, pod1)
 	}
@@ -328,7 +358,7 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 		t.Errorf("TestAddToSetWithCachePodInfo with pod2 failed @ ipsMgr.AddToSet")
 	}
 
-	cachedPodUid = ipsMgr.setMap[setname].elements[ip]
+	cachedPodUid = ipsMgr.SetMap[setname].elements[ip]
 	if cachedPodUid != pod2 {
 		t.Errorf("setname: %s, hashedname: %s is added with wrong podUid: %s, expected: %s", setname, util.GetHashedName(setname), cachedPodUid, pod2)
 	}
@@ -355,7 +385,7 @@ func TestDeleteFromSet(t *testing.T) {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
-	if len(ipsMgr.setMap[testSetName].elements) != 1 {
+	if len(ipsMgr.SetMap[testSetName].elements) != 1 {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
@@ -364,7 +394,7 @@ func TestDeleteFromSet(t *testing.T) {
 	}
 
 	// After deleting the only entry, "1.2.3.4" from "test-set", "test-set" ipset won't exist
-	if _, exists := ipsMgr.setMap[testSetName]; exists {
+	if _, exists := ipsMgr.SetMap[testSetName]; exists {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.DeleteFromSet")
 	}
 
@@ -395,7 +425,7 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 		t.Errorf("TestDeleteFromSetWithPodCache failed for pod1 @ ipsMgr.AddToSet")
 	}
 
-	if len(ipsMgr.setMap[setname].elements) != 1 {
+	if len(ipsMgr.SetMap[setname].elements) != 1 {
 		t.Errorf("TestDeleteFromSetWithPodCache failed @ ipsMgr.AddToSet")
 	}
 
@@ -420,7 +450,7 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 	}
 
 	// note the set will stil exist with pod ip
-	cachedPodUid := ipsMgr.setMap[setname].elements[ip]
+	cachedPodUid := ipsMgr.SetMap[setname].elements[ip]
 	if cachedPodUid != pod2 {
 		t.Errorf("setname: %s, hashedname: %s is added with wrong podUid: %s, expected: %s", setname, util.GetHashedName(setname), cachedPodUid, pod2)
 	}
@@ -430,7 +460,7 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 		t.Errorf("TestDeleteFromSetWithPodCache for pod2 failed @ ipsMgr.DeleteFromSet")
 	}
 
-	if _, exists := ipsMgr.setMap[setname]; exists {
+	if _, exists := ipsMgr.SetMap[setname]; exists {
 		t.Errorf("TestDeleteFromSetWithPodCache failed @ ipsMgr.DeleteFromSet")
 	}
 }

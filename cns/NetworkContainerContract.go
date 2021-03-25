@@ -242,6 +242,12 @@ type GetIPAddressStateResponse struct {
 	Response    Response
 }
 
+// GetIPAddressStatusResponse is used in CNS IPAM mode as a response to get IP address, state and Pod info
+type GetIPAddressStatusResponse struct {
+	IPConfigurationStatus[] IPConfigurationStatus
+	Response Response
+}
+
 // IPAddressState Only used in the GetIPConfig API to return IP's that match a filter
 type IPAddressState struct {
 	IPAddress string

@@ -319,16 +319,16 @@ func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
 
 // GetIPAddressesWithStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states
 // usage GetIPAddressesWithStates(cns.Available, cns.Allocated)
-func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) ([]cns.IPAddressState, error) {
+func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) ([]cns.IPConfigurationStatus, error) {
 	var (
-		resp cns.GetIPAddressStateResponse
+		resp cns.GetIPAddressStatusResponse
 		err  error
 		res  *http.Response
 		body bytes.Buffer
 	)
 
 	if len(StateFilter) == 0 {
-		return []cns.IPAddressState{}, nil
+		return resp.IPConfigurationStatus, nil
 	}
 
 	url := cnsClient.connectionURL + cns.GetIPAddresses
@@ -341,13 +341,13 @@ func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) 
 	err = json.NewEncoder(&body).Encode(payload)
 	if err != nil {
 		log.Errorf("encoding json failed with %v", err)
-		return resp.IPAddresses, err
+		return resp.IPConfigurationStatus, err
 	}
 
 	res, err = http.Post(url, contentTypeJSON, &body)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
-		return resp.IPAddresses, err
+		return resp.IPConfigurationStatus, err
 	}
 
 	defer res.Body.Close()
@@ -355,19 +355,19 @@ func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) 
 	if res.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("[Azure CNSClient] GetIPAddressesMatchingStates invalid http status code: %v", res.StatusCode)
 		log.Errorf(errMsg)
-		return resp.IPAddresses, fmt.Errorf(errMsg)
+		return resp.IPConfigurationStatus, fmt.Errorf(errMsg)
 	}
 
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] Error received while parsing GetIPAddressesMatchingStates response resp:%v err:%v", res.Body, err.Error())
-		return resp.IPAddresses, err
+		return resp.IPConfigurationStatus, err
 	}
 
 	if resp.Response.ReturnCode != 0 {
 		log.Errorf("[Azure CNSClient] GetIPAddressesMatchingStates received error response :%v", resp.Response.Message)
-		return resp.IPAddresses, fmt.Errorf(resp.Response.Message)
+		return resp.IPConfigurationStatus, fmt.Errorf(resp.Response.Message)
 	}
 
-	return resp.IPAddresses, err
+	return resp.IPConfigurationStatus, err
 }

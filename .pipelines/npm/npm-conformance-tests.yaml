@@ -174,12 +174,18 @@ jobs:
       KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
     displayName: "Run Test Suite"
   - bash: |
+      curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
+      chmod +x kubectl
       ls -al
-      npmPodList=`ksgp | grep npm | awk '{print $1}'`
+      npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
       mkdir -p $(System.DefaultWorkingDirectory)/npmLogs
-      for npm in $npmPodList; do kubectl logs -n kube-system $npm > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
+      for npm in $npmPodList; do ./kubectl logs -n kube-system $npm --kubeconfig=./kubeconfig > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
     displayName: "Gather NPM Logs"
+    condition: always()
+
   - publish: $(System.DefaultWorkingDirectory)/npmLogs
+    condition: always()
+    artifact: NpmLogs
 
 - job: Clean_up
   displayName: "Cleanup"

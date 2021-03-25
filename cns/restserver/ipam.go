@@ -25,7 +25,8 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	)
 
 	err = service.Listener.Decode(w, r, &ipconfigRequest)
-	logger.Request(service.Name, &ipconfigRequest, err)
+	operationName := "requestIPConfigHandler"
+	logger.Request(service.Name+operationName, ipconfigRequest, err)
 	if err != nil {
 		return
 	}
@@ -35,7 +36,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	if returnCode == Success {
 		if podIpInfo, err = requestIPConfigHelper(service, ipconfigRequest); err != nil {
 			returnCode = FailedToAllocateIpConfig
-			returnMessage = fmt.Sprintf("AllocateIPConfig failed: %v", err)
+			returnMessage = fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest)
 		}
 	}
 
@@ -50,7 +51,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	reserveResp.PodIpInfo = podIpInfo
 
 	err = service.Listener.Encode(w, &reserveResp)
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 }
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +63,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	)
 
 	statusCode = UnexpectedError
+	operationName := "releaseIPConfigHandler"
 
 	defer func() {
 		resp := cns.Response{}
@@ -72,13 +74,15 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		}
 
 		err = service.Listener.Encode(w, &resp)
-		logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
 	}()
 
 	err = service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
+	logger.Request(service.Name+operationName, req, err)
 	if err != nil {
 		returnMessage = err.Error()
+		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s",
+			returnMessage, req)
 		return
 	}
 
@@ -87,6 +91,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	if err = service.releaseIPConfig(podInfo); err != nil {
 		statusCode = NotFound
 		returnMessage = err.Error()
+		logger.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", returnMessage, req)
 		return
 	}
 	return
@@ -100,33 +105,33 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	defer service.Unlock()
 
 	for uuid, existingIpConfig := range service.PodIPConfigState {
-        if existingIpConfig.State == cns.PendingProgramming {
-        	updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.OrchestratorContext)
-        	if err != nil {
-                return nil, err
-            }
+		if existingIpConfig.State == cns.PendingProgramming {
+			updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.OrchestratorContext)
+			if err != nil {
+				return nil, err
+			}
 
-            pendingReleasedIps[uuid] = updatedIpConfig
+			pendingReleasedIps[uuid] = updatedIpConfig
 			if len(pendingReleasedIps) == totalIpsToRelease {
 				return pendingReleasedIps, nil
 			}
-    	}
+		}
 	}
-	
-	// if not all expected IPs are set to PendingRelease, then check the Available IPs 
-	for uuid, existingIpConfig := range service.PodIPConfigState {
-        if existingIpConfig.State == cns.Available {
-            updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.OrchestratorContext)
-            if err != nil {
-                return nil, err
-            }
 
-            pendingReleasedIps[uuid] = updatedIpConfig
-			
+	// if not all expected IPs are set to PendingRelease, then check the Available IPs
+	for uuid, existingIpConfig := range service.PodIPConfigState {
+		if existingIpConfig.State == cns.Available {
+			updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.OrchestratorContext)
+			if err != nil {
+				return nil, err
+			}
+
+			pendingReleasedIps[uuid] = updatedIpConfig
+
 			if len(pendingReleasedIps) == totalIpsToRelease {
 				return pendingReleasedIps, nil
-			}	
-    	} 
+			}
+		}
 	}
 
 	logger.Printf("[MarkIPAsPendingRelease] Set total ips to PendingRelease %d, expected %d", len(pendingReleasedIps), totalIpsToRelease)
@@ -140,9 +145,9 @@ func (service *HTTPRestService) updateIPConfigState(ipId string, updatedState st
 		ipConfig.OrchestratorContext = orchestratorContext
 		service.PodIPConfigState[ipId] = ipConfig
 		return ipConfig, nil
-	} 
-	
-	return  cns.IPConfigurationStatus{}, fmt.Errorf("[updateIPConfigState] Failed to update state %s for the IPConfig. ID %s not found PodIPConfigState", updatedState, ipId)
+	}
+
+	return cns.IPConfigurationStatus{}, fmt.Errorf("[updateIPConfigState] Failed to update state %s for the IPConfig. ID %s not found PodIPConfigState", updatedState, ipId)
 }
 
 // MarkIpsAsAvailableUntransacted will update pending programming IPs to available if NMAgent side's programmed nc version keep up with nc version.
@@ -152,9 +157,13 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 	if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
 		logger.Errorf("Can't find NC with ID %s in service state, stop updating its pending programming IP status", ncID)
 	} else {
-		previousHostNCVersion := ncInfo.HostVersion
+		previousHostNCVersion, err := strconv.Atoi(ncInfo.HostVersion)
+		if err != nil {
+			logger.Printf("[MarkIpsAsAvailableUntransacted] Get int value from ncInfo.HostVersion %s failed: %v, can't proceed", ncInfo.HostVersion, err)
+			return
+		}
 		// We only need to handle the situation when dnc nc version is larger than programmed nc version
-		if previousHostNCVersion < ncInfo.CreateNetworkContainerRequest.Version && previousHostNCVersion < strconv.Itoa(newHostNCVersion) {
+		if previousHostNCVersion < newHostNCVersion {
 			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
 				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
 					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
@@ -193,7 +202,7 @@ func (service *HTTPRestService) GetPendingProgramIPConfigs() []cns.IPConfigurati
 func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		req           cns.GetIPAddressesRequest
-		resp          cns.GetIPAddressStateResponse
+		resp          cns.GetIPAddressStatusResponse
 		statusCode    int
 		returnMessage string
 		err           error
@@ -208,12 +217,14 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 		}
 
 		err = service.Listener.Encode(w, &resp)
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, ReturnCodeToString(resp.Response.ReturnCode), err)
+		logger.ResponseEx(service.Name, req, resp, resp.Response.ReturnCode, ReturnCodeToString(resp.Response.ReturnCode), err)
 	}()
 
 	err = service.Listener.Decode(w, r, &req)
 	if err != nil {
 		returnMessage = err.Error()
+		logger.Errorf("getIPAddressesHandler decode failed because %v, GetIPAddressesRequest is %v",
+			returnMessage, req)
 		return
 	}
 
@@ -227,21 +238,17 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 	}
 
 	// Get all IPConfigs matching a state, and append to a slice of IPAddressState
-	resp.IPAddresses = filterIPConfigsMatchingState(service.PodIPConfigState, req.IPConfigStateFilter, filterFunc)
+	resp.IPConfigurationStatus = filterIPConfigsMatchingState(service.PodIPConfigState, req.IPConfigStateFilter, filterFunc)
 
 	return
 }
 
 // filter the ipconfigs in CNS matching a state (Available, Allocated, etc.) and return in a slice
-func filterIPConfigsMatchingState(toBeAdded map[string]cns.IPConfigurationStatus, states []string, f func(cns.IPConfigurationStatus, []string) bool) []cns.IPAddressState {
-	vsf := make([]cns.IPAddressState, 0)
+func filterIPConfigsMatchingState(toBeAdded map[string]cns.IPConfigurationStatus, states []string, f func(cns.IPConfigurationStatus, []string) bool) []cns.IPConfigurationStatus {
+	vsf := make([]cns.IPConfigurationStatus, 0)
 	for _, v := range toBeAdded {
 		if f(v, states) {
-			ip := cns.IPAddressState{
-				IPAddress: v.IPAddress,
-				State:     v.State,
-			}
-			vsf = append(vsf, ip)
+			vsf = append(vsf, v)
 		}
 	}
 	return vsf
@@ -311,6 +318,8 @@ func (service *HTTPRestService) setIPConfigAsAvailable(ipconfig cns.IPConfigurat
 	}
 
 	delete(service.PodIPIDByOrchestratorContext, podInfo.GetOrchestratorContextKey())
+	logger.Printf("[setIPConfigAsAvailable] Deleted outdated pod info %s from PodIPIDByOrchestratorContext since IP %s with ID %s will be released and set as Available",
+		podInfo.GetOrchestratorContextKey(), ipconfig.IPAddress, ipconfig.ID)
 	return ipconfig, nil
 }
 
@@ -324,15 +333,17 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.KubernetesPodInfo) e
 	ipID := service.PodIPIDByOrchestratorContext[podInfo.GetOrchestratorContextKey()]
 	if ipID != "" {
 		if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
+			logger.Printf("[releaseIPConfig] Releasing IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
 			_, err := service.setIPConfigAsAvailable(ipconfig, podInfo)
 			if err != nil {
 				return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] as Available. err: %v", ipconfig, err)
 			}
 			logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
-
 		} else {
-			logger.Errorf("[releaseIPConfig] Failed to get release ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
-			return fmt.Errorf("[releaseIPConfig] releaseIPConfig failed. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+			logger.Errorf("[releaseIPConfig] Failed to get release ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
+				ipconfig.IPAddress, podInfo)
+			return fmt.Errorf("[releaseIPConfig] releaseIPConfig failed. IPconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
+				ipconfig.IPAddress, podInfo)
 		}
 	} else {
 		logger.Errorf("[releaseIPConfig] SetIPConfigAsAvailable failed to release, no allocation found for pod [%+v]", podInfo)
@@ -352,7 +363,7 @@ func (service *HTTPRestService) MarkExistingIPsAsPending(pendingIPIDs []string) 
 				return fmt.Errorf("Failed to mark IP [%v] as pending, currently allocated", id)
 			}
 
-            logger.Printf("[MarkExistingIPsAsPending]: Marking IP [%+v] to PendingRelease", ipconfig)
+			logger.Printf("[MarkExistingIPsAsPending]: Marking IP [%+v] to PendingRelease", ipconfig)
 			ipconfig.State = cns.PendingRelease
 			service.PodIPConfigState[id] = ipconfig
 		} else {

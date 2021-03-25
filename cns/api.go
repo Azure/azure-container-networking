@@ -47,7 +47,7 @@ type HTTPService interface {
 	MarkIPAsPendingRelease(numberToMark int) (map[string]IPConfigurationStatus, error)
 }
 
-// This is used for KubernetesCRD orchastrator Type where NC has multiple ips.
+// This is used for KubernetesCRD orchestrator Type where NC has multiple ips.
 // This struct captures the state for SecondaryIPs associated to a given NC
 type IPConfigurationStatus struct {
 	NCID                string

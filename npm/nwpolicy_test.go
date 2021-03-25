@@ -19,7 +19,10 @@ import (
 
 func TestAddNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -27,7 +30,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	iptMgr := iptm.NewIptablesManager()
 	if err := iptMgr.Save(util.IptablesTestConfigFile); err != nil {
@@ -110,14 +113,14 @@ func TestAddNetworkPolicy(t *testing.T) {
 	}
 	npMgr.Unlock()
 
-	ipsMgr = npMgr.nsMap[util.KubeAllNamespacesFlag].ipsMgr
+	ipsMgr = npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 
 	// Check whether 0.0.0.0/0 got translated to 1.0.0.0/1 and 128.0.0.0/1
-	if ! ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "1.0.0.0/1", util.IpsetNetHashFlag) {
+	if !ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "1.0.0.0/1", util.IpsetNetHashFlag) {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
-	if ! ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "128.0.0.0/1", util.IpsetNetHashFlag) {
+	if !ipsMgr.Exists("allow-ingress-in-ns-test-nwpolicy-0in", "128.0.0.0/1", util.IpsetNetHashFlag) {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
@@ -163,7 +166,10 @@ func TestAddNetworkPolicy(t *testing.T) {
 
 func TestUpdateNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -171,7 +177,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	iptMgr := iptm.NewIptablesManager()
 	if err := iptMgr.Save(util.IptablesTestConfigFile); err != nil {
@@ -275,7 +281,10 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 
 func TestDeleteNetworkPolicy(t *testing.T) {
 	npMgr := &NetworkPolicyManager{
-		nsMap:            make(map[string]*namespace),
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
@@ -283,7 +292,7 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	if err != nil {
 		panic(err.Error)
 	}
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	iptMgr := iptm.NewIptablesManager()
 	if err := iptMgr.Save(util.IptablesTestConfigFile); err != nil {
@@ -366,5 +375,35 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	promutil.NotifyIfErrors(t, err1, err2)
 	if newGaugeVal != gaugeVal-1 {
 		t.Errorf("Change in policy number didn't register in prometheus")
+	}
+}
+func TestGetNetworkPolicyKey(t *testing.T) {
+	npObj := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "allow-egress",
+			Namespace: "test-nwpolicy",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				networkingv1.NetworkPolicyEgressRule{
+					To: []networkingv1.NetworkPolicyPeer{{
+						NamespaceSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"ns": "test"},
+						},
+					}},
+				},
+			},
+		},
+	}
+
+	netpolKey := GetNetworkPolicyKey(npObj)
+
+	if netpolKey == "" {
+		t.Errorf("TestGetNetworkPolicyKey failed @ netpolKey length check %s", netpolKey)
+	}
+
+	expectedKey := util.GetNSNameWithPrefix("test-nwpolicy/allow-egress")
+	if netpolKey != expectedKey {
+		t.Errorf("TestGetNetworkPolicyKey failed @ netpolKey did not match expected value %s", netpolKey)
 	}
 }

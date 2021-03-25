@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm"
+	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -75,14 +76,13 @@ func main() {
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
 	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
-	go npMgr.SendClusterMetrics()
+	restserver := restserver.NewNpmRestServer(restserver.DefaultHTTPListeningAddress)
+	go restserver.NPMRestServerListenAndServe(npMgr)
 
 	if err = npMgr.Start(wait.NeverStop); err != nil {
 		log.Logf("npm failed with error %v.", err)
 		panic(err.Error)
 	}
-
-	metrics.StartHTTP(0)
 
 	select {}
 }

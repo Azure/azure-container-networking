@@ -66,6 +66,7 @@ const (
 	IptablesCommentFlag       string = "--comment"
 	IptablesAddCommentFlag
 	IptablesAzureChain             string = "AZURE-NPM"
+	IptablesAzureAcceptChain       string = "AZURE-NPM-ACCEPT"
 	IptablesAzureKubeSystemChain   string = "AZURE-NPM-KUBE-SYSTEM"
 	IptablesAzureIngressChain      string = "AZURE-NPM-INGRESS"
 	IptablesAzureIngressPortChain  string = "AZURE-NPM-INGRESS-PORT"
@@ -76,10 +77,13 @@ const (
 	IptablesKubeServicesChain      string = "KUBE-SERVICES"
 	IptablesForwardChain           string = "FORWARD"
 	IptablesInputChain             string = "INPUT"
-	IptablesAzureIngressDropsChain string = "AZURE-NPM-INRGESS-DROPS"
+	IptablesAzureIngressDropsChain string = "AZURE-NPM-INGRESS-DROPS"
 	IptablesAzureEgressDropsChain  string = "AZURE-NPM-EGRESS-DROPS"
 	// Below chain exists only in NPM before v1.2.6
+	// TODO delete this below set while cleaning up
 	IptablesAzureTargetSetsChain string = "AZURE-NPM-TARGET-SETS"
+	// Below chain existing only in NPM before v1.2.7
+	IptablesAzureIngressWrongDropsChain string = "AZURE-NPM-INRGESS-DROPS"
 	// Below chains exists only for before Azure-NPM:v1.0.27
 	// and should be removed after a baking period.
 	IptablesAzureIngressFromNsChain  string = "AZURE-NPM-INGRESS-FROM-NS"
@@ -95,6 +99,7 @@ const (
 	// IptablesAzureEgressMarkHex is for checking the absolute value of the mark
 	IptablesAzureEgressMarkHex string = "0x1000"
 	IptablesAzureAcceptMarkHex string = "0x3000"
+	IptablesAzureClearMarkHex  string = "0x0"
 )
 
 //ipset related constants.
@@ -115,6 +120,7 @@ const (
 	IPsetCheckListFlag string = "list"
 	IpsetTestFlag      string = "test"
 
+	IpsetSetGenericFlag string = "setgeneric" // not used in ipset commands, used as an internal identifier for nethash/hash:ip,port
 	IpsetSetListFlag    string = "setlist"
 	IpsetNetHashFlag    string = "nethash"
 	IpsetIPPortHashFlag string = "hash:ip,port"
@@ -165,13 +171,21 @@ const (
 	GetEnvRetryWaitTimeInSecs int = 3
 	AiInitializeRetryCount    int = 3
 	AiInitializeRetryInMin    int = 1
-	// These ID represents where did the error log generate from.
-	// It's for better query purpose.
-	NpmID  int = 1
-	IpsmID int = 2
-	IptmID int = 3
 
 	DebugMode bool = true
 
 	ErrorValue float64 = 1
+)
+
+// These ID represents where did the error log generate from.
+// It's for better query purpose. In Kusto these value are used in
+// OperationID column
+const (
+	NpmID int = iota + 1
+	IpsmID
+	IptmID
+	NSID
+	PodID
+	NetpolID
+	UtilID
 )
