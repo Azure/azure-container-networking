@@ -77,7 +77,7 @@ func (s *NnsMockServer)StartGrpcServer(port string) {
 
 	nns.RegisterNodeNetworkServiceServer(s.srv, &serverApi{})
 	if err := s.srv.Serve(lis); err != nil {
-		log.Errorf("nnsmockserver: failed to serve at port %d with error %s", port, err)
+		log.Errorf("nnsmockserver: failed to serve at port %s with error %s", port, err)
 	}
 }
 
