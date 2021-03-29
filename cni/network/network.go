@@ -457,7 +457,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	switch nwCfg.Ipam.Type {
 	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+		containerNameID := GetPodNameWithID(k8sPodName, k8sContainerID)
+		plugin.ipamInvoker, err = NewCNSInvoker(containerNameID, k8sNamespace)
 		if err != nil {
 			log.Printf("[cni-net] Creating network %v, failed with err %v", networkId, err)
 			return err
@@ -826,6 +827,13 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		log.Printf("[cni-net] Failed to get POD info due to error: %v", err)
 	}
 
+	k8sContainerID := args.ContainerID
+	if len(k8sContainerID) == 0 {
+		errMsg := "Container ID not specified in CNI Args"
+		log.Printf(errMsg)
+		return plugin.Errorf(errMsg)
+	}
+
 	plugin.setCNIReportDetails(nwCfg, CNI_DEL, "")
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
@@ -858,7 +866,8 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	switch nwCfg.Ipam.Type {
 	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+		containerNameID := GetPodNameWithID(k8sPodName, k8sContainerID)
+		plugin.ipamInvoker, err = NewCNSInvoker(containerNameID, k8sNamespace)
 		if err != nil {
 			log.Printf("[cni-net] Creating network %v failed with err %v.", networkId, err)
 			return err
@@ -1236,4 +1245,8 @@ func convertNnsToCniResult(
 	result.IPs = resultIpconfigs
 
 	return result
+}
+
+func GetPodNameWithID(k8sPodName, k8sContainerID string) string {
+	return k8sPodName + "-[" + k8sContainerID + "]"
 }
