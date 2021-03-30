@@ -36,6 +36,8 @@ const (
 	telemetryRetryTimeInSeconds   = 60
 	heartbeatIntervalInMinutes    = 30
 	reconcileChainTimeInMinutes   = 5
+	// TODO: consider increasing thread number later when logics are correct
+	threadness = 1
 )
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
@@ -184,6 +186,7 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 		return fmt.Errorf("Network policy informer failed to sync")
 	}
 
+	go npMgr.nameSpaceController.Run(threadness, stopCh)
 	go npMgr.reconcileChains()
 	go npMgr.backup()
 
