@@ -164,6 +164,7 @@ func (nsc *nameSpaceController) updateNamespace(old, new interface{}) {
 
 	nsKey := util.GetNSNameWithPrefix(key)
 	nsc.npMgr.Lock()
+	defer nsc.npMgr.Unlock()
 	cachedNsObj, nsExists := nsc.npMgr.NsMap[nsKey]
 	if !nsExists {
 		nsc.workqueue.Add(key)
@@ -174,7 +175,6 @@ func (nsc *nameSpaceController) updateNamespace(old, new interface{}) {
 		log.Logf("[NAMESPACE UPDATE EVENT] Namespace [%s] labels did not change", key)
 		return
 	}
-	nsc.npMgr.Unlock()
 
 	nsc.workqueue.Add(key)
 }
@@ -306,7 +306,7 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 				err = nsc.cleanDeletedNamespace(cachedNs.name, cachedNs.LabelsMap)
 				if err != nil {
 					// cleaning process was failed, need to requeue and retry later.
-					return fmt.Errorf("cannot delete ipset due to %s\n", err.Error())
+					return fmt.Errorf("cannot delete ipset due to %s", err.Error())
 				}
 			}
 			// for other transient apiserver error requeue with exponential backoff
@@ -325,7 +325,7 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	err = nsc.syncUpdateNameSpace(nsObj)
 	// 1. deal with error code and retry this
 	if err != nil {
-		return fmt.Errorf("failed to sync namespace due to  %s\n", err.Error())
+		return fmt.Errorf("failed to sync namespace due to  %s", err.Error())
 	}
 
 	return nil
@@ -374,7 +374,7 @@ func (nsc *nameSpaceController) syncAddNameSpace(nsObj *corev1.Namespace) error 
 
 	ipsMgr := nsc.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	// Create ipset for the namespace.
-	if err = ipsMgr.CreateSet(nsName, append([]string{util.IpsetNetHashFlag})); err != nil {
+	if err = ipsMgr.CreateSet(nsName, []string{util.IpsetNetHashFlag}); err != nil {
 		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to create ipset for namespace %s with err: %v", nsName, err)
 		return err
 	}
@@ -427,16 +427,6 @@ func (nsc *nameSpaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 			}
 		}
 
-		return nil
-	}
-
-	newRv := util.ParseResourceVersion(newNsObj.ObjectMeta.ResourceVersion)
-	if !util.CompareUintResourceVersions(curNsObj.resourceVersion, newRv) {
-		log.Logf("Cached NameSpace has larger ResourceVersion number than new Obj. NameSpace: %s Cached RV: %d New RV:\n",
-			newNsNs,
-			curNsObj.resourceVersion,
-			newRv,
-		)
 		return nil
 	}
 
