@@ -122,6 +122,10 @@ func addNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace) {
 
 	t.Logf("Calling add namespace event")
 	f.nsController.addNamespace(nsObj)
+	if f.nsController.workqueue.Len() == 0 {
+		t.Logf("Add Namespace: worker queue length is 0 ")
+		return
+	}
 	f.nsController.processNextWorkItem()
 }
 
@@ -134,6 +138,10 @@ func updateNamespace(t *testing.T, f *nameSpaceFixture, oldNsObj, newNsObj *core
 
 	t.Logf("Calling update namespace event")
 	f.nsController.updateNamespace(oldNsObj, newNsObj)
+	if f.nsController.workqueue.Len() == 0 {
+		t.Logf("Update Namespace: worker queue length is 0 ")
+		return
+	}
 	f.nsController.processNextWorkItem()
 }
 
@@ -146,6 +154,10 @@ func deleteNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace)
 
 	t.Logf("Calling delete namespace event")
 	f.nsController.deleteNamespace(nsObj)
+	if f.nsController.workqueue.Len() == 0 {
+		t.Logf("Delete Namespace: worker queue length is 0 ")
+		return
+	}
 	f.nsController.processNextWorkItem()
 }
 
