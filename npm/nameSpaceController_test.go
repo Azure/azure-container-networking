@@ -198,7 +198,7 @@ func TestAddNamespace(t *testing.T) {
 	}
 	checkNsTestResult("TestAddNamespace", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(nsObj.Name)]; exists {
+	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(nsObj.Name)]; !exists {
 		t.Errorf("TestAddNamespace failed @ npMgr.nsMap check")
 	}
 }
@@ -230,7 +230,7 @@ func TestUpdateNamespace(t *testing.T) {
 	}
 	checkNsTestResult("TestUpdateNamespace", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; exists {
+	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
 		t.Errorf("TestUpdateNamespace failed @ npMgr.nsMap check")
 	}
 
@@ -269,7 +269,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 	}
 	checkNsTestResult("TestAddNamespaceLabel", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; exists {
+	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
 		t.Errorf("TestAddNamespaceLabel failed @ npMgr.nsMap check")
 	}
 
@@ -309,7 +309,7 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 	}
 	checkNsTestResult("TestAddNamespaceLabelSameRv", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; exists {
+	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
 		t.Errorf("TestAddNamespaceLabelSameRv failed @ npMgr.nsMap check")
 	}
 
