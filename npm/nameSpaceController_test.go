@@ -399,6 +399,47 @@ func TestDeleteNamespace(t *testing.T) {
 	}
 }
 
+func TestGetNamespaceObjFromNsObj(t *testing.T) {
+	ns, _ := newNs("test-ns")
+	ns.LabelsMap = map[string]string{
+		"test": "new",
+	}
+
+	nsObj := getNamespaceObjFromNsObj(ns)
+
+	if !reflect.DeepEqual(ns.LabelsMap, nsObj.ObjectMeta.Labels) {
+		t.Errorf("TestGetNamespaceObjFromNsObj failed @ nsObj labels check")
+	}
+}
+
+func TestIsSystemNs(t *testing.T) {
+	nsObj := newNameSpace("kube-system", "0", map[string]string{"test": "new"})
+
+	if !isSystemNs(nsObj) {
+		t.Errorf("TestIsSystemNs failed @ nsObj isSystemNs check")
+	}
+}
+
+func TestIsInvalidNamespaceUpdate(t *testing.T) {
+	oldNsObj := newNameSpace("test-ns", "0", map[string]string{"test": "new"})
+	newNsObj := newNameSpace("test-ns", "0", map[string]string{"test": "new"})
+
+	if !isInvalidNamespaceUpdate(oldNsObj, newNsObj) {
+		t.Errorf("TestIsInvalidNamespaceUpdate failed @ nsObj isInvalidNamespaceUpdate check")
+	}
+
+	newNsObj.Labels["update"] = "true"
+	if isInvalidNamespaceUpdate(oldNsObj, newNsObj) {
+		t.Errorf("TestIsInvalidNamespaceUpdate failed @ updated nsObj isInvalidNamespaceUpdate check")
+	}
+
+	newNsObj.SetDeletionTimestamp(&metav1.Time{})
+	if isInvalidNamespaceUpdate(oldNsObj, newNsObj) {
+		t.Errorf("TestIsInvalidNamespaceUpdate failed @ deletion time updated nsObj isInvalidNamespaceUpdate check")
+	}
+
+}
+
 func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expectedNsValues) {
 	for _, test := range testCases {
 		if got := len(f.npMgr.PodMap); got != test.expectedLenOfPodMap {
