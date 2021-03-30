@@ -68,15 +68,6 @@ func isSystemNs(nsObj *corev1.Namespace) bool {
 	return nsObj.ObjectMeta.Name == util.KubeSystemFlag
 }
 
-func isInvalidNamespaceUpdate(oldNsObj, newNsObj *corev1.Namespace) (isInvalidUpdate bool) {
-	isInvalidUpdate = oldNsObj.ObjectMeta.Name == newNsObj.ObjectMeta.Name &&
-		newNsObj.ObjectMeta.DeletionTimestamp == nil &&
-		newNsObj.ObjectMeta.DeletionGracePeriodSeconds == nil
-	isInvalidUpdate = isInvalidUpdate && reflect.DeepEqual(oldNsObj.ObjectMeta.Labels, newNsObj.ObjectMeta.Labels)
-
-	return
-}
-
 type nameSpaceController struct {
 	clientset             kubernetes.Interface
 	nameSpaceLister       corelisters.NamespaceLister
@@ -476,19 +467,12 @@ func (nsc *nameSpaceController) cleanDeletedNamespace(nsName string, nsLabel map
 	log.Logf("NAMESPACE DELETING cached labels: [%s/%v]", nsName, cachedNsObj.LabelsMap)
 	// Delete the namespace from its label's ipset list.
 	ipsMgr := nsc.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
-	nsLabels := cachedNsObj.LabelsMap
-	for nsLabelKey, nsLabelVal := range nsLabels {
+	nsLabels := util.GetIPSetListFromLabels(cachedNsObj.LabelsMap)
+	for _, nsLabelKey := range nsLabels {
 		labelKey := util.GetNSNameWithPrefix(nsLabelKey)
 		log.Logf("Deleting namespace %s from ipset list %s", nsName, labelKey)
 		if err = ipsMgr.DeleteFromList(labelKey, nsName); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", nsName, labelKey, err)
-			return err
-		}
-
-		label := util.GetNSNameWithPrefix(nsLabelKey + ":" + nsLabelVal)
-		log.Logf("Deleting namespace %s from ipset list %s", nsName, label)
-		if err = ipsMgr.DeleteFromList(label, nsName); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", nsName, label, err)
 			return err
 		}
 	}

@@ -467,26 +467,6 @@ func TestIsSystemNs(t *testing.T) {
 	}
 }
 
-func TestIsInvalidNamespaceUpdate(t *testing.T) {
-	oldNsObj := newNameSpace("test-ns", "0", map[string]string{"test": "new"})
-	newNsObj := newNameSpace("test-ns", "0", map[string]string{"test": "new"})
-
-	if !isInvalidNamespaceUpdate(oldNsObj, newNsObj) {
-		t.Errorf("TestIsInvalidNamespaceUpdate failed @ nsObj isInvalidNamespaceUpdate check")
-	}
-
-	newNsObj.Labels["update"] = "true"
-	if isInvalidNamespaceUpdate(oldNsObj, newNsObj) {
-		t.Errorf("TestIsInvalidNamespaceUpdate failed @ updated nsObj isInvalidNamespaceUpdate check")
-	}
-
-	newNsObj.SetDeletionTimestamp(&metav1.Time{})
-	if isInvalidNamespaceUpdate(oldNsObj, newNsObj) {
-		t.Errorf("TestIsInvalidNamespaceUpdate failed @ deletion time updated nsObj isInvalidNamespaceUpdate check")
-	}
-
-}
-
 func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expectedNsValues) {
 	for _, test := range testCases {
 		if got := len(f.npMgr.PodMap); got != test.expectedLenOfPodMap {
