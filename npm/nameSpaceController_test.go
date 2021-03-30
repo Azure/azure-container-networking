@@ -375,6 +375,50 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	}
 }
 
+func TestNewNameSpaceUpdate(t *testing.T) {
+	f := newNsFixture(t)
+	f.ipSetSave(util.IpsetTestConfigFile)
+	defer f.ipSetRestore(util.IpsetTestConfigFile)
+
+	oldNsObj := newNameSpace(
+		"test-namespace",
+		"10",
+		map[string]string{
+			"app":    "old-test-namespace",
+			"update": "true",
+			"group":  "test",
+		},
+	)
+	oldNsObj.SetUID("test1")
+
+	newNsObj := newNameSpace(
+		"test-namespace",
+		"9",
+		map[string]string{
+			"app":    "old-test-namespace",
+			"update": "false",
+		},
+	)
+	newNsObj.SetUID("test2")
+	updateNamespace(t, f, oldNsObj, newNsObj)
+
+	testCases := []expectedNsValues{
+		{0, 2, 0},
+	}
+	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
+
+	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
+		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap check")
+	}
+
+	if !reflect.DeepEqual(
+		newNsObj.Labels,
+		f.npMgr.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
+	) {
+		t.Fatalf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap labelMap check")
+	}
+}
+
 func TestDeleteNamespace(t *testing.T) {
 	f := newNsFixture(t)
 	f.ipSetSave(util.IpsetTestConfigFile)
