@@ -78,7 +78,7 @@ func isInvalidNamespaceUpdate(oldNsObj, newNsObj *corev1.Namespace) (isInvalidUp
 }
 
 type nameSpaceController struct {
-	clientset             *kubernetes.Clientset
+	clientset             kubernetes.Interface
 	nameSpaceLister       corelisters.NamespaceLister
 	nameSpaceListerSynced cache.InformerSynced
 	workqueue             workqueue.RateLimitingInterface
@@ -86,7 +86,7 @@ type nameSpaceController struct {
 	npMgr *NetworkPolicyManager
 }
 
-func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, clientset *kubernetes.Clientset, npMgr *NetworkPolicyManager) *nameSpaceController {
+func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, clientset kubernetes.Interface, npMgr *NetworkPolicyManager) *nameSpaceController {
 	nameSpaceController := &nameSpaceController{
 		clientset:             clientset,
 		nameSpaceLister:       nameSpaceInformer.Lister(),
@@ -306,7 +306,7 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 				err = nsc.cleanDeletedNamespace(getNamespaceObjFromNsObj(cachedNs))
 				if err != nil {
 					// cleaning process was failed, need to requeue and retry later.
-					return fmt.Errorf("Cannot delete ipset due to %s\n", err.Error())
+					return fmt.Errorf("cannot delete ipset due to %s\n", err.Error())
 				}
 			}
 			// for other transient apiserver error requeue with exponential backoff
@@ -322,7 +322,7 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	err = nsc.syncUpdateNameSpace(nsObj)
 	// 1. deal with error code and retry this
 	if err != nil {
-		return fmt.Errorf("Failed to sync namespace due to  %s\n", err.Error())
+		return fmt.Errorf("failed to sync namespace due to  %s\n", err.Error())
 	}
 
 	return nil
