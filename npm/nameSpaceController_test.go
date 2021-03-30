@@ -375,6 +375,9 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	}
 }
 
+// TestNewNameSpaceUpdate will test the case where the key is same but the object is different.
+// this happens when NSA delete event is missed and deleted from NPMLocalCache,
+// but NSA gets added again. This will result in an update event with old and new with different UUIDs
 func TestNewNameSpaceUpdate(t *testing.T) {
 	f := newNsFixture(t)
 	f.ipSetSave(util.IpsetTestConfigFile)
