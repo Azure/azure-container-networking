@@ -363,12 +363,12 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	}
 	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; exists {
+	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
 		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap check")
 	}
 
 	if !reflect.DeepEqual(
-		oldNsObj.Labels,
+		newNsObj.Labels,
 		f.npMgr.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
 	) {
 		t.Fatalf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap labelMap check")
@@ -402,10 +402,10 @@ func TestDeleteNamespace(t *testing.T) {
 func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expectedNsValues) {
 	for _, test := range testCases {
 		if got := len(f.npMgr.PodMap); got != test.expectedLenOfPodMap {
-			f.t.Errorf("PodMap length = %d, want %d", got, test.expectedLenOfPodMap)
+			f.t.Errorf("PodMap length = %d, want %d. Map: %+v", got, test.expectedLenOfPodMap, f.npMgr.PodMap)
 		}
 		if got := len(f.npMgr.NsMap); got != test.expectedLenOfNsMap {
-			f.t.Errorf("npMgr length = %d, want %d", got, test.expectedLenOfNsMap)
+			f.t.Errorf("npMgr length = %d, want %d. Map: %+v", got, test.expectedLenOfNsMap, f.npMgr.NsMap)
 		}
 		if got := f.nsController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
 			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)

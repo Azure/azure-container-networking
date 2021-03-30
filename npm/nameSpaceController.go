@@ -303,7 +303,7 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 			cachedNs, found := nsc.npMgr.NsMap[nsKey]
 			if found {
 				// TODO: better to use cachedPod when calling cleanUpDeletedPod?
-				err = nsc.cleanDeletedNamespace(getNamespaceObjFromNsObj(cachedNs))
+				err = nsc.cleanDeletedNamespace(cachedNs.name, cachedNs.LabelsMap)
 				if err != nil {
 					// cleaning process was failed, need to requeue and retry later.
 					return fmt.Errorf("cannot delete ipset due to %s\n", err.Error())
@@ -315,7 +315,10 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	}
 
 	if nsObj.DeletionTimestamp != nil || nsObj.DeletionGracePeriodSeconds != nil {
-		return nsc.cleanDeletedNamespace(nsObj)
+		return nsc.cleanDeletedNamespace(
+			util.GetNSNameWithPrefix(nsObj.Name),
+			nsObj.Labels,
+		)
 
 	}
 
@@ -470,10 +473,9 @@ func (nsc *nameSpaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 }
 
 // cleanDeletedNamespace handles deleting namespace from ipset.
-func (nsc *nameSpaceController) cleanDeletedNamespace(nsObj *corev1.Namespace) error {
+func (nsc *nameSpaceController) cleanDeletedNamespace(nsName string, nsLabel map[string]string) error {
 	var err error
 
-	nsName, nsLabel := util.GetNSNameWithPrefix(nsObj.ObjectMeta.Name), nsObj.ObjectMeta.Labels
 	log.Logf("NAMESPACE DELETING: [%s/%v]", nsName, nsLabel)
 
 	cachedNsObj, exists := nsc.npMgr.NsMap[nsName]
