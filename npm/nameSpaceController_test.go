@@ -59,7 +59,7 @@ func newNsFixture(t *testing.T) *nameSpaceFixture {
 	return f
 }
 
-func (f *nameSpaceFixture) newNsController() {
+func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
@@ -69,6 +69,8 @@ func (f *nameSpaceFixture) newNsController() {
 	for _, ns := range f.nsLister {
 		f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Add(ns)
 	}
+
+	f.kubeInformer.Start(stopCh)
 }
 
 func (f *nameSpaceFixture) ipSetSave(ipsetConfigFile string) {
@@ -112,14 +114,6 @@ func newNameSpace(name, rv string, labels map[string]string) *corev1.Namespace {
 }
 
 func addNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace) {
-	f.nsLister = append(f.nsLister, nsObj)
-	f.kubeobjects = append(f.kubeobjects, nsObj)
-
-	f.newNsController()
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	f.kubeInformer.Start(stopCh)
-
 	t.Logf("Calling add namespace event")
 	f.nsController.addNamespace(nsObj)
 	if f.nsController.workqueue.Len() == 0 {
@@ -202,6 +196,12 @@ func TestAddNamespace(t *testing.T) {
 			"app": "test-namespace",
 		},
 	)
+	f.nsLister = append(f.nsLister, nsObj)
+	f.kubeobjects = append(f.kubeobjects, nsObj)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newNsController(stopCh)
 
 	addNamespace(t, f, nsObj)
 
@@ -235,6 +235,11 @@ func TestUpdateNamespace(t *testing.T) {
 			"app": "new-test-namespace",
 		},
 	)
+	f.nsLister = append(f.nsLister, oldNsObj)
+	f.kubeobjects = append(f.kubeobjects, oldNsObj)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
@@ -274,6 +279,11 @@ func TestAddNamespaceLabel(t *testing.T) {
 			"update": "true",
 		},
 	)
+	f.nsLister = append(f.nsLister, oldNsObj)
+	f.kubeobjects = append(f.kubeobjects, oldNsObj)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
@@ -314,6 +324,11 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 			"update": "true",
 		},
 	)
+	f.nsLister = append(f.nsLister, oldNsObj)
+	f.kubeobjects = append(f.kubeobjects, oldNsObj)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
@@ -356,6 +371,11 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 			"update": "false",
 		},
 	)
+	f.nsLister = append(f.nsLister, oldNsObj)
+	f.kubeobjects = append(f.kubeobjects, oldNsObj)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
@@ -402,6 +422,11 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 			"update": "false",
 		},
 	)
+	f.nsLister = append(f.nsLister, oldNsObj)
+	f.kubeobjects = append(f.kubeobjects, oldNsObj)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 	newNsObj.SetUID("test2")
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
@@ -434,6 +459,11 @@ func TestDeleteNamespace(t *testing.T) {
 			"app": "test-namespace",
 		},
 	)
+	f.nsLister = append(f.nsLister, nsObj)
+	f.kubeobjects = append(f.kubeobjects, nsObj)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 	deleteNamespace(t, f, nsObj)
 
 	testCases := []expectedNsValues{
@@ -452,7 +482,7 @@ func TestGetNamespaceObjFromNsObj(t *testing.T) {
 		"test": "new",
 	}
 
-	nsObj := getNamespaceObjFromNsObj(ns)
+	nsObj := ns.getNamespaceObjFromNsObj()
 
 	if !reflect.DeepEqual(ns.LabelsMap, nsObj.ObjectMeta.Labels) {
 		t.Errorf("TestGetNamespaceObjFromNsObj failed @ nsObj labels check")

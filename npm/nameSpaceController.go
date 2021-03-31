@@ -50,7 +50,7 @@ func newNs(name string) (*Namespace, error) {
 	return ns, nil
 }
 
-func getNamespaceObjFromNsObj(nsObj *Namespace) *corev1.Namespace {
+func (nsObj *Namespace) getNamespaceObjFromNsObj() *corev1.Namespace {
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   nsObj.name,
@@ -60,7 +60,7 @@ func getNamespaceObjFromNsObj(nsObj *Namespace) *corev1.Namespace {
 }
 
 // setResourceVersion setter func for RV
-func setResourceVersion(nsObj *Namespace, rv string) {
+func (nsObj *Namespace) setResourceVersion(rv string) {
 	nsObj.resourceVersion = util.ParseResourceVersion(rv)
 }
 
@@ -103,15 +103,14 @@ func (nsc *nameSpaceController) needSync(obj interface{}, event string) (string,
 
 	nsObj, ok := obj.(*corev1.Namespace)
 	if !ok {
-		metrics.SendErrorLogAndMetric(util.NSID, "%s Pod: Received unexpected object type: %v", event, obj)
+		metrics.SendErrorLogAndMetric(util.NSID, "[NAMESPACE %s EVENT] Received unexpected object type: %v", event, obj)
 		return key, needSync
 	}
 
 	var err error
 	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
 		utilruntime.HandleError(err)
-		err = fmt.Errorf("[%sNameSpace] Error: nameSpaceKey is empty for %s namespace", event, util.GetNSNameWithPrefix(nsObj.Name))
-		metrics.SendErrorLogAndMetric(util.NSID, err.Error())
+		metrics.SendErrorLogAndMetric(util.NSID, "[NAMESPACE %s EVENT] Error: NameSpaceKey is empty for %s namespace", event, util.GetNSNameWithPrefix(nsObj.Name))
 		return key, needSync
 	}
 
@@ -147,17 +146,15 @@ func (nsc *nameSpaceController) updateNamespace(old, new interface{}) {
 	}
 
 	nsKey := util.GetNSNameWithPrefix(key)
+
 	nsc.npMgr.Lock()
 	defer nsc.npMgr.Unlock()
 	cachedNsObj, nsExists := nsc.npMgr.NsMap[nsKey]
-	if !nsExists {
-		nsc.workqueue.Add(key)
-		return
-	}
-
-	if reflect.DeepEqual(cachedNsObj.LabelsMap, nsObj.ObjectMeta.Labels) {
-		log.Logf("[NAMESPACE UPDATE EVENT] Namespace [%s] labels did not change", key)
-		return
+	if nsExists {
+		if reflect.DeepEqual(cachedNsObj.LabelsMap, nsObj.ObjectMeta.Labels) {
+			log.Logf("[NAMESPACE UPDATE EVENT] Namespace [%s] labels did not change", key)
+			return
+		}
 	}
 
 	nsc.workqueue.Add(key)
@@ -186,8 +183,7 @@ func (nsc *nameSpaceController) deleteNamespace(obj interface{}) {
 	var key string
 	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
 		utilruntime.HandleError(err)
-		err = fmt.Errorf("[NAMESPACE DELETE EVENT] Error: nameSpaceKey is empty for %s namespace", util.GetNSNameWithPrefix(nsObj.Name))
-		metrics.SendErrorLogAndMetric(util.NSID, err.Error())
+		metrics.SendErrorLogAndMetric(util.NSID, "[NAMESPACE DELETE EVENT] Error: nameSpaceKey is empty for %s namespace", util.GetNSNameWithPrefix(nsObj.Name))
 		return
 	}
 
@@ -197,7 +193,7 @@ func (nsc *nameSpaceController) deleteNamespace(obj interface{}) {
 	nsKey := util.GetNSNameWithPrefix(key)
 	_, nsExists := nsc.npMgr.NsMap[nsKey]
 	if !nsExists {
-		log.Logf("[NAMESPACE Delete EVENT] Namespace [%s] does not exist in case, so returning", key)
+		log.Logf("[NAMESPACE DELETE EVENT] Namespace [%s] does not exist in case, so returning", key)
 		return
 	}
 
@@ -208,11 +204,9 @@ func (nsc *nameSpaceController) Run(threadiness int, stopCh <-chan struct{}) err
 	defer utilruntime.HandleCrash()
 	defer nsc.workqueue.ShutDown()
 
-	// Start the informer factories to begin populating the informer caches
 	log.Logf("Starting Namespace controller\n")
-
 	log.Logf("Starting workers")
-	// Launch two workers to process namespace resources
+	// Launch workers to process namespace resources
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(nsc.runWorker, time.Second, stopCh)
 	}
@@ -248,7 +242,7 @@ func (nsc *nameSpaceController) processNextWorkItem() bool {
 			utilruntime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
 			return nil
 		}
-		// Run the syncHandler, passing it the namespace string of the
+		// Run the syncNameSpace, passing it the namespace string of the
 		// resource to be synced.
 		// TODO : may consider using "c.queue.AddAfter(key, *requeueAfter)" according to error type later
 		if err := nsc.syncNameSpace(key); err != nil {
@@ -283,7 +277,7 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	if err != nil {
 		if errors.IsNotFound(err) {
 			utilruntime.HandleError(fmt.Errorf("NameSpace '%s' in work queue no longer exists", key))
-			// find the namespace object from a local cache and start cleaning up process (calling cleanUpDeletedPod function)
+			// find the namespace object from a local cache and start cleaning up process (calling cleanDeletedNamespace function)
 			nsKey := util.GetNSNameWithPrefix(key)
 			cachedNs, found := nsc.npMgr.NsMap[nsKey]
 			// if the namespace does not exists, we do not need to clean up process and retry it
@@ -303,17 +297,15 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	}
 
 	if nsObj.DeletionTimestamp != nil || nsObj.DeletionGracePeriodSeconds != nil {
-		return nsc.cleanDeletedNamespace(
-			util.GetNSNameWithPrefix(nsObj.Name),
-			nsObj.Labels,
-		)
+		return nsc.cleanDeletedNamespace(util.GetNSNameWithPrefix(nsObj.Name), nsObj.Labels)
 
 	}
 
 	err = nsc.syncUpdateNameSpace(nsObj)
 	// 1. deal with error code and retry this
 	if err != nil {
-		return fmt.Errorf("failed to sync namespace due to  %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.NSID, "[syncNameSpace] failed to sync namespace due to  %s", err.Error())
+		return err
 	}
 
 	return nil
@@ -383,11 +375,8 @@ func (nsc *nameSpaceController) syncAddNameSpace(nsObj *corev1.Namespace) error 
 		}
 	}
 
-	ns, err := newNs(nsName)
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[AddNamespace] Error: failed to create namespace %s with err: %v", nsName, err)
-	}
-	setResourceVersion(ns, nsObj.GetObjectMeta().GetResourceVersion())
+	ns, _ := newNs(nsName)
+	ns.setResourceVersion(nsObj.GetObjectMeta().GetResourceVersion())
 
 	// Append all labels to the cache NS obj
 	ns.LabelsMap = util.AppendMap(ns.LabelsMap, nsLabel)
@@ -444,7 +433,7 @@ func (nsc *nameSpaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 
 	// Append all labels to the cache NS obj
 	curNsObj.LabelsMap = util.ClearAndAppendMap(curNsObj.LabelsMap, newNsLabel)
-	setResourceVersion(curNsObj, newNsObj.GetObjectMeta().GetResourceVersion())
+	curNsObj.setResourceVersion(newNsObj.GetObjectMeta().GetResourceVersion())
 	nsc.npMgr.NsMap[newNsNs] = curNsObj
 
 	return nil
@@ -452,8 +441,6 @@ func (nsc *nameSpaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 
 // cleanDeletedNamespace handles deleting namespace from ipset.
 func (nsc *nameSpaceController) cleanDeletedNamespace(nsName string, nsLabel map[string]string) error {
-	var err error
-
 	log.Logf("NAMESPACE DELETING: [%s/%v]", nsName, nsLabel)
 
 	cachedNsObj, exists := nsc.npMgr.NsMap[nsName]
@@ -462,9 +449,11 @@ func (nsc *nameSpaceController) cleanDeletedNamespace(nsName string, nsLabel map
 	}
 
 	log.Logf("NAMESPACE DELETING cached labels: [%s/%v]", nsName, cachedNsObj.LabelsMap)
-	// Delete the namespace from its label's ipset list.
+
+	var err error
 	ipsMgr := nsc.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	nsLabels := util.GetIPSetListFromLabels(cachedNsObj.LabelsMap)
+	// Delete the namespace from its label's ipset list.
 	for _, nsLabelKey := range nsLabels {
 		labelKey := util.GetNSNameWithPrefix(nsLabelKey)
 		log.Logf("Deleting namespace %s from ipset list %s", nsName, labelKey)
