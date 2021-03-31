@@ -30,3 +30,6 @@ comment:
 
 ignore:
   - "vendor/"
+
+github_checks:
+  annotations: false
