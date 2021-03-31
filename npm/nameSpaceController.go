@@ -138,13 +138,6 @@ func (nsc *nameSpaceController) updateNamespace(old, new interface{}) {
 	}
 
 	nsObj, _ := new.(*corev1.Namespace)
-
-	if nsObj.ObjectMeta.DeletionTimestamp != nil ||
-		nsObj.ObjectMeta.DeletionGracePeriodSeconds != nil {
-		nsc.deleteNamespace(new)
-		return
-	}
-
 	oldNsObj, ok := old.(*corev1.Namespace)
 	if ok {
 		if oldNsObj.ResourceVersion == nsObj.ResourceVersion {
@@ -261,7 +254,8 @@ func (nsc *nameSpaceController) processNextWorkItem() bool {
 		if err := nsc.syncNameSpace(key); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			nsc.workqueue.AddRateLimited(key)
-			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
+			metrics.SendErrorLogAndMetric(util.NSID, "[processNextWorkItem] Error: failed to syncNameSpace %s. Requeuing with err: %v", key, err)
+			return err
 		}
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
@@ -292,15 +286,18 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 			// find the namespace object from a local cache and start cleaning up process (calling cleanUpDeletedPod function)
 			nsKey := util.GetNSNameWithPrefix(key)
 			cachedNs, found := nsc.npMgr.NsMap[nsKey]
-			if found {
-				// TODO: better to use cachedPod when calling cleanUpDeletedPod?
-				err = nsc.cleanDeletedNamespace(cachedNs.name, cachedNs.LabelsMap)
-				if err != nil {
-					// cleaning process was failed, need to requeue and retry later.
-					return fmt.Errorf("cannot delete ipset due to %s", err.Error())
-				}
+			// if the namespace does not exists, we do not need to clean up process and retry it
+			if !found {
+				return nil
 			}
-			// for other transient apiserver error requeue with exponential backoff
+
+			// Found the namespace object from NsMap local cache and start cleaning up processes
+			err = nsc.cleanDeletedNamespace(cachedNs.name, cachedNs.LabelsMap)
+			if err != nil {
+				// need to retry this cleaning-up process
+				metrics.SendErrorLogAndMetric(util.NSID, "Error: %v when namespace is not found", err)
+				return fmt.Errorf("Error: %v when namespace is not found\n", err)
+			}
 			return err
 		}
 	}
