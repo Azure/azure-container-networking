@@ -290,10 +290,10 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 			if err != nil {
 				// need to retry this cleaning-up process
 				metrics.SendErrorLogAndMetric(util.NSID, "Error: %v when namespace is not found", err)
-				return err
+				return fmt.Errorf("Error: %v when namespace is not found", err)
 			}
-			return err
 		}
+		return err
 	}
 
 	if nsObj.DeletionTimestamp != nil || nsObj.DeletionGracePeriodSeconds != nil {
