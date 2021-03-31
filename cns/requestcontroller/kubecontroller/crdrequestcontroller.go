@@ -294,6 +294,34 @@ func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec 
 	return nil
 }
 
+// GetMaxIPCountOfNode gets the max ip count for this node
+func (crdRC *crdRequestController) GetMaxIPCountOfNode(cntxt context.Context) (int64, error) {
+	var (
+		node  *corev1.Node
+		err   error
+    count int64
+	)
+
+	if node, err = crdRC.getNode(cntxt, crdRC.nodeName); err != nil {
+		logger.Printf("[cns-rc] Error getting node %v: %v", crdRC.nodeName, err)
+		return -1, err
+	}
+	count = node.Status.Capacity.Pods().Value()
+
+	return count, nil
+}
+
+func (crdRC *crdRequestController) getNode(ctx context.Context, nodeName string) (*corev1.Node, error) {
+	node := &corev1.Node{}
+
+	err := crdRC.KubeClient.Get(ctx, client.ObjectKey{
+		Namespace: "",
+		Name:      nodeName,
+	}, node)
+
+	return node, err
+}
+
 // getNodeNetConfig gets the nodeNetworkConfig CRD given the name and namespace of the CRD object
 func (crdRC *crdRequestController) getNodeNetConfig(cntxt context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {
 	nodeNetworkConfig := &nnc.NodeNetworkConfig{}

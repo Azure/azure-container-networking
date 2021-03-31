@@ -78,6 +78,17 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	switch {
 	// pod count is increasing
 	case freeIPConfigCount < pm.MinimumFreeIps:
+    maxIpCount, err := pm.rc.GetMaxIPCountOfNode(context.Background())
+    if err != nil {
+      logger.Printf("[ipam-pool-monitor] Error when getting max ip count in Reconcile: %v", err)
+      return err
+    }
+    
+    if pm.cachedNNC.Spec.RequestedIPCount == maxIpCount {
+      // If we're already at the maxIpCount, don't try to increase
+      return nil
+    }
+
 		logger.Printf("[ipam-pool-monitor] Increasing pool size...%s ", msg)
 		return pm.increasePoolSize()
 
@@ -112,7 +123,28 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 		return err
 	}
 
+	// Query the max pod count for this node
+	maxIpCount, err := pm.rc.GetMaxIPCountOfNode(context.Background())
+  if err != nil {
+    logger.Printf("[ipam-pool-monitor] Error when getting max ip count in increasePoolSize: %v", err)
+    return err
+  }
+
+	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
+
 	tempNNCSpec.RequestedIPCount += pm.scalarUnits.BatchSize
+	if tempNNCSpec.RequestedIPCount > maxIpCount {
+		// We don't want to ask for more ips than the node limit
+    logger.Printf("[ipam-pool-monitor] Requested IP count (%v) is over the node limit (%v), requesting node limit instead.", tempNNCSpec.RequestedIPCount, maxIpCount)
+		tempNNCSpec.RequestedIPCount = maxIpCount
+	}
+
+	// If the requested IP count is same as before, then don't do anything
+	if tempNNCSpec.RequestedIPCount == previouslyRequestedIPCount {
+    logger.Printf("[ipam-pool-monitor] Previously requested IP count %v is same as updated IP count %v, doing nothing", previouslyRequestedIPCount, tempNNCSpec.RequestedIPCount)
+		return nil
+	}
+
 	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Updated Requested IP Count: %v, Pods with IP's:%v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
 	err = pm.rc.UpdateCRDSpec(context.Background(), tempNNCSpec)
@@ -135,10 +167,34 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(existingPendingReleaseIPCount int
 	var err error
 	var newIpsMarkedAsPending bool
 	var pendingIpAddresses map[string]cns.IPConfigurationStatus
+  var updatedRequestedIPCount int64
+  var decreaseIPCountBy int64
+
+  // Ensure the updated requested IP count is a multiple of the batch size
+  previouslyRequestedIPCount := pm.cachedNNC.Spec.RequestedIPCount
+  modResult := previouslyRequestedIPCount % pm.scalarUnits.BatchSize
+  
+  logger.Printf("[ipam-pool-monitor] Previously RequestedIP Count %v", previouslyRequestedIPCount)
+  logger.Printf("[ipam-pool-monitor] Batch size : %v", pm.scalarUnits.BatchSize)
+  logger.Printf("[ipam-pool-monitor] modResult of (previously requested IP count mod batch size) = %v", modResult)
+
+  if modResult != 0 {
+    // Example: previouscount = 25, batchsize = 10, 25 - 10 = 15, NOT a multiple of batchsize (10)
+    // Don't want that, so make requestedIPCount 20 (25 - (25 % 10)) so that it is a multiple of the batchsize (10)
+    updatedRequestedIPCount = previouslyRequestedIPCount - modResult
+  } else {
+    // Example: previouscount = 30, batchsize = 10, 30 - 10 = 20 which is multiple of batchsize (10) so all good 
+    updatedRequestedIPCount = previouslyRequestedIPCount - pm.scalarUnits.BatchSize
+  }
+
+  decreaseIPCountBy = previouslyRequestedIPCount - updatedRequestedIPCount
+
+  logger.Printf("[ipam-pool-monitor] updatedRequestedIPCount %v", updatedRequestedIPCount)
+
 	if pm.updatingIpsNotInUseCount == 0 ||
 		pm.updatingIpsNotInUseCount < existingPendingReleaseIPCount {
-		logger.Printf("[ipam-pool-monitor] Marking IPs as PendingRelease, ipsToBeReleasedCount %d", int(pm.scalarUnits.BatchSize))
-		pendingIpAddresses, err = pm.httpService.MarkIPAsPendingRelease(int(pm.scalarUnits.BatchSize))
+		logger.Printf("[ipam-pool-monitor] Marking IPs as PendingRelease, ipsToBeReleasedCount %d", int(decreaseIPCountBy))
+		pendingIpAddresses, err = pm.httpService.MarkIPAsPendingRelease(int(decreaseIPCountBy))
 		if err != nil {
 			return err
 		}
@@ -201,7 +257,6 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease() error {
 	}
 
 	logger.Printf("[ipam-pool-monitor] cleanPendingRelease: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
-
 
 	// save the updated state to cachedSpec
 	pm.cachedNNC.Spec = tempNNCSpec
