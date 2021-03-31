@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
-	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,11 +16,6 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
-)
-
-var (
-	alwaysReady        = func() bool { return true }
-	noResyncPeriodFunc = func() time.Duration { return 0 }
 )
 
 const (
@@ -86,19 +79,6 @@ func (f *podFixture) ipSetRestore(ipsetConfigFile string) {
 	if err := f.ipsMgr.Restore(ipsetConfigFile); err != nil {
 		f.t.Errorf("TestAddPod failed @ ipsMgr.Restore")
 	}
-}
-
-func newNPMgr(t *testing.T) *NetworkPolicyManager {
-	npMgr := &NetworkPolicyManager{
-		NsMap:  make(map[string]*Namespace),
-		PodMap: make(map[string]*NpmPod),
-	}
-
-	// (TODO:) should remove error return
-	// (Question) Is it necessary? Seems that it is necessary. Without this, it will have panic in PodController
-	allNs, _ := newNs(util.KubeAllNamespacesFlag)
-	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
-	return npMgr
 }
 
 func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNewtwork bool, podPhase corev1.PodPhase) *corev1.Pod {

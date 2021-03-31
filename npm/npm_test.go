@@ -10,6 +10,19 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
+func newNPMgr(t *testing.T) *NetworkPolicyManager {
+	npMgr := &NetworkPolicyManager{
+		NsMap:            make(map[string]*Namespace),
+		PodMap:           make(map[string]*NpmPod),
+		TelemetryEnabled: false,
+	}
+
+	// This initialization important as without this NPM will panic
+	allNs, _ := newNs(util.KubeAllNamespacesFlag)
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
+	return npMgr
+}
+
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	iptMgr := iptm.NewIptablesManager()

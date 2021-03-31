@@ -87,18 +87,6 @@ func (f *nameSpaceFixture) ipSetRestore(ipsetConfigFile string) {
 		f.t.Errorf("TestAddPod failed @ ipsMgr.Restore")
 	}
 }
-func newNPMgr(t *testing.T) *NetworkPolicyManager {
-	npMgr := &NetworkPolicyManager{
-		NsMap:            make(map[string]*Namespace),
-		PodMap:           make(map[string]*NpmPod),
-		TelemetryEnabled: false,
-	}
-
-	// This initialization important as without this NPM will panic
-	allNs, _ := newNs(util.KubeAllNamespacesFlag)
-	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
-	return npMgr
-}
 
 func newNameSpace(name, rv string, labels map[string]string) *corev1.Namespace {
 	return &corev1.Namespace{
