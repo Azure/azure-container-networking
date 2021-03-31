@@ -10,7 +10,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -92,8 +91,6 @@ func newNPMgr(t *testing.T) *NetworkPolicyManager {
 	npMgr := &NetworkPolicyManager{
 		NsMap:            make(map[string]*Namespace),
 		PodMap:           make(map[string]*NpmPod),
-		RawNpMap:         make(map[string]*networkingv1.NetworkPolicy),
-		ProcessedNpMap:   make(map[string]*networkingv1.NetworkPolicy),
 		TelemetryEnabled: false,
 	}
 
