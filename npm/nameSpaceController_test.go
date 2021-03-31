@@ -237,6 +237,7 @@ func TestUpdateNamespace(t *testing.T) {
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+	f.newNsController(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
@@ -281,6 +282,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+	f.newNsController(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
@@ -326,6 +328,7 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+	f.newNsController(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
@@ -373,6 +376,7 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+	f.newNsController(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
@@ -424,6 +428,7 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+	f.newNsController(stopCh)
 	newNsObj.SetUID("test2")
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
@@ -461,6 +466,7 @@ func TestDeleteNamespace(t *testing.T) {
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+	f.newNsController(stopCh)
 	deleteNamespace(t, f, nsObj)
 
 	testCases := []expectedNsValues{
