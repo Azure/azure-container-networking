@@ -158,29 +158,6 @@ func TestNewNs(t *testing.T) {
 	}
 }
 
-func TestAllNsList(t *testing.T) {
-	npMgr := &NetworkPolicyManager{}
-
-	ipsMgr := ipsm.NewIpsetManager()
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestAllNsList failed @ ipsMgr.Save")
-	}
-
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestAllNsList failed @ ipsMgr.Restore")
-		}
-	}()
-
-	if err := npMgr.InitAllNsList(); err != nil {
-		t.Errorf("TestAllNsList failed @ InitAllNsList")
-	}
-
-	if err := npMgr.UninitAllNsList(); err != nil {
-		t.Errorf("TestAllNsList failed @ UninitAllNsList")
-	}
-}
-
 func TestAddNamespace(t *testing.T) {
 	f := newNsFixture(t)
 	f.ipSetSave(util.IpsetTestConfigFile)
