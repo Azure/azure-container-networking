@@ -16,11 +16,11 @@ type RequestControllerFake struct {
 	fakecns   *HTTPServiceFake
 	cachedCRD nnc.NodeNetworkConfig
 	ip        net.IP
-  node corev1.Node
+	node corev1.Node
 }
 
 func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, subnetAddressSpace string, numberOfIPConfigs int, maxPodIPCount int64) *RequestControllerFake {
-  quantity, _ := resource.ParseQuantity(strconv.FormatInt(maxPodIPCount, 10))
+	quantity, _ := resource.ParseQuantity(strconv.FormatInt(maxPodIPCount, 10))
 
 	rc := &RequestControllerFake{
 		fakecns: cnsService,
@@ -33,13 +33,13 @@ func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, su
 				}},
 			},
 		},
-    node: corev1.Node{
-      Status: corev1.NodeStatus{
-        Capacity: corev1.ResourceList{
-          corev1.ResourcePods: quantity,
-        },
-      },
-    },
+		node: corev1.Node{
+			Status: corev1.NodeStatus{
+			Capacity: corev1.ResourceList{
+				corev1.ResourcePods: quantity,
+			},
+			},
+		},
 	}
 
 	rc.ip, _, _ = net.ParseCIDR(subnetAddressSpace)
@@ -94,7 +94,7 @@ func (rc *RequestControllerFake) UpdateCRDSpec(cntxt context.Context, desiredSpe
 }
 
 func (rc *RequestControllerFake) GetMaxIPCountOfNode(ctx context.Context) (int64, error) {
-  return rc.node.Status.Capacity.Pods().Value(), nil
+	return rc.node.Status.Capacity.Pods().Value(), nil
 }
 
 func remove(slice []nnc.IPAssignment, s int) []nnc.IPAssignment {

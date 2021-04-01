@@ -299,7 +299,7 @@ func (crdRC *crdRequestController) GetMaxIPCountOfNode(cntxt context.Context) (i
 	var (
 		node  *corev1.Node
 		err   error
-    count int64
+		count int64
 	)
 
 	if node, err = crdRC.getNode(cntxt, crdRC.nodeName); err != nil {
