@@ -14,3 +14,6 @@ ipam-*.xml
 
 # Goland
 .idea/*
+
+# Logs
+*.log

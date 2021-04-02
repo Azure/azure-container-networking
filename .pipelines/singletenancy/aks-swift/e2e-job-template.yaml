@@ -23,6 +23,7 @@ stages:
           GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
           GOBIN: "$(GOPATH)/bin" # Go binaries path
           ImageTag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.ImageTag'] ]
+          modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
         steps:
           - template: e2e-step-template.yaml
             parameters:

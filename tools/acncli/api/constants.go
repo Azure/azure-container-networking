@@ -82,7 +82,7 @@ var (
 		FlagTenancy:                  Singletenancy,
 		FlagIPAM:                     AzureVNETIPAM,
 		FlagExempt:                   AzureTelemetryBin + "," + AzureTelemetryConfig,
-		FlagMode:                     Bridge,
+		FlagMode:                     Transparent,
 		FlagTarget:                   Local,
 		FlagBinDirectory:             DefaultBinDirLinux,
 		FlagConflistDirectory:        DefaultConflistDirLinux,

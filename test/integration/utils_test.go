@@ -3,8 +3,10 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log"
 	"strings"
 	"time"
@@ -220,6 +222,60 @@ func waitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 		return nil
 	}
 
-	retrier := retry.Retrier{Attempts: 10, Delay: 2 * time.Second}
+	retrier := retry.Retrier{Attempts: 10, Delay: 6 * time.Second}
 	return retrier.Do(ctx, checkPodIPsFn)
+}
+
+
+func exportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector, logDir string) error {
+	podsClient := clientset.CoreV1().Pods(namespace)
+	podLogOpts := corev1.PodLogOptions{}
+	logExtension := ".log"
+	podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
+	if err != nil {
+		return err
+	}
+
+	for _, pod := range podList.Items {
+		req := podsClient.GetLogs(pod.Name, &podLogOpts)
+		podLogs, err := req.Stream(ctx)
+		if err != nil {
+			return err
+		}
+		defer podLogs.Close()
+
+		buf := new(bytes.Buffer)
+		_, err = io.Copy(buf, podLogs)
+		if err != nil {
+			return err
+		}
+		str := buf.String()
+		err = writeToFile(logDir, pod.Name + logExtension, str)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeToFile(dir, fileName, str string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) { 
+		// your dir does not exist
+		os.MkdirAll(dir, 0666)
+	}
+	// open output file
+	f, err := os.Create(dir + fileName)
+	if err != nil {
+		return err
+	}
+	// close fo on exit and check for its returned error
+	defer func() {
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	// If write went ok then err is nil
+	_, err = f.WriteString(str)
+	return err
 }
