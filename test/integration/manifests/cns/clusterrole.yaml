@@ -5,5 +5,5 @@ metadata:
   namespace: kube-system 
 rules:
 - apiGroups: [""]
-  resources: ["pods", "nodes"]
+  resources: ["pods"]
   verbs: ["get", "watch", "list"]

@@ -3,13 +3,11 @@ package fakes
 import (
 	"context"
 	"net"
-	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 type RequestControllerFake struct {
@@ -20,8 +18,7 @@ type RequestControllerFake struct {
 }
 
 func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, subnetAddressSpace string, numberOfIPConfigs int, maxPodIPCount int64) *RequestControllerFake {
-	quantity, _ := resource.ParseQuantity(strconv.FormatInt(maxPodIPCount, 10))
-
+	// TODO: use maxPodIPCount to populate CRD max ip count
 	rc := &RequestControllerFake{
 		fakecns: cnsService,
 		cachedCRD: nnc.NodeNetworkConfig{
@@ -31,13 +28,6 @@ func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, su
 				NetworkContainers: []nnc.NetworkContainer{nnc.NetworkContainer{
 					SubnetAddressSpace: subnetAddressSpace,
 				}},
-			},
-		},
-		node: corev1.Node{
-			Status: corev1.NodeStatus{
-			Capacity: corev1.ResourceList{
-				corev1.ResourcePods: quantity,
-			},
 			},
 		},
 	}
@@ -93,8 +83,9 @@ func (rc *RequestControllerFake) UpdateCRDSpec(cntxt context.Context, desiredSpe
 	return nil
 }
 
-func (rc *RequestControllerFake) GetMaxIPCountOfNode(ctx context.Context) (int64, error) {
-	return rc.node.Status.Capacity.Pods().Value(), nil
+func (rc *RequestControllerFake) GetMaxIPCount(ctx context.Context) (int64, error) {
+	maxIPCount := 250 // TODO: Get this from NNC
+	return int64(maxIPCount), nil
 }
 
 func remove(slice []nnc.IPAssignment, s int) []nnc.IPAssignment {

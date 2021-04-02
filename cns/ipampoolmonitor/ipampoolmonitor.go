@@ -78,7 +78,7 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	switch {
 	// pod count is increasing
 	case freeIPConfigCount < pm.MinimumFreeIps:
-		maxIpCount, err := pm.rc.GetMaxIPCountOfNode(context.Background())
+		maxIpCount, err := pm.rc.GetMaxIPCount(context.Background())
 		if err != nil {
 			logger.Printf("[ipam-pool-monitor] Error when getting max ip count in Reconcile: %v", err)
 			return err
@@ -123,8 +123,8 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 		return err
 	}
 
-	// Query the max pod count for this node
-	maxIpCount, err := pm.rc.GetMaxIPCountOfNode(context.Background())
+	// Query the max ip count
+	maxIpCount, err := pm.rc.GetMaxIPCount(context.Background())
 	if err != nil {
 		logger.Printf("[ipam-pool-monitor] Error when getting max ip count in increasePoolSize: %v", err)
 		return err
@@ -134,8 +134,8 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 
 	tempNNCSpec.RequestedIPCount += pm.scalarUnits.BatchSize
 	if tempNNCSpec.RequestedIPCount > maxIpCount {
-		// We don't want to ask for more ips than the node limit
-		logger.Printf("[ipam-pool-monitor] Requested IP count (%v) is over the node limit (%v), requesting node limit instead.", tempNNCSpec.RequestedIPCount, maxIpCount)
+		// We don't want to ask for more ips than the max
+		logger.Printf("[ipam-pool-monitor] Requested IP count (%v) is over max limit (%v), requesting max limit instead.", tempNNCSpec.RequestedIPCount, maxIpCount)
 		tempNNCSpec.RequestedIPCount = maxIpCount
 	}
 
