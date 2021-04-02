@@ -73,3 +73,13 @@ steps:
       artifactName: aks-swift-output
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/aks-swift-output"
     condition: always()
+
+  - script: |
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
+      echo $ARTIFACT_DIR
+      sudo rm -rf $ARTIFACT_DIR
+      sudo rm -rf test/integration/logs
+      sudo rm *
+    name: "Cleanupartifactdir"
+    displayName: "Cleanup artifact dir"
+    condition: always()
