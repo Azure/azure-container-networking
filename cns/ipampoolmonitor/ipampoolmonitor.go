@@ -78,13 +78,7 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	switch {
 	// pod count is increasing
 	case freeIPConfigCount < pm.MinimumFreeIps:
-		maxIpCount, err := pm.rc.GetMaxIPCount(context.Background())
-		if err != nil {
-			logger.Printf("[ipam-pool-monitor] Error when getting max ip count in Reconcile: %v", err)
-			return err
-		}
-
-		if pm.cachedNNC.Spec.RequestedIPCount == maxIpCount {
+		if pm.cachedNNC.Spec.RequestedIPCount == pm.cachedNNC.Status.Scaler.MaxIPCount {
 			// If we're already at the maxIpCount, don't try to increase
 			return nil
 		}
@@ -124,11 +118,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 	}
 
 	// Query the max ip count
-	maxIpCount, err := pm.rc.GetMaxIPCount(context.Background())
-	if err != nil {
-		logger.Printf("[ipam-pool-monitor] Error when getting max ip count in increasePoolSize: %v", err)
-		return err
-	}
+	maxIpCount, err := pm.cachedNNC.Status.MaxIPCount
 
 	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
 

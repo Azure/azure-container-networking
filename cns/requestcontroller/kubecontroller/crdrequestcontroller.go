@@ -294,12 +294,6 @@ func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec 
 	return nil
 }
 
-// GetMaxIPCount gets the max ip count for this node
-func (crdRC *crdRequestController) GetMaxIPCount(cntxt context.Context) (int64, error) {
-	maxIPCount := 250 // TODO: Get this from NNC
-	return int64(maxIPCount), nil
-}
-
 // getNodeNetConfig gets the nodeNetworkConfig CRD given the name and namespace of the CRD object
 func (crdRC *crdRequestController) getNodeNetConfig(cntxt context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {
 	nodeNetworkConfig := &nnc.NodeNetworkConfig{}

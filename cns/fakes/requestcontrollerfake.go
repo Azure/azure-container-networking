@@ -17,7 +17,7 @@ type RequestControllerFake struct {
 	node corev1.Node
 }
 
-func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, subnetAddressSpace string, numberOfIPConfigs int, maxPodIPCount int64) *RequestControllerFake {
+func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, subnetAddressSpace string, numberOfIPConfigs int) *RequestControllerFake {
 	// TODO: use maxPodIPCount to populate CRD max ip count
 	rc := &RequestControllerFake{
 		fakecns: cnsService,
@@ -81,11 +81,6 @@ func (rc *RequestControllerFake) UpdateCRDSpec(cntxt context.Context, desiredSpe
 	rc.cachedCRD.Spec = desiredSpec
 
 	return nil
-}
-
-func (rc *RequestControllerFake) GetMaxIPCount(ctx context.Context) (int64, error) {
-	maxIPCount := 250 // TODO: Get this from NNC
-	return int64(maxIPCount), nil
 }
 
 func remove(slice []nnc.IPAssignment, s int) []nnc.IPAssignment {

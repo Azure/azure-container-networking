@@ -12,5 +12,4 @@ type RequestController interface {
 	StartRequestController(exitChan <-chan struct{}) error
 	UpdateCRDSpec(cntxt context.Context, crdSpec nnc.NodeNetworkConfigSpec) error
 	IsStarted() bool
-	GetMaxIPCount(context.Context) (int64, error)
 }
