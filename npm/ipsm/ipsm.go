@@ -32,7 +32,7 @@ type IpsetManager struct {
 // Ipset represents one ipset entry.
 type Ipset struct {
 	name       string
-	elements   map[string]string // key = ip, value: context associated to the ip like podUid
+	elements   map[string]string // key = ip, value: context associated to the ip like podKey
 	referCount int
 }
 
@@ -297,16 +297,16 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 }
 
 // AddToSet inserts an ip to an entry in setMap, and creates/updates the corresponding ipset.
-func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
+func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	if ipsMgr.Exists(setName, ip, spec) {
 
-		// make sure we have updated the podUid in case it gets changed
-		cachedPodUid := ipsMgr.SetMap[setName].elements[ip]
-		if cachedPodUid != podUid {
-			log.Logf("AddToSet: PodOwner has changed for Ip: %s, setName:%s, Old podUid: %s, new PodUid: %s. Replace context with new PodOwner.",
-				ip, setName, cachedPodUid, podUid)
+		// make sure we have updated the podKey in case it gets changed
+		cachedPodKey := ipsMgr.SetMap[setName].elements[ip]
+		if cachedPodKey != podKey {
+			log.Logf("AddToSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Replace context with new PodOwner.",
+				ip, setName, cachedPodKey, podKey)
 
-			ipsMgr.SetMap[setName].elements[ip] = podUid
+			ipsMgr.SetMap[setName].elements[ip] = podKey
 		}
 
 		return nil
@@ -351,8 +351,8 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 		return err
 	}
 
-	// Stores the podUid as the context for this ip.
-	ipsMgr.SetMap[setName].elements[ip] = podUid
+	// Stores the podKey as the context for this ip.
+	ipsMgr.SetMap[setName].elements[ip] = podKey
 
 	metrics.NumIPSetEntries.Inc()
 	metrics.IncIPSetInventory(setName)
@@ -361,7 +361,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 }
 
 // DeleteFromSet removes an ip from an entry in setMap, and delete/update the corresponding ipset.
-func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
+func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 	ipSet, exists := ipsMgr.SetMap[setName]
 	if !exists {
 		log.Logf("ipset with name %s not found", setName)
@@ -380,10 +380,10 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
 
 	if _, exists := ipsMgr.SetMap[setName].elements[ip]; exists {
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
-		cachedPodUid := ipSet.elements[ip]
-		if cachedPodUid != podUid {
-			log.Logf("DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podUid: %s, new PodUid: %s. Ignore the delete as this is stale update",
-				ip, setName, cachedPodUid, podUid)
+		cachedPodKey := ipSet.elements[ip]
+		if cachedPodKey != podKey {
+			log.Logf("DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Ignore the delete as this is stale update",
+				ip, setName, cachedPodKey, podKey)
 
 			return nil
 		}

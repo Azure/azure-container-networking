@@ -297,3 +297,14 @@ func ParseResourceVersion(rv string) uint64 {
 func GetObjKeyFunc(obj interface{}) (string, error) {
 	return cache.MetaNamespaceKeyFunc(obj)
 }
+
+// GetSetsFromLabels for a given map of labels will return ipset names
+func GetSetsFromLabels(labels map[string]string) []string {
+	l := []string{}
+
+	for k, v := range labels {
+		l = append(l, k, fmt.Sprintf("%s:%s", k, v))
+	}
+
+	return l
+}

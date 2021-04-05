@@ -174,6 +174,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.ReleaseIPConfig, service.releaseIPConfigHandler)
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.GetIPAddresses, service.getIPAddressesHandler)
+	listener.AddHandler(cns.GetPodIPOrchestratorContext, service.getPodIPIDByOrchestratorContexthandler)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)

@@ -226,14 +226,8 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	if reflect.DeepEqual(desired, resultIPnet) != true {
 		t.Fatalf("Desired result not matching actual result, expected: %+v, actual: %+v", desired, resultIPnet)
 	}
-
-	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(orchestratorContext)
-	if err != nil {
-		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
-	}
-
-	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(cns.Available)
+	//checking for allocated IP address and pod context printing before ReleaseIPAddress is called
+	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(cns.Allocated)
 	if err != nil {
 		t.Fatalf("Get allocated IP addresses failed %+v", err)
 	}
@@ -242,8 +236,50 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 		t.Fatalf("Number of available IP addresses expected to be 1, actual %+v", ipaddresses)
 	}
 
-	if ipaddresses[0].IPAddress != desiredIpAddress && ipaddresses[0].State != cns.Available {
+	if ipaddresses[0].IPAddress != desiredIpAddress && ipaddresses[0].State != cns.Allocated {
 		t.Fatalf("Available IP address does not match expected, address state: %+v", ipaddresses)
 	}
-	fmt.Println(ipaddresses)
+
+	t.Log(ipaddresses)
+
+	// release requested IP address, expect success
+	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	if err != nil {
+		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
+	}
+}
+
+func TestCNSClientPodContextApi(t *testing.T) {
+	podName := "testpodname"
+	podNamespace := "testpodnamespace"
+	desiredIpAddress := "10.0.0.5"
+
+	secondaryIps := make([]string, 0)
+	secondaryIps = append(secondaryIps, desiredIpAddress)
+	cnsClient, _ := InitCnsClient("")
+
+	addTestStateToRestServer(t, secondaryIps)
+
+	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
+	orchestratorContext, err := json.Marshal(podInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// request IP address
+	_, err = cnsClient.RequestIPAddress(orchestratorContext)
+	if err != nil {
+		t.Fatalf("get IP from CNS failed with %+v", err)
+	}
+
+	//test for pod ip by orch context map
+	podcontext, err := cnsClient.GetPodOrchestratorContext()
+	if err != nil {
+		t.Errorf("Get pod ip by orchestrator context failed:  %+v", err)
+	}
+	if len(podcontext) < 1 {
+		t.Errorf("Expected atleast 1 entry in map for podcontext:  %+v", podcontext)
+	}
+
+	t.Log(podcontext)
 }

@@ -266,7 +266,7 @@ tools: acncli
 
 .PHONY: tools-images
 tools-images: 
-	docker build -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
+	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
 .PHONY: azure-vnet-plugin-image

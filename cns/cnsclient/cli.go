@@ -15,6 +15,7 @@ const (
 	getAllocatedArg      = "Allocated"
 	getAllArg            = "All"
 	getPendingReleaseArg = "PendingRelease"
+	getPodCmdArg         = "getPodContexts"
 
 	releaseArg = "release"
 
@@ -28,6 +29,7 @@ const (
 var (
 	availableCmds = []string{
 		getCmdArg,
+		getPodCmdArg,
 	}
 
 	getFlags = []string{
@@ -49,6 +51,8 @@ func HandleCNSClientCommands(cmd, arg string) error {
 	switch {
 	case strings.EqualFold(getCmdArg, cmd):
 		return getCmd(cnsClient, arg)
+	case strings.EqualFold(getPodCmdArg, cmd):
+		return getPodCmd(cnsClient)
 	default:
 		return fmt.Errorf("No debug cmd supplied, options are: %v", getCmdArg)
 	}
@@ -94,5 +98,24 @@ func printIPAddresses(addrSlice []cns.IPConfigurationStatus) {
 
 	for _, addr := range addrSlice {
 		cns.IPConfigurationStatus.String(addr)
+	}
+}
+
+func getPodCmd(client *CNSClient) error {
+
+	resp, err := client.GetPodOrchestratorContext()
+	if err != nil {
+		return err
+	}
+
+	printPodContext(resp)
+	return nil
+}
+
+func printPodContext(podContext map[string]string) {
+	var i = 1
+	for orchContext, podID := range podContext {
+		fmt.Println(i, " ", orchContext, " : ", podID)
+		i++
 	}
 }

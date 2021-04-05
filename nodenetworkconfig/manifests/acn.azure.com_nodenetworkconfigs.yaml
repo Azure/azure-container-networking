@@ -86,6 +86,9 @@ spec:
                 batchSize:
                   format: int64
                   type: integer
+                maxIPCount:
+                  format: int64
+                  type: integer
                 releaseThresholdPercent:
                   format: int64
                   type: integer

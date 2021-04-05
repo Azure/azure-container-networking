@@ -23,6 +23,7 @@ const (
 	RequestIPConfig                          = "/network/requestipconfig"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
 	GetIPAddresses                           = "/debug/getipaddresses"
+	GetPodIPOrchestratorContext              = "/debug/getpodcontext"
 )
 
 // NetworkContainer Prefixes
@@ -244,8 +245,14 @@ type GetIPAddressStateResponse struct {
 
 // GetIPAddressStatusResponse is used in CNS IPAM mode as a response to get IP address, state and Pod info
 type GetIPAddressStatusResponse struct {
-	IPConfigurationStatus[] IPConfigurationStatus
-	Response Response
+	IPConfigurationStatus []IPConfigurationStatus
+	Response              Response
+}
+
+//GetPodContextResponse is used in CNS Client debug mode to get mapping of Orchestrator Context to Pod IP UUID
+type GetPodContextResponse struct {
+	PodContext map[string]string
+	Response   Response
 }
 
 // IPAddressState Only used in the GetIPConfig API to return IP's that match a filter

@@ -57,21 +57,6 @@ func TestAddNetworkPolicy(t *testing.T) {
 		}
 	}()
 
-	nsObj := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "test-nwpolicy",
-			Labels: map[string]string{
-				"app": "test-namespace",
-			},
-		},
-	}
-
-	npMgr.Lock()
-	if err := npMgr.AddNamespace(nsObj); err != nil {
-		t.Errorf("TestAddNetworkPolicy @ npMgr.AddNamespace")
-	}
-	npMgr.Unlock()
-
 	tcp := corev1.ProtocolTCP
 	port8000 := intstr.FromInt(8000)
 	allowIngress := &networkingv1.NetworkPolicy{
@@ -204,21 +189,6 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 		t.Errorf("TestUpdateNetworkPolicy failed @ ipsMgr.CreateSet, adding kube-system set%+v", err)
 	}
 
-	nsObj := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-nwpolicy",
-			Labels: map[string]string{
-				"app": "test-namespace",
-			},
-		},
-	}
-
-	npMgr.Lock()
-	if err := npMgr.AddNamespace(nsObj); err != nil {
-		t.Errorf("TestUpdateNetworkPolicy @ npMgr.AddNamespace")
-	}
-	npMgr.Unlock()
-
 	tcp, udp := corev1.ProtocolTCP, corev1.ProtocolUDP
 	allowIngress := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -318,21 +288,6 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	if err := ipsMgr.CreateSet("ns-"+util.KubeSystemFlag, append([]string{util.IpsetNetHashFlag})); err != nil {
 		t.Errorf("TestDeleteNetworkPolicy failed @ ipsMgr.CreateSet, adding kube-system set%+v", err)
 	}
-
-	nsObj := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-nwpolicy",
-			Labels: map[string]string{
-				"app": "test-namespace",
-			},
-		},
-	}
-
-	npMgr.Lock()
-	if err := npMgr.AddNamespace(nsObj); err != nil {
-		t.Errorf("TestDeleteNetworkPolicy @ npMgr.AddNamespace")
-	}
-	npMgr.Unlock()
 
 	tcp := corev1.ProtocolTCP
 	allow := &networkingv1.NetworkPolicy{
