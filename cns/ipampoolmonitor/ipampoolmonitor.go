@@ -72,13 +72,13 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	availableIPConfigCount := len(pm.httpService.GetAvailableIPConfigs()) // TODO: add pending allocation count to real cns
 	freeIPConfigCount := pm.cachedNNC.Spec.RequestedIPCount - int64(allocatedPodIPCount)
 
-	msg := fmt.Sprintf("[ipam-pool-monitor] Pool Size: %v, Goal Size: %v, BatchSize: %v, MinFree: %v, MaxFree:%v, Allocated: %v, Available: %v, Pending Release: %v, Free: %v, Pending Program: %v",
-		cnsPodIPConfigCount, pm.cachedNNC.Spec.RequestedIPCount, pm.scalarUnits.BatchSize, pm.MinimumFreeIps, pm.MaximumFreeIps, allocatedPodIPCount, availableIPConfigCount, pendingReleaseIPCount, freeIPConfigCount, pendingProgramCount)
+	msg := fmt.Sprintf("[ipam-pool-monitor] Pool Size: %v, Goal Size: %v, BatchSize: %v, MaxIPCount: %v, MinFree: %v, MaxFree:%v, Allocated: %v, Available: %v, Pending Release: %v, Free: %v, Pending Program: %v",
+		cnsPodIPConfigCount, pm.cachedNNC.Spec.RequestedIPCount, pm.scalarUnits.BatchSize, pm.scalarUnits.MaxIPCount, pm.MinimumFreeIps, pm.MaximumFreeIps, allocatedPodIPCount, availableIPConfigCount, pendingReleaseIPCount, freeIPConfigCount, pendingProgramCount)
 
 	switch {
 	// pod count is increasing
 	case freeIPConfigCount < pm.MinimumFreeIps:
-		if pm.cachedNNC.Spec.RequestedIPCount == pm.cachedNNC.Status.Scaler.MaxIPCount {
+		if pm.cachedNNC.Spec.RequestedIPCount == pm.scalarUnits.MaxIPCount {
 			// If we're already at the maxIpCount, don't try to increase
 			return nil
 		}
@@ -118,8 +118,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 	}
 
 	// Query the max ip count
-	maxIpCount, err := pm.cachedNNC.Status.MaxIPCount
-
+	maxIpCount:= pm.scalarUnits.MaxIPCount
 	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
 
 	tempNNCSpec.RequestedIPCount += pm.scalarUnits.BatchSize
