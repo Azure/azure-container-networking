@@ -12,6 +12,10 @@ import (
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
+const (
+	defaultMaxIPCount = int64(250)
+)
+
 type CNSIPAMPoolMonitor struct {
 	pendingRelease bool
 
@@ -119,6 +123,9 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 
 	// Query the max ip count
 	maxIpCount:= pm.scalarUnits.MaxIPCount
+	if maxIpCount == 0 {
+		maxIpCount = defaultMaxIPCount
+	}
 	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
 
 	tempNNCSpec.RequestedIPCount += pm.scalarUnits.BatchSize

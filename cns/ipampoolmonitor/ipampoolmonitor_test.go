@@ -227,6 +227,38 @@ func TestPoolIncreasePastNodeLimit(t *testing.T) {
 	}
 }
 
+func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
+	var (
+		batchSize = 50
+		initialIPConfigCount = 16
+		requestThresholdPercent = 50
+		releaseThresholdPercent = 150
+		maxPodIPCount = int64(30)
+	)
+
+	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
+
+	t.Logf("Minimum free IPs to request: %v", poolmonitor.MinimumFreeIps)
+	t.Logf("Maximum free IPs to release: %v", poolmonitor.MaximumFreeIps)
+
+	// increase number of allocated IP's in CNS
+	err := fakecns.SetNumberOfAllocatedIPs(16)
+	if err != nil {
+		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
+	}
+
+	// When poolmonitor reconcile is called, trigger increase and cache goal state
+	err = poolmonitor.Reconcile()
+	if err != nil {
+		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
+	}
+
+	// ensure pool monitor has only requested the max pod ip count
+	if poolmonitor.cachedNNC.Spec.RequestedIPCount != maxPodIPCount {
+		t.Fatalf("Pool monitor target IP count (%v) should be the node limit (%v) when the max has been reached", poolmonitor.cachedNNC.Spec.RequestedIPCount, maxPodIPCount)
+	}
+}
+
 func TestPoolDecrease(t *testing.T) {
 	var (
 		batchSize               = 10
