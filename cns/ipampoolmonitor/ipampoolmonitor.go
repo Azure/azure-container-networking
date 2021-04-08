@@ -75,14 +75,17 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	pendingReleaseIPCount := len(pm.httpService.GetPendingReleaseIPConfigs())
 	availableIPConfigCount := len(pm.httpService.GetAvailableIPConfigs()) // TODO: add pending allocation count to real cns
 	freeIPConfigCount := pm.cachedNNC.Spec.RequestedIPCount - int64(allocatedPodIPCount)
+	batchSize := pm.getBatchSize() //Use getters in case customer changes batchsize manually
+	maxIPCount := pm.getMaxIPCount()
+
 
 	msg := fmt.Sprintf("[ipam-pool-monitor] Pool Size: %v, Goal Size: %v, BatchSize: %v, MaxIPCount: %v, MinFree: %v, MaxFree:%v, Allocated: %v, Available: %v, Pending Release: %v, Free: %v, Pending Program: %v",
-		cnsPodIPConfigCount, pm.cachedNNC.Spec.RequestedIPCount, pm.scalarUnits.BatchSize, pm.scalarUnits.MaxIPCount, pm.MinimumFreeIps, pm.MaximumFreeIps, allocatedPodIPCount, availableIPConfigCount, pendingReleaseIPCount, freeIPConfigCount, pendingProgramCount)
+		cnsPodIPConfigCount, pm.cachedNNC.Spec.RequestedIPCount, batchSize, maxIPCount, pm.MinimumFreeIps, pm.MaximumFreeIps, allocatedPodIPCount, availableIPConfigCount, pendingReleaseIPCount, freeIPConfigCount, pendingProgramCount)
 
 	switch {
 	// pod count is increasing
 	case freeIPConfigCount < pm.MinimumFreeIps:
-		if pm.cachedNNC.Spec.RequestedIPCount == pm.getMaxIPCount() {
+		if pm.cachedNNC.Spec.RequestedIPCount == maxIPCount {
 			// If we're already at the maxIPCount, don't try to increase
 			return nil
 		}
@@ -122,10 +125,11 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 	}
 
 	// Query the max IP count
-	maxIPCount:= pm.getMaxIPCount()
+	maxIPCount := pm.getMaxIPCount()
 	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
+	batchSize := pm.getBatchSize()
 
-	tempNNCSpec.RequestedIPCount += pm.scalarUnits.BatchSize
+	tempNNCSpec.RequestedIPCount += batchSize
 	if tempNNCSpec.RequestedIPCount > maxIPCount {
 		// We don't want to ask for more ips than the max
 		logger.Printf("[ipam-pool-monitor] Requested IP count (%v) is over max limit (%v), requesting max limit instead.", tempNNCSpec.RequestedIPCount, maxIPCount)
@@ -165,10 +169,11 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(existingPendingReleaseIPCount int
 
 	// Ensure the updated requested IP count is a multiple of the batch size
 	previouslyRequestedIPCount := pm.cachedNNC.Spec.RequestedIPCount
-	modResult := previouslyRequestedIPCount % pm.scalarUnits.BatchSize
+	batchSize := pm.getBatchSize()
+	modResult := previouslyRequestedIPCount % batchSize
 
 	logger.Printf("[ipam-pool-monitor] Previously RequestedIP Count %v", previouslyRequestedIPCount)
-	logger.Printf("[ipam-pool-monitor] Batch size : %v", pm.scalarUnits.BatchSize)
+	logger.Printf("[ipam-pool-monitor] Batch size : %v", batchSize)
 	logger.Printf("[ipam-pool-monitor] modResult of (previously requested IP count mod batch size) = %v", modResult)
 
 	if modResult != 0 {
@@ -177,7 +182,7 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(existingPendingReleaseIPCount int
 		updatedRequestedIPCount = previouslyRequestedIPCount - modResult
 	} else {
 		// Example: previouscount = 30, batchsize = 10, 30 - 10 = 20 which is multiple of batchsize (10) so all good 
-		updatedRequestedIPCount = previouslyRequestedIPCount - pm.scalarUnits.BatchSize
+		updatedRequestedIPCount = previouslyRequestedIPCount - batchSize
 	}
 
   decreaseIPCountBy = previouslyRequestedIPCount - updatedRequestedIPCount
@@ -287,8 +292,8 @@ func (pm *CNSIPAMPoolMonitor) Update(scalar nnc.Scaler, spec nnc.NodeNetworkConf
 
 	pm.scalarUnits = scalar
 
-	pm.MinimumFreeIps = int64(float64(pm.scalarUnits.BatchSize) * (float64(pm.scalarUnits.RequestThresholdPercent) / 100))
-	pm.MaximumFreeIps = int64(float64(pm.scalarUnits.BatchSize) * (float64(pm.scalarUnits.ReleaseThresholdPercent) / 100))
+	pm.MinimumFreeIps = int64(float64(pm.getBatchSize()) * (float64(pm.scalarUnits.RequestThresholdPercent) / 100))
+	pm.MaximumFreeIps = int64(float64(pm.getBatchSize()) * (float64(pm.scalarUnits.ReleaseThresholdPercent) / 100))
 
 	pm.cachedNNC.Spec = spec
 
@@ -303,6 +308,14 @@ func (pm *CNSIPAMPoolMonitor) getMaxIPCount() int64 {
 		pm.scalarUnits.MaxIPCount = defaultMaxIPCount
 	}
 	return pm.scalarUnits.MaxIPCount
+}
+
+func (pm *CNSIPAMPoolMonitor) getBatchSize() int64 {
+	maxIPCount := pm.getMaxIPCount()
+	if pm.scalarUnits.BatchSize > maxIPCount {
+		pm.scalarUnits.BatchSize = maxIPCount
+	}
+	return pm.scalarUnits.BatchSize
 }
 
 //this function sets the values for state in IPAMPoolMonitor Struct
