@@ -410,3 +410,42 @@ func (cnsClient *CNSClient) GetPodOrchestratorContext() (map[string]string, erro
 
 	return resp.PodContext, err
 }
+
+//GetHTTPServiceData gets all public in-memory struct details for debugging purpose
+func (cnsClient *CNSClient) GetHTTPServiceData() (restserver.GetHTTPServiceDataResponse, error) {
+	var (
+		resp restserver.GetHTTPServiceDataResponse
+		err  error
+		res  *http.Response
+	)
+
+	url := cnsClient.connectionURL + cns.GetHTTPRestData
+	log.Printf("GetHTTPServiceStruct url %v", url)
+
+	res, err = http.Get(url)
+	if err != nil {
+		log.Errorf("[Azure CNSClient] HTTP Get returned error %v", err.Error())
+		return resp, err
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		errMsg := fmt.Sprintf("[Azure CNSClient] GetHTTPServiceStruct invalid http status code: %v", res.StatusCode)
+		log.Errorf(errMsg)
+		return resp, fmt.Errorf(errMsg)
+	}
+
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		log.Errorf("[Azure CNSClient] Error received while parsing GetHTTPServiceStruct response resp:%v err:%v", res.Body, err.Error())
+		return resp, err
+	}
+
+	if resp.Response.ReturnCode != 0 {
+		log.Errorf("[Azure CNSClient] GetTTPServiceStruct received error response :%v", resp.Response.Message)
+		return resp, fmt.Errorf(resp.Response.Message)
+	}
+
+	return resp, err
+}

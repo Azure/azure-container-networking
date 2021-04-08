@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 )
 
 const (
@@ -16,6 +17,7 @@ const (
 	getAllArg            = "All"
 	getPendingReleaseArg = "PendingRelease"
 	getPodCmdArg         = "getPodContexts"
+	getInMemoryData      = "getInMemory"
 
 	releaseArg = "release"
 
@@ -30,6 +32,7 @@ var (
 	availableCmds = []string{
 		getCmdArg,
 		getPodCmdArg,
+		getInMemoryData,
 	}
 
 	getFlags = []string{
@@ -53,6 +56,8 @@ func HandleCNSClientCommands(cmd, arg string) error {
 		return getCmd(cnsClient, arg)
 	case strings.EqualFold(getPodCmdArg, cmd):
 		return getPodCmd(cnsClient)
+	case strings.EqualFold(getInMemoryData, cmd):
+		return getInMemory(cnsClient)
 	default:
 		return fmt.Errorf("No debug cmd supplied, options are: %v", getCmdArg)
 	}
@@ -118,4 +123,21 @@ func printPodContext(podContext map[string]string) {
 		fmt.Println(i, " ", orchContext, " : ", podID)
 		i++
 	}
+}
+
+func getInMemory(client *CNSClient) error {
+
+	inmemoryData, err := client.GetHTTPServiceData()
+	if err != nil {
+		return err
+	}
+
+	printInMemoryStruct(inmemoryData.HttpRestServiceData)
+	return nil
+}
+
+func printInMemoryStruct(data restserver.HttpRestServiceData) {
+	fmt.Println("PodIPIDByOrchestratorContext: ", data.PodIPIDByOrchestratorContext)
+	fmt.Println("PodIPConfigState: ", data.PodIPConfigState)
+	fmt.Println("IPAMPoolMonitor: ", data.IPAMPoolMonitor)
 }

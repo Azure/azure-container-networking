@@ -43,7 +43,6 @@ type HTTPRestService struct {
 	networkContainer             *networkcontainers.NetworkContainers
 	PodIPIDByOrchestratorContext map[string]string                    // OrchestratorContext is key and value is Pod IP uuid.
 	PodIPConfigState             map[string]cns.IPConfigurationStatus // seondaryipid(uuid) is key
-	AllocatedIPCount             map[string]allocatedIPCount          // key - ncid
 	IPAMPoolMonitor              cns.IPAMPoolMonitor
 	routingTable                 *routes.RoutingTable
 	store                        store.KeyValueStore
@@ -52,8 +51,21 @@ type HTTPRestService struct {
 	dncPartitionKey string
 }
 
-type allocatedIPCount struct {
-	Count int
+type GetHTTPServiceDataResponse struct {
+	HttpRestServiceData HttpRestServiceData
+	Response            Response
+}
+
+//struct to return in-memory httprest data in debug api
+type HttpRestServiceData struct {
+	PodIPIDByOrchestratorContext map[string]string                    // OrchestratorContext is key and value is Pod IP uuid.
+	PodIPConfigState             map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
+	IPAMPoolMonitor              cns.IpamPoolMonitorStateSnapshot
+}
+
+type Response struct {
+	ReturnCode int
+	Message    string
 }
 
 // containerstatus is used to save status of an existing container
@@ -112,7 +124,6 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 
 	podIPIDByOrchestratorContext := make(map[string]string)
 	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
-	allocatedIPCount := make(map[string]allocatedIPCount) // key - ncid
 
 	return &HTTPRestService{
 		Service:                      service,
@@ -124,7 +135,6 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		networkContainer:             nc,
 		PodIPIDByOrchestratorContext: podIPIDByOrchestratorContext,
 		PodIPConfigState:             podIPConfigState,
-		AllocatedIPCount:             allocatedIPCount,
 		routingTable:                 routingTable,
 		state:                        serviceState,
 	}, nil
@@ -175,6 +185,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.GetIPAddresses, service.getIPAddressesHandler)
 	listener.AddHandler(cns.GetPodIPOrchestratorContext, service.getPodIPIDByOrchestratorContexthandler)
+	listener.AddHandler(cns.GetHTTPRestData, service.GetHTTPRestDataHandler)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
