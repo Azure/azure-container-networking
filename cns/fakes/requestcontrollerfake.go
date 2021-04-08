@@ -7,14 +7,12 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
-	corev1 "k8s.io/api/core/v1"
 )
 
 type RequestControllerFake struct {
 	fakecns   *HTTPServiceFake
 	cachedCRD nnc.NodeNetworkConfig
 	ip        net.IP
-	node corev1.Node
 }
 
 func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, subnetAddressSpace string, numberOfIPConfigs int) *RequestControllerFake {
