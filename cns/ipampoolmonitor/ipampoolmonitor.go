@@ -82,8 +82,8 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	switch {
 	// pod count is increasing
 	case freeIPConfigCount < pm.MinimumFreeIps:
-		if pm.cachedNNC.Spec.RequestedIPCount == pm.scalarUnits.MaxIPCount {
-			// If we're already at the maxIpCount, don't try to increase
+		if pm.cachedNNC.Spec.RequestedIPCount == pm.getMaxIPCount() {
+			// If we're already at the maxIPCount, don't try to increase
 			return nil
 		}
 
@@ -121,18 +121,15 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 		return err
 	}
 
-	// Query the max ip count
-	maxIpCount:= pm.scalarUnits.MaxIPCount
-	if maxIpCount == 0 {
-		maxIpCount = defaultMaxIPCount
-	}
+	// Query the max IP count
+	maxIPCount:= pm.getMaxIPCount()
 	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
 
 	tempNNCSpec.RequestedIPCount += pm.scalarUnits.BatchSize
-	if tempNNCSpec.RequestedIPCount > maxIpCount {
+	if tempNNCSpec.RequestedIPCount > maxIPCount {
 		// We don't want to ask for more ips than the max
-		logger.Printf("[ipam-pool-monitor] Requested IP count (%v) is over max limit (%v), requesting max limit instead.", tempNNCSpec.RequestedIPCount, maxIpCount)
-		tempNNCSpec.RequestedIPCount = maxIpCount
+		logger.Printf("[ipam-pool-monitor] Requested IP count (%v) is over max limit (%v), requesting max limit instead.", tempNNCSpec.RequestedIPCount, maxIPCount)
+		tempNNCSpec.RequestedIPCount = maxIPCount
 	}
 
 	// If the requested IP count is same as before, then don't do anything
@@ -300,4 +297,11 @@ func (pm *CNSIPAMPoolMonitor) Update(scalar nnc.Scaler, spec nnc.NodeNetworkConf
 		pm.cachedNNC.Spec, pm.MinimumFreeIps, pm.MaximumFreeIps)
 
 	return nil
+}
+
+func (pm *CNSIPAMPoolMonitor) getMaxIPCount() int64 {
+	if pm.scalarUnits.MaxIPCount == 0 {
+		pm.scalarUnits.MaxIPCount = defaultMaxIPCount
+	}
+	return pm.scalarUnits.MaxIPCount
 }
