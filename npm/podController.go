@@ -392,11 +392,10 @@ func (c *podController) syncPod(key string) error {
 }
 
 func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
-	npmPodObj := newNpmPod(podObj)
 	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	podKey, _ := cache.MetaNamespaceKeyFunc(podObj)
 	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
-	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", npmPodObj.PodUID, podNs, npmPodObj.Name, npmPodObj.NodeName, podObj.Labels, npmPodObj.PodIP)
+	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", string(podObj.GetUID()), podNs, podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
 	// Add pod namespace if it doesn't exist
 	var err error
@@ -409,6 +408,7 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 		}
 	}
 
+	npmPodObj := newNpmPod(podObj)
 	// Add the pod to its namespace's ipset.
 	klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, podNs)
 	if err = ipsMgr.AddToSet(podNs, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
