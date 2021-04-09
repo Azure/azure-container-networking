@@ -396,7 +396,7 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	podKey, _ := cache.MetaNamespaceKeyFunc(podObj)
 	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
-	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", npmPodObj.PodUID, podNs, npmPodObj.Name, npmPodObj.NodeName, npmPodObj.Labels, npmPodObj.PodIP)
+	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", npmPodObj.PodUID, podNs, npmPodObj.Name, npmPodObj.NodeName, podObj.Labels, npmPodObj.PodIP)
 
 	// Add pod namespace if it doesn't exist
 	var err error
@@ -472,6 +472,12 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		return nil
 	}
 
+	cachedPobObjIpChanged := false
+	// compare cached NPMPod's IP address against newPod's IP address
+	if cachedNpmPodObj.PodIP != newPodObj.Status.PodIP {
+		cachedPobObjIpChanged = true
+	}
+
 	// Dealing with "updatePod" event - Compare last applied states against current Pod states
 	// There are two possiblities for npmPodObj and newPodObj
 	// #1 case The same object with the same UID and the same key (namespace + name)
@@ -481,7 +487,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	deleteFromIPSets := []string{}
 	addToIPSets := []string{}
 	// compare cached NPMPod's IP address against newPod's IP address
-	if cachedNpmPodObj.PodIP != newPodObj.Status.PodIP {
+	if cachedPobObjIpChanged {
 		metrics.SendErrorLogAndMetric(util.PodID, "[syncAddAndUpdatePod] Info: Unexpected state. Pod (Namespace:%s, Name:%s, uid:%s, has cachedPodIp:%s which is different from PodIp:%s",
 			newPodObjNs, newPodObj.Name, cachedNpmPodObj.PodUID, cachedNpmPodObj.PodIP, newPodObj.Status.PodIP)
 		// cached PodIP needs to be cleaned up from all the cached labels
@@ -499,10 +505,6 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		// Delete the pod from its namespace's ipset.
 		if err = ipsMgr.DeleteFromSet(cachedNpmPodObj.Namespace, cachedNpmPodObj.PodIP, podKey); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from namespace ipset with err: %v", err)
-		}
-		// Add the pod to its namespace's ipset.
-		if err = ipsMgr.AddToSet(newPodObjNs, newPodObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
-			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to namespace ipset with err: %v", err)
 		}
 	} else {
 		// the IP addresses of the cached npmPod and newPodObj is the same
@@ -538,8 +540,17 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		addNamedPortIpsets = true
 	}
 
+	if cachedPobObjIpChanged {
+		// Add the pod to its namespace's ipset.
+		if err = ipsMgr.AddToSet(newPodObjNs, newPodObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
+			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to namespace ipset with err: %v", err)
+		}
+	}
+
 	// Updating pod cache with new npmPod information
-	c.npMgr.PodMap[podKey] = newNpmPod(newPodObj)
+	newNpmPodObj := newNpmPod(newPodObj)
+	newNpmPodObj.Labels = cachedNpmPodObj.Labels
+	c.npMgr.PodMap[podKey] = newNpmPodObj
 
 	// Add the pod to its label's ipset.
 	for _, addIPSetName := range addToIPSets {
@@ -552,13 +563,13 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		// (TODO) will need to remove this ordering dependency
 		addedLabelKey, addedLabelValue := util.GetLabelKVFromSet(addIPSetName)
 		if addedLabelValue != "" {
-			c.npMgr.PodMap[podKey].appendLabels(map[string]string{addedLabelKey: addedLabelValue}, AppendToExistingLabels)
+			newNpmPodObj.appendLabels(map[string]string{addedLabelKey: addedLabelValue}, AppendToExistingLabels)
 		}
 	}
 	// This will ensure after all labels are worked on to overwrite. This way will reduce any bugs introduced above
 	// If due to ordering issue the above deleted and added labels are not correct,
 	// this below appendLabels will help ensure correct state in cache for all successful ops.
-	c.npMgr.PodMap[podKey].appendLabels(newPodObj.Labels, ClearExistingLabels)
+	newNpmPodObj.appendLabels(newPodObj.Labels, ClearExistingLabels)
 
 	if addNamedPortIpsets {
 		// Add new pod's named ports from its ipset.
@@ -566,7 +577,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to named port ipset with err: %v", err)
 		}
 	}
-	c.npMgr.PodMap[podKey].appendContainerPorts(newPodObj)
+	newNpmPodObj.appendContainerPorts(newPodObj)
 
 	return nil
 }
