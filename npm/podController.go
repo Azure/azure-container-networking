@@ -532,7 +532,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	// named ports are mostly static once configured in todays usage pattern
 	// so keeping this simple by deleting all and re-adding
 	newPodPorts := getContainerPortList(newPodObj)
-	if !reflect.DeepEqual(cachedNpmPodObj.ContainerPorts, newPodPorts) {
+	if !reflect.DeepEqual(cachedNpmPodObj.ContainerPorts, newPodPorts) || cachedPobObjIpChanged {
 		// Delete cached pod's named ports from its ipset.
 		if err = manageNamedPortIpsets(ipsMgr, cachedNpmPodObj.ContainerPorts, podKey, cachedNpmPodObj.PodIP, DeleteNamedPortIpsets); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from named port ipset with err: %v", err)
