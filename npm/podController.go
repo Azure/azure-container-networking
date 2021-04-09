@@ -503,7 +503,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		)
 
 		// Delete the pod from its namespace's ipset.
-		if err = ipsMgr.DeleteFromSet(cachedNpmPodObj.Namespace, cachedNpmPodObj.PodIP, podKey); err != nil {
+		if err = ipsMgr.DeleteFromSet(util.GetNSNameWithPrefix(cachedNpmPodObj.Namespace), cachedNpmPodObj.PodIP, podKey); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from namespace ipset with err: %v", err)
 		}
 	} else {
