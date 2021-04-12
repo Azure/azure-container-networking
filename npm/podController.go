@@ -472,46 +472,35 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		return nil
 	}
 
-	cachedPobObjIpChanged := false
-	// compare cached NPMPod's IP address against newPod's IP address
-	if cachedNpmPodObj.PodIP != newPodObj.Status.PodIP {
-		cachedPobObjIpChanged = true
-	}
-
 	// Dealing with "updatePod" event - Compare last applied states against current Pod states
 	// There are two possiblities for npmPodObj and newPodObj
 	// #1 case The same object with the same UID and the same key (namespace + name)
 	// #2 case Different objects with different UID, but the same key (namespace + name) due to missing some events for the old object
-	// Start processing three update cases - "ip address", label", and "portlist" change by comparing last applied states against current Pod states
 
-	deleteFromIPSets := []string{}
-	addToIPSets := []string{}
 	// compare cached NPMPod's IP address against newPod's IP address
-	if cachedPobObjIpChanged {
-		metrics.SendErrorLogAndMetric(util.PodID, "[syncAddAndUpdatePod] Info: Unexpected state. Pod (Namespace:%s, Name:%s, uid:%s, has cachedPodIp:%s which is different from PodIp:%s",
-			newPodObjNs, newPodObj.Name, cachedNpmPodObj.PodUID, cachedNpmPodObj.PodIP, newPodObj.Status.PodIP)
-		// cached PodIP needs to be cleaned up from all the cached labels
-		deleteFromIPSets = util.GetIPSetListFromLabels(cachedNpmPodObj.Labels)
+	// NPM should clean up existing references of cached pod obj and its IP.
+	// then, re-add new pod obj.
+	if cachedNpmPodObj.PodIP != newPodObj.Status.PodIP {
+		metrics.SendErrorLogAndMetric(util.PodID, "[syncAddAndUpdatePod] Info: Unexpected state. Pod (Namespace:%s, Name:%s, uid:%s, newUid:%s) , has cachedPodIp:%s which is different from PodIp:%s",
+			newPodObjNs, newPodObj.Name, cachedNpmPodObj.PodUID, string(newPodObj.UID), cachedNpmPodObj.PodIP, newPodObj.Status.PodIP)
 
-		// Assume that the pod IP will be released when pod moves to succeeded or failed state.
-		// If the pod transitions back to an active state, then add operation will re-establish the updated pod info.
-		// new PodIP needs to be added to all newLabels
-		addToIPSets = util.GetIPSetListFromLabels(newPodObj.Labels)
-
-		klog.Infof("Deleting pod %s %s from ipset %s and adding pod %s to ipset %s",
-			cachedNpmPodObj.PodUID, cachedNpmPodObj.PodIP, cachedNpmPodObj.Namespace, newPodObj.Status.PodIP, newPodObjNs,
-		)
-
-		// Delete the pod from its namespace's ipset.
-		if err = ipsMgr.DeleteFromSet(util.GetNSNameWithPrefix(cachedNpmPodObj.Namespace), cachedNpmPodObj.PodIP, podKey); err != nil {
-			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from namespace ipset with err: %v", err)
+		klog.Infof("Deleting cached Pod with key:%s first due to IP Mistmatch", podKey)
+		if err = c.cleanUpDeletedPod(cachedNpmPodObj.getPodObjFromNpmPodObj()); err != nil {
+			return err
 		}
-	} else {
-		// the IP addresses of the cached npmPod and newPodObj is the same
-		// If no change in labels, then GetIPSetListCompareLabels will return empty list.
-		// Otherwise it returns list of deleted PodIP from cached pod's labels and list of added PodIp from new pod's labels
-		addToIPSets, deleteFromIPSets = util.GetIPSetListCompareLabels(cachedNpmPodObj.Labels, newPodObj.Labels)
+
+		klog.Infof("Adding back Pod with key:%s after IP Mistmatch", podKey)
+		if err = c.syncAddedPod(newPodObj); err != nil {
+			return err
+		}
+
+		return nil
 	}
+
+	// the IP addresses of the cached npmPod and newPodObj is the same
+	// If no change in labels, then GetIPSetListCompareLabels will return empty list.
+	// Otherwise it returns list of deleted PodIP from cached pod's labels and list of added PodIp from new pod's labels
+	addToIPSets, deleteFromIPSets := util.GetIPSetListCompareLabels(cachedNpmPodObj.Labels, newPodObj.Labels)
 
 	// Delete the pod from its label's ipset.
 	for _, podIPSetName := range deleteFromIPSets {
@@ -532,19 +521,12 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	// named ports are mostly static once configured in todays usage pattern
 	// so keeping this simple by deleting all and re-adding
 	newPodPorts := getContainerPortList(newPodObj)
-	if !reflect.DeepEqual(cachedNpmPodObj.ContainerPorts, newPodPorts) || cachedPobObjIpChanged {
+	if !reflect.DeepEqual(cachedNpmPodObj.ContainerPorts, newPodPorts) {
 		// Delete cached pod's named ports from its ipset.
 		if err = manageNamedPortIpsets(ipsMgr, cachedNpmPodObj.ContainerPorts, podKey, cachedNpmPodObj.PodIP, DeleteNamedPortIpsets); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from named port ipset with err: %v", err)
 		}
 		addNamedPortIpsets = true
-	}
-
-	if cachedPobObjIpChanged {
-		// Add the pod to its namespace's ipset.
-		if err = ipsMgr.AddToSet(newPodObjNs, newPodObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
-			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to namespace ipset with err: %v", err)
-		}
 	}
 
 	// Updating pod cache with new npmPod information
