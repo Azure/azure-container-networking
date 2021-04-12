@@ -322,6 +322,7 @@ func (c *podController) processNextWorkItem() bool {
 		if err := c.syncPod(key); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			c.workqueue.AddRateLimited(key)
+			metrics.SendErrorLogAndMetric(util.PodID, "[podController processNextWorkItem] Error: failed to syncPod %s. Requeuing with err: %v", key, err)
 			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
 		}
 		// Finally, if no error occurs we Forget this item so it does not
