@@ -385,6 +385,7 @@ func TestPodStatusUpdatePod(t *testing.T) {
 		"app": "test-pod",
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+	podKey := getKey(oldPodObj, t)
 
 	f := newFixture(t)
 	f.podLister = append(f.podLister, oldPodObj)
@@ -406,7 +407,9 @@ func TestPodStatusUpdatePod(t *testing.T) {
 		{0, 2, 0},
 	}
 	checkPodTestResult("TestPodStatusUpdatePod", f, testCases)
-	checkNpmPodWithInput("TestPodStatusUpdatePod", f, newPodObj)
+	if _, exists := f.npMgr.PodMap[podKey]; exists {
+		t.Error("TestPodStatusUpdatePod failed @ cached pod obj exists check")
+	}
 }
 
 func TestHasValidPodIP(t *testing.T) {
