@@ -4,6 +4,7 @@ package npm
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -174,16 +175,35 @@ type expectedValues struct {
 func checkPodTestResult(testName string, f *podFixture, testCases []expectedValues) {
 	for _, test := range testCases {
 		if got := len(f.npMgr.PodMap); got != test.expectedLenOfPodMap {
-			f.t.Errorf("PodMap length = %d, want %d", got, test.expectedLenOfPodMap)
+			f.t.Errorf("%s failed @ PodMap length = %d, want %d", testName, got, test.expectedLenOfPodMap)
 		}
 		if got := len(f.npMgr.NsMap); got != test.expectedLenOfNsMap {
-			f.t.Errorf("npMgr length = %d, want %d", got, test.expectedLenOfNsMap)
+			f.t.Errorf("%s failed @ npMgr length = %d, want %d", testName, got, test.expectedLenOfNsMap)
 		}
 		if got := f.podController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
-			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)
+			f.t.Errorf("%s failed @ Workqueue length = %d, want %d", testName, got, test.expectedLenOfWorkQueue)
 		}
 	}
 }
+
+func checkNpmPodWithInput(testName string, f *podFixture, inputPodObj *corev1.Pod) {
+	podKey := getKey(inputPodObj, f.t)
+	cachedNpmPodObj := f.npMgr.PodMap[podKey]
+
+	if cachedNpmPodObj.PodIP != inputPodObj.Status.PodIP {
+		f.t.Errorf("%s failed @ PodIp check got = %s, want %s", testName, cachedNpmPodObj.PodIP, inputPodObj.Status.PodIP)
+	}
+
+	if !reflect.DeepEqual(cachedNpmPodObj.Labels, inputPodObj.Labels) {
+		f.t.Errorf("%s failed @ Labels check got = %v, want %v", testName, cachedNpmPodObj.Labels, inputPodObj.Labels)
+	}
+
+	inputPortList := getContainerPortList(inputPodObj)
+	if !reflect.DeepEqual(cachedNpmPodObj.ContainerPorts, inputPortList) {
+		f.t.Errorf("%s failed @ Container port check got = %v, want %v", testName, cachedNpmPodObj.PodIP, inputPortList)
+	}
+}
+
 func TestAddMultiplePods(t *testing.T) {
 	labels := map[string]string{
 		"app": "test-pod",
@@ -205,6 +225,8 @@ func TestAddMultiplePods(t *testing.T) {
 		{2, 2, 0},
 	}
 	checkPodTestResult("TestAddMultiplePods", f, testCases)
+	checkNpmPodWithInput("TestAddMultiplePods", f, podObj1)
+	checkNpmPodWithInput("TestAddMultiplePods", f, podObj2)
 }
 
 func TestAddPod(t *testing.T) {
@@ -225,6 +247,7 @@ func TestAddPod(t *testing.T) {
 		{1, 2, 0},
 	}
 	checkPodTestResult("TestAddPod", f, testCases)
+	checkNpmPodWithInput("TestAddPod", f, podObj)
 }
 
 func TestAddHostNetworkPod(t *testing.T) {
@@ -232,6 +255,7 @@ func TestAddHostNetworkPod(t *testing.T) {
 		"app": "test-pod",
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
+	podKey := getKey(podObj, t)
 
 	f := newFixture(t)
 	f.podLister = append(f.podLister, podObj)
@@ -246,6 +270,9 @@ func TestAddHostNetworkPod(t *testing.T) {
 	}
 	checkPodTestResult("TestAddHostNetworkPod", f, testCases)
 
+	if _, exists := f.npMgr.PodMap[podKey]; exists {
+		t.Error("TestAddHostNetworkPod failed @ cached pod obj exists check")
+	}
 }
 
 func TestDeletePod(t *testing.T) {
@@ -253,6 +280,7 @@ func TestDeletePod(t *testing.T) {
 		"app": "test-pod",
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+	podKey := getKey(podObj, t)
 
 	f := newFixture(t)
 	f.podLister = append(f.podLister, podObj)
@@ -266,6 +294,9 @@ func TestDeletePod(t *testing.T) {
 		{0, 2, 0},
 	}
 	checkPodTestResult("TestDeletePod", f, testCases)
+	if _, exists := f.npMgr.PodMap[podKey]; exists {
+		t.Error("TestDeletePod failed @ cached pod obj exists check")
+	}
 }
 
 func TestDeleteHostNetworkPod(t *testing.T) {
@@ -273,6 +304,7 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 		"app": "test-pod",
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
+	podKey := getKey(podObj, t)
 
 	f := newFixture(t)
 	f.podLister = append(f.podLister, podObj)
@@ -286,6 +318,9 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 		{0, 1, 0},
 	}
 	checkPodTestResult("TestDeleteHostNetworkPod", f, testCases)
+	if _, exists := f.npMgr.PodMap[podKey]; exists {
+		t.Error("TestDeleteHostNetworkPod failed @ cached pod obj exists check")
+	}
 }
 
 func TestLabelUpdatePod(t *testing.T) {
@@ -314,6 +349,7 @@ func TestLabelUpdatePod(t *testing.T) {
 		{1, 2, 0},
 	}
 	checkPodTestResult("TestLabelUpdatePod", f, testCases)
+	checkNpmPodWithInput("TestLabelUpdatePod", f, newPodObj)
 }
 
 func TestIPAddressUpdatePod(t *testing.T) {
@@ -341,6 +377,7 @@ func TestIPAddressUpdatePod(t *testing.T) {
 		{1, 2, 0},
 	}
 	checkPodTestResult("TestIPAddressUpdatePod", f, testCases)
+	checkNpmPodWithInput("TestIPAddressUpdatePod", f, newPodObj)
 }
 
 func TestPodStatusUpdatePod(t *testing.T) {
@@ -369,6 +406,7 @@ func TestPodStatusUpdatePod(t *testing.T) {
 		{0, 2, 0},
 	}
 	checkPodTestResult("TestPodStatusUpdatePod", f, testCases)
+	checkNpmPodWithInput("TestPodStatusUpdatePod", f, newPodObj)
 }
 
 func TestHasValidPodIP(t *testing.T) {
