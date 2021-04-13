@@ -266,7 +266,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	}
 
 	// create pod controller
-	npMgr.podController = NewPodController(informerFactory.Core().V1().Pods(), clientset, npMgr)
+	npMgr.podController = NewPodController(podInformer, clientset, npMgr)
 
 	// create NameSpace controller
 	npMgr.nameSpaceController = NewNameSpaceController(nsInformer, clientset, npMgr)
