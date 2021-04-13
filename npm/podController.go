@@ -356,13 +356,8 @@ func (c *podController) syncPod(key string) error {
 	if err != nil {
 		if errors.IsNotFound(err) {
 			klog.Infof("pod %s not found, may be it is deleted", key)
-			_, exist := c.npMgr.PodMap[key]
-			// if the npmPod does not exists, we do not need to clean up process and retry it
-			if !exist {
-				return nil
-			}
-
-			// Found the npmPod object from PodMap local cache and start cleaning up processes
+			// cleanUpDeletedPod will check if the pod exists in cache, if it does then proceeds with deletion
+			// if it does not exists, then event will be no-op
 			err = c.cleanUpDeletedPod(key)
 			if err != nil {
 				// need to retry this cleaning-up process

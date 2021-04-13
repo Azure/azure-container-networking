@@ -288,16 +288,11 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	if err != nil {
 		if errors.IsNotFound(err) {
 			utilruntime.HandleError(fmt.Errorf("NameSpace '%s' in work queue no longer exists", key))
-			// find the namespace object from a local cache and start cleaning up process (calling cleanDeletedNamespace function)
-			nsKey := util.GetNSNameWithPrefix(key)
-			cachedNs, found := nsc.npMgr.NsMap[nsKey]
-			// if the namespace does not exists, we do not need to clean up process and retry it
-			if !found {
-				return nil
-			}
-
-			// Found the namespace object from NsMap local cache and start cleaning up processes
-			err = nsc.cleanDeletedNamespace(cachedNs.name, cachedNs.LabelsMap)
+			// find the nsMap key and start cleaning up process (calling cleanDeletedNamespace function)
+			cachedNsKey := util.GetNSNameWithPrefix(key)
+			// cleanDeletedNamespace will check if the NS exists in cache, if it does, then proceeds with deletion
+			// if it does not exists, then event will be no-op
+			err = nsc.cleanDeletedNamespace(cachedNsKey)
 			if err != nil {
 				// need to retry this cleaning-up process
 				metrics.SendErrorLogAndMetric(util.NSID, "Error: %v when namespace is not found", err)
@@ -308,7 +303,7 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	}
 
 	if nsObj.DeletionTimestamp != nil || nsObj.DeletionGracePeriodSeconds != nil {
-		return nsc.cleanDeletedNamespace(util.GetNSNameWithPrefix(nsObj.Name), nsObj.Labels)
+		return nsc.cleanDeletedNamespace(util.GetNSNameWithPrefix(nsObj.Name))
 
 	}
 
@@ -435,31 +430,31 @@ func (nsc *nameSpaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 }
 
 // cleanDeletedNamespace handles deleting namespace from ipset.
-func (nsc *nameSpaceController) cleanDeletedNamespace(nsName string, nsLabel map[string]string) error {
-	klog.Infof("NAMESPACE DELETING: [%s/%v]", nsName, nsLabel)
+func (nsc *nameSpaceController) cleanDeletedNamespace(cachedNsKey string) error {
+	klog.Infof("NAMESPACE DELETING: [%s]", cachedNsKey)
 
-	cachedNsObj, exists := nsc.npMgr.NsMap[nsName]
+	cachedNsObj, exists := nsc.npMgr.NsMap[cachedNsKey]
 	if !exists {
 		return nil
 	}
 
-	klog.Infof("NAMESPACE DELETING cached labels: [%s/%v]", nsName, cachedNsObj.LabelsMap)
+	klog.Infof("NAMESPACE DELETING cached labels: [%s/%v]", cachedNsKey, cachedNsObj.LabelsMap)
 
 	var err error
 	ipsMgr := nsc.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	// Delete the namespace from its label's ipset list.
 	for nsLabelKey, nsLabelVal := range cachedNsObj.LabelsMap {
 		labelIpsetName := util.GetNSNameWithPrefix(nsLabelKey)
-		klog.Infof("Deleting namespace %s from ipset list %s", nsName, labelIpsetName)
-		if err = ipsMgr.DeleteFromList(labelIpsetName, nsName); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", nsName, labelIpsetName, err)
+		klog.Infof("Deleting namespace %s from ipset list %s", cachedNsKey, labelIpsetName)
+		if err = ipsMgr.DeleteFromList(labelIpsetName, cachedNsKey); err != nil {
+			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, labelIpsetName, err)
 			return err
 		}
 
 		labelIpsetName = util.GetNSNameWithPrefix(util.GetIpSetFromLabelKV(nsLabelKey, nsLabelVal))
-		klog.Infof("Deleting namespace %s from ipset list %s", nsName, labelIpsetName)
-		if err = ipsMgr.DeleteFromList(labelIpsetName, nsName); err != nil {
-			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", nsName, labelIpsetName, err)
+		klog.Infof("Deleting namespace %s from ipset list %s", cachedNsKey, labelIpsetName)
+		if err = ipsMgr.DeleteFromList(labelIpsetName, cachedNsKey); err != nil {
+			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, labelIpsetName, err)
 			return err
 		}
 
@@ -468,18 +463,18 @@ func (nsc *nameSpaceController) cleanDeletedNamespace(nsName string, nsLabel map
 	}
 
 	// Delete the namespace from all-namespace ipset list.
-	if err = ipsMgr.DeleteFromList(util.KubeAllNamespacesFlag, nsName); err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", nsName, util.KubeAllNamespacesFlag, err)
+	if err = ipsMgr.DeleteFromList(util.KubeAllNamespacesFlag, cachedNsKey); err != nil {
+		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, util.KubeAllNamespacesFlag, err)
 		return err
 	}
 
 	// Delete ipset for the namespace.
-	if err = ipsMgr.DeleteSet(nsName); err != nil {
-		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete ipset for namespace %s with err: %v", nsName, err)
+	if err = ipsMgr.DeleteSet(cachedNsKey); err != nil {
+		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete ipset for namespace %s with err: %v", cachedNsKey, err)
 		return err
 	}
 
-	delete(nsc.npMgr.NsMap, nsName)
+	delete(nsc.npMgr.NsMap, cachedNsKey)
 
 	return nil
 }
