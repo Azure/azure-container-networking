@@ -91,12 +91,7 @@ func (nPod *NpmPod) removeLabelsWithKey(key string) {
 }
 
 func (nPod *NpmPod) appendContainerPorts(podObj *corev1.Pod) {
-	portList := getContainerPortList(podObj)
-	// To remove any references to objects sent to events by sharedinformer,
-	// NPM will need to deepcopy data from the provided objects
-	copiedPortList := make([]corev1.ContainerPort, len(portList))
-	copy(copiedPortList, portList)
-	nPod.ContainerPorts = copiedPortList
+	nPod.ContainerPorts = getContainerPortList(podObj)
 }
 
 func (nPod *NpmPod) removeContainerPorts() {
