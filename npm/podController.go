@@ -174,8 +174,6 @@ func (c *podController) addPod(obj interface{}) {
 	if !needSync {
 		return
 	}
-	// K8s categorizes Succeeded and Failed pods as a terminated pod and will not restart them
-	// So NPM will ignorer adding these pods
 	podObj, _ := obj.(*corev1.Pod)
 
 	// If newPodObj status is either corev1.PodSucceeded or corev1.PodFailed or DeletionTimestamp is set, do not need to add it into workqueue.
@@ -593,6 +591,8 @@ func isCompletePod(podObj *corev1.Pod) bool {
 		return true
 	}
 
+	// K8s categorizes Succeeded and Failed pods as a terminated pod and will not restart them
+	// So NPM will ignorer adding these pods
 	if podObj.Status.Phase == corev1.PodSucceeded || podObj.Status.Phase == corev1.PodFailed {
 		return true
 	}
