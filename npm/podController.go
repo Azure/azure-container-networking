@@ -141,7 +141,7 @@ func (c *podController) needSync(eventType string, obj interface{}) (string, boo
 
 	podObj, ok := obj.(*corev1.Pod)
 	if !ok {
-		metrics.SendErrorLogAndMetric(util.NpmID, "ADD Pod: Received unexpected object type: %v", obj)
+		metrics.SendErrorLogAndMetric(util.PodID, "ADD Pod: Received unexpected object type: %v", obj)
 		return key, needSync
 	}
 
@@ -172,7 +172,6 @@ func (c *podController) needSync(eventType string, obj interface{}) (string, boo
 func (c *podController) addPod(obj interface{}) {
 	key, needSync := c.needSync("ADD", obj)
 	if !needSync {
-		klog.Infof("[POD ADD EVENT] No need to sync this pod")
 		return
 	}
 	// K8s categorizes Succeeded and Failed pods as a terminated pod and will not restart them
@@ -230,12 +229,12 @@ func (c *podController) deletePod(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			metrics.SendErrorLogAndMetric(util.NpmID, "[POD DELETE EVENT] Pod: Received unexpected object type: %v", obj)
+			metrics.SendErrorLogAndMetric(util.PodID, "[POD DELETE EVENT] Pod: Received unexpected object type: %v", obj)
 			return
 		}
 
 		if podObj, ok = tombstone.Obj.(*corev1.Pod); !ok {
-			metrics.SendErrorLogAndMetric(util.NpmID, "[POD DELETE EVENT] Pod: Received unexpected object type (error decoding object tombstone, invalid type): %v", obj)
+			metrics.SendErrorLogAndMetric(util.PodID, "[POD DELETE EVENT] Pod: Received unexpected object type (error decoding object tombstone, invalid type): %v", obj)
 			return
 		}
 	}
@@ -356,7 +355,6 @@ func (c *podController) syncPod(key string) error {
 			err = c.cleanUpDeletedPod(key)
 			if err != nil {
 				// need to retry this cleaning-up process
-				metrics.SendErrorLogAndMetric(util.PodID, "Error: %v when pod is not found", err)
 				return fmt.Errorf("Error: %v when pod is not found\n", err)
 			}
 			return err
@@ -368,7 +366,6 @@ func (c *podController) syncPod(key string) error {
 	// If newPodObj status is either corev1.PodSucceeded or corev1.PodFailed or DeletionTimestamp is set, start clean-up the lastly applied states.
 	if isCompletePod(pod) {
 		if err = c.cleanUpDeletedPod(key); err != nil {
-			metrics.SendErrorLogAndMetric(util.PodID, "Error: %v when pod is in completed state.", err)
 			return fmt.Errorf("Error: %v when when pod is in completed state.\n", err)
 		}
 		return nil
