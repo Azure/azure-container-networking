@@ -98,7 +98,8 @@ stages:
 
           - bash: |
               export CODECOV_TOKEN=$(CODECOV_TOKEN)
-              bash <(curl -s https://codecov.io/bash)
+              # use coverage.out from make test-all 
+              bash <(curl -s https://codecov.io/bash) -f ./coverage.out
               gocov convert coverage.out > coverage.json
               gocov-xml < coverage.json > coverage.xml
             workingDirectory: "$(modulePath)"
