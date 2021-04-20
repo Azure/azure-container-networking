@@ -72,26 +72,46 @@ steps:
     displayName: Configure AKS-Engine
     workingDirectory: "$(modulePath)"
 
-  - bash: |
-      export PATH=$PATH:'$(GOPATH)'
-      export CLUSTER_DEFINITION=./'${{ parameters.clusterDefinition }}'
-      export ORCHESTRATOR=kubernetes 
-      export CREATE_VNET=false 
-      export TIMEOUT=20m 
-      export CLIENT_ID=$(AKS_ENGINE_CLIENT_ID) 
-      export CLIENT_SECRET=$(AKS_ENGINE_CLIENT_SECRET) 
-      export TENANT_ID=$(AKS_ENGINE_TENANT_ID) 
-      export SUBSCRIPTION_ID=$(AKS_ENGINE_SUBSCRIPTION_ID) 
-      export CLEANUP_ON_EXIT=true
-      export CLEANUP_IF_FAIL=false
-      export REGIONS=$(AKS_ENGINE_REGION) 
-      export IS_JENKINS=false 
-      export DEBUG_CRASHING_PODS=true
-      export AZURE_CORE_ONLY_SHOW_ERRORS=True
-      make test-kubernetes
-    name: DeployAKSEngine
-    displayName: Run AKS-Engine E2E Tests
-    workingDirectory: "$(modulePath)"
+
+
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      inlineScript: |
+
+        if [[ -z "${CLIENT_ID}" ]]; then
+          AZSP=$(az ad sp create-for-rbac --name pipeline-aks-engine-$(Build.BuildId) --role="Contributor" --scopes="/subscriptions/${SUBSCRIPTION_ID}")
+          CLIENT_ID=$(echo $AZSP | jq -r '.appId')
+          CLIENT_SECRET=$(echo $AZSP | jq -r '.password')
+          echo Sleeping 40 seconds
+          sleep 40
+        fi
+        export PATH=$PATH:'$(GOPATH)'
+        export CLUSTER_DEFINITION=./'${{ parameters.clusterDefinition }}'
+        export ORCHESTRATOR=kubernetes 
+        export CREATE_VNET=false 
+        export TIMEOUT=20m 
+        export TENANT_ID=$(AKS_ENGINE_TENANT_ID) 
+        export SUBSCRIPTION_ID=$(AKS_ENGINE_SUBSCRIPTION_ID) 
+        export CLEANUP_ON_EXIT=true
+        export CLEANUP_IF_FAIL=false
+        export REGIONS=$(AKS_ENGINE_REGION) 
+        export IS_JENKINS=false 
+        export DEBUG_CRASHING_PODS=true
+        export AZURE_CORE_ONLY_SHOW_ERRORS=True
+        make test-kubernetes
+    displayName: Run AKS-Engine E2E Tests 
+
+
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      inlineScript: |
+        az ad sp delete pipeline-aks-engine-$(Build.BuildId)
+    displayName: Run AKS-Engine E2E Tests 
+    condition: always()
 
   - task: CopyFiles@2
     inputs:

@@ -26,7 +26,7 @@ steps:
 
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(ARTIFACT_SUBSCRIPTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       addSpnToEnvironment: true
       inlineScript: |
@@ -62,7 +62,6 @@ steps:
       export KUBECONFIG=~/.kube/dnc-underlay
       kubectl logs -n $STABLE_DNC_NAMESPACE -l app=dnc --tail -1 -c dnc --prefix > dnc-logs.txt
       kubectl logs -n $STABLE_DNC_NAMESPACE -l app=dnc --tail -1 -c requestcontroller --prefix > dnc-rc-logs.txt
-
       sudo cp *.txt $ARTIFACT_DIR
     name: "GetLogs"
     displayName: "Get logs"
