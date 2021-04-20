@@ -27,7 +27,6 @@ type ipsEntry struct {
 type IpsetManager struct {
 	ListMap map[string]*Ipset //tracks all set lists.
 	SetMap  map[string]*Ipset //label -> []ip
-	
 }
 
 // Ipset represents one ipset entry.
