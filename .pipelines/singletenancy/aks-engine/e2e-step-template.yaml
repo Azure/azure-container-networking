@@ -72,21 +72,15 @@ steps:
     displayName: Configure AKS-Engine
     workingDirectory: "$(modulePath)"
 
-
-
   - task: AzureCLI@1
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
+      addSpnToEnvironment: true
+      workingDirectory: "$(modulePath)"
       inlineScript: |
-
-        if [[ -z "${CLIENT_ID}" ]]; then
-          AZSP=$(az ad sp create-for-rbac --name pipeline-aks-engine-$(Build.BuildId) --role="Contributor" --scopes="/subscriptions/${SUBSCRIPTION_ID}")
-          CLIENT_ID=$(echo $AZSP | jq -r '.appId')
-          CLIENT_SECRET=$(echo $AZSP | jq -r '.password')
-          echo Sleeping 40 seconds
-          sleep 40
-        fi
+        export CLIENT_ID=$servicePrincipalId
+        export CLIENT_SECRET=$servicePrincipalKey 
         export PATH=$PATH:'$(GOPATH)'
         export CLUSTER_DEFINITION=./'${{ parameters.clusterDefinition }}'
         export ORCHESTRATOR=kubernetes 
@@ -101,16 +95,10 @@ steps:
         export DEBUG_CRASHING_PODS=true
         export AZURE_CORE_ONLY_SHOW_ERRORS=True
         make test-kubernetes
-    displayName: Run AKS-Engine E2E Tests 
+    name: DeployAKSEngine
+    displayName: Run AKS-Engine E2E Tests
+      
 
-  - task: AzureCLI@1
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      inlineScript: |
-        az ad sp delete --id pipeline-aks-engine-$(Build.BuildId)
-    displayName: Cleanup 
-    condition: always()
 
   - task: CopyFiles@2
     inputs:
@@ -123,3 +111,4 @@ steps:
       artifactName: ${{ parameters.name }}
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/${{ parameters.name }}"
     condition: always()
+    
