@@ -64,14 +64,27 @@ jobs:
 
   - checkout: self
 
+  - task: Docker@2
+    displayName: Docker Login
+    inputs:
+      containerRegistry: $(ACR_SERVICE_CONNECTION)
+      command: 'login'
+      addPipelineData: false
+
   - script: |
       go env
       echo Tag: $(TAG)
       echo ResourceGroup: $(RESOURCE_GROUP)
       VERSION=$(TAG) make azure-npm-image
-      echo '$(DOCKER_PASSWORD)' | docker login $IMAGE_REGISTRY -u '$(DOCKER_USERNAME)' --password-stdin
       docker push $IMAGE_REGISTRY/azure-npm:$(TAG)
     displayName: 'Build and Push NPM Image'
+
+  - task: Docker@2
+    displayName: Docker Logout
+    inputs:
+      containerRegistry: $(ACR_SERVICE_CONNECTION)
+      command: 'logout'
+      addPipelineData: false
 
   - script: git clone https://github.com/vakalapa/kubernetes.git
     displayName: 'Clone Kubernetes Repo'
@@ -107,7 +120,7 @@ jobs:
   - task: AzureCLI@2
     displayName: "Deploy"
     inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
@@ -140,7 +153,7 @@ jobs:
   - task: AzureCLI@2
     displayName: "Deploy NPM to Test Cluster"
     inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
@@ -200,7 +213,7 @@ jobs:
     - task: AzureCLI@2
       displayName: "Delete Test Cluster Resource Group"
       inputs:
-        azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |

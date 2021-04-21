@@ -103,7 +103,6 @@ steps:
         make test-kubernetes
     displayName: Run AKS-Engine E2E Tests 
 
-
   - task: AzureCLI@1
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
