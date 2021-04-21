@@ -17,8 +17,7 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+
   steps:
 
   - checkout: self
@@ -48,8 +47,6 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [setup]
   variables:
     GOBIN: "$(GOPATH)/bin" # Go binaries path
@@ -104,8 +101,6 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
@@ -140,8 +135,6 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   dependsOn: [Create_cluster, Build_test, setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
@@ -201,8 +194,6 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
   condition: always()
   dependsOn: [Run_test, setup]
   variables:

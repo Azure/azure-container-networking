@@ -108,8 +108,8 @@ steps:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       inlineScript: |
-        az ad sp delete pipeline-aks-engine-$(Build.BuildId)
-    displayName: Run AKS-Engine E2E Tests 
+        az ad sp delete --id pipeline-aks-engine-$(Build.BuildId)
+    displayName: Cleanup 
     condition: always()
 
   - task: CopyFiles@2
