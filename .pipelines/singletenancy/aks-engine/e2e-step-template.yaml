@@ -62,11 +62,16 @@ steps:
       export CNI_URL=https://$(ARTIFACT_STORAGE).blob.core.windows.net/acn-$(StorageID)/azure-vnet-cni-${{ parameters.clusterDefinitionCniBuildOS }}-amd64-$(Tag)${{ parameters.clusterDefinitionCniBuildExt }}
       export CNI_TYPE=${{ parameters.clusterDefinitionCniTypeKey }}
       echo CNI type is $CNI_TYPE
-      echo Config:
+      echo Config: '${{ parameters.clusterDefinition }}'
+      echo "-----"
       cat '${{ parameters.clusterDefinition }}'
+      echo "2 -----"
       cat '${{ parameters.clusterDefinition }}' | jq --arg cnikey $CNI_TYPE --arg cniurl $CNI_URL '.properties.orchestratorProfile.kubernetesConfig[$cnikey]= $cniurl' > '${{ parameters.clusterDefinition }}'.tmp	
+      echo "3 -----"
       cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
+      echo "4 -----"
       cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage $IMAGE_REGISTRY/azure-npm:$(Tag)-test '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
+      echo "5 -----"
       mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
       echo "Running E2E tests against a cluster built with the following API model:"
       
@@ -74,7 +79,7 @@ steps:
       echo "-----"
       pwd
       ls
-      cat '${{ parameters.clusterDefinition }}'
+      cat clusterDefinition.json
       echo "-----"
     displayName: Configure AKS-Engine
     workingDirectory: "$(modulePath)"
@@ -94,7 +99,7 @@ steps:
         export CLIENT_ID=$servicePrincipalId
         export CLIENT_SECRET=$servicePrincipalKey 
         export PATH=$PATH:'$(GOPATH)'
-        export CLUSTER_DEFINITION=./'${{ parameters.clusterDefinition }}'
+        export CLUSTER_DEFINITION=./clusterDefinition.json
         export ORCHESTRATOR=kubernetes 
         export CREATE_VNET=false 
         export TIMEOUT=20m 
