@@ -27,9 +27,9 @@ stages:
           GOBIN: "$(GOPATH)/bin" # Go binaries path
           modulePath: "$(GOPATH)/src/github.com/Azure/aks-engine"
           acnPath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-          Tag: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.Tag'] ]
-          CommitHash: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.CommitHash'] ]
-          StorageID: $[ stagedependencies.build_and_test.unit_tests.outputs['EnvironmentalVariables.StorageID'] ]
+          Tag: $[ stagedependencies.build_and_test.setup.outputs['EnvironmentalVariables.Tag'] ]
+          CommitHash: $[ stagedependencies.build_and_test.setup.outputs['EnvironmentalVariables.CommitHash'] ]
+          StorageID: $[ stagedependencies.build_and_test.setup.outputs['EnvironmentalVariables.StorageID'] ]
         steps:
           - template: e2e-step-template.yaml
             parameters:
