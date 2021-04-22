@@ -81,6 +81,7 @@ func TestMain(m *testing.M) {
 		if installCNI, err := strconv.ParseBool(installopt); err == nil && installCNI == true {
 			if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, os.Getenv(envImageTag), logDir); err != nil {
 				log.Print(err)
+				exitCode = 2
 				return
 			}
 		}
@@ -92,6 +93,7 @@ func TestMain(m *testing.M) {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
 			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envImageTag), logDir); err != nil {
+				exitCode = 2
 				return
 			}
 		}
@@ -163,6 +165,10 @@ func installCNIManagerDaemonset(ctx context.Context, clientset *kubernetes.Clien
 		err error
 		cni v1.DaemonSet
 	)
+
+	if imageTag == "" {
+		return nil, fmt.Errorf("No image tag specified, set using the VERSION environmental variable")
+	}
 
 	if cni, err = mustParseDaemonSet(cniDaemonSetPath); err != nil {
 		return nil, err
