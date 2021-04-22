@@ -69,8 +69,13 @@ steps:
       cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage $IMAGE_REGISTRY/azure-npm:$(Tag)-test '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
       mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
       echo "Running E2E tests against a cluster built with the following API model:"
-      cat '${{ parameters.clusterDefinition }}'
+      
       cp ${{ parameters.clusterDefinition }} clusterDefinition.json
+      echo "-----"
+      pwd
+      ls
+      cat '${{ parameters.clusterDefinition }}'
+      echo "-----"
     displayName: Configure AKS-Engine
     workingDirectory: "$(modulePath)"
 
@@ -81,6 +86,11 @@ steps:
       addSpnToEnvironment: true
       workingDirectory: "$(modulePath)"
       inlineScript: |
+        echo "-----"
+        pwd
+        ls
+        cat clusterDefinition.json
+        echo "-----"
         export CLIENT_ID=$servicePrincipalId
         export CLIENT_SECRET=$servicePrincipalKey 
         export PATH=$PATH:'$(GOPATH)'
