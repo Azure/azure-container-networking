@@ -2,11 +2,7 @@ name: Cyclonus network policy test
 
 on:
   push: 
-    branches:
-      - master
   pull_request:
-    branches:
-      - master
   schedule:
     # run once a day at midnight
     - cron: '0 0 * * *'
