@@ -462,3 +462,8 @@ test-all:
 .PHONY: test-integration
 test-integration:
 	go test -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
+
+.PHONY: test-cyclonus
+test-cyclonus:
+	cd test/cyclonus && bash ./test-cyclonus.sh
+	cd ..
