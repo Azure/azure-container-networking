@@ -479,12 +479,13 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 
 	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
 
-	errbytes, err := ipsMgr.Exec.Command(cmdName, cmdArgs...).CombinedOutput()
+	cmd := ipsMgr.Exec.Command(cmdName, cmdArgs...)
+	errbytes, err := cmd.CombinedOutput()
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(errbytes), "\n"))
 	}
 
-	return 0, nil
+	return 0, nil	
 }
 
 // Save saves ipset to file.
