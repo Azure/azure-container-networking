@@ -17,3 +17,6 @@ ipam-*.xml
 
 # Logs
 *.log
+
+# debug test files
+*.test

@@ -9,7 +9,11 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
+	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	utilexec "k8s.io/utils/exec"
+	fakeexec "k8s.io/utils/exec/testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,13 +46,13 @@ type podFixture struct {
 	kubeInformer  kubeinformers.SharedInformerFactory
 }
 
-func newFixture(t *testing.T) *podFixture {
+func newFixture(t *testing.T, exec utilexec.Interface) *podFixture {
 	f := &podFixture{
 		t:           t,
 		podLister:   []*corev1.Pod{},
 		kubeobjects: []runtime.Object{},
-		npMgr:       newNPMgr(t),
-		ipsMgr:      ipsm.NewIpsetManager(),
+		npMgr:       newNPMgr(t, exec),
+		ipsMgr:      ipsm.NewIpsetManager(exec),
 	}
 	return f
 }
@@ -211,7 +215,8 @@ func TestAddMultiplePods(t *testing.T) {
 	podObj1 := createPod("test-pod-1", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podObj2 := createPod("test-pod-2", "test-namespace", "0", "1.2.3.5", labels, NonHostNetwork, corev1.PodRunning)
 
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, podObj1, podObj2)
 	f.kubeobjects = append(f.kubeobjects, podObj1, podObj2)
 	stopCh := make(chan struct{})
@@ -230,12 +235,52 @@ func TestAddMultiplePods(t *testing.T) {
 }
 
 func TestAddPod(t *testing.T) {
+	assert := assert.New(t)
+
 	labels := map[string]string{
 		"app": "test-pod",
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	f := newFixture(t)
+	calls := [][]string{
+		{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"},
+		{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"},
+		{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"},
+		{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"},
+		{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"},
+		{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"},
+		{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"},
+		{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"},
+	}
+
+	fcmd := fakeexec.FakeCmd{
+		CombinedOutputScript: []fakeexec.FakeAction{
+			func() ([]byte, []byte, error) { return nil, nil, nil },
+			func() ([]byte, []byte, error) { return nil, nil, nil },
+			func() ([]byte, []byte, error) { return nil, nil, nil },
+			func() ([]byte, []byte, error) { return nil, nil, nil },
+			func() ([]byte, []byte, error) { return nil, nil, nil },
+			func() ([]byte, []byte, error) { return nil, nil, nil },
+			func() ([]byte, []byte, error) { return nil, nil, nil },
+			func() ([]byte, []byte, error) { return nil, nil, nil },
+		},
+	}
+
+	fexec := fakeexec.FakeExec{
+		CommandScript: []fakeexec.FakeCommandAction{
+			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
+			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
+			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
+			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
+			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
+			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
+			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
+			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
+		},
+		CommandCalls: 0,
+	}
+
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -243,11 +288,14 @@ func TestAddPod(t *testing.T) {
 	f.newPodController(stopCh)
 
 	addPod(t, f, podObj)
+	fmt.Println(fcmd.CombinedOutputLog)
 	testCases := []expectedValues{
 		{1, 2, 0},
 	}
 	checkPodTestResult("TestAddPod", f, testCases)
 	checkNpmPodWithInput("TestAddPod", f, podObj)
+
+	assert.Equal(fcmd.CombinedOutputLog, calls)
 }
 
 func TestAddHostNetworkPod(t *testing.T) {
@@ -257,7 +305,8 @@ func TestAddHostNetworkPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -282,7 +331,8 @@ func TestDeletePod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -306,7 +356,8 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -328,7 +379,8 @@ func TestDeletePodWithTombstone(t *testing.T) {
 		"app": "test-pod",
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	f.newPodController(stopCh)
@@ -352,7 +404,8 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -372,7 +425,8 @@ func TestLabelUpdatePod(t *testing.T) {
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, oldPodObj)
 	f.kubeobjects = append(f.kubeobjects, oldPodObj)
 	stopCh := make(chan struct{})
@@ -401,7 +455,8 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, oldPodObj)
 	f.kubeobjects = append(f.kubeobjects, oldPodObj)
 	stopCh := make(chan struct{})
@@ -430,7 +485,8 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podKey := getKey(oldPodObj, t)
 
-	f := newFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newFixture(t, &fexec)
 	f.podLister = append(f.podLister, oldPodObj)
 	f.kubeobjects = append(f.kubeobjects, oldPodObj)
 	stopCh := make(chan struct{})

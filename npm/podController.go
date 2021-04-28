@@ -388,7 +388,7 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 	var err error
 	if _, exists := c.npMgr.NsMap[podNs]; !exists {
 		// (TODO): need to change newNS function. It always returns "nil"
-		c.npMgr.NsMap[podNs], _ = newNs(podNs)
+		c.npMgr.NsMap[podNs], _ = newNs(podNs, ipsMgr.Exec)
 		klog.Infof("Creating set: %v, hashedSet: %v", podNs, util.GetHashedName(podNs))
 		if err = ipsMgr.CreateSet(podNs, append([]string{util.IpsetNetHashFlag})); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: creating ipset %s with err: %v", podNs, err)
@@ -443,7 +443,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	var err error
 	if _, exists := c.npMgr.NsMap[newPodObjNs]; !exists {
 		// (TODO): need to change newNS function. It always returns "nil"
-		c.npMgr.NsMap[newPodObjNs], _ = newNs(newPodObjNs)
+		c.npMgr.NsMap[newPodObjNs], _ = newNs(newPodObjNs, ipsMgr.Exec)
 		klog.Infof("Creating set: %v, hashedSet: %v", newPodObjNs, util.GetHashedName(newPodObjNs))
 		if err = ipsMgr.CreateSet(newPodObjNs, []string{util.IpsetNetHashFlag}); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: creating ipset %s with err: %v", newPodObjNs, err)

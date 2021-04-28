@@ -6,14 +6,13 @@ package ipsm
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
-	"syscall"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	utilexec "k8s.io/utils/exec"
 )
 
 type ipsEntry struct {
@@ -25,6 +24,7 @@ type ipsEntry struct {
 
 // IpsetManager stores ipset states.
 type IpsetManager struct {
+	Exec    utilexec.Interface
 	ListMap map[string]*Ipset //tracks all set lists.
 	SetMap  map[string]*Ipset //label -> []ip
 }
@@ -45,8 +45,9 @@ func NewIpset(setName string) *Ipset {
 }
 
 // NewIpsetManager creates a new instance for IpsetManager object.
-func NewIpsetManager() *IpsetManager {
+func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	return &IpsetManager{
+		Exec:    exec,
 		ListMap: make(map[string]*Ipset),
 		SetMap:  make(map[string]*Ipset),
 	}
@@ -477,14 +478,10 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	cmdArgs = util.DropEmptyFields(cmdArgs)
 
 	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
-	_, err := exec.Command(cmdName, cmdArgs...).Output()
-	if msg, failed := err.(*exec.ExitError); failed {
-		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
-		if errCode > 0 {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
-		}
 
-		return errCode, err
+	errbytes, err := ipsMgr.Exec.Command(cmdName, cmdArgs...).CombinedOutput()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(errbytes), "\n"))
 	}
 
 	return 0, nil
@@ -496,9 +493,10 @@ func (ipsMgr *IpsetManager) Save(configFile string) error {
 		configFile = util.IpsetConfigFile
 	}
 
-	cmd := exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset to file.")
+	cmd := ipsMgr.Exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
+	errbytes, err := cmd.CombinedOutput()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset to file with err %v, stderr: %v", err, string(errbytes))
 		return err
 	}
 	cmd.Wait()
@@ -524,12 +522,11 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 		}
 	}
 
-	cmd := exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file.")
+	reply, err := ipsMgr.Exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile).CombinedOutput()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file with err %v, stderr %v", err, string(reply))
 		return err
 	}
-	cmd.Wait()
 
 	//TODO based on the set name and number of entries in the config file, update IPSetInventory
 
@@ -542,15 +539,13 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	reply, err := exec.Command(cmdName, cmdArgs).Output()
-	if msg, failed := err.(*exec.ExitError); failed {
-		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
-		if errCode > 0 {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
-		}
-
+	reply, err := ipsMgr.Exec.Command(cmdName, cmdArgs).CombinedOutput()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(reply), "\n"))
 		return err
 	}
+
+	// todo: verify destroy reply response
 	if reply == nil {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Received empty string from ipset list while destroying azure-npm ipsets")
 		return nil

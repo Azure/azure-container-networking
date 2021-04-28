@@ -17,6 +17,8 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
+	utilexec "k8s.io/utils/exec"
+	fakeexec "k8s.io/utils/exec/testing"
 )
 
 var (
@@ -48,13 +50,13 @@ type nameSpaceFixture struct {
 	kubeInformer kubeinformers.SharedInformerFactory
 }
 
-func newNsFixture(t *testing.T) *nameSpaceFixture {
+func newNsFixture(t *testing.T, exec utilexec.Interface) *nameSpaceFixture {
 	f := &nameSpaceFixture{
 		t:           t,
 		nsLister:    []*corev1.Namespace{},
 		kubeobjects: []runtime.Object{},
-		npMgr:       newNPMgr(t),
-		ipsMgr:      ipsm.NewIpsetManager(),
+		npMgr:       newNPMgr(t, exec),
+		ipsMgr:      ipsm.NewIpsetManager(exec),
 	}
 	return f
 }
@@ -151,13 +153,15 @@ func deleteNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace,
 }
 
 func TestNewNs(t *testing.T) {
-	if _, err := newNs("test"); err != nil {
+	fexec := fakeexec.FakeExec{}
+	if _, err := newNs("test", &fexec); err != nil {
 		t.Errorf("TestnewNs failed @ newNs")
 	}
 }
 
 func TestAddNamespace(t *testing.T) {
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -188,7 +192,8 @@ func TestAddNamespace(t *testing.T) {
 }
 
 func TestUpdateNamespace(t *testing.T) {
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -233,7 +238,8 @@ func TestUpdateNamespace(t *testing.T) {
 }
 
 func TestAddNamespaceLabel(t *testing.T) {
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -278,7 +284,8 @@ func TestAddNamespaceLabel(t *testing.T) {
 }
 
 func TestAddNamespaceLabelSameRv(t *testing.T) {
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -324,7 +331,8 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 }
 
 func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -375,7 +383,8 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 // this happens when NSA delete event is missed and deleted from NPMLocalCache,
 // but NSA gets added again. This will result in an update event with old and new with different UUIDs
 func TestNewNameSpaceUpdate(t *testing.T) {
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -425,7 +434,8 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 }
 
 func TestDeleteNamespace(t *testing.T) {
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -455,7 +465,8 @@ func TestDeleteNamespace(t *testing.T) {
 }
 
 func TestDeleteNamespaceWithTombstone(t *testing.T) {
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 	stopCh := make(chan struct{})
@@ -490,8 +501,8 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 			"app": "test-namespace",
 		},
 	)
-
-	f := newNsFixture(t)
+	fexec := fakeexec.FakeExec{}
+	f := newNsFixture(t, &fexec)
 	f.nsLister = append(f.nsLister, nsObj)
 	f.kubeobjects = append(f.kubeobjects, nsObj)
 	stopCh := make(chan struct{})
@@ -506,7 +517,8 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 }
 
 func TestGetNamespaceObjFromNsObj(t *testing.T) {
-	ns, _ := newNs("test-ns")
+	fexec := fakeexec.FakeExec{}
+	ns, _ := newNs("test-ns", &fexec)
 	ns.LabelsMap = map[string]string{
 		"test": "new",
 	}
