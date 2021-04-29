@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/utils/exec"
+	fakeexec "k8s.io/utils/exec/testing"
 )
 
 func TestSave(t *testing.T) {
@@ -22,8 +23,24 @@ func TestSave(t *testing.T) {
 }
 
 func TestRestore(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	var calls = []struct {
+		cmd []string
+		err error
+	}{
+		{cmd: []string{"ipset", "save"}, err: nil},
+		{cmd: []string{"ipset", "restore"}, err: nil},
+	}
+
+	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
+	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+
+	// expect happy path, each call returns no errors
+	for _, call := range calls {
+		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
+		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
+	}
+
+	ipsMgr := NewIpsetManager(&fexec)
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestRestore failed @ ipsMgr.Save")
 	}

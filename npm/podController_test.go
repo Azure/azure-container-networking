@@ -227,13 +227,13 @@ func TestAddMultiplePods(t *testing.T) {
 		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
 		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
 		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
+		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod-1"), "hash:ip,port"}, err: nil},
+		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod-1"), "1.2.3.4,8080"}, err: nil},
 		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.5"}, err: nil},
 		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.5"}, err: nil},
 		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.5"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.5,8080"}, err: nil},
+		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod-2"), "hash:ip,port"}, err: nil},
+		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod-2"), "1.2.3.5,8080"}, err: nil},
 	}
 
 	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
