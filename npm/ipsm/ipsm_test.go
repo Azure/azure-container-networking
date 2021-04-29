@@ -10,39 +10,18 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
-	fakeexec "k8s.io/utils/exec/testing"
 )
 
 func TestSave(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestSave failed @ ipsMgr.Save")
 	}
 }
 
 func TestRestore(t *testing.T) {
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
-		{cmd: []string{"ipset", "save", "-file", "/var/log/ipset-test.conf"}, err: nil},
-		{cmd: []string{"ipset", "restore", "-file", "/var/log/ipset-test.conf"}, err: nil},
-	}
-
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
-
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	ipsMgr := NewIpsetManager(&fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestRestore failed @ ipsMgr.Save")
 	}
@@ -50,45 +29,27 @@ func TestRestore(t *testing.T) {
 	if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestRestore failed @ ipsMgr.Restore")
 	}
-
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
 }
 
 func TestCreateList(t *testing.T) {
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-list"), "setlist"}, err: nil},
+	ipsMgr := NewIpsetManager(exec.New())
+	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
+		t.Errorf("TestCreateList failed @ ipsMgr.Save")
 	}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
-
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	ipsMgr := NewIpsetManager(&fexec)
+	defer func() {
+		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
+			t.Errorf("TestCreateList failed @ ipsMgr.Restore")
+		}
+	}()
 
 	if err := ipsMgr.CreateList("test-list"); err != nil {
 		t.Errorf("TestCreateList failed @ ipsMgr.CreateList")
 	}
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
 }
 
 func TestDeleteList(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestDeleteList failed @ ipsMgr.Save")
 	}
@@ -109,8 +70,7 @@ func TestDeleteList(t *testing.T) {
 }
 
 func TestAddToList(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.Save")
 	}
@@ -131,8 +91,7 @@ func TestAddToList(t *testing.T) {
 }
 
 func TestDeleteFromList(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.Save")
 	}
@@ -231,8 +190,7 @@ func TestDeleteFromList(t *testing.T) {
 
 func TestCreateSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.Save")
 	}
@@ -286,8 +244,7 @@ func TestCreateSet(t *testing.T) {
 
 func TestDeleteSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.Save")
 	}
@@ -323,8 +280,7 @@ func TestDeleteSet(t *testing.T) {
 
 func TestAddToSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Fatalf("TestAddToSet failed @ ipsMgr.Save")
 	}
@@ -373,8 +329,7 @@ func TestAddToSet(t *testing.T) {
 }
 
 func TestAddToSetWithCachePodInfo(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToSetWithCachePodInfo failed @ ipsMgr.Save")
 	}
@@ -415,8 +370,7 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 
 func TestDeleteFromSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestDeleteFromSet failed @ ipsMgr.Save")
 	}
@@ -454,8 +408,7 @@ func TestDeleteFromSet(t *testing.T) {
 }
 
 func TestDeleteFromSetWithPodCache(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestDeleteFromSetWithPodCache failed @ ipsMgr.Save")
 	}
@@ -514,8 +467,7 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 }
 
 func TestClean(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestClean failed @ ipsMgr.Save")
 	}
@@ -536,8 +488,7 @@ func TestClean(t *testing.T) {
 }
 
 func TestDestroy(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestDestroy failed @ ipsMgr.Save")
 	}
@@ -580,8 +531,7 @@ func TestDestroy(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestRun failed @ ipsMgr.Save")
 	}
@@ -603,8 +553,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestDestroyNpmIpsets(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 
 	err := ipsMgr.CreateSet("azure-npm-123456", []string{"nethash"})
 	if err != nil {
@@ -641,7 +590,7 @@ func GetIPSetName() string {
 
 // "Set cannot be destroyed: it is in use by a kernel component"
 func TestSetCannotBeDestroyed(t *testing.T) {
-	ipsMgr := NewIpsetManager()
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.Save")
 	}
@@ -676,7 +625,7 @@ func TestSetCannotBeDestroyed(t *testing.T) {
 }
 
 func TestElemSeparatorSupportsNone(t *testing.T) {
-	ipsMgr := NewIpsetManager()
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.Save")
 	}
@@ -705,7 +654,7 @@ func TestElemSeparatorSupportsNone(t *testing.T) {
 }
 
 func TestIPSetWithGivenNameDoesNotExist(t *testing.T) {
-	ipsMgr := NewIpsetManager()
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.Save with err %+v", err)
 	}
@@ -732,7 +681,7 @@ func TestIPSetWithGivenNameDoesNotExist(t *testing.T) {
 }
 
 func TestIPSetWithGivenNameAlreadyExists(t *testing.T) {
-	ipsMgr := NewIpsetManager()
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.Save with err %+v", err)
 	}
@@ -771,7 +720,7 @@ func TestIPSetWithGivenNameAlreadyExists(t *testing.T) {
 }
 
 func TestIPSetSecondElementIsMissingWhenAddingIpWithNoPort(t *testing.T) {
-	ipsMgr := NewIpsetManager()
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.Save with err: %+v", err)
 	}
@@ -801,7 +750,7 @@ func TestIPSetSecondElementIsMissingWhenAddingIpWithNoPort(t *testing.T) {
 }
 
 func TestIPSetMissingSecondMandatoryArgument(t *testing.T) {
-	ipsMgr := NewIpsetManager()
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.Save")
 	}
@@ -831,7 +780,7 @@ func TestIPSetMissingSecondMandatoryArgument(t *testing.T) {
 }
 
 func TestIPSetCannotBeAddedAsElementDoesNotExist(t *testing.T) {
-	ipsMgr := NewIpsetManager()
+	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestAddToList failed @ ipsMgr.Save")
 	}
@@ -870,8 +819,7 @@ func TestIPSetCannotBeAddedAsElementDoesNotExist(t *testing.T) {
 */
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
+	ipsMgr := NewIpsetManager(exec.New())
 	ipsMgr.Save(util.IpsetConfigFile)
 
 	exitCode := m.Run()
