@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
 	fakeexec "k8s.io/utils/exec/testing"
 )
@@ -23,12 +24,13 @@ func TestSave(t *testing.T) {
 }
 
 func TestRestore(t *testing.T) {
+	require := require.New(t)
 	var calls = []struct {
 		cmd []string
 		err error
 	}{
-		{cmd: []string{"ipset", "save"}, err: nil},
-		{cmd: []string{"ipset", "restore"}, err: nil},
+		{cmd: []string{"ipset", "save", "-file", "/var/log/ipset-test.conf"}, err: nil},
+		{cmd: []string{"ipset", "restore", "-file", "/var/log/ipset-test.conf"}, err: nil},
 	}
 
 	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
@@ -48,23 +50,39 @@ func TestRestore(t *testing.T) {
 	if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestRestore failed @ ipsMgr.Restore")
 	}
+
+	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
+	for i, call := range calls {
+		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
+	}
 }
 
 func TestCreateList(t *testing.T) {
-	fexec := exec.New()
-	ipsMgr := NewIpsetManager(fexec)
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestCreateList failed @ ipsMgr.Save")
+	require := require.New(t)
+	var calls = []struct {
+		cmd []string
+		err error
+	}{
+		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-list"), "setlist"}, err: nil},
 	}
 
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestCreateList failed @ ipsMgr.Restore")
-		}
-	}()
+	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
+	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+
+	// expect happy path, each call returns no errors
+	for _, call := range calls {
+		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
+		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
+	}
+
+	ipsMgr := NewIpsetManager(&fexec)
 
 	if err := ipsMgr.CreateList("test-list"); err != nil {
 		t.Errorf("TestCreateList failed @ ipsMgr.CreateList")
+	}
+	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
+	for i, call := range calls {
+		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
 	}
 }
 
