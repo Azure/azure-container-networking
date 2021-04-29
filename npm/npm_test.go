@@ -52,27 +52,22 @@ func TestMain(m *testing.M) {
 	iptMgr := iptm.NewIptablesManager()
 	iptMgr.Save(util.IptablesConfigFile)
 
-	// calls we're planning on making
-	calls := [][]string{
-		{"ipset", "save", "-file", "/var/log/ipset.conf"},
-		{"ipset", "restore", "-file", "/var/log/ipset.conf"},
+	var calls = []struct {
+		cmd []string
+		err error
+	}{
+		{cmd: []string{"ipset", "save", "-file", "/var/log/ipset.conf"}, err: nil},
+		{cmd: []string{"ipset", "restore", "-file", "/var/log/ipset.conf"}, err: nil},
 	}
 
-	// errors we're planning on getting
-	fcmd := fakeexec.FakeCmd{
-		CombinedOutputScript: []fakeexec.FakeAction{
-			func() ([]byte, []byte, error) { return nil, nil, nil },
-			func() ([]byte, []byte, error) { return nil, nil, nil },
-		},
-	}
+	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
+	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
 
-	fexec := fakeexec.FakeExec{
-		CommandScript: []fakeexec.FakeCommandAction{
-			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
-			func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) },
-		},
+	// expect happy path, each call returns no errors
+	for _, call := range calls {
+		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
+		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
 	}
-
 	ipsMgr := ipsm.NewIpsetManager(&fexec)
 	ipsMgr.Save(util.IpsetConfigFile)
 

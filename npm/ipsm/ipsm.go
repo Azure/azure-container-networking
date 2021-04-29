@@ -480,12 +480,12 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
 
 	cmd := ipsMgr.Exec.Command(cmdName, cmdArgs...)
-	errbytes, err := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(errbytes), "\n"))
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
 	}
 
-	return 0, nil	
+	return 0, nil
 }
 
 // Save saves ipset to file.
@@ -495,9 +495,9 @@ func (ipsMgr *IpsetManager) Save(configFile string) error {
 	}
 
 	cmd := ipsMgr.Exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
-	errbytes, err := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset to file with err %v, stderr: %v", err, string(errbytes))
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset to file with err %v, stderr: %v", err, string(output))
 		return err
 	}
 	cmd.Wait()
@@ -523,9 +523,10 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 		}
 	}
 
-	reply, err := ipsMgr.Exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile).CombinedOutput()
+	cmd := ipsMgr.Exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file with err %v, stderr %v", err, string(reply))
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file with err %v, stderr %v", err, string(output))
 		return err
 	}
 
@@ -540,20 +541,21 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	reply, err := ipsMgr.Exec.Command(cmdName, cmdArgs).CombinedOutput()
+	cmd := ipsMgr.Exec.Command(cmdName, cmdArgs)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(reply), "\n"))
+		metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(output), "\n"))
 		return err
 	}
 
 	// todo: verify destroy reply response
-	if reply == nil {
+	if output == nil {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Received empty string from ipset list while destroying azure-npm ipsets")
 		return nil
 	}
 
 	re := regexp.MustCompile("Name: (" + util.AzureNpmPrefix + "\\d+)")
-	ipsetRegexSlice := re.FindAllSubmatch(reply, -1)
+	ipsetRegexSlice := re.FindAllSubmatch(output, -1)
 
 	if len(ipsetRegexSlice) == 0 {
 		log.Logf("No Azure-NPM IPsets are found in the Node.")

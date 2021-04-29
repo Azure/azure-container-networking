@@ -18,6 +18,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/exec"
 	utilexec "k8s.io/utils/exec"
 	fakeexec "k8s.io/utils/exec/testing"
 )
@@ -154,8 +155,8 @@ func deleteNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace,
 }
 
 func TestNewNs(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	if _, err := newNs("test", &fexec); err != nil {
+	fexec := exec.New()
+	if _, err := newNs("test", fexec); err != nil {
 		t.Errorf("TestnewNs failed @ newNs")
 	}
 }
@@ -221,8 +222,8 @@ func TestAddNamespace(t *testing.T) {
 }
 
 func TestUpdateNamespace(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	f := newNsFixture(t, &fexec)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -267,8 +268,8 @@ func TestUpdateNamespace(t *testing.T) {
 }
 
 func TestAddNamespaceLabel(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	f := newNsFixture(t, &fexec)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -313,8 +314,8 @@ func TestAddNamespaceLabel(t *testing.T) {
 }
 
 func TestAddNamespaceLabelSameRv(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	f := newNsFixture(t, &fexec)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -360,8 +361,8 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 }
 
 func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	f := newNsFixture(t, &fexec)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -412,8 +413,8 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 // this happens when NSA delete event is missed and deleted from NPMLocalCache,
 // but NSA gets added again. This will result in an update event with old and new with different UUIDs
 func TestNewNameSpaceUpdate(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	f := newNsFixture(t, &fexec)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -463,8 +464,8 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 }
 
 func TestDeleteNamespace(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	f := newNsFixture(t, &fexec)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
@@ -494,8 +495,8 @@ func TestDeleteNamespace(t *testing.T) {
 }
 
 func TestDeleteNamespaceWithTombstone(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	f := newNsFixture(t, &fexec)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
 	f.ipSetSave(util.IpsetTestConfigFile)
 	defer f.ipSetRestore(util.IpsetTestConfigFile)
 	stopCh := make(chan struct{})
@@ -530,8 +531,8 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 			"app": "test-namespace",
 		},
 	)
-	fexec := fakeexec.FakeExec{}
-	f := newNsFixture(t, &fexec)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
 	f.nsLister = append(f.nsLister, nsObj)
 	f.kubeobjects = append(f.kubeobjects, nsObj)
 	stopCh := make(chan struct{})
@@ -546,8 +547,8 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 }
 
 func TestGetNamespaceObjFromNsObj(t *testing.T) {
-	fexec := fakeexec.FakeExec{}
-	ns, _ := newNs("test-ns", &fexec)
+	fexec := exec.New()
+	ns, _ := newNs("test-ns", fexec)
 	ns.LabelsMap = map[string]string{
 		"test": "new",
 	}
