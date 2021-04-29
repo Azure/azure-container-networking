@@ -417,6 +417,7 @@ func TestDeletePod(t *testing.T) {
 	testCases := []expectedValues{
 		{0, 2, 0},
 	}
+	
 	checkPodTestResult("TestDeletePod", f, testCases)
 	if _, exists := f.npMgr.PodMap[podKey]; exists {
 		t.Error("TestDeletePod failed @ cached pod obj exists check")

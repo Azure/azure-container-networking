@@ -4,6 +4,7 @@ package ipsm
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"testing"
 
@@ -23,12 +24,16 @@ func TestSave(t *testing.T) {
 /*
 func TestRestore(t *testing.T) {
 	ipsMgr := NewIpsetManager(exec.New())
+
+	if err != nil {
+		t.Error(err)
+	}
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestRestore failed @ ipsMgr.Save")
+		t.Errorf("TestRestore failed @ ipsMgr.Save with err %v", err)
 	}
 
 	if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestRestore failed @ ipsMgr.Restore")
+		t.Errorf("TestRestore failed @ ipsMgr.Restore with err %v", err)
 	}
 }
 */
@@ -104,6 +109,11 @@ func TestDeleteFromList(t *testing.T) {
 		}
 	}()
 
+	listName := "test-list"
+	if err := ipsMgr.CreateList(listName); err != nil {
+		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet")
+	}
+
 	// Create set and validate set is created.
 	setName := "test-set"
 	if err := ipsMgr.CreateSet(setName, append([]string{util.IpsetNetHashFlag})); err != nil {
@@ -120,7 +130,7 @@ func TestDeleteFromList(t *testing.T) {
 	}
 
 	// Create list, add set to list and validate set is in the list.
-	listName := "test-list"
+
 	if err := ipsMgr.AddToList(listName, setName); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList")
 	}
@@ -156,13 +166,13 @@ func TestDeleteFromList(t *testing.T) {
 		spec:          append([]string{util.GetHashedName(setName)}),
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
+	if _, err := ipsMgr.Run(entry); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList since %s still exist in %s set", listName, setName)
 	}
 
 	// Delete List and validate list is not exist.
 
-	if err := ipsMgr.DeleteSet(listName); err != nil {
+	if err := ipsMgr.DeleteList(listName); err != nil {
 		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
 	}
 
@@ -171,7 +181,7 @@ func TestDeleteFromList(t *testing.T) {
 		set:           util.GetHashedName(listName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
+	if _, err := ipsMgr.Run(entry); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", listName)
 	}
 
@@ -185,7 +195,7 @@ func TestDeleteFromList(t *testing.T) {
 		set:           util.GetHashedName(setName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
+	if _, err := ipsMgr.Run(entry); err != nil {
 		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", setName)
 	}
 }
@@ -515,7 +525,7 @@ func TestDestroy(t *testing.T) {
 			set:           util.GetHashedName(setName),
 		}
 
-		if _, err := ipsMgr.Run(entry); err == nil {
+		if _, err := ipsMgr.Run(entry); err != nil {
 			t.Errorf("TestDestroy failed @ ipsMgr.Destroy since %s still exist in kernel with err %+v", setName, err)
 		}
 	} else {
@@ -526,7 +536,7 @@ func TestDestroy(t *testing.T) {
 			spec:          append([]string{testIP}),
 		}
 
-		if _, err := ipsMgr.Run(entry); err == nil {
+		if _, err := ipsMgr.Run(entry); err != nil {
 			t.Errorf("TestDestroy failed @ ipsMgr.Destroy since %s still exist in ipset with err %+v", testIP, err)
 		}
 	}
@@ -822,7 +832,10 @@ func TestIPSetCannotBeAddedAsElementDoesNotExist(t *testing.T) {
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	ipsMgr := NewIpsetManager(exec.New())
-	ipsMgr.Save(util.IpsetConfigFile)
+	if err := ipsMgr.Destroy(); err != nil {
+		log.Fatalf("Failed to destroy with %v", err)
+		os.Exit(1)
+	}
 
 	exitCode := m.Run()
 

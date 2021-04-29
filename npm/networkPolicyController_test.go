@@ -22,7 +22,6 @@ import (
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/exec"
-	utilexec "k8s.io/utils/exec"
 )
 
 type netPolFixture struct {
@@ -48,13 +47,13 @@ type netPolFixture struct {
 	isEnqueueEventIntoWorkQueue bool
 }
 
-func newNetPolFixture(t *testing.T, exec utilexec.Interface) *netPolFixture {
+func newNetPolFixture(t *testing.T, utilexec exec.Interface) *netPolFixture {
 	f := &netPolFixture{
 		t:                           t,
 		netPolLister:                []*networkingv1.NetworkPolicy{},
 		kubeobjects:                 []runtime.Object{},
-		npMgr:                       newNPMgr(t, exec),
-		ipsMgr:                      ipsm.NewIpsetManager(exec),
+		npMgr:                       newNPMgr(t, utilexec),
+		ipsMgr:                      ipsm.NewIpsetManager(utilexec),
 		iptMgr:                      iptm.NewIptablesManager(),
 		isEnqueueEventIntoWorkQueue: true,
 	}
@@ -264,7 +263,6 @@ func checkNetPolTestResult(testName string, f *netPolFixture, testCases []expect
 }
 
 func TestAddMultipleNetworkPolicies(t *testing.T) {
-	fexec := exec.New()
 	netPolObj1 := createNetPol()
 
 	// deep copy netPolObj1 and change namespace, name, and porttype (to namedPort) since current createNetPol is not flexble.
@@ -274,6 +272,7 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 	// namedPort
 	netPolObj2.Spec.Ingress[0].Ports[0].Port = &intstr.IntOrString{StrVal: fmt.Sprintf("%s", netPolObj2.Name)}
 
+	fexec := exec.New()
 	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, netPolObj1, netPolObj2)
 	f.kubeobjects = append(f.kubeobjects, netPolObj1, netPolObj2)
@@ -292,6 +291,7 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 
 func TestAddNetworkPolicy(t *testing.T) {
 	netPolObj := createNetPol()
+
 	fexec := exec.New()
 	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, netPolObj)
@@ -310,6 +310,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 
 func TestDeleteNetworkPolicy(t *testing.T) {
 	netPolObj := createNetPol()
+
 	fexec := exec.New()
 	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, netPolObj)
@@ -327,6 +328,7 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 
 func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 	netPolObj := createNetPol()
+
 	fexec := exec.New()
 	f := newNetPolFixture(t, fexec)
 	f.isEnqueueEventIntoWorkQueue = false
@@ -371,6 +373,7 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 // Check it with expectedEnqueueEventIntoWorkQueue variable.
 func TestUpdateNetworkPolicy(t *testing.T) {
 	oldNetPolObj := createNetPol()
+
 	fexec := exec.New()
 	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, oldNetPolObj)
@@ -393,6 +396,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 
 func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	oldNetPolObj := createNetPol()
+
 	fexec := exec.New()
 	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, oldNetPolObj)

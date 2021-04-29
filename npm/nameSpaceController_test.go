@@ -9,8 +9,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/exec"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,9 +18,6 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/utils/exec"
-	utilexec "k8s.io/utils/exec"
-	fakeexec "k8s.io/utils/exec/testing"
 )
 
 var (
@@ -52,13 +49,13 @@ type nameSpaceFixture struct {
 	kubeInformer kubeinformers.SharedInformerFactory
 }
 
-func newNsFixture(t *testing.T, exec utilexec.Interface) *nameSpaceFixture {
+func newNsFixture(t *testing.T, utilexec exec.Interface) *nameSpaceFixture {
 	f := &nameSpaceFixture{
 		t:           t,
 		nsLister:    []*corev1.Namespace{},
 		kubeobjects: []runtime.Object{},
-		npMgr:       newNPMgr(t, exec),
-		ipsMgr:      ipsm.NewIpsetManager(exec),
+		npMgr:       newNPMgr(t, utilexec),
+		ipsMgr:      ipsm.NewIpsetManager(utilexec),
 	}
 	return f
 }
@@ -162,7 +159,10 @@ func TestNewNs(t *testing.T) {
 }
 
 func TestAddNamespace(t *testing.T) {
-	require := require.New(t)
+	fexec := exec.New()
+	f := newNsFixture(t, fexec)
+	f.ipSetSave(util.IpsetTestConfigFile)
+	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
 	nsObj := newNameSpace(
 		"test-namespace",
@@ -171,31 +171,6 @@ func TestAddNamespace(t *testing.T) {
 			"app": "test-namespace",
 		},
 	)
-
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-app"), "setlist"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-app"), util.GetHashedName("ns-test-namespace")}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-app:test-namespace"), "setlist"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-app:test-namespace"), util.GetHashedName("ns-test-namespace")}, err: nil},
-	}
-
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
-
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newNsFixture(t, &fexec)
-
 	f.nsLister = append(f.nsLister, nsObj)
 	f.kubeobjects = append(f.kubeobjects, nsObj)
 
@@ -212,12 +187,6 @@ func TestAddNamespace(t *testing.T) {
 
 	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(nsObj.Name)]; !exists {
 		t.Errorf("TestAddNamespace failed @ npMgr.nsMap check")
-	}
-
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
 	}
 }
 
