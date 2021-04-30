@@ -828,13 +828,14 @@ func TestIPSetCannotBeAddedAsElementDoesNotExist(t *testing.T) {
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 
+	log.Printf("Uniniting iptables")
 	iptm := iptm.NewIptablesManager()
-	iptm.UninitNpmChains()
 	if err := iptm.UninitNpmChains(); err != nil {
 		log.Fatalf("Failed to destroy iptables with %v", err)
 		os.Exit(1)
 	}
 
+	log.Printf("Uniniting ipsets")
 	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Destroy(); err != nil {
 		log.Fatalf("Failed to destroy ipsets with %v", err)
