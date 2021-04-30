@@ -483,6 +483,7 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
+		return 1, nil
 	}
 
 	return 0, nil

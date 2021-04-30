@@ -21,13 +21,9 @@ func TestSave(t *testing.T) {
 	}
 }
 
-/*
 func TestRestore(t *testing.T) {
 	ipsMgr := NewIpsetManager(exec.New())
 
-	if err != nil {
-		t.Error(err)
-	}
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestRestore failed @ ipsMgr.Save with err %v", err)
 	}
@@ -36,7 +32,6 @@ func TestRestore(t *testing.T) {
 		t.Errorf("TestRestore failed @ ipsMgr.Restore with err %v", err)
 	}
 }
-*/
 
 func TestCreateList(t *testing.T) {
 	ipsMgr := NewIpsetManager(exec.New())
@@ -838,8 +833,6 @@ func TestMain(m *testing.M) {
 	}
 
 	exitCode := m.Run()
-
-	ipsMgr.Restore(util.IpsetConfigFile)
 
 	os.Exit(exitCode)
 }
