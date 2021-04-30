@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
 
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -215,7 +216,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	secondaryIps := make([]string, 0)
 	secondaryIps = append(secondaryIps, desiredIpAddress)
-	cnsClient, _ := InitCnsClient("")
+	cnsClient, _ := InitCnsClient("", 2*time.Second)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -289,7 +290,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	desiredIpAddress := "10.0.0.5"
 
 	secondaryIps := []string{desiredIpAddress}
-	cnsClient, _ := InitCnsClient("")
+	cnsClient, _ := InitCnsClient("", 2*time.Second)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -329,7 +330,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	desiredIpAddress := "10.0.0.5"
 
 	secondaryIps := []string{desiredIpAddress}
-	cnsClient, _ := InitCnsClient("")
+	cnsClient, _ := InitCnsClient("", 2*time.Second)
 
 	addTestStateToRestServer(t, secondaryIps)
 

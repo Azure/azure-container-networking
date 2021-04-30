@@ -36,8 +36,9 @@ const (
 	dockerNetworkOption = "com.docker.network.generic"
 	opModeTransparent   = "transparent"
 	// Supported IP version. Currently support only IPv4
-	ipVersion = "4"
-	ipamV6    = "azure-vnet-ipamv6"
+	ipVersion             = "4"
+	ipamV6                = "azure-vnet-ipamv6"
+	defaultRequestTimeout = 5 * time.Second
 )
 
 // CNI Operation Types
@@ -395,7 +396,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	if nwCfg.MultiTenancy {
 		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl)
+		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
 	}
 
 	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
@@ -743,7 +744,7 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	if nwCfg.MultiTenancy {
 		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl)
+		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
 	}
 
 	// Initialize values from network config.
@@ -853,7 +854,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	if nwCfg.MultiTenancy {
 		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl)
+		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
 	}
 
 	switch nwCfg.Ipam.Type {
@@ -1054,7 +1055,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 
 	// now query CNS to get the target routes that should be there in the networknamespace (as a result of update)
 	log.Printf("Going to collect target routes for [name=%v, namespace=%v] from CNS.", k8sPodName, k8sNamespace)
-	if cnsClient, err = cnsclient.InitCnsClient(nwCfg.CNSUrl); err != nil {
+	if cnsClient, err = cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout); err != nil {
 		log.Printf("Initializing CNS client error in CNI Update%v", err)
 		log.Printf(err.Error())
 		return plugin.Errorf(err.Error())

@@ -5,6 +5,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
@@ -46,7 +47,7 @@ func HandleCNSClientCommands(cmd, arg string) error {
 	cnsIPAddress := os.Getenv(envCNSIPAddress)
 	cnsPort := os.Getenv(envCNSPort)
 
-	cnsClient, err := InitCnsClient("http://" + cnsIPAddress + ":" + cnsPort)
+	cnsClient, err := InitCnsClient("http://"+cnsIPAddress+":"+cnsPort, 5*time.Second)
 	if err != nil {
 		return err
 	}
