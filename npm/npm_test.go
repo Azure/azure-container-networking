@@ -47,15 +47,12 @@ func newNPMgr(t *testing.T, exec utilexec.Interface) *NetworkPolicyManager {
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	iptMgr := iptm.NewIptablesManager()
-	iptMgr.Save(util.IptablesConfigFile)
+	iptMgr.UninitNpmChains()
 
 	ipsMgr := ipsm.NewIpsetManager(exec.New())
-	ipsMgr.Save(util.IpsetConfigFile)
+	ipsMgr.Destroy()
 
 	exitCode := m.Run()
-
-	iptMgr.Restore(util.IptablesConfigFile)
-	ipsMgr.Restore(util.IpsetConfigFile)
 
 	os.Exit(exitCode)
 }

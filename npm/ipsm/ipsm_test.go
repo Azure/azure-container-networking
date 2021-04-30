@@ -509,12 +509,12 @@ func TestDestroy(t *testing.T) {
 func TestRun(t *testing.T) {
 	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestRun failed @ ipsMgr.Save")
+		t.Errorf("TestRun failed @ ipsMgr.Save with err %v", err)
 	}
 
 	defer func() {
 		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestRun failed @ ipsMgr.Restore")
+			t.Errorf("TestRun failed @ ipsMgr.Restore with err %v", err)
 		}
 	}()
 
