@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -826,9 +827,17 @@ func TestIPSetCannotBeAddedAsElementDoesNotExist(t *testing.T) {
 */
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
+
+	iptm := iptm.NewIptablesManager()
+	iptm.UninitNpmChains()
+	if err := iptm.UninitNpmChains(); err != nil {
+		log.Fatalf("Failed to destroy iptables with %v", err)
+		os.Exit(1)
+	}
+
 	ipsMgr := NewIpsetManager(exec.New())
 	if err := ipsMgr.Destroy(); err != nil {
-		log.Fatalf("Failed to destroy with %v", err)
+		log.Fatalf("Failed to destroy ipsets with %v", err)
 		os.Exit(1)
 	}
 
