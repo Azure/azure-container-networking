@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
+	testingutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	utilexec "k8s.io/utils/exec"
@@ -275,30 +276,20 @@ func TestAddPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
 	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
+	var calls = []testingutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, Err: nil},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, Err: nil},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, Err: nil},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, Err: nil},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, Err: nil},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, Err: nil},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, Err: nil},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, Err: nil},
 	}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec := testingutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -312,10 +303,12 @@ func TestAddPod(t *testing.T) {
 	checkPodTestResult("TestAddPod", f, testCases)
 	checkNpmPodWithInput("TestAddPod", f, podObj)
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	require.Equal(len(calls), fexec.CommandCalls)
+	/*
+		for i, call := range calls {
+			require.Equalf(call.Cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
+		}
+	*/
 }
 
 func TestAddHostNetworkPod(t *testing.T) {
