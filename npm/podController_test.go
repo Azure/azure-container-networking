@@ -306,7 +306,6 @@ func TestAddPod(t *testing.T) {
 	f.newPodController(stopCh)
 
 	addPod(t, f, podObj)
-	fmt.Println(fcmd.CombinedOutputLog)
 	testCases := []expectedValues{
 		{1, 2, 0},
 	}
@@ -417,12 +416,11 @@ func TestDeletePod(t *testing.T) {
 	testCases := []expectedValues{
 		{0, 2, 0},
 	}
-	
+
 	checkPodTestResult("TestDeletePod", f, testCases)
 	if _, exists := f.npMgr.PodMap[podKey]; exists {
 		t.Error("TestDeletePod failed @ cached pod obj exists check")
 	}
-
 	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
 	for i, call := range calls {
 		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
@@ -565,7 +563,6 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	f.newPodController(stopCh)
 
 	deletePod(t, f, podObj, DeletedFinalStateUnknownObject)
-
 	testCases := []expectedValues{
 		{0, 2, 0},
 	}

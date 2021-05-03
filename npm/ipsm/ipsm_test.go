@@ -489,7 +489,7 @@ func TestDestroy(t *testing.T) {
 			set:           util.GetHashedName(setName),
 		}
 
-		if _, err := ipsMgr.Run(entry); err == nil {
+		if err := ipsMgr.Run(entry); err == nil {
 			t.Errorf("TestDestroy failed @ ipsMgr.Destroy since %s still exist in kernel with err %+v", setName, err)
 		}
 	} else {
@@ -500,7 +500,7 @@ func TestDestroy(t *testing.T) {
 			spec:          append([]string{testIP}),
 		}
 
-		if _, err := ipsMgr.Run(entry); err == nil {
+		if err := ipsMgr.Run(entry); err == nil {
 			t.Errorf("TestDestroy failed @ ipsMgr.Destroy since %s still exist in ipset with err %+v", testIP, err)
 		}
 	}
@@ -523,7 +523,7 @@ func TestRun(t *testing.T) {
 		set:           "test-set",
 		spec:          append([]string{util.IpsetNetHashFlag}),
 	}
-	if _, err := ipsMgr.Run(entry); err != nil {
+	if err := ipsMgr.Run(entry); err != nil {
 		t.Errorf("TestRun failed @ ipsMgr.Run with err %+v", err)
 	}
 }

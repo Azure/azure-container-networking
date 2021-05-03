@@ -74,9 +74,7 @@ func main() {
 	log.Logf("[INFO] Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	exec := exec.New()
-
-	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec, version)
+	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version)
 	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
 	restserver := restserver.NewNpmRestServer(restserver.DefaultHTTPListeningAddress)
