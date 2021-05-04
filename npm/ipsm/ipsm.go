@@ -6,8 +6,10 @@ package ipsm
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
+	"syscall"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -120,8 +122,12 @@ func (ipsMgr *IpsetManager) DeleteList(listName string) error {
 		set:           util.GetHashedName(listName),
 	}
 
-	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset list %s.", listName)
+	if errCode, err := ipsMgr.Run(entry); err != nil {
+		if errCode == 1 {
+			return nil
+		}
+
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset %s %+v", listName, entry)
 		return err
 	}
 
@@ -170,8 +176,7 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 
 	// add set to list
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset list %s.", listName)
-		return err
+		return fmt.Errorf("Error: failed to create ipset rules. rule: %+v, error: %v", entry, err)
 	}
 
 	ipsMgr.ListMap[listName].elements[setName] = ""
@@ -541,25 +546,25 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 
 // DestroyNpmIpsets destroys only ipsets created by NPM
 func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
-
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	cmd := ipsMgr.Exec.Command(cmdName, cmdArgs)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(output), "\n"))
+	reply, err := ipsMgr.Exec.Command(cmdName, cmdArgs).CombinedOutput()
+	if msg, failed := err.(*exec.ExitError); failed {
+		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
+		if errCode > 0 {
+			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+		}
+
 		return err
 	}
-
-	// todo: verify destroy reply response
-	if output == nil {
+	if reply == nil {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Received empty string from ipset list while destroying azure-npm ipsets")
 		return nil
 	}
 
 	re := regexp.MustCompile("Name: (" + util.AzureNpmPrefix + "\\d+)")
-	ipsetRegexSlice := re.FindAllSubmatch(output, -1)
+	ipsetRegexSlice := re.FindAllSubmatch(reply, -1)
 
 	if len(ipsetRegexSlice) == 0 {
 		log.Logf("No Azure-NPM IPsets are found in the Node.")

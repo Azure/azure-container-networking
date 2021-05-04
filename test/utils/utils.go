@@ -10,9 +10,9 @@ import (
 )
 
 type TestCmd struct {
-	Cmd    []string
-	Stderr string
-	Err    *fakeexec.FakeExitError
+	Cmd      []string
+	Stderr   string
+	ExitCode int
 }
 
 func GetFakeExecWithScripts(calls []TestCmd) (*fakeexec.FakeExec, *fakeexec.FakeCmd) {
@@ -21,9 +21,9 @@ func GetFakeExecWithScripts(calls []TestCmd) (*fakeexec.FakeExec, *fakeexec.Fake
 	fcmd := &fakeexec.FakeCmd{}
 
 	for _, call := range calls {
-		if call.Err != nil {
-			err := call.Err
+		if call.Stderr != "" || call.ExitCode != 0 {
 			stderr := call.Stderr
+			err := &fakeexec.FakeExitError{Status: call.ExitCode}
 			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte(stderr), nil, err })
 		} else {
 			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte{}, nil, nil })
