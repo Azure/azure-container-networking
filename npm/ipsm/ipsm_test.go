@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
+	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
 	fakeexec "k8s.io/utils/exec/testing"
@@ -526,6 +527,28 @@ func TestRun(t *testing.T) {
 	if _, err := ipsMgr.Run(entry); err != nil {
 		t.Errorf("TestRun failed @ ipsMgr.Run with err %+v", err)
 	}
+}
+
+func TestRunError(t *testing.T) {
+	setname := "test-set"
+
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}, Stderr: "test failure", Err: &fakeexec.FakeExitError{Status: 2}},
+	}
+
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+
+	ipsMgr := NewIpsetManager(fexec)
+	entry := &ipsEntry{
+		operationFlag: util.IpsetCreationFlag,
+		set:           util.GetHashedName(setname),
+		spec:          append([]string{util.IpsetNetHashFlag}),
+	}
+	if _, err := ipsMgr.Run(entry); err != nil {
+		require.Error(t, err)
+	}
+
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDestroyNpmIpsets(t *testing.T) {

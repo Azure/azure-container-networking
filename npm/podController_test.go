@@ -10,11 +10,9 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
-	testingutils "github.com/Azure/azure-container-networking/test/utils"
-	"github.com/stretchr/testify/require"
+	testutils "github.com/Azure/azure-container-networking/test/utils"
 	corev1 "k8s.io/api/core/v1"
 	utilexec "k8s.io/utils/exec"
-	fakeexec "k8s.io/utils/exec/testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -210,43 +208,31 @@ func checkNpmPodWithInput(testName string, f *podFixture, inputPodObj *corev1.Po
 }
 
 func TestAddMultiplePods(t *testing.T) {
-	require := require.New(t)
-
 	labels := map[string]string{
 		"app": "test-pod",
 	}
 	podObj1 := createPod("test-pod-1", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podObj2 := createPod("test-pod-2", "test-namespace", "0", "1.2.3.5", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod-1"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod-1"), "1.2.3.4,8080"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.5"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.5"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.5"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod-2"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod-2"), "1.2.3.5,8080"}, err: nil},
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod-1"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod-1"), "1.2.3.4,8080"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.5"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.5"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.5"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod-2"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod-2"), "1.2.3.5,8080"}},
 	}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj1, podObj2)
 	f.kubeobjects = append(f.kubeobjects, podObj1, podObj2)
 	stopCh := make(chan struct{})
@@ -263,10 +249,7 @@ func TestAddMultiplePods(t *testing.T) {
 	checkNpmPodWithInput("TestAddMultiplePods", f, podObj1)
 	checkNpmPodWithInput("TestAddMultiplePods", f, podObj2)
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestAddPod(t *testing.T) {
@@ -275,19 +258,18 @@ func TestAddPod(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	require := require.New(t)
-	var calls = []testingutils.TestCmd{
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, Err: nil},
-		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, Err: nil},
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, Err: nil},
-		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, Err: nil},
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, Err: nil},
-		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, Err: nil},
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, Err: nil},
-		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, Err: nil},
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
 	}
 
-	fexec := testingutils.GetFakeExecWithScripts(calls)
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
@@ -303,12 +285,7 @@ func TestAddPod(t *testing.T) {
 	checkPodTestResult("TestAddPod", f, testCases)
 	checkNpmPodWithInput("TestAddPod", f, podObj)
 
-	require.Equal(len(calls), fexec.CommandCalls)
-	/*
-		for i, call := range calls {
-			require.Equalf(call.Cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-		}
-	*/
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestAddHostNetworkPod(t *testing.T) {
@@ -318,22 +295,11 @@ func TestAddHostNetworkPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{}
+	var calls = []testutils.TestCmd{}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -350,10 +316,7 @@ func TestAddHostNetworkPod(t *testing.T) {
 		t.Error("TestAddHostNetworkPod failed @ cached pod obj exists check")
 	}
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeletePod(t *testing.T) {
@@ -363,42 +326,31 @@ func TestDeletePod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
+	var calls = []testutils.TestCmd{
 		// add pod
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
 
 		// delete pod
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("ns-test-namespace")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}, err: nil},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("ns-test-namespace")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}},
 	}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -414,10 +366,8 @@ func TestDeletePod(t *testing.T) {
 	if _, exists := f.npMgr.PodMap[podKey]; exists {
 		t.Error("TestDeletePod failed @ cached pod obj exists check")
 	}
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeleteHostNetworkPod(t *testing.T) {
@@ -427,21 +377,11 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{}
+	var calls = []testutils.TestCmd{}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -457,10 +397,7 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 		t.Error("TestDeleteHostNetworkPod failed @ cached pod obj exists check")
 	}
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeletePodWithTombstone(t *testing.T) {
@@ -469,22 +406,11 @@ func TestDeletePodWithTombstone(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{}
+	var calls = []testutils.TestCmd{}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	f.newPodController(stopCh)
@@ -501,10 +427,7 @@ func TestDeletePodWithTombstone(t *testing.T) {
 	}
 	checkPodTestResult("TestDeletePodWithTombstone", f, testCases)
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
@@ -513,42 +436,31 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
+	var calls = []testutils.TestCmd{
 		// add pod
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
 
 		// delete pod
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("ns-test-namespace")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}, err: nil},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("ns-test-namespace")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}},
 	}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
 	f.kubeobjects = append(f.kubeobjects, podObj)
 	stopCh := make(chan struct{})
@@ -561,10 +473,7 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	}
 	checkPodTestResult("TestDeletePodWithTombstoneAfterAddingPod", f, testCases)
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestLabelUpdatePod(t *testing.T) {
@@ -573,38 +482,27 @@ func TestLabelUpdatePod(t *testing.T) {
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
+	var calls = []testutils.TestCmd{
 		// add pod
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
 
 		// update pod
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:new-test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:new-test-pod"), "1.2.3.4"}, err: nil},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:new-test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:new-test-pod"), "1.2.3.4"}},
 	}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, oldPodObj)
 	f.kubeobjects = append(f.kubeobjects, oldPodObj)
 	stopCh := make(chan struct{})
@@ -626,10 +524,7 @@ func TestLabelUpdatePod(t *testing.T) {
 	checkPodTestResult("TestLabelUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestLabelUpdatePod", f, newPodObj)
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestIPAddressUpdatePod(t *testing.T) {
@@ -638,50 +533,39 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
+	var calls = []testutils.TestCmd{
 		// add pod
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
 
 		// update pod
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("ns-test-namespace")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "4.3.2.1"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "4.3.2.1"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "4.3.2.1"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "4.3.2.1,8080"}, err: nil},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("ns-test-namespace")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "4.3.2.1"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "4.3.2.1"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "4.3.2.1"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "4.3.2.1,8080"}},
 	}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, oldPodObj)
 	f.kubeobjects = append(f.kubeobjects, oldPodObj)
 	stopCh := make(chan struct{})
@@ -702,10 +586,7 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	checkPodTestResult("TestIPAddressUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestIPAddressUpdatePod", f, newPodObj)
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestPodStatusUpdatePod(t *testing.T) {
@@ -715,42 +596,31 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podKey := getKey(oldPodObj, t)
 
-	require := require.New(t)
-	var calls = []struct {
-		cmd []string
-		err error
-	}{
+	var calls = []testutils.TestCmd{
 		// add pod
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}, err: nil},
-		{cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app:test-pod"), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("namedport:app:test-pod"), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
 
 		// update pod
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("ns-test-namespace")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}, err: nil},
-		{cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}, err: nil},
-		{cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}, err: nil},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("ns-test-namespace")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("app:test-pod"), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("app:test-pod")}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}},
 	}
 
-	fcmd := fakeexec.FakeCmd{CombinedOutputScript: []fakeexec.FakeAction{}}
-	fexec := fakeexec.FakeExec{CommandScript: []fakeexec.FakeCommandAction{}}
+	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
-	// expect happy path, each call returns no errors
-	for _, call := range calls {
-		fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, call.err })
-		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) utilexec.Cmd { return fakeexec.InitFakeCmd(&fcmd, cmd, args...) })
-	}
-
-	f := newFixture(t, &fexec)
+	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, oldPodObj)
 	f.kubeobjects = append(f.kubeobjects, oldPodObj)
 	stopCh := make(chan struct{})
@@ -774,10 +644,7 @@ func TestPodStatusUpdatePod(t *testing.T) {
 		t.Error("TestPodStatusUpdatePod failed @ cached pod obj exists check")
 	}
 
-	require.Equal(len(calls), len(fcmd.CombinedOutputLog))
-	for i, call := range calls {
-		require.Equalf(call.cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
-	}
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestHasValidPodIP(t *testing.T) {

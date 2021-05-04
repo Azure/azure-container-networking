@@ -479,13 +479,14 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	cmd := ipsMgr.Exec.Command(cmdName, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 
-	if result, failed := err.(utilexec.ExitError); failed {
+	if result, isExitError := err.(utilexec.ExitError); isExitError {
 		exitCode := result.ExitStatus()
+		errfmt := fmt.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
 		if exitCode > 0 {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
+			metrics.SendErrorLogAndMetric(util.IpsmID, errfmt.Error())
 		}
 
-		return exitCode, err
+		return exitCode, errfmt
 	}
 
 	return 0, nil

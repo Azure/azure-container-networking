@@ -1,37 +1,46 @@
 package testingutils
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
 
-	testing "k8s.io/utils/exec/testing"
+	fakeexec "k8s.io/utils/exec/testing"
 )
 
 type TestCmd struct {
-	Cmd []string
-	Err *testing.FakeExitError
+	Cmd    []string
+	Stderr string
+	Err    *fakeexec.FakeExitError
 }
 
-func GetFakeExecWithScripts(calls []TestCmd) *testing.FakeExec {
+func GetFakeExecWithScripts(calls []TestCmd) (*fakeexec.FakeExec, *fakeexec.FakeCmd) {
+	fexec := &fakeexec.FakeExec{ExactOrder: false, DisableScripts: false}
 
-	fakeexec := &testing.FakeExec{ExactOrder: true, DisableScripts: false}
+	fcmd := &fakeexec.FakeCmd{}
+
 	for _, call := range calls {
-		var err testing.FakeExitError
 		if call.Err != nil {
-			err = *call.Err
+			err := call.Err
+			stderr := call.Stderr
+			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte(stderr), nil, err })
+		} else {
+			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte{}, nil, nil })
 		}
-		fakeCmd := &testing.FakeCmd{}
-		cmdAction := makeFakeCmd(fakeCmd, call.Cmd[0], call.Cmd[1:]...)
-		fakeCmd.CombinedOutputScript = append(fakeCmd.CombinedOutputScript, func() ([]byte, []byte, error) { return nil, nil, err })
-		fakeexec.CommandScript = append(fakeexec.CommandScript, cmdAction)
 	}
-	return fakeexec
+
+	for range calls {
+		fexec.CommandScript = append(fexec.CommandScript, func(cmd string, args ...string) exec.Cmd { return fakeexec.InitFakeCmd(fcmd, cmd, args...) })
+	}
+
+	return fexec, fcmd
 }
 
-func makeFakeCmd(fakeCmd *testing.FakeCmd, cmd string, args ...string) testing.FakeCommandAction {
-	c := cmd
-	a := args
-	return func(cmd string, args ...string) exec.Cmd {
-		command := testing.InitFakeCmd(fakeCmd, c, a...)
-		return command
+func VerifyCallsMatch(t *testing.T, calls []TestCmd, fexec *fakeexec.FakeExec, fcmd *fakeexec.FakeCmd) {
+	require.Equal(t, len(calls), fexec.CommandCalls)
+
+	for i, call := range calls {
+		require.Equalf(t, call.Cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
 	}
 }
