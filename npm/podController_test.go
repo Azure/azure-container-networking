@@ -216,6 +216,8 @@ func TestAddMultiplePods(t *testing.T) {
 
 	var calls = []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
@@ -260,6 +262,8 @@ func TestAddPod(t *testing.T) {
 
 	var calls = []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
@@ -329,6 +333,8 @@ func TestDeletePod(t *testing.T) {
 	var calls = []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
@@ -439,6 +445,8 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	var calls = []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
@@ -485,6 +493,8 @@ func TestLabelUpdatePod(t *testing.T) {
 	var calls = []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
@@ -536,6 +546,8 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	var calls = []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
@@ -599,6 +611,8 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	var calls = []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("ns-test-namespace"), "1.2.3.4"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("app"), "nethash"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app"), "1.2.3.4"}},
