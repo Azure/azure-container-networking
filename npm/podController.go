@@ -384,18 +384,9 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", string(podObj.GetUID()), podNs, podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
-	// Add pod namespace if it doesn't exist
 	var err error
-	if _, exists := c.npMgr.NsMap[podNs]; !exists {
-		// (TODO): need to change newNS function. It always returns "nil"
-		c.npMgr.NsMap[podNs], _ = newNs(podNs, ipsMgr.Exec)
-		klog.Infof("Creating set: %v, hashedSet: %v", podNs, util.GetHashedName(podNs))
-		if err = ipsMgr.CreateSet(podNs, append([]string{util.IpsetNetHashFlag})); err != nil {
-			return fmt.Errorf("[syncAddedPod] Error: creating ipset %s with err: %v", podNs, err)
-		}
-	}
-
 	npmPodObj := newNpmPod(podObj)
+
 	// Add the pod to its namespace's ipset.
 	klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, podNs)
 	if err = ipsMgr.AddToSet(podNs, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
@@ -433,24 +424,28 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 
 // syncAddAndUpdatePod handles updating pod ip in its label's ipset.
 func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
-	podKey, _ := cache.MetaNamespaceKeyFunc(newPodObj)
-
-	klog.Infof("[syncAddAndUpdatePod] updating Pod with key %s", podKey)
-	newPodObjNs := util.GetNSNameWithPrefix(newPodObj.ObjectMeta.Namespace)
+	var err error
 	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 
-	// Add pod namespace if it doesn't exist
-	var err error
+	// Create ipset related to namespace which this pod belong to if it does not exist.
+	newPodObjNs := util.GetNSNameWithPrefix(newPodObj.Namespace)
 	if _, exists := c.npMgr.NsMap[newPodObjNs]; !exists {
-		// (TODO): need to change newNS function. It always returns "nil"
-		c.npMgr.NsMap[newPodObjNs], _ = newNs(newPodObjNs, ipsMgr.Exec)
-		klog.Infof("Creating set: %v, hashedSet: %v", newPodObjNs, util.GetHashedName(newPodObjNs))
 		if err = ipsMgr.CreateSet(newPodObjNs, []string{util.IpsetNetHashFlag}); err != nil {
-			return fmt.Errorf("[syncAddAndUpdatePod] Error: creating ipset %s with err: %v", newPodObjNs, err)
+			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to create ipset for namespace %s with err: %v", newPodObjNs, err)
 		}
+
+		if err = ipsMgr.AddToList(util.KubeAllNamespacesFlag, newPodObjNs); err != nil {
+			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add %s to all-namespace ipset list with err: %v", newPodObjNs, err)
+		}
+
+		// Add namespace object into NsMap cache only when two ipset operations are successful.
+		npmNs, _ := newNs(newPodObjNs)
+		c.npMgr.NsMap[newPodObjNs] = npmNs
 	}
 
+	podKey, _ := cache.MetaNamespaceKeyFunc(newPodObj)
 	cachedNpmPodObj, exists := c.npMgr.PodMap[podKey]
+	klog.Infof("[syncAddAndUpdatePod] updating Pod with key %s", podKey)
 	// No cached npmPod exists. start adding the pod in a cache
 	if !exists {
 		if err = c.syncAddedPod(newPodObj); err != nil {
@@ -469,7 +464,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	// then, re-add new pod obj.
 	if cachedNpmPodObj.PodIP != newPodObj.Status.PodIP {
 		metrics.SendErrorLogAndMetric(util.PodID, "[syncAddAndUpdatePod] Info: Unexpected state. Pod (Namespace:%s, Name:%s, newUid:%s) , has cachedPodIp:%s which is different from PodIp:%s",
-			newPodObjNs, newPodObj.Name, string(newPodObj.UID), cachedNpmPodObj.PodIP, newPodObj.Status.PodIP)
+			newPodObj.Namespace, newPodObj.Name, string(newPodObj.UID), cachedNpmPodObj.PodIP, newPodObj.Status.PodIP)
 
 		klog.Infof("Deleting cached Pod with key:%s first due to IP Mistmatch", podKey)
 		if err = c.cleanUpDeletedPod(podKey); err != nil {

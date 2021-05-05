@@ -1,0 +1,54 @@
+name: Cyclonus Network Policy Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # run once a day at midnight
+    - cron: '0 0 * * *'
+
+jobs:
+  cyclonus-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Make NPM image
+        run: |
+          VERSION=cyclonus make azure-npm-image
+
+      - name: Setup Kind
+        uses: engineerd/setup-kind@v0.5.0
+        with:
+          version: "v0.9.0"
+          config: ./test/kind/kind.yaml
+          name: npm-kind
+      
+      - name: Install Azure NPM
+        run: |
+          sed -i 's/mcr.microsoft.com\/containernetworking\/azure-npm:v1.3.1/acnpublic.azurecr.io\/azure-npm:cyclonus/' ./npm/azure-npm.yaml
+          kind load docker-image acnpublic.azurecr.io/azure-npm:cyclonus --name npm-kind
+          kubectl apply -f ./npm/azure-npm.yaml
+
+      - name: Run Cyclonus network policy test
+        run: make test-cyclonus
+
+      - name: Fetch logs
+        if: always()
+        run: |
+          kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > npm-logs.txt
+          mv ./test/cyclonus/cyclonus-test.txt ./cyclonus-test.txt
+
+      - name: 'Upload Logs'
+        uses: actions/upload-artifact@v2
+        if: always()
+        with:
+          name: logs
+          path: |
+            ./npm-logs.txt
+            ./cyclonus-test.txt
+
