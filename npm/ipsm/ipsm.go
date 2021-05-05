@@ -26,7 +26,7 @@ type ipsEntry struct {
 
 // IpsetManager stores ipset states.
 type IpsetManager struct {
-	Exec    utilexec.Interface
+	exec    utilexec.Interface
 	ListMap map[string]*Ipset //tracks all set lists.
 	SetMap  map[string]*Ipset //label -> []ip
 }
@@ -49,7 +49,7 @@ func NewIpset(setName string) *Ipset {
 // NewIpsetManager creates a new instance for IpsetManager object.
 func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	return &IpsetManager{
-		Exec:    exec,
+		exec:    exec,
 		ListMap: make(map[string]*Ipset),
 		SetMap:  make(map[string]*Ipset),
 	}
@@ -411,7 +411,7 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 			return nil
 		}
 
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset entry. Entry: %+v", entry)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset entry: [%+v] err: [%v]", entry, err)
 		return err
 	}
 
@@ -484,7 +484,7 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 
 	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
 
-	cmd := ipsMgr.Exec.Command(cmdName, cmdArgs...)
+	cmd := ipsMgr.exec.Command(cmdName, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 
 	if result, isExitError := err.(utilexec.ExitError); isExitError {
@@ -506,10 +506,10 @@ func (ipsMgr *IpsetManager) Save(configFile string) error {
 		configFile = util.IpsetConfigFile
 	}
 
-	cmd := ipsMgr.Exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
+	cmd := ipsMgr.exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset to file with err %v, stderr: %v", err, string(output))
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset: [%s] Stderr: [%v, %s]", cmd, err, strings.TrimSuffix(string(output), "\n"))
 		return err
 	}
 	cmd.Wait()
@@ -535,10 +535,10 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 		}
 	}
 
-	cmd := ipsMgr.Exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
+	cmd := ipsMgr.exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file with err %v, stderr %v", err, string(output))
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file: [%s] Stderr: [%v, %s]", cmd, err, strings.TrimSuffix(string(output), "\n"))
 		return err
 	}
 
@@ -552,7 +552,7 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	reply, err := ipsMgr.Exec.Command(cmdName, cmdArgs).CombinedOutput()
+	reply, err := ipsMgr.exec.Command(cmdName, cmdArgs).CombinedOutput()
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {

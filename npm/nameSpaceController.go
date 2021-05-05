@@ -337,7 +337,7 @@ func (nsc *nameSpaceController) syncAddNameSpace(nsObj *corev1.Namespace) error 
 		return err
 	}
 
-	npmNs, _ := newNs(corev1NsName, ipsMgr.Exec)
+	npmNs, _ := newNs(corev1NsName, nsc.npMgr.Exec)
 	nsc.npMgr.NsMap[corev1NsName] = npmNs
 
 	// Add the namespace to its label's ipset list.
