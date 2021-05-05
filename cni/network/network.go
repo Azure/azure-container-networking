@@ -38,7 +38,7 @@ const (
 	// Supported IP version. Currently support only IPv4
 	ipVersion             = "4"
 	ipamV6                = "azure-vnet-ipamv6"
-	defaultRequestTimeout = 5 * time.Second
+	defaultRequestTimeout = 15 * time.Second
 )
 
 // CNI Operation Types
