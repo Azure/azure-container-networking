@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
-	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 
@@ -35,11 +34,7 @@ type netPolFixture struct {
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 
-	// (TODO) will remove npMgr if possible
-	npMgr  *NetworkPolicyManager
-	ipsMgr *ipsm.IpsetManager
-	iptMgr *iptm.IptablesManager
-
+	ipsMgr           *ipsm.IpsetManager
 	netPolController *networkPolicyController
 	kubeInformer     kubeinformers.SharedInformerFactory
 
@@ -49,16 +44,13 @@ type netPolFixture struct {
 
 func newNetPolFixture(t *testing.T, utilexec exec.Interface) *netPolFixture {
 	f := &netPolFixture{
-		t:                           t,
-		netPolLister:                []*networkingv1.NetworkPolicy{},
-		kubeobjects:                 []runtime.Object{},
-		npMgr:                       newNPMgr(t, utilexec),
-		ipsMgr:                      ipsm.NewIpsetManager(utilexec),
-		iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewFakeIptOperationShim()),
+		t:            t,
+		netPolLister: []*networkingv1.NetworkPolicy{},
+		kubeobjects:  []runtime.Object{},
+		ipsMgr:       ipsm.NewIpsetManager(utilexec),
+		//iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewFakeIptOperationShim()),
 		isEnqueueEventIntoWorkQueue: true,
 	}
-
-	f.npMgr.RawNpMap = make(map[string]*networkingv1.NetworkPolicy)
 
 	// While running "make test-all", metrics hold states which was executed in previous unit test.
 	// (TODO): Need to fix to remove this fundamental dependency
@@ -71,7 +63,7 @@ func (f *netPolFixture) newNetPolController(stopCh chan struct{}) {
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
-	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(), f.kubeclient, f.npMgr)
+	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(), f.kubeclient, f.ipsMgr)
 	f.netPolController.netPolListerSynced = alwaysReady
 
 	for _, netPol := range f.netPolLister {
@@ -184,6 +176,7 @@ func updateNetPol(t *testing.T, f *netPolFixture, oldNetPolObj, netNetPolObj *ne
 }
 
 type expectedNetPolValues struct {
+	// (TODO): do not check ns map
 	expectedLenOfNsMap                int
 	expectedLenOfRawNpMap             int
 	expectedLenOfWorkQueue            int
@@ -198,11 +191,11 @@ type expectedNetPolValues struct {
 
 func checkNetPolTestResult(testName string, f *netPolFixture, testCases []expectedNetPolValues) {
 	for _, test := range testCases {
-		if got := len(f.npMgr.NsMap); got != test.expectedLenOfNsMap {
-			f.t.Errorf("npMgr namespace map length = %d, want %d", got, test.expectedLenOfNsMap)
-		}
+		// if got := len(f.npMgr.Network); got != test.expectedLenOfNsMap {
+		// 	f.t.Errorf("npMgr namespace map length = %d, want %d", got, test.expectedLenOfNsMap)
+		// }
 
-		if got := len(f.netPolController.npMgr.RawNpMap); got != test.expectedLenOfRawNpMap {
+		if got := len(f.netPolController.RawNpMap); got != test.expectedLenOfRawNpMap {
 			f.t.Errorf("Raw NetPol Map length = %d, want %d", got, test.expectedLenOfRawNpMap)
 		}
 

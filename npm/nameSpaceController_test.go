@@ -42,8 +42,6 @@ type nameSpaceFixture struct {
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 
-	// (TODO) will remove npMgr if possible
-	npMgr        *NetworkPolicyManager
 	ipsMgr       *ipsm.IpsetManager
 	nsController *nameSpaceController
 	kubeInformer kubeinformers.SharedInformerFactory
@@ -54,7 +52,6 @@ func newNsFixture(t *testing.T, utilexec exec.Interface) *nameSpaceFixture {
 		t:           t,
 		nsLister:    []*corev1.Namespace{},
 		kubeobjects: []runtime.Object{},
-		npMgr:       newNPMgr(t, utilexec),
 		ipsMgr:      ipsm.NewIpsetManager(utilexec),
 	}
 	return f
@@ -64,7 +61,7 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
-	f.nsController = NewNameSpaceController(f.kubeInformer.Core().V1().Namespaces(), f.kubeclient, f.npMgr)
+	f.nsController = NewNameSpaceController(f.kubeInformer.Core().V1().Namespaces(), f.kubeclient, f.ipsMgr)
 	f.nsController.nameSpaceListerSynced = alwaysReady
 
 	for _, ns := range f.nsLister {
@@ -136,13 +133,6 @@ func deleteNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace,
 	f.nsController.processNextWorkItem()
 }
 
-func TestNewNs(t *testing.T) {
-	fexec := exec.New()
-	if _, err := newNs("test", fexec); err != nil {
-		t.Errorf("TestnewNs failed @ newNs")
-	}
-}
-
 func TestAddNamespace(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
@@ -168,7 +158,7 @@ func TestAddNamespace(t *testing.T) {
 	}
 	checkNsTestResult("TestAddNamespace", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(nsObj.Name)]; !exists {
+	if _, exists := f.nsController.nsMap[util.GetNSNameWithPrefix(nsObj.Name)]; !exists {
 		t.Errorf("TestAddNamespace failed @ npMgr.nsMap check")
 	}
 }
@@ -205,13 +195,13 @@ func TestUpdateNamespace(t *testing.T) {
 	}
 	checkNsTestResult("TestUpdateNamespace", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
+	if _, exists := f.nsController.nsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
 		t.Errorf("TestUpdateNamespace failed @ npMgr.nsMap check")
 	}
 
 	if !reflect.DeepEqual(
 		newNsObj.Labels,
-		f.npMgr.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
+		f.nsController.nsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
 	) {
 		t.Fatalf("TestUpdateNamespace failed @ npMgr.nsMap labelMap check")
 	}
@@ -249,15 +239,15 @@ func TestAddNamespaceLabel(t *testing.T) {
 	}
 	checkNsTestResult("TestAddNamespaceLabel", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
-		t.Errorf("TestAddNamespaceLabel failed @ npMgr.nsMap check")
+	if _, exists := f.nsController.nsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
+		t.Errorf("TestAddNamespaceLabel failed @ nsMap check")
 	}
 
 	if !reflect.DeepEqual(
 		newNsObj.Labels,
-		f.npMgr.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
+		f.nsController.nsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
 	) {
-		t.Fatalf("TestAddNamespaceLabel failed @ npMgr.nsMap labelMap check")
+		t.Fatalf("TestAddNamespaceLabel failed @ nsMap labelMap check")
 	}
 }
 
@@ -294,15 +284,15 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 	}
 	checkNsTestResult("TestAddNamespaceLabelSameRv", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
-		t.Errorf("TestAddNamespaceLabelSameRv failed @ npMgr.nsMap check")
+	if _, exists := f.nsController.nsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
+		t.Errorf("TestAddNamespaceLabelSameRv failed @ nsMap check")
 	}
 
 	if !reflect.DeepEqual(
 		oldNsObj.Labels,
-		f.npMgr.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
+		f.nsController.nsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
 	) {
-		t.Fatalf("TestAddNamespaceLabelSameRv failed @ npMgr.nsMap labelMap check")
+		t.Fatalf("TestAddNamespaceLabelSameRv failed @ nsMap labelMap check")
 	}
 }
 
@@ -341,15 +331,15 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	}
 	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
-		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap check")
+	if _, exists := f.nsController.nsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
+		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ nsMap check")
 	}
 
 	if !reflect.DeepEqual(
 		newNsObj.Labels,
-		f.npMgr.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
+		f.nsController.nsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
 	) {
-		t.Fatalf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap labelMap check")
+		t.Fatalf("TestDeleteandUpdateNamespaceLabel failed @ nsMap labelMap check")
 	}
 }
 
@@ -393,15 +383,15 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 	}
 	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
-		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap check")
+	if _, exists := f.nsController.nsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
+		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ nsMap check")
 	}
 
 	if !reflect.DeepEqual(
 		newNsObj.Labels,
-		f.npMgr.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
+		f.nsController.nsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
 	) {
-		t.Fatalf("TestDeleteandUpdateNamespaceLabel failed @ npMgr.nsMap labelMap check")
+		t.Fatalf("TestDeleteandUpdateNamespaceLabel failed @ nsMap labelMap check")
 	}
 }
 
@@ -429,8 +419,8 @@ func TestDeleteNamespace(t *testing.T) {
 	}
 	checkNsTestResult("TestDeleteNamespace", f, testCases)
 
-	if _, exists := f.npMgr.NsMap[util.GetNSNameWithPrefix(nsObj.Name)]; exists {
-		t.Errorf("TestDeleteNamespace failed @ npMgr.nsMap check")
+	if _, exists := f.nsController.nsMap[util.GetNSNameWithPrefix(nsObj.Name)]; exists {
+		t.Errorf("TestDeleteNamespace failed @ nsMap check")
 	}
 }
 
@@ -485,8 +475,7 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 }
 
 func TestGetNamespaceObjFromNsObj(t *testing.T) {
-	fexec := exec.New()
-	ns, _ := newNs("test-ns", fexec)
+	ns := newNs("test-ns")
 	ns.LabelsMap = map[string]string{
 		"test": "new",
 	}
@@ -508,11 +497,8 @@ func TestIsSystemNs(t *testing.T) {
 
 func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expectedNsValues) {
 	for _, test := range testCases {
-		if got := len(f.npMgr.PodMap); got != test.expectedLenOfPodMap {
-			f.t.Errorf("PodMap length = %d, want %d. Map: %+v", got, test.expectedLenOfPodMap, f.npMgr.PodMap)
-		}
-		if got := len(f.npMgr.NsMap); got != test.expectedLenOfNsMap {
-			f.t.Errorf("NsMap length = %d, want %d. Map: %+v", got, test.expectedLenOfNsMap, f.npMgr.NsMap)
+		if got := len(f.nsController.nsMap); got != test.expectedLenOfNsMap {
+			f.t.Errorf("NsMap length = %d, want %d. Map: %+v", got, test.expectedLenOfNsMap, f.nsController.nsMap)
 		}
 		if got := f.nsController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
 			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)
