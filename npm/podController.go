@@ -110,18 +110,21 @@ type podController struct {
 	podLister       corelisters.PodLister
 	podListerSynced cache.InformerSynced
 	workqueue       workqueue.RateLimitingInterface
-	//podCache        map[string]*corev1.Pod
-	// (TODO): podController does not need to have whole NetworkPolicyManager pointer. Need to improve it
-	npMgr *NetworkPolicyManager
+	ipsMgr          *ipsm.IpsetManager
+	podMap          map[string]*NpmPod // Key is <nsname>/<podname>
+	// podMapMutex     sync.RWMutex
+	nsSet map[string]struct{}
 }
 
-func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes.Interface, npMgr *NetworkPolicyManager) *podController {
+func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes.Interface, ipsMgr *ipsm.IpsetManager) *podController {
 	podController := &podController{
 		clientset:       clientset,
 		podLister:       podInformer.Lister(),
 		podListerSynced: podInformer.Informer().HasSynced,
 		workqueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Pods"),
-		npMgr:           npMgr,
+		ipsMgr:          ipsMgr,
+		podMap:          make(map[string]*NpmPod),
+		nsSet:           make(map[string]struct{}),
 	}
 
 	podInformer.Informer().AddEventHandler(
@@ -132,6 +135,13 @@ func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes
 		},
 	)
 	return podController
+}
+
+// (TODO) need lock if we really want very accurate podMap numbers, but I think it is over engineering.
+func (c *podController) LengthOfPodMap() int {
+	// c.podMapMutex.RLock()
+	// defer c.podMapMutex.RUnlock()
+	return len(c.podMap)
 }
 
 // needSync filters the event if the event is not required to handle
@@ -203,19 +213,18 @@ func (c *podController) updatePod(old, new interface{}) {
 		}
 	}
 
-	c.npMgr.Lock()
-	defer c.npMgr.Unlock()
-	cachedNpmPodObj, npmPodExists := c.npMgr.PodMap[key]
-	if npmPodExists {
-		// if newPod does not have different states against lastly applied states stored in cachedNpmPodObj,
-		// podController does not need to reconcile this update.
-		// in this updatePod event, newPod was updated with states which PodController does not need to reconcile.
-		if isInvalidPodUpdate(cachedNpmPodObj, newPod) {
-			return
-		}
-	}
-
 	c.workqueue.Add(key)
+	// c.podMapMutex.RLock()
+	// defer c.podMapMutex.RUnlock()
+	// cachedNpmPodObj, npmPodExists := c.PodMap[key]
+	// if npmPodExists {
+	// 	// if newPod does not have different states against lastly applied states stored in cachedNpmPodObj,
+	// 	// podController does not need to reconcile this update.
+	// 	// in this updatePod event, newPod was updated with states which PodController does not need to reconcile.
+	// 	if isInvalidPodUpdate(cachedNpmPodObj, newPod) {
+	// 		return
+	// 	}
+	// }
 }
 
 func (c *podController) deletePod(obj interface{}) {
@@ -252,18 +261,18 @@ func (c *podController) deletePod(obj interface{}) {
 		return
 	}
 
-	// (TODO): Reduce scope of lock later
-	c.npMgr.Lock()
-	defer c.npMgr.Unlock()
-
-	// If this pod object is not in the PodMap, we do not need to clean-up states for this pod
-	// since podController did not apply for any states for this pod
-	_, npmPodExists := c.npMgr.PodMap[key]
-	if !npmPodExists {
-		return
-	}
-
 	c.workqueue.Add(key)
+	// // (TODO): Reduce scope of lock later
+	// c.podMapMutex.RLock()
+	// defer c.podMapMutex.RUnlock()
+
+	// // If this pod object is not in the PodMap, we do not need to clean-up states for this pod
+	// // since podController did not apply for any states for this pod
+	// _, npmPodExists := c.PodMap[key]
+	// if !npmPodExists {
+	// 	return
+	// }
+
 }
 
 func (c *podController) Run(threadiness int, stopCh <-chan struct{}) error {
@@ -341,9 +350,6 @@ func (c *podController) syncPod(key string) error {
 
 	// Get the Pod resource with this namespace/name
 	pod, err := c.podLister.Pods(namespace).Get(name)
-	// (TODO): Reduce scope of lock later
-	c.npMgr.Lock()
-	defer c.npMgr.Unlock()
 
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -369,6 +375,17 @@ func (c *podController) syncPod(key string) error {
 		return nil
 	}
 
+	// just early filter
+	cachedNpmPodObj, npmPodExists := c.podMap[key]
+	if npmPodExists {
+		// if pod does not have different states against lastly applied states stored in cachedNpmPodObj,
+		// podController does not need to reconcile this update.
+		// in this updatePod event, newPod was updated with states which PodController does not need to reconcile.
+		if isInvalidPodUpdate(cachedNpmPodObj, pod) {
+			return nil
+		}
+	}
+
 	err = c.syncAddAndUpdatePod(pod)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.PodID, "Error: Failed to sync pod due to %v", err)
@@ -381,7 +398,6 @@ func (c *podController) syncPod(key string) error {
 func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	podKey, _ := cache.MetaNamespaceKeyFunc(podObj)
-	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", string(podObj.GetUID()), podNs, podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
 	var err error
@@ -389,23 +405,23 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 
 	// Add the pod to its namespace's ipset.
 	klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, podNs)
-	if err = ipsMgr.AddToSet(podNs, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
+	if err = c.ipsMgr.AddToSet(podNs, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to namespace ipset with err: %v", err)
 	}
 
 	// add the Pod info to the podMap
-	c.npMgr.PodMap[podKey] = npmPodObj
+	c.podMap[podKey] = npmPodObj
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start adding them to ipsets.
 	for labelKey, labelVal := range podObj.Labels {
 		klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, labelKey)
-		if err = ipsMgr.AddToSet(labelKey, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
+		if err = c.ipsMgr.AddToSet(labelKey, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %v", err)
 		}
 
 		podIPSetName := util.GetIpSetFromLabelKV(labelKey, labelVal)
 		klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, podIPSetName)
-		if err = ipsMgr.AddToSet(podIPSetName, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
+		if err = c.ipsMgr.AddToSet(podIPSetName, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %v", err)
 		}
 		npmPodObj.appendLabels(map[string]string{labelKey: labelVal}, AppendToExistingLabels)
@@ -414,7 +430,7 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 	// Add pod's named ports from its ipset.
 	klog.Infof("Adding named port ipsets")
 	containerPorts := getContainerPortList(podObj)
-	if err = manageNamedPortIpsets(ipsMgr, containerPorts, podKey, npmPodObj.PodIP, AddNamedPortIpsets); err != nil {
+	if err = manageNamedPortIpsets(c.ipsMgr, containerPorts, podKey, npmPodObj.PodIP, AddNamedPortIpsets); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to named port ipset with err: %v", err)
 	}
 	npmPodObj.appendContainerPorts(podObj)
@@ -425,26 +441,28 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 // syncAddAndUpdatePod handles updating pod ip in its label's ipset.
 func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	var err error
-	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
-
-	// Create ipset related to namespace which this pod belong to if it does not exist.
 	newPodObjNs := util.GetNSNameWithPrefix(newPodObj.Namespace)
-	if _, exists := c.npMgr.NsMap[newPodObjNs]; !exists {
-		if err = ipsMgr.CreateSet(newPodObjNs, []string{util.IpsetNetHashFlag}); err != nil {
+
+	// lock before using nsMap since nsMap is shared with namespace controller
+	// (TODO) We can have another map here to store NsMap.
+	// Then use filtering this in IPSet Manager.
+	if _, exists := c.nsSet[newPodObjNs]; !exists {
+		// Create ipset related to namespace which this pod belong to if it does not exist.
+		if err = c.ipsMgr.CreateSet(newPodObjNs, []string{util.IpsetNetHashFlag}); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to create ipset for namespace %s with err: %v", newPodObjNs, err)
 		}
 
-		if err = ipsMgr.AddToList(util.KubeAllNamespacesFlag, newPodObjNs); err != nil {
+		if err = c.ipsMgr.AddToList(util.KubeAllNamespacesFlag, newPodObjNs); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add %s to all-namespace ipset list with err: %v", newPodObjNs, err)
 		}
 
 		// Add namespace object into NsMap cache only when two ipset operations are successful.
-		npmNs, _ := newNs(newPodObjNs, c.npMgr.Exec)
-		c.npMgr.NsMap[newPodObjNs] = npmNs
+		c.nsSet[newPodObjNs] = struct{}{}
 	}
 
 	podKey, _ := cache.MetaNamespaceKeyFunc(newPodObj)
-	cachedNpmPodObj, exists := c.npMgr.PodMap[podKey]
+	cachedNpmPodObj, exists := c.podMap[podKey]
+
 	klog.Infof("[syncAddAndUpdatePod] updating Pod with key %s", podKey)
 	// No cached npmPod exists. start adding the pod in a cache
 	if !exists {
@@ -487,7 +505,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	// Delete the pod from its label's ipset.
 	for _, podIPSetName := range deleteFromIPSets {
 		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPodObj.PodIP, podIPSetName)
-		if err = ipsMgr.DeleteFromSet(podIPSetName, cachedNpmPodObj.PodIP, podKey); err != nil {
+		if err = c.ipsMgr.DeleteFromSet(podIPSetName, cachedNpmPodObj.PodIP, podKey); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from label ipset with err: %v", err)
 		}
 		// {IMPORTANT} The order of compared list will be key and then key+val. NPM should only append after both key
@@ -501,7 +519,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	// Add the pod to its label's ipset.
 	for _, addIPSetName := range addToIPSets {
 		klog.Infof("Adding pod %s to ipset %s", newPodObj.Status.PodIP, addIPSetName)
-		if err = ipsMgr.AddToSet(addIPSetName, newPodObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
+		if err = c.ipsMgr.AddToSet(addIPSetName, newPodObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to label ipset with err: %v", err)
 		}
 		// {IMPORTANT} Same as above order is assumed to be key and then key+val. NPM should only append to existing labels
@@ -523,14 +541,14 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	newPodPorts := getContainerPortList(newPodObj)
 	if !reflect.DeepEqual(cachedNpmPodObj.ContainerPorts, newPodPorts) {
 		// Delete cached pod's named ports from its ipset.
-		if err = manageNamedPortIpsets(ipsMgr, cachedNpmPodObj.ContainerPorts, podKey, cachedNpmPodObj.PodIP, DeleteNamedPortIpsets); err != nil {
+		if err = manageNamedPortIpsets(c.ipsMgr, cachedNpmPodObj.ContainerPorts, podKey, cachedNpmPodObj.PodIP, DeleteNamedPortIpsets); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from named port ipset with err: %v", err)
 		}
 		// Since portList ipset deletion is successful, NPM can remove cachedContainerPorts
 		cachedNpmPodObj.removeContainerPorts()
 
 		// Add new pod's named ports from its ipset.
-		if err = manageNamedPortIpsets(ipsMgr, newPodPorts, podKey, newPodObj.Status.PodIP, AddNamedPortIpsets); err != nil {
+		if err = manageNamedPortIpsets(c.ipsMgr, newPodPorts, podKey, newPodObj.Status.PodIP, AddNamedPortIpsets); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to named port ipset with err: %v", err)
 		}
 		cachedNpmPodObj.appendContainerPorts(newPodObj)
@@ -544,40 +562,41 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 func (c *podController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	klog.Infof("[cleanUpDeletedPod] deleting Pod with key %s", cachedNpmPodKey)
 	// If cached npmPod does not exist, return nil
-	cachedNpmPodObj, exist := c.npMgr.PodMap[cachedNpmPodKey]
+	cachedNpmPodObj, exist := c.podMap[cachedNpmPodKey]
+
 	if !exist {
 		return nil
 	}
 
 	podNs := util.GetNSNameWithPrefix(cachedNpmPodObj.Namespace)
-	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
+
 	var err error
 	// Delete the pod from its namespace's ipset.
-	if err = ipsMgr.DeleteFromSet(podNs, cachedNpmPodObj.PodIP, cachedNpmPodKey); err != nil {
+	if err = c.ipsMgr.DeleteFromSet(podNs, cachedNpmPodObj.PodIP, cachedNpmPodKey); err != nil {
 		return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from namespace ipset with err: %v", err)
 	}
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start deleting them from ipsets
 	for labelKey, labelVal := range cachedNpmPodObj.Labels {
 		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPodObj.PodIP, labelKey)
-		if err = ipsMgr.DeleteFromSet(labelKey, cachedNpmPodObj.PodIP, cachedNpmPodKey); err != nil {
+		if err = c.ipsMgr.DeleteFromSet(labelKey, cachedNpmPodObj.PodIP, cachedNpmPodKey); err != nil {
 			return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from label ipset with err: %v", err)
 		}
 
 		podIPSetName := util.GetIpSetFromLabelKV(labelKey, labelVal)
 		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPodObj.PodIP, podIPSetName)
-		if err = ipsMgr.DeleteFromSet(podIPSetName, cachedNpmPodObj.PodIP, cachedNpmPodKey); err != nil {
+		if err = c.ipsMgr.DeleteFromSet(podIPSetName, cachedNpmPodObj.PodIP, cachedNpmPodKey); err != nil {
 			return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from label ipset with err: %v", err)
 		}
 		cachedNpmPodObj.removeLabelsWithKey(labelKey)
 	}
 
 	// Delete pod's named ports from its ipset. Need to pass true in the manageNamedPortIpsets function call
-	if err = manageNamedPortIpsets(ipsMgr, cachedNpmPodObj.ContainerPorts, cachedNpmPodKey, cachedNpmPodObj.PodIP, DeleteNamedPortIpsets); err != nil {
+	if err = manageNamedPortIpsets(c.ipsMgr, cachedNpmPodObj.ContainerPorts, cachedNpmPodKey, cachedNpmPodObj.PodIP, DeleteNamedPortIpsets); err != nil {
 		return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from named port ipset with err: %v", err)
 	}
 
-	delete(c.npMgr.PodMap, cachedNpmPodKey)
+	delete(c.podMap, cachedNpmPodKey)
 	return nil
 }
 
