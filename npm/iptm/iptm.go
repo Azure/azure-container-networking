@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -312,14 +311,14 @@ func (iptMgr *IptablesManager) GetChainLineNumber(chain string, parentChain stri
 	cmdName := util.Iptables
 	cmdArgs := []string{"-t", "filter", "-n", "--list", parentChain, "--line-numbers"}
 
-	iptFilterEntries := exec.Command(cmdName, cmdArgs...)
-	grep := exec.Command("grep", chain)
+	iptFilterEntries := iptMgr.exec.Command(cmdName, cmdArgs...)
+	grep := iptMgr.exec.Command("grep", chain)
 	pipe, err := iptFilterEntries.StdoutPipe()
 	if err != nil {
 		return 0, err
 	}
 	defer pipe.Close()
-	grep.Stdin = pipe
+	grep.SetStdin(pipe)
 
 	if err = iptFilterEntries.Start(); err != nil {
 		return 0, err
@@ -435,6 +434,7 @@ func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
 
 		return errCode, err
 	}
+	fmt.Println(output)
 
 	return 0, nil
 }

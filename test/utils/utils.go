@@ -21,11 +21,12 @@ func GetFakeExecWithScripts(calls []TestCmd) (*fakeexec.FakeExec, *fakeexec.Fake
 	fcmd := &fakeexec.FakeCmd{}
 
 	for _, call := range calls {
-		if call.Stderr != "" || call.ExitCode != 0 {
+		if call.Stderr != "" || call.ExitCode != 0 || call.Stdout != "" {
 			stderr := call.Stderr
+			stdout := call.Stdout
 			err := &fakeexec.FakeExitError{Status: call.ExitCode}
-			fcmd.CombinedOutputScript = append(fcmd.OutputScript, func() ([]byte, []byte, error) { return []byte(stderr), nil, err })
-			fcmd.OutputScript = append(fcmd.OutputScript, func() ([]byte, []byte, error) { return []byte(stderr), nil, err })
+			fcmd.CombinedOutputScript = append(fcmd.OutputScript, func() ([]byte, []byte, error) { return []byte(stderr), []byte(stdout), err })
+			fcmd.OutputScript = append(fcmd.OutputScript, func() ([]byte, []byte, error) { return []byte(stderr), []byte(stdout), err })
 		} else {
 			fcmd.CombinedOutputScript = append(fcmd.OutputScript, func() ([]byte, []byte, error) { return []byte{}, nil, nil })
 			fcmd.OutputScript = append(fcmd.OutputScript, func() ([]byte, []byte, error) { return []byte{}, nil, nil })
