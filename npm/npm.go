@@ -142,7 +142,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 
 // restore restores iptables from backup file
 func (npMgr *NetworkPolicyManager) restore() {
-	iptMgr := iptm.NewIptablesManager()
+	iptMgr := iptm.NewIptablesManager(npMgr.Exec)
 	var err error
 	for i := 0; i < restoreMaxRetries; i++ {
 		if err = iptMgr.Restore(util.IptablesConfigFile); err == nil {
@@ -158,7 +158,7 @@ func (npMgr *NetworkPolicyManager) restore() {
 
 // backup takes snapshots of iptables filter table and saves it periodically.
 func (npMgr *NetworkPolicyManager) backup() {
-	iptMgr := iptm.NewIptablesManager()
+	iptMgr := iptm.NewIptablesManager(npMgr.Exec)
 	var err error
 	for {
 		time.Sleep(backupWaitTimeInSeconds * time.Second)
@@ -204,7 +204,7 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
 	// Clear out left over iptables states
 	log.Logf("Azure-NPM creating, cleaning iptables")
-	iptMgr := iptm.NewIptablesManager()
+	iptMgr := iptm.NewIptablesManager(exec)
 	iptMgr.UninitNpmChains()
 
 	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
@@ -281,7 +281,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 
 // reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
 func (npMgr *NetworkPolicyManager) reconcileChains() error {
-	iptMgr := iptm.NewIptablesManager()
+	iptMgr := iptm.NewIptablesManager(npMgr.Exec)
 	select {
 	case <-time.After(reconcileChainTimeInMinutes * time.Minute):
 		if err := iptMgr.CheckAndAddForwardChain(); err != nil {

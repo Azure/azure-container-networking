@@ -5,17 +5,19 @@ package iptm
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/api"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/util/wait"
+	utilexec "k8s.io/utils/exec"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
 
@@ -53,12 +55,16 @@ type IptEntry struct {
 
 // IptablesManager stores iptables entries.
 type IptablesManager struct {
+	exec          utilexec.Interface
+	ipt           api.IptOperationShim
 	OperationFlag string
 }
 
 // NewIptablesManager creates a new instance for IptablesManager object.
-func NewIptablesManager() *IptablesManager {
+func NewIptablesManager(exec utilexec.Interface, ipti api.IptOperationShim) *IptablesManager {
 	iptMgr := &IptablesManager{
+		exec:          exec,
+		ipt:           ipti,
 		OperationFlag: "",
 	}
 
@@ -416,11 +422,11 @@ func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
 		log.Logf("Executing iptables command %s %v", cmdName, cmdArgs)
 	}
 
-	_, err := exec.Command(cmdName, cmdArgs...).Output()
-	if msg, failed := err.(*exec.ExitError); failed {
-		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
+	output, err := iptMgr.exec.Command(cmdName, cmdArgs...).CombinedOutput()
+	if msg, failed := err.(utilexec.ExitError); failed {
+		errCode := msg.ExitStatus()
 		if errCode > 0 && iptMgr.OperationFlag != util.IptablesCheckFlag {
-			msgStr := strings.TrimSuffix(string(msg.Stderr), "\n")
+			msgStr := strings.TrimSuffix(string(output), "\n")
 			if strings.Contains(msgStr, "Chain already exists") && iptMgr.OperationFlag == util.IptablesChainCreationFlag {
 				return 0, nil
 			}
@@ -439,7 +445,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := grabIptablesLocks()
+	l, err := iptMgr.ipt.GrabIptablesLocks()
 	if err != nil {
 		return err
 	}
@@ -458,13 +464,13 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 	}
 	defer f.Close()
 
-	cmd := exec.Command(util.IptablesSave)
-	cmd.Stdout = f
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-save.")
+	cmd := iptMgr.exec.Command(util.IptablesSave)
+	//cmd.SetStdout(f)
+	output, err := cmd.Output()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-save: err %v, output %v", err, output)
 		return err
 	}
-	cmd.Wait()
 
 	return nil
 }
@@ -475,38 +481,65 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := grabIptablesLocks()
+	l, err := iptMgr.ipt.GrabIptablesLocks()
 	if err != nil {
 		return err
 	}
 
 	defer func(l *os.File) {
 		if err = l.Close(); err != nil {
-			log.Logf("Failed to close iptables locks")
+			log.Logf("Failed to close iptables locks with err %v", err)
 		}
 	}(l)
 
 	// open the config file for reading
-	f, err := os.Open(configFile)
+	f, err := iptMgr.ipt.OpenConfigFile(configFile)
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open file: %s.", configFile)
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open file: %s with err %v", configFile, err)
 		return err
 	}
-	defer f.Close()
 
-	cmd := exec.Command(util.IptablesRestore)
-	cmd.Stdin = f
+	defer iptMgr.ipt.CloseConfigFile()
+
+	cmd := iptMgr.exec.Command(util.IptablesRestore)
+	cmd.SetStdin(f)
+	output, err := cmd.CombinedOutput()
 	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-restore.")
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-restore with err: %v, output: %v", output, err)
 		return err
 	}
-	cmd.Wait()
 
 	return nil
 }
 
+type IptOperationShim struct {
+	f *os.File
+}
+
+func (i *IptOperationShim) SaveConfigFile(configFile string) (io.Writer, error) {
+	f, err := os.Create(configFile)
+	if err != nil {
+		return f, err
+	}
+	i.f = f
+	return i.f, err
+}
+
+func (i *IptOperationShim) OpenConfigFile(configFile string) (io.Reader, error) {
+	f, err := os.Open(configFile)
+	if err != nil {
+		return f, err
+	}
+	i.f = f
+	return i.f, err
+}
+
+func (i *IptOperationShim) CloseConfigFile() error {
+	return i.f.Close()
+}
+
 // grabs iptables v1.6 xtable lock
-func grabIptablesLocks() (*os.File, error) {
+func (i *IptOperationShim) GrabIptablesLocks() (*os.File, error) {
 	var success bool
 
 	l := &os.File{}

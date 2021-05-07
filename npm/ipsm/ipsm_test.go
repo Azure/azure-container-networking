@@ -857,7 +857,7 @@ func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 
 	log.Printf("Uniniting iptables")
-	iptm := iptm.NewIptablesManager()
+	iptm := iptm.NewIptablesManager(exec.New(), &iptm.IptOperationShim{})
 	iptm.UninitNpmChains()
 	log.Printf("Uniniting ipsets")
 	ipsMgr := NewIpsetManager(exec.New())
