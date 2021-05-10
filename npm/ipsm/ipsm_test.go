@@ -568,22 +568,22 @@ func TestRun(t *testing.T) {
 
 func TestRunError(t *testing.T) {
 	setname := "test-set"
+	setname2 := "test-set2"
 
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}, Stderr: "test failure", ExitCode: 2},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(setname), util.GetHashedName(setname2)}, Stderr: "test failure", ExitCode: 2},
 	}
 
 	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 
 	ipsMgr := NewIpsetManager(fexec)
 	entry := &ipsEntry{
-		operationFlag: util.IpsetCreationFlag,
+		operationFlag: util.IpsetAppendFlag,
 		set:           util.GetHashedName(setname),
-		spec:          append([]string{util.IpsetNetHashFlag}),
+		spec:          append([]string{util.GetHashedName(setname2)}),
 	}
-	if _, err := ipsMgr.Run(entry); err != nil {
-		require.Error(t, err)
-	}
+	_, err := ipsMgr.Run(entry)
+	require.Error(t, err)
 
 	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }

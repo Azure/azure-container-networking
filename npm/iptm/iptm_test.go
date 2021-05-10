@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/exec"
 )
 
 var (
@@ -267,7 +266,7 @@ func TestDelete(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}, Stdout: "TEST", Stderr: "test", ExitCode: 1},
+		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}, Stderr: "test", ExitCode: 1},
 	}
 
 	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
@@ -289,8 +288,15 @@ func TestGetChainLineNumber(t *testing.T) {
 	var calls = []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-N", "KUBE-SERVICES"}},
 		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "KUBE-SERVICES"}},
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM"}},
+		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM"}, StdOut: "1  "},
 	}
+	calls = append(calls, []testutils.TestCmd{
+		{Cmd: []string{"grep"}, Stderr: "", StdOut: "2  "}, // THIS IS THE GREP CALL
+	}...)
+
+	calls = append(calls, []testutils.TestCmd{
+		{Cmd: []string{"grep"}, Stderr: "", StdOut: "3  "},
+	}...)
 
 	calls = append(calls, initCalls...)
 
@@ -303,7 +309,6 @@ func TestGetChainLineNumber(t *testing.T) {
 
 	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
-	defer testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 
 	var (
 		lineNum    int
@@ -312,9 +317,8 @@ func TestGetChainLineNumber(t *testing.T) {
 		npmExists  bool
 	)
 
-	if err = iptMgr.AddChain(util.IptablesKubeServicesChain); err != nil {
-		require.NoError(t, err)
-	}
+	err = iptMgr.AddChain(util.IptablesKubeServicesChain)
+	require.NoError(t, err)
 
 	iptMgr.OperationFlag = util.IptablesCheckFlag
 	entry := &IptEntry{
@@ -325,9 +329,8 @@ func TestGetChainLineNumber(t *testing.T) {
 		},
 	}
 
-	if kubeExists, err = iptMgr.Exists(entry); err != nil {
-		require.NoError(t, err)
-	}
+	kubeExists, err = iptMgr.Exists(entry)
+	require.NoError(t, err)
 
 	entry = &IptEntry{
 		Chain: util.IptablesForwardChain,
@@ -341,9 +344,7 @@ func TestGetChainLineNumber(t *testing.T) {
 	npmExists, _ = iptMgr.Exists(entry)
 
 	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
-	if err != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, err)
 
 	switch {
 	case (npmExists && kubeExists):
@@ -361,9 +362,8 @@ func TestGetChainLineNumber(t *testing.T) {
 		}
 	}
 
-	if err = iptMgr.InitNpmChains(); err != nil {
-		require.NoError(t, err)
-	}
+	err = iptMgr.InitNpmChains()
+	require.NoError(t, err)
 
 	entry = &IptEntry{
 		Chain: util.IptablesForwardChain,
@@ -373,14 +373,11 @@ func TestGetChainLineNumber(t *testing.T) {
 		},
 	}
 
-	if npmExists, err = iptMgr.Exists(entry); err != nil {
-		require.NoError(t, err)
-	}
+	npmExists, err = iptMgr.Exists(entry)
+	require.NoError(t, err)
 
 	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
-	if err != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, err)
 
 	switch {
 	case (npmExists && kubeExists):
@@ -395,20 +392,17 @@ func TestGetChainLineNumber(t *testing.T) {
 		t.Errorf("TestGetChainLineNumber @ after Init chains line number check iptMgr.GetChainLineNumber with failed to Add chain ")
 	}
 
-	if err = iptMgr.UninitNpmChains(); err != nil {
-		t.Errorf("TestGetChainLineNumber @ iptMgr.UninitNpmChains")
-	}
+	err = iptMgr.UninitNpmChains()
+	require.NoError(t, err)
+
+	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
-	ipt := &IptOperationShim{}
-	iptMgr := NewIptablesManager(exec.New(), ipt)
-	iptMgr.Save(util.IptablesConfigFile)
+	metrics.CreateFakeTelemetryHandle()
 
 	exitCode := m.Run()
-
-	iptMgr.Restore(util.IptablesConfigFile)
 
 	os.Exit(exitCode)
 }

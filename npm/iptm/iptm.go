@@ -332,6 +332,8 @@ func (iptMgr *IptablesManager) GetChainLineNumber(chain string, parentChain stri
 	}
 
 	if len(output) > 2 {
+		lmn := string(output[0])
+		fmt.Println(lmn)
 		lineNum, _ := strconv.Atoi(string(output[0]))
 		return lineNum, nil
 	}
