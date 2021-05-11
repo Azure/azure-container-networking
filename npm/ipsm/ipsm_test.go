@@ -4,6 +4,7 @@ package ipsm
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
+	testingutils "github.com/Azure/azure-container-networking/test/utils"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
@@ -19,21 +21,26 @@ import (
 
 func TestSave(t *testing.T) {
 	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestSave failed @ ipsMgr.Save")
-	}
+	err := ipsMgr.Save(util.IpsetTestConfigFile)
+	require.NoError(t, err)
 }
 
 func TestRestore(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "npm-ipset-")
+	defer os.Remove(tmpFile.Name())
 
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestRestore failed @ ipsMgr.Save with err %v", err)
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-F", "-exist "}},
+		{Cmd: []string{"ipset", "-X", "-exist"}},
+		{Cmd: []string{"ipset", "restore", "-file", tmpFile.Name()}},
 	}
 
-	if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestRestore failed @ ipsMgr.Restore with err %v", err)
-	}
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testingutils.VerifyCalls(t, fexec, calls)
+
+	err = ipsMgr.Restore(tmpFile.Name())
+	require.NoError(t, err)
 }
 
 func TestCreateList(t *testing.T) {
@@ -43,10 +50,10 @@ func TestCreateList(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
+	defer testingutils.VerifyCalls(t, fexec, calls)
 
-	if err := ipsMgr.CreateList("test-list"); err != nil {
-		t.Errorf("TestCreateList failed @ ipsMgr.CreateList")
-	}
+	err := ipsMgr.CreateList("test-list")
+	require.NoError(t, err)
 }
 
 func TestDeleteList(t *testing.T) {
@@ -57,34 +64,32 @@ func TestDeleteList(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
+	defer testingutils.VerifyCalls(t, fexec, calls)
 
-	if err := ipsMgr.CreateList("test-list"); err != nil {
-		t.Errorf("TestDeleteList failed @ ipsMgr.CreateList")
-	}
+	err := ipsMgr.CreateList("test-list")
+	require.NoError(t, err)
 
-	if err := ipsMgr.DeleteList("test-list"); err != nil {
-		t.Errorf("TestDeleteList failed @ ipsMgr.DeleteList")
-	}
+	err = ipsMgr.DeleteList("test-list")
+	require.NoError(t, err)
 }
 
 func TestAddToList(t *testing.T) {
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "-N", "-exist ", util.GetHashedName("test-set"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-set"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-list"), "setlist"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer func() { require.Equal(t, fexec.CommandCalls, len(calls)) }()
+	defer testingutils.VerifyCalls(t, fexec, calls)
 
-	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
-		t.Errorf("TestAddToList failed @ ipsMgr.CreateSet")
-	}
+	err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag}))
+	require.NoError(t, err)
 
-	if err := ipsMgr.AddToList("test-list", "test-set"); err != nil {
-		t.Errorf("TestAddToList failed @ ipsMgr.AddToList")
-	}
+	err = ipsMgr.AddToList("test-list", "test-set")
+	require.NoError(t, err)
+
 }
 
 func TestDeleteFromList(t *testing.T) {
@@ -106,27 +111,25 @@ func TestDeleteFromList(t *testing.T) {
 	defer func() { require.Equal(t, fexec.CommandCalls, len(calls)) }()
 
 	ipsMgr := NewIpsetManager(fexec)
+	defer testingutils.VerifyCalls(t, fexec, calls)
 
 	// Create set and validate set is created.
 	setName := "test-set"
-	if err := ipsMgr.CreateSet(setName, append([]string{util.IpsetNetHashFlag})); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet")
-	}
+	err := ipsMgr.CreateSet(setName, append([]string{util.IpsetNetHashFlag}))
+	require.NoError(t, err)
 
 	entry := &ipsEntry{
 		operationFlag: util.IPsetCheckListFlag,
 		set:           util.GetHashedName(setName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet since %s not exist in kernel", setName)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.NoError(t, err)
 
 	// Create list, add set to list and validate set is in the list.
 	listName := "test-list"
-	if err := ipsMgr.AddToList(listName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList")
-	}
+	err = ipsMgr.AddToList(listName, setName)
+	require.NoError(t, err)
 
 	entry = &ipsEntry{
 		operationFlag: util.IpsetTestFlag,
@@ -134,24 +137,20 @@ func TestDeleteFromList(t *testing.T) {
 		spec:          append([]string{util.GetHashedName(setName)}),
 	}
 
-	if _, err := ipsMgr.Run(entry); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList since %s not exist in %s set", listName, setName)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.NoError(t, err)
 
 	// Delete set from list and validate set is not in list anymore.
-	if err := ipsMgr.DeleteFromList(listName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
-	}
+	err = ipsMgr.DeleteFromList(listName, setName)
+	require.NoError(t, err)
 
 	// Delete set from list and validate set is not in list anymore.
-	if err := ipsMgr.DeleteFromList(listName, "nonexistentsetname"); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
-	}
+	err = ipsMgr.DeleteFromList(listName, "nonexistentsetname")
+	require.NoError(t, err)
 
 	// Delete set from list, but list isn't of list type
-	if err := ipsMgr.DeleteFromList(setName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
-	}
+	err = ipsMgr.DeleteFromList(setName, setName)
+	require.NoError(t, err)
 
 	entry = &ipsEntry{
 		operationFlag: util.IpsetTestFlag,
@@ -159,38 +158,33 @@ func TestDeleteFromList(t *testing.T) {
 		spec:          append([]string{util.GetHashedName(setName)}),
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList since %s still exist in %s set", listName, setName)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.NoError(t, err)
 
 	// Delete List and validate list is not exist.
 
-	if err := ipsMgr.DeleteSet(listName); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
-	}
+	err = ipsMgr.DeleteSet(listName)
+	require.NoError(t, err)
 
 	entry = &ipsEntry{
 		operationFlag: util.IPsetCheckListFlag,
 		set:           util.GetHashedName(listName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", listName)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.NoError(t, err)
 
 	// Delete set and validate set is not exist.
-	if err := ipsMgr.DeleteSet(setName); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
-	}
+	err = ipsMgr.DeleteSet(setName)
+	require.NoError(t, err)
 
 	entry = &ipsEntry{
 		operationFlag: util.IPsetCheckListFlag,
 		set:           util.GetHashedName(setName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", setName)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.NoError(t, err)
 }
 
 func TestCreateSet(t *testing.T) {
@@ -212,6 +206,7 @@ func TestCreateSet(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
+	defer testingutils.VerifyCalls(t, fexec, calls)
 
 	gaugeVal, err1 := promutil.GetValue(metrics.NumIPSets)
 	countVal, err2 := promutil.GetCountValue(metrics.AddIPSetExecTime)
@@ -241,39 +236,35 @@ func TestCreateSet(t *testing.T) {
 	entryCount, err8 := promutil.GetValue(metrics.NumIPSetEntries)
 	promutil.NotifyIfErrors(t, err1, err2, err3, err4, err5, err6, err7, err8)
 	if newGaugeVal != gaugeVal+3 {
-		t.Errorf("Change in ipset number didn't register in Prometheus")
+		require.FailNowf(t, "", "Change in ipset number didn't register in Prometheus")
 	}
 	if newCountVal != countVal+3 {
-		t.Errorf("Execution time didn't register in Prometheus")
+		require.FailNowf(t, "", "Execution time didn't register in Prometheus")
 	}
 	if testSet1Count != 0 || testSet2Count != 0 || testSet3Count != 1 || entryCount != 1 {
-		t.Errorf("Prometheus IPSet count has incorrect number of entries")
+		require.FailNowf(t, "", "Prometheus IPSet count has incorrect number of entries")
 	}
 }
 
 func TestDeleteSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.Save")
-	}
-
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestDeleteSet failed @ ipsMgr.Restore")
-		}
-	}()
-
 	testSetName := "test-delete-set"
-	if err := ipsMgr.CreateSet(testSetName, append([]string{util.IpsetNetHashFlag})); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.CreateSet")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSetName), "nethash"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName(testSetName), "nethash"}},
 	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testingutils.VerifyCalls(t, fexec, calls)
+
+	err := ipsMgr.CreateSet(testSetName, append([]string{util.IpsetNetHashFlag}))
+	require.NoError(t, err)
 
 	gaugeVal, err1 := promutil.GetValue(metrics.NumIPSets)
 
-	if err := ipsMgr.DeleteSet(testSetName); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
-	}
+	err = ipsMgr.DeleteSet(testSetName)
+	require.NoError(t, err)
 
 	newGaugeVal, err2 := promutil.GetValue(metrics.NumIPSets)
 	testSetCount, err3 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSetName))
@@ -573,6 +564,7 @@ func TestRunError(t *testing.T) {
 	defer func() { require.Equal(t, fexec.CommandCalls, len(calls)) }()
 
 	ipsMgr := NewIpsetManager(fexec)
+	defer testingutils.VerifyCalls(t, fexec, calls)
 	entry := &ipsEntry{
 		operationFlag: util.IpsetAppendFlag,
 		set:           util.GetHashedName(setname),

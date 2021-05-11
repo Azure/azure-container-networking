@@ -3,7 +3,9 @@ package testingutils
 import (
 	"io"
 	"strings"
+	"testing"
 
+	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
 
 	fakeexec "k8s.io/utils/exec/testing"
@@ -39,4 +41,10 @@ func GetFakeExecWithScripts(calls []TestCmd) *fakeexec.FakeExec {
 	}
 
 	return fexec
+}
+
+func VerifyCalls(t *testing.T, fexec *fakeexec.FakeExec, calls []TestCmd) {
+	err := recover()
+	require.Nil(t, err)
+	require.Equal(t, fexec.CommandCalls, len(calls))
 }
