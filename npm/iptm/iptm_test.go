@@ -249,7 +249,7 @@ func TestDelete(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}, Stderr: "test", ExitCode: 1},
+		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}, Stdout: "test", ExitCode: 1},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
@@ -267,8 +267,8 @@ func TestRun(t *testing.T) {
 
 func TestGetChainLineNumber(t *testing.T) {
 	calls := []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers"}, Stderr: "", StdOut: "3  "}, // THIS IS THE GREP CALL
-		{Cmd: []string{"grep", "AZURE-NPM"}, Stderr: "", StdOut: "4  "},
+		{Cmd: []string{"iptables", "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers"}, Stdout: "3  "}, // THIS IS THE GREP CALL
+		{Cmd: []string{"grep", "AZURE-NPM"}, Stdout: "4  "},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
