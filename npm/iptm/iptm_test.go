@@ -1,7 +1,6 @@
 package iptm
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -84,14 +83,12 @@ func TestSave(t *testing.T) {
 		{Cmd: []string{"iptables-save"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, &fakes.FakeIptOperationShim{})
 
 	if err := iptMgr.Save(util.IptablesTestConfigFile); err != nil {
 		t.Errorf("TestSave failed @ iptMgr.Save")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestRestore(t *testing.T) {
@@ -99,40 +96,34 @@ func TestRestore(t *testing.T) {
 		{Cmd: []string{"iptables-restore"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.Restore(util.IptablesTestConfigFile); err != nil {
 		t.Errorf("TestRestore failed @ iptMgr.Restore with err %v", err)
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestInitNpmChains(t *testing.T) {
 	var calls = initCalls
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.InitNpmChains(); err != nil {
 		t.Errorf("TestInitNpmChains @ iptMgr.InitNpmChains")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestUninitNpmChains(t *testing.T) {
 	var calls = unInitCalls
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.UninitNpmChains(); err != nil {
 		t.Errorf("TestUninitNpmChains @ iptMgr.UninitNpmChains")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestExists(t *testing.T) {
@@ -140,7 +131,7 @@ func TestExists(t *testing.T) {
 		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "ACCEPT"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	iptMgr.OperationFlag = util.IptablesCheckFlag
@@ -155,8 +146,6 @@ func TestExists(t *testing.T) {
 	if _, err := iptMgr.Exists(entry); err != nil {
 		t.Errorf("TestExists failed @ iptMgr.Exists")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestAddChain(t *testing.T) {
@@ -164,14 +153,12 @@ func TestAddChain(t *testing.T) {
 		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
 		t.Errorf("TestAddChain failed @ iptMgr.AddChain")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeleteChain(t *testing.T) {
@@ -180,7 +167,7 @@ func TestDeleteChain(t *testing.T) {
 		{Cmd: []string{"iptables", "-w", "60", "-X", "TEST-CHAIN"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
@@ -190,8 +177,6 @@ func TestDeleteChain(t *testing.T) {
 	if err := iptMgr.DeleteChain("TEST-CHAIN"); err != nil {
 		t.Errorf("TestDeleteChain failed @ iptMgr.DeleteChain")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestAdd(t *testing.T) {
@@ -199,9 +184,8 @@ func TestAdd(t *testing.T) {
 		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "REJECT"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
-	defer testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 
 	entry := &IptEntry{
 		Chain: util.IptablesForwardChain,
@@ -236,9 +220,8 @@ func TestDelete(t *testing.T) {
 		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "REJECT"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
-	defer testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 
 	entry := &IptEntry{
 		Chain: util.IptablesForwardChain,
@@ -269,9 +252,8 @@ func TestRun(t *testing.T) {
 		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}, Stderr: "test", ExitCode: 1},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
-	defer testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 
 	iptMgr.OperationFlag = util.IptablesChainCreationFlag
 	entry := &IptEntry{
@@ -281,121 +263,20 @@ func TestRun(t *testing.T) {
 		t.Errorf("TestRun failed @ iptMgr.Run")
 	}
 
-	fmt.Printf("%+v", fcmd.RunLog)
 }
 
 func TestGetChainLineNumber(t *testing.T) {
-	var calls = []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-N", "KUBE-SERVICES"}},
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "KUBE-SERVICES"}},
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM"}, StdOut: "1  "},
+	calls := []testutils.TestCmd{
+		{Cmd: []string{"iptables", "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers"}, Stderr: "", StdOut: "3  "}, // THIS IS THE GREP CALL
+		{Cmd: []string{"grep", "AZURE-NPM"}, Stderr: "", StdOut: "4  "},
 	}
-	calls = append(calls, []testutils.TestCmd{
-		{Cmd: []string{"grep"}, Stderr: "", StdOut: "2  "}, // THIS IS THE GREP CALL
-	}...)
 
-	calls = append(calls, []testutils.TestCmd{
-		{Cmd: []string{"grep"}, Stderr: "", StdOut: "3  "},
-	}...)
-
-	calls = append(calls, initCalls...)
-
-	calls = append(calls, []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM"}},
-	}...,
-	)
-
-	calls = append(calls, unInitCalls...)
-
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
-	var (
-		lineNum    int
-		err        error
-		kubeExists bool
-		npmExists  bool
-	)
-
-	err = iptMgr.AddChain(util.IptablesKubeServicesChain)
+	lineNum, err := iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	require.NoError(t, err)
-
-	iptMgr.OperationFlag = util.IptablesCheckFlag
-	entry := &IptEntry{
-		Chain: util.IptablesForwardChain,
-		Specs: []string{
-			util.IptablesJumpFlag,
-			util.IptablesKubeServicesChain,
-		},
-	}
-
-	kubeExists, err = iptMgr.Exists(entry)
-	require.NoError(t, err)
-
-	entry = &IptEntry{
-		Chain: util.IptablesForwardChain,
-		Specs: []string{
-			util.IptablesJumpFlag,
-			util.IptablesAzureChain,
-		},
-	}
-
-	// Ignore not exists errors
-	npmExists, _ = iptMgr.Exists(entry)
-
-	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
-	require.NoError(t, err)
-
-	switch {
-	case (npmExists && kubeExists):
-		if lineNum != 3 {
-
-			require.FailNowf(t, "", "TestGetChainLineNumber @ initial line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
-		}
-	case npmExists:
-		if lineNum == 0 {
-			require.FailNowf(t, "", "TestGetChainLineNumber @ initial line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
-		}
-	default:
-		if lineNum != 0 {
-			require.FailNowf(t, "", "TestGetChainLineNumber @ initial line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
-		}
-	}
-
-	err = iptMgr.InitNpmChains()
-	require.NoError(t, err)
-
-	entry = &IptEntry{
-		Chain: util.IptablesForwardChain,
-		Specs: []string{
-			util.IptablesJumpFlag,
-			util.IptablesAzureChain,
-		},
-	}
-
-	npmExists, err = iptMgr.Exists(entry)
-	require.NoError(t, err)
-
-	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
-	require.NoError(t, err)
-
-	switch {
-	case (npmExists && kubeExists):
-		if lineNum < 2 {
-			t.Errorf("TestGetChainLineNumber @ after Init chains line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
-		}
-	case npmExists:
-		if lineNum == 0 {
-			t.Errorf("TestGetChainLineNumber @ after Init chains line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
-		}
-	case !npmExists:
-		t.Errorf("TestGetChainLineNumber @ after Init chains line number check iptMgr.GetChainLineNumber with failed to Add chain ")
-	}
-
-	err = iptMgr.UninitNpmChains()
-	require.NoError(t, err)
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
+	require.Equal(t, lineNum, 3)
 }
 
 func TestMain(m *testing.M) {

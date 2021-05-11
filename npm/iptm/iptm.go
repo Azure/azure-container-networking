@@ -332,8 +332,6 @@ func (iptMgr *IptablesManager) GetChainLineNumber(chain string, parentChain stri
 	}
 
 	if len(output) > 2 {
-		lmn := string(output[0])
-		fmt.Println(lmn)
 		lineNum, _ := strconv.Atoi(string(output[0]))
 		return lineNum, nil
 	}
@@ -468,7 +466,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 
 	cmd := iptMgr.exec.Command(util.IptablesSave)
 	//cmd.SetStdout(f)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-save: err %v, output %v", err, output)
 		return err

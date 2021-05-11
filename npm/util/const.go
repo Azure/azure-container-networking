@@ -134,7 +134,7 @@ const (
 	AzureNpmFlag   string = "azure-npm"
 	AzureNpmPrefix string = "azure-npm-"
 
-	IpsetMaxelemName string = "maxelem"
+	IpsetMaxelemName string = "maxelem" // todo, what's using this?
 	IpsetMaxelemNum  string = "4294967295"
 
 	IpsetNomatch string = "nomatch"
