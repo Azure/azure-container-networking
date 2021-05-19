@@ -104,6 +104,16 @@ stages:
             name: "BuildImages"
             displayName: "Build Images"
 
+          - script: |
+              wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
+              tar -zxvf trivy*.tar.gz
+              mkdir -p ./trivy-cache
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-npm:$(TAG) 
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cns:$(TAG) 
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cni-manager:$(TAG) 
+            name: "TrivyScan"
+            displayName: "Image Vulnerability Scan"
+
           - task: Docker@2
             displayName: Docker Login
             inputs:
