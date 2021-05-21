@@ -54,7 +54,7 @@ func newNetPolFixture(t *testing.T, utilexec exec.Interface) *netPolFixture {
 		kubeobjects:                 []runtime.Object{},
 		npMgr:                       newNPMgr(t, utilexec),
 		ipsMgr:                      ipsm.NewIpsetManager(utilexec),
-		iptMgr:                      iptm.NewIptablesManager(utilexec),
+		iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewIptOperationShim()),
 		isEnqueueEventIntoWorkQueue: true,
 	}
 

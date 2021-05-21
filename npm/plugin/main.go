@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
+	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -74,7 +75,7 @@ func main() {
 	log.Logf("[INFO] Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version)
+	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), iptm.NewIptOperationShim(), version)
 	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
 	restserver := restserver.NewNpmRestServer(restserver.DefaultHTTPListeningAddress)

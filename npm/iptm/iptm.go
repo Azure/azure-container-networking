@@ -55,15 +55,15 @@ type IptEntry struct {
 // IptablesManager stores iptables entries.
 type IptablesManager struct {
 	exec          utilexec.Interface
-	ipt           api.IptOperationShim
+	io            api.IOShim
 	OperationFlag string
 }
 
 // NewIptablesManager creates a new instance for IptablesManager object.
-func NewIptablesManager(exec utilexec.Interface, ipti api.IptOperationShim) *IptablesManager {
+func NewIptablesManager(exec utilexec.Interface, io api.IOShim) *IptablesManager {
 	iptMgr := &IptablesManager{
 		exec:          exec,
-		ipt:           ipti,
+		io:            io,
 		OperationFlag: "",
 	}
 
@@ -445,7 +445,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := iptMgr.ipt.GrabIptablesLocks()
+	l, err := iptMgr.io.GrabIptablesLocks()
 	if err != nil {
 		return err
 	}
@@ -481,7 +481,7 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := iptMgr.ipt.GrabIptablesLocks()
+	l, err := iptMgr.io.GrabIptablesLocks()
 	if err != nil {
 		return err
 	}
@@ -493,13 +493,13 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 	}(l)
 
 	// open the config file for reading
-	f, err := iptMgr.ipt.OpenConfigFile(configFile)
+	f, err := iptMgr.io.OpenConfigFile(configFile)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open file: %s with err %v", configFile, err)
 		return err
 	}
 
-	defer iptMgr.ipt.CloseConfigFile()
+	defer iptMgr.io.CloseConfigFile()
 
 	cmd := iptMgr.exec.Command(util.IptablesRestore)
 	cmd.SetStdin(f)
@@ -514,6 +514,10 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 
 type IptOperationShim struct {
 	f *os.File
+}
+
+func NewIptOperationShim() *IptOperationShim {
+	return &IptOperationShim{}
 }
 
 func (i *IptOperationShim) SaveConfigFile(configFile string) (io.Writer, error) {
