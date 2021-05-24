@@ -84,6 +84,9 @@ github.com/gogo/protobuf/sortkeys
 # github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9
 ## explicit
 github.com/golang/groupcache/lru
+# github.com/golang/mock v1.2.0
+## explicit
+github.com/golang/mock/gomock
 # github.com/golang/protobuf v1.4.1
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/ptypes

@@ -69,9 +69,10 @@ const (
 
 // ChannelMode :- CNS channel modes
 const (
-	Direct  = "Direct"
-	Managed = "Managed"
-	CRD     = "CRD"
+	Direct         = "Direct"
+	Managed        = "Managed"
+	CRD            = "CRD"
+	MultiTenantCRD = "MultiTenantCRD"
 )
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.

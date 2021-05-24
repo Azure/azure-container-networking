@@ -51,6 +51,8 @@ CNSFILES = \
 	$(wildcard cns/networkcontainers/*.go) \
 	$(wildcard cns/requestcontroller/*.go) \
 	$(wildcard cns/requestcontroller/kubecontroller/*.go) \
+	$(wildcard cns/multitenantcontroller/*.go) \
+	$(wildcard cns/multitenantcontroller/multitenantoperator/*.go) \
 	$(wildcard cns/fakes/*.go) \
 	$(COREFILES) \
 	$(CNMFILES)
@@ -181,13 +183,13 @@ azure-npm: $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) npm-archive
 endif
 
 ifeq ($(GOOS),linux)
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-cnms azure-npm 
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-cnms azure-npm
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
 endif
 
 ifeq ($(GOOS),linux)
-all-images: azure-npm-image azure-cns-image 
+all-images: azure-npm-image azure-cns-image
 else
 all-images:
 	@echo "Nothing to build. Skip."
@@ -223,7 +225,7 @@ $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT): $(CNIFILES)
 # Build the Azure CLI network plugin.
 $(ACNCLI_BUILD_DIR)/acncli$(EXE_EXT): $(CNIFILES)
 	CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(ACNCLI_DIR)/*.go
- 
+
 # Build the Azure CNS Service.
 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
 	go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(cnsaipath)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true" $(CNS_DIR)/*.go
@@ -259,7 +261,7 @@ all-containerized:
 
 # Make both linux and windows binaries
 .PHONY: all-binaries-platforms
-all-binaries-platforms: 
+all-binaries-platforms:
 	export GOOS=linux; make all-binaries
 	export GOOS=windows; make all-binaries
 
@@ -268,7 +270,7 @@ all-binaries-platforms:
 tools: acncli
 
 .PHONY: tools-images
-tools-images: 
+tools-images:
 	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
@@ -409,7 +411,7 @@ ifeq ($(GOOS),linux)
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
 	chmod 0755 $(CNI_SWIFT_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
 	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
-endif	
+endif
 
 # Create a CNM archive for the target platform.
 .PHONY: cnm-archive
@@ -453,7 +455,7 @@ endif
 .PHONY: release
 release:
 	./scripts/semver-release.sh
-	
+
 
 PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 

@@ -214,9 +214,12 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 		return Success
 	}
 
-	returnCode := service.CreateOrUpdateNetworkContainerInternal(*ncRequest, scalar, spec)
-
 	// If the NC was created successfully, then reconcile the allocated pod state
+	returnCode := service.CreateOrUpdateNetworkContainerInternal(*ncRequest)
+	if returnCode != Success {
+		return returnCode
+	}
+	returnCode = service.UpdateIPAMPoolMonitorInternal(scalar, spec)
 	if returnCode != Success {
 		return returnCode
 	}
@@ -255,8 +258,42 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 	return 0
 }
 
+// GetNetworkContainerInternal gets network container details.
+func (service *HTTPRestService) GetNetworkContainerInternal(req cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, int) {
+	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
+	returnCode := getNetworkContainerResponse.Response.ReturnCode
+	return getNetworkContainerResponse, returnCode
+}
+
+// DeleteNetworkContainerInternal deletes a network container.
+func (service *HTTPRestService) DeleteNetworkContainerInternal(req cns.DeleteNetworkContainerRequest) int {
+	_, exist := service.getNetworkContainerDetails(req.NetworkContainerid)
+	if !exist {
+		logger.Printf("network container for id %v doesn't exist", req.NetworkContainerid)
+		return Success
+	}
+
+	service.Lock()
+	defer service.Unlock()
+	if service.state.ContainerStatus != nil {
+		delete(service.state.ContainerStatus, req.NetworkContainerid)
+	}
+
+	if service.state.ContainerIDByOrchestratorContext != nil {
+		for orchestratorContext, networkContainerID := range service.state.ContainerIDByOrchestratorContext {
+			if networkContainerID == req.NetworkContainerid {
+				delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
+				break
+			}
+		}
+	}
+
+	service.saveState()
+	return Success
+}
+
 // This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.CreateNetworkContainerRequest, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
+func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.CreateNetworkContainerRequest) int {
 	if req.NetworkContainerid == "" {
 		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
 		return NetworkContainerNotSpecified
@@ -287,7 +324,6 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.C
 
 	// Validate if state exists already
 	existingNCInfo, ok := service.getNetworkContainerDetails(req.NetworkContainerid)
-
 	if ok {
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if reflect.DeepEqual(existingReq.IPConfiguration, req.IPConfiguration) != true {
@@ -306,11 +342,15 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.C
 		logger.Errorf(returnMessage)
 	}
 
-	if err = service.IPAMPoolMonitor.Update(scalar, spec); err != nil {
+	return returnCode
+}
+
+func (service *HTTPRestService) UpdateIPAMPoolMonitorInternal(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
+	if err := service.IPAMPoolMonitor.Update(scalar, spec); err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating IPAM Pool Monitor: %v", err)
 		// requeue
 		return UnexpectedError
 	}
 
-	return returnCode
+	return 0
 }
