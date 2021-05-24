@@ -220,7 +220,7 @@ func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.I
 
 	defer func() {
 		if err != nil {
-			cnsClient.ReleaseIPAddress(orchestratorContext)
+			cnsClient.ReleaseIPAddress("", orchestratorContext)
 		}
 	}()
 
@@ -266,8 +266,8 @@ func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.I
 	return response, err
 }
 
-// ReleaseIPAddress calls releaseIPAddress on CNS
-func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
+// ReleaseIPAddress calls releaseIPAddress on CNS, ipaddress expressed not in CIDR notation
+func (cnsClient *CNSClient) ReleaseIPAddress(ipaddress string, orchestratorContext []byte) error {
 	var (
 		err  error
 		res  *http.Response
@@ -279,6 +279,10 @@ func (cnsClient *CNSClient) ReleaseIPAddress(orchestratorContext []byte) error {
 
 	payload := &cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
+	}
+
+	if len(ipaddress) == 0 {
+		payload.DesiredIPAddress = ipaddress
 	}
 
 	err = json.NewEncoder(&body).Encode(payload)

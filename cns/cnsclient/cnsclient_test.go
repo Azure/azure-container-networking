@@ -227,7 +227,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	}
 
 	// no IP reservation found with that context, expect no failure.
-	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	err = cnsClient.ReleaseIPAddress("", orchestratorContext)
 	if err != nil {
 		t.Fatalf("Release ip idempotent call failed: %+v", err)
 	}
@@ -278,7 +278,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	t.Log(ipaddresses)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	err = cnsClient.ReleaseIPAddress(ipaddresses[0].IPAddress, orchestratorContext)
 	if err != nil {
 		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
 	}
@@ -318,7 +318,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	t.Log(podcontext)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	err = cnsClient.ReleaseIPAddress("", orchestratorContext)
 	if err != nil {
 		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
 	}
