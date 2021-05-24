@@ -25,7 +25,16 @@ var (
 		{Cmd: []string{"iptables", "-w", "60", "-N", "AZURE-NPM-INGRESS-DROPS"}},
 		{Cmd: []string{"iptables", "-w", "60", "-N", "AZURE-NPM-EGRESS-DROPS"}},
 		{Cmd: []string{"iptables", "-w", "60", "-N", "AZURE-NPM"}},
+
+		{Cmd: []string{"iptables", "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers"}, Stdout: "3  "}, // THIS IS THE GREP CALL
+		{Cmd: []string{"grep", "KUBE-SERVICES"}, Stdout: "4  "},
+
 		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM"}},
+		{Cmd: []string{"iptables", "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers"}, Stdout: "3  "}, // THIS IS THE GREP CALL
+		{Cmd: []string{"grep", "AZURE-NPM"}, Stdout: "4  "},
+		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
+		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM"}},
+
 		{Cmd: []string{"iptables", "-w", "60", "-C", "AZURE-NPM", "-j", "AZURE-NPM-INGRESS"}},
 		{Cmd: []string{"iptables", "-w", "60", "-C", "AZURE-NPM", "-j", "AZURE-NPM-EGRESS"}},
 		{Cmd: []string{"iptables", "-w", "60", "-C", "AZURE-NPM", "-j", "AZURE-NPM-ACCEPT", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "ACCEPT-on-INGRESS-and-EGRESS-mark-0x3000"}},
@@ -84,6 +93,7 @@ func TestSave(t *testing.T) {
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, &fakes.FakeIptOperationShim{})
 
 	if err := iptMgr.Save(util.IptablesTestConfigFile); err != nil {
@@ -97,6 +107,7 @@ func TestRestore(t *testing.T) {
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.Restore(util.IptablesTestConfigFile); err != nil {
@@ -108,6 +119,7 @@ func TestInitNpmChains(t *testing.T) {
 	var calls = initCalls
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.InitNpmChains(); err != nil {
@@ -119,6 +131,7 @@ func TestUninitNpmChains(t *testing.T) {
 	var calls = unInitCalls
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.UninitNpmChains(); err != nil {
@@ -132,6 +145,7 @@ func TestExists(t *testing.T) {
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	iptMgr.OperationFlag = util.IptablesCheckFlag
@@ -154,6 +168,7 @@ func TestAddChain(t *testing.T) {
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
@@ -168,6 +183,7 @@ func TestDeleteChain(t *testing.T) {
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
@@ -185,6 +201,7 @@ func TestAdd(t *testing.T) {
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	entry := &IptEntry{
@@ -221,6 +238,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	entry := &IptEntry{
@@ -249,10 +267,11 @@ func TestDelete(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}, Stdout: "test", ExitCode: 1},
+		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	iptMgr.OperationFlag = util.IptablesChainCreationFlag
@@ -272,6 +291,7 @@ func TestGetChainLineNumber(t *testing.T) {
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, fakes.NewFakeIptOperationShim())
 
 	lineNum, err := iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)

@@ -204,6 +204,7 @@ github.com/spf13/pflag
 github.com/spf13/viper
 # github.com/stretchr/testify v1.7.0
 github.com/stretchr/testify/assert
+github.com/stretchr/testify/require
 # go.opencensus.io v0.22.2
 go.opencensus.io
 go.opencensus.io/internal
@@ -657,6 +658,8 @@ k8s.io/klog
 k8s.io/kube-openapi/pkg/util/proto
 # k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
 k8s.io/utils/buffer
+k8s.io/utils/exec
+k8s.io/utils/exec/testing
 k8s.io/utils/integer
 k8s.io/utils/pointer
 k8s.io/utils/trace
