@@ -266,7 +266,7 @@ func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.I
 	return response, err
 }
 
-// ReleaseIPAddress calls releaseIPAddress on CNS, ipaddress expressed not in CIDR notation
+// ReleaseIPAddress calls releaseIPAddress on CNS, ipaddress ex: (10.0.0.1)
 func (cnsClient *CNSClient) ReleaseIPAddress(ipaddress string, orchestratorContext []byte) error {
 	var (
 		err  error
@@ -281,7 +281,7 @@ func (cnsClient *CNSClient) ReleaseIPAddress(ipaddress string, orchestratorConte
 		OrchestratorContext: orchestratorContext,
 	}
 
-	if len(ipaddress) == 0 {
+	if len(ipaddress) > 0 {
 		payload.DesiredIPAddress = ipaddress
 	}
 
