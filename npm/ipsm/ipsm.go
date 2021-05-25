@@ -293,9 +293,6 @@ func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 		spec: spec,
 	}
 	log.Logf("Creating Set: %+v", entry)
-	// (TODO): need to differentiate errCode handler
-	// since errCode can be one in case of "set with the same name already exists" and "maximal number of sets reached, cannot create more."
-	// It may have more situations with errCode==1.
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset.")
 		return err
