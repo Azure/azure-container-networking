@@ -70,6 +70,10 @@ const (
 	Baremetal ExecutionMode = "baremetal"
 )
 
+const (
+	rehydrateNetworkInfoOnReboot = false
+)
+
 // NetPlugin represents the CNI network plugin.
 type netPlugin struct {
 	*cni.Plugin

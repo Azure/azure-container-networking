@@ -21,6 +21,7 @@ const (
 	requiresRequestReplay = false
 	returnCode            = 0
 	returnStr             = "Success"
+	rehydrateIpamInfoOnReboot = true
 )
 
 // IpamPlugin represents a CNM (libnetwork) IPAM plugin.
@@ -65,7 +66,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	}
 
 	// Initialize address manager.
-	err = plugin.am.Initialize(config, plugin.Options)
+	err = plugin.am.Initialize(config, rehydrateIpamInfoOnReboot, plugin.Options)
 	if err != nil {
 		log.Printf("[ipam] Failed to initialize address manager, err:%v.", err)
 		return err
