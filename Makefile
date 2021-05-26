@@ -75,6 +75,7 @@ GOARCH ?= amd64
 
 # Build directories.
 ROOT_DIR = $(shell pwd)
+REPO_ROOT = $(shell git rev-parse --show-toplevel)
 CNM_DIR = cnm/plugin
 CNI_NET_DIR = cni/network/plugin
 CNI_IPAM_DIR = cni/ipam/plugin
@@ -98,6 +99,8 @@ CNS_BUILD_DIR = $(BUILD_DIR)/cns
 CNMS_BUILD_DIR = $(BUILD_DIR)/cnms
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
 NPM_TELEMETRY_DIR = $(NPM_BUILD_DIR)/telemetry
+TOOLS_DIR = $(REPO_ROOT)/build/tools
+TOOLS_BIN_DIR = $(TOOLS_DIR)/bin
 CNI_AI_ID = 5515a1eb-b2bc-406a-98eb-ba462e6f0411
 NPM_AI_ID = 014c22bd-4107-459e-8475-67909e96edcb
 ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
@@ -195,6 +198,7 @@ endif
 .PHONY: clean
 clean:
 	rm -rf $(OUTPUT_DIR)
+	rm -rf $(TOOLS_BIN_DIR)
 
 # Build the Azure CNM plugin.
 $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT): $(CNMFILES)
@@ -471,4 +475,12 @@ test-cyclonus:
 .PHONY: kind
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
-	
+
+$(TOOLS_DIR)/go.mod:
+	cd $(TOOLS_DIR); go mod init && go mod tidy
+
+CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
+$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+
+controller-gen: $(CONTROLLER_GEN)

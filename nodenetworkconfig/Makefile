@@ -1,16 +1,16 @@
-# Dependencies for generator
-GOFILES = $(wildcard api/v1/*.go)
+REPO_ROOT = $(shell git rev-parse --show-toplevel)
+TOOLS_DIR = $(REPO_ROOT)/build/tools
+TOOLS_BIN_DIR = $(REPO_ROOT)/build/tools/bin
+CONTROLLER_GEN = $(TOOLS_BIN_DIR)/controller-gen
 
-generate: $(GOFILES) controller-gen
-	controller-gen object:headerFile="boilerplate.go.txt" paths="./..."
+.PHONY: generate manifests
 
-.PHONY: controller-gen
+generate: $(CONTROLLER_GEN)
+	$(CONTROLLER_GEN) object:headerFile="boilerplate.go.txt" paths="./..."
 
-controller-gen:
-	@(cd && GO111MODULE=on go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0)
-
-.PHONY: manifests
-
-manifests: controller-gen
+manifests: $(CONTROLLER_GEN)
 	mkdir -p manifests
-	controller-gen crd:trivialVersions=true paths="./..." output:crd:artifacts:config=manifests/
+	$(CONTROLLER_GEN) crd:trivialVersions=true paths="./..." output:crd:artifacts:config=manifests/
+
+$(CONTROLLER_GEN):
+	@make -C $(REPO_ROOT) $(CONTROLLER_GEN)
