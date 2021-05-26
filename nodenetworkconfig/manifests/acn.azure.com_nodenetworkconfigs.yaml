@@ -8,6 +8,28 @@ metadata:
   creationTimestamp: null
   name: nodenetworkconfigs.acn.azure.com
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.status
+    name: Status
+    type: string
+  - JSONPath: .spec.requestedIPCount
+    name: Requested IPs
+    type: string
+  - JSONPath: .status.assignedIPCount
+    name: Assigned IPs
+    type: string
+  - JSONPath: .status.networkContainers[*].subnetName
+    name: Subnet
+    type: string
+  - JSONPath: .status.networkContainers[*].subnetAddressSpace
+    name: Subnet CIDR
+    type: string
+  - JSONPath: .status.networkContainers[*].id
+    name: NC ID
+    type: string
+  - JSONPath: .status.networkContainers[*].version
+    name: NC Version
+    type: string
   group: acn.azure.com
   names:
     kind: NodeNetworkConfig
@@ -49,6 +71,8 @@ spec:
         status:
           description: NodeNetworkConfigStatus defines the observed state of NetworkConfig
           properties:
+            assignedIPCount:
+              type: integer
             networkContainers:
               items:
                 description: NetworkContainer defines the structure of a Network Container
@@ -96,6 +120,13 @@ spec:
                   format: int64
                   type: integer
               type: object
+            status:
+              description: Status indicates the NNC reconcile status
+              enum:
+              - Updating
+              - Update
+              - Error
+              type: string
           type: object
       type: object
   version: v1alpha

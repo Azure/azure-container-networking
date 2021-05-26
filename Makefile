@@ -503,4 +503,4 @@ $(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
 
 go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
 
-tools: gocov gocov-xml go-junit-report ## Build bins for built tools
+tools: gocov gocov-xml go-junit-report ## Build bins for build tools
