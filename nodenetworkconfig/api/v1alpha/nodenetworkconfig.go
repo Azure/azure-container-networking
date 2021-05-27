@@ -62,6 +62,7 @@ type Scaler struct {
 	BatchSize               int64 `json:"batchSize,omitempty"`
 	ReleaseThresholdPercent int64 `json:"releaseThresholdPercent,omitempty"`
 	RequestThresholdPercent int64 `json:"requestThresholdPercent,omitempty"`
+	MaxIPCount              int64 `json:"maxIPCount,omitempty"`
 }
 
 // NetworkContainer defines the structure of a Network Container as found in NetworkConfigStatus

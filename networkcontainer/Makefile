@@ -1,0 +1,16 @@
+# Dependencies for generator
+GOFILES = $(wildcard api/*/*.go)
+
+generate: $(GOFILES) controller-gen
+	controller-gen object:headerFile="boilerplate.go.txt" paths="./..."
+
+.PHONY: controller-gen
+
+controller-gen:
+	@(cd && GO111MODULE=on go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0)
+
+.PHONY: manifests
+
+manifests: controller-gen
+	mkdir -p manifests
+	controller-gen crd:trivialVersions=true paths="./..." output:crd:artifacts:config=manifests/

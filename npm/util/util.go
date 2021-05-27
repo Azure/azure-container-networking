@@ -8,10 +8,13 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Masterminds/semver"
 	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/tools/cache"
 )
 
 // IsNewNwPolicyVerFlag indicates if the current kubernetes version is newer than 1.11 or not
@@ -69,26 +72,40 @@ func SortMap(m *map[string]string) ([]string, []string) {
 	return sortedKeys, sortedVals
 }
 
-// CompareMapDiff will compare two maps string[string] and returns
-// missing values in both
-func CompareMapDiff(orig map[string]string, new map[string]string) (map[string]string, map[string]string) {
-	notInOrig := make(map[string]string)
-	notInNew := make(map[string]string)
+// GetIPSetListFromLabels combine Labels into a single slice
+func GetIPSetListFromLabels(labels map[string]string) []string {
+	var (
+		ipsetList = []string{}
+	)
+	for labelKey, labelVal := range labels {
+		ipsetList = append(ipsetList, labelKey, labelKey+IpsetLabelDelimter+labelVal)
+
+	}
+	return ipsetList
+}
+
+// GetIPSetListCompareLabels compares Labels and
+// returns a delete ipset list and add ipset list
+func GetIPSetListCompareLabels(orig map[string]string, new map[string]string) ([]string, []string) {
+	notInOrig := []string{}
+	notInNew := []string{}
 
 	for keyOrig, valOrig := range orig {
 		if valNew, ok := new[keyOrig]; ok {
 			if valNew != valOrig {
-				notInNew[keyOrig] = valOrig
-				notInOrig[keyOrig] = valNew
+				notInNew = append(notInNew, keyOrig+IpsetLabelDelimter+valOrig)
+				notInOrig = append(notInOrig, keyOrig+IpsetLabelDelimter+valNew)
 			}
 		} else {
-			notInNew[keyOrig] = valOrig
+			// {IMPORTANT} this order is important, key should be before and key+val later
+			notInNew = append(notInNew, keyOrig, keyOrig+IpsetLabelDelimter+valOrig)
 		}
 	}
 
 	for keyNew, valNew := range new {
 		if _, ok := orig[keyNew]; !ok {
-			notInOrig[keyNew] = valNew
+			// {IMPORTANT} this order is important, key should be before and key+val later
+			notInOrig = append(notInOrig, keyNew, keyNew+IpsetLabelDelimter+valNew)
 		}
 	}
 
@@ -237,4 +254,71 @@ func DropEmptyFields(s []string) []string {
 	}
 
 	return s
+}
+
+// GetNSNameWithPrefix returns Namespace name with ipset prefix
+func GetNSNameWithPrefix(nsName string) string {
+	return NamespacePrefix + nsName
+}
+
+// CompareResourceVersions take in two resource versions and returns true if new is greater than old
+func CompareResourceVersions(rvOld string, rvNew string) bool {
+	// Ignore oldRV error as we care about new RV
+	tempRvOld := ParseResourceVersion(rvOld)
+	tempRvnew := ParseResourceVersion(rvNew)
+	if tempRvnew > tempRvOld {
+		return true
+	}
+
+	return false
+}
+
+// CompareUintResourceVersions take in two resource versions as uint and returns true if new is greater than old
+func CompareUintResourceVersions(rvOld uint64, rvNew uint64) bool {
+	if rvNew > rvOld {
+		return true
+	}
+
+	return false
+}
+
+// ParseResourceVersion get uint64 version of ResourceVersion
+func ParseResourceVersion(rv string) uint64 {
+	if rv == "" {
+		return 0
+	}
+	rvInt, err := strconv.ParseUint(rv, 10, 64)
+	if err != nil {
+		log.Logf("Error: while parsing resource version to uint64 %s", rv)
+	}
+
+	return rvInt
+}
+
+// GetObjKeyFunc will return obj's key
+func GetObjKeyFunc(obj interface{}) (string, error) {
+	return cache.MetaNamespaceKeyFunc(obj)
+}
+
+// GetSetsFromLabels for a given map of labels will return ipset names
+func GetSetsFromLabels(labels map[string]string) []string {
+	l := []string{}
+
+	for k, v := range labels {
+		l = append(l, k, fmt.Sprintf("%s%s%s", k, IpsetLabelDelimter, v))
+	}
+
+	return l
+}
+
+func GetIpSetFromLabelKV(k, v string) string {
+	return fmt.Sprintf("%s%s%s", k, IpsetLabelDelimter, v)
+}
+
+func GetLabelKVFromSet(ipsetName string) (string, string) {
+	strSplit := strings.Split(ipsetName, IpsetLabelDelimter)
+	if len(strSplit) > 1 {
+		return strSplit[0], strSplit[1]
+	}
+	return strSplit[0], ""
 }

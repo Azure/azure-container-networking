@@ -62,40 +62,48 @@ steps:
       export CNI_URL=https://$(ARTIFACT_STORAGE).blob.core.windows.net/acn-$(StorageID)/azure-vnet-cni-${{ parameters.clusterDefinitionCniBuildOS }}-amd64-$(Tag)${{ parameters.clusterDefinitionCniBuildExt }}
       export CNI_TYPE=${{ parameters.clusterDefinitionCniTypeKey }}
       echo CNI type is $CNI_TYPE
+      echo Tag is $(Tag)
+      echo CNI_URL is $CNI_URL
+      echo Config: '${{ parameters.clusterDefinition }}'
+      cat '${{ parameters.clusterDefinition }}'
       cat '${{ parameters.clusterDefinition }}' | jq --arg cnikey $CNI_TYPE --arg cniurl $CNI_URL '.properties.orchestratorProfile.kubernetesConfig[$cnikey]= $cniurl' > '${{ parameters.clusterDefinition }}'.tmp	
       cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
       cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage $IMAGE_REGISTRY/azure-npm:$(Tag)-test '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
       mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
-      echo "Running E2E tests against a cluster built with the following API model:"
-      cat '${{ parameters.clusterDefinition }}'
+      echo "Running E2E tests against a cluster built with the following API model:" 
       cp ${{ parameters.clusterDefinition }} clusterDefinition.json
-      curl -L https://dl.k8s.io/v1.17.4/kubernetes-client-linux-amd64.tar.gz | tar xvzf -
-      sudo cp kubernetes/client/bin/kubectl /usr/local/bin/kubectl	
-      sudo cp kubernetes/client/bin/kubectl /usr/local/bin/k
     displayName: Configure AKS-Engine
     workingDirectory: "$(modulePath)"
 
-  - bash: |
-      export PATH=$PATH:'$(GOPATH)'
-      export CLUSTER_DEFINITION=./'${{ parameters.clusterDefinition }}'
-      export ORCHESTRATOR=kubernetes 
-      export CREATE_VNET=false 
-      export TIMEOUT=20m 
-      export CLIENT_ID=$(AKS_ENGINE_CLIENT_ID) 
-      export CLIENT_SECRET=$(AKS_ENGINE_CLIENT_SECRET) 
-      export TENANT_ID=$(AKS_ENGINE_TENANT_ID) 
-      export SUBSCRIPTION_ID=$(AKS_ENGINE_SUBSCRIPTION_ID) 
-      export CLEANUP_ON_EXIT=true
-      export CLEANUP_IF_FAIL=false
-      export REGIONS=$(AKS_ENGINE_REGION) 
-      export IS_JENKINS=false 
-      export DEBUG_CRASHING_PODS=true
-      export AZURE_CORE_ONLY_SHOW_ERRORS=True
-      export
-      make test-kubernetes
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(AKS_ENGINE_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      addSpnToEnvironment: true
+      workingDirectory: "$(modulePath)"
+      inlineScript: |
+        export CLIENT_ID=$servicePrincipalId
+        export CLIENT_SECRET=$servicePrincipalKey 
+        export PATH=$PATH:'$(GOPATH)'
+        export CLUSTER_DEFINITION=./clusterDefinition.json
+        export ORCHESTRATOR=kubernetes 
+        export CREATE_VNET=false 
+        export TIMEOUT=20m 
+        export TENANT_ID=$(AKS_ENGINE_TENANT_ID) 
+        export SUBSCRIPTION_ID=$(AKS_ENGINE_SUBSCRIPTION_ID) 
+        export CLEANUP_ON_EXIT=true
+        export CLEANUP_IF_FAIL=false
+        export REGIONS=$(AKS_ENGINE_REGION) 
+        export IS_JENKINS=false 
+        export DEBUG_CRASHING_PODS=true
+        export AZURE_CORE_ONLY_SHOW_ERRORS=True
+        echo Cluster Def $CLUSTER_DEFINITION
+        cat $CLUSTER_DEFINITION
+        make test-kubernetes
     name: DeployAKSEngine
     displayName: Run AKS-Engine E2E Tests
-    workingDirectory: "$(modulePath)"
+      
+
 
   - task: CopyFiles@2
     inputs:
@@ -108,3 +116,4 @@ steps:
       artifactName: ${{ parameters.name }}
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/${{ parameters.name }}"
     condition: always()
+    

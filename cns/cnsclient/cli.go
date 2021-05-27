@@ -5,8 +5,10 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 )
 
 const (
@@ -15,6 +17,8 @@ const (
 	getAllocatedArg      = "Allocated"
 	getAllArg            = "All"
 	getPendingReleaseArg = "PendingRelease"
+	getPodCmdArg         = "getPodContexts"
+	getInMemoryData      = "getInMemory"
 
 	releaseArg = "release"
 
@@ -28,6 +32,8 @@ const (
 var (
 	availableCmds = []string{
 		getCmdArg,
+		getPodCmdArg,
+		getInMemoryData,
 	}
 
 	getFlags = []string{
@@ -41,7 +47,7 @@ func HandleCNSClientCommands(cmd, arg string) error {
 	cnsIPAddress := os.Getenv(envCNSIPAddress)
 	cnsPort := os.Getenv(envCNSPort)
 
-	cnsClient, err := InitCnsClient("http://" + cnsIPAddress + ":" + cnsPort)
+	cnsClient, err := InitCnsClient("http://"+cnsIPAddress+":"+cnsPort, 5*time.Second)
 	if err != nil {
 		return err
 	}
@@ -49,6 +55,10 @@ func HandleCNSClientCommands(cmd, arg string) error {
 	switch {
 	case strings.EqualFold(getCmdArg, cmd):
 		return getCmd(cnsClient, arg)
+	case strings.EqualFold(getPodCmdArg, cmd):
+		return getPodCmd(cnsClient)
+	case strings.EqualFold(getInMemoryData, cmd):
+		return getInMemory(cnsClient)
 	default:
 		return fmt.Errorf("No debug cmd supplied, options are: %v", getCmdArg)
 	}
@@ -67,10 +77,14 @@ func getCmd(client *CNSClient, arg string) error {
 	case cns.PendingRelease:
 		states = append(states, cns.PendingRelease)
 
+	case cns.PendingProgramming:
+		states = append(states, cns.PendingProgramming)
+
 	default:
 		states = append(states, cns.Allocated)
 		states = append(states, cns.Available)
 		states = append(states, cns.PendingRelease)
+		states = append(states, cns.PendingProgramming)
 	}
 
 	addr, err := client.GetIPAddressesMatchingStates(states...)
@@ -83,12 +97,48 @@ func getCmd(client *CNSClient, arg string) error {
 }
 
 // Sort the addresses based on IP, then write to stdout
-func printIPAddresses(addrSlice []cns.IPAddressState) {
+func printIPAddresses(addrSlice []cns.IPConfigurationStatus) {
 	sort.Slice(addrSlice, func(i, j int) bool {
 		return addrSlice[i].IPAddress < addrSlice[j].IPAddress
 	})
 
 	for _, addr := range addrSlice {
-		fmt.Printf("%+v\n", addr)
+		cns.IPConfigurationStatus.String(addr)
 	}
+}
+
+func getPodCmd(client *CNSClient) error {
+
+	resp, err := client.GetPodOrchestratorContext()
+	if err != nil {
+		return err
+	}
+
+	printPodContext(resp)
+	return nil
+}
+
+func printPodContext(podContext map[string]string) {
+	var i = 1
+	for orchContext, podID := range podContext {
+		fmt.Println(i, " ", orchContext, " : ", podID)
+		i++
+	}
+}
+
+func getInMemory(client *CNSClient) error {
+
+	inmemoryData, err := client.GetHTTPServiceData()
+	if err != nil {
+		return err
+	}
+
+	printInMemoryStruct(inmemoryData.HttpRestServiceData)
+	return nil
+}
+
+func printInMemoryStruct(data restserver.HttpRestServiceData) {
+	fmt.Println("PodIPIDByOrchestratorContext: ", data.PodIPIDByOrchestratorContext)
+	fmt.Println("PodIPConfigState: ", data.PodIPConfigState)
+	fmt.Println("IPAMPoolMonitor: ", data.IPAMPoolMonitor)
 }

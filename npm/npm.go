@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/Azure/azure-container-networking/telemetry"
-	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
@@ -25,6 +24,7 @@ import (
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	utilexec "k8s.io/utils/exec"
 )
 
 var aiMetadata string
@@ -36,23 +36,32 @@ const (
 	telemetryRetryTimeInSeconds   = 60
 	heartbeatIntervalInMinutes    = 30
 	reconcileChainTimeInMinutes   = 5
+	// TODO: consider increasing thread number later when logics are correct
+	threadness = 1
 )
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
 	sync.Mutex
+
+	Exec      utilexec.Interface
 	clientset *kubernetes.Clientset
 
 	informerFactory informers.SharedInformerFactory
 	podInformer     coreinformers.PodInformer
-	nsInformer      coreinformers.NamespaceInformer
-	npInformer      networkinginformers.NetworkPolicyInformer
+	podController   *podController
 
-	nodeName                     string
-	nsMap                        map[string]*namespace
-	podMap                       map[string]string // Key: Pod uuid, Value: PodIp
-	isAzureNpmChainCreated       bool
-	isSafeToCleanUpAzureNpmChain bool
+	nsInformer          coreinformers.NamespaceInformer
+	nameSpaceController *nameSpaceController
+
+	npInformer       networkinginformers.NetworkPolicyInformer
+	netPolController *networkPolicyController
+
+	NodeName       string
+	NsMap          map[string]*Namespace                  // Key is ns-<nsname>
+	PodMap         map[string]*NpmPod                     // Key is <nsname>/<podname>
+	RawNpMap       map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
+	ProcessedNpMap map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<podSelectorHash>
 
 	clusterState telemetry.ClusterState
 	version      string
@@ -99,7 +108,7 @@ func GetAIMetadata() string {
 func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	var (
 		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
-		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.nodeName),
+		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.NodeName),
 			"APIServer": npMgr.serverVersion.String()}
 		podCount = aitelemetry.Metric{
 			Name:             "PodCount",
@@ -118,14 +127,11 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	for {
 		<-heartbeat
 		npMgr.Lock()
-		podCount.Value = float64(len(npMgr.podMap))
+		podCount.Value = 0
 		//Reducing one to remove all-namespaces ns obj
-		nsCount.Value = float64(len(npMgr.nsMap) - 1)
-		nwPolCount := 0
-		for _, ns := range npMgr.nsMap {
-			nwPolCount = nwPolCount + len(ns.rawNpMap)
-		}
-		nwPolicyCount.Value = float64(nwPolCount)
+		nsCount.Value = float64(len(npMgr.NsMap) - 1)
+		nwPolicyCount.Value += float64(len(npMgr.RawNpMap))
+		podCount.Value += float64(len(npMgr.PodMap))
 		npMgr.Unlock()
 
 		metrics.SendMetric(podCount)
@@ -184,6 +190,10 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 		return fmt.Errorf("Network policy informer failed to sync")
 	}
 
+	// start controllers after synced
+	go npMgr.podController.Run(threadness, stopCh)
+	go npMgr.nameSpaceController.Run(threadness, stopCh)
+	go npMgr.netPolController.Run(threadness, stopCh)
 	go npMgr.reconcileChains()
 	go npMgr.backup()
 
@@ -191,14 +201,14 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 }
 
 // NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, npmVersion string) *NetworkPolicyManager {
+func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
 	// Clear out left over iptables states
 	log.Logf("Azure-NPM creating, cleaning iptables")
 	iptMgr := iptm.NewIptablesManager()
 	iptMgr.UninitNpmChains()
 
 	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
-	ipsm.NewIpsetManager().DestroyNpmIpsets()
+	ipsm.NewIpsetManager(exec).DestroyNpmIpsets()
 
 	var (
 		podInformer   = informerFactory.Core().V1().Pods()
@@ -227,16 +237,17 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	}
 
 	npMgr := &NetworkPolicyManager{
-		clientset:                    clientset,
-		informerFactory:              informerFactory,
-		podInformer:                  podInformer,
-		nsInformer:                   nsInformer,
-		npInformer:                   npInformer,
-		nodeName:                     os.Getenv("HOSTNAME"),
-		nsMap:                        make(map[string]*namespace),
-		podMap:                       make(map[string]string),
-		isAzureNpmChainCreated:       false,
-		isSafeToCleanUpAzureNpmChain: false,
+		Exec:            exec,
+		clientset:       clientset,
+		informerFactory: informerFactory,
+		podInformer:     podInformer,
+		nsInformer:      nsInformer,
+		npInformer:      npInformer,
+		NodeName:        os.Getenv("HOSTNAME"),
+		NsMap:           make(map[string]*Namespace),
+		PodMap:          make(map[string]*NpmPod),
+		RawNpMap:        make(map[string]*networkingv1.NetworkPolicy),
+		ProcessedNpMap:  make(map[string]*networkingv1.NetworkPolicy),
 		clusterState: telemetry.ClusterState{
 			PodCount:      0,
 			NsCount:       0,
@@ -247,162 +258,23 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		TelemetryEnabled: true,
 	}
 
-	allNs, _ := newNs(util.KubeAllNamespacesFlag)
-	npMgr.nsMap[util.KubeAllNamespacesFlag] = allNs
+	allNs, _ := newNs(util.KubeAllNamespacesFlag, npMgr.Exec)
+	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	// Create ipset for the namespace.
-	kubeSystemNs := "ns-" + util.KubeSystemFlag
-	if err := allNs.ipsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
+	kubeSystemNs := util.GetNSNameWithPrefix(util.KubeSystemFlag)
+	if err := allNs.IpsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
 	}
 
-	podInformer.Informer().AddEventHandler(
-		// Pod event handlers
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				podObj, ok := obj.(*corev1.Pod)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "ADD Pod: Received unexpected object type: %v", obj)
-					return
-				}
-				npMgr.Lock()
-				npMgr.AddPod(podObj)
-				npMgr.Unlock()
-			},
-			UpdateFunc: func(old, new interface{}) {
-				oldPodObj, ok := old.(*corev1.Pod)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "UPDATE Pod: Received unexpected old object type: %v", oldPodObj)
-					return
-				}
-				newPodObj, ok := new.(*corev1.Pod)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "UPDATE Pod: Received unexpected new object type: %v", newPodObj)
-					return
-				}
-				npMgr.Lock()
-				npMgr.UpdatePod(oldPodObj, newPodObj)
-				npMgr.Unlock()
-			},
-			DeleteFunc: func(obj interface{}) {
-				// DeleteFunc gets the final state of the resource (if it is known).
-				// Otherwise, it gets an object of type DeletedFinalStateUnknown.
-				// This can happen if the watch is closed and misses the delete event and
-				// the controller doesn't notice the deletion until the subsequent re-list
-				podObj, ok := obj.(*corev1.Pod)
-				if !ok {
-					tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-					if !ok {
-						metrics.SendErrorLogAndMetric(util.NpmID, "DELETE Pod: Received unexpected object type: %v", obj)
-						return
-					}
-					if podObj, ok = tombstone.Obj.(*corev1.Pod); !ok {
-						metrics.SendErrorLogAndMetric(util.NpmID, "DELETE Pod: Received unexpected object type: %v", obj)
-						return
-					}
-				}
-				npMgr.Lock()
-				npMgr.DeletePod(podObj)
-				npMgr.Unlock()
-			},
-		},
-	)
+	// create pod controller
+	npMgr.podController = NewPodController(podInformer, clientset, npMgr)
 
-	nsInformer.Informer().AddEventHandler(
-		// Namespace event handlers
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				nameSpaceObj, ok := obj.(*corev1.Namespace)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "ADD NameSpace: Received unexpected object type: %v", obj)
-					return
-				}
-				npMgr.Lock()
-				npMgr.AddNamespace(nameSpaceObj)
-				npMgr.Unlock()
-			},
-			UpdateFunc: func(old, new interface{}) {
-				oldNameSpaceObj, ok := old.(*corev1.Namespace)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "UPDATE NameSpace: Received unexpected old object type: %v", oldNameSpaceObj)
-					return
-				}
-				newNameSpaceObj, ok := new.(*corev1.Namespace)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "UPDATE NameSpace: Received unexpected new object type: %v", newNameSpaceObj)
-					return
-				}
-				npMgr.Lock()
-				npMgr.UpdateNamespace(oldNameSpaceObj, newNameSpaceObj)
-				npMgr.Unlock()
-			},
-			DeleteFunc: func(obj interface{}) {
-				nameSpaceObj, ok := obj.(*corev1.Namespace)
-				if !ok {
-					tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-					if !ok {
-						metrics.SendErrorLogAndMetric(util.NpmID, "DELETE NameSpace: Received unexpected object type: %v", obj)
-						return
-					}
-					if nameSpaceObj, ok = tombstone.Obj.(*corev1.Namespace); !ok {
-						metrics.SendErrorLogAndMetric(util.NpmID, "DELETE NameSpace: Received unexpected object type: %v", obj)
-						return
-					}
-				}
-				npMgr.Lock()
-				npMgr.DeleteNamespace(nameSpaceObj)
-				npMgr.Unlock()
-			},
-		},
-	)
+	// create NameSpace controller
+	npMgr.nameSpaceController = NewNameSpaceController(nsInformer, clientset, npMgr)
 
-	npInformer.Informer().AddEventHandler(
-		// Network policy event handlers
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				networkPolicyObj, ok := obj.(*networkingv1.NetworkPolicy)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "ADD Network Policy: Received unexpected object type: %v", obj)
-					return
-				}
-				npMgr.Lock()
-				npMgr.AddNetworkPolicy(networkPolicyObj)
-				npMgr.Unlock()
-			},
-			UpdateFunc: func(old, new interface{}) {
-				oldNetworkPolicyObj, ok := old.(*networkingv1.NetworkPolicy)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "UPDATE Network Policy: Received unexpected old object type: %v", oldNetworkPolicyObj)
-					return
-				}
-				newNetworkPolicyObj, ok := new.(*networkingv1.NetworkPolicy)
-				if !ok {
-					metrics.SendErrorLogAndMetric(util.NpmID, "UPDATE Network Policy: Received unexpected new object type: %v", newNetworkPolicyObj)
-					return
-				}
-				npMgr.Lock()
-				npMgr.UpdateNetworkPolicy(oldNetworkPolicyObj, newNetworkPolicyObj)
-				npMgr.Unlock()
-			},
-			DeleteFunc: func(obj interface{}) {
-				networkPolicyObj, ok := obj.(*networkingv1.NetworkPolicy)
-				if !ok {
-					tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-					if !ok {
-						metrics.SendErrorLogAndMetric(util.NpmID, "DELETE Network Policy: Received unexpected object type: %v", obj)
-						return
-					}
-					if networkPolicyObj, ok = tombstone.Obj.(*networkingv1.NetworkPolicy); !ok {
-						metrics.SendErrorLogAndMetric(util.NpmID, "DELETE Network Policy: Received unexpected object type: %v", obj)
-						return
-					}
-				}
-				npMgr.Lock()
-				npMgr.DeleteNetworkPolicy(networkPolicyObj)
-				npMgr.Unlock()
-			},
-		},
-	)
+	// create network policy controller
+	npMgr.netPolController = NewNetworkPolicyController(npInformer, clientset, npMgr)
 
 	return npMgr
 }

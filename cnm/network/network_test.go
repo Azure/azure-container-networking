@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cnm"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	driverApi "github.com/docker/libnetwork/driverapi"
 	remoteApi "github.com/docker/libnetwork/drivers/remote/api"
@@ -27,6 +29,7 @@ var anyInterface = "dummy"
 var anySubnet = "192.168.1.0/24"
 var ipnet = net.IPNet{IP: net.ParseIP("192.168.1.0"), Mask: net.IPv4Mask(255, 255, 255, 0)}
 var networkID = "N1"
+var netns = "22212"
 
 // endpoint ID must contain 7 characters
 var endpointID = "E1-xxxx"
@@ -147,8 +150,39 @@ func TestGetCapabilities(t *testing.T) {
 	}
 }
 
+func TestCNM(t *testing.T) {
+	cmd := exec.Command("ip", "netns", "add", netns)
+	log.Printf("%v", cmd)
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("%v:%v", output, err.Error())
+		return
+	}
+
+	defer func() {
+		cmd = exec.Command("ip", "netns", "delete", netns)
+		_, err = cmd.Output()
+
+		if err != nil {
+			t.Fatalf("%v:%v", output, err)
+			return
+		}
+	}()
+
+	log.Printf("###CreateNetwork#####################################################################################")
+	createNetworkT(t)
+	log.Printf("###CreateEndpoint####################################################################################")
+	createEndpointT(t)
+	log.Printf("###EndpointOperInfo#####################################################################################")
+	endpointOperInfoT(t)
+	log.Printf("###DeleteEndpoint#####################################################################################")
+	deleteEndpointT(t)
+	log.Printf("###DeleteNetwork#####################################################################################")
+	//deleteNetworkT(t)
+}
+
 // Tests NetworkDriver.CreateNetwork functionality.
-func TestCreateNetwork(t *testing.T) {
+func createNetworkT(t *testing.T) {
 	var body bytes.Buffer
 	var resp remoteApi.CreateNetworkResponse
 
@@ -176,12 +210,12 @@ func TestCreateNetwork(t *testing.T) {
 	err = decodeResponse(w, &resp)
 
 	if err != nil || resp.Response.Err != "" {
-		t.Errorf("CreateNetwork response is invalid %+v", resp)
+		t.Errorf("CreateNetwork response is invalid %+v, received err %v", resp, err)
 	}
 }
 
 // Tests NetworkDriver.CreateEndpoint functionality.
-func TestCreateEndpoint(t *testing.T) {
+func createEndpointT(t *testing.T) {
 	var body bytes.Buffer
 	var resp remoteApi.CreateEndpointResponse
 
@@ -204,12 +238,12 @@ func TestCreateEndpoint(t *testing.T) {
 	err = decodeResponse(w, &resp)
 
 	if err != nil || resp.Response.Err != "" {
-		t.Errorf("CreateEndpoint response is invalid %+v", resp)
+		t.Errorf("CreateEndpoint response is invalid %+v, received err %v", resp, err)
 	}
 }
 
 // Tests NetworkDriver.EndpointOperInfo functionality.
-func TestEndpointOperInfo(t *testing.T) {
+func endpointOperInfoT(t *testing.T) {
 	var body bytes.Buffer
 	var resp remoteApi.EndpointInfoResponse
 
@@ -230,11 +264,11 @@ func TestEndpointOperInfo(t *testing.T) {
 
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Err != "" {
-		t.Errorf("EndpointOperInfo response is invalid %+v", resp)
+		t.Errorf("EndpointOperInfo response is invalid %+v, received err %v", resp, err)
 	}
 }
 
-func TestDeleteEndpoint(t *testing.T) {
+func deleteEndpointT(t *testing.T) {
 	var body bytes.Buffer
 	var resp remoteApi.DeleteEndpointResponse
 
@@ -256,12 +290,12 @@ func TestDeleteEndpoint(t *testing.T) {
 	err = decodeResponse(w, &resp)
 
 	if err != nil || resp.Response.Err != "" {
-		t.Errorf("DeleteEndpoint response is invalid %+v", resp)
+		t.Errorf("DeleteEndpoint response is invalid %+v, received err %v", resp, err)
 	}
 }
 
 // Tests NetworkDriver.DeleteNetwork functionality.
-func TestDeleteNetwork(t *testing.T) {
+func deleteNetworkT(t *testing.T) {
 	var body bytes.Buffer
 	var resp remoteApi.DeleteNetworkResponse
 
@@ -282,6 +316,6 @@ func TestDeleteNetwork(t *testing.T) {
 	err = decodeResponse(w, &resp)
 
 	if err != nil || resp.Err != "" {
-		t.Errorf("DeleteNetwork response is invalid %+v", resp)
+		t.Errorf("DeleteNetwork response is invalid %+v, received err %v", resp, err)
 	}
 }

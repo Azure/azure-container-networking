@@ -8,11 +8,13 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm"
+	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/exec"
 )
 
 const (
@@ -26,7 +28,7 @@ var version string
 func initLogging() error {
 	log.SetName("azure-npm")
 	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetStdOutAndLogFile, ""); err != nil {
+	if err := log.SetTargetLogDirectory(log.TargetStdout, ""); err != nil {
 		log.Logf("Failed to configure logging, err:%v.", err)
 		return err
 	}
@@ -72,17 +74,16 @@ func main() {
 	log.Logf("[INFO] Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
+	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version)
 	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
-	go npMgr.SendClusterMetrics()
+	restserver := restserver.NewNpmRestServer(restserver.DefaultHTTPListeningAddress)
+	go restserver.NPMRestServerListenAndServe(npMgr)
 
 	if err = npMgr.Start(wait.NeverStop); err != nil {
 		log.Logf("npm failed with error %v.", err)
 		panic(err.Error)
 	}
-
-	metrics.StartHTTP(0)
 
 	select {}
 }

@@ -1,6 +1,10 @@
 package api
 
-import "strings"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
 const (
 	CNI = "cni"
@@ -78,7 +82,7 @@ var (
 		FlagTenancy:                  Singletenancy,
 		FlagIPAM:                     AzureVNETIPAM,
 		FlagExempt:                   AzureTelemetryBin + "," + AzureTelemetryConfig,
-		FlagMode:                     Bridge,
+		FlagMode:                     Transparent,
 		FlagTarget:                   Local,
 		FlagBinDirectory:             DefaultBinDirLinux,
 		FlagConflistDirectory:        DefaultConflistDirLinux,
@@ -97,4 +101,9 @@ var (
 
 func GetDefaults() map[string]string {
 	return Defaults
+}
+
+func PrettyPrint(b interface{}) {
+	s, _ := json.MarshalIndent(b, "", "\t")
+	fmt.Print(string(s))
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
@@ -29,6 +28,7 @@ var (
 	// IptablesAzureChainList contains list of all NPM chains
 	IptablesAzureChainList = []string{
 		util.IptablesAzureChain,
+		util.IptablesAzureAcceptChain,
 		util.IptablesAzureIngressChain,
 		util.IptablesAzureEgressChain,
 		util.IptablesAzureIngressPortChain,
@@ -183,8 +183,15 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		return err
 	}
 
+	// For backward compatibility, we should be cleaning older chains
+	allAzureChains := append(
+		IptablesAzureChainList,
+		util.IptablesAzureTargetSetsChain,
+		util.IptablesAzureIngressWrongDropsChain,
+	)
+
 	iptMgr.OperationFlag = util.IptablesFlushFlag
-	for _, chain := range IptablesAzureChainList {
+	for _, chain := range allAzureChains {
 		entry := &IptEntry{
 			Chain: chain,
 		}
@@ -194,7 +201,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		}
 	}
 
-	for _, chain := range IptablesAzureChainList {
+	for _, chain := range allAzureChains {
 		if err := iptMgr.DeleteChain(chain); err != nil {
 			return err
 		}
@@ -530,10 +537,6 @@ func grabIptablesLocks() (*os.File, error) {
 
 	success = true
 	return l, nil
-}
-
-func grabIptablesFileLock(f *os.File) error {
-	return unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 }
 
 // TO-DO :- Use iptables-restore to update iptables.

@@ -11,6 +11,10 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
+
+	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -129,7 +133,38 @@ func TestMain(m *testing.M) {
 	httpRestService, err := restserver.NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	svc = httpRestService.(*restserver.HTTPRestService)
 	svc.Name = "cns-test-server"
-	svc.IPAMPoolMonitor = fakes.NewIPAMPoolMonitorFake()
+	fakeNNC := nnc.NodeNetworkConfig{
+		TypeMeta:   metav1.TypeMeta{},
+		ObjectMeta: metav1.ObjectMeta{},
+		Spec: nnc.NodeNetworkConfigSpec{
+			RequestedIPCount: 16,
+			IPsNotInUse:      []string{"abc"},
+		},
+		Status: nnc.NodeNetworkConfigStatus{
+			Scaler: nnc.Scaler{
+				BatchSize:               10,
+				ReleaseThresholdPercent: 50,
+				RequestThresholdPercent: 40,
+			},
+			NetworkContainers: []nnc.NetworkContainer{
+				{
+					ID:         "nc1",
+					PrimaryIP:  "10.0.0.11",
+					SubnetName: "sub1",
+					IPAssignments: []nnc.IPAssignment{
+						{
+							Name: "ip1",
+							IP:   "10.0.0.10",
+						},
+					},
+					DefaultGateway:     "10.0.0.1",
+					SubnetAddressSpace: "10.0.0.0/24",
+					Version:            2,
+				},
+			},
+		},
+	}
+	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{FakeMinimumIps: 10, FakeMaximumIps: 20, FakeIpsNotInUseCount: 13, FakecachedNNC: fakeNNC}
 
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -181,7 +216,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	secondaryIps := make([]string, 0)
 	secondaryIps = append(secondaryIps, desiredIpAddress)
-	cnsClient, _ := InitCnsClient("")
+	cnsClient, _ := InitCnsClient("", 2*time.Second)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -226,14 +261,8 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	if reflect.DeepEqual(desired, resultIPnet) != true {
 		t.Fatalf("Desired result not matching actual result, expected: %+v, actual: %+v", desired, resultIPnet)
 	}
-
-	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(orchestratorContext)
-	if err != nil {
-		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
-	}
-
-	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(cns.Available)
+	//checking for allocated IP address and pod context printing before ReleaseIPAddress is called
+	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(cns.Allocated)
 	if err != nil {
 		t.Fatalf("Get allocated IP addresses failed %+v", err)
 	}
@@ -242,7 +271,124 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 		t.Fatalf("Number of available IP addresses expected to be 1, actual %+v", ipaddresses)
 	}
 
-	if ipaddresses[0].IPAddress != desiredIpAddress && ipaddresses[0].State != cns.Available {
+	if ipaddresses[0].IPAddress != desiredIpAddress && ipaddresses[0].State != cns.Allocated {
 		t.Fatalf("Available IP address does not match expected, address state: %+v", ipaddresses)
 	}
+
+	t.Log(ipaddresses)
+
+	// release requested IP address, expect success
+	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	if err != nil {
+		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
+	}
+}
+
+func TestCNSClientPodContextApi(t *testing.T) {
+	podName := "testpodname"
+	podNamespace := "testpodnamespace"
+	desiredIpAddress := "10.0.0.5"
+
+	secondaryIps := []string{desiredIpAddress}
+	cnsClient, _ := InitCnsClient("", 2*time.Second)
+
+	addTestStateToRestServer(t, secondaryIps)
+
+	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
+	orchestratorContext, err := json.Marshal(podInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// request IP address
+	_, err = cnsClient.RequestIPAddress(orchestratorContext)
+	if err != nil {
+		t.Fatalf("get IP from CNS failed with %+v", err)
+	}
+
+	//test for pod ip by orch context map
+	podcontext, err := cnsClient.GetPodOrchestratorContext()
+	if err != nil {
+		t.Errorf("Get pod ip by orchestrator context failed:  %+v", err)
+	}
+	if len(podcontext) < 1 {
+		t.Errorf("Expected atleast 1 entry in map for podcontext:  %+v", podcontext)
+	}
+
+	t.Log(podcontext)
+
+	// release requested IP address, expect success
+	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	if err != nil {
+		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
+	}
+}
+
+func TestCNSClientDebugAPI(t *testing.T) {
+	podName := "testpodname"
+	podNamespace := "testpodnamespace"
+	desiredIpAddress := "10.0.0.5"
+
+	secondaryIps := []string{desiredIpAddress}
+	cnsClient, _ := InitCnsClient("", 2*time.Second)
+
+	addTestStateToRestServer(t, secondaryIps)
+
+	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
+	orchestratorContext, err := json.Marshal(podInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// request IP address
+	_, err1 := cnsClient.RequestIPAddress(orchestratorContext)
+	if err1 != nil {
+		t.Fatalf("get IP from CNS failed with %+v", err1)
+	}
+
+	//test for debug api/cmd to get inmemory data from HTTPRestService
+	inmemory, err := cnsClient.GetHTTPServiceData()
+	if err != nil {
+		t.Errorf("Get in-memory http REST Struct failed %+v", err)
+	}
+
+	if len(inmemory.HttpRestServiceData.PodIPIDByOrchestratorContext) < 1 {
+		t.Errorf("OrchestratorContext map is expected but not returned")
+	}
+
+	//testing Pod IP Configuration Status values set for test
+	podConfig := inmemory.HttpRestServiceData.PodIPConfigState
+	for _, v := range podConfig {
+		if v.IPAddress != "10.0.0.5" || v.State != "Allocated" || v.NCID != "testNcId1" {
+			t.Errorf("Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
+		}
+	}
+	if len(inmemory.HttpRestServiceData.PodIPConfigState) < 1 {
+		t.Errorf("PodIpConfigState with atleast 1 entry expected but not returned.")
+	}
+
+	testIpamPoolMonitor := inmemory.HttpRestServiceData.IPAMPoolMonitor
+	if testIpamPoolMonitor.MinimumFreeIps != 10 || testIpamPoolMonitor.MaximumFreeIps != 20 || testIpamPoolMonitor.UpdatingIpsNotInUseCount != 13 {
+		t.Errorf("IPAMPoolMonitor state is not reflecting the initial set values, %+v", testIpamPoolMonitor)
+	}
+
+	//check for cached NNC Spec struct values
+	if testIpamPoolMonitor.CachedNNC.Spec.RequestedIPCount != 16 || len(testIpamPoolMonitor.CachedNNC.Spec.IPsNotInUse) != 1 {
+		t.Errorf("IPAMPoolMonitor cached NNC Spec is not reflecting the initial set values, %+v", testIpamPoolMonitor.CachedNNC.Spec)
+	}
+
+	//check for cached NNC Status struct values
+	if testIpamPoolMonitor.CachedNNC.Status.Scaler.BatchSize != 10 || testIpamPoolMonitor.CachedNNC.Status.Scaler.ReleaseThresholdPercent != 50 || testIpamPoolMonitor.CachedNNC.Status.Scaler.RequestThresholdPercent != 40 {
+		t.Errorf("IPAMPoolMonitor cached NNC Status is not reflecting the initial set values, %+v", testIpamPoolMonitor.CachedNNC.Status.Scaler)
+	}
+
+	if len(testIpamPoolMonitor.CachedNNC.Status.NetworkContainers) != 1 {
+		t.Errorf("Expected only one Network Container in the list, %+v", testIpamPoolMonitor.CachedNNC.Status.NetworkContainers)
+	}
+
+	t.Logf("In-memory Data: ")
+	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HttpRestServiceData.PodIPIDByOrchestratorContext)
+	t.Logf("PodIPConfigState: %+v", inmemory.HttpRestServiceData.PodIPConfigState)
+	t.Logf("IPAMPoolMonitor: %+v", inmemory.HttpRestServiceData.IPAMPoolMonitor)
+
 }

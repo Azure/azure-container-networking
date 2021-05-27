@@ -13,12 +13,12 @@ jobs:
 - job: setup
   displayName: "Configure Test Environment"
   pool:
-    name: Networking-ContainerNetworking
+    name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
   container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+    image: "$(BUILD_IMAGE)"
   steps:
 
   - checkout: self
@@ -44,12 +44,12 @@ jobs:
 - job: Build_test
   displayName: "Build NPM and Kubernetes Test Suite"
   pool:
-    name: Networking-ContainerNetworking
+    name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
   container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+    image: "$(BUILD_IMAGE)"
   dependsOn: [setup]
   variables:
     GOBIN: "$(GOPATH)/bin" # Go binaries path
@@ -64,14 +64,27 @@ jobs:
 
   - checkout: self
 
+  - task: Docker@2
+    displayName: Docker Login
+    inputs:
+      containerRegistry: $(ACR_SERVICE_CONNECTION)
+      command: 'login'
+      addPipelineData: false
+
   - script: |
       go env
       echo Tag: $(TAG)
       echo ResourceGroup: $(RESOURCE_GROUP)
       VERSION=$(TAG) make azure-npm-image
-      echo '$(DOCKER_PASSWORD)' | docker login $IMAGE_REGISTRY -u '$(DOCKER_USERNAME)' --password-stdin
       docker push $IMAGE_REGISTRY/azure-npm:$(TAG)
     displayName: 'Build and Push NPM Image'
+
+  - task: Docker@2
+    displayName: Docker Logout
+    inputs:
+      containerRegistry: $(ACR_SERVICE_CONNECTION)
+      command: 'logout'
+      addPipelineData: false
 
   - script: git clone https://github.com/vakalapa/kubernetes.git
     displayName: 'Clone Kubernetes Repo'
@@ -87,12 +100,12 @@ jobs:
 - job: Create_cluster
   displayName: "Deploy AKS Cluster"
   pool:
-    name: Networking-ContainerNetworking
+    name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
   container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+    image: "$(BUILD_IMAGE)"
   dependsOn: [setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
@@ -107,7 +120,7 @@ jobs:
   - task: AzureCLI@2
     displayName: "Deploy"
     inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
@@ -123,12 +136,12 @@ jobs:
   timeoutInMinutes: 360
   displayName: "Run Kubernetes Network Policy Test Suite"
   pool:
-    name: Networking-ContainerNetworking
+    name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
   container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+    image: "$(BUILD_IMAGE)"
   dependsOn: [Create_cluster, Build_test, setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
@@ -140,7 +153,7 @@ jobs:
   - task: AzureCLI@2
     displayName: "Deploy NPM to Test Cluster"
     inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
@@ -164,25 +177,32 @@ jobs:
         echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
   - bash: |
-      ls -la
-      ls
-      ls -la $(Pipeline.Workspace)
-      ls -la $(Pipeline.Workspace)/Test
       echo $FQDN
-      ls ~
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
       KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
     displayName: "Run Test Suite"
+  - bash: |
+      curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
+      chmod +x kubectl
+      npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
+      mkdir -p $(System.DefaultWorkingDirectory)/npmLogs
+      for npm in $npmPodList; do ./kubectl logs -n kube-system $npm --kubeconfig=./kubeconfig > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
+    displayName: "Gather NPM Logs"
+    condition: always()
+
+  - publish: $(System.DefaultWorkingDirectory)/npmLogs
+    condition: always()
+    artifact: NpmLogs
 
 - job: Clean_up
   displayName: "Cleanup"
   pool:
-    name: Networking-ContainerNetworking
+    name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
   container:
-    image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
+    image: "$(BUILD_IMAGE)"
   condition: always()
   dependsOn: [Run_test, setup]
   variables:
@@ -193,7 +213,7 @@ jobs:
     - task: AzureCLI@2
       displayName: "Delete Test Cluster Resource Group"
       inputs:
-        azureSubscription: $(BUILD_VALIDATIONS_SUBSCRIPTION)
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |

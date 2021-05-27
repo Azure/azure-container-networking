@@ -319,14 +319,19 @@ func applyDnsConfig(extIf *externalInterface, ifName string) error {
 			setDnsList = setDnsList + " " + buf
 		}
 
-		cmd := fmt.Sprintf("systemd-resolve --interface=%s%s", ifName, setDnsList)
-		_, err = platform.ExecuteCommand(cmd)
-		if err != nil {
-			return err
+		if setDnsList != "" {
+			cmd := fmt.Sprintf("systemd-resolve --interface=%s%s", ifName, setDnsList)
+			_, err = platform.ExecuteCommand(cmd)
+			if err != nil {
+				return err
+			}
 		}
 
-		cmd = fmt.Sprintf("systemd-resolve --interface=%s --set-domain=%s", ifName, extIf.DNSInfo.Suffix)
-		_, err = platform.ExecuteCommand(cmd)
+		if extIf.DNSInfo.Suffix != "" {
+			cmd := fmt.Sprintf("systemd-resolve --interface=%s --set-domain=%s", ifName, extIf.DNSInfo.Suffix)
+			_, err = platform.ExecuteCommand(cmd)
+		}
+
 	}
 
 	return err

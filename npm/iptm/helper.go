@@ -10,6 +10,7 @@ import (
 func getAllChainsAndRules() [][]string {
 	funcList := []func() [][]string{
 		getAzureNPMChainRules,
+		getAzureNPMAcceptChainRules,
 		getAzureNPMIngressChainRules,
 		getAzureNPMIngressPortChainRules,
 		getAzureNPMIngressFromChainRules,
@@ -44,7 +45,7 @@ func getAzureNPMChainRules() [][]string {
 		{
 			util.IptablesAzureChain,
 			util.IptablesJumpFlag,
-			util.IptablesAccept,
+			util.IptablesAzureAcceptChain,
 			util.IptablesModuleFlag,
 			util.IptablesMarkVerb,
 			util.IptablesMarkFlag,
@@ -57,7 +58,7 @@ func getAzureNPMChainRules() [][]string {
 		{
 			util.IptablesAzureChain,
 			util.IptablesJumpFlag,
-			util.IptablesAccept,
+			util.IptablesAzureAcceptChain,
 			util.IptablesModuleFlag,
 			util.IptablesMarkVerb,
 			util.IptablesMarkFlag,
@@ -70,7 +71,7 @@ func getAzureNPMChainRules() [][]string {
 		{
 			util.IptablesAzureChain,
 			util.IptablesJumpFlag,
-			util.IptablesAccept,
+			util.IptablesAzureAcceptChain,
 			util.IptablesModuleFlag,
 			util.IptablesMarkVerb,
 			util.IptablesMarkFlag,
@@ -92,6 +93,32 @@ func getAzureNPMChainRules() [][]string {
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
 			fmt.Sprintf("ACCEPT-on-connection-state"),
+		},
+	}
+}
+
+// getAzureNPMAcceptChainRules clears all marks and accepts packets
+func getAzureNPMAcceptChainRules() [][]string {
+	return [][]string{
+		{
+			util.IptablesAzureAcceptChain,
+			util.IptablesJumpFlag,
+			util.IptablesMark,
+			util.IptablesSetMarkFlag,
+			util.IptablesAzureClearMarkHex,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			fmt.Sprintf("Clear-AZURE-NPM-MARKS"),
+		},
+		{
+			util.IptablesAzureAcceptChain,
+			util.IptablesJumpFlag,
+			util.IptablesAccept,
+			util.IptablesModuleFlag,
+			util.IptablesCommentModuleFlag,
+			util.IptablesCommentFlag,
+			fmt.Sprintf("ACCEPT-All-packets"),
 		},
 	}
 }

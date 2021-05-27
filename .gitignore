@@ -14,3 +14,9 @@ ipam-*.xml
 
 # Goland
 .idea/*
+
+# Logs
+*.log
+
+# debug test files
+*.test

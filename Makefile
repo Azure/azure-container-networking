@@ -87,11 +87,13 @@ CNMS_DIR = cnms/service
 NPM_DIR = npm/plugin
 OUTPUT_DIR = output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
+IMAGE_DIR  = $(OUTPUT_DIR)/images
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
 ACNCLI_BUILD_DIR = $(BUILD_DIR)/acncli
 CNI_MULTITENANCY_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
+CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 CNMS_BUILD_DIR = $(BUILD_DIR)/cnms
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
@@ -104,7 +106,7 @@ ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
 BUILD_CONTAINER_IMAGE = acn-build
 BUILD_CONTAINER_NAME = acn-builder
 BUILD_CONTAINER_REPO_PATH = /go/src/github.com/Azure/azure-container-networking
-BUILD_USER ?= $(shell id -u)
+
 
 # Target OS specific parameters.
 ifeq ($(GOOS),linux)
@@ -124,6 +126,7 @@ CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNMS_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
@@ -181,7 +184,7 @@ all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
 endif
 
 ifeq ($(GOOS),linux)
-all-images: azure-npm-image azure-cns-aks-swift-image 
+all-images: azure-npm-image azure-cns-image 
 else
 all-images:
 	@echo "Nothing to build. Skip."
@@ -245,7 +248,6 @@ all-containerized:
 			export GOARCH=$(GOARCH) && \
 			make all-binaries && \
 			make all-images && \
-			chown -R $(BUILD_USER):$(BUILD_USER) $(BUILD_DIR) \
 		'
 	docker cp $(BUILD_CONTAINER_NAME):$(BUILD_CONTAINER_REPO_PATH)/$(BUILD_DIR) $(OUTPUT_DIR)
 	docker rm $(BUILD_CONTAINER_NAME)
@@ -263,7 +265,7 @@ tools: acncli
 
 .PHONY: tools-images
 tools-images: 
-	docker build -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
+	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
 .PHONY: azure-vnet-plugin-image
@@ -306,13 +308,14 @@ publish-azure-vnet-plugin-image:
 .PHONY: azure-npm-image
 azure-npm-image: azure-npm
 ifeq ($(GOOS),linux)
+	mkdir -p $(IMAGE_DIR)
 	docker build \
 	--no-cache \
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(VERSION) \
 	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
 	.
-	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(NPM_BUILD_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
+	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
 endif
 
 # Publish the Azure NPM image to a Docker registry
@@ -330,7 +333,7 @@ ifeq ($(GOOS),linux)
 	-t $(AZURE_CNMS_IMAGE):$(VERSION) \
 	--build-arg CNMS_BUILD_DIR=$(CNMS_BUILD_DIR) \
 	.
-	docker save $(AZURE_CNMS_IMAGE):$(VERSION) | gzip -c > $(CNMS_BUILD_DIR)/$(CNMS_IMAGE_ARCHIVE_NAME)
+	docker save $(AZURE_CNMS_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNMS_IMAGE_ARCHIVE_NAME)
 endif
 
 # Build the Azure vnet telemetry image
@@ -349,29 +352,20 @@ azure-vnet-telemetry-image: azure-vnet-telemetry
 publish-azure-vnet-telemetry-image:
 	docker push $(AZURE_VNET_TELEMETRY_IMAGE):$(VERSION)
 
-# Build the Azure CNS image.
+# Build the Azure CNS image
 .PHONY: azure-cns-image
-azure-cns-image: azure-cns
+azure-cns-image:
 ifeq ($(GOOS),linux)
+	mkdir -p $(IMAGE_DIR)
 	docker build \
+	--no-cache \
 	-f cns/Dockerfile \
-	-t $(AZURE_CNS_IMAGE):$(VERSION) \
-	--build-arg CNS_BUILD_ARCHIVE=$(CNS_BUILD_DIR)/$(CNS_IMAGE_ARCHIVE_NAME) \
-	.
-	docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(CNS_BUILD_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
-endif
-
-# Build the Azure CNS image for AKS Swift.
-.PHONY: azure-cns-aks-swift-image
-azure-cns-aks-swift-image:
-ifeq ($(GOOS),linux)
-	docker build \
-	-f cns/aks.Dockerfile \
 	-t $(AZURE_CNS_IMAGE):$(VERSION) \
 	--build-arg VERSION=$(VERSION) \
 	--build-arg CNS_AI_PATH=$(cnsaipath) \
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
 	.
+	docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
 endif
 
 # Publish the Azure NPM image to a Docker registry
@@ -386,7 +380,6 @@ cni-archive:
 	cp telemetry/azure-vnet-telemetry.config $(CNI_BUILD_DIR)/azure-vnet-telemetry.config
 	chmod 0755 $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT)
 	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
-	chown $(BUILD_USER):$(BUILD_USER) $(CNI_BUILD_DIR)/$(CNI_ARCHIVE_NAME)
 
 	mkdir -p $(CNI_MULTITENANCY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-multitenancy.conflist $(CNI_MULTITENANCY_BUILD_DIR)/10-azure.conflist
@@ -394,7 +387,15 @@ cni-archive:
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_MULTITENANCY_BUILD_DIR)
 	chmod 0755 $(CNI_MULTITENANCY_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_MULTITENANCY_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
 	cd $(CNI_MULTITENANCY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
-	chown $(BUILD_USER):$(BUILD_USER) $(CNI_MULTITENANCY_BUILD_DIR)/$(CNI_MULTITENANCY_ARCHIVE_NAME)
+
+#baremetal mode is windows only (at least for now)
+ifeq ($(GOOS),windows)
+	mkdir -p $(CNI_BAREMETAL_BUILD_DIR)
+	cp cni/azure-$(GOOS)-baremetal.conflist $(CNI_BAREMETAL_BUILD_DIR)/10-azure.conflist
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BAREMETAL_BUILD_DIR)
+	chmod 0755 $(CNI_BAREMETAL_BUILD_DIR)/azure-vnet$(EXE_EXT)
+	cd $(CNI_BAREMETAL_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_BAREMETAL_ARCHIVE_NAME) azure-vnet$(EXE_EXT) 10-azure.conflist
+endif
 
 #swift mode is linux only
 ifeq ($(GOOS),linux)
@@ -404,7 +405,6 @@ ifeq ($(GOOS),linux)
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
 	chmod 0755 $(CNI_SWIFT_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
 	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
-	chown $(BUILD_USER):$(BUILD_USER) $(CNI_SWIFT_BUILD_DIR)/$(CNI_SWIFT_ARCHIVE_NAME)
 endif	
 
 # Create a CNM archive for the target platform.
@@ -412,7 +412,6 @@ endif
 cnm-archive:
 	chmod 0755 $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT)
 	cd $(CNM_BUILD_DIR) && $(ARCHIVE_CMD) $(CNM_ARCHIVE_NAME) azure-vnet-plugin$(EXE_EXT)
-	chown $(BUILD_USER):$(BUILD_USER) $(CNM_BUILD_DIR)/$(CNM_ARCHIVE_NAME)
 
 # Create a CNM archive for the target platform.
 .PHONY: acncli-archive
@@ -421,7 +420,6 @@ ifeq ($(GOOS),linux)
 	mkdir -p $(ACNCLI_BUILD_DIR)
 	chmod 0755 $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT)
 	cd $(ACNCLI_BUILD_DIR) && $(ARCHIVE_CMD) $(ACNCLI_ARCHIVE_NAME) acn$(EXE_EXT)
-	chown $(BUILD_USER):$(BUILD_USER) $(ACNCLI_BUILD_DIR)/$(ACNCLI_ARCHIVE_NAME)
 endif
 
 
@@ -431,7 +429,6 @@ cns-archive:
 	cp cns/configuration/cns_config.json $(CNS_BUILD_DIR)/cns_config.json
 	chmod 0755 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT)
 	cd $(CNS_BUILD_DIR) && $(ARCHIVE_CMD) $(CNS_ARCHIVE_NAME) azure-cns$(EXE_EXT) cns_config.json
-	chown $(BUILD_USER):$(BUILD_USER) $(CNS_BUILD_DIR)/$(CNS_ARCHIVE_NAME)
 
 # Create a CNMS archive for the target platform. Only Linux is supported for now.
 .PHONY: cnms-archive
@@ -439,7 +436,6 @@ cnms-archive:
 ifeq ($(GOOS),linux)
 	chmod 0755 $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT)
 	cd $(CNMS_BUILD_DIR) && $(ARCHIVE_CMD) $(CNMS_ARCHIVE_NAME) azure-cnms$(EXE_EXT)
-	chown $(BUILD_USER):$(BUILD_USER) $(CNMS_BUILD_DIR)/$(CNMS_ARCHIVE_NAME)
 endif
 
 # Create a NPM archive for the target platform. Only Linux is supported for now.
@@ -448,18 +444,31 @@ npm-archive:
 ifeq ($(GOOS),linux)
 	chmod 0755 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT)
 	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
-	chown $(BUILD_USER):$(BUILD_USER) $(NPM_BUILD_DIR)/$(NPM_ARCHIVE_NAME)
 endif
 
+.PHONY: release
+release:
+	./scripts/semver-release.sh
+	
 
 PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 
 # run all tests
 .PHONY: test-all
 test-all:
-	go test -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out ./...
+	go test -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
 
 # run all tests
 .PHONY: test-integration
 test-integration:
 	go test -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
+
+.PHONY: test-cyclonus
+test-cyclonus:
+	cd test/cyclonus && bash ./test-cyclonus.sh
+	cd ..
+
+.PHONY: kind
+kind:
+	kind create cluster --config ./test/kind/kind.yaml
+	

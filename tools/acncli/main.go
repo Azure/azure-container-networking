@@ -33,7 +33,6 @@ func init() {
 
 func initCommandFlags(commands []*cobra.Command) {
 	for _, cmd := range commands {
-
 		// bind vars from env or conf to pflags
 		viper.BindPFlags(cmd.Flags())
 		cmd.Flags().VisitAll(func(flag *pflag.Flag) {

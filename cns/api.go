@@ -47,7 +47,7 @@ type HTTPService interface {
 	MarkIPAsPendingRelease(numberToMark int) (map[string]IPConfigurationStatus, error)
 }
 
-// This is used for KubernetesCRD orchastrator Type where NC has multiple ips.
+// This is used for KubernetesCRD orchestrator Type where NC has multiple ips.
 // This struct captures the state for SecondaryIPs associated to a given NC
 type IPConfigurationStatus struct {
 	NCID                string
@@ -175,6 +175,15 @@ type NodeConfiguration struct {
 type IPAMPoolMonitor interface {
 	Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error
 	Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
+	GetStateSnapshot() IpamPoolMonitorStateSnapshot
+}
+
+//struct to expose state values for IPAMPoolMonitor struct
+type IpamPoolMonitorStateSnapshot struct {
+	MinimumFreeIps           int64
+	MaximumFreeIps           int64
+	UpdatingIpsNotInUseCount int
+	CachedNNC                nnc.NodeNetworkConfig
 }
 
 // Response describes generic response from CNS.
