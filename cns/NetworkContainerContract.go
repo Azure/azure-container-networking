@@ -218,7 +218,8 @@ type HostIPInfo struct {
 
 type IPConfigRequest struct {
 	DesiredIPAddress    string
-	ContainerID         string
+	PodInterfaceID      string
+	InfraContainerID    string
 	OrchestratorContext json.RawMessage
 }
 
