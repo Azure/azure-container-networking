@@ -177,21 +177,12 @@ stages:
         steps:
 
           - script: |
-              go env
-              export PATH=$HOME/go/bin:$PATH
-              go get github.com/docker/libnetwork/driverapi
-              go get github.com/gorilla/mux
-              go get github.com/jstemmer/go-junit-report
-              go get github.com/axw/gocov/gocov
-              go get github.com/AlekSi/gocov-xml
-              go get github.com/matm/gocov-html
-              go get github.com/rakyll/gotest
-
+              make tools
               # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
               { { { { 
                     sudo -E env "PATH=$PATH" make test-all; 
                     echo $? >&3; 
-                    } | tee >(go-junit-report > report.xml) >&4; 
+                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4; 
                   } 3>&1; 
                 } | { read xs; exit $xs; } 
               } 4>&1
@@ -199,9 +190,8 @@ stages:
             displayName: "Run Tests"
 
           - bash: |
-              export PATH=$HOME/go/bin:$PATH
-              gocov convert coverage.out > coverage.json
-              gocov-xml < coverage.json > coverage.xml
+              build/tools/bin/gocov convert coverage.out > coverage.json
+              build/tools/bin/gocov-xml < coverage.json > coverage.xml
             name: "Coverage"
             displayName: "Generate Coverage Reports"
             condition: always()

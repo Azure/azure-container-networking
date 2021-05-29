@@ -480,7 +480,27 @@ $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
 
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
-$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen
+$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
-controller-gen: $(CONTROLLER_GEN)
+controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
+
+GOCOV := $(TOOLS_BIN_DIR)/gocov
+$(GOCOV): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov github.com/axw/gocov/gocov
+
+gocov: $(GOCOV) ## Build gocov
+
+GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
+$(GOCOV_XML): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov-xml github.com/AlekSi/gocov-xml
+
+gocov-xml: $(GOCOV_XML) ## Build gocov-xml
+
+GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
+$(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/go-junit-report github.com/jstemmer/go-junit-report
+
+go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
+
+tools: gocov gocov-xml go-junit-report ## Build bins for built tools
