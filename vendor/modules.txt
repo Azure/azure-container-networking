@@ -51,8 +51,19 @@ github.com/containernetworking/cni/pkg/types/current
 github.com/containernetworking/cni/pkg/version
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/docker/libnetwork v0.5.6
+# github.com/docker/docker v0.7.3-0.20190327010347-be7ac8be2ae0
+github.com/docker/docker/pkg/ioutils
+github.com/docker/docker/pkg/longpath
+github.com/docker/docker/pkg/plugingetter
+github.com/docker/docker/pkg/plugins
+github.com/docker/docker/pkg/plugins/transport
+# github.com/docker/go-connections v0.4.0
 ## explicit
+github.com/docker/go-connections/sockets
+github.com/docker/go-connections/tlsconfig
+# github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
+## explicit
+github.com/docker/libnetwork/discoverapi
 github.com/docker/libnetwork/driverapi
 github.com/docker/libnetwork/drivers/remote/api
 github.com/docker/libnetwork/types
@@ -97,8 +108,6 @@ github.com/googleapis/gnostic/extensions
 # github.com/gorilla/mux v1.8.0
 ## explicit
 github.com/gorilla/mux
-# github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
-## explicit
 # github.com/hashicorp/golang-lru v0.5.3
 ## explicit
 github.com/hashicorp/golang-lru
@@ -125,11 +134,16 @@ github.com/hpcloud/tail/winfile
 github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
+# github.com/ishidawataru/sctp v0.0.0-20210226210310-f2269e66cdee
+## explicit
+github.com/ishidawataru/sctp
 # github.com/json-iterator/go v1.1.8
 github.com/json-iterator/go
 # github.com/konsorten/go-windows-terminal-sequences v1.0.2
 ## explicit
 github.com/konsorten/go-windows-terminal-sequences
+# github.com/kr/pretty v0.2.0
+## explicit
 # github.com/magiconair/properties v1.8.0
 github.com/magiconair/properties
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
@@ -187,8 +201,6 @@ github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
 # github.com/pelletier/go-toml v1.2.0
 github.com/pelletier/go-toml
-# github.com/petar/GoLLRB v0.0.0-20190514000832-33fb24c13b99
-## explicit
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
@@ -232,6 +244,10 @@ github.com/spf13/viper
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
+# github.com/vishvananda/netlink v1.1.0
+## explicit
+# github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
+## explicit
 # go.opencensus.io v0.22.2
 ## explicit
 go.opencensus.io
@@ -253,7 +269,9 @@ golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
+golang.org/x/net/internal/socks
 golang.org/x/net/internal/timeseries
+golang.org/x/net/proxy
 golang.org/x/net/trace
 # golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 golang.org/x/oauth2
@@ -269,7 +287,6 @@ golang.org/x/sys/windows/registry
 ## explicit
 golang.org/x/term
 # golang.org/x/text v0.3.6
-## explicit
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
 golang.org/x/text/encoding/htmlindex
@@ -293,8 +310,6 @@ golang.org/x/text/unicode/norm
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 ## explicit
 golang.org/x/time/rate
-# golang.org/x/tools v0.1.1
-## explicit
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
@@ -310,7 +325,6 @@ google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
 # google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
-## explicit
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.27.0
 ## explicit
@@ -391,6 +405,8 @@ gopkg.in/tomb.v1
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 gopkg.in/yaml.v3
+# gotest.tools/v3 v3.0.2
+## explicit
 # k8s.io/api v0.18.19
 ## explicit
 k8s.io/api/admission/v1beta1
@@ -752,5 +768,3 @@ sigs.k8s.io/controller-runtime/pkg/webhook/internal/metrics
 sigs.k8s.io/structured-merge-diff/v3/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# software.sslmate.com/src/go-pkcs12 v0.0.0-20201102150903-66718f75db0e
-## explicit
