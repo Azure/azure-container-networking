@@ -50,7 +50,7 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, subnetPrefix *net
 	defer func() {
 		if err != nil {
 			if len(result.IPs) > 0 {
-				invoker.plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, options)
+				invoker.plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, nil, options)
 			} else {
 				err = fmt.Errorf("No IP's to delete on error: %v", err)
 			}
@@ -79,7 +79,7 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, subnetPrefix *net
 	return result, resultV6, err
 }
 
-func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, options map[string]interface{}) error {
+func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *network.EndpointInfo, options map[string]interface{}) error {
 
 	if nwCfg == nil {
 		return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))

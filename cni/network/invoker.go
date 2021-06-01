@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/network"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
@@ -16,5 +17,5 @@ type IPAMInvoker interface {
 	Add(nwCfg *cni.NetworkConfig, subnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error)
 
 	//Delete calls to the invoker source, and returns error. Returning an error here will fail the CNI Delete call.
-	Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, options map[string]interface{}) error
+	Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, epInfo *network.EndpointInfo, options map[string]interface{}) error
 }
