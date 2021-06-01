@@ -224,8 +224,8 @@ type IPConfigRequest struct {
 }
 
 func (i IPConfigRequest) String() string {
-	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, OrchestratorContext %s]",
-		i.DesiredIPAddress, string(i.OrchestratorContext))
+	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
+		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
