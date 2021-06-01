@@ -21,10 +21,9 @@ const (
 )
 
 type CNSIPAMInvoker struct {
-	podName              string
-	podNamespace         string
-	primaryInterfaceName string
-	cnsClient            *cnsclient.CNSClient
+	podName      string
+	podNamespace string
+	cnsClient    *cnsclient.CNSClient
 }
 
 type IPv4ResultInfo struct {
@@ -54,6 +53,9 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, hostSubnetPrefix *n
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{PodName: invoker.podName, PodNamespace: invoker.podNamespace}
 	orchestratorContext, err := json.Marshal(podInfo)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	log.Printf("Requesting IP for pod %v", podInfo)
 	response, err := invoker.cnsClient.RequestIPAddress(orchestratorContext)
