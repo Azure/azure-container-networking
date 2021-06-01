@@ -32,11 +32,3 @@ jobs:
 
           # Optional: show only new issues if it's a pull request. The default value is `false`.
           only-new-issues: true
-    
-      - name: Install Go
-        uses: actions/setup-go@v2
-        if: matrix.os == 'ubuntu-latest'
-        
-      - name: Format
-        run: if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then exit 1; fi
-        if: matrix.os == 'ubuntu-latest'
