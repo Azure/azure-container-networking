@@ -6,12 +6,12 @@ package platform
 import (
 	"bytes"
 	"fmt"
+	"golang.org/x/sys/windows"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
-	"golang.org/x/sys/windows"
 
 	"github.com/Azure/azure-container-networking/log"
 )

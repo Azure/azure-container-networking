@@ -42,7 +42,6 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 	logger.Printf("[cns-rc] CRD Spec: %v", nodeNetConfig.Spec)
 
-
 	// If there are no network containers, don't hand it off to CNS
 	if len(nodeNetConfig.Status.NetworkContainers) == 0 {
 		logger.Errorf("[cns-rc] Empty NetworkContainers")
@@ -50,7 +49,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	}
 
 	networkContainer := nodeNetConfig.Status.NetworkContainers[0]
-	logger.Printf("[cns-rc] CRD Status: NcId: [%s], Version: [%d],  podSubnet: [%s], Subnet CIDR: [%s], " +
+	logger.Printf("[cns-rc] CRD Status: NcId: [%s], Version: [%d],  podSubnet: [%s], Subnet CIDR: [%s], "+
 		"Gateway Addr: [%s], Primary IP: [%s], SecondaryIpsCount: [%d]",
 		networkContainer.ID,
 		networkContainer.Version,

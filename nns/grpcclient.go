@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	nnsPort           = "6668" // port where node network service listens at
+	nnsPort           = "6668"          // port where node network service listens at
 	apiTimeout        = 5 * time.Minute // recommended timeout from node service
 	connectionTimeout = 2 * time.Minute
 )

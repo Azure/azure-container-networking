@@ -512,7 +512,7 @@ func main() {
 	}
 
 	logger.Printf("[Azure CNS] Start HTTP listener")
-	if (httpRestService != nil) {
+	if httpRestService != nil {
 		err = httpRestService.Start(&config)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
@@ -686,7 +686,7 @@ func IniitalizeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
 		logger.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v", httpRestService)
-		return  fmt.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v",
+		return fmt.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v",
 			httpRestService)
 	}
 
@@ -703,7 +703,7 @@ func IniitalizeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 		return err
 	}
 
-    // initialize the ipam pool monitor
+	// initialize the ipam pool monitor
 	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
 
 	err = requestController.InitRequestController()

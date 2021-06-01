@@ -38,7 +38,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 		initialIPConfigCount    = 10
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -92,7 +92,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 		initialIPConfigCount    = 10
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -158,7 +158,7 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 		initialIPConfigCount    = 10
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -197,11 +197,11 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 
 func TestPoolIncreasePastNodeLimit(t *testing.T) {
 	var (
-		batchSize = 16
-		initialIPConfigCount = 16
+		batchSize               = 16
+		initialIPConfigCount    = 16
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -229,11 +229,11 @@ func TestPoolIncreasePastNodeLimit(t *testing.T) {
 
 func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	var (
-		batchSize = 50
-		initialIPConfigCount = 16
+		batchSize               = 50
+		initialIPConfigCount    = 16
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -261,12 +261,12 @@ func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 
 func TestPoolIncreaseMaxIPCountSetToZero(t *testing.T) {
 	var (
-		batchSize = 16
-		initialIPConfigCount = 16
+		batchSize               = 16
+		initialIPConfigCount    = 16
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		initialMaxPodIPCount = int64(0)
-		expectedMaxPodIPCount = defaultMaxIPCount
+		initialMaxPodIPCount    = int64(0)
+		expectedMaxPodIPCount   = defaultMaxIPCount
 	)
 
 	_, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, initialMaxPodIPCount)
@@ -282,7 +282,7 @@ func TestPoolDecrease(t *testing.T) {
 		initialIPConfigCount    = 20
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -339,7 +339,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 		initialIPConfigCount    = 20
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 100
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -407,7 +407,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 		initialIPConfigCount    = 30
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 100
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -486,13 +486,13 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 
 func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 	var (
-		batchSize = 16
-		initialIPConfigCount = 30
+		batchSize               = 16
+		initialIPConfigCount    = 30
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
-		expectedRequestedIP = 16
-		expectedDecreaseIP = int(maxPodIPCount) % batchSize
+		maxPodIPCount           = int64(30)
+		expectedRequestedIP     = 16
+		expectedDecreaseIP      = int(maxPodIPCount) % batchSize
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -534,11 +534,11 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 
 func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	var (
-		batchSize = 31
-		initialIPConfigCount = 30
+		batchSize               = 31
+		initialIPConfigCount    = 30
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)

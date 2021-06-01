@@ -5,13 +5,13 @@ package ipam
 
 import (
 	"errors"
+	"github.com/Azure/azure-container-networking/common"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"net"
 	"reflect"
 	"runtime"
 	"testing"
-	"github.com/Azure/azure-container-networking/common"
 )
 
 func TestFileIpam(t *testing.T) {
@@ -276,11 +276,11 @@ var (
 								IsPrimary:  true,
 								IPSubnets: []IPSubnet{
 									{
-										Prefix: "0.0.0.0/24",
+										Prefix:      "0.0.0.0/24",
 										IPAddresses: []IPAddress{},
 									},
 									{
-										Prefix: "0.1.0.0/24",
+										Prefix:      "0.1.0.0/24",
 										IPAddresses: []IPAddress{},
 									},
 									{
@@ -293,22 +293,22 @@ var (
 							},
 							{
 								MacAddress: "111111111111",
-								IsPrimary: false,
+								IsPrimary:  false,
 								IPSubnets: []IPSubnet{
 									{
-										Prefix: "1.0.0.0/24",
+										Prefix:      "1.0.0.0/24",
 										IPAddresses: []IPAddress{},
 									},
 									{
-										Prefix: "1.1.0.0/24",
+										Prefix:      "1.1.0.0/24",
 										IPAddresses: []IPAddress{},
 									},
 								},
 							},
 							{
 								MacAddress: "222222222222",
-								IsPrimary: false,
-								IPSubnets: []IPSubnet{},
+								IsPrimary:  false,
+								IPSubnets:  []IPSubnet{},
 							},
 						},
 					}

@@ -24,8 +24,8 @@ var (
 						ExternalInterfaces: map[string]*externalInterface{},
 					}
 					nm.ExternalInterfaces[ifName] = &externalInterface{
-						Name:		ifName,
-						Subnets:	[]string{"10.0.0.0/16"},
+						Name:    ifName,
+						Subnets: []string{"10.0.0.0/16"},
 					}
 					err := nm.newExternalInterface(ifName, "10.1.0.0/16")
 					Expect(err).To(BeNil())
@@ -43,8 +43,8 @@ var (
 						ExternalInterfaces: map[string]*externalInterface{},
 					}
 					nm.ExternalInterfaces[ifName] = &externalInterface{
-						Name:		ifName,
-						Subnets:	[]string{"10.0.0.0/16", "10.1.0.0/16"},
+						Name:    ifName,
+						Subnets: []string{"10.0.0.0/16", "10.1.0.0/16"},
 					}
 					err := nm.deleteExternalInterface(ifName)
 					Expect(err).NotTo(HaveOccurred())
@@ -60,12 +60,12 @@ var (
 						ExternalInterfaces: map[string]*externalInterface{},
 					}
 					nm.ExternalInterfaces["eth0"] = &externalInterface{
-						Name:		"eth0",
-						Subnets:	[]string{"subnet1", "subnet2"},
+						Name:    "eth0",
+						Subnets: []string{"subnet1", "subnet2"},
 					}
 					nm.ExternalInterfaces["en0"] = &externalInterface{
-						Name:		"en0",
-						Subnets: 	[]string{"subnet3", "subnet4"},
+						Name:    "en0",
+						Subnets: []string{"subnet3", "subnet4"},
 					}
 					exInterface := nm.findExternalInterfaceBySubnet("subnet4")
 					Expect(exInterface.Name).To(Equal("en0"))
@@ -82,7 +82,7 @@ var (
 						ExternalInterfaces: map[string]*externalInterface{},
 					}
 					nm.ExternalInterfaces["eth0"] = &externalInterface{
-						Name:		"eth0",
+						Name: "eth0",
 					}
 					nm.ExternalInterfaces["en0"] = nil
 					exInterface := nm.findExternalInterfaceByName("eth0")
@@ -131,8 +131,8 @@ var (
 					nwInfo := &NetworkInfo{
 						Subnets: []SubnetInfo{{
 							Prefix: net.IPNet{
-								IP: net.IPv4(10,0,0,1),
-								Mask: net.IPv4Mask(255,255,0,0),
+								IP:   net.IPv4(10, 0, 0, 1),
+								Mask: net.IPv4Mask(255, 255, 0, 0),
 							},
 						}},
 					}
@@ -152,7 +152,7 @@ var (
 					}
 					nm.ExternalInterfaces["eth0"].Networks["nw"] = &network{}
 					nwInfo := &NetworkInfo{
-						Id: "nw",
+						Id:           "nw",
 						MasterIfName: "eth0",
 					}
 					nw, err := nm.newNetwork(nwInfo)
@@ -179,8 +179,8 @@ var (
 						ExternalInterfaces: map[string]*externalInterface{},
 					}
 					nm.ExternalInterfaces["eth0"] = &externalInterface{
-						Name:		"eth0",
-						Networks:	map[string]*network{},
+						Name:     "eth0",
+						Networks: map[string]*network{},
 					}
 					nm.ExternalInterfaces["eth0"].Networks["nw1"] = &network{}
 					nw, err := nm.getNetwork("nw1")

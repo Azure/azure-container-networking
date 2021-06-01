@@ -51,7 +51,7 @@ func (fcert *linuxTlsCertificateRetriever) GetPrivateKey() (crypto.PrivateKey, e
 }
 
 // ReadFile reads a from disk
-func (fcert *linuxTlsCertificateRetriever) readFile() ([]byte,error) {
+func (fcert *linuxTlsCertificateRetriever) readFile() ([]byte, error) {
 	content, err := ioutil.ReadFile(fcert.settings.TLSCertificatePath)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading file from path %s with error: %+v ", fcert.settings.TLSCertificatePath, err)
@@ -60,7 +60,7 @@ func (fcert *linuxTlsCertificateRetriever) readFile() ([]byte,error) {
 }
 
 // Parses a file to PEM format
-func (fcert *linuxTlsCertificateRetriever) parsePEMFile(content []byte) (error) {
+func (fcert *linuxTlsCertificateRetriever) parsePEMFile(content []byte) error {
 	pemBlocks := make([]*pem.Block, 0)
 
 	var pemBlock *pem.Block
@@ -96,7 +96,7 @@ func NewTlsCertificateRetriever(settings TlsSettings) (TlsCertificateRetriever, 
 		return nil, fmt.Errorf("Failed to read file with error %+v", err)
 	}
 
-	if err:= linuxCertStoreRetriever.parsePEMFile(content); err != nil{
+	if err := linuxCertStoreRetriever.parsePEMFile(content); err != nil {
 		return nil, fmt.Errorf("Failed to parse PEM file with error %+v", err)
 	}
 

@@ -78,7 +78,6 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	batchSize := pm.getBatchSize() //Use getters in case customer changes batchsize manually
 	maxIPCount := pm.getMaxIPCount()
 
-
 	msg := fmt.Sprintf("[ipam-pool-monitor] Pool Size: %v, Goal Size: %v, BatchSize: %v, MaxIPCount: %v, MinFree: %v, MaxFree:%v, Allocated: %v, Available: %v, Pending Release: %v, Free: %v, Pending Program: %v",
 		cnsPodIPConfigCount, pm.cachedNNC.Spec.RequestedIPCount, batchSize, maxIPCount, pm.MinimumFreeIps, pm.MaximumFreeIps, allocatedPodIPCount, availableIPConfigCount, pendingReleaseIPCount, freeIPConfigCount, pendingProgramCount)
 
@@ -181,13 +180,13 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(existingPendingReleaseIPCount int
 		// Don't want that, so make requestedIPCount 20 (25 - (25 % 10)) so that it is a multiple of the batchsize (10)
 		updatedRequestedIPCount = previouslyRequestedIPCount - modResult
 	} else {
-		// Example: previouscount = 30, batchsize = 10, 30 - 10 = 20 which is multiple of batchsize (10) so all good 
+		// Example: previouscount = 30, batchsize = 10, 30 - 10 = 20 which is multiple of batchsize (10) so all good
 		updatedRequestedIPCount = previouslyRequestedIPCount - batchSize
 	}
 
-  decreaseIPCountBy = previouslyRequestedIPCount - updatedRequestedIPCount
+	decreaseIPCountBy = previouslyRequestedIPCount - updatedRequestedIPCount
 
-  logger.Printf("[ipam-pool-monitor] updatedRequestedIPCount %v", updatedRequestedIPCount)
+	logger.Printf("[ipam-pool-monitor] updatedRequestedIPCount %v", updatedRequestedIPCount)
 
 	if pm.updatingIpsNotInUseCount == 0 ||
 		pm.updatingIpsNotInUseCount < existingPendingReleaseIPCount {
