@@ -38,12 +38,6 @@ var (
 		util.IptablesAzureIngressDropsChain,
 		util.IptablesAzureEgressDropsChain,
 	}
-
-	// IptablesAzureDropsChainList contains list of all NPM DROP chains
-	IptablesAzureDropsChainList = []string{
-		util.IptablesAzureIngressDropsChain,
-		util.IptablesAzureEgressDropsChain,
-	}
 )
 
 // IptEntry represents an iptables rule.
@@ -63,10 +57,11 @@ type IptablesManager struct {
 }
 
 func isDropsChain(chainName string) bool {
-	for _, chain := range IptablesAzureDropsChainList {
-		if chain == chainName {
-			return true
-		}
+
+	// Check if the chain name is one of the two DROP chains
+	if (chainName == util.IptablesAzureIngressDropsChain) ||
+		(chainName == util.IptablesAzureEgressDropsChain) {
+		return true
 	}
 	return false
 }
