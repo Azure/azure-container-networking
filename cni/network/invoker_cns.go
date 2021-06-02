@@ -168,7 +168,7 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, options map[string]interface{}) error {
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, epInfo *network.EndpointInfo, options map[string]interface{}) error {
 
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{PodName: invoker.podName, PodNamespace: invoker.podNamespace}
@@ -178,5 +178,22 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		return err
 	}
 
-	return invoker.cnsClient.ReleaseIPAddress(orchestratorContext)
+	req := cns.IPConfigRequest{
+		OrchestratorContext: orchestratorContext,
+	}
+
+	if address != nil {
+		req.DesiredIPAddress = address.IP.String()
+	} else {
+		log.Printf("CNS invoker called with empty IP address")
+	}
+
+	if epInfo != nil {
+		req.PodInterfaceID = epInfo.Id
+		req.InfraContainerID = epInfo.ContainerID
+	} else {
+		log.Printf("CNS invoker called with empty endpoint information")
+	}
+
+	return invoker.cnsClient.ReleaseIPAddress(&req)
 }
