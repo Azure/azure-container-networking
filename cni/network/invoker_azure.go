@@ -51,7 +51,9 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArg
 	defer func() {
 		if err != nil {
 			if len(result.IPs) > 0 {
-				invoker.plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, nil, options)
+				if er := invoker.plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, nil, options); er != nil {
+					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
+				}
 			} else {
 				err = fmt.Errorf("No IP's to delete on error: %v", err)
 			}

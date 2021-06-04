@@ -3,7 +3,7 @@ package api
 import "net"
 
 type NetworkInterfaceInfo struct {
-	PodName        string // todo: populate these in cni
+	PodName        string 
 	PodNamespace   string
 	PodInterfaceID string
 	ContainerID    string

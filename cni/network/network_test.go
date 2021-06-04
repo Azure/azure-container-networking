@@ -100,8 +100,11 @@ func TestGetSimpleState(t *testing.T) {
 	ep1 := getTestEndpoint("podname1", "podnamespace1", "10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
 	ep2 := getTestEndpoint("podname2", "podnamespace2", "10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
 
-	mockNetworkManager.CreateEndpoint(networkid, ep1)
-	mockNetworkManager.CreateEndpoint(networkid, ep2)
+	err := mockNetworkManager.CreateEndpoint(networkid, ep1)
+	require.NoError(t, err)
+
+	err = mockNetworkManager.CreateEndpoint(networkid, ep2)
+	require.NoError(t, err)
 
 	state, err := plugin.GetSimpleState()
 	require.NoError(t, err)

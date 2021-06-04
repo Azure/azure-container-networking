@@ -26,7 +26,6 @@ func (c *CNIClient) GetState() (*api.AzureCNIState, error) {
 
 	envs := os.Environ()
 	envs = append(envs, fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdState))
-
 	cmd.SetEnv(envs)
 
 	output, err := cmd.CombinedOutput()

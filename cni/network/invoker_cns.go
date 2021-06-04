@@ -58,12 +58,15 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 		return nil, nil, err
 	}
 
-	ipconfig := &cns.IPConfigRequest{
+	endpointId := GetEndpointID(args)
+	ipconfig := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
+		PodInterfaceID:      endpointId,
+		InfraContainerID:    args.ContainerID,
 	}
 
 	log.Printf("Requesting IP for pod %v", podInfo)
-	response, err := invoker.cnsClient.RequestIPAddress(ipconfig)
+	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
 		return nil, nil, err
@@ -183,8 +186,11 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		return err
 	}
 
+	endpointId := GetEndpointID(args)
 	req := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
+		PodInterfaceID:      endpointId,
+		InfraContainerID:    args.ContainerID,
 	}
 
 	if address != nil {
@@ -192,13 +198,6 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 	} else {
 		log.Printf("CNS invoker called with empty IP address")
 	}
-
-	// TODO: construct epinfo id if doesn't exist
-
-	endpointId := GetEndpointID(args)
-
-	req.PodInterfaceID = endpointId
-	req.InfraContainerID = args.ContainerID
 
 	return invoker.cnsClient.ReleaseIPAddress(&req)
 }

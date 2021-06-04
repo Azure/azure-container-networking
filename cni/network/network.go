@@ -156,7 +156,6 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 }
 
 func (plugin *netPlugin) GetSimpleState() (*api.AzureCNIState, error) {
-
 	st := api.AzureCNIState{
 		ContainerInterfaces: make(map[string]api.NetworkInterfaceInfo),
 	}
@@ -510,10 +509,14 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			defer func() {
 				if err != nil {
 					if result != nil && len(result.IPs) > 0 {
-						plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options)
+						if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
+							err = plugin.Errorf("Failed to cleanup when NwInfo was not nil with error %v, after Add failed with error %w", er, err)
+						}
 					}
 					if resultV6 != nil && len(resultV6.IPs) > 0 {
-						plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options)
+						if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
+							err = plugin.Errorf("Failed to cleanup when NwInfo was not nil with error %v, after Add failed with error %w", er, err)
+						}
 					}
 				}
 			}()
@@ -614,10 +617,14 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			defer func() {
 				if err != nil {
 					if result != nil && len(result.IPs) > 0 {
-						plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, nwInfo.Options)
+						if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, nwInfo.Options); er != nil {
+							err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
+						}
 					}
 					if resultV6 != nil && len(resultV6.IPs) > 0 {
-						plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, nwInfo.Options)
+						if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, nwInfo.Options); er != nil {
+							err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
+						}
 					}
 				}
 			}()
