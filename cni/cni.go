@@ -15,6 +15,9 @@ const (
 	CmdDel    = "DEL"
 	CmdUpdate = "UPDATE"
 
+	// nonstandard CNI spec command, used to dump CNI state to stdout
+	CmdState = "STATE"
+
 	// CNI errors.
 	ErrRuntime = 100
 

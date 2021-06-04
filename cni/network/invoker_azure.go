@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
@@ -24,7 +25,7 @@ func NewAzureIpamInvoker(plugin *netPlugin, nwInfo *network.NetworkInfo) *AzureI
 	}
 }
 
-func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, subnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
+func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, subnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
 	var (
 		result   *cniTypesCurr.Result
 		resultV6 *cniTypesCurr.Result
@@ -79,7 +80,7 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, subnetPrefix *net
 	return result, resultV6, err
 }
 
-func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *network.EndpointInfo, options map[string]interface{}) error {
+func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error {
 
 	if nwCfg == nil {
 		return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))

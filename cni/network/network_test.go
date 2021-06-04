@@ -6,26 +6,31 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network"
 	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	"github.com/stretchr/testify/require"
 )
+
+func getTestResources() (*netPlugin, *acnnetwork.MockNetworkManager) {
+	pluginName := "testplugin"
+	config := &common.PluginConfig{}
+	grpcClient := &nns.MockGrpcClient{}
+	plugin, _ := NewPlugin(pluginName, config, grpcClient)
+	plugin.report = &telemetry.CNIReport{}
+	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
+	plugin.nm = mockNetworkManager
+	return plugin, mockNetworkManager
+}
 
 // the Add/Delete methods in Plugin require refactoring to have UT's written for them,
 // but the mocks in this test are a start
 func TestPlugin(t *testing.T) {
-	config := &common.PluginConfig{}
-	pluginName := "testplugin"
-
-	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
-
-	grpcClient := &nns.MockGrpcClient{}
-	plugin, _ := NewPlugin(pluginName, config, grpcClient)
-	plugin.report = &telemetry.CNIReport{}
-	plugin.nm = mockNetworkManager
+	plugin, _ := getTestResources()
 
 	nwCfg := cni.NetworkConfig{
 		Name:              "test-nwcfg",
@@ -70,4 +75,50 @@ func TestPlugin(t *testing.T) {
 	}
 	plugin.nm.CreateNetwork(nwInfo)
 	plugin.Delete(args)
+}
+
+func getTestEndpoint(ipwithcidr, podinterfaceid, infracontainerid string) *acnnetwork.EndpointInfo {
+	ip, ipnet, _ := net.ParseCIDR(ipwithcidr)
+	ipnet.IP = ip
+	ep := acnnetwork.EndpointInfo{
+		Id:          podinterfaceid,
+		ContainerID: infracontainerid,
+		IPAddresses: []net.IPNet{
+			*ipnet,
+		},
+	}
+
+	return &ep
+}
+
+func TestGetSimpleState(t *testing.T) {
+
+	plugin, mockNetworkManager := getTestResources()
+	networkid := "azure"
+
+	ep1 := getTestEndpoint("10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
+	ep2 := getTestEndpoint("10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
+
+	mockNetworkManager.CreateEndpoint(networkid, ep1)
+	mockNetworkManager.CreateEndpoint(networkid, ep2)
+
+	state, err := plugin.GetSimpleState()
+	require.NoError(t, err)
+
+	res := &api.AzureCNIState{
+		ContainerInterfaces: map[string]api.NetworkInterfaceInfo{
+			ep1.Id: {
+				PodInterfaceID: ep1.Id,
+				ContainerID:    ep1.ContainerID,
+				IPAddresses:    ep1.IPAddresses,
+			},
+			ep2.Id: {
+				PodInterfaceID: ep2.Id,
+				ContainerID:    ep2.ContainerID,
+				IPAddresses:    ep2.IPAddresses,
+			},
+		},
+	}
+	
+	require.Exactly(t, res, state)
 }

@@ -6,11 +6,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-container-networking/nns"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"time"
+
+	"github.com/Azure/azure-container-networking/nns"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/network"
@@ -229,6 +230,11 @@ func main() {
 	// Check CNI_COMMAND value for logging purposes.
 	cniCmd := os.Getenv(cni.Cmd)
 	log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
+
+	// used to dump state
+	if cniCmd == cni.CmdState {
+		netPlugin.GetSimpleState()
+	}
 
 	handled, err := handleIfCniUpdate(netPlugin.Update)
 	if handled == true {
