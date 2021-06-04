@@ -1,6 +1,7 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -119,6 +120,7 @@ func TestGetSimpleState(t *testing.T) {
 			},
 		},
 	}
-	
+	b, _ := json.Marshal(res)
+	require.FailNow(t, string(b))
 	require.Exactly(t, res, state)
 }
