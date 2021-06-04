@@ -227,13 +227,52 @@ func main() {
 		panic("network plugin start fatal error")
 	}
 
+	defer func() {
+		netPlugin.Stop()
+
+		// release cni lock
+		if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(false); errUninit != nil {
+			log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
+		}
+
+		executionTimeMs := time.Since(startTime).Milliseconds()
+
+		if err != nil {
+			reportPluginError(reportManager, tb, err)
+			panic("network plugin execute fatal error")
+		}
+
+		// Report CNI successfully finished execution.
+		reflect.ValueOf(reportManager.Report).Elem().FieldByName("CniSucceeded").SetBool(true)
+		reflect.ValueOf(reportManager.Report).Elem().FieldByName("OperationDuration").SetInt(executionTimeMs)
+
+		if cniReport.ErrorMessage != "" || cniReport.EventMessage != "" {
+			if err = reportManager.SendReport(tb); err != nil {
+				log.Errorf("SendReport failed due to %v", err)
+			} else {
+				log.Printf("Sending report succeeded")
+			}
+		}
+	}()
+
 	// Check CNI_COMMAND value for logging purposes.
 	cniCmd := os.Getenv(cni.Cmd)
 	log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
 
 	// used to dump state
 	if cniCmd == cni.CmdState {
-		netPlugin.GetSimpleState()
+		log.Printf("Retrieving state")
+		simpleState, err := netPlugin.GetSimpleState()
+		if err != nil {
+			log.Errorf("Failed to get Azure CNI state, err:%v.\n", err)
+		}
+		b, err := json.Marshal(simpleState)
+		if err != nil {
+			log.Errorf("Failed to unmarshall Azure CNI state, err:%v.\n", err)
+		}
+		log.Printf("State: %s", string(b))
+		fmt.Printf("%s\n", string(b))
+		return
 	}
 
 	handled, err := handleIfCniUpdate(netPlugin.Update)
@@ -241,31 +280,5 @@ func main() {
 		log.Printf("CNI UPDATE finished.")
 	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
 		log.Errorf("Failed to execute network plugin, err:%v.\n", err)
-	}
-
-	netPlugin.Stop()
-
-	// release cni lock
-	if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(false); errUninit != nil {
-		log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
-	}
-
-	executionTimeMs := time.Since(startTime).Milliseconds()
-
-	if err != nil {
-		reportPluginError(reportManager, tb, err)
-		panic("network plugin execute fatal error")
-	}
-
-	// Report CNI successfully finished execution.
-	reflect.ValueOf(reportManager.Report).Elem().FieldByName("CniSucceeded").SetBool(true)
-	reflect.ValueOf(reportManager.Report).Elem().FieldByName("OperationDuration").SetInt(executionTimeMs)
-
-	if cniReport.ErrorMessage != "" || cniReport.EventMessage != "" {
-		if err = reportManager.SendReport(tb); err != nil {
-			log.Errorf("SendReport failed due to %v", err)
-		} else {
-			log.Printf("Sending report succeeded")
-		}
 	}
 }

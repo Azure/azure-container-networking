@@ -1,7 +1,6 @@
 package network
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -75,15 +74,17 @@ func TestPlugin(t *testing.T) {
 		Options: make(map[string]interface{}),
 	}
 	plugin.nm.CreateNetwork(nwInfo)
-	plugin.Delete(args)
+	//	plugin.Delete(args)
 }
 
-func getTestEndpoint(ipwithcidr, podinterfaceid, infracontainerid string) *acnnetwork.EndpointInfo {
+func getTestEndpoint(podname, podnamespace, ipwithcidr, podinterfaceid, infracontainerid string) *acnnetwork.EndpointInfo {
 	ip, ipnet, _ := net.ParseCIDR(ipwithcidr)
 	ipnet.IP = ip
 	ep := acnnetwork.EndpointInfo{
-		Id:          podinterfaceid,
-		ContainerID: infracontainerid,
+		PODName:      podname,
+		PODNameSpace: podnamespace,
+		Id:           podinterfaceid,
+		ContainerID:  infracontainerid,
 		IPAddresses: []net.IPNet{
 			*ipnet,
 		},
@@ -93,12 +94,11 @@ func getTestEndpoint(ipwithcidr, podinterfaceid, infracontainerid string) *acnne
 }
 
 func TestGetSimpleState(t *testing.T) {
-
 	plugin, mockNetworkManager := getTestResources()
 	networkid := "azure"
 
-	ep1 := getTestEndpoint("10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
-	ep2 := getTestEndpoint("10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
+	ep1 := getTestEndpoint("podname1", "podnamespace1", "10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
+	ep2 := getTestEndpoint("podname2", "podnamespace2", "10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
 
 	mockNetworkManager.CreateEndpoint(networkid, ep1)
 	mockNetworkManager.CreateEndpoint(networkid, ep2)
@@ -110,17 +110,20 @@ func TestGetSimpleState(t *testing.T) {
 		ContainerInterfaces: map[string]api.NetworkInterfaceInfo{
 			ep1.Id: {
 				PodInterfaceID: ep1.Id,
+				PodName:        ep1.PODName,
+				PodNamespace:   ep1.PODNameSpace,
 				ContainerID:    ep1.ContainerID,
 				IPAddresses:    ep1.IPAddresses,
 			},
 			ep2.Id: {
 				PodInterfaceID: ep2.Id,
+				PodName:        ep2.PODName,
+				PodNamespace:   ep2.PODNameSpace,
 				ContainerID:    ep2.ContainerID,
 				IPAddresses:    ep2.IPAddresses,
 			},
 		},
 	}
-	b, _ := json.Marshal(res)
-	require.FailNow(t, string(b))
+
 	require.Exactly(t, res, state)
 }

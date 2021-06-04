@@ -169,6 +169,8 @@ func (plugin *netPlugin) GetSimpleState() (*api.AzureCNIState, error) {
 	for _, ep := range eps {
 		id := ep.Id
 		info := api.NetworkInterfaceInfo{
+			PodName:        ep.PODName,
+			PodNamespace:   ep.PODNameSpace,
 			PodInterfaceID: ep.Id,
 			ContainerID:    ep.ContainerID,
 			IPAddresses:    ep.IPAddresses,

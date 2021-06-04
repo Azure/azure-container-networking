@@ -1,6 +1,9 @@
 package testingutils
 
 import (
+	"log"
+	"os"
+	"os/user"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,5 +45,29 @@ func VerifyCallsMatch(t *testing.T, calls []TestCmd, fexec *fakeexec.FakeExec, f
 
 	for i, call := range calls {
 		require.Equalf(t, call.Cmd, fcmd.CombinedOutputLog[i], "Call [%d] doesn't match expected", i)
+	}
+}
+
+func isRoot() bool {
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Printf("Failed to get current user")
+		return false
+	} else if currentUser.Username == "root" {
+		return true
+	}
+	return false
+}
+
+func RequireRootforTest(t *testing.T) {
+	if !isRoot() {
+		t.Fatalf("Test [%s] requires root!", t.Name())
+	}
+}
+
+func RequireRootforTestMain(m *testing.M) {
+	if !isRoot() {
+		log.Printf("These tests require root!")
+		os.Exit(1)
 	}
 }
