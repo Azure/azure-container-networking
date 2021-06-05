@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/routes"
+	"github.com/Azure/azure-container-networking/cns/types"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 )
@@ -64,7 +65,7 @@ type HttpRestServiceData struct {
 }
 
 type Response struct {
-	ReturnCode int
+	ReturnCode types.ResponseCode
 	Message    string
 }
 

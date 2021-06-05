@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/log"
 )
 
@@ -141,8 +142,8 @@ func Request(tag string, request interface{}, err error) {
 	sendTraceInternal(msg)
 }
 
-func Response(tag string, response interface{}, returnCode int, returnStr string, err error) {
-	Log.logger.Response(tag, response, returnCode, returnStr, err)
+func Response(tag string, response interface{}, returnCode types.ResponseCode, err error) {
+	Log.logger.Response(tag, response, int(returnCode), returnCode.String(), err)
 
 	if Log.th == nil || Log.DisableTraceLogging {
 		return
@@ -152,17 +153,17 @@ func Response(tag string, response interface{}, returnCode int, returnStr string
 	if err == nil && returnCode == 0 {
 		msg = fmt.Sprintf("[%s] Sent %T %+v.", tag, response, response)
 	} else if err != nil {
-		msg = fmt.Sprintf("[%s] Code:%s, %+v %s.", tag, returnStr, response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %+v %s.", tag, returnCode.String(), response, err.Error())
 	} else {
-		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnStr, response)
+		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnCode.String(), response)
 	}
 
 	sendTraceInternal(msg)
 }
 
 // ResponseEx put request and response info together to help easier debug.
-func ResponseEx(tag string, request interface{}, response interface{}, returnCode int, returnStr string, err error) {
-	Log.logger.ResponseEx(tag, request, response, returnCode, returnStr, err)
+func ResponseEx(tag string, request interface{}, response interface{}, returnCode types.ResponseCode, err error) {
+	Log.logger.ResponseEx(tag, request, response, int(returnCode), returnCode.String(), err)
 
 	if Log.th == nil || Log.DisableTraceLogging {
 		return
@@ -172,9 +173,9 @@ func ResponseEx(tag string, request interface{}, response interface{}, returnCod
 	if err == nil && returnCode == 0 {
 		msg = fmt.Sprintf("[%s] Sent %T %+v %T %+v.", tag, request, request, response, response)
 	} else if err != nil {
-		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v, %s.", tag, returnStr, request, response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v, %s.", tag, returnCode.String(), request, response, err.Error())
 	} else {
-		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnStr, request, response)
+		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnCode.String(), request, response)
 	}
 
 	sendTraceInternal(msg)

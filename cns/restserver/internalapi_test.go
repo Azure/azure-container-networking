@@ -14,6 +14,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/google/uuid"
 )
 
@@ -210,7 +211,7 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 	expectedNcCount := len(svc.state.ContainerStatus)
 	expectedAllocatedPods := make(map[string]cns.PodInfo)
 	returnCode := svc.ReconcileNCState(nil, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	if returnCode != Success {
+	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
@@ -241,7 +242,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	if returnCode != Success {
+	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
@@ -274,7 +275,7 @@ func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	if returnCode != Success {
+	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
@@ -306,7 +307,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	if returnCode != Success {
+	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 

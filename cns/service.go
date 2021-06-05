@@ -57,7 +57,9 @@ func (service *Service) Initialize(config *common.ServiceConfig) error {
 	log.Debugf("[Azure CNS] Going to initialize a service with config: %+v", config)
 
 	// Initialize the base service.
-	service.Service.Initialize(config)
+	if err := service.Service.Initialize(config); err != nil {
+		return err
+	}
 
 	// Initialize the listener.
 	if config.Listener == nil {

@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/types"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -102,7 +103,7 @@ func (service *HTTPRestService) restoreState() {
 	return
 }
 
-func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (int, string) {
+func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	// we don't want to overwrite what other calls may have written
 	service.Lock()
 	defer service.Unlock()
@@ -170,7 +171,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 			podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 			if err != nil {
 				errBuf := fmt.Sprintf("Unmarshalling %s failed with error %v", req.NetworkContainerType, err)
-				return UnexpectedError, errBuf
+				return types.UnexpectedError, errBuf
 			}
 
 			logger.Printf("Pod info %v", podInfo)
@@ -190,13 +191,13 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		default:
 			errMsg := fmt.Sprintf("Unsupported orchestrator type: %s", service.state.OrchestratorType)
 			logger.Errorf(errMsg)
-			return UnsupportedOrchestratorType, errMsg
+			return types.UnsupportedOrchestratorType, errMsg
 		}
 
 	default:
 		errMsg := fmt.Sprintf("Unsupported network container type %s", req.NetworkContainerType)
 		logger.Errorf(errMsg)
-		return UnsupportedNetworkContainerType, errMsg
+		return types.UnsupportedNetworkContainerType, errMsg
 	}
 
 	service.saveState()
@@ -205,7 +206,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string) (int, string) {
+func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string) (types.ResponseCode, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
@@ -227,7 +228,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 			// pod ip exists, validate if state is not allocated, else fail
 			if ipConfigStatus.State == cns.Allocated {
 				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
-				return InconsistentIPConfigState, errMsg
+				return types.InconsistentIPConfigState, errMsg
 			}
 		}
 	}
@@ -235,7 +236,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	// now actually remove the deletedIPs
 	for ipId, _ := range tobeDeletedIpConfigs {
 		returncode, errMsg := service.removeToBeDeletedIpsStateUntransacted(ipId, true)
-		if returncode != Success {
+		if returncode != types.Success {
 			return returncode, errMsg
 		}
 	}
@@ -245,7 +246,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	var hostNCVersionInInt int
 	var err error
 	if hostNCVersionInInt, err = strconv.Atoi(hostVersion); err != nil {
-		return UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
+		return types.UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
 	}
 	service.addIPConfigStateUntransacted(req.NetworkContainerid, hostNCVersionInInt, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
 
@@ -305,7 +306,7 @@ func validateIPSubnet(ipSubnet cns.IPSubnet) error {
 
 // removeToBeDeletedIpsStateUntransacted removes IPConfigs from the PodIpConfigState map
 // Caller will acquire/release the service lock.
-func (service *HTTPRestService) removeToBeDeletedIpsStateUntransacted(ipId string, skipValidation bool) (int, string) {
+func (service *HTTPRestService) removeToBeDeletedIpsStateUntransacted(ipId string, skipValidation bool) (types.ResponseCode, string) {
 
 	// this is set if caller has already done the validation
 	if !skipValidation {
@@ -314,7 +315,7 @@ func (service *HTTPRestService) removeToBeDeletedIpsStateUntransacted(ipId strin
 			// pod ip exists, validate if state is not allocated, else fail
 			if ipConfigStatus.State == cns.Allocated {
 				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
-				return InconsistentIPConfigState, errMsg
+				return types.InconsistentIPConfigState, errMsg
 			}
 		}
 	}
@@ -348,7 +349,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 	case cns.AzureFirstParty:
 		podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 		if err != nil {
-			getNetworkContainerResponse.Response.ReturnCode = UnexpectedError
+			getNetworkContainerResponse.Response.ReturnCode = types.UnexpectedError
 			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Unmarshalling orchestrator context failed with error %v", err)
 			return getNetworkContainerResponse
 		}
@@ -362,7 +363,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message =
 				service.isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID)
 			// If the return code is not success, return the error to the caller
-			if getNetworkContainerResponse.Response.ReturnCode == NetworkContainerVfpProgramPending {
+			if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
 				logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NC: %s with error: %s",
 					containerID, getNetworkContainerResponse.Response.Message)
 				return getNetworkContainerResponse
@@ -373,7 +374,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 			// Update the container status if-
 			// 1. VfpUpdateCompleted successfully
 			// 2. VfpUpdateComplete changed to false
-			if (getNetworkContainerResponse.Response.ReturnCode == NetworkContainerVfpProgramComplete &&
+			if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
 				vfpUpdateComplete == true && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
 				(vfpUpdateComplete == false && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
 				logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NC: %s", vfpUpdateComplete, containerID)
@@ -393,7 +394,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 			service.Unlock()
 			getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.SyncNodeStatus(dncEP, infraVnet, nodeID, req.OrchestratorContext)
 			service.Lock()
-			if getNetworkContainerResponse.Response.ReturnCode == NotFound {
+			if getNetworkContainerResponse.Response.ReturnCode == types.NotFound {
 				return getNetworkContainerResponse
 			}
 
@@ -404,7 +405,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		break
 
 	default:
-		getNetworkContainerResponse.Response.ReturnCode = UnsupportedOrchestratorType
+		getNetworkContainerResponse.Response.ReturnCode = types.UnsupportedOrchestratorType
 		getNetworkContainerResponse.Response.Message = fmt.Sprintf("Invalid orchestrator type %v", service.state.OrchestratorType)
 		return getNetworkContainerResponse
 	}
@@ -412,7 +413,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 	containerStatus := service.state.ContainerStatus
 	containerDetails, ok := containerStatus[containerID]
 	if !ok {
-		getNetworkContainerResponse.Response.ReturnCode = UnknownContainerID
+		getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
 		getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
 		return getNetworkContainerResponse
 	}
@@ -483,17 +484,17 @@ func (service *HTTPRestService) restoreNetworkState() error {
 func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerNetworkingRequest, operation, method string) cns.Response {
 	if method != "POST" {
 		return cns.Response{
-			ReturnCode: InvalidParameter,
+			ReturnCode: types.InvalidParameter,
 			Message:    "[Azure CNS] Error. " + operation + "ContainerToNetwork did not receive a POST."}
 	}
 	if req.Containerid == "" {
 		return cns.Response{
-			ReturnCode: DockerContainerNotSpecified,
+			ReturnCode: types.DockerContainerNotSpecified,
 			Message:    "[Azure CNS] Error. Containerid is empty"}
 	}
 	if req.NetworkContainerid == "" {
 		return cns.Response{
-			ReturnCode: NetworkContainerNotSpecified,
+			ReturnCode: types.NetworkContainerNotSpecified,
 			Message:    "[Azure CNS] Error. NetworkContainerid is empty"}
 	}
 
@@ -502,7 +503,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 		if ok {
 			if !existing.VfpUpdateComplete {
 				_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid)
-				if returnCode == NetworkContainerVfpProgramPending {
+				if returnCode == types.NetworkContainerVfpProgramPending {
 					return cns.Response{
 						ReturnCode: returnCode,
 						Message:    message}
@@ -516,7 +517,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 			)
 
 			returnCode, msg := service.SyncNodeStatus(dncEP, infraVnet, nodeID, json.RawMessage{})
-			if returnCode != Success {
+			if returnCode != types.Success {
 				return cns.Response{
 					ReturnCode: returnCode,
 					Message:    msg}
@@ -526,17 +527,17 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 		}
 	} else if !ok {
 		return cns.Response{
-			ReturnCode: NotFound,
+			ReturnCode: types.NotFound,
 			Message:    fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)}
 	}
 
-	returnCode := 0
+	var returnCode types.ResponseCode = 0
 	returnMessage := ""
 	switch service.state.OrchestratorType {
 	case cns.Batch:
 		podInfo, err := cns.UnmarshalPodInfo(existing.CreateNetworkContainerRequest.OrchestratorContext)
 		if err != nil {
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
 		} else {
 			nc := service.networkContainer
@@ -548,14 +549,14 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				err = nc.Detach(podInfo, req.Containerid, netPluginConfig)
 			}
 			if err != nil {
-				returnCode = UnexpectedError
+				returnCode = types.UnexpectedError
 				returnMessage = fmt.Sprintf("[Azure CNS] Error. "+operation+"ContainerToNetwork failed %+v", err.Error())
 			}
 		}
 
 	default:
 		returnMessage = fmt.Sprintf("[Azure CNS] Invalid orchestrator type %v", service.state.OrchestratorType)
-		returnCode = UnsupportedOrchestratorType
+		returnCode = types.UnsupportedOrchestratorType
 	}
 
 	return cns.Response{
@@ -665,21 +666,21 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ctx context.Context, 
 	}
 }
 
-func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPConfigRequest) (cns.PodInfo, int, string) {
+func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPConfigRequest) (cns.PodInfo, types.ResponseCode, string) {
 	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
-		return nil, UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
+		return nil, types.UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
 	}
 
 	if ipConfigRequest.OrchestratorContext == nil {
-		return nil, EmptyOrchestratorContext, fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
+		return nil, types.EmptyOrchestratorContext, fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
 	}
 
 	// retrieve podinfo from orchestrator context
 	podInfo, err := cns.NewPodInfoFromIPConfigRequest(ipConfigRequest)
 	if err != nil {
-		return podInfo, UnsupportedOrchestratorContext, err.Error()
+		return podInfo, types.UnsupportedOrchestratorContext, err.Error()
 	}
-	return podInfo, Success, ""
+	return podInfo, types.Success, ""
 }
 
 func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIpInfo *cns.PodIpInfo) error {
@@ -717,14 +718,14 @@ func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus 
 // isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version
 // Return error and waitingForUpdate as true only CNS gets response from NMAgent indicating the VFP programming is pending
 // This returns success / waitingForUpdate as false in all other cases.
-func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (waitingForUpdate bool, returnCode int, message string) {
+func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
 	waitingForUpdate = true
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
 		if ncStatus.VfpUpdateComplete &&
 			(ncStatus.CreateNetworkContainerRequest.Version == ncVersion) {
 			logger.Printf("[Azure CNS] Network container: %s, version: %s has VFP programming already completed", ncid, ncVersion)
-			returnCode = NetworkContainerVfpProgramCheckSkipped
+			returnCode = types.NetworkContainerVfpProgramCheckSkipped
 			waitingForUpdate = false
 			return
 		}
@@ -734,30 +735,30 @@ func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (wa
 	if !ok {
 		logger.Printf("[Azure CNS] getNCVersionURL for Network container %s not found. Skipping GetNCVersionStatus check from NMAgent",
 			ncid)
-		returnCode = NetworkContainerVfpProgramCheckSkipped
+		returnCode = types.NetworkContainerVfpProgramCheckSkipped
 		return
 	}
 
-	response, err := nmagentclient.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
+	resp, err := nmagentclient.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
 	if err != nil {
 		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
 			"Skipping GetNCVersionStatus check from NMAgent", err)
-		returnCode = NetworkContainerVfpProgramCheckSkipped
+		returnCode = types.NetworkContainerVfpProgramCheckSkipped
 		return
 	}
 
-	if response.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK {
 		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with http status %d. "+
-			"Skipping GetNCVersionStatus check from NMAgent", response.StatusCode)
-		returnCode = NetworkContainerVfpProgramCheckSkipped
+			"Skipping GetNCVersionStatus check from NMAgent", resp.StatusCode)
+		returnCode = types.NetworkContainerVfpProgramCheckSkipped
 		return
 	}
 
 	var versionResponse nmagentclient.NMANetworkContainerResponse
-	rBytes, _ := ioutil.ReadAll(response.Body)
+	rBytes, _ := ioutil.ReadAll(resp.Body)
 	json.Unmarshal(rBytes, &versionResponse)
 	if versionResponse.ResponseCode != "200" {
-		returnCode = NetworkContainerVfpProgramPending
+		returnCode = types.NetworkContainerVfpProgramPending
 		message = fmt.Sprintf("Failed to get NC version status from NMAgent. NC: %s, Response %s", ncid, rBytes)
 		return
 	}
@@ -765,59 +766,14 @@ func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (wa
 	ncTargetVersion, _ := strconv.Atoi(ncVersion)
 	nmaProgrammedNCVersion, _ := strconv.Atoi(versionResponse.Version)
 	if ncTargetVersion > nmaProgrammedNCVersion {
-		returnCode = NetworkContainerVfpProgramPending
+		returnCode = types.NetworkContainerVfpProgramPending
 		message = fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",
 			ncid, ncTargetVersion, nmaProgrammedNCVersion)
 	} else {
-		returnCode = NetworkContainerVfpProgramComplete
+		returnCode = types.NetworkContainerVfpProgramComplete
 		waitingForUpdate = false
 		message = fmt.Sprintf("Vfp programming complete")
 		logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
 	}
-
-	return
-}
-
-// ReturnCodeToString - Converts an error code to appropriate string.
-func ReturnCodeToString(returnCode int) (s string) {
-	switch returnCode {
-	case Success:
-		s = "Success"
-	case UnsupportedNetworkType:
-		s = "UnsupportedNetworkType"
-	case InvalidParameter:
-		s = "InvalidParameter"
-	case UnreachableHost:
-		s = "UnreachableHost"
-	case ReservationNotFound:
-		s = "ReservationNotFound"
-	case MalformedSubnet:
-		s = "MalformedSubnet"
-	case UnreachableDockerDaemon:
-		s = "UnreachableDockerDaemon"
-	case UnspecifiedNetworkName:
-		s = "UnspecifiedNetworkName"
-	case NotFound:
-		s = "NotFound"
-	case AddressUnavailable:
-		s = "AddressUnavailable"
-	case NetworkContainerNotSpecified:
-		s = "NetworkContainerNotSpecified"
-	case CallToHostFailed:
-		s = "CallToHostFailed"
-	case UnknownContainerID:
-		s = "UnknownContainerID"
-	case UnsupportedOrchestratorType:
-		s = "UnsupportedOrchestratorType"
-	case UnexpectedError:
-		s = "UnexpectedError"
-	case DockerContainerNotSpecified:
-		s = "DockerContainerNotSpecified"
-	case NetworkContainerVfpProgramPending:
-		s = "NetworkContainerVfpProgramPending"
-	default:
-		s = "UnknownError"
-	}
-
 	return
 }

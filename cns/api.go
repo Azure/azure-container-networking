@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/types"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
@@ -38,7 +39,7 @@ type HTTPService interface {
 	common.ServiceAPI
 	SendNCSnapShotPeriodically(context.Context, int)
 	SetNodeOrchestrator(*SetOrchestratorTypeRequest)
-	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
+	SyncNodeStatus(string, string, string, json.RawMessage) (types.ResponseCode, string)
 	GetPendingProgramIPConfigs() []IPConfigurationStatus
 	GetAvailableIPConfigs() []IPConfigurationStatus
 	GetAllocatedIPConfigs() []IPConfigurationStatus
@@ -227,7 +228,7 @@ type IpamPoolMonitorStateSnapshot struct {
 
 // Response describes generic response from CNS.
 type Response struct {
-	ReturnCode int
+	ReturnCode types.ResponseCode
 	Message    string
 }
 
