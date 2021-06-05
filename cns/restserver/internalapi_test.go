@@ -421,7 +421,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 		t.Fatalf("Failed as Secondary IP count doesnt match in PodIpConfig state, expected:%d, actual %d", len(req.SecondaryIPConfigs), len(svc.PodIPConfigState))
 	}
 
-	var expectedIPStatus string
+	var expectedIPStatus cns.IPConfigState
 	// 0 is the default NMAgent version return from fake GetNetworkContainerInfoFromHost
 	if containerStatus.CreateNetworkContainerRequest.Version > "0" {
 		expectedIPStatus = cns.PendingProgramming

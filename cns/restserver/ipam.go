@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 )
@@ -124,16 +125,17 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	return pendingReleasedIps, nil
 }
 
-func (service *HTTPRestService) updateIPConfigState(ipId string, updatedState string, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
-	if ipConfig, found := service.PodIPConfigState[ipId]; found {
-		logger.Printf("[updateIPConfigState] Changing IpId [%s] state to [%s], podInfo [%+v]. Current config [%+v]", ipId, updatedState, podInfo, ipConfig)
+func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState cns.IPConfigState, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
+	if ipConfig, found := service.PodIPConfigState[ipID]; found {
+		logger.Printf("[updateIPConfigState] Changing IpId [%s] state to [%s], podInfo [%+v]. Current config [%+v]", ipID, updatedState, podInfo, ipConfig)
 		ipConfig.State = updatedState
 		ipConfig.PodInfo = podInfo
-		service.PodIPConfigState[ipId] = ipConfig
+		service.PodIPConfigState[ipID] = ipConfig
 		return ipConfig, nil
 	}
 
-	return cns.IPConfigurationStatus{}, fmt.Errorf("[updateIPConfigState] Failed to update state %s for the IPConfig. ID %s not found PodIPConfigState", updatedState, ipId)
+	//nolint:goerr113
+	return cns.IPConfigurationStatus{}, fmt.Errorf("[updateIPConfigState] Failed to update state %s for the IPConfig. ID %s not found PodIPConfigState", updatedState, ipID)
 }
 
 // MarkIpsAsAvailableUntransacted will update pending programming IPs to available if NMAgent side's programmed nc version keep up with nc version.
@@ -239,15 +241,6 @@ func (service *HTTPRestService) GetHTTPStruct() HttpRestServiceData {
 	}
 }
 
-// GetPendingProgramIPConfigs returns list of IPs which are in pending program status
-func (service *HTTPRestService) GetPendingProgramIPConfigs() []cns.IPConfigurationStatus {
-	service.RLock()
-	defer service.RUnlock()
-	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
-		return ipconfig.State == cns.PendingProgramming
-	})
-}
-
 func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		req           cns.GetIPAddressesRequest
@@ -277,78 +270,43 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	filterFunc := func(ipconfig cns.IPConfigurationStatus, states []string) bool {
-		for _, state := range states {
-			if ipconfig.State == state {
-				return true
-			}
-		}
-		return false
-	}
-
 	// Get all IPConfigs matching a state, and append to a slice of IPAddressState
-	resp.IPConfigurationStatus = filterIPConfigsMatchingState(service.PodIPConfigState, req.IPConfigStateFilter, filterFunc)
-
-	return
+	resp.IPConfigurationStatus = filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.PredicatesForStates(req.IPConfigStateFilter...)...)
 }
 
-// filter the ipconfigs in CNS matching a state (Available, Allocated, etc.) and return in a slice
-func filterIPConfigsMatchingState(toBeAdded map[string]cns.IPConfigurationStatus, states []string, f func(cns.IPConfigurationStatus, []string) bool) []cns.IPConfigurationStatus {
-	vsf := make([]cns.IPConfigurationStatus, 0)
-	for _, v := range toBeAdded {
-		if f(v, states) {
-			vsf = append(vsf, v)
-		}
-	}
-	return vsf
-}
-
-// filter ipconfigs based on predicate
-func filterIPConfigs(toBeAdded map[string]cns.IPConfigurationStatus, f func(cns.IPConfigurationStatus) bool) []cns.IPConfigurationStatus {
-	vsf := make([]cns.IPConfigurationStatus, 0)
-	for _, v := range toBeAdded {
-		if f(v) {
-			vsf = append(vsf, v)
-		}
-	}
-	return vsf
-}
-
+// GetAllocatedIPConfigs returns a filtered list of IPs which are in
+// Allocated State.
 func (service *HTTPRestService) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
-	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
-		return ipconfig.State == cns.Allocated
-	})
+	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StateAllocated)
 }
 
+// GetAvailableIPConfigs returns a filtered list of IPs which are in
+// Available State.
 func (service *HTTPRestService) GetAvailableIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
-	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
-		return ipconfig.State == cns.Available
-	})
+	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StateAvailable)
 }
 
+// GetPendingProgramIPConfigs returns a filtered list of IPs which are in
+// PendingProgramming State.
+func (service *HTTPRestService) GetPendingProgramIPConfigs() []cns.IPConfigurationStatus {
+	service.RLock()
+	defer service.RUnlock()
+	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StatePendingProgramming)
+}
+
+// GetPendingReleaseIPConfigs returns a filtered list of IPs which are in
+// PendingRelease State.
 func (service *HTTPRestService) GetPendingReleaseIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
-	return filterIPConfigMap(service.PodIPConfigState, func(ipconfig cns.IPConfigurationStatus) bool {
-		return ipconfig.State == cns.PendingRelease
-	})
+	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StatePendingRelease)
 }
 
-func filterIPConfigMap(toBeAdded map[string]cns.IPConfigurationStatus, f func(cns.IPConfigurationStatus) bool) []cns.IPConfigurationStatus {
-	vsf := make([]cns.IPConfigurationStatus, 0)
-	for _, v := range toBeAdded {
-		if f(v) {
-			vsf = append(vsf, v)
-		}
-	}
-	return vsf
-}
-
-//SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated, does not take a lock
+// SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated, does not take a lock
 func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	ipconfig, err := service.updateIPConfigState(ipconfig.ID, cns.Allocated, podInfo)
 	if err != nil {
@@ -359,7 +317,7 @@ func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurat
 	return ipconfig, nil
 }
 
-//SetIPConfigAsAllocated and sets the ipconfig in the CNS state as allocated, does not take a lock
+// SetIPConfigAsAllocated and sets the ipconfig in the CNS state as allocated, does not take a lock
 func (service *HTTPRestService) setIPConfigAsAvailable(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	ipconfig, err := service.updateIPConfigState(ipconfig.ID, cns.Available, nil)
 	if err != nil {

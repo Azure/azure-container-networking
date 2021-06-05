@@ -21,3 +21,6 @@ linters:
   - nakedret
   - promlinter
   - revive
+linters-settings:
+  lll:
+    line-length: 200

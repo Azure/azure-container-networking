@@ -65,9 +65,9 @@ func HandleCNSClientCommands(cmd, arg string) error {
 }
 
 func getCmd(client *CNSClient, arg string) error {
-	var states []string
+	var states []cns.IPConfigState
 
-	switch arg {
+	switch cns.IPConfigState(arg) {
 	case cns.Available:
 		states = append(states, cns.Available)
 

@@ -25,9 +25,7 @@ const (
 	contentTypeJSON = "application/json"
 )
 
-var (
-	cnsClient *CNSClient
-)
+var cnsClient *CNSClient
 
 // InitCnsClient initializes new cns client and returns the object
 func InitCnsClient(url string, requestTimeout time.Duration) (*CNSClient, error) {
@@ -54,7 +52,9 @@ func GetCnsClient() (*CNSClient, error) {
 	if cnsClient == nil {
 		err = &CNSClientError{
 			types.UnexpectedError,
-			fmt.Errorf("[Azure CNSClient] CNS Client not initialized")}
+			//nolint:goerr113
+			fmt.Errorf("[Azure CNSClient] CNS Client not initialized"),
+		}
 	}
 
 	return cnsClient, err
@@ -63,9 +63,7 @@ func GetCnsClient() (*CNSClient, error) {
 // GetNetworkConfiguration Request to get network config.
 func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) (
 	*cns.GetNetworkContainerResponse, error) {
-	var (
-		body bytes.Buffer
-	)
+	var body bytes.Buffer
 
 	url := cnsClient.connectionURL + cns.GetNetworkContainerByOrchestratorContext
 	log.Printf("GetNetworkConfiguration url %v", url)
@@ -316,7 +314,7 @@ func (cnsClient *CNSClient) ReleaseIPAddress(ipconfig *cns.IPConfigRequest) erro
 
 // GetIPAddressesWithStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states
 // usage GetIPAddressesWithStates(cns.Available, cns.Allocated)
-func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) ([]cns.IPConfigurationStatus, error) {
+func (cnsClient *CNSClient) GetIPAddressesMatchingStates(stateFilter ...cns.IPConfigState) ([]cns.IPConfigurationStatus, error) {
 	var (
 		resp cns.GetIPAddressStatusResponse
 		err  error
@@ -324,7 +322,7 @@ func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) 
 		body bytes.Buffer
 	)
 
-	if len(StateFilter) == 0 {
+	if len(stateFilter) == 0 {
 		return resp.IPConfigurationStatus, nil
 	}
 
@@ -332,7 +330,7 @@ func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) 
 	log.Printf("GetIPAddressesMatchingStates url %v", url)
 
 	payload := &cns.GetIPAddressesRequest{
-		IPConfigStateFilter: StateFilter,
+		IPConfigStateFilter: stateFilter,
 	}
 
 	err = json.NewEncoder(&body).Encode(payload)
@@ -369,7 +367,7 @@ func (cnsClient *CNSClient) GetIPAddressesMatchingStates(StateFilter ...string) 
 	return resp.IPConfigurationStatus, err
 }
 
-//GetPodOrchestratorContext calls GetPodIpOrchestratorContext API on CNS
+// GetPodOrchestratorContext calls GetPodIpOrchestratorContext API on CNS
 func (cnsClient *CNSClient) GetPodOrchestratorContext() (map[string]string, error) {
 	var (
 		resp cns.GetPodContextResponse
@@ -408,7 +406,7 @@ func (cnsClient *CNSClient) GetPodOrchestratorContext() (map[string]string, erro
 	return resp.PodContext, err
 }
 
-//GetHTTPServiceData gets all public in-memory struct details for debugging purpose
+// GetHTTPServiceData gets all public in-memory struct details for debugging purpose
 func (cnsClient *CNSClient) GetHTTPServiceData() (restserver.GetHTTPServiceDataResponse, error) {
 	var (
 		resp restserver.GetHTTPServiceDataResponse
