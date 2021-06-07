@@ -157,7 +157,7 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 
 func (plugin *netPlugin) GetSimpleState() (*api.AzureCNIState, error) {
 	st := api.AzureCNIState{
-		ContainerInterfaces: make(map[string]api.NetworkInterfaceInfo),
+		ContainerInterfaces: make(map[string]api.PodNetworkInterfaceInfo),
 	}
 
 	eps, err := plugin.nm.GetAllEndpoints("azure")
@@ -167,7 +167,7 @@ func (plugin *netPlugin) GetSimpleState() (*api.AzureCNIState, error) {
 
 	for _, ep := range eps {
 		id := ep.Id
-		info := api.NetworkInterfaceInfo{
+		info := api.PodNetworkInterfaceInfo{
 			PodName:        ep.PODName,
 			PodNamespace:   ep.PODNameSpace,
 			PodInterfaceID: ep.Id,

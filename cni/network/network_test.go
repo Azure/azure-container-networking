@@ -110,7 +110,7 @@ func TestGetSimpleState(t *testing.T) {
 	require.NoError(t, err)
 
 	res := &api.AzureCNIState{
-		ContainerInterfaces: map[string]api.NetworkInterfaceInfo{
+		ContainerInterfaces: map[string]api.PodNetworkInterfaceInfo{
 			ep1.Id: {
 				PodInterfaceID: ep1.Id,
 				PodName:        ep1.PODName,

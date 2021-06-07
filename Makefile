@@ -463,6 +463,12 @@ test-all:
 	go test -tags "unit integration" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
 
 # run all tests
+.PHONY: test-all
+test-all:
+	go test -tags "unit integration" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
+
+
+# run all tests
 .PHONY: test-integration
 test-integration:
 	go test -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...

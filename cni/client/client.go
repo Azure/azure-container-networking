@@ -30,12 +30,12 @@ func (c *CNIClient) GetState() (*api.AzureCNIState, error) {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to call Azure CNI bin with err: [%w], output: [%s]", err, string(output))
+		return nil, fmt.Errorf("failed to call Azure CNI bin with err: [%w], output: [%s]", err, string(output))
 	}
 
 	state := &api.AzureCNIState{}
 	if err := json.Unmarshal(output, state); err != nil {
-		return nil, fmt.Errorf("Failed to decode response from Azure CNI when retrieving state: [%w], response from CNI: [%s]", err, string(output))
+		return nil, fmt.Errorf("failed to decode response from Azure CNI when retrieving state: [%w], response from CNI: [%s]", err, string(output))
 	}
 
 	return state, nil

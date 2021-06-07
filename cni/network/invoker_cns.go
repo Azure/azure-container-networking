@@ -65,7 +65,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 		InfraContainerID:    args.ContainerID,
 	}
 
-	log.Printf("Requesting IP for pod %v", podInfo)
+	log.Printf("Requesting IP for pod %v using ipconfig %v", podInfo, ipconfig)
 	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
@@ -85,7 +85,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 	// set the NC Primary IP in options
 	options[network.SNATIPKey] = info.ncPrimaryIP
 
-	log.Printf("[cni-invoker-cns] Received info %+v	v for pod %v", info, podInfo)
+	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
 	ncgw := net.ParseIP(info.ncGatewayIPAddress)
 	if ncgw == nil {

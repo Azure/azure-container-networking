@@ -48,7 +48,7 @@ func VerifyCallsMatch(t *testing.T, calls []TestCmd, fexec *fakeexec.FakeExec, f
 	}
 }
 
-func isRoot() bool {
+func isCurrentUserRoot() bool {
 	currentUser, err := user.Current()
 	if err != nil {
 		log.Printf("Failed to get current user")
@@ -60,13 +60,13 @@ func isRoot() bool {
 }
 
 func RequireRootforTest(t *testing.T) {
-	if !isRoot() {
+	if !isCurrentUserRoot() {
 		t.Fatalf("Test [%s] requires root!", t.Name())
 	}
 }
 
 func RequireRootforTestMain(m *testing.M) {
-	if !isRoot() {
+	if !isCurrentUserRoot() {
 		log.Printf("These tests require root!")
 		os.Exit(1)
 	}
