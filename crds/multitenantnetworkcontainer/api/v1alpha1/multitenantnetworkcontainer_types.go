@@ -22,8 +22,8 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 // Important: Run "make" to regenerate code after modifying this file
 
-// NetworkContainerSpec defines the desired state of NetworkContainer
-type NetworkContainerSpec struct {
+// MultiTenantNetworkContainerSpec defines the desired state of MultiTenantNetworkContainer
+type MultiTenantNetworkContainerSpec struct {
 	// UUID - network container UUID
 	UUID string `json:"uuid,omitempty"`
 	// Network - customer VNet GUID
@@ -38,8 +38,8 @@ type NetworkContainerSpec struct {
 	ReservationID string `json:"reservationID,omitempty"`
 }
 
-// NetworkContainerStatus defines the observed state of NetworkContainer
-type NetworkContainerStatus struct {
+// MultiTenantNetworkContainerStatus defines the observed state of MultiTenantNetworkContainer
+type MultiTenantNetworkContainerStatus struct {
 	// The IP address
 	IP string `json:"ip,omitempty"`
 	// The gateway IP address
@@ -53,24 +53,24 @@ type NetworkContainerStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// NetworkContainer is the Schema for the networkcontainers API
-type NetworkContainer struct {
+// MultiTenantNetworkContainer is the Schema for the MultiTenantnetworkcontainers API
+type MultiTenantNetworkContainer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   NetworkContainerSpec   `json:"spec,omitempty"`
-	Status NetworkContainerStatus `json:"status,omitempty"`
+	Spec   MultiTenantNetworkContainerSpec   `json:"spec,omitempty"`
+	Status MultiTenantNetworkContainerStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// NetworkContainerList contains a list of NetworkContainer
-type NetworkContainerList struct {
+// MultiTenantNetworkContainerList contains a list of MultiTenantNetworkContainer
+type MultiTenantNetworkContainerList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []NetworkContainer `json:"items"`
+	Items           []MultiTenantNetworkContainer `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&NetworkContainer{}, &NetworkContainerList{})
+	SchemeBuilder.Register(&MultiTenantNetworkContainer{}, &MultiTenantNetworkContainerList{})
 }
