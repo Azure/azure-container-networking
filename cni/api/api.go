@@ -16,6 +16,10 @@ type PodNetworkInterfaceInfo struct {
 	IPAddresses    []net.IPNet
 }
 
+type CNIState interface {
+	PrintResult() error
+}
+
 type AzureCNIState struct {
 	ContainerInterfaces map[string]PodNetworkInterfaceInfo
 }

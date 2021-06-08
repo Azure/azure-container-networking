@@ -65,7 +65,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 		InfraContainerID:    args.ContainerID,
 	}
 
-	log.Printf("Requesting IP for pod %v using ipconfig %v", podInfo, ipconfig)
+	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
 	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)

@@ -39,7 +39,7 @@ func TestGetStateFromAzureCNI(t *testing.T) {
 
 	realexec := exec.New()
 	c := NewCNIClient(realexec)
-	state, err := c.GetState()
+	state, err := c.GetEndpointState()
 	require.NoError(t, err)
 
 	res := &api.AzureCNIState{

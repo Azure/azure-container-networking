@@ -93,7 +93,7 @@ func getTestEndpoint(podname, podnamespace, ipwithcidr, podinterfaceid, infracon
 	return &ep
 }
 
-func TestGetSimpleState(t *testing.T) {
+func TestGetAllEndpointState(t *testing.T) {
 	plugin, mockNetworkManager := getTestResources()
 	networkid := "azure"
 
@@ -106,7 +106,7 @@ func TestGetSimpleState(t *testing.T) {
 	err = mockNetworkManager.CreateEndpoint(networkid, ep2)
 	require.NoError(t, err)
 
-	state, err := plugin.GetSimpleState()
+	state, err := plugin.GetAllEndpointState(networkid)
 	require.NoError(t, err)
 
 	res := &api.AzureCNIState{

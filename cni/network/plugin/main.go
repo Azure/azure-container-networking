@@ -206,10 +206,6 @@ func main() {
 			log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
 		}
 
-		if err != nil {
-			log.Printf("")
-		}
-
 		if recover() != nil {
 			os.Exit(1)
 		}
@@ -237,9 +233,9 @@ func main() {
 	log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
 
 	// used to dump state
-	if cniCmd == cni.CmdState {
+	if cniCmd == cni.CmdGetEndpointsState {
 		log.Printf("Retrieving state")
-		simpleState, err := netPlugin.GetSimpleState()
+		simpleState, err := netPlugin.GetAllEndpointState("azure")
 		if err != nil {
 			log.Errorf("Failed to get Azure CNI state, err:%v.\n", err)
 			return
@@ -254,7 +250,7 @@ func main() {
 	}
 
 	handled, err := handleIfCniUpdate(netPlugin.Update)
-	if handled == true {
+	if handled {
 		log.Printf("CNI UPDATE finished.")
 	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
 		log.Errorf("Failed to execute network plugin, err:%v.\n", err)

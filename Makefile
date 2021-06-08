@@ -462,11 +462,6 @@ PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 test-all:
 	go test -tags "unit integration" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
 
-# run all tests
-.PHONY: test-all
-test-all:
-	go test -tags "unit integration" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
-
 
 # run all tests
 .PHONY: test-integration

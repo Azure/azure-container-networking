@@ -155,12 +155,12 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	return nil
 }
 
-func (plugin *netPlugin) GetSimpleState() (*api.AzureCNIState, error) {
+func (plugin *netPlugin) GetAllEndpointState(networkid string) (api.CNIState, error) {
 	st := api.AzureCNIState{
 		ContainerInterfaces: make(map[string]api.PodNetworkInterfaceInfo),
 	}
 
-	eps, err := plugin.nm.GetAllEndpoints("azure")
+	eps, err := plugin.nm.GetAllEndpoints(networkid)
 	if err != nil {
 		return nil, err
 	}

@@ -16,7 +16,7 @@ const (
 	CmdUpdate = "UPDATE"
 
 	// nonstandard CNI spec command, used to dump CNI state to stdout
-	CmdState = "GET_STATE"
+	CmdGetEndpointsState = "GET_ENDPOINT_STATE"
 
 	// CNI errors.
 	ErrRuntime = 100

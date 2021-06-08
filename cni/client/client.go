@@ -7,25 +7,36 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/log"
 	utilexec "k8s.io/utils/exec"
 )
 
-type CNIClient struct {
+const (
+	azureVnetBinName      = "./azure-vnet"
+	azureVnetBinDirectory = "/opt/cni/bin"
+)
+
+type CNIClient interface {
+	GetEndpointState() (api.CNIState, error)
+}
+
+type AzureCNIClient struct {
 	exec utilexec.Interface
 }
 
-func NewCNIClient(exec utilexec.Interface) *CNIClient {
-	return &CNIClient{
+func NewCNIClient(exec utilexec.Interface) *AzureCNIClient {
+	return &AzureCNIClient{
 		exec: exec,
 	}
 }
 
-func (c *CNIClient) GetState() (*api.AzureCNIState, error) {
-	cmd := c.exec.Command("./azure-vnet")
-	cmd.SetDir("/opt/cni/bin")
+func (c *AzureCNIClient) GetEndpointState() (api.CNIState, error) {
+	cmd := c.exec.Command(azureVnetBinName)
+	cmd.SetDir(azureVnetBinDirectory)
 
 	envs := os.Environ()
-	envs = append(envs, fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdState))
+	envs = append(envs, fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState))
+	log.Printf("Using envs: %v", envs)
 	cmd.SetEnv(envs)
 
 	output, err := cmd.CombinedOutput()
