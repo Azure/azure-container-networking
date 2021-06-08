@@ -224,7 +224,9 @@ func (cnsClient *CNSClient) RequestIPAddress(ipconfig *cns.IPConfigRequest) (*cn
 
 	defer func() {
 		if err != nil {
-			cnsClient.ReleaseIPAddress(ipconfig)
+			if er := cnsClient.ReleaseIPAddress(ipconfig); er != nil {
+				log.Printf("failed to release IP address [%v] after failed add [%w]", er, err)
+			}
 		}
 	}()
 

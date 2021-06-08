@@ -18,7 +18,7 @@ func TestGetStateFromAzureCNI(t *testing.T) {
 	testutils.RequireRootforTest(t)
 
 	// copy test state file to /var/run/azure-vnet.json
-	in, err := os.Open("./azure-vnet-test.json")
+	in, err := os.Open("./testresources/azure-vnet-test.json")
 	require.NoError(t, err)
 
 	defer in.Close()
