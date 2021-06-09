@@ -5,17 +5,19 @@ package restserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
@@ -143,17 +145,81 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	return
 }
 
+// SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
+// If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
+func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string, syncHostNCTimeoutMilliSec time.Duration) {
+	var hostVersionNeedUpdateNcList []string
+	service.RLock()
+	for _, containerstatus := range service.state.ContainerStatus {
+		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
+		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
+		if err != nil {
+			logger.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
+			continue
+		}
+		dncNcVersion, err := strconv.Atoi(containerstatus.CreateNetworkContainerRequest.Version)
+		if err != nil {
+			logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", containerstatus.CreateNetworkContainerRequest.Version, err)
+			continue
+		}
+		// host NC version is the NC version from NMAgent, if it's smaller than NC version from DNC, then append it to indicate it needs update.
+		if hostVersion < dncNcVersion {
+			hostVersionNeedUpdateNcList = append(hostVersionNeedUpdateNcList, containerstatus.ID)
+		} else if hostVersion > dncNcVersion {
+			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", hostVersion, dncNcVersion)
+		}
+	}
+	service.RUnlock()
+	if len(hostVersionNeedUpdateNcList) > 0 {
+		logger.Printf("Updating version of the following NC IDs: %v", hostVersionNeedUpdateNcList)
+		ncVersionChannel := make(chan map[string]int)
+		ctxWithTimeout, _ := context.WithTimeout(ctx, syncHostNCTimeoutMilliSec*time.Millisecond)
+		go func() {
+			ncVersionChannel <- service.nmagentClient.GetNcVersionListWithOutToken(hostVersionNeedUpdateNcList)
+			close(ncVersionChannel)
+		}()
+		select {
+		case newHostNCVersionList := <-ncVersionChannel:
+			if newHostNCVersionList == nil {
+				logger.Errorf("Can't get vfp programmed NC version list from url without token")
+			} else {
+				service.Lock()
+				for ncID, newHostNCVersion := range newHostNCVersionList {
+					// Check whether it exist in service state and get the related nc info
+					if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
+						logger.Errorf("Can't find NC with ID %s in service state, stop updating this host NC version", ncID)
+					} else {
+						if channelMode == cns.CRD {
+							service.MarkIpsAsAvailableUntransacted(ncInfo.ID, newHostNCVersion)
+						}
+						oldHostNCVersion := ncInfo.HostVersion
+						ncInfo.HostVersion = strconv.Itoa(newHostNCVersion)
+						service.state.ContainerStatus[ncID] = ncInfo
+						logger.Printf("Updated NC %s host version from %s to %s", ncID, oldHostNCVersion, ncInfo.HostVersion)
+					}
+				}
+				service.Unlock()
+			}
+		case <-ctxWithTimeout.Done():
+			logger.Errorf("Timeout when getting vfp programmed NC version list from url without token")
+		}
+	}
+}
+
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIp map[string]cns.KubernetesPodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
 	// check if ncRequest is null, then return as there is no CRD state yet
 	if ncRequest == nil {
-		log.Logf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIp))
+		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIp))
 		return Success
 	}
 
-	returnCode := service.CreateOrUpdateNetworkContainerInternal(*ncRequest, scalar, spec)
-
 	// If the NC was created successfully, then reconcile the allocated pod state
+	returnCode := service.CreateOrUpdateNetworkContainerInternal(*ncRequest)
+	if returnCode != Success {
+		return returnCode
+	}
+	returnCode = service.UpdateIPAMPoolMonitorInternal(scalar, spec)
 	if returnCode != Success {
 		return returnCode
 	}
@@ -161,7 +227,7 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 	// now parse the secondaryIP list, if it exists in PodInfo list, then allocate that ip
 	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
 		if podInfo, exists := podInfoByIp[secIpConfig.IPAddress]; exists {
-			log.Logf("SecondaryIP %+v is allocated to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
+			logger.Printf("SecondaryIP %+v is allocated to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
 
 			kubernetesPodInfo := cns.KubernetesPodInfo{
 				PodName:      podInfo.PodName,
@@ -175,11 +241,11 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 			}
 
 			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
-				log.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIpConfig, podInfo, ncRequest.NetworkContainerid, err)
+				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIpConfig, podInfo, ncRequest.NetworkContainerid, err)
 				return FailedToAllocateIpConfig
 			}
 		} else {
-			log.Logf("SecondaryIP %+v is not allocated. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
+			logger.Printf("SecondaryIP %+v is not allocated. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
 		}
 	}
 
@@ -192,8 +258,42 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 	return 0
 }
 
+// GetNetworkContainerInternal gets network container details.
+func (service *HTTPRestService) GetNetworkContainerInternal(req cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, int) {
+	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
+	returnCode := getNetworkContainerResponse.Response.ReturnCode
+	return getNetworkContainerResponse, returnCode
+}
+
+// DeleteNetworkContainerInternal deletes a network container.
+func (service *HTTPRestService) DeleteNetworkContainerInternal(req cns.DeleteNetworkContainerRequest) int {
+	_, exist := service.getNetworkContainerDetails(req.NetworkContainerid)
+	if !exist {
+		logger.Printf("network container for id %v doesn't exist", req.NetworkContainerid)
+		return Success
+	}
+
+	service.Lock()
+	defer service.Unlock()
+	if service.state.ContainerStatus != nil {
+		delete(service.state.ContainerStatus, req.NetworkContainerid)
+	}
+
+	if service.state.ContainerIDByOrchestratorContext != nil {
+		for orchestratorContext, networkContainerID := range service.state.ContainerIDByOrchestratorContext {
+			if networkContainerID == req.NetworkContainerid {
+				delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
+				break
+			}
+		}
+	}
+
+	service.saveState()
+	return Success
+}
+
 // This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.CreateNetworkContainerRequest, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
+func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.CreateNetworkContainerRequest) int {
 	if req.NetworkContainerid == "" {
 		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
 		return NetworkContainerNotSpecified
@@ -224,7 +324,6 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.C
 
 	// Validate if state exists already
 	existingNCInfo, ok := service.getNetworkContainerDetails(req.NetworkContainerid)
-
 	if ok {
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if reflect.DeepEqual(existingReq.IPConfiguration, req.IPConfiguration) != true {
@@ -243,11 +342,15 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.C
 		logger.Errorf(returnMessage)
 	}
 
-	if err = service.IPAMPoolMonitor.Update(scalar, spec); err != nil {
+	return returnCode
+}
+
+func (service *HTTPRestService) UpdateIPAMPoolMonitorInternal(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
+	if err := service.IPAMPoolMonitor.Update(scalar, spec); err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating IPAM Pool Monitor: %v", err)
 		// requeue
 		return UnexpectedError
 	}
 
-	return returnCode
+	return 0
 }

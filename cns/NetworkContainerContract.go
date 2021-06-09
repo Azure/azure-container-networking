@@ -23,6 +23,8 @@ const (
 	RequestIPConfig                          = "/network/requestipconfig"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
 	GetIPAddresses                           = "/debug/getipaddresses"
+	GetPodIPOrchestratorContext              = "/debug/getpodcontext"
+	GetHTTPRestData                          = "/debug/getrestdata"
 )
 
 // NetworkContainer Prefixes
@@ -67,9 +69,10 @@ const (
 
 // ChannelMode :- CNS channel modes
 const (
-	Direct  = "Direct"
-	Managed = "Managed"
-	CRD     = "CRD"
+	Direct         = "Direct"
+	Managed        = "Managed"
+	CRD            = "CRD"
+	MultiTenantCRD = "MultiTenantCRD"
 )
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
@@ -216,7 +219,14 @@ type HostIPInfo struct {
 
 type IPConfigRequest struct {
 	DesiredIPAddress    string
+	PodInterfaceID      string
+	InfraContainerID    string
 	OrchestratorContext json.RawMessage
+}
+
+func (i IPConfigRequest) String() string {
+	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
+		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
@@ -235,6 +245,18 @@ type GetIPAddressesRequest struct {
 type GetIPAddressStateResponse struct {
 	IPAddresses []IPAddressState
 	Response    Response
+}
+
+// GetIPAddressStatusResponse is used in CNS IPAM mode as a response to get IP address, state and Pod info
+type GetIPAddressStatusResponse struct {
+	IPConfigurationStatus []IPConfigurationStatus
+	Response              Response
+}
+
+//GetPodContextResponse is used in CNS Client debug mode to get mapping of Orchestrator Context to Pod IP UUID
+type GetPodContextResponse struct {
+	PodContext map[string]string
+	Response   Response
 }
 
 // IPAddressState Only used in the GetIPConfig API to return IP's that match a filter

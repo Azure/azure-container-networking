@@ -284,7 +284,7 @@ func (as *addressSpace) newAddressPool(ifName string, priority int, subnet *net.
 func (as *addressSpace) getAddressPool(poolId string) (*addressPool, error) {
 	ap := as.Pools[poolId]
 	if ap == nil {
-		return nil, errInvalidPoolId
+		return nil, fmt.Errorf("Pool id %v not found :%v", poolId, errInvalidPoolId)
 	}
 
 	return ap, nil
@@ -313,14 +313,14 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 
 			// Skip if pool is already in use.
 			if pool.isInUse() {
-				log.Printf("[ipam] Pool is in use.")
+				log.Printf("[ipam] Pool %s is in use.", pool.Id)
 
 				// in case the pool is actually not in use,
 				// attempt to release it
-				if !pool.IsAnyRecordInUse() {
-					as.releasePool(poolId)
+				as.releasePool(pool.Id)
+				if pool.isInUse() {
+					continue
 				}
-				continue
 			}
 
 			// Pick a pool from the same address family.
@@ -360,8 +360,8 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 		}
 	}
 
-	if ap != nil {
-		ap.RefCount++
+	if ap != nil && ap.RefCount == 0 {
+		ap.RefCount = 1
 	}
 
 	log.Printf("[ipam] Pool request completed with pool:%+v err:%v.", ap, err)
@@ -371,32 +371,19 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 
 // Releases a previously requested address pool back to its address space.
 func (as *addressSpace) releasePool(poolId string) error {
-	var err error
 	var addressesInUse bool
-
-	//merges the address set refreshed from the source	log.Printf("[ipam] Attempting to release pool with poolId:%v.", poolId)
 
 	ap, ok := as.Pools[poolId]
 	if !ok {
-		err = errAddressPoolNotFound
-	} else if addressesInUse = ap.IsAnyRecordInUse(); addressesInUse {
+		return errAddressPoolNotFound
+	}
+
+	if addressesInUse = ap.IsAnyRecordInUse(); addressesInUse {
 		log.Printf("[ipam] Skip releasing pool with poolId:%s. due to address being in use",
 			poolId)
-	}
-
-	if err != nil {
-		log.Printf("[ipam] Failed to release pool, err:%v.", err)
-		return err
-	}
-
-	if !addressesInUse {
-		ap.RefCount--
-
-		// Delete address pool if it is no longer available.
-		if !ap.isInUse() {
-			log.Printf("[ipam] Deleting stale pool with poolId:%s.", poolId)
-			delete(as.Pools, poolId)
-		}
+	} else {
+		log.Printf("[ipam] Releasing pool %s as there are no allocations", poolId)
+		ap.RefCount = 0
 	}
 
 	return nil

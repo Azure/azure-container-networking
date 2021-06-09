@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	FAKE_GW_IP = "169.254.1.1/32"
-	DEFAULT_GW = "0.0.0.0/0"
+	virtualGwIPString = "169.254.1.1/32"
+	defaultGwCidr     = "0.0.0.0/0"
+	defaultGw         = "0.0.0.0"
 )
 
 type TransparentEndpointClient struct {
@@ -147,16 +148,46 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		return err
 	}
 
-	return addRoutes(client.containerVethName, epInfo.Routes)
-}
+	//ip route del 10.240.0.0/12 dev eth0 (removing kernel subnet route added by above call)
+	for _, ipAddr := range epInfo.IPAddresses {
+		_, ipnet, _ := net.ParseCIDR(ipAddr.String())
+		routeInfo := RouteInfo{
+			Dst:      *ipnet,
+			Scope:    netlink.RT_SCOPE_LINK,
+			Protocol: netlink.RTPROT_KERNEL,
+		}
+		if err := deleteRoutes(client.containerVethName, []RouteInfo{routeInfo}); err != nil {
+			return err
+		}
+	}
 
-func (client *TransparentEndpointClient) DeleteEndpoints(ep *endpoint) error {
-	log.Printf("[net] Deleting veth pair %v %v.", ep.HostIfName, ep.IfName)
-	err := netlink.DeleteLink(ep.HostIfName)
-	if err != nil {
-		log.Printf("[net] Failed to delete veth pair %v: %v.", ep.HostIfName, err)
+	//add route for virtualgwip
+	//ip route add 169.254.1.1/32 dev eth0
+	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
+	routeInfo := RouteInfo{
+		Dst:   *virtualGwNet,
+		Scope: netlink.RT_SCOPE_LINK,
+	}
+	if err := addRoutes(client.containerVethName, []RouteInfo{routeInfo}); err != nil {
 		return err
 	}
 
+	//ip route add default via 169.254.1.1 dev eth0
+	_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
+	dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
+	routeInfo = RouteInfo{
+		Dst: dstIP,
+		Gw:  virtualGwIP,
+	}
+	if err := addRoutes(client.containerVethName, []RouteInfo{routeInfo}); err != nil {
+		return err
+	}
+
+	//arp -s 169.254.1.1 e3:45:f4:ac:34:12 - add static arp entry for virtualgwip to hostveth interface mac
+	log.Printf("[net] Adding static arp for IP address %v and MAC %v in Container namespace", virtualGwNet.String(), client.hostVethMac)
+	return netlink.AddOrRemoveStaticArp(netlink.ADD, client.containerVethName, virtualGwNet.IP, client.hostVethMac, false)
+}
+
+func (client *TransparentEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	return nil
 }

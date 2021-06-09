@@ -131,6 +131,7 @@ func (logger *Logger) getLogFileName() string {
 	return logFileName
 }
 
+// todo: handle errors and use atomic file rotation
 // Rotate checks the active log file size and rotates log files if necessary.
 func (logger *Logger) rotate() {
 	// Return if target is not a log file.
@@ -164,7 +165,7 @@ func (logger *Logger) rotate() {
 		}
 
 		// Create a new log file.
-		logger.SetTarget(TargetLogfile)
+		logger.SetTarget(logger.target)
 	}
 }
 
@@ -185,6 +186,17 @@ func (logger *Logger) Response(tag string, response interface{}, returnCode int,
 		logger.Errorf("[%s] Code:%s, %+v %s.", tag, returnStr, response, err.Error())
 	} else {
 		logger.Errorf("[%s] Code:%s, %+v.", tag, returnStr, response)
+	}
+}
+
+// ResponseEx logs a structured response and the request associate with it.
+func (logger *Logger) ResponseEx(tag string, request interface{}, response interface{}, returnCode int, returnStr string, err error) {
+	if err == nil && returnCode == 0 {
+		logger.Printf("[%s] Sent %T %+v %T %+v.", tag, request, request, response, response)
+	} else if err != nil {
+		logger.Errorf("[%s] Code:%s, %+v, %+v %s.", tag, returnStr, request, response, err.Error())
+	} else {
+		logger.Errorf("[%s] Code:%s, %+v, %+v.", tag, returnStr, request, response)
 	}
 }
 

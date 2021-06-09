@@ -1,0 +1,119 @@
+parameters:
+  name: ""
+  clusterDefinition: ""
+  clusterDefinitionCniTypeKey: ""
+  clusterDefinitionCniBuildOS: ""
+  clusterDefinitionCniBuildExt: ""
+
+steps:
+  - checkout: none
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      go get github.com/onsi/ginkgo/ginkgo
+      go get github.com/onsi/gomega/...
+
+      cd '$(modulePath)'
+      echo Currently set AKS-Engine Version '$(AKS_ENGINE_VERSION)'
+      if [ -z '$(AKS_ENGINE_VERSION)' ]
+      then
+        echo Found set AKS-Engine version '$(AKS_ENGINE_VERSION)'...
+        export aksEVersion=$(curl -L -s -H 'Accept: application/json' https://github.com/Azure/aks-engine/releases/latest | sed -e 's/.*"tag_name":"\([^"]*\)".*/\1/')
+      else
+        echo No AKS-Engine version set, using latest...
+        export aksEVersion='$(AKS_ENGINE_VERSION)'
+      fi
+      echo Using AKS-Engine version $aksEVersion
+
+      #download source
+      wget https://github.com/Azure/aks-engine/archive/$aksEVersion.tar.gz
+
+      #extract source
+      tar -zxf $aksEVersion.tar.gz
+
+      # move source to current directory
+      mv aks-engine-*/* .
+
+      # download binary
+      wget https://github.com/Azure/aks-engine/releases/download/$aksEVersion/aks-engine-$aksEVersion-linux-amd64.tar.gz
+      mkdir ./bin
+
+      #extract binary
+      tar -zxvf aks-engine-$aksEVersion-linux-amd64.tar.gz -C bin
+      mv ./bin/aks-engine-*/* ./bin/
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      buildType: current
+      artifactName: clusterdefinitions
+      targetPath: "$(modulePath)"
+      #buildType: 'current' # Options: current, specific
+      #project: # Required when buildType == Specific
+
+  - bash: |
+      ls -lah
+      export CNI_URL=https://$(ARTIFACT_STORAGE).blob.core.windows.net/acn-$(StorageID)/azure-vnet-cni-${{ parameters.clusterDefinitionCniBuildOS }}-amd64-$(Tag)${{ parameters.clusterDefinitionCniBuildExt }}
+      export CNI_TYPE=${{ parameters.clusterDefinitionCniTypeKey }}
+      echo CNI type is $CNI_TYPE
+      echo Tag is $(Tag)
+      echo CNI_URL is $CNI_URL
+      echo Config: '${{ parameters.clusterDefinition }}'
+      cat '${{ parameters.clusterDefinition }}'
+      cat '${{ parameters.clusterDefinition }}' | jq --arg cnikey $CNI_TYPE --arg cniurl $CNI_URL '.properties.orchestratorProfile.kubernetesConfig[$cnikey]= $cniurl' > '${{ parameters.clusterDefinition }}'.tmp	
+      cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
+      cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage $IMAGE_REGISTRY/azure-npm:$(Tag)-test '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
+      mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
+      echo "Running E2E tests against a cluster built with the following API model:" 
+      cp ${{ parameters.clusterDefinition }} clusterDefinition.json
+    displayName: Configure AKS-Engine
+    workingDirectory: "$(modulePath)"
+
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(AKS_ENGINE_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      addSpnToEnvironment: true
+      workingDirectory: "$(modulePath)"
+      inlineScript: |
+        export CLIENT_ID=$servicePrincipalId
+        export CLIENT_SECRET=$servicePrincipalKey 
+        export PATH=$PATH:'$(GOPATH)'
+        export CLUSTER_DEFINITION=./clusterDefinition.json
+        export ORCHESTRATOR=kubernetes 
+        export CREATE_VNET=false 
+        export TIMEOUT=20m 
+        export TENANT_ID=$(AKS_ENGINE_TENANT_ID) 
+        export SUBSCRIPTION_ID=$(AKS_ENGINE_SUBSCRIPTION_ID) 
+        export CLEANUP_ON_EXIT=true
+        export CLEANUP_IF_FAIL=false
+        export REGIONS=$(AKS_ENGINE_REGION) 
+        export IS_JENKINS=false 
+        export DEBUG_CRASHING_PODS=true
+        export AZURE_CORE_ONLY_SHOW_ERRORS=True
+        echo Cluster Def $CLUSTER_DEFINITION
+        cat $CLUSTER_DEFINITION
+        make test-kubernetes
+    name: DeployAKSEngine
+    displayName: Run AKS-Engine E2E Tests
+      
+
+
+  - task: CopyFiles@2
+    inputs:
+      sourceFolder: "$(modulePath)/_output"
+      targetFolder: $(Build.ArtifactStagingDirectory)/${{ parameters.name }}
+    condition: always()
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      artifactName: ${{ parameters.name }}
+      pathtoPublish: "$(Build.ArtifactStagingDirectory)/${{ parameters.name }}"
+    condition: always()
+    

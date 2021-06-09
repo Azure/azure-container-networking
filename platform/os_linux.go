@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 )
 
@@ -118,7 +117,7 @@ func SetSdnRemoteArpMacAddress() error {
 }
 
 func GetOSDetails() (map[string]string, error) {
-	linesArr, err := common.ReadFileByLines(osReleaseFile)
+	linesArr, err := ReadFileByLines(osReleaseFile)
 	if err != nil || len(linesArr) <= 0 {
 		return nil, err
 	}
@@ -157,4 +156,8 @@ func PrintDependencyPackageDetails() {
 	out, err = ExecuteCommand("ebtables --version")
 	out = strings.TrimSuffix(out, "\n")
 	log.Printf("[cni-net] ebtable version %s, err:%v", out, err)
+}
+
+func ReplaceFile(source, destination string) error {
+	return os.Rename(source, destination)
 }

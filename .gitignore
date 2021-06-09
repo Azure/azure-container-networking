@@ -14,3 +14,11 @@ ipam-*.xml
 
 # Goland
 .idea/*
+
+# Logs
+*.log
+
+# debug test files
+*.test
+
+build/tools/bin

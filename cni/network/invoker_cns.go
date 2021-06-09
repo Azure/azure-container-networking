@@ -21,10 +21,9 @@ const (
 )
 
 type CNSIPAMInvoker struct {
-	podName              string
-	podNamespace         string
-	primaryInterfaceName string
-	cnsClient            *cnsclient.CNSClient
+	podName      string
+	podNamespace string
+	cnsClient    *cnsclient.CNSClient
 }
 
 type IPv4ResultInfo struct {
@@ -39,7 +38,7 @@ type IPv4ResultInfo struct {
 
 func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
 	cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-	cnsClient, err := cnsclient.InitCnsClient(cnsURL)
+	cnsClient, err := cnsclient.InitCnsClient(cnsURL, defaultRequestTimeout)
 
 	return &CNSIPAMInvoker{
 		podName:      podName,
@@ -54,6 +53,9 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, hostSubnetPrefix *n
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{PodName: invoker.podName, PodNamespace: invoker.podNamespace}
 	orchestratorContext, err := json.Marshal(podInfo)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	log.Printf("Requesting IP for pod %v", podInfo)
 	response, err := invoker.cnsClient.RequestIPAddress(orchestratorContext)
@@ -150,9 +152,14 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 	}
 
 	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), iptables.AzureDNS, iptables.UDP, iptables.DNSPort)
+
+	// TODO remove this rule once we remove adding MASQUEARDE from AgentBaker, check below PR
+	// https://github.com/Azure/AgentBaker/pull/367/files
+	podTrafficAccept := fmt.Sprintf(" -m iprange  ! --dst-range 168.63.129.16-168.63.129.16  -s %s ", ncSubnetPrefix.String())
 	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
 	options[network.IPTablesKey] = []iptables.IPTableEntry{
 		iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
+		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, podTrafficAccept, iptables.Accept),
 		iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
 		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSMatch, snatPrimaryIPJump),
 	}
@@ -161,7 +168,7 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, options map[string]interface{}) error {
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, epInfo *network.EndpointInfo, options map[string]interface{}) error {
 
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{PodName: invoker.podName, PodNamespace: invoker.podNamespace}
@@ -171,5 +178,22 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		return err
 	}
 
-	return invoker.cnsClient.ReleaseIPAddress(orchestratorContext)
+	req := cns.IPConfigRequest{
+		OrchestratorContext: orchestratorContext,
+	}
+
+	if address != nil {
+		req.DesiredIPAddress = address.IP.String()
+	} else {
+		log.Printf("CNS invoker called with empty IP address")
+	}
+
+	if epInfo != nil {
+		req.PodInterfaceID = epInfo.Id
+		req.InfraContainerID = epInfo.ContainerID
+	} else {
+		log.Printf("CNS invoker called with empty endpoint information")
+	}
+
+	return invoker.cnsClient.ReleaseIPAddress(&req)
 }

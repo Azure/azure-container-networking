@@ -10,125 +10,126 @@ trigger:
 
 stages:
   - stage: build_and_test
-    displayName: Build and Unit Test
+    displayName: ACN
     jobs:
-      - job: unit_tests
-        displayName: CNI, NPM, CNS, CNM
+      - job: setup
+        displayName: Setup 
         pool:
-          name: Networking-ContainerNetworking
-          demands: agent.os -equals Linux
-
-        container:
-          image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
-          options: "--privileged"
-
-        # Go setup for the vmImage:
-        # https://github.com/Microsoft/azure-pipelines-image-generation/blob/master/images/linux/scripts/installers/go.sh
-        variables:
-          GOBIN: "$(GOPATH)/bin" # Go binaries path
-          GOPATH: "$(System.DefaultWorkingDirectory)/gopath" # Go workspace path
-          modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking" # $(build.repository.name)' # Path to the module's code
-
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
-          - bash: |
-              echo $UID
-              sudo rm -rf $(System.DefaultWorkingDirectory)/*
-              sudo rm /run/docker/plugins/test.sock || true
-              sudo ip link del dev dummy || true
-            displayName: "Set up OS environment"
-
-          - checkout: self
-
-          - bash: |
-              go version
-              go env
-              mkdir -p '$(GOBIN)'
-              mkdir -p '$(GOPATH)/pkg'
-              mkdir -p '$(modulePath)'
-              shopt -s extglob
-              shopt -s dotglob
-              mv !(gopath) '$(modulePath)'
-              echo '##vso[task.prependpath]$(GOBIN)'
-              echo '##vso[task.prependpath]$(GOROOT)/bin'
-            name: "GoEnv"
-            displayName: "Set up the Go environment"
-
           - script: |
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
-              echo "##vso[task.setvariable variable=CommitHash;isOutput=true]$(git rev-parse HEAD)"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
-              export BRANCH=$(Build.SourceBranchName)
-              echo Building branch $BRANCH from $(Build.SourceBranch) 
-              if [[ "$BRANCH" == "master" ]]; then
-                echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --abbrev=0)"
-              fi
-            workingDirectory: "$(modulePath)"
+              echo "##vso[task.setvariable variable=ImageTag;isOutput=true]$(git describe --tags --always --dirty)-test"
+              sudo chown -R $(whoami):$(whoami) .
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
 
-          - script: |
-              go get github.com/docker/libnetwork/driverapi
-              go get github.com/gorilla/mux
-              go get github.com/jstemmer/go-junit-report
-              go get github.com/axw/gocov/gocov
-              go get github.com/AlekSi/gocov-xml
-              go get github.com/matm/gocov-html
-            workingDirectory: "$(modulePath)"
-            name: "GoDependencies"
-            displayName: "Install Go dependencies"
+      - job: build
+        displayName: Build Binaries
+        dependsOn:
+          - "setup"
+        variables:
+          TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
+          STORAGE_ID: $[ dependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
 
           - script: |
-              echo Building in $(pwd)
-              echo Build tag is $(EnvironmentalVariables.Tag)
-              export GOOS=windows
-              make all-binaries VERSION=$(EnvironmentalVariables.Tag)
-            workingDirectory: "$(modulePath)"
+              GOOS=windows make all-binaries VERSION=$(TAG)
             name: "BuildWindows"
             displayName: "Build Windows"
 
           - script: |
-              export GOOS=linux
-              make all-binaries VERSION=$(EnvironmentalVariables.Tag)
-            workingDirectory: "$(modulePath)"
+              GOOS=linux make all-binaries VERSION=$(TAG)
             name: "BuildLinux"
             displayName: "Build Linux"
 
-          - bash: |
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
-              { { { { 
-                    sudo -E env "PATH=$PATH" make test-all; 
-                    echo $? >&3; 
-                    } | tee >(go-junit-report > report.xml) >&4; 
-                  } 3>&1; 
-                } | { read xs; exit $xs; } 
-              } 4>&1
-            workingDirectory: "$(modulePath)"
-            name: "Test"
-            displayName: "Run Tests"
+          - script: |
+              mkdir -p ./output/bins
+              cd ./output/linux_amd64
+              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
+              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
+              sudo rm -R -- */ && cd ..
+              cd ./windows_amd64
+              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
+              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
+              sudo rm -R -- */ && cd ..
+              rmdir ./linux_amd64 && rmdir ./windows_amd64
+            name: "PrepareArtifacts"
+            displayName: "Prepare Artifacts"
+
+          - task: CopyFiles@2
+            inputs:
+              sourceFolder: "output"
+              targetFolder: $(Build.ArtifactStagingDirectory)
+            condition: succeeded()
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: "output"
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+            condition: succeeded()
+
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
+                az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
+                az storage blob upload-batch -d acn-$(STORAGE_ID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
+            displayName: Create artifact storage container
+            condition: succeeded()
+
+          - publish: ./test/apimodels/
+            artifact: clusterdefinitions
+
+      - job: build_images
+        displayName: Build Images
+        dependsOn:
+          - "setup"
+        variables:
+          TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              echo Tag is $(TAG)
+              sudo make tools-images VERSION=$(TAG)
+              sudo make all-images VERSION=$(TAG)
+            name: "BuildImages"
+            displayName: "Build Images"
 
           - script: |
-              make all-binaries VERSION=$(EnvironmentalVariables.Tag)
-              sudo make azure-npm-image VERSION=$(EnvironmentalVariables.Tag)
-            workingDirectory: "$(modulePath)"
-            name: "BuildNPMImage"
-            displayName: "Build NPM Image"
+              wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
+              tar -zxvf trivy*.tar.gz
+              mkdir -p ./trivy-cache
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-npm:$(TAG) 
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cns:$(TAG) 
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cni-manager:$(TAG) 
+            name: "TrivyScan"
+            displayName: "Image Vulnerability Scan"
 
-          - bash: |
-              export CODECOV_TOKEN=$(CODECOV_TOKEN)
-              bash <(curl -s https://codecov.io/bash)
-              gocov convert coverage.out > coverage.json
-              gocov-xml < coverage.json > coverage.xml
-            workingDirectory: "$(modulePath)"
-            name: "Coverage"
-            displayName: "Generate Coverage Reports"
-            condition: always()
+          - task: Docker@2
+            displayName: Docker Login
+            inputs:
+              containerRegistry: $(ACR_SERVICE_CONNECTION)
+              command: 'login'
+              addPipelineData: false
 
           - script: |
-              echo '$(DOCKER_PASSWORD)' | docker login containernetworking.azurecr.io -u '$(DOCKER_USERNAME)' --password-stdin
-              docker tag $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag) $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
-              docker push $PUSH_CONTAINER_REGISTRY/azure-npm:$(EnvironmentalVariables.Tag)-test
+              docker tag $IMAGE_REGISTRY/azure-npm:$(TAG) $IMAGE_REGISTRY/azure-npm:$(TAG)-test
+              docker push $IMAGE_REGISTRY/azure-npm:$(TAG)-test
+
+              docker tag $IMAGE_REGISTRY/azure-cns:$(TAG) $IMAGE_REGISTRY/azure-cns:$(TAG)-test
+              docker push $IMAGE_REGISTRY/azure-cns:$(TAG)-test
+
+              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(TAG) $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
+              docker push $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
 
               function auto-retry()
               {
@@ -139,37 +140,23 @@ stages:
                     printf "Attempt $i/$attempts - " && "$@" && break ||  sleep 3 &&  i=$[$i+1] && false
                   done
               }
-              auto-retry docker pull mcr.microsoft.com/containernetworking/azure-npm:$(EnvironmentalVariables.Tag)-test
-            workingDirectory: "$(modulePath)"
+
+              auto-retry docker pull $IMAGE_REGISTRY/azure-npm:$(TAG)-test
+              auto-retry docker pull $IMAGE_REGISTRY/azure-cns:$(TAG)-test
+              auto-retry docker pull $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
             name: "mcrreplication"
-            displayName: "Push NPM Image and Wait for MCR"
+            displayName: "Push NPM Image and Wait for Repository"
 
-          - script: |
-              cd ./output 
-              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
-              sudo find . -mindepth 2 -type f -print -exec mv {} . \;
-              sudo rm -R -- */ && cd ..
-            workingDirectory: "$(modulePath)"
-            name: "PrepareArtifacts"
-            displayName: "Prepare Artifacts"
-
-          - task: PublishTestResults@2
+          - task: Docker@2
+            displayName: Docker Logout
             inputs:
-              testRunner: JUnit
-              testResultsFiles: $(modulePath)/report.xml
-            displayName: "Publish Test Results"
-            condition: always()
-
-          - task: PublishCodeCoverageResults@1
-            inputs:
-              codeCoverageTool: Cobertura
-              summaryFileLocation: $(modulePath)/coverage.xml
-            displayName: "Publish Code Coverage Results"
-            condition: always()
+              containerRegistry: $(ACR_SERVICE_CONNECTION)
+              command: 'logout'
+              addPipelineData: false
 
           - task: CopyFiles@2
             inputs:
-              sourceFolder: "$(modulePath)/output"
+              sourceFolder: "output"
               targetFolder: $(Build.ArtifactStagingDirectory)
             condition: succeeded()
 
@@ -179,22 +166,57 @@ stages:
               pathtoPublish: "$(Build.ArtifactStagingDirectory)"
             condition: succeeded()
 
-          - publish: $(modulePath)/test/apimodels/
-            artifact: clusterdefinitions
+      - job: test
+        displayName: Run Tests
+        dependsOn:
+          - "setup"
+        variables:
+          STORAGE_ID: $[ dependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
 
-          - task: AzureCLI@1
+          - script: |
+              make tools
+              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
+              { { { { 
+                    sudo -E env "PATH=$PATH" make test-all; 
+                    echo $? >&3; 
+                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4; 
+                  } 3>&1; 
+                } | { read xs; exit $xs; } 
+              } 4>&1
+            name: "Test"
+            displayName: "Run Tests"
+
+          - bash: |
+              build/tools/bin/gocov convert coverage.out > coverage.json
+              build/tools/bin/gocov-xml < coverage.json > coverage.xml
+            name: "Coverage"
+            displayName: "Generate Coverage Reports"
+            condition: always()
+
+          - task: PublishTestResults@2
             inputs:
-              azureSubscription: $(ARTIFACT_SUBSCRIPTION)
-              scriptLocation: "inlineScript"
-              inlineScript: |
-                echo Creating storage container with name acn-$(EnvironmentalVariables.StorageID) and account name $(STORAGE_ACCOUNT_NAME)
-                az storage container create -n acn-$(EnvironmentalVariables.StorageID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
-                az storage blob upload-batch -d acn-$(EnvironmentalVariables.StorageID) -s ./output/  --account-name $(STORAGE_ACCOUNT_NAME)
-              workingDirectory: "$(modulePath)"
-            displayName: Create artifact storage container
-            condition: succeeded()
+              testRunner: JUnit
+              testResultsFiles: report.xml
+            displayName: "Publish Test Results"
+            condition: always()
 
-  - template: e2e-job-template.yaml
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: Cobertura
+              summaryFileLocation: coverage.xml
+            displayName: "Publish Code Coverage Results"
+            condition: always()
+
+  - template: singletenancy/aks-swift/e2e-job-template.yaml
+    parameters:
+      name: "aks_on_swift_e2e"
+      displayName: AKS on Swift
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "ubuntu_16_04_linux_e2e"
       displayName: Ubuntu 16.04
@@ -204,7 +226,7 @@ stages:
       clusterDefinitionCniBuildOS: "linux"
       clusterDefinitionCniBuildExt: ".tgz"
 
-  - template: e2e-job-template.yaml
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "ubuntu_18_04_linux_e2e"
       displayName: Ubuntu 18.04
@@ -214,17 +236,7 @@ stages:
       clusterDefinitionCniBuildOS: "linux"
       clusterDefinitionCniBuildExt: ".tgz"
 
-  - template: e2e-job-template.yaml
-    parameters:
-      name: "windows_18_09_e2e"
-      displayName: "Windows 1809"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows1809.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
-
-  - template: e2e-job-template.yaml
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "windows_19_03_e2e"
       displayName: "Windows 1903"
@@ -237,28 +249,27 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
+      - "aks_on_swift_e2e"
       - "ubuntu_16_04_linux_e2e"
       - "ubuntu_18_04_linux_e2e"
-      - "windows_18_09_e2e"
       - "windows_19_03_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
         pool:
-          name: Networking-ContainerNetworking
+          name: $(BUILD_POOL_NAME_DEFAULT)
           demands: agent.os -equals Linux
-        container:
-          image: "$(BUILD_IMAGE)"
         steps:
           - checkout: none
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(ARTIFACT_SUBSCRIPTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               inlineScript: |
                 BUILD_NUMBER=$(Build.BuildNumber)
                 BUILD_NUMBER=${BUILD_NUMBER//./-}
                 echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
                 az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
-              workingDirectory: "$(modulePath)"
+                echo Pruning old docker images...
+                sudo docker system prune -f
             displayName: Cleanup remote Azure storage container

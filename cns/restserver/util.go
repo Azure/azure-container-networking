@@ -74,13 +74,13 @@ func (service *HTTPRestService) saveState() error {
 }
 
 // restoreState restores CNS state from persistent store.
-func (service *HTTPRestService) restoreState() error {
+func (service *HTTPRestService) restoreState() {
 	logger.Printf("[Azure CNS] restoreState")
 
 	// Skip if a store is not provided.
 	if service.store == nil {
 		logger.Printf("[Azure CNS]  store not initialized.")
-		return nil
+		return
 	}
 
 	// Read any persisted state.
@@ -89,15 +89,16 @@ func (service *HTTPRestService) restoreState() error {
 		if err == store.ErrKeyNotFound {
 			// Nothing to restore.
 			logger.Printf("[Azure CNS]  No state to restore.\n")
-			return nil
+		} else {
+			logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing azure-cns.json", err)
+			service.store.Remove()
 		}
 
-		logger.Errorf("[Azure CNS]  Failed to restore state, err:%v\n", err)
-		return err
+		return
 	}
 
 	logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
-	return nil
+	return
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (int, string) {
@@ -120,8 +121,10 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		hostVersion = existingNCStatus.HostVersion
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
-	} else {
+	}
+	if hostVersion == "" {
 		// Host version is the NC version from NMAgent, set it -1 to indicate no result from NMAgent yet.
+		// TODO, query NMAgent and with aggresive time out and assign latest host version.
 		hostVersion = "-1"
 	}
 
@@ -240,17 +243,14 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 		}
 	}
 
-	newNCVersion, _ := strconv.Atoi(req.Version)
-	nmagentNCVersion, _ := strconv.Atoi(hostVersion)
-
-	// TODO, remove this override when background thread which update nmagent version is ready.
-	nmagentNCVersion = service.imdsClient.GetNetworkContainerInfoFromHostWithoutToken()
-
-	if nmagentNCVersion >= newNCVersion {
-		service.addIPConfigStateUntransacted(cns.Available, req.NetworkContainerid, newIPConfigs, existingSecondaryIPConfigs)
-	} else {
-		service.addIPConfigStateUntransacted(cns.PendingProgramming, req.NetworkContainerid, newIPConfigs, existingSecondaryIPConfigs)
+	// Add new IPs
+	// TODO, will udpate NC version related variable to int, change it from string to int is a pains
+	var hostNCVersionInInt int
+	var err error
+	if hostNCVersionInInt, err = strconv.Atoi(hostVersion); err != nil {
+		return UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
 	}
+	service.addIPConfigStateUntransacted(req.NetworkContainerid, hostNCVersionInInt, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
 
 	return 0, ""
 }
@@ -258,7 +258,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncId string, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
+func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVersion int, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
 	for ipId, ipconfig := range ipconfigs {
 		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new NC version
@@ -267,9 +267,17 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(newIPCNSStatus, ncI
 			ipconfig.NCVersion = existingIPConfig.NCVersion
 			ipconfigs[ipId] = ipconfig
 		}
-		logger.Printf("[Azure-Cns] Set IP %s version to %d", ipconfig.IPAddress, ipconfig.NCVersion)
+		logger.Printf("[Azure-Cns] Set IP %s version to %d, programmed host nc version is %d", ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
 		if _, exists := service.PodIPConfigState[ipId]; exists {
 			continue
+		}
+		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
+		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
+		var newIPCNSStatus string
+		if hostVersion < ipconfig.NCVersion {
+			newIPCNSStatus = cns.PendingProgramming
+		} else {
+			newIPCNSStatus = cns.Available
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{

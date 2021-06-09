@@ -294,9 +294,6 @@ func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	// Release the pool.
-	plugin.am.ReleasePool(nwCfg.Ipam.AddrSpace, nwCfg.Ipam.Subnet)
-
 	return nil
 }
 

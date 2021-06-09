@@ -10,6 +10,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// compare all fields including name of two network policies, which network policy controller need to care about.
+func isSameNetworkPolicy(old, new *networkingv1.NetworkPolicy) bool {
+	if old.ObjectMeta.Name != new.ObjectMeta.Name {
+		return false
+	}
+	return isSamePolicy(old, new)
+}
+
+// (TODO): isSamePolicy function does not compare name of two network policies since trying to reduce the number of rules if below three conditions are the same.
+// Will optimize networkPolicyController code with addPolicy and deductPolicy functions if possible. Refer to https://github.com/Azure/azure-container-networking/pull/390
 func isSamePolicy(old, new *networkingv1.NetworkPolicy) bool {
 	if !reflect.DeepEqual(old.TypeMeta, new.TypeMeta) {
 		return false
@@ -27,9 +37,8 @@ func isSamePolicy(old, new *networkingv1.NetworkPolicy) bool {
 }
 
 // addPolicy merges policies based on labels.
+// if namespace matches && podSelector matches, then merge two network policies. Otherwise, return as is.
 func addPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error) {
-	// if namespace matches && podSelector matches, then merge
-	// else return as is.
 	if !reflect.DeepEqual(old.TypeMeta, new.TypeMeta) {
 		return nil, fmt.Errorf("Old and new networkpolicies don't have the same TypeMeta")
 	}
@@ -63,6 +72,7 @@ func addPolicy(old, new *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolic
 		}
 	}
 
+	// (TODO): It seems ingress and egress may have duplicated fields, but in translatePolicy, it seems duplicated fields are removed.
 	ingress := append(old.Spec.Ingress, new.Spec.Ingress...)
 	egress := append(old.Spec.Egress, new.Spec.Egress...)
 	addedPolicy.Spec.Ingress = ingress

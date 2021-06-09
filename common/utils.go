@@ -4,12 +4,10 @@
 package common
 
 import (
-	"bufio"
 	"encoding/binary"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -123,35 +121,6 @@ func LogNetworkInterfaces() {
 	}
 }
 
-func CheckIfFileExists(filepath string) (bool, error) {
-	_, err := os.Stat(filepath)
-	if err == nil {
-		return true, nil
-	}
-
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-
-	return true, err
-}
-
-func CreateDirectory(dirPath string) error {
-	var err error
-
-	if dirPath == "" {
-		log.Printf("dirPath is empty, nothing to create.")
-		return nil
-	}
-
-	isExist, _ := CheckIfFileExists(dirPath)
-	if !isExist {
-		err = os.Mkdir(dirPath, os.ModePerm)
-	}
-
-	return err
-}
-
 func IpToInt(ip net.IP) uint32 {
 	if len(ip) == 16 {
 		return binary.BigEndian.Uint32(ip[12:16])
@@ -198,38 +167,6 @@ func StartProcess(path string, args []string) error {
 	}
 
 	return err
-}
-
-// ReadFileByLines reads file line by line and return array of lines.
-func ReadFileByLines(filename string) ([]string, error) {
-	var (
-		lineStrArr []string
-	)
-
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("Error opening %s file error %v", filename, err)
-	}
-
-	defer f.Close()
-
-	r := bufio.NewReader(f)
-
-	for {
-		lineStr, err := r.ReadString('\n')
-		if err != nil {
-			if err != io.EOF {
-				return nil, fmt.Errorf("Error reading %s file error %v", filename, err)
-			}
-
-			lineStrArr = append(lineStrArr, lineStr)
-			break
-		}
-
-		lineStrArr = append(lineStrArr, lineStr)
-	}
-
-	return lineStrArr, nil
 }
 
 // GetHostMetadata - retrieve VM metadata from wireserver

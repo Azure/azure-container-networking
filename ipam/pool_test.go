@@ -509,8 +509,7 @@ var (
 					as := &addressSpace{
 						Pools: map[string]*addressPool{},
 					}
-					pool, err := as.getAddressPool("10.0.0.0/16")
-					Expect(err).To(Equal(errInvalidPoolId))
+					pool, _ := as.getAddressPool("10.0.0.0/16")
 					Expect(pool).To(BeNil())
 				})
 			})
@@ -558,19 +557,77 @@ var (
 				})
 			})
 
-			Context("When pool is in use", func() {
+			Context("When pool is in use and it has no ips allocated", func() {
 				It("Should raise an error", func() {
 					as := &addressSpace{
 						Pools: map[string]*addressPool{},
 					}
 					poolId := "10.0.0.0/16"
 					as.Pools[poolId] = &addressPool{
-						Id:       poolId,
-						RefCount: 1,
+						Id:        poolId,
+						RefCount:  1,
+						Addresses: map[string]*addressRecord{},
+					}
+					as.Pools[poolId].Addresses["10.0.0.2"] = &addressRecord{
+						InUse: false,
+						Addr:  net.IPv4zero,
 					}
 					ap, err := as.requestPool("", "", nil, false)
-					Expect(err).To(Equal(errNoAvailableAddressPools))
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ap.Id).To(Equal(poolId))
+					Expect(ap.RefCount).To(Equal(1))
+				})
+			})
+
+			Context("When pool is in use and it has ips allocated", func() {
+				It("Should raise an error", func() {
+					as := &addressSpace{
+						Pools: map[string]*addressPool{},
+					}
+					poolId := "10.0.0.0/16"
+					as.Pools[poolId] = &addressPool{
+						Id:        poolId,
+						RefCount:  1,
+						Addresses: map[string]*addressRecord{},
+					}
+					as.Pools[poolId].Addresses["10.0.0.1"] = &addressRecord{
+						InUse: true,
+						Addr:  net.IPv4zero,
+					}
+					as.Pools[poolId].Addresses["10.0.0.2"] = &addressRecord{
+						InUse: false,
+						Addr:  net.IPv4zero,
+					}
+					ap, err := as.requestPool("", "", nil, false)
+					Expect(err).To(HaveOccurred())
 					Expect(ap).To(BeNil())
+					Expect(err).To(Equal(errNoAvailableAddressPools))
+				})
+			})
+
+			Context("When pool is in use and request same pool explicitly", func() {
+				It("Should raise an error", func() {
+					as := &addressSpace{
+						Pools: map[string]*addressPool{},
+					}
+					poolId := "10.0.0.0/16"
+					as.Pools[poolId] = &addressPool{
+						Id:        poolId,
+						RefCount:  1,
+						Addresses: map[string]*addressRecord{},
+					}
+					as.Pools[poolId].Addresses["10.0.0.1"] = &addressRecord{
+						InUse: true,
+						Addr:  net.IPv4zero,
+					}
+					as.Pools[poolId].Addresses["10.0.0.2"] = &addressRecord{
+						InUse: false,
+						Addr:  net.IPv4zero,
+					}
+					ap, err := as.requestPool(poolId, "", nil, false)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ap).NotTo(BeNil())
+					Expect(ap.RefCount).To(Equal(1))
 				})
 			})
 
@@ -707,7 +764,7 @@ var (
 
 					err := as.releasePool("10.0.0.0/16")
 					Expect(err).NotTo(HaveOccurred())
-					Expect(as.Pools[poolId]).To(BeNil())
+					Expect(as.Pools[poolId].isInUse()).To(BeFalse())
 				})
 			})
 

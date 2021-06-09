@@ -4,6 +4,7 @@
 package ipsm
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	utilexec "k8s.io/utils/exec"
 )
 
 type ipsEntry struct {
@@ -24,14 +26,15 @@ type ipsEntry struct {
 
 // IpsetManager stores ipset states.
 type IpsetManager struct {
-	listMap map[string]*Ipset //tracks all set lists.
-	setMap  map[string]*Ipset //label -> []ip
+	exec    utilexec.Interface
+	ListMap map[string]*Ipset //tracks all set lists.
+	SetMap  map[string]*Ipset //label -> []ip
 }
 
 // Ipset represents one ipset entry.
 type Ipset struct {
 	name       string
-	elements   map[string]string // key = ip, value: context associated to the ip like podUid
+	elements   map[string]string // key = ip, value: context associated to the ip like podKey
 	referCount int
 }
 
@@ -44,39 +47,45 @@ func NewIpset(setName string) *Ipset {
 }
 
 // NewIpsetManager creates a new instance for IpsetManager object.
-func NewIpsetManager() *IpsetManager {
+func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	return &IpsetManager{
-		listMap: make(map[string]*Ipset),
-		setMap:  make(map[string]*Ipset),
+		exec:    exec,
+		ListMap: make(map[string]*Ipset),
+		SetMap:  make(map[string]*Ipset),
 	}
 }
 
 // Exists checks if an element exists in setMap/listMap.
-func (ipsMgr *IpsetManager) Exists(key string, val string, kind string) bool {
-	m := ipsMgr.setMap
+func (ipsMgr *IpsetManager) Exists(listName string, setName string, kind string) bool {
+	m := ipsMgr.SetMap
 	if kind == util.IpsetSetListFlag {
-		m = ipsMgr.listMap
+		m = ipsMgr.ListMap
 	}
 
-	if _, exists := m[key]; !exists {
+	if _, exists := m[listName]; !exists {
 		return false
 	}
 
-	if _, exists := m[key].elements[val]; !exists {
+	if _, exists := m[listName].elements[setName]; !exists {
 		return false
 	}
 
 	return true
 }
 
-// SetExists checks whehter an ipset exists.
-func (ipsMgr *IpsetManager) SetExists(setName, kind string) bool {
-	m := ipsMgr.setMap
-	if kind == util.IpsetSetListFlag {
-		m = ipsMgr.listMap
+// SetExists checks if an ipset exists, and returns the type
+func (ipsMgr *IpsetManager) SetExists(setName string) (bool, string) {
+	_, exists := ipsMgr.SetMap[setName]
+	if exists {
+		return exists, util.IpsetSetGenericFlag
 	}
-	_, exists := m[setName]
-	return exists
+
+	_, exists = ipsMgr.ListMap[setName]
+	if exists {
+		return exists, util.IpsetSetListFlag
+	}
+
+	return exists, ""
 }
 
 func isNsSet(setName string) bool {
@@ -85,7 +94,7 @@ func isNsSet(setName string) bool {
 
 // CreateList creates an ipset list. npm maintains one setlist per namespace label.
 func (ipsMgr *IpsetManager) CreateList(listName string) error {
-	if _, exists := ipsMgr.listMap[listName]; exists {
+	if _, exists := ipsMgr.ListMap[listName]; exists {
 		return nil
 	}
 
@@ -101,7 +110,7 @@ func (ipsMgr *IpsetManager) CreateList(listName string) error {
 		return err
 	}
 
-	ipsMgr.listMap[listName] = NewIpset(listName)
+	ipsMgr.ListMap[listName] = NewIpset(listName)
 
 	return nil
 }
@@ -122,7 +131,7 @@ func (ipsMgr *IpsetManager) DeleteList(listName string) error {
 		return err
 	}
 
-	delete(ipsMgr.listMap, listName)
+	delete(ipsMgr.ListMap, listName)
 
 	return nil
 }
@@ -133,12 +142,30 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		return nil
 	}
 
-	if ipsMgr.Exists(listName, setName, util.IpsetSetListFlag) {
-		return nil
+	//Check if list being added exists in the listmap, if it exists we don't care about the set type
+	exists, _ := ipsMgr.SetExists(setName)
+
+	// if set does not exist, then return because the ipset call will fail due to set not existing
+	if !exists {
+		return fmt.Errorf("Set [%s] does not exist when attempting to add to list [%s]", setName, listName)
 	}
 
-	if err := ipsMgr.CreateList(listName); err != nil {
-		return err
+	// Check if the list that is being added to exists
+	exists, listtype := ipsMgr.SetExists(listName)
+
+	// Make sure that set returned is of list type, otherwise return because we can't add a set to a non setlist type
+	if exists && listtype != util.IpsetSetListFlag {
+		return fmt.Errorf("Failed to add set [%s] to list [%s], but list is of type [%s]", setName, listName, listtype)
+	} else if !exists {
+		// if the list doesn't exist, create it
+		if err := ipsMgr.CreateList(listName); err != nil {
+			return err
+		}
+	}
+
+	// check if set already exists in the list
+	if ipsMgr.Exists(listName, setName, util.IpsetSetListFlag) {
+		return nil
 	}
 
 	entry := &ipsEntry{
@@ -147,19 +174,44 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		spec:          []string{util.GetHashedName(setName)},
 	}
 
+	// add set to list
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset rules. rule: %+v", entry)
-		return err
+		return fmt.Errorf("Error: failed to create ipset rules. rule: %+v, error: %v", entry, err)
 	}
 
-	ipsMgr.listMap[listName].elements[setName] = ""
+	ipsMgr.ListMap[listName].elements[setName] = ""
 
 	return nil
 }
 
 // DeleteFromList removes an ipset to an ipset list.
 func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) error {
-	if _, exists := ipsMgr.listMap[listName]; !exists {
+
+	//Check if list being added exists in the listmap, if it exists we don't care about the set type
+	exists, _ := ipsMgr.SetExists(setName)
+
+	// if set does not exist, then return because the ipset call will fail due to set not existing
+	// TODO make sure these are info and not errors, use NPmErr
+	if !exists {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Set [%s] does not exist when attempting to delete from list [%s]", setName, listName)
+		return nil
+	}
+
+	//Check if list being added exists in the listmap, if it exists we don't care about the set type
+	exists, listtype := ipsMgr.SetExists(listName)
+
+	// if set does not exist, then return because the ipset call will fail due to set not existing
+	if !exists {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Set [%s] does not exist when attempting to add to list [%s]", setName, listName)
+		return nil
+	}
+
+	if listtype != util.IpsetSetListFlag {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Set [%s] is of the wrong type when attempting to delete list [%s], actual type [%s]", setName, listName, listtype)
+		return nil
+	}
+
+	if _, exists := ipsMgr.ListMap[listName]; !exists {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "ipset list with name %s not found", listName)
 		return nil
 	}
@@ -177,11 +229,11 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 	}
 
 	// Now cleanup the cache
-	if _, exists := ipsMgr.listMap[listName].elements[setName]; exists {
-		delete(ipsMgr.listMap[listName].elements, setName)
+	if _, exists := ipsMgr.ListMap[listName].elements[setName]; exists {
+		delete(ipsMgr.ListMap[listName].elements, setName)
 	}
 
-	if len(ipsMgr.listMap[listName].elements) == 0 {
+	if len(ipsMgr.ListMap[listName].elements) == 0 {
 		if err := ipsMgr.DeleteList(listName); err != nil {
 			metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset list %s.", listName)
 			return err
@@ -195,7 +247,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 	timer := metrics.StartNewTimer()
 
-	if _, exists := ipsMgr.setMap[setName]; exists {
+	if _, exists := ipsMgr.SetMap[setName]; exists {
 		return nil
 	}
 
@@ -207,12 +259,15 @@ func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 		spec: spec,
 	}
 	log.Logf("Creating Set: %+v", entry)
+	// (TODO): need to differentiate errCode handler
+	// since errCode can be one in case of "set with the same name already exists" and "maximal number of sets reached, cannot create more."
+	// It may have more situations with errCode==1.
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset.")
 		return err
 	}
 
-	ipsMgr.setMap[setName] = NewIpset(setName)
+	ipsMgr.SetMap[setName] = NewIpset(setName)
 
 	metrics.NumIPSets.Inc()
 	timer.StopAndRecord(metrics.AddIPSetExecTime)
@@ -223,7 +278,7 @@ func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 
 // DeleteSet removes a set from ipset.
 func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
-	if _, exists := ipsMgr.setMap[setName]; !exists {
+	if _, exists := ipsMgr.SetMap[setName]; !exists {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "ipset with name %s not found", setName)
 		return nil
 	}
@@ -242,7 +297,7 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 		return err
 	}
 
-	delete(ipsMgr.setMap, setName)
+	delete(ipsMgr.SetMap, setName)
 
 	metrics.NumIPSets.Dec()
 	metrics.NumIPSetEntries.Add(float64(-metrics.GetIPSetInventory(setName)))
@@ -252,26 +307,40 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 }
 
 // AddToSet inserts an ip to an entry in setMap, and creates/updates the corresponding ipset.
-func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
+func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	if ipsMgr.Exists(setName, ip, spec) {
 
-		// make sure we have updated the podUid in case it gets changed
-		cachedPodUid := ipsMgr.setMap[setName].elements[ip]
-		if cachedPodUid != podUid {
-			log.Logf("AddToSet: PodOwner has changed for Ip: %s, setName:%s, Old podUid: %s, new PodUid: %s. Replace context with new PodOwner.",
-				ip, setName, cachedPodUid, podUid)
+		// make sure we have updated the podKey in case it gets changed
+		cachedPodKey := ipsMgr.SetMap[setName].elements[ip]
+		if cachedPodKey != podKey {
+			log.Logf("AddToSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Replace context with new PodOwner.",
+				ip, setName, cachedPodKey, podKey)
 
-			ipsMgr.setMap[setName].elements[ip] = podUid
+			ipsMgr.SetMap[setName].elements[ip] = podKey
 		}
 
 		return nil
 	}
 
-	if !ipsMgr.SetExists(setName, spec) {
+	// possible formats
+	//192.168.0.1
+	//192.168.0.1,tcp:25227
+	// todo: handle ip and port with protocol, plus just ip
+	// always guaranteed to have ip, not guaranteed to have port + protocol
+	ipDetails := strings.Split(ip, ",")
+	if len(ipDetails) > 0 && ipDetails[0] == "" {
+		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty, spec: %+v", setName, spec)
+	}
+
+	// check if the set exists, ignore the type of the set being added if it exists since the only purpose is to see if it's created or not
+	exists, _ := ipsMgr.SetExists(setName)
+
+	if !exists {
 		if err := ipsMgr.CreateSet(setName, append([]string{spec})); err != nil {
 			return err
 		}
 	}
+
 	var resultSpec []string
 	if strings.Contains(ip, util.IpsetNomatch) {
 		ip = strings.Trim(ip, util.IpsetNomatch)
@@ -286,13 +355,14 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 		spec:          resultSpec,
 	}
 
+	// todo: check err handling besides error code, corrupt state possible here
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset rules. %+v", entry)
 		return err
 	}
 
-	// Stores the podUid as the context for this ip.
-	ipsMgr.setMap[setName].elements[ip] = podUid
+	// Stores the podKey as the context for this ip.
+	ipsMgr.SetMap[setName].elements[ip] = podKey
 
 	metrics.NumIPSetEntries.Inc()
 	metrics.IncIPSetInventory(setName)
@@ -301,19 +371,29 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podUid string) error {
 }
 
 // DeleteFromSet removes an ip from an entry in setMap, and delete/update the corresponding ipset.
-func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
-	ipSet, exists := ipsMgr.setMap[setName]
+func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
+	ipSet, exists := ipsMgr.SetMap[setName]
 	if !exists {
 		log.Logf("ipset with name %s not found", setName)
 		return nil
 	}
 
-	if _, exists := ipsMgr.setMap[setName].elements[ip]; exists {
+	// possible formats
+	//192.168.0.1
+	//192.168.0.1,tcp:25227
+	// todo: handle ip and port with protocol, plus just ip
+	// always guaranteed to have ip, not guaranteed to have port + protocol
+	ipDetails := strings.Split(ip, ",")
+	if len(ipDetails) > 0 && ipDetails[0] == "" {
+		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty", setName)
+	}
+
+	if _, exists := ipsMgr.SetMap[setName].elements[ip]; exists {
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
-		cachedPodUid := ipSet.elements[ip]
-		if cachedPodUid != podUid {
-			log.Logf("DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podUid: %s, new PodUid: %s. Ignore the delete as this is stale update",
-				ip, setName, cachedPodUid, podUid)
+		cachedPodKey := ipSet.elements[ip]
+		if cachedPodKey != podKey {
+			log.Logf("DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Ignore the delete as this is stale update",
+				ip, setName, cachedPodKey, podKey)
 
 			return nil
 		}
@@ -331,17 +411,17 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
 			return nil
 		}
 
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset entry. Entry: %+v", entry)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset entry: [%+v] err: [%v]", entry, err)
 		return err
 	}
 
 	// Now cleanup the cache
-	delete(ipsMgr.setMap[setName].elements, ip)
+	delete(ipsMgr.SetMap[setName].elements, ip)
 
 	metrics.NumIPSetEntries.Dec()
 	metrics.DecIPSetInventory(setName)
 
-	if len(ipsMgr.setMap[setName].elements) == 0 {
+	if len(ipsMgr.SetMap[setName].elements) == 0 {
 		ipsMgr.DeleteSet(setName)
 	}
 
@@ -350,7 +430,7 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podUid string) error {
 
 // Clean removes all the empty sets & lists under the namespace.
 func (ipsMgr *IpsetManager) Clean() error {
-	for setName, set := range ipsMgr.setMap {
+	for setName, set := range ipsMgr.SetMap {
 		if len(set.elements) > 0 {
 			continue
 		}
@@ -361,7 +441,7 @@ func (ipsMgr *IpsetManager) Clean() error {
 		}
 	}
 
-	for listName, list := range ipsMgr.listMap {
+	for listName, list := range ipsMgr.ListMap {
 		if len(list.elements) > 0 {
 			continue
 		}
@@ -403,14 +483,18 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	cmdArgs = util.DropEmptyFields(cmdArgs)
 
 	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
-	_, err := exec.Command(cmdName, cmdArgs...).Output()
-	if msg, failed := err.(*exec.ExitError); failed {
-		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
-		if errCode > 0 {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+
+	cmd := ipsMgr.exec.Command(cmdName, cmdArgs...)
+	output, err := cmd.CombinedOutput()
+
+	if result, isExitError := err.(utilexec.ExitError); isExitError {
+		exitCode := result.ExitStatus()
+		errfmt := fmt.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
+		if exitCode > 0 {
+			metrics.SendErrorLogAndMetric(util.IpsmID, errfmt.Error())
 		}
 
-		return errCode, err
+		return exitCode, errfmt
 	}
 
 	return 0, nil
@@ -422,9 +506,10 @@ func (ipsMgr *IpsetManager) Save(configFile string) error {
 		configFile = util.IpsetConfigFile
 	}
 
-	cmd := exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset to file.")
+	cmd := ipsMgr.exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset: [%s] Stderr: [%v, %s]", cmd, err, strings.TrimSuffix(string(output), "\n"))
 		return err
 	}
 	cmd.Wait()
@@ -450,12 +535,12 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 		}
 	}
 
-	cmd := exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file.")
+	cmd := ipsMgr.exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file: [%s] Stderr: [%v, %s]", cmd, err, strings.TrimSuffix(string(output), "\n"))
 		return err
 	}
-	cmd.Wait()
 
 	//TODO based on the set name and number of entries in the config file, update IPSetInventory
 
@@ -464,11 +549,10 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 
 // DestroyNpmIpsets destroys only ipsets created by NPM
 func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
-
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	reply, err := exec.Command(cmdName, cmdArgs).Output()
+	reply, err := ipsMgr.exec.Command(cmdName, cmdArgs).CombinedOutput()
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {
@@ -482,7 +566,6 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 		return nil
 	}
 
-	log.Logf("{DestroyNpmIpsets} Reply from command %s executed is %s", cmdName+" "+cmdArgs, reply)
 	re := regexp.MustCompile("Name: (" + util.AzureNpmPrefix + "\\d+)")
 	ipsetRegexSlice := re.FindAllSubmatch(reply, -1)
 

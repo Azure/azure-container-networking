@@ -578,11 +578,11 @@ func (tb *TelemetryBuffer) TryToConnectToTelemetryService() {
 
 func getTelemetryServiceDirectory() (path string, dir string) {
 	path = fmt.Sprintf("%v/%v", CniInstallDir, TelemetryServiceProcessName)
-	if exists, _ := common.CheckIfFileExists(path); !exists {
+	if exists, _ := platform.CheckIfFileExists(path); !exists {
 		ex, _ := os.Executable()
 		exDir := filepath.Dir(ex)
 		path = fmt.Sprintf("%v/%v", exDir, TelemetryServiceProcessName)
-		if exists, _ = common.CheckIfFileExists(path); !exists {
+		if exists, _ = platform.CheckIfFileExists(path); !exists {
 			log.Logf("Skip starting telemetry service as file didn't exist")
 			return
 		}

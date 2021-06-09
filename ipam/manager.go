@@ -187,7 +187,9 @@ func (am *addressManager) StartSource(options map[string]interface{}) error {
 	var isLoaded bool
 	environment, _ := options[common.OptEnvironment].(string)
 
-	if am.AddrSpaces != nil && len(am.AddrSpaces) > 0 {
+	if am.AddrSpaces != nil && len(am.AddrSpaces) > 0 &&
+		am.AddrSpaces[LocalDefaultAddressSpaceId] != nil &&
+		len(am.AddrSpaces[LocalDefaultAddressSpaceId].Pools) > 0 {
 		isLoaded = true
 	}
 

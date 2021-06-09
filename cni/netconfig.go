@@ -47,6 +47,7 @@ type NetworkConfig struct {
 	Type                          string   `json:"type,omitempty"`
 	Mode                          string   `json:"mode,omitempty"`
 	Master                        string   `json:"master,omitempty"`
+	AdapterName                   string   `json:"adapterName,omitempty"`
 	Bridge                        string   `json:"bridge,omitempty"`
 	LogLevel                      string   `json:"logLevel,omitempty"`
 	LogTarget                     string   `json:"logTarget,omitempty"`
@@ -62,6 +63,7 @@ type NetworkConfig struct {
 	DisableHairpinOnHostInterface bool     `json:"disableHairpinOnHostInterface,omitempty"`
 	DisableIPTableLock            bool     `json:"disableIPTableLock,omitempty"`
 	CNSUrl                        string   `json:"cnsurl,omitempty"`
+	ExecutionMode                 string   `json:"executionMode,omitempty"`
 	Ipam                          struct {
 		Type          string `json:"type"`
 		Environment   string `json:"environment,omitempty"`

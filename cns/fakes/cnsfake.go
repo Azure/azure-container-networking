@@ -1,9 +1,11 @@
 package fakes
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -130,7 +132,7 @@ func (ipm *IPStateManager) ReleaseIPConfig(ipconfigID string) (cns.IPConfigurati
 	return ipm.AvailableIPConfigState[ipconfigID], nil
 }
 
-func (ipm *IPStateManager) MarkIPsAsPending(numberOfIPsToMark int) (map[string]cns.IPConfigurationStatus, error) {
+func (ipm *IPStateManager) MarkIPAsPendingRelease(numberOfIPsToMark int) (map[string]cns.IPConfigurationStatus, error) {
 	ipm.Lock()
 	defer ipm.Unlock()
 
@@ -230,6 +232,11 @@ func (fake *HTTPServiceFake) SyncNodeStatus(string, string, string, json.RawMess
 	return 0, ""
 }
 
+// SyncHostNCVersion will update HostVersion in containerstatus.
+func (fake *HTTPServiceFake) SyncHostNCVersion(context.Context, string, time.Duration) {
+	return
+}
+
 func (fake *HTTPServiceFake) GetPendingProgramIPConfigs() []cns.IPConfigurationStatus {
 	ipconfigs := []cns.IPConfigurationStatus{}
 	for _, ipconfig := range fake.IPStateManager.PendingProgramIPConfigState {
@@ -285,8 +292,8 @@ func (fake *HTTPServiceFake) GetPodIPConfigState() map[string]cns.IPConfiguratio
 }
 
 // TODO: Populate on scale down
-func (fake *HTTPServiceFake) MarkIPsAsPending(numberToMark int) (map[string]cns.IPConfigurationStatus, error) {
-	return fake.IPStateManager.MarkIPsAsPending(numberToMark)
+func (fake *HTTPServiceFake) MarkIPAsPendingRelease(numberToMark int) (map[string]cns.IPConfigurationStatus, error) {
+	return fake.IPStateManager.MarkIPAsPendingRelease(numberToMark)
 }
 
 func (fake *HTTPServiceFake) GetOption(string) interface{} {
@@ -296,6 +303,10 @@ func (fake *HTTPServiceFake) GetOption(string) interface{} {
 func (fake *HTTPServiceFake) SetOption(string, interface{}) {}
 
 func (fake *HTTPServiceFake) Start(*common.ServiceConfig) error {
+	return nil
+}
+
+func (fake *HTTPServiceFake) Init(*common.ServiceConfig) error {
 	return nil
 }
 

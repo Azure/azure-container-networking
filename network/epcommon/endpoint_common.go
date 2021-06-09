@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -242,7 +241,7 @@ func AddSnatRule(match string, ip net.IP) error {
 
 func DisableRAForInterface(ifName string) error {
 	raFilePath := fmt.Sprintf(acceptRAV6File, ifName)
-	exist, err := common.CheckIfFileExists(raFilePath)
+	exist, err := platform.CheckIfFileExists(raFilePath)
 	if !exist {
 		log.Printf("[net] accept_ra file doesn't exist:err:%v", err)
 		return nil

@@ -1,9 +1,9 @@
 package npm
 
 import (
+	"container/heap"
 	"reflect"
 	"testing"
-	"container/heap"
 
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -89,7 +89,6 @@ func TestGetOperatorAndLabel(t *testing.T) {
 		t.Errorf("TestGetOperatorAndLabel failed @ operator comparison")
 	}
 
-
 	if !reflect.DeepEqual(resultLabels, expectedLabels) {
 		t.Errorf("TestGetOperatorAndLabel failed @ label comparison")
 	}
@@ -136,7 +135,7 @@ func TestReqHeap(t *testing.T) {
 		metav1.LabelSelectorRequirement{
 			Key:      "a",
 			Operator: metav1.LabelSelectorOpIn,
-			Values: []string{},
+			Values:   []string{},
 		},
 		metav1.LabelSelectorRequirement{
 			Key:      "testIn",
@@ -164,7 +163,7 @@ func TestReqHeap(t *testing.T) {
 		metav1.LabelSelectorRequirement{
 			Key:      "a",
 			Operator: metav1.LabelSelectorOpIn,
-			Values: []string{},
+			Values:   []string{},
 		},
 		metav1.LabelSelectorRequirement{
 			Key:      "testIn",
@@ -272,7 +271,7 @@ func TestHashSelector(t *testing.T) {
 			"c": "d",
 		},
 	}
-	
+
 	secondSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			metav1.LabelSelectorRequirement{

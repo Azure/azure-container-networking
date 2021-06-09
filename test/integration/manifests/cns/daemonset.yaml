@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cns
+  namespace: kube-system
+  labels:
+    app: azure-cns
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-cns
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-cns
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: beta.kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      containers:
+        - name: cns-container
+          image: acnpublic.azurecr.io/azure-cns:v1.2.8
+          imagePullPolicy: IfNotPresent
+          args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
+          volumeMounts:
+            - name: log
+              mountPath: /var/log
+            - name: cns-state
+              mountPath: /var/lib/azure-network
+            - name: cns-config
+              mountPath: /etc/azure-cns
+          ports:
+            - containerPort: 10090
+          env:
+            - name: CNSIpAddress
+              value: "127.0.0.1"
+            - name: CNSPort
+              value: "10090"
+            - name: CNSLogTarget
+              value: "stdoutfile"
+            - name: CNS_CONFIGURATION_PATH
+              value: /etc/azure-cns/cns_config.json
+            - name: NODENAME
+              valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: spec.nodeName 
+      hostNetwork: true
+      volumes:
+        - name: log
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: cns-state
+          hostPath:
+            path: /var/lib/azure-network
+            type: DirectoryOrCreate
+        - name: cns-config
+          configMap:
+            name: cns-config
+      serviceAccountName: azure-cns
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cns-config
+  namespace: kube-system
+data:
+  cns_config.json: |
+    {
+      "TelemetrySettings": {
+          "TelemetryBatchSizeBytes": 16384,
+          "TelemetryBatchIntervalInSecs": 15,
+          "RefreshIntervalInSecs": 15,
+          "DisableAll": false,
+          "HeartBeatIntervalInMins": 30,
+          "DebugMode": false,
+          "SnapshotIntervalInMins": 60
+      },
+      "ManagedSettings": {
+          "PrivateEndpoint": "",
+          "InfrastructureNetworkID": "",
+          "NodeID": "",
+          "NodeSyncIntervalInSeconds": 30
+      },
+      "ChannelMode": "CRD"
+    }

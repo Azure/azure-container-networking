@@ -152,7 +152,7 @@ func main() {
 		return
 	}
 
-	err = common.CreateDirectory(storeFileLocation)
+	err = platform.CreateDirectory(storeFileLocation)
 	if err != nil {
 		log.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
 		return

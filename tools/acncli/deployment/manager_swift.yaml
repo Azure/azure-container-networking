@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cni-manager
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      acn: azure-cni-manager
+  template:
+    metadata:
+      labels:
+        acn: azure-cni-manager
+    spec:
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+      hostNetwork: true
+      containers:
+        - name: azure-cni-installer
+          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.2.3
+          imagePullPolicy: Always
+          env:
+            - name: AZURE_CNI_OS
+              value: linux
+            - name: AZURE_CNI_TENANCY
+              value: singletenancy
+            - name: AZURE_CNI_MODE
+              value: transparent
+            - name: AZURE_CNI_IPAM
+              value: azure-cns
+            - name: AZURE_CNI_EXEMPT
+              value: azure-vnet-telemetry,azure-vnet-telemetry.config
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
+            - name: cni-datapath-log
+              mountPath: /var/log/azure-vnet.log
+      restartPolicy: Always
+      volumes:
+        - name: cni-bin
+          hostPath:
+            path: /opt/cni/bin
+            type: Directory
+        - name: cni-datapath-log
+          hostPath:
+            path: /var/log/azure-vnet.log
+            type: File
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory

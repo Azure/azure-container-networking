@@ -164,6 +164,26 @@ func Response(tag string, response interface{}, returnCode int, returnStr string
 	sendTraceInternal(msg)
 }
 
+// ResponseEx put request and response info together to help easier debug.
+func ResponseEx(tag string, request interface{}, response interface{}, returnCode int, returnStr string, err error) {
+	Log.logger.ResponseEx(tag, request, response, returnCode, returnStr, err)
+
+	if Log.th == nil || Log.DisableTraceLogging {
+		return
+	}
+
+	var msg string
+	if err == nil && returnCode == 0 {
+		msg = fmt.Sprintf("[%s] Sent %T %+v %T %+v.", tag, request, request, response, response)
+	} else if err != nil {
+		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v, %s.", tag, returnStr, request, response, err.Error())
+	} else {
+		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnStr, request, response)
+	}
+
+	sendTraceInternal(msg)
+}
+
 // Send AI telemetry metric
 func SendMetric(metric aitelemetry.Metric) {
 	if Log.th == nil || Log.DisableMetricLogging {

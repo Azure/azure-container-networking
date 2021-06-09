@@ -269,6 +269,8 @@ func addRoutes(interfaceName string, routes []RouteInfo) error {
 			Gw:        route.Gw,
 			LinkIndex: ifIndex,
 			Priority:  route.Priority,
+			Protocol:  route.Protocol,
+			Scope:     route.Scope,
 		}
 
 		if err := netlink.AddIpRoute(nlRoute); err != nil {
@@ -312,6 +314,8 @@ func deleteRoutes(interfaceName string, routes []RouteInfo) error {
 			Dst:       &route.Dst,
 			Gw:        route.Gw,
 			LinkIndex: ifIndex,
+			Protocol:  route.Protocol,
+			Scope:     route.Scope,
 		}
 
 		if err := netlink.DeleteIpRoute(nlRoute); err != nil {

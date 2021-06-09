@@ -1,13 +1,19 @@
 # Microsoft Azure Container Networking
 
 [![Build Status](https://msazure.visualstudio.com/One/_apis/build/status/Custom/Networking/ContainerNetworking/Azure.azure-container-networking?branchName=master)](https://msazure.visualstudio.com/One/_build/latest?definitionId=95007&branchName=master) [![Go Report Card](https://goreportcard.com/badge/github.com/Azure/azure-container-networking)](https://goreportcard.com/report/github.com/Azure/azure-container-networking) ![GitHub release](https://img.shields.io/github/release/Azure/azure-container-networking.svg)
-[![codecov](https://codecov.io/gh/Azure/azure-container-networking/branch/master/graph/badge.svg)](https://codecov.io/gh/Azure/azure-container-networking)
+
+| Azure Network Policy Manager Conformance      |  |
+| ----------- | ----------- |
+| Cyclonus Network Policy Suite      | [![Cyclonus Network Policy Test](https://github.com/Azure/azure-container-networking/actions/workflows/cyclonus-netpol-test.yaml/badge.svg?branch=master)](https://github.com/Azure/azure-container-networking/actions/workflows/cyclonus-netpol-test.yaml)       |
+| Kubernetes Network Policy E2E  | [![Build Status](https://dev.azure.com/msazure/One/_apis/build/status/Custom/Networking/ContainerNetworking/NPM%20Conformance%20Tests?branchName=master)](https://dev.azure.com/msazure/One/_build/latest?definitionId=195725&branchName=master)  |
+
+
 
 ## Overview
 This repository contains container networking services and plugins for Linux and Windows containers running on Azure:
 
-* [Azure CNI network and IPAM plugins](docs/cni.md) for Kubernetes and DC/OS.
-* [Azure CNM (libnetwork) network and IPAM plugins](docs/cnm.md) for Docker Engine.
+* [Azure CNI network and IPAM plugins](docs/cni.md) for Kubernetes.
+* [Azure CNM (libnetwork) network and IPAM plugins](docs/cnm.md) for Docker Engine. **(MAINTENANCE MODE)**
 * [Azure NPM - Kubernetes Network Policy Manager](docs/npm.md) (Supports only linux for now).
 
 The `azure-vnet` network plugins connect containers to your [Azure VNET](https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-overview), to take advantage of Azure SDN capabilities. The `azure-vnet-ipam` IPAM plugins provide address management functionality for container IP addresses allocated from Azure VNET address space.

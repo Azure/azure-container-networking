@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
+	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
@@ -38,10 +39,10 @@ type HTTPRestService struct {
 	dockerClient                 *dockerclient.DockerClient
 	imdsClient                   imdsclient.ImdsClientInterface
 	ipamClient                   *ipamclient.IpamClient
+	nmagentClient                nmagentclient.NMAgentClientInterface
 	networkContainer             *networkcontainers.NetworkContainers
 	PodIPIDByOrchestratorContext map[string]string                    // OrchestratorContext is key and value is Pod IP uuid.
 	PodIPConfigState             map[string]cns.IPConfigurationStatus // seondaryipid(uuid) is key
-	AllocatedIPCount             map[string]allocatedIPCount          // key - ncid
 	IPAMPoolMonitor              cns.IPAMPoolMonitor
 	routingTable                 *routes.RoutingTable
 	store                        store.KeyValueStore
@@ -50,8 +51,21 @@ type HTTPRestService struct {
 	dncPartitionKey string
 }
 
-type allocatedIPCount struct {
-	Count int
+type GetHTTPServiceDataResponse struct {
+	HttpRestServiceData HttpRestServiceData
+	Response            Response
+}
+
+//struct to return in-memory httprest data in debug api
+type HttpRestServiceData struct {
+	PodIPIDByOrchestratorContext map[string]string                    // OrchestratorContext is key and value is Pod IP uuid.
+	PodIPConfigState             map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
+	IPAMPoolMonitor              cns.IpamPoolMonitorStateSnapshot
+}
+
+type Response struct {
+	ReturnCode int
+	Message    string
 }
 
 // containerstatus is used to save status of an existing container
@@ -84,7 +98,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdsclient.ImdsClientInterface) (cns.HTTPService, error) {
+func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdsclient.ImdsClientInterface, nmagentClient nmagentclient.NMAgentClientInterface) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
@@ -110,7 +124,6 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 
 	podIPIDByOrchestratorContext := make(map[string]string)
 	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
-	allocatedIPCount := make(map[string]allocatedIPCount) // key - ncid
 
 	return &HTTPRestService{
 		Service:                      service,
@@ -118,30 +131,24 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		dockerClient:                 dc,
 		imdsClient:                   imdsClient,
 		ipamClient:                   ic,
+		nmagentClient:                nmagentClient,
 		networkContainer:             nc,
 		PodIPIDByOrchestratorContext: podIPIDByOrchestratorContext,
 		PodIPConfigState:             podIPConfigState,
-		AllocatedIPCount:             allocatedIPCount,
 		routingTable:                 routingTable,
 		state:                        serviceState,
 	}, nil
 }
 
-// Start starts the CNS listener.
-func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
-
+// Init starts the CNS listener.
+func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	err := service.Initialize(config)
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to initialize base service, err:%v.", err)
 		return err
 	}
 
-	err = service.restoreState()
-	if err != nil {
-		logger.Errorf("[Azure CNS]  Failed to restore service state, err:%v.", err)
-		return err
-	}
-
+	service.restoreState()
 	err = service.restoreNetworkState()
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)
@@ -177,6 +184,8 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.ReleaseIPConfig, service.releaseIPConfigHandler)
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.GetIPAddresses, service.getIPAddressesHandler)
+	listener.AddHandler(cns.GetPodIPOrchestratorContext, service.getPodIPIDByOrchestratorContexthandler)
+	listener.AddHandler(cns.GetHTTPRestData, service.GetHTTPRestDataHandler)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
@@ -208,6 +217,19 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 
 	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID)
 	logger.Printf("[Azure CNS]  Listening.")
+
+	return nil
+}
+
+// Start starts the CNS listener.
+func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
+
+	// Start the listener.
+	// continue to listen on the normal endpoint for http traffic, this will be supported
+	// for sometime until partners migrate fully to https
+	if err := service.StartListener(config); err != nil {
+		return err
+	}
 
 	return nil
 }

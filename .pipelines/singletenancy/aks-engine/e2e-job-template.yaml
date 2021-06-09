@@ -1,0 +1,40 @@
+parameters:
+  name: ""
+  displayName: ""
+  pipelineBuildImage: "$(BUILD_IMAGE)"
+  clusterDefinition: ""
+  clusterDefinitionCniTypeKey: ""
+  clusterDefinitionCniBuildOS: ""
+  clusterDefinitionCniBuildExt: ""
+
+stages:
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn: build_and_test
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: Singletenancy AKS Engine Suite - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands: 
+          - agent.os -equals Linux
+          - Role -equals Build
+        container:
+          image: mcr.microsoft.com/oss/azcu/go-dev:$(GO_DEV_IMAGE_TAG)
+        variables:
+          GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+          GOBIN: "$(GOPATH)/bin" # Go binaries path
+          modulePath: "$(GOPATH)/src/github.com/Azure/aks-engine"
+          acnPath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+          Tag: $[ stagedependencies.build_and_test.setup.outputs['EnvironmentalVariables.Tag'] ]
+          CommitHash: $[ stagedependencies.build_and_test.setup.outputs['EnvironmentalVariables.CommitHash'] ]
+          StorageID: $[ stagedependencies.build_and_test.setup.outputs['EnvironmentalVariables.StorageID'] ]
+        steps:
+          - template: e2e-step-template.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterDefinition: ${{ parameters.clusterDefinition }}
+              clusterDefinitionCniTypeKey: ${{ parameters.clusterDefinitionCniTypeKey }}
+              clusterDefinitionCniBuildOS: ${{ parameters.clusterDefinitionCniBuildOS }}
+              clusterDefinitionCniBuildExt: ${{ parameters.clusterDefinitionCniBuildExt }}

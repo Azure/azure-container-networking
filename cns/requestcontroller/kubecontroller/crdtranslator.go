@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
@@ -66,7 +67,10 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 				NCVersion: ncVersion,
 			}
 			ncRequest.SecondaryIPConfigs[ipAssignment.Name] = secondaryIPConfig
+			logger.Debugf("Seconday IP Configs got set, name is %s, config is %v", ipAssignment.Name, secondaryIPConfig)
 		}
+		logger.Printf("Set NC request info with NetworkContainerid %s, NetworkContainerType %s, NC Version %s",
+			ncRequest.NetworkContainerid, ncRequest.NetworkContainerType, ncRequest.Version)
 	}
 
 	//Only returning the first network container for now, later we will return a list

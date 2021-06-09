@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,14 +53,15 @@ func NewPortForwarder(restConfig *rest.Config) (*PortForwarder, error) {
 
 // todo: can be made more flexible to allow a service to be specified
 func (p *PortForwarder) Forward(ctx context.Context, namespace, labelSelector string, localPort, destPort int) (PortForwardStreamHandle, error) {
-	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
+	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector, FieldSelector: "status.phase=Running"})
 	if err != nil {
 		return PortForwardStreamHandle{}, fmt.Errorf("could not list pods in %q with label %q: %v", namespace, labelSelector, err)
 	}
 	if len(pods.Items) < 1 {
 		return PortForwardStreamHandle{}, fmt.Errorf("no pods found in %q with label %q", namespace, labelSelector)
 	}
-	podName := pods.Items[0].Name
+	randomIndex := rand.Intn(len(pods.Items))
+	podName := pods.Items[randomIndex].Name
 	portForwardURL := p.clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Namespace(namespace).

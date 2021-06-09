@@ -1,0 +1,83 @@
+parameters:
+  name: ""
+
+steps:
+  - bash: |
+      echo $UID
+      sudo rm -rf $(System.DefaultWorkingDirectory)/*
+    displayName: "Set up OS environment"
+
+  - checkout: self
+
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - bash: |
+      echo $(ImageTag)
+    displayName: Echo Tag
+
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      addSpnToEnvironment: true
+      inlineScript: |
+        mkdir -p ~/.kube/
+        echo "DNC Underlay config"
+        az keyvault secret show --name $(KV_DNC_UNDERLAY_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
+        az keyvault secret show --name $(KV_DNC_UNDERLAY_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/dnc-underlay
+        echo "Dirty ACN cx cluster config"
+        az keyvault secret show --name $(KV_AKS_SWIFT_CX_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
+        az keyvault secret show --name $(KV_AKS_SWIFT_CX_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/config
+    displayName: Pull Kubeconfig from Keyvault
+    condition: succeeded()
+
+  - script: |
+      ls -lah
+      pwd
+      echo "installing kubectl"
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      kubectl cluster-info
+      kubectl get po -owide -A
+      sudo -E env "PATH=$PATH" VERSION=$(ImageTag) INSTALL_CNI=true INSTALL_CNS=true make test-integration
+    name: "aksswifte2e"
+    displayName: "Run AKS Swift E2E"
+
+  - script: |
+      echo "Logs will be available as a build artifact"
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
+      echo $ARTIFACT_DIR
+      sudo rm -rf $ARTIFACT_DIR
+      sudo mkdir $ARTIFACT_DIR
+      sudo cp test/integration/logs/* $ARTIFACT_DIR
+      export KUBECONFIG=~/.kube/dnc-underlay
+      kubectl logs -n $STABLE_DNC_NAMESPACE -l app=dnc --tail -1 -c dnc --prefix > dnc-logs.txt
+      kubectl logs -n $STABLE_DNC_NAMESPACE -l app=dnc --tail -1 -c requestcontroller --prefix > dnc-rc-logs.txt
+      sudo cp *.txt $ARTIFACT_DIR
+    name: "GetLogs"
+    displayName: "Get logs"
+    condition: always()
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      artifactName: aks-swift-output
+      pathtoPublish: "$(Build.ArtifactStagingDirectory)/aks-swift-output"
+    condition: always()
+
+  - script: |
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
+      echo $ARTIFACT_DIR
+      sudo rm -rf $ARTIFACT_DIR
+      sudo rm -rf test/integration/logs
+    name: "Cleanupartifactdir"
+    displayName: "Cleanup artifact dir"
+    condition: always()

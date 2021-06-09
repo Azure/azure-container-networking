@@ -225,6 +225,113 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestGetChainLineNumber(t *testing.T) {
+	iptMgr := &IptablesManager{}
+
+	var (
+		lineNum    int
+		err        error
+		kubeExists bool
+		npmExists  bool
+	)
+
+	if err = iptMgr.Save(util.IptablesTestConfigFile); err != nil {
+		t.Errorf("TestGetChainLineNumber failed @ iptMgr.Save")
+	}
+
+	defer func() {
+		if err = iptMgr.Restore(util.IptablesTestConfigFile); err != nil {
+			t.Errorf("TestGetChainLineNumber failed @ iptMgr.Restore")
+		}
+	}()
+
+	if err = iptMgr.AddChain(util.IptablesKubeServicesChain); err != nil {
+		t.Errorf("TestGetChainLineNumber failed @ kube-services chain iptMgr.AddChain error: %s", err.Error())
+	}
+
+	iptMgr.OperationFlag = util.IptablesCheckFlag
+	entry := &IptEntry{
+		Chain: util.IptablesForwardChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesKubeServicesChain,
+		},
+	}
+
+	if kubeExists, err = iptMgr.Exists(entry); err != nil {
+		t.Errorf("TestGetChainLineNumber failed @ kube-services chain iptMgr.Exists error: %s", err.Error())
+	}
+
+	entry = &IptEntry{
+		Chain: util.IptablesForwardChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesAzureChain,
+		},
+	}
+
+	// Ignore not exists errors
+	npmExists, _ = iptMgr.Exists(entry)
+
+	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+	if err != nil {
+		t.Errorf("TestGetChainLineNumber @ initial iptMgr.GetChainLineNumber error: %s", err.Error())
+	}
+
+	switch {
+	case (npmExists && kubeExists):
+		if lineNum != 3 {
+			t.Errorf("TestGetChainLineNumber @ initial line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
+		}
+	case npmExists:
+		if lineNum == 0 {
+			t.Errorf("TestGetChainLineNumber @ initial line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
+		}
+	default:
+		if lineNum != 0 {
+			t.Errorf("TestGetChainLineNumber @ initial line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
+		}
+	}
+
+	if err = iptMgr.InitNpmChains(); err != nil {
+		t.Errorf("TestGetChainLineNumber @ iptMgr.InitNpmChains error: %s", err.Error())
+	}
+
+	entry = &IptEntry{
+		Chain: util.IptablesForwardChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesAzureChain,
+		},
+	}
+
+	if npmExists, err = iptMgr.Exists(entry); err != nil {
+		t.Errorf("TestGetChainLineNumber failed @ azure-npm chain iptMgr.Exists error: %s", err.Error())
+	}
+
+	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+	if err != nil {
+		t.Errorf("TestGetChainLineNumber @ after Init chains iptMgr.GetChainLineNumber error: %s", err.Error())
+	}
+
+	switch {
+	case (npmExists && kubeExists):
+		if lineNum < 2 {
+			t.Errorf("TestGetChainLineNumber @ after Init chains line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
+		}
+	case npmExists:
+		if lineNum == 0 {
+			t.Errorf("TestGetChainLineNumber @ after Init chains line number check iptMgr.GetChainLineNumber with npmExists: %t kubeExists: %t", npmExists, kubeExists)
+		}
+	case !npmExists:
+		t.Errorf("TestGetChainLineNumber @ after Init chains line number check iptMgr.GetChainLineNumber with failed to Add chain ")
+	}
+
+	if err = iptMgr.UninitNpmChains(); err != nil {
+		t.Errorf("TestGetChainLineNumber @ iptMgr.UninitNpmChains")
+	}
+}
+
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	iptMgr := NewIptablesManager()

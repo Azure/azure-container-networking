@@ -4,6 +4,8 @@ package k8s
 
 import (
 	"context"
+	"log"
+
 	//"dnc/test/integration/goldpinger"
 	"errors"
 	"flag"
@@ -22,16 +24,25 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-var (
-	defaultRetrier      = retry.Retrier{Attempts: 15, Delay: time.Second}
-	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
-	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
-)
-
 const (
 	subnetIDNodeLabelEnvVar   = "DELEGATED_SUBNET_ID_NODE_LABEL"
 	subnetNameNodeLabelEnvVar = "SUBNET_NAME_NODE_LABEL"
+
+	gpFolder                 = "manifests/goldpinger"
+	gpClusterRolePath        = gpFolder + "/cluster-role.yaml"
+	gpClusterRoleBindingPath = gpFolder + "/cluster-role-binding.yaml"
+	gpServiceAccountPath     = gpFolder + "/service-account.yaml"
+	gpDaemonset              = gpFolder + "/daemonset.yaml"
+	gpDeployment             = gpFolder + "/deployment.yaml"
+
+	retryWindow = 5 * time.Second
+)
+
+var (
+	defaultRetrier      = retry.Retrier{Attempts: 20, Delay: retryWindow}
+	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
+	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
 )
 
 func shouldLabelNodes() bool {
@@ -74,9 +85,21 @@ todo:
 */
 
 func TestPodScaling(t *testing.T) {
-	clientset := mustGetClientset(t)
+	clientset, err := mustGetClientset()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	restConfig := mustGetRestConfig(t)
-	deployment := mustParseDeployment(t, "testdata/goldpinger/deployment.yaml")
+	deployment, err := mustParseDeployment(gpDeployment)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	daemonset, err := mustParseDaemonSet(gpDaemonset)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ctx := context.Background()
 
@@ -86,32 +109,50 @@ func TestPodScaling(t *testing.T) {
 		t.Log("swift node labels not passed or set. skipping labeling")
 	}
 
-	rbacCleanUpFn := mustSetUpRBAC(t, ctx, clientset)
+	rbacCleanUpFn, err := mustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
+	if err != nil {
+		t.Log(os.Getwd())
+		t.Fatal(err)
+	}
+
 	deploymentsClient := clientset.AppsV1().Deployments(deployment.Namespace)
-	mustCreateDeployment(t, ctx, deploymentsClient, deployment)
+	err = mustCreateDeployment(ctx, deploymentsClient, deployment)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
+	err = mustCreateDaemonset(ctx, daemonsetClient, daemonset)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Cleanup(func() {
 		t.Log("cleaning up resources")
-		rbacCleanUpFn(t)
+		rbacCleanUpFn()
 
 		if err := deploymentsClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{}); err != nil {
 			t.Log(err)
 		}
+
+		if err := daemonsetClient.Delete(ctx, daemonset.Name, metav1.DeleteOptions{}); err != nil {
+			t.Log(err)
+		}
 	})
 
-	counts := []int{10, 20, 50, 10}
+	counts := []int{15, 5, 15}
 
 	for _, c := range counts {
 		count := c
 		t.Run(fmt.Sprintf("replica count %d", count), func(t *testing.T) {
-			replicaCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			replicaCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 			defer cancel()
 
 			if err := updateReplicaCount(t, replicaCtx, deploymentsClient, deployment.Name, count); err != nil {
 				t.Fatalf("could not scale deployment: %v", err)
 			}
 
-			t.Run("all pods have IPs assigned", func(t *testing.T) {
+			if !t.Run("all pods have IPs assigned", func(t *testing.T) {
 				podsClient := clientset.CoreV1().Pods(deployment.Namespace)
 
 				checkPodIPsFn := func() error {
@@ -143,37 +184,43 @@ func TestPodScaling(t *testing.T) {
 					t.Fatalf("not all pods were allocated IPs: %v", err)
 				}
 				t.Log("all pods have been allocated IPs")
-			})
+			}) {
+				errors.New("Pods don't have IP's")
+				return
+			}
 
 			t.Run("all pods can ping each other", func(t *testing.T) {
-				pf, err := NewPortForwarder(restConfig)
-				if err != nil {
-					t.Fatal(err)
-				}
 
-				portForwardCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-				defer cancel()
-
-				var streamHandle PortForwardStreamHandle
-				portForwardFn := func() error {
-					t.Log("attempting port forward")
-					handle, err := pf.Forward(ctx, "default", "app=goldpinger", 8080, 8080)
-					if err != nil {
-						return err
-					}
-					streamHandle = handle
-					return nil
-				}
-				if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-					t.Fatalf("could not start port forward within 30s: %v", err)
-				}
-				defer streamHandle.Stop()
-
-				gpClient := goldpinger.Client{Host: streamHandle.Url()}
-
-				clusterCheckCtx, cancel := context.WithTimeout(ctx, time.Minute)
+				clusterCheckCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 				defer cancel()
 				clusterCheckFn := func() error {
+
+					pf, err := NewPortForwarder(restConfig)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					portForwardCtx, cancel := context.WithTimeout(ctx, retryWindow)
+					defer cancel()
+
+					var streamHandle PortForwardStreamHandle
+					portForwardFn := func() error {
+						log.Printf("attempting port forward")
+						handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 9090, 8080)
+						if err != nil {
+							return err
+						}
+
+						streamHandle = handle
+						return nil
+					}
+					if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
+						t.Fatalf("could  not start port forward within %v: %v", retryWindow.String(), err)
+					}
+					defer streamHandle.Stop()
+
+					gpClient := goldpinger.Client{Host: streamHandle.Url()}
+
 					clusterState, err := gpClient.CheckAll(clusterCheckCtx)
 					if err != nil {
 						return err
@@ -187,7 +234,8 @@ func TestPodScaling(t *testing.T) {
 
 					return errors.New("not all pings are healthy")
 				}
-				retrier := retry.Retrier{Attempts: 10, Delay: 5 * time.Second}
+
+				retrier := retry.Retrier{Attempts: 5, Delay: 20 * time.Second}
 				if err := retrier.Do(clusterCheckCtx, clusterCheckFn); err != nil {
 					t.Fatalf("cluster could not reach healthy state: %v", err)
 				}
@@ -196,6 +244,7 @@ func TestPodScaling(t *testing.T) {
 			})
 		})
 	}
+
 }
 
 func updateReplicaCount(t *testing.T, ctx context.Context, deployments v1.DeploymentInterface, name string, replicas int) error {

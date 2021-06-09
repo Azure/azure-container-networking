@@ -231,14 +231,25 @@ func readDnsInfo(ifName string) (DNSInfo, error) {
 		return dnsInfo, fmt.Errorf("[net] Console output doesn't have any lines")
 	}
 
+	dnsServerFound := false
 	for _, line := range lineArr {
 		if strings.Contains(line, dnsServersStr) {
 			dnsServerSplit := strings.Split(line, colonDelimiter)
 			if len(dnsServerSplit) > 1 {
+				dnsServerFound = true
 				dnsServerSplit[1] = strings.TrimSpace(dnsServerSplit[1])
 				dnsInfo.Servers = append(dnsInfo.Servers, dnsServerSplit[1])
 			}
-		} else if strings.Contains(line, dnsDomainStr) {
+		} else if !strings.Contains(line, colonDelimiter) && dnsServerFound {
+			dnsServer := strings.TrimSpace(line)
+			dnsInfo.Servers = append(dnsInfo.Servers, dnsServer)
+		} else {
+			dnsServerFound = false
+		}
+	}
+
+	for _, line := range lineArr {
+		if strings.Contains(line, dnsDomainStr) {
 			dnsDomainSplit := strings.Split(line, colonDelimiter)
 			if len(dnsDomainSplit) > 1 {
 				dnsInfo.Suffix = strings.TrimSpace(dnsDomainSplit[1])
@@ -292,17 +303,35 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 }
 
 func applyDnsConfig(extIf *externalInterface, ifName string) error {
-	var err error
+	var (
+		setDnsList string
+		err        error
+	)
 
-	if extIf != nil && len(extIf.DNSInfo.Servers) > 0 {
-		cmd := fmt.Sprintf("systemd-resolve --interface=%s --set-dns=%s", ifName, extIf.DNSInfo.Servers[0])
-		_, err = platform.ExecuteCommand(cmd)
-		if err != nil {
-			return err
+	if extIf != nil {
+		for _, server := range extIf.DNSInfo.Servers {
+			if net.ParseIP(server).To4() == nil {
+				log.Errorf("[net] Invalid dns ip %s.", server)
+				continue
+			}
+
+			buf := fmt.Sprintf("--set-dns=%s", server)
+			setDnsList = setDnsList + " " + buf
 		}
 
-		cmd = fmt.Sprintf("systemd-resolve --interface=%s --set-domain=%s", ifName, extIf.DNSInfo.Suffix)
-		_, err = platform.ExecuteCommand(cmd)
+		if setDnsList != "" {
+			cmd := fmt.Sprintf("systemd-resolve --interface=%s%s", ifName, setDnsList)
+			_, err = platform.ExecuteCommand(cmd)
+			if err != nil {
+				return err
+			}
+		}
+
+		if extIf.DNSInfo.Suffix != "" {
+			cmd := fmt.Sprintf("systemd-resolve --interface=%s --set-domain=%s", ifName, extIf.DNSInfo.Suffix)
+			_, err = platform.ExecuteCommand(cmd)
+		}
+
 	}
 
 	return err
@@ -375,6 +404,9 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		log.Printf("[net] Failed to save IP configuration for interface %v: %v.", hostIf.Name, err)
 	}
 
+	/*
+		If custom dns server is updated, VM needs reboot for the change to take effect.
+	*/
 	isGreaterOrEqualUbuntu17 := isGreaterOrEqaulUbuntuVersion(ubuntuVersion17)
 	if isGreaterOrEqualUbuntu17 {
 		log.Printf("[net] Saving dns config from %v", extIf.Name)

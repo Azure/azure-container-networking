@@ -10,8 +10,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/cnm/ipam"
+	"github.com/Azure/azure-container-networking/common"
 )
 
 var mux *http.ServeMux

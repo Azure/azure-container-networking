@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -17,14 +18,17 @@ const (
 )
 
 type CNSConfig struct {
-	TelemetrySettings  TelemetrySettings
-	ManagedSettings    ManagedSettings
-	ChannelMode        string
-	UseHTTPS           bool
-	TLSSubjectName     string
-	TLSCertificatePath string
-	TLSEndpoint        string
-	WireserverIP       string
+	TelemetrySettings           TelemetrySettings
+	ManagedSettings             ManagedSettings
+	ChannelMode                 string
+	UseHTTPS                    bool
+	TLSSubjectName              string
+	TLSCertificatePath          string
+	TLSPort                     string
+	TLSEndpoint                 string
+	WireserverIP                string
+	SyncHostNCVersionIntervalMs time.Duration
+	SyncHostNCTimeoutMs         time.Duration
 }
 
 type TelemetrySettings struct {
@@ -121,11 +125,13 @@ func setManagedSettingDefaults(managedSettings *ManagedSettings) {
 	}
 }
 
-// Set Default values of CNS config if not specified
+// SetCNSConfigDefaults set default values of CNS config if not specified
 func SetCNSConfigDefaults(config *CNSConfig) {
 	setTelemetrySettingDefaults(&config.TelemetrySettings)
 	setManagedSettingDefaults(&config.ManagedSettings)
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
 	}
+	config.SyncHostNCVersionIntervalMs = 1000
+	config.SyncHostNCTimeoutMs = 500
 }
