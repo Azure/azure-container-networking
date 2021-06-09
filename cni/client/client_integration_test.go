@@ -14,6 +14,7 @@ import (
 	"k8s.io/utils/exec"
 )
 
+// todo: enable this test in CI, requires built azure vnet
 func TestGetStateFromAzureCNI(t *testing.T) {
 	testutils.RequireRootforTest(t)
 

@@ -171,7 +171,6 @@ func main() {
 	upTime, err := platform.GetLastRebootTime()
 	if err == nil {
 		cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
-		return
 	}
 
 	cniReport.GetReport(pluginName, version, ipamQueryURL)

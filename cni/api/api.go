@@ -11,7 +11,7 @@ import (
 type PodNetworkInterfaceInfo struct {
 	PodName        string
 	PodNamespace   string
-	PodInterfaceID string
+	PodEndpointId string
 	ContainerID    string
 	IPAddresses    []net.IPNet
 }

@@ -170,7 +170,7 @@ func (plugin *netPlugin) GetAllEndpointState(networkid string) (api.CNIState, er
 		info := api.PodNetworkInterfaceInfo{
 			PodName:        ep.PODName,
 			PodNamespace:   ep.PODNameSpace,
-			PodInterfaceID: ep.Id,
+			PodEndpointId: ep.Id,
 			ContainerID:    ep.ContainerID,
 			IPAddresses:    ep.IPAddresses,
 		}

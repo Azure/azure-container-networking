@@ -35,8 +35,9 @@ func (c *AzureCNIClient) GetEndpointState() (api.CNIState, error) {
 	cmd.SetDir(azureVnetBinDirectory)
 
 	envs := os.Environ()
-	envs = append(envs, fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState))
-	log.Printf("Using envs: %v", envs)
+	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
+	log.Printf("Setting cmd to %s", cmdenv)
+	envs = append(envs, cmdenv)
 	cmd.SetEnv(envs)
 
 	output, err := cmd.CombinedOutput()

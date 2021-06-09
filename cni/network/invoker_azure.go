@@ -45,7 +45,7 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArg
 	result, err = invoker.plugin.DelegateAdd(nwCfg.Ipam.Type, nwCfg)
 	if err != nil {
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
-		return nil, nil, err
+		return nil, nil, err	
 	}
 
 	defer func() {

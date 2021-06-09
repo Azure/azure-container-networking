@@ -8,14 +8,14 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 )
 
-func testGetPodNetworkInterfaceInfo(podinterfaceid, podname, podnamespace, containerid, ipwithcidr string) api.PodNetworkInterfaceInfo {
+func testGetPodNetworkInterfaceInfo(podendpointid, podname, podnamespace, containerid, ipwithcidr string) api.PodNetworkInterfaceInfo {
 	ip, ipnet, _ := net.ParseCIDR(ipwithcidr)
 	ipnet.IP = ip
 	return api.PodNetworkInterfaceInfo{
-		PodName:        podname,
-		PodNamespace:   podnamespace,
-		PodInterfaceID: podinterfaceid,
-		ContainerID:    containerid,
+		PodName:       podname,
+		PodNamespace:  podnamespace,
+		PodEndpointId: podendpointid,
+		ContainerID:   containerid,
 		IPAddresses: []net.IPNet{
 			*ipnet,
 		},
