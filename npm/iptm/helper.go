@@ -6,8 +6,8 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
-// GetAllChainsAndRules returns all NPM chains and rules
-func getAllChainsAndRules() [][]string {
+// getAllDefaultRules returns all NPM chains and rules
+func getAllDefaultRules() [][]string {
 	funcList := []func() [][]string{
 		getAzureNPMChainRules,
 		getAzureNPMAcceptChainRules,
@@ -241,7 +241,7 @@ func getAzureNPMEgressChainRules() [][]string {
 	}
 }
 
-// getAzureNPMEgressPortChainRules returns rules for AZURE-NPM-INGRESS-PORT
+// getAzureNPMEgressPortChainRules returns rules for AZURE-NPM-EGRESS-PORT
 func getAzureNPMEgressPortChainRules() [][]string {
 	return [][]string{
 		{

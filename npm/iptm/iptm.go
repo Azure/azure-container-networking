@@ -88,11 +88,6 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain. %s", err.Error())
 	}
 
-	// (TODO) need a review of all chains to make sure we are not adding duplicate rules.
-	// NPM should not add multiple TO/FROM rules along with DROPs in PORT chains,
-	// we can get away with adding a single TO/FORM rule and DROP in each of the PORT chains,
-	// and have DROP rules checked at the very bottom of all rules in a particular direction are
-	// evaluated
 	if err = iptMgr.AddAllRulesToChains(); err != nil {
 		return err
 	}
@@ -228,8 +223,8 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 // AddAllRulesToChains Checks and adds all the rules in NPM chains
 func (iptMgr *IptablesManager) AddAllRulesToChains() error {
 
-	allChainsAndRules := getAllChainsAndRules()
-	for _, rule := range allChainsAndRules {
+	allDefaultRules := getAllDefaultRules()
+	for _, rule := range allDefaultRules {
 		entry := &IptEntry{
 			Chain: rule[0],
 			Specs: rule[1:],
@@ -376,7 +371,7 @@ func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 
 	// Since there is a RETURN statement added to each DROP chain, we need to make sure
 	// any new DROP rule added to ingress or egress DROPS chain is added at the BOTTOM
-	if entry.IsJumpEntry || isDropsChain(entry.Chain) {
+	if isDropsChain(entry.Chain) {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 	} else {
 		iptMgr.OperationFlag = util.IptablesInsertionFlag
