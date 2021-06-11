@@ -176,6 +176,13 @@ azure-cns: $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) cns-archive
 azure-vnet-telemetry: $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT)
 acncli: $(ACNCLI_BUILD_DIR)/acncli$(EXE_EXT) acncli-archive
 
+# Tool paths
+CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
+GOCOV := $(TOOLS_BIN_DIR)/gocov
+GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
+GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
+GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
+
 # Azure-NPM only supports Linux for now.
 ifeq ($(GOOS),linux)
 azure-cnms: $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT) cnms-archive
@@ -459,6 +466,11 @@ release:
 
 PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 
+LINT_PKG ?= .
+
+lint: $(GOLANGCI_LINT) ## Fast lint
+	$(GOLANGCI_LINT) run -v $(LINT_PKG)/...
+
 # run all tests
 .PHONY: test-all
 test-all:
@@ -481,28 +493,29 @@ kind:
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
 
-CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
-GOCOV := $(TOOLS_BIN_DIR)/gocov
 $(GOCOV): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov github.com/axw/gocov/gocov
 
 gocov: $(GOCOV) ## Build gocov
 
-GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
 $(GOCOV_XML): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov-xml github.com/AlekSi/gocov-xml
 
 gocov-xml: $(GOCOV_XML) ## Build gocov-xml
 
-GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
 $(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/go-junit-report github.com/jstemmer/go-junit-report
 
 go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
 
-tools: gocov gocov-xml go-junit-report ## Build bins for build tools
+$(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
+
+golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
+
+tools: gocov gocov-xml go-junit-report golangci-lint ## Build bins for build tools
