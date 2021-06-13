@@ -43,7 +43,7 @@ func TestStatusToNCRequestMalformedPrimaryIP(t *testing.T) {
 	}
 
 	// Test with malformed primary ip
-	_, err = CRDStatusToNCRequest(status)
+	_, err = crdStatusToNCRequest(status)
 
 	if err == nil {
 		t.Fatalf("Expected translation of CRD status with malformed ip to fail.")
@@ -73,7 +73,7 @@ func TestStatusToNCRequestMalformedIPAssignment(t *testing.T) {
 	}
 
 	// Test with malformed ip assignment
-	_, err = CRDStatusToNCRequest(status)
+	_, err = crdStatusToNCRequest(status)
 
 	if err == nil {
 		t.Fatalf("Expected translation of CRD status with malformed ip assignment to fail.")
@@ -103,7 +103,7 @@ func TestStatusToNCRequestPrimaryIPInCIDR(t *testing.T) {
 	}
 
 	// Test with primary ip not in CIDR form
-	_, err = CRDStatusToNCRequest(status)
+	_, err = crdStatusToNCRequest(status)
 
 	if err == nil {
 		t.Fatalf("Expected translation of CRD status with primary ip not CIDR, to fail.")
@@ -133,7 +133,7 @@ func TestStatusToNCRequestIPAssignmentNotCIDR(t *testing.T) {
 	}
 
 	// Test with ip assignment not in CIDR form
-	_, err = CRDStatusToNCRequest(status)
+	_, err = crdStatusToNCRequest(status)
 
 	if err == nil {
 		t.Fatalf("Expected translation of CRD status with ip assignment not CIDR, to fail.")
@@ -163,7 +163,7 @@ func TestStatusToNCRequestWithIncorrectSubnetAddressSpace(t *testing.T) {
 	}
 
 	// Test with ip assignment not in CIDR form
-	_, err = CRDStatusToNCRequest(status)
+	_, err = crdStatusToNCRequest(status)
 
 	if err == nil {
 		t.Fatalf("Expected translation of CRD status with ip assignment not CIDR, to fail.")
@@ -200,7 +200,7 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 	}
 
 	// Test with ips formed correctly as CIDRs
-	ncRequest, err = CRDStatusToNCRequest(status)
+	ncRequest, err = crdStatusToNCRequest(status)
 
 	if err != nil {
 		t.Fatalf("Expected translation of CRD status to succeed, got error :%v", err)

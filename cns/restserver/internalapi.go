@@ -207,7 +207,8 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 }
 
 // This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIp map[string]cns.KubernetesPodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
+func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIp map[string]cns.PodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
+	logger.Printf("Reconciling NC state with podInfo %+v", podInfoByIp)
 	// check if ncRequest is null, then return as there is no CRD state yet
 	if ncRequest == nil {
 		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIp))
@@ -229,12 +230,11 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 		if podInfo, exists := podInfoByIp[secIpConfig.IPAddress]; exists {
 			logger.Printf("SecondaryIP %+v is allocated to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
 
-			kubernetesPodInfo := cns.KubernetesPodInfo{
-				PodName:      podInfo.PodName,
-				PodNamespace: podInfo.PodNamespace,
+			jsonContext, err := json.Marshal(podInfo)
+			if err != nil {
+				logger.Errorf("Failed to marshal PodInfo, error: %v", err)
+				return UnexpectedError
 			}
-			jsonContext, _ := json.Marshal(kubernetesPodInfo)
-
 			ipconfigRequest := cns.IPConfigRequest{
 				DesiredIPAddress:    secIpConfig.IPAddress,
 				OrchestratorContext: jsonContext,

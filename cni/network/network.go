@@ -155,7 +155,7 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	return nil
 }
 
-func (plugin *netPlugin) GetAllEndpointState(networkid string) (api.CNIState, error) {
+func (plugin *netPlugin) GetAllEndpointState(networkid string) (*api.AzureCNIState, error) {
 	st := api.AzureCNIState{
 		ContainerInterfaces: make(map[string]api.PodNetworkInterfaceInfo),
 	}
@@ -168,11 +168,11 @@ func (plugin *netPlugin) GetAllEndpointState(networkid string) (api.CNIState, er
 	for _, ep := range eps {
 		id := ep.Id
 		info := api.PodNetworkInterfaceInfo{
-			PodName:        ep.PODName,
-			PodNamespace:   ep.PODNameSpace,
+			PodName:       ep.PODName,
+			PodNamespace:  ep.PODNameSpace,
 			PodEndpointId: ep.Id,
-			ContainerID:    ep.ContainerID,
-			IPAddresses:    ep.IPAddresses,
+			ContainerID:   ep.ContainerID,
+			IPAddresses:   ep.IPAddresses,
 		}
 
 		st.ContainerInterfaces[id] = info
@@ -1097,7 +1097,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 	}
 
 	// create struct with info for target POD
-	podInfo := cns.KubernetesPodInfo{PodName: k8sPodName, PodNamespace: k8sNamespace}
+	podInfo := cns.NewPodInfo("", "", k8sPodName, k8sNamespace)
 	if orchestratorContext, err = json.Marshal(podInfo); err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
 		return plugin.Errorf(err.Error())

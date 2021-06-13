@@ -60,7 +60,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		len(networkContainer.IPAssignments))
 
 	// Otherwise, create NC request and hand it off to CNS
-	ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status)
+	ncRequest, err = crdStatusToNCRequest(nodeNetConfig.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
 		//requeue

@@ -14,21 +14,25 @@ import (
 )
 
 const (
-	azureVnetBinName      = "./azure-vnet"
-	azureVnetBinDirectory = "/opt/cni/bin"
+	azureVnetExecutable = "/opt/cni/bin/azure-vnet"
 )
 
-type CNIClient interface {
-	GetEndpointState() (api.CNIState, error)
+type Client interface {
+	GetEndpointState() (*api.AzureCNIState, error)
 }
 
-type AzureCNIClient struct {
+var _ (Client) = (*client)(nil)
+
+type client struct {
 	exec utilexec.Interface
 }
 
-func (c *AzureCNIClient) GetEndpointState() (*api.AzureCNIState, error) {
-	cmd := c.exec.Command(azureVnetBinName)
-	cmd.SetDir(azureVnetBinDirectory)
+func New(exec utilexec.Interface) *client {
+	return &client{exec: exec}
+}
+
+func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
+	cmd := c.exec.Command(azureVnetExecutable)
 
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
@@ -49,9 +53,8 @@ func (c *AzureCNIClient) GetEndpointState() (*api.AzureCNIState, error) {
 	return state, nil
 }
 
-func (c *AzureCNIClient) GetVersion() (*semver.Version, error) {
-	cmd := c.exec.Command(azureVnetBinName, "-v")
-	cmd.SetDir(azureVnetBinDirectory)
+func (c *client) GetVersion() (*semver.Version, error) {
+	cmd := c.exec.Command(azureVnetExecutable, "-v")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

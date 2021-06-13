@@ -93,7 +93,7 @@ func (mc MockKubeClient) Update(ctx context.Context, obj runtime.Object, opts ..
 type MockCNSClient struct {
 	MockCNSUpdated     bool
 	MockCNSInitialized bool
-	Pods               map[string]cns.KubernetesPodInfo
+	Pods               map[string]cns.PodInfo
 	NCRequest          *cns.CreateNetworkContainerRequest
 }
 
@@ -115,7 +115,7 @@ func (mi *MockCNSClient) GetNC(nc cns.GetNetworkContainerRequest) (cns.GetNetwor
 	return cns.GetNetworkContainerResponse{NetworkContainerID: nc.NetworkContainerid}, nil
 }
 
-func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.KubernetesPodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
+func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
 	mi.MockCNSInitialized = true
 	mi.Pods = podInfoByIP
 	mi.NCRequest = ncRequest
@@ -178,7 +178,7 @@ func (mc *MockDirectAPIClient) ListPods(ctx context.Context, namespace, node str
 }
 func TestNewCrdRequestController(t *testing.T) {
 	//Test making request controller without logger initialized, should fail
-	_, err := New(nil, nil)
+	_, err := New(Config{})
 	if err == nil {
 		t.Fatalf("Expected error when making NewCrdRequestController without initializing logger, got nil error")
 	} else if !strings.Contains(err.Error(), "logger") {
@@ -198,7 +198,7 @@ func TestNewCrdRequestController(t *testing.T) {
 		}
 	}()
 
-	_, err = New(nil, nil)
+	_, err = New(Config{})
 	if err == nil {
 		t.Fatalf("Expected error when making NewCrdRequestController without setting " + nodeNameEnvVar + " env var, got nil error")
 	} else if !strings.Contains(err.Error(), nodeNameEnvVar) {
@@ -660,11 +660,14 @@ func TestInitRequestController(t *testing.T) {
 	}
 	mockCNSClient := &MockCNSClient{}
 	rc := &requestController{
+		cfg:             Config{},
 		directAPIClient: mockAPIDirectClient,
 		directCRDClient: mockCRDDirectClient,
 		CNSClient:       mockCNSClient,
 		nodeName:        existingNNCName,
 	}
+
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
 	if err := rc.initCNS(context.Background()); err != nil {
 		t.Fatalf("Expected no failure to init cns when given mock clients")

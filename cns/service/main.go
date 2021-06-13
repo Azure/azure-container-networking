@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	cni "github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -373,6 +374,7 @@ func main() {
 	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
 	ipamQueryUrl := acn.GetArg(acn.OptIpamQueryUrl).(string)
 	ipamQueryInterval := acn.GetArg(acn.OptIpamQueryInterval).(int)
+
 	startCNM := acn.GetArg(acn.OptStartAzureCNM).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 	createDefaultExtNetworkType := acn.GetArg(acn.OptCreateDefaultExtNetworkType).(string)
@@ -425,6 +427,31 @@ func main() {
 
 	configuration.SetCNSConfigDefaults(&cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
+
+	// We might be configured to reinitialize state from the CNI instead of the apiserver.
+	// If so, we should check that the the CNI is new enough to support the state commands,
+	// otherwise we fall back to the existing behavior.
+	if cnsconfig.InitializeFromCNI {
+		isGoodVer, err := cni.IsDumpStateVer()
+		if err != nil {
+			logger.Errorf("error checking CNI ver: %v", err)
+		}
+
+		// override the prior config flag with the result of the ver check.
+		cnsconfig.InitializeFromCNI = isGoodVer
+
+		if cnsconfig.InitializeFromCNI {
+			// Set the PodInfoVersion by initialization type, so that the
+			// PodInfo maps use the correct key schema
+			cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
+		}
+	}
+	if cnsconfig.InitializeFromCNI {
+		logger.Printf("Initializing from CNI")
+	} else {
+		logger.Printf("Initializing from Kubernetes")
+	}
+	logger.Printf("Set GlobalPodInfoScheme %v", cns.GlobalPodInfoScheme)
 
 	if cnsconfig.WireserverIP != "" {
 		nmagentclient.WireserverIP = cnsconfig.WireserverIP
@@ -773,7 +800,12 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
 
 	// Get crd implementation of request controller
-	requestController, err = kubecontroller.New(httpRestServiceImplementation, kubeConfig)
+	requestController, err = kubecontroller.New(
+		kubecontroller.Config{
+			InitializeFromCNI: cnsconfig.InitializeFromCNI,
+			KubeConfig:        kubeConfig,
+			Service:           httpRestServiceImplementation,
+		})
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to make crd request controller :%v", err)
 		return err
