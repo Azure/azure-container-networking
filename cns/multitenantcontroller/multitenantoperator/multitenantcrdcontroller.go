@@ -1,6 +1,7 @@
 package multitenantoperator
 
 import (
+	"context"
 	"errors"
 	"os"
 	"sync"
@@ -8,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	ncapi "github.com/Azure/azure-container-networking/crds/multitenantnetworkcontainer/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,6 +26,8 @@ const (
 	nodeNameEnvVar    = "NODENAME"
 	prometheusAddress = "0" //0 means disabled
 )
+
+var _ (multitenantcontroller.MultiTenantController) = (*multiTenantController)(nil)
 
 // multiTenantController operates multi-tenant CRD.
 type multiTenantController struct {
@@ -97,9 +101,7 @@ func NewMultiTenantController(restService *restserver.HTTPRestService, kubeconfi
 }
 
 // StartMultiTenantController starts the Reconciler loop which watches for CRD status updates.
-// Blocks until SIGINT or SIGTERM is received
-// Notifies exitChan when kill signal received
-func (mtc *multiTenantController) StartMultiTenantController(exitChan <-chan struct{}) error {
+func (mtc *multiTenantController) StartMultiTenantController(ctx context.Context) error {
 	logger.Printf("Starting MultiTenantController")
 
 	// Setting the started state
@@ -108,7 +110,7 @@ func (mtc *multiTenantController) StartMultiTenantController(exitChan <-chan str
 	mtc.lock.Unlock()
 
 	logger.Printf("Starting reconcile loop")
-	if err := mtc.mgr.Start(exitChan); err != nil {
+	if err := mtc.mgr.Start(ctx.Done()); err != nil {
 		if mtc.isNotDefined(err) {
 			logger.Errorf("multi-tenant CRD is not defined on cluster, starting reconcile loop failed: %v", err)
 			os.Exit(1)

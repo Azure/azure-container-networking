@@ -18,14 +18,14 @@ type CRDDirectClient struct {
 }
 
 // Get gets a crd
-func (crdClient *CRDDirectClient) Get(cntxt context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
+func (crdClient *CRDDirectClient) Get(ctx context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
 	var (
 		nodeNetConfig *nnc.NodeNetworkConfig
 		err           error
 	)
 
 	nodeNetConfig = &nnc.NodeNetworkConfig{}
-	if err = crdClient.restClient.Get().Namespace(namespace).Resource(crdTypeName).Name(name).Do(cntxt).Into(nodeNetConfig); err != nil {
+	if err = crdClient.restClient.Get().Namespace(namespace).Resource(crdTypeName).Name(name).Do(ctx).Into(nodeNetConfig); err != nil {
 		return nil, err
 	}
 

@@ -130,7 +130,7 @@ type MockDirectCRDClient struct {
 	mockAPI *MockAPI
 }
 
-func (mc *MockDirectCRDClient) Get(cntxt context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
+func (mc *MockDirectCRDClient) Get(ctx context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
 	var (
 		mockKey       MockKey
 		nodeNetConfig *nnc.NodeNetworkConfig
@@ -157,7 +157,7 @@ type MockDirectAPIClient struct {
 	mockAPI *MockAPI
 }
 
-func (mc *MockDirectAPIClient) ListPods(cntxt context.Context, namespace, node string) (*corev1.PodList, error) {
+func (mc *MockDirectAPIClient) ListPods(ctx context.Context, namespace, node string) (*corev1.PodList, error) {
 	var (
 		pod  *corev1.Pod
 		pods corev1.PodList
@@ -228,7 +228,7 @@ func TestGetNonExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		KubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
@@ -260,7 +260,7 @@ func TestGetExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		KubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
@@ -295,7 +295,7 @@ func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		KubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
@@ -332,7 +332,7 @@ func TestUpdateExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		nodeName:   existingNNCName,
 		KubeClient: mockKubeClient,
 	}
@@ -372,7 +372,7 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		nodeName:   nonexistingNNCName,
 		KubeClient: mockKubeClient,
 	}
@@ -413,7 +413,7 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		nodeName:   existingNNCName,
 		KubeClient: mockKubeClient,
 	}
@@ -459,7 +459,7 @@ func TestGetExistingNNCDirectClient(t *testing.T) {
 	mockCRDDirectClient := &MockDirectCRDClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directCRDClient: mockCRDDirectClient,
 	}
 
@@ -495,7 +495,7 @@ func TestGetNonExistingNNCDirectClient(t *testing.T) {
 	mockCRDDirectClient := &MockDirectCRDClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directCRDClient: mockCRDDirectClient,
 	}
 
@@ -533,7 +533,7 @@ func TestGetPodsExistingNodeDirectClient(t *testing.T) {
 	mockAPIDirectClient := &MockDirectAPIClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directAPIClient: mockAPIDirectClient,
 	}
 
@@ -574,7 +574,7 @@ func TestGetPodsNonExistingNodeDirectClient(t *testing.T) {
 	mockAPIDirectClient := &MockDirectAPIClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directAPIClient: mockAPIDirectClient,
 	}
 
@@ -660,14 +660,14 @@ func TestInitRequestController(t *testing.T) {
 		mockAPI: mockAPI,
 	}
 	mockCNSClient := &MockCNSClient{}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directAPIClient: mockAPIDirectClient,
 		directCRDClient: mockCRDDirectClient,
 		CNSClient:       mockCNSClient,
 		nodeName:        existingNNCName,
 	}
 
-	if err := rc.initCNS(); err != nil {
+	if err := rc.initCNS(context.Background()); err != nil {
 		t.Fatalf("Expected no failure to init cns when given mock clients")
 	}
 

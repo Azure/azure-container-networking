@@ -17,18 +17,16 @@ const (
 )
 
 type CNSIPAMPoolMonitor struct {
-	pendingRelease bool
-
+	MaximumFreeIps           int64
+	MinimumFreeIps           int64
 	cachedNNC                nnc.NodeNetworkConfig
-	updatingIpsNotInUseCount int
+	ctx                      context.Context
+	httpService              cns.HTTPService
+	mu                       sync.RWMutex
+	pendingRelease           bool
+	rc                       requestcontroller.RequestController
 	scalarUnits              nnc.Scaler
-
-	httpService    cns.HTTPService
-	rc             requestcontroller.RequestController
-	MinimumFreeIps int64
-	MaximumFreeIps int64
-
-	mu sync.RWMutex
+	updatingIpsNotInUseCount int
 }
 
 func NewCNSIPAMPoolMonitor(httpService cns.HTTPService, rc requestcontroller.RequestController) *CNSIPAMPoolMonitor {
@@ -38,16 +36,6 @@ func NewCNSIPAMPoolMonitor(httpService cns.HTTPService, rc requestcontroller.Req
 		httpService:    httpService,
 		rc:             rc,
 	}
-}
-
-func stopReconcile(ch <-chan struct{}) bool {
-	select {
-	case <-ch:
-		return true
-	default:
-	}
-
-	return false
 }
 
 func (pm *CNSIPAMPoolMonitor) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
@@ -90,18 +78,18 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 		}
 
 		logger.Printf("[ipam-pool-monitor] Increasing pool size...%s ", msg)
-		return pm.increasePoolSize()
+		return pm.increasePoolSize(pm.ctx)
 
 	// pod count is decreasing
 	case freeIPConfigCount > pm.MaximumFreeIps:
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...%s ", msg)
-		return pm.decreasePoolSize(pendingReleaseIPCount)
+		return pm.decreasePoolSize(pm.ctx, pendingReleaseIPCount)
 
 	// CRD has reconciled CNS state, and target spec is now the same size as the state
 	// free to remove the IP's from the CRD
 	case pm.pendingRelease && int(pm.cachedNNC.Spec.RequestedIPCount) == cnsPodIPConfigCount:
 		logger.Printf("[ipam-pool-monitor] Removing Pending Release IP's from CRD...%s ", msg)
-		return pm.cleanPendingRelease()
+		return pm.cleanPendingRelease(pm.ctx)
 
 	// no pods scheduled
 	case allocatedPodIPCount == 0:
@@ -112,7 +100,7 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 	return nil
 }
 
-func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
+func (pm *CNSIPAMPoolMonitor) increasePoolSize(ctx context.Context) error {
 	defer pm.mu.Unlock()
 	pm.mu.Lock()
 
@@ -143,7 +131,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Updated Requested IP Count: %v, Pods with IP's:%v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
-	err = pm.rc.UpdateCRDSpec(context.Background(), tempNNCSpec)
+	err = pm.rc.UpdateCRDSpec(ctx, tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
 		return err
@@ -155,7 +143,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize() error {
 	return nil
 }
 
-func (pm *CNSIPAMPoolMonitor) decreasePoolSize(existingPendingReleaseIPCount int) error {
+func (pm *CNSIPAMPoolMonitor) decreasePoolSize(ctx context.Context, existingPendingReleaseIPCount int) error {
 	defer pm.mu.Unlock()
 	pm.mu.Lock()
 
@@ -215,7 +203,7 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(existingPendingReleaseIPCount int
 	tempNNCSpec.RequestedIPCount -= int64(len(pendingIpAddresses))
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IP's: %v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
-	err = pm.rc.UpdateCRDSpec(context.Background(), tempNNCSpec)
+	err = pm.rc.UpdateCRDSpec(ctx, tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
 		return err
@@ -236,7 +224,7 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(existingPendingReleaseIPCount int
 
 // if cns pending ip release map is empty, request controller has already reconciled the CNS state,
 // so we can remove it from our cache and remove the IP's from the CRD
-func (pm *CNSIPAMPoolMonitor) cleanPendingRelease() error {
+func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 	defer pm.mu.Unlock()
 	pm.mu.Lock()
 
@@ -247,7 +235,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease() error {
 		return err
 	}
 
-	err = pm.rc.UpdateCRDSpec(context.Background(), tempNNCSpec)
+	err = pm.rc.UpdateCRDSpec(ctx, tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
 		return err

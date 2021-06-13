@@ -18,10 +18,10 @@ type KubeClient interface {
 
 // DirectCRDClient is an interface to get CRDs directly, without cache
 type DirectCRDClient interface {
-	Get(cntxt context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error)
+	Get(ctx context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error)
 }
 
 // DirectAPIClient is an interface to talk directly with API Server without cache
 type DirectAPIClient interface {
-	ListPods(cntxt context.Context, namespace, node string) (*corev1.PodList, error)
+	ListPods(ctx context.Context, namespace, node string) (*corev1.PodList, error)
 }

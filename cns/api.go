@@ -36,7 +36,7 @@ const (
 // HTTPService describes the min API interface that every service should have.
 type HTTPService interface {
 	common.ServiceAPI
-	SendNCSnapShotPeriodically(int, chan bool)
+	SendNCSnapShotPeriodically(context.Context, int)
 	SetNodeOrchestrator(*SetOrchestratorTypeRequest)
 	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
 	GetPendingProgramIPConfigs() []IPConfigurationStatus

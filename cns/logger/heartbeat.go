@@ -4,13 +4,15 @@
 package logger
 
 import (
+	"context"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 )
 
-func SendHeartBeat(heartbeatIntervalInMins int, stopheartbeat chan bool) {
-	heartbeat := time.NewTicker(time.Minute * time.Duration(heartbeatIntervalInMins)).C
+func SendHeartBeat(ctx context.Context, heartbeatIntervalInMins int) {
+	ticker := time.NewTicker(time.Minute * time.Duration(heartbeatIntervalInMins))
+	defer ticker.Stop()
 	metric := aitelemetry.Metric{
 		Name: HeartBeatMetricStr,
 		// This signifies 1 heartbeat is sent. Sum of this metric will give us number of heartbeats received
@@ -19,10 +21,10 @@ func SendHeartBeat(heartbeatIntervalInMins int, stopheartbeat chan bool) {
 	}
 	for {
 		select {
-		case <-heartbeat:
-			SendMetric(metric)
-		case <-stopheartbeat:
+		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			SendMetric(metric)
 		}
 	}
 }

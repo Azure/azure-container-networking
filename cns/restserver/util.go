@@ -4,6 +4,7 @@
 package restserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -655,18 +656,18 @@ func (service *HTTPRestService) logNCSnapshots() {
 }
 
 // Sets up periodic timer for sending network container snapshots
-func (service *HTTPRestService) SendNCSnapShotPeriodically(ncSnapshotIntervalInMinutes int, stopSnapshot chan bool) {
-
+func (service *HTTPRestService) SendNCSnapShotPeriodically(ctx context.Context, ncSnapshotIntervalInMinutes int) {
 	// Emit snapshot on startup and then emit it periodically.
 	service.logNCSnapshots()
 
-	snapshot := time.NewTicker(time.Minute * time.Duration(ncSnapshotIntervalInMinutes)).C
+	ticker := time.NewTicker(time.Minute * time.Duration(ncSnapshotIntervalInMinutes))
+	defer ticker.Stop()
 	for {
 		select {
-		case <-snapshot:
-			service.logNCSnapshots()
-		case <-stopSnapshot:
+		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			service.logNCSnapshots()
 		}
 	}
 }
