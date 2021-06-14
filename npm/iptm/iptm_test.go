@@ -87,8 +87,8 @@ func TestExists(t *testing.T) {
 			util.IptablesAccept,
 		},
 	}
-	if _, err := iptMgr.Exists(entry); err != nil {
-		t.Errorf("TestExists failed @ iptMgr.Exists")
+	if _, err := iptMgr.exists(entry); err != nil {
+		t.Errorf("TestExists failed @ iptMgr.exists")
 	}
 }
 
@@ -104,8 +104,8 @@ func TestAddChain(t *testing.T) {
 		}
 	}()
 
-	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestAddChain failed @ iptMgr.AddChain")
+	if err := iptMgr.addChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestAddChain failed @ iptMgr.addChain")
 	}
 }
 
@@ -121,12 +121,12 @@ func TestDeleteChain(t *testing.T) {
 		}
 	}()
 
-	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestDeleteChain failed @ iptMgr.AddChain")
+	if err := iptMgr.addChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestDeleteChain failed @ iptMgr.addChain")
 	}
 
-	if err := iptMgr.DeleteChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestDeleteChain failed @ iptMgr.DeleteChain")
+	if err := iptMgr.deleteChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestDeleteChain failed @ iptMgr.deleteChain")
 	}
 }
 
@@ -220,8 +220,8 @@ func TestRun(t *testing.T) {
 	entry := &IptEntry{
 		Chain: "TEST-CHAIN",
 	}
-	if _, err := iptMgr.Run(entry); err != nil {
-		t.Errorf("TestRun failed @ iptMgr.Run")
+	if _, err := iptMgr.run(entry); err != nil {
+		t.Errorf("TestRun failed @ iptMgr.run")
 	}
 }
 
@@ -245,8 +245,8 @@ func TestGetChainLineNumber(t *testing.T) {
 		}
 	}()
 
-	if err = iptMgr.AddChain(util.IptablesKubeServicesChain); err != nil {
-		t.Errorf("TestGetChainLineNumber failed @ kube-services chain iptMgr.AddChain error: %s", err.Error())
+	if err = iptMgr.addChain(util.IptablesKubeServicesChain); err != nil {
+		t.Errorf("TestGetChainLineNumber failed @ kube-services chain iptMgr. addChain error: %s", err.Error())
 	}
 
 	iptMgr.OperationFlag = util.IptablesCheckFlag
@@ -258,8 +258,8 @@ func TestGetChainLineNumber(t *testing.T) {
 		},
 	}
 
-	if kubeExists, err = iptMgr.Exists(entry); err != nil {
-		t.Errorf("TestGetChainLineNumber failed @ kube-services chain iptMgr.Exists error: %s", err.Error())
+	if kubeExists, err = iptMgr.exists(entry); err != nil {
+		t.Errorf("TestGetChainLineNumber failed @ kube-services chain iptMgr. exists error: %s", err.Error())
 	}
 
 	entry = &IptEntry{
@@ -271,9 +271,9 @@ func TestGetChainLineNumber(t *testing.T) {
 	}
 
 	// Ignore not exists errors
-	npmExists, _ = iptMgr.Exists(entry)
+	npmExists, _ = iptMgr.exists(entry)
 
-	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+	lineNum, err = iptMgr.getChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	if err != nil {
 		t.Errorf("TestGetChainLineNumber @ initial iptMgr.GetChainLineNumber error: %s", err.Error())
 	}
@@ -305,11 +305,11 @@ func TestGetChainLineNumber(t *testing.T) {
 		},
 	}
 
-	if npmExists, err = iptMgr.Exists(entry); err != nil {
-		t.Errorf("TestGetChainLineNumber failed @ azure-npm chain iptMgr.Exists error: %s", err.Error())
+	if npmExists, err = iptMgr.exists(entry); err != nil {
+		t.Errorf("TestGetChainLineNumber failed @ azure-npm chain iptMgr. exists error: %s", err.Error())
 	}
 
-	lineNum, err = iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+	lineNum, err = iptMgr.getChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	if err != nil {
 		t.Errorf("TestGetChainLineNumber @ after Init chains iptMgr.GetChainLineNumber error: %s", err.Error())
 	}
