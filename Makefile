@@ -136,6 +136,7 @@ CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNMS_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_IMAGE_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNI_IMAGE_ARCHIVE_NAME = azure-cni-manager-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNMS_IMAGE_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 TELEMETRY_IMAGE_ARCHIVE_NAME = azure-vnet-telemetry-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_IMAGE_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
@@ -279,6 +280,7 @@ tools: acncli
 .PHONY: tools-images
 tools-images:
 	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
+	docker save $(AZURE_CNI_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNI_IMAGE_ARCHIVE_NAME)
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
 .PHONY: azure-vnet-plugin-image
