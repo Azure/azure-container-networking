@@ -6,7 +6,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/mockclients"
-	ncapi "github.com/Azure/azure-container-networking/networkcontainer/api/v1alpha1"
+	ncapi "github.com/Azure/azure-container-networking/crds/multitenantnetworkcontainer/api/v1alpha1"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -69,11 +69,11 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 		})
 
 		It("Should succeed when the NC is in Terminated state", func() {
-			var nc ncapi.NetworkContainer = ncapi.NetworkContainer{
+			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
 				ObjectMeta: metav1.ObjectMeta{
 					DeletionTimestamp: &metav1.Time{},
 				},
-				Status: ncapi.NetworkContainerStatus{
+				Status: ncapi.MultiTenantNetworkContainerStatus{
 					State: "Terminated",
 				},
 			}
@@ -85,8 +85,8 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 		})
 
 		It("Should succeed when the NC is not in Initialized state", func() {
-			var nc ncapi.NetworkContainer = ncapi.NetworkContainer{
-				Status: ncapi.NetworkContainerStatus{
+			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
+				Status: ncapi.MultiTenantNetworkContainerStatus{
 					State: "Pending",
 				},
 			}
@@ -99,11 +99,11 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 
 		It("Should succeed when the NC is in Initialized state and it has already been persisted in CNS", func() {
 			var uuid = "uuid"
-			var nc ncapi.NetworkContainer = ncapi.NetworkContainer{
-				Spec: ncapi.NetworkContainerSpec{
+			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
+				Spec: ncapi.MultiTenantNetworkContainerSpec{
 					UUID: uuid,
 				},
-				Status: ncapi.NetworkContainerStatus{
+				Status: ncapi.MultiTenantNetworkContainerStatus{
 					State: "Initialized",
 				},
 			}
@@ -117,11 +117,11 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 
 		It("Should fail when the NC subnet isn't in correct format", func() {
 			var uuid = "uuid"
-			var nc ncapi.NetworkContainer = ncapi.NetworkContainer{
-				Spec: ncapi.NetworkContainerSpec{
+			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
+				Spec: ncapi.MultiTenantNetworkContainerSpec{
 					UUID: uuid,
 				},
-				Status: ncapi.NetworkContainerStatus{
+				Status: ncapi.MultiTenantNetworkContainerStatus{
 					State:    "Initialized",
 					IPSubnet: "1.2.3.4.5",
 				},
@@ -137,11 +137,11 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 
 		It("Should succeed when the NC subnet is in correct format", func() {
 			var uuid = "uuid"
-			var nc ncapi.NetworkContainer = ncapi.NetworkContainer{
-				Spec: ncapi.NetworkContainerSpec{
+			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
+				Spec: ncapi.MultiTenantNetworkContainerSpec{
 					UUID: uuid,
 				},
-				Status: ncapi.NetworkContainerStatus{
+				Status: ncapi.MultiTenantNetworkContainerStatus{
 					State:    "Initialized",
 					IPSubnet: "1.2.3.0/24",
 				},

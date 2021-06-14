@@ -6,20 +6,21 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.3.0
   creationTimestamp: null
-  name: networkcontainers.networking.azure.com
+  name: multitenantnetworkcontainers.networking.azure.com
 spec:
   group: networking.azure.com
   names:
-    kind: NetworkContainer
-    listKind: NetworkContainerList
-    plural: networkcontainers
-    singular: networkcontainer
+    kind: MultiTenantNetworkContainer
+    listKind: MultiTenantNetworkContainerList
+    plural: multitenantnetworkcontainers
+    singular: multitenantnetworkcontainer
   scope: Namespaced
   subresources:
     status: {}
   validation:
     openAPIV3Schema:
-      description: NetworkContainer is the Schema for the networkcontainers API
+      description: MultiTenantNetworkContainer is the Schema for the MultiTenantnetworkcontainers
+        API
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
@@ -34,7 +35,8 @@ spec:
         metadata:
           type: object
         spec:
-          description: NetworkContainerSpec defines the desired state of NetworkContainer
+          description: MultiTenantNetworkContainerSpec defines the desired state of
+            MultiTenantNetworkContainer
           properties:
             interfaceName:
               description: InterfaceName - the interface name for consuming Pod
@@ -56,7 +58,8 @@ spec:
               type: string
           type: object
         status:
-          description: NetworkContainerStatus defines the observed state of NetworkContainer
+          description: MultiTenantNetworkContainerStatus defines the observed state
+            of MultiTenantNetworkContainer
           properties:
             gateway:
               description: The gateway IP address

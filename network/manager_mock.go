@@ -9,15 +9,15 @@ import (
 
 //MockNetworkManager is a mock structure for Network Manager
 type MockNetworkManager struct {
-	NetworkInfo  map[string]*NetworkInfo
-	EndpointInfo map[string]*EndpointInfo
+	TestNetworkInfoMap  map[string]*NetworkInfo
+	TestEndpointInfoMap map[string]*EndpointInfo
 }
 
 //NewMockNetworkmanager returns a new mock
 func NewMockNetworkmanager() *MockNetworkManager {
 	return &MockNetworkManager{
-		NetworkInfo:  make(map[string]*NetworkInfo),
-		EndpointInfo: make(map[string]*EndpointInfo),
+		TestNetworkInfoMap:  make(map[string]*NetworkInfo),
+		TestEndpointInfoMap: make(map[string]*EndpointInfo),
 	}
 }
 
@@ -36,7 +36,7 @@ func (nm *MockNetworkManager) AddExternalInterface(ifName string, subnet string)
 
 //CreateNetwork mock
 func (nm *MockNetworkManager) CreateNetwork(nwInfo *NetworkInfo) error {
-	nm.NetworkInfo[nwInfo.Id] = nwInfo
+	nm.TestNetworkInfoMap[nwInfo.Id] = nwInfo
 	return nil
 }
 
@@ -47,7 +47,7 @@ func (nm *MockNetworkManager) DeleteNetwork(networkID string) error {
 
 //GetNetworkInfo mock
 func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, error) {
-	if info, exists := nm.NetworkInfo[networkID]; exists {
+	if info, exists := nm.TestNetworkInfoMap[networkID]; exists {
 		return *info, nil
 	}
 	return NetworkInfo{}, fmt.Errorf("Not found")
@@ -55,7 +55,7 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 
 //CreateEndpoint mock
 func (nm *MockNetworkManager) CreateEndpoint(networkID string, epInfo *EndpointInfo) error {
-	nm.EndpointInfo[networkID] = epInfo
+	nm.TestEndpointInfoMap[epInfo.Id] = epInfo
 	return nil
 }
 
@@ -64,9 +64,13 @@ func (nm *MockNetworkManager) DeleteEndpoint(networkID string, endpointID string
 	return nil
 }
 
+func (nm *MockNetworkManager) GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error) {
+	return nm.TestEndpointInfoMap, nil
+}
+
 //GetEndpointInfo mock
 func (nm *MockNetworkManager) GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error) {
-	return nm.EndpointInfo[networkID], nil
+	return nm.TestEndpointInfoMap[networkID], nil
 }
 
 //GetEndpointInfoBasedOnPODDetails mock

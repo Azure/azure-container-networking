@@ -238,7 +238,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	}
 
 	// request IP address
-	resp, err := cnsClient.RequestIPAddress(orchestratorContext)
+	resp, err := cnsClient.RequestIPAddress(&cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	if err != nil {
 		t.Fatalf("get IP from CNS failed with %+v", err)
 	}
@@ -306,7 +306,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	}
 
 	// request IP address
-	_, err = cnsClient.RequestIPAddress(orchestratorContext)
+	_, err = cnsClient.RequestIPAddress(&cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	if err != nil {
 		t.Fatalf("get IP from CNS failed with %+v", err)
 	}
@@ -346,7 +346,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 
 	// request IP address
-	_, err1 := cnsClient.RequestIPAddress(orchestratorContext)
+	_, err1 := cnsClient.RequestIPAddress(&cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	if err1 != nil {
 		t.Fatalf("get IP from CNS failed with %+v", err1)
 	}

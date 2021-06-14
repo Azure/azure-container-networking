@@ -211,7 +211,7 @@ func (cnsClient *CNSClient) DeleteHostNCApipaEndpoint(networkContainerID string)
 }
 
 // RequestIPAddress calls the requestIPAddress in CNS
-func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.IPConfigResponse, error) {
+func (cnsClient *CNSClient) RequestIPAddress(ipconfig *cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
 	var (
 		err      error
 		res      *http.Response
@@ -222,17 +222,15 @@ func (cnsClient *CNSClient) RequestIPAddress(orchestratorContext []byte) (*cns.I
 
 	url := cnsClient.connectionURL + cns.RequestIPConfig
 
-	payload := &cns.IPConfigRequest{
-		OrchestratorContext: orchestratorContext,
-	}
-
 	defer func() {
 		if err != nil {
-			cnsClient.ReleaseIPAddress(payload)
+			if er := cnsClient.ReleaseIPAddress(ipconfig); er != nil {
+				log.Errorf("failed to release IP address [%v] after failed add [%v]", er, err)
+			}
 		}
 	}()
 
-	err = json.NewEncoder(&body).Encode(payload)
+	err = json.NewEncoder(&body).Encode(ipconfig)
 	if err != nil {
 		log.Errorf("encoding json failed with %v", err)
 		return response, err

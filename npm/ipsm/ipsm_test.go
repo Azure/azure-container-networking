@@ -104,10 +104,10 @@ func TestDeleteFromList(t *testing.T) {
 		{Cmd: []string{"ipset", "test", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}},
 		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}},
 		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("test-list")}},
-		{Cmd: []string{"ipset", "test", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}, Stderr: "ipset still exists", ExitCode: 2},
-		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName("test-list")}, Stderr: "ipset still exists", ExitCode: 2},
+		{Cmd: []string{"ipset", "test", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}, Stdout: "ipset still exists", ExitCode: 2},
+		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName("test-list")}, Stdout: "ipset still exists", ExitCode: 2},
 		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("test-set")}},
-		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName("test-set")}, Stderr: "ipset still exists", ExitCode: 2},
+		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName("test-set")}, Stdout: "ipset still exists", ExitCode: 2},
 	}
 
 	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
@@ -570,7 +570,7 @@ func TestRunError(t *testing.T) {
 	setname := "test-set"
 
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}, Stderr: "test failure", ExitCode: 2},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}, Stdout: "test failure", ExitCode: 2},
 	}
 
 	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)

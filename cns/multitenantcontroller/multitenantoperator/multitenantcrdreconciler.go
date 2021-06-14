@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	ncapi "github.com/Azure/azure-container-networking/networkcontainer/api/v1alpha1"
+	ncapi "github.com/Azure/azure-container-networking/crds/multitenantnetworkcontainer/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -34,7 +34,7 @@ type multiTenantCrdReconciler struct {
 // Reconcile is called on multi-tenant CRD status changes.
 func (r *multiTenantCrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := context.Background()
-	var nc ncapi.NetworkContainer
+	var nc ncapi.MultiTenantNetworkContainer
 
 	if err := r.KubeClient.Get(ctx, request.NamespacedName, &nc); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -124,7 +124,7 @@ func (r *multiTenantCrdReconciler) Reconcile(request reconcile.Request) (reconci
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter
 func (r *multiTenantCrdReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&ncapi.NetworkContainer{}).
+		For(&ncapi.MultiTenantNetworkContainer{}).
 		WithEventFilter(r.predicate()).
 		Complete(r)
 }
@@ -147,7 +147,7 @@ func (r *multiTenantCrdReconciler) predicate() predicate.Predicate {
 }
 
 func (r *multiTenantCrdReconciler) equalNode(o runtime.Object) bool {
-	nc, ok := o.(*ncapi.NetworkContainer)
+	nc, ok := o.(*ncapi.MultiTenantNetworkContainer)
 	if ok {
 		return strings.EqualFold(nc.Spec.Node, r.NodeName)
 	}
