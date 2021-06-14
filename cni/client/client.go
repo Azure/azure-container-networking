@@ -26,7 +26,7 @@ type AzureCNIClient struct {
 	exec utilexec.Interface
 }
 
-func (c *AzureCNIClient) GetEndpointState() (api.CNIState, error) {
+func (c *AzureCNIClient) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd := c.exec.Command(azureVnetBinName)
 	cmd.SetDir(azureVnetBinDirectory)
 
