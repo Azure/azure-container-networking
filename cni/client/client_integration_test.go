@@ -5,41 +5,62 @@ package client
 
 import (
 	"io"
+	"log"
 	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni/api"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	ver "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
 )
 
-// todo: enable this test in CI, requires built azure vnet
-func TestGetStateFromAzureCNI(t *testing.T) {
-	testutils.RequireRootforTest(t)
-
+func TestMain(m *testing.M) {
+	testutils.RequireRootforTestMain()
+	var err error
 	// copy test state file to /var/run/azure-vnet.json
 	in, err := os.Open("./testresources/azure-vnet-test.json")
-	require.NoError(t, err)
-
-	defer in.Close()
+	if err != nil {
+		return
+	}
 
 	out, err := os.Create("/var/run/azure-vnet.json")
-	require.NoError(t, err)
+	if err != nil {
+		return
+	}
 
+	exit := 0
 	defer func() {
-		out.Close()
+		if in != nil {
+			in.Close()
+		}
+
+		if out != nil {
+			out.Close()
+		}
+
 		err := os.Remove("/var/run/azure-vnet.json")
-		require.NoError(t, err)
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+
+		os.Exit(exit)
 	}()
 
 	_, err = io.Copy(out, in)
-	require.NoError(t, err)
+	if err != nil {
+		return
+	}
 
-	out.Close()
+	exit = m.Run()
+}
 
-	realexec := exec.New()
-	c := NewCNIClient(realexec)
+// todo: enable this test in CI, requires built azure vnet
+func TestGetStateFromAzureCNI(t *testing.T) {
+
+	c := AzureCNIClient{exec: exec.New()}
 	state, err := c.GetEndpointState()
 	require.NoError(t, err)
 
@@ -51,4 +72,15 @@ func TestGetStateFromAzureCNI(t *testing.T) {
 	}
 
 	require.Exactly(t, res, state)
+}
+
+func TestGetVersion(t *testing.T) {
+	c := &AzureCNIClient{exec: exec.New()}
+	version, err := c.GetVersion()
+	require.NoError(t, err)
+
+	expectedVersion, err := ver.NewVersion("v1.4.0-2-g984c5a5e-dirty")
+	require.NoError(t, err)
+
+	require.Equal(t, expectedVersion, version)
 }

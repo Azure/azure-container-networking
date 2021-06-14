@@ -65,7 +65,7 @@ func RequireRootforTest(t *testing.T) {
 	}
 }
 
-func RequireRootforTestMain(m *testing.M) {
+func RequireRootforTestMain() {
 	if !isCurrentUserRoot() {
 		log.Printf("These tests require root!")
 		os.Exit(1)
