@@ -564,8 +564,8 @@ var (
 					}
 					poolId := "10.0.0.0/16"
 					as.Pools[poolId] = &addressPool{
-						Id:       poolId,
-						RefCount: 1,
+						Id:        poolId,
+						RefCount:  1,
 						Addresses: map[string]*addressRecord{},
 					}
 					as.Pools[poolId].Addresses["10.0.0.2"] = &addressRecord{
@@ -579,7 +579,6 @@ var (
 				})
 			})
 
-
 			Context("When pool is in use and it has ips allocated", func() {
 				It("Should raise an error", func() {
 					as := &addressSpace{
@@ -587,8 +586,8 @@ var (
 					}
 					poolId := "10.0.0.0/16"
 					as.Pools[poolId] = &addressPool{
-						Id:       poolId,
-						RefCount: 1,
+						Id:        poolId,
+						RefCount:  1,
 						Addresses: map[string]*addressRecord{},
 					}
 					as.Pools[poolId].Addresses["10.0.0.1"] = &addressRecord{
@@ -613,8 +612,8 @@ var (
 					}
 					poolId := "10.0.0.0/16"
 					as.Pools[poolId] = &addressPool{
-						Id:       poolId,
-						RefCount: 1,
+						Id:        poolId,
+						RefCount:  1,
 						Addresses: map[string]*addressRecord{},
 					}
 					as.Pools[poolId].Addresses["10.0.0.1"] = &addressRecord{

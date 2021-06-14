@@ -80,7 +80,7 @@ func TestDeleteContainerNetworkingFailure(t *testing.T) {
 	}
 
 	if !strings.Contains(err.Error(), "Teardown") {
-		t.Fatalf("TestDeleteContainerNetworkingFailure failed. Error should have contained Teardown. %v" , err)
+		t.Fatalf("TestDeleteContainerNetworkingFailure failed. Error should have contained Teardown. %v", err)
 	}
 }
 

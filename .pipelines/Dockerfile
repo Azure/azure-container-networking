@@ -11,7 +11,7 @@ RUN echo "deb http://archive.ubuntu.com/ubuntu/ bionic multiverse" | sudo tee -a
 RUN echo "deb http://archive.ubuntu.com/ubuntu/ bionic universe" | sudo tee -a /etc/apt/sources.list
 RUN echo "deb http://archive.ubuntu.com/ubuntu/ bionic main" | sudo tee -a /etc/apt/sources.list
 RUN apt-get update && apt-get install -y iptables ipset iproute2 ebtables 
-RUN wget -qO- https://golang.org/dl/go1.15.linux-amd64.tar.gz | tar zxf - -C /usr/lib/
+RUN wget -qO- https://golang.org/dl/go1.16.linux-amd64.tar.gz | tar zxf - -C /usr/lib/
 ENV PATH="/usr/lib/go/bin/:${PATH}"
 ENV GOROOT="/usr/lib/go"
 ENV GOPATH="/root/go"

@@ -130,7 +130,7 @@ func (kvs *jsonFileStore) flush() error {
 
 	tmpFileName := f.Name()
 
-	defer func(){
+	defer func() {
 		if err != nil {
 			// remove temp file after job is done
 			_ = os.Remove(tmpFileName)
@@ -138,7 +138,6 @@ func (kvs *jsonFileStore) flush() error {
 			f.Close()
 		}
 	}()
-
 
 	if _, err = f.Write(buf); err != nil {
 		return fmt.Errorf("Temp file write failed with: %v", err)

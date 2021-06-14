@@ -14,11 +14,22 @@ type Client struct {
 }
 
 // CreateOrUpdateNC updates cns state
-func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
-	returnCode := client.RestService.CreateOrUpdateNetworkContainerInternal(ncRequest, scalar, spec)
+func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest) error {
+	returnCode := client.RestService.CreateOrUpdateNetworkContainerInternal(ncRequest)
 
 	if returnCode != 0 {
 		return fmt.Errorf("Failed to Create NC request: %+v, errorCode: %d", ncRequest, returnCode)
+	}
+
+	return nil
+}
+
+// UpdateIPAMPoolMonitor updates IPAM pool monitor.
+func (client *Client) UpdateIPAMPoolMonitor(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
+	returnCode := client.RestService.UpdateIPAMPoolMonitorInternal(scalar, spec)
+
+	if returnCode != 0 {
+		return fmt.Errorf("Failed to update IPAM pool monitor scalar: %+v, spec: %+v, errorCode: %d", scalar, spec, returnCode)
 	}
 
 	return nil
@@ -30,6 +41,27 @@ func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequ
 
 	if returnCode != 0 {
 		return fmt.Errorf("Failed to Reconcile ncState: ncRequest %+v, podInfoMap: %+v, errorCode: %d", *ncRequest, podInfoByIP, returnCode)
+	}
+
+	return nil
+}
+
+func (client *Client) GetNC(req cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, error) {
+	response, returnCode := client.RestService.GetNetworkContainerInternal(req)
+	if returnCode != 0 {
+		if returnCode == restserver.UnknownContainerID {
+			return response, fmt.Errorf("NotFound")
+		}
+		return response, fmt.Errorf("Failed to get NC, request: %+v, errorCode: %d", req, returnCode)
+	}
+
+	return response, nil
+}
+
+func (client *Client) DeleteNC(req cns.DeleteNetworkContainerRequest) error {
+	returnCode := client.RestService.DeleteNetworkContainerInternal(req)
+	if returnCode != 0 {
+		return fmt.Errorf("Failed to delete NC, request: %+v, errorCode: %d", req, returnCode)
 	}
 
 	return nil

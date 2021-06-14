@@ -78,7 +78,9 @@ func (f *netPolFixture) newNetPolController(stopCh chan struct{}) {
 		f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)
 	}
 
-	f.kubeInformer.Start(stopCh)
+	// Do not start informer to avoid unnecessary event triggers
+	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
+	//f.kubeInformer.Start(stopCh)
 }
 
 func (f *netPolFixture) saveIpTables(iptablesConfigFile string) {

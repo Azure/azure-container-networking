@@ -67,7 +67,9 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 		f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Add(pod)
 	}
 
-	f.kubeInformer.Start(stopCh)
+	// Do not start informer to avoid unnecessary event triggers
+	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
+	//f.kubeInformer.Start(stopCh)
 }
 
 func (f *podFixture) ipSetSave(ipsetConfigFile string) {

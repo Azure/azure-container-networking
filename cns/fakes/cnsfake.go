@@ -306,7 +306,6 @@ func (fake *HTTPServiceFake) Start(*common.ServiceConfig) error {
 	return nil
 }
 
-
 func (fake *HTTPServiceFake) Init(*common.ServiceConfig) error {
 	return nil
 }

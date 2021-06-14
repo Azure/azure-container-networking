@@ -559,7 +559,7 @@ func TestRunError(t *testing.T) {
 	setname2 := "test-set2"
 
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(setname), util.GetHashedName(setname2)}, Stdout: "test failure", ExitCode: 2},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}, Stdout: "test failure", ExitCode: 2},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)

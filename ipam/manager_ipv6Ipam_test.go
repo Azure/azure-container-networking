@@ -24,7 +24,6 @@ func TestManagerIpv6Ipam(t *testing.T) {
 	RunSpecs(t, "Manager ipv6ipam Suite")
 }
 
-
 func createTestIpv6AddressManager() (AddressManager, error) {
 	var config common.PluginConfig
 	var options map[string]interface{}
@@ -57,10 +56,10 @@ var (
 		Describe("Test IPv6 get address pool and address", func() {
 
 			var (
-				am  AddressManager
-				err  error
-				poolID1 string
-				subnet1 string
+				am       AddressManager
+				err      error
+				poolID1  string
+				subnet1  string
 				address2 string
 				address3 string
 			)
@@ -92,7 +91,7 @@ var (
 				It("Should request address successfully", func() {
 					address2, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolID1, ipv6addr2, nil)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(address2).To(Equal(ipv6addr2+testSubnetSize))
+					Expect(address2).To(Equal(ipv6addr2 + testSubnetSize))
 				})
 			})
 
@@ -100,7 +99,7 @@ var (
 				It("Should request address successfully", func() {
 					address3, err := am.RequestAddress(LocalDefaultAddressSpaceId, poolID1, "", nil)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(address3).To(Equal(ipv6addr3+testSubnetSize))
+					Expect(address3).To(Equal(ipv6addr3 + testSubnetSize))
 				})
 			})
 

@@ -271,7 +271,7 @@ func (crdRC *crdRequestController) initCNS() error {
 }
 
 // UpdateCRDSpec updates the CRD spec
-func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec nnc.NodeNetworkConfigSpec)  error {
+func (crdRC *crdRequestController) UpdateCRDSpec(cntxt context.Context, crdSpec nnc.NodeNetworkConfigSpec) error {
 	nodeNetworkConfig, err := crdRC.getNodeNetConfig(cntxt, crdRC.nodeName, k8sNamespace)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error getting CRD when updating spec %v", err)

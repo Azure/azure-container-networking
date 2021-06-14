@@ -6,6 +6,8 @@ on:
     branches:
       - main
   pull_request:
+    paths:
+      - 'npm/**'
   schedule:
     # run once a day at midnight
     - cron: '0 0 * * *'

@@ -6,16 +6,17 @@ package ipam
 import (
 	"encoding/json"
 	"fmt"
-	cniSkel "github.com/containernetworking/cni/pkg/skel"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
-	"github.com/google/uuid"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"net"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
+
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/google/uuid"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-container-networking/common"
 )

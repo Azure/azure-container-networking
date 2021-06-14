@@ -29,8 +29,8 @@ func TestPemConsumptionLinux(t *testing.T) {
 	defer os.Remove(pemLocation)
 
 	config := TlsSettings{
-		TLSCertificatePath:    pemLocation,
-		TLSSubjectName: commonName,
+		TLSCertificatePath: pemLocation,
+		TLSSubjectName:     commonName,
 	}
 
 	fileCertRetriever, err := NewTlsCertificateRetriever(config)
@@ -77,11 +77,10 @@ func createPemCertificate(t *testing.T) []byte {
 		t.Fatalf("Could not encode certificate to Pem %+v", err)
 	}
 
-
 	pemCert := pem.EncodeToMemory(&pem.Block{Type: CertLabel, Bytes: derBytes})
-	pemKey:= pem.EncodeToMemory(&pem.Block{Type: PrivateKeyLabel, Bytes: privateKeyBytes})
+	pemKey := pem.EncodeToMemory(&pem.Block{Type: PrivateKeyLabel, Bytes: privateKeyBytes})
 
-	pemBundle := fmt.Sprintf("%s%s",pemCert,pemKey)
+	pemBundle := fmt.Sprintf("%s%s", pemCert, pemKey)
 
 	return []byte(pemBundle)
 }

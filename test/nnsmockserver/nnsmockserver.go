@@ -28,25 +28,25 @@ func (s *serverApi) ConfigureContainerNetworking(
 		return nil, fmt.Errorf("NnsMockServer: RequestType:%s failed with error: %v", req.RequestType, err)
 	}
 
-    ipaddress := &nns.ContainerIPAddress {
-        Ip: "10.91.149.1",
-        DefaultGateway: "10.91.148.1",
-        PrefixLength: "24",
-        Version: "4",
+	ipaddress := &nns.ContainerIPAddress{
+		Ip:             "10.91.149.1",
+		DefaultGateway: "10.91.148.1",
+		PrefixLength:   "24",
+		Version:        "4",
 	}
 
-    contTnterface := & nns.ContainerNetworkInterface{
-            Name: "azurevnet_45830dd4-1778-4735-9173-bba59b74cc8b_4ab80fb9-147e-4461-a213-56f4d44e806f",
-            NetworkNamespaceId: req.NetworkNamespaceId,
-            Ipaddresses: []*nns.ContainerIPAddress {ipaddress},
-            MacAddress: "0036578BB0F1",
+	contTnterface := &nns.ContainerNetworkInterface{
+		Name:               "azurevnet_45830dd4-1778-4735-9173-bba59b74cc8b_4ab80fb9-147e-4461-a213-56f4d44e806f",
+		NetworkNamespaceId: req.NetworkNamespaceId,
+		Ipaddresses:        []*nns.ContainerIPAddress{ipaddress},
+		MacAddress:         "0036578BB0F1",
 	}
 
 	res := nns.ConfigureContainerNetworkingResponse{
-	    Interfaces: []*nns.ContainerNetworkInterface {contTnterface},
+		Interfaces: []*nns.ContainerNetworkInterface{contTnterface},
 	}
 
-    return &res, nil
+	return &res, nil
 }
 
 func (s *serverApi) ConfigureNetworking(
@@ -67,7 +67,7 @@ func NewNnsMockServer() *NnsMockServer {
 	}
 }
 
-func (s *NnsMockServer)StartGrpcServer(port string) {
+func (s *NnsMockServer) StartGrpcServer(port string) {
 
 	endpoint := fmt.Sprintf(":%s", port)
 	lis, err := net.Listen("tcp", endpoint)
@@ -81,7 +81,7 @@ func (s *NnsMockServer)StartGrpcServer(port string) {
 	}
 }
 
-func (s *NnsMockServer)StopGrpcServer() {
+func (s *NnsMockServer) StopGrpcServer() {
 	if s.srv == nil {
 		fmt.Printf("s.srv is nil \n")
 	}

@@ -51,6 +51,8 @@ CNSFILES = \
 	$(wildcard cns/networkcontainers/*.go) \
 	$(wildcard cns/requestcontroller/*.go) \
 	$(wildcard cns/requestcontroller/kubecontroller/*.go) \
+	$(wildcard cns/multitenantcontroller/*.go) \
+	$(wildcard cns/multitenantcontroller/multitenantoperator/*.go) \
 	$(wildcard cns/fakes/*.go) \
 	$(COREFILES) \
 	$(CNMFILES)
@@ -75,6 +77,7 @@ GOARCH ?= amd64
 
 # Build directories.
 ROOT_DIR = $(shell pwd)
+REPO_ROOT = $(shell git rev-parse --show-toplevel)
 CNM_DIR = cnm/plugin
 CNI_NET_DIR = cni/network/plugin
 CNI_IPAM_DIR = cni/ipam/plugin
@@ -98,6 +101,8 @@ CNS_BUILD_DIR = $(BUILD_DIR)/cns
 CNMS_BUILD_DIR = $(BUILD_DIR)/cnms
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
 NPM_TELEMETRY_DIR = $(NPM_BUILD_DIR)/telemetry
+TOOLS_DIR = $(REPO_ROOT)/build/tools
+TOOLS_BIN_DIR = $(TOOLS_DIR)/bin
 CNI_AI_ID = 5515a1eb-b2bc-406a-98eb-ba462e6f0411
 NPM_AI_ID = 014c22bd-4107-459e-8475-67909e96edcb
 ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
@@ -178,13 +183,13 @@ azure-npm: $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) npm-archive
 endif
 
 ifeq ($(GOOS),linux)
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-cnms azure-npm 
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-cnms azure-npm
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
 endif
 
 ifeq ($(GOOS),linux)
-all-images: azure-npm-image azure-cns-image 
+all-images: azure-npm-image azure-cns-image
 else
 all-images:
 	@echo "Nothing to build. Skip."
@@ -195,6 +200,7 @@ endif
 .PHONY: clean
 clean:
 	rm -rf $(OUTPUT_DIR)
+	rm -rf $(TOOLS_BIN_DIR)
 
 # Build the Azure CNM plugin.
 $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT): $(CNMFILES)
@@ -219,7 +225,7 @@ $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT): $(CNIFILES)
 # Build the Azure CLI network plugin.
 $(ACNCLI_BUILD_DIR)/acncli$(EXE_EXT): $(CNIFILES)
 	CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(ACNCLI_DIR)/*.go
- 
+
 # Build the Azure CNS Service.
 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
 	go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(cnsaipath)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true" $(CNS_DIR)/*.go
@@ -255,7 +261,7 @@ all-containerized:
 
 # Make both linux and windows binaries
 .PHONY: all-binaries-platforms
-all-binaries-platforms: 
+all-binaries-platforms:
 	export GOOS=linux; make all-binaries
 	export GOOS=windows; make all-binaries
 
@@ -264,7 +270,7 @@ all-binaries-platforms:
 tools: acncli
 
 .PHONY: tools-images
-tools-images: 
+tools-images:
 	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
@@ -405,7 +411,7 @@ ifeq ($(GOOS),linux)
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
 	chmod 0755 $(CNI_SWIFT_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT)
 	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
-endif	
+endif
 
 # Create a CNM archive for the target platform.
 .PHONY: cnm-archive
@@ -449,14 +455,15 @@ endif
 .PHONY: release
 release:
 	./scripts/semver-release.sh
-	
+
 
 PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 
 # run all tests
 .PHONY: test-all
 test-all:
-	go test -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
+	go test -tags "unit" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
+
 
 # run all tests
 .PHONY: test-integration
@@ -471,4 +478,32 @@ test-cyclonus:
 .PHONY: kind
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
-	
+
+$(TOOLS_DIR)/go.mod:
+	cd $(TOOLS_DIR); go mod init && go mod tidy
+
+CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
+$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+
+controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
+
+GOCOV := $(TOOLS_BIN_DIR)/gocov
+$(GOCOV): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov github.com/axw/gocov/gocov
+
+gocov: $(GOCOV) ## Build gocov
+
+GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
+$(GOCOV_XML): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov-xml github.com/AlekSi/gocov-xml
+
+gocov-xml: $(GOCOV_XML) ## Build gocov-xml
+
+GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
+$(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/go-junit-report github.com/jstemmer/go-junit-report
+
+go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
+
+tools: gocov gocov-xml go-junit-report ## Build bins for build tools

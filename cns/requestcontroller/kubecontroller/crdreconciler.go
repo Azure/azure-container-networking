@@ -42,7 +42,6 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 	logger.Printf("[cns-rc] CRD Spec: %v", nodeNetConfig.Spec)
 
-
 	// If there are no network containers, don't hand it off to CNS
 	if len(nodeNetConfig.Status.NetworkContainers) == 0 {
 		logger.Errorf("[cns-rc] Empty NetworkContainers")
@@ -50,7 +49,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	}
 
 	networkContainer := nodeNetConfig.Status.NetworkContainers[0]
-	logger.Printf("[cns-rc] CRD Status: NcId: [%s], Version: [%d],  podSubnet: [%s], Subnet CIDR: [%s], " +
+	logger.Printf("[cns-rc] CRD Status: NcId: [%s], Version: [%d],  podSubnet: [%s], Subnet CIDR: [%s], "+
 		"Gateway Addr: [%s], Primary IP: [%s], SecondaryIpsCount: [%d]",
 		networkContainer.ID,
 		networkContainer.Version,
@@ -68,8 +67,14 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
-	if err = r.CNSClient.CreateOrUpdateNC(ncRequest, nodeNetConfig.Status.Scaler, nodeNetConfig.Spec); err != nil {
+	if err = r.CNSClient.CreateOrUpdateNC(ncRequest); err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
+		// requeue
+		return reconcile.Result{}, err
+	}
+
+	if err = r.CNSClient.UpdateIPAMPoolMonitor(nodeNetConfig.Status.Scaler, nodeNetConfig.Spec); err != nil {
+		logger.Errorf("[cns-rc] Error update IPAM pool monitor in reconcile: %v", err)
 		// requeue
 		return reconcile.Result{}, err
 	}

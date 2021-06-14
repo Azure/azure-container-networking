@@ -31,7 +31,7 @@ func generateVethName(key string) string {
 	return hex.EncodeToString(h.Sum(nil))[:11]
 }
 
-func ConstructEndpointID(containerID string, netNsPath string, ifName string) (string, string) {
+func ConstructEndpointID(containerID string, _ string, ifName string) (string, string) {
 	if len(containerID) > 8 {
 		containerID = containerID[:8]
 	} else {

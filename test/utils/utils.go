@@ -2,6 +2,9 @@ package testingutils
 
 import (
 	"io"
+	"log"
+	"os"
+	"os/user"
 	"strings"
 	"testing"
 
@@ -46,4 +49,28 @@ func VerifyCalls(t *testing.T, fexec *fakeexec.FakeExec, calls []TestCmd) {
 	err := recover()
 	require.Nil(t, err)
 	require.Equalf(t, len(calls), fexec.CommandCalls, "Number of exec calls mismatched, expected [%d], actual [%d]", fexec.CommandCalls, len(calls))
+}
+
+func isCurrentUserRoot() bool {
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Printf("Failed to get current user")
+		return false
+	} else if currentUser.Username == "root" {
+		return true
+	}
+	return false
+}
+
+func RequireRootforTest(t *testing.T) {
+	if !isCurrentUserRoot() {
+		t.Fatalf("Test [%s] requires root!", t.Name())
+	}
+}
+
+func RequireRootforTestMain(m *testing.M) {
+	if !isCurrentUserRoot() {
+		log.Printf("These tests require root!")
+		os.Exit(1)
+	}
 }

@@ -72,6 +72,7 @@ type NetworkManager interface {
 	CreateEndpoint(networkId string, epInfo *EndpointInfo) error
 	DeleteEndpoint(networkId string, endpointId string) error
 	GetEndpointInfo(networkId string, endpointId string) (*EndpointInfo, error)
+	GetAllEndpoints(networkId string) (map[string]*EndpointInfo, error)
 	GetEndpointInfoBasedOnPODDetails(networkId string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error)
 	AttachEndpoint(networkId string, endpointId string, sandboxKey string) (*endpoint, error)
 	DetachEndpoint(networkId string, endpointId string) error
@@ -377,6 +378,24 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 	}
 
 	return ep.getInfo(), nil
+}
+
+func (nm *networkManager) GetAllEndpoints(networkId string) (map[string]*EndpointInfo, error) {
+	nm.Lock()
+	defer nm.Unlock()
+
+	nw, err := nm.getNetwork(networkId)
+	if err != nil {
+		return nil, err
+	}
+
+	eps := make(map[string]*EndpointInfo)
+
+	for epid, ep := range nw.Endpoints {
+		eps[epid] = ep.getInfo()
+	}
+
+	return eps, nil
 }
 
 // GetEndpointInfoBasedOnPODDetails returns information about the given endpoint.
