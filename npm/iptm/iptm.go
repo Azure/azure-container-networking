@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/api"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -55,12 +54,12 @@ type IptEntry struct {
 // IptablesManager stores iptables entries.
 type IptablesManager struct {
 	exec          utilexec.Interface
-	io            api.IOShim
+	io            IOShim
 	OperationFlag string
 }
 
 // NewIptablesManager creates a new instance for IptablesManager object.
-func NewIptablesManager(exec utilexec.Interface, io api.IOShim) *IptablesManager {
+func NewIptablesManager(exec utilexec.Interface, io IOShim) *IptablesManager {
 	iptMgr := &IptablesManager{
 		exec:          exec,
 		io:            io,

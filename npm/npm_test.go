@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/npm/fakes"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -48,7 +47,7 @@ func newNPMgr(t *testing.T, exec utilexec.Interface) *NetworkPolicyManager {
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	exec := exec.New()
-	iptMgr := iptm.NewIptablesManager(exec, fakes.NewFakeIptOperationShim())
+	iptMgr := iptm.NewIptablesManager(exec, iptm.NewIptOperationShim())
 	iptMgr.UninitNpmChains()
 
 	ipsMgr := ipsm.NewIpsetManager(exec)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/api"
+
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -45,9 +45,9 @@ const (
 type NetworkPolicyManager struct {
 	sync.Mutex
 
-	Exec      utilexec.Interface
-	IO        api.IOShim
-	clientset *kubernetes.Clientset
+	Exec       utilexec.Interface
+	iptmIOshim iptm.IOShim
+	clientset  *kubernetes.Clientset
 
 	informerFactory informers.SharedInformerFactory
 	podInformer     coreinformers.PodInformer
@@ -160,7 +160,7 @@ func (npMgr *NetworkPolicyManager) restore() {
 
 // backup takes snapshots of iptables filter table and saves it periodically.
 func (npMgr *NetworkPolicyManager) backup() {
-	iptMgr := iptm.NewIptablesManager(npMgr.Exec, npMgr.IO)
+	iptMgr := iptm.NewIptablesManager(npMgr.Exec, npMgr.iptmIOshim)
 	var err error
 	for {
 		time.Sleep(backupWaitTimeInSeconds * time.Second)
@@ -203,7 +203,7 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 }
 
 // NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, io api.IOShim, npmVersion string) *NetworkPolicyManager {
+func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, io iptm.IOShim, npmVersion string) *NetworkPolicyManager {
 	// Clear out left over iptables states
 	log.Logf("Azure-NPM creating, cleaning iptables")
 	iptMgr := iptm.NewIptablesManager(exec, io)
@@ -283,7 +283,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 
 // reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
 func (npMgr *NetworkPolicyManager) reconcileChains() error {
-	iptMgr := iptm.NewIptablesManager(npMgr.Exec, npMgr.IO)
+	iptMgr := iptm.NewIptablesManager(npMgr.Exec, npMgr.iptmIOshim)
 	select {
 	case <-time.After(reconcileChainTimeInMinutes * time.Minute):
 		if err := iptMgr.CheckAndAddForwardChain(); err != nil {
