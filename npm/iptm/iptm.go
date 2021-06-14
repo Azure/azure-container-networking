@@ -47,7 +47,6 @@ type IptEntry struct {
 	Chain                 string
 	Flag                  string
 	LockWaitTimeInSeconds string
-	IsJumpEntry           bool
 	Specs                 []string
 }
 
