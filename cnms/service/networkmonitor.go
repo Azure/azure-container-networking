@@ -135,7 +135,7 @@ func main() {
 		CNIReport:                reportManager.Report.(*telemetry.CNIReport),
 	}
 
-	tb := telemetry.NewTelemetryBuffer("")
+	tb := telemetry.NewTelemetryBuffer()
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 

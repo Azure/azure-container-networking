@@ -105,20 +105,6 @@ type AIMetric struct {
 	Metric aitelemetry.Metric
 }
 
-// Azure CNS Telemetry Report structure.
-type CNSReport struct {
-	IsNewInstance   bool
-	CPUUsage        string
-	MemoryUsage     string
-	Processes       string
-	EventMessage    string
-	DncPartitionKey string
-	Timestamp       string
-	UUID            string
-	Errorcode       string
-	Metadata        common.Metadata `json:"compute"`
-}
-
 // ClusterState contains the current kubernetes cluster state.
 type ClusterState struct {
 	PodCount      int
@@ -140,24 +126,6 @@ type NPMReport struct {
 	Timestamp         string
 	ClusterState      ClusterState
 	Metadata          common.Metadata `json:"compute"`
-}
-
-// DNCReport structure.
-type DNCReport struct {
-	IsNewInstance bool
-	CPUUsage      string
-	MemoryUsage   string
-	Processes     string
-	EventMessage  string
-	PartitionKey  string
-	Allocations   string
-	Timestamp     string
-	NumberOfNodes int
-	NumberOfNCs   int
-	Orchestrator  string
-	ContainerType string
-	Errorcode     string
-	Metadata      common.Metadata `json:"compute"`
 }
 
 // ReportManager structure.
@@ -374,9 +342,6 @@ func (reportMgr *ReportManager) ReportToBytes() ([]byte, error) {
 
 	switch reportMgr.Report.(type) {
 	case *CNIReport:
-	case *NPMReport:
-	case *DNCReport:
-	case *CNSReport:
 	case *AIMetric:
 	default:
 		err = fmt.Errorf("[Telemetry] Invalid report type")

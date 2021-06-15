@@ -57,9 +57,6 @@ const (
 
 // Version is populated by make during build.
 var version string
-
-// Reports channel
-var reports = make(chan interface{})
 var telemetryStopProcessing = make(chan bool)
 var stopheartbeat = make(chan bool)
 var stopSnapshots = make(chan bool)
@@ -436,7 +433,6 @@ func main() {
 		}
 
 		logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
-		logger.InitReportChannel(reports)
 	}
 
 	// Log platform information.
@@ -537,7 +533,6 @@ func main() {
 	}
 
 	if !disableTelemetry {
-		go logger.SendToTelemetryService(reports, telemetryStopProcessing)
 		go logger.SendHeartBeat(cnsconfig.TelemetrySettings.HeartBeatIntervalInMins, stopheartbeat)
 		go httpRestService.SendNCSnapShotPeriodically(cnsconfig.TelemetrySettings.SnapshotIntervalInMins, stopSnapshots)
 	}
@@ -846,8 +841,6 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 			<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond).C
 			httpRestServiceImplementation.SyncHostNCVersion(rootCxt, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
 		}
-
-		logger.Printf("[Azure CNS] Exiting SyncHostNCVersion")
 	}()
 
 	return nil
