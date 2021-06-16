@@ -31,6 +31,7 @@ func TestSave(t *testing.T) {
 func TestRestore(t *testing.T) {
 	tmpFile, err := ioutil.TempFile(os.TempDir(), "npm-ipset-")
 	defer os.Remove(tmpFile.Name())
+	require.NoError(t, err)
 
 	var calls = []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-F", "-exist"}},
@@ -87,7 +88,7 @@ func TestAddToList(t *testing.T) {
 	ipsMgr := NewIpsetManager(fexec)
 	defer testingutils.VerifyCalls(t, fexec, calls)
 
-	err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag}))
+	err := ipsMgr.CreateSet("test-set", []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
 	err = ipsMgr.AddToList("test-list", "test-set")
@@ -118,7 +119,7 @@ func TestDeleteFromList(t *testing.T) {
 
 	// Create set and validate set is created.
 	setName := "test-set"
-	err := ipsMgr.CreateSet(setName, append([]string{util.IpsetNetHashFlag}))
+	err := ipsMgr.CreateSet(setName, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
 	entry := &ipsEntry{
@@ -137,7 +138,7 @@ func TestDeleteFromList(t *testing.T) {
 	entry = &ipsEntry{
 		operationFlag: util.IpsetTestFlag,
 		set:           util.GetHashedName(listName),
-		spec:          append([]string{util.GetHashedName(setName)}),
+		spec:          []string{util.GetHashedName(setName)},
 	}
 
 	_, err = ipsMgr.Run(entry)
@@ -158,7 +159,7 @@ func TestDeleteFromList(t *testing.T) {
 	entry = &ipsEntry{
 		operationFlag: util.IpsetTestFlag,
 		set:           util.GetHashedName(listName),
-		spec:          append([]string{util.GetHashedName(setName)}),
+		spec:          []string{util.GetHashedName(setName)},
 	}
 
 	_, err = ipsMgr.Run(entry)
@@ -217,7 +218,7 @@ func TestCreateSet(t *testing.T) {
 	err := ipsMgr.CreateSet(testSet1Name, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
-	spec := append([]string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum})
+	spec := []string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum}
 	err = ipsMgr.CreateSet(testSet2Name, spec)
 	require.NoError(t, err)
 
@@ -261,7 +262,7 @@ func TestDeleteSet(t *testing.T) {
 	ipsMgr := NewIpsetManager(fexec)
 	defer testingutils.VerifyCalls(t, fexec, calls)
 
-	err := ipsMgr.CreateSet(testSetName, append([]string{util.IpsetNetHashFlag}))
+	err := ipsMgr.CreateSet(testSetName, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
 	gaugeVal, err1 := promutil.GetValue(metrics.NumIPSets)
@@ -314,10 +315,10 @@ func TestAddToSet(t *testing.T) {
 	err = ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,%s:%d", "", "tcp", 8080), util.IpsetIPPortHashFlag, "0")
 	require.Errorf(t, err, "Expect failure when port is specified but ip is empty")
 
-	err = ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s", "1.1.1.1"), util.IpsetIPPortHashFlag, "0")
+	err = ipsMgr.AddToSet(testSetName, "1.1.1.1", util.IpsetIPPortHashFlag, "0")
 	require.NoError(t, err)
 
-	err = ipsMgr.AddToSet(testSetName, fmt.Sprintf(""), util.IpsetIPPortHashFlag, "0")
+	err = ipsMgr.AddToSet(testSetName, "", util.IpsetIPPortHashFlag, "0")
 	require.Error(t, err)
 
 	testSetCount, err1 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSetName))
@@ -547,7 +548,7 @@ func TestRun(t *testing.T) {
 	entry := &ipsEntry{
 		operationFlag: util.IpsetCreationFlag,
 		set:           util.GetHashedName("test-set"),
-		spec:          append([]string{util.IpsetNetHashFlag}),
+		spec:          []string{util.IpsetNetHashFlag},
 	}
 	if _, err := ipsMgr.Run(entry); err != nil {
 		t.Errorf("TestRun failed @ ipsMgr.Run with err %+v", err)
@@ -555,11 +556,8 @@ func TestRun(t *testing.T) {
 }
 
 func TestRunError(t *testing.T) {
-	setname := "test-set"
-	setname2 := "test-set2"
-
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}, Stdout: "test failure", ExitCode: 2},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-set"), "nethash"}, Stdout: "Test Failure", ExitCode: 2},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
@@ -567,9 +565,9 @@ func TestRunError(t *testing.T) {
 	defer testingutils.VerifyCalls(t, fexec, calls)
 
 	entry := &ipsEntry{
-		operationFlag: util.IpsetAppendFlag,
-		set:           util.GetHashedName(setname),
-		spec:          append([]string{util.GetHashedName(setname2)}),
+		operationFlag: util.IpsetCreationFlag,
+		set:           util.GetHashedName("test-set"),
+		spec:          []string{util.IpsetNetHashFlag},
 	}
 	_, err := ipsMgr.Run(entry)
 	require.Error(t, err)

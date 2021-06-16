@@ -498,7 +498,11 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 		return err
 	}
 
-	defer iptMgr.io.CloseConfigFile()
+	defer func() {
+		if er := iptMgr.io.CloseConfigFile(); err != nil {
+			log.Printf("Failed to close config file with err %v", er)
+		}
+	}()
 
 	cmd := iptMgr.exec.Command(util.IptablesRestore)
 	cmd.SetStdin(f)
