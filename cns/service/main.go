@@ -61,9 +61,6 @@ var rootErrCh chan error
 // Version is populated by make during build.
 var version string
 
-// Reports channel
-var reports = make(chan interface{})
-
 // Command line arguments for CNS.
 var args = acn.ArgumentList{
 	{

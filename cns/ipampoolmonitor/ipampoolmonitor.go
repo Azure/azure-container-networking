@@ -20,7 +20,6 @@ type CNSIPAMPoolMonitor struct {
 	MaximumFreeIps           int64
 	MinimumFreeIps           int64
 	cachedNNC                nnc.NodeNetworkConfig
-	ctx                      context.Context
 	httpService              cns.HTTPService
 	mu                       sync.RWMutex
 	pendingRelease           bool
@@ -48,7 +47,7 @@ func (pm *CNSIPAMPoolMonitor) Start(ctx context.Context, poolMonitorRefreshMilli
 		case <-ctx.Done():
 			return fmt.Errorf("[ipam-pool-monitor] CNS IPAM Pool Monitor received cancellation signal")
 		case <-ticker.C:
-			err := pm.Reconcile()
+			err := pm.Reconcile(ctx)
 			if err != nil {
 				logger.Printf("[ipam-pool-monitor] Reconcile failed with err %v", err)
 			}
@@ -56,7 +55,7 @@ func (pm *CNSIPAMPoolMonitor) Start(ctx context.Context, poolMonitorRefreshMilli
 	}
 }
 
-func (pm *CNSIPAMPoolMonitor) Reconcile() error {
+func (pm *CNSIPAMPoolMonitor) Reconcile(ctx context.Context) error {
 	cnsPodIPConfigCount := len(pm.httpService.GetPodIPConfigState())
 	pendingProgramCount := len(pm.httpService.GetPendingProgramIPConfigs()) // TODO: add pending program count to real cns
 	allocatedPodIPCount := len(pm.httpService.GetAllocatedIPConfigs())
@@ -78,18 +77,18 @@ func (pm *CNSIPAMPoolMonitor) Reconcile() error {
 		}
 
 		logger.Printf("[ipam-pool-monitor] Increasing pool size...%s ", msg)
-		return pm.increasePoolSize(pm.ctx)
+		return pm.increasePoolSize(ctx)
 
 	// pod count is decreasing
 	case freeIPConfigCount > pm.MaximumFreeIps:
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...%s ", msg)
-		return pm.decreasePoolSize(pm.ctx, pendingReleaseIPCount)
+		return pm.decreasePoolSize(ctx, pendingReleaseIPCount)
 
 	// CRD has reconciled CNS state, and target spec is now the same size as the state
 	// free to remove the IP's from the CRD
 	case pm.pendingRelease && int(pm.cachedNNC.Spec.RequestedIPCount) == cnsPodIPConfigCount:
 		logger.Printf("[ipam-pool-monitor] Removing Pending Release IP's from CRD...%s ", msg)
-		return pm.cleanPendingRelease(pm.ctx)
+		return pm.cleanPendingRelease(ctx)
 
 	// no pods scheduled
 	case allocatedPodIPCount == 0:
