@@ -17,19 +17,23 @@ import (
 )
 
 func TestSave(t *testing.T) {
+	tmpFile, err := ioutil.TempFile(os.TempDir(), util.IpsetTestConfigFile)
+	defer os.Remove(tmpFile.Name())
+	require.NoError(t, err)
+
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "save", "-file", "/var/log/ipset-test.conf"}},
+		{Cmd: []string{"ipset", "save", "-file", tmpFile.Name()}},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
 	defer testingutils.VerifyCalls(t, fexec, calls)
-	err := ipsMgr.Save(util.IpsetTestConfigFile)
+	err = ipsMgr.Save(tmpFile.Name())
 	require.NoError(t, err)
 }
 
 func TestRestore(t *testing.T) {
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "npm-ipset-")
+	tmpFile, err := ioutil.TempFile(os.TempDir(), util.IpsetTestConfigFile)
 	defer os.Remove(tmpFile.Name())
 	require.NoError(t, err)
 
