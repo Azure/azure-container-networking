@@ -56,10 +56,10 @@ type IptablesManager struct {
 }
 
 // NewIptablesManager creates a new instance for IptablesManager object.
-func NewIptablesManager(exec utilexec.Interface) *IptablesManager {
+func NewIptablesManager(exec utilexec.Interface, io ioshim) *IptablesManager {
 	iptMgr := &IptablesManager{
 		exec:          exec,
-		io:            NewIptOperationShim(),
+		io:            io,
 		OperationFlag: "",
 	}
 
@@ -67,15 +67,6 @@ func NewIptablesManager(exec utilexec.Interface) *IptablesManager {
 }
 
 // NewIptablesManager creates a new instance for IptablesManager object.
-func NewIptablesManagerWithFakeIO(exec utilexec.Interface) *IptablesManager {
-	iptMgr := &IptablesManager{
-		exec:          exec,
-		io:            NewFakeIptOperationShim(),
-		OperationFlag: "",
-	}
-
-	return iptMgr
-}
 
 // InitNpmChains initializes Azure NPM chains in iptables.
 func (iptMgr *IptablesManager) InitNpmChains() error {
@@ -452,7 +443,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := iptMgr.io.GrabIptablesLocks()
+	l, err := iptMgr.io.grabIptablesLocks()
 	if err != nil {
 		return err
 	}
@@ -488,7 +479,7 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := iptMgr.io.GrabIptablesLocks()
+	l, err := iptMgr.io.grabIptablesLocks()
 	if err != nil {
 		return err
 	}
@@ -500,14 +491,14 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 	}(l)
 
 	// open the config file for reading
-	f, err := iptMgr.io.OpenConfigFile(configFile)
+	f, err := iptMgr.io.openConfigFile(configFile)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open file: %s with err %v", configFile, err)
 		return err
 	}
 
 	defer func() {
-		if er := iptMgr.io.CloseConfigFile(); err != nil {
+		if er := iptMgr.io.closeConfigFile(); err != nil {
 			log.Printf("Failed to close config file with err %v", er)
 		}
 	}()

@@ -10,7 +10,7 @@ import (
 
 func TestFakeIOShim(t *testing.T) {
 	fake := NewFakeIptOperationShim()
-	f, err := fake.OpenConfigFile(testFileName)
+	f, err := fake.openConfigFile(testFileName)
 	require.NoError(t, err)
 
 	s := bufio.NewScanner(f)

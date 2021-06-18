@@ -52,21 +52,21 @@ func (f *fakeIptOperationShim) SetTestData(configname, configdata string) {
 func (f *fakeIptOperationShim) LoadExistingIPTablesState([]testingutils.TestCmd) {
 }
 
-func (f *fakeIptOperationShim) GrabIptablesLocks() (*os.File, error) {
+func (f *fakeIptOperationShim) grabIptablesLocks() (*os.File, error) {
 	return &os.File{}, nil
 }
 
-func (f *fakeIptOperationShim) SaveConfigFile(configFile string) (io.Writer, error) {
+func (f *fakeIptOperationShim) saveConfigFile(configFile string) (io.Writer, error) {
 	return nil, nil
 }
 
-func (f *fakeIptOperationShim) OpenConfigFile(configFile string) (io.Reader, error) {
+func (f *fakeIptOperationShim) openConfigFile(configFile string) (io.Reader, error) {
 	fo, err := f.m.Open(configFile)
 	f.fo = fo
 	return f.fo, err
 }
 
-func (f *fakeIptOperationShim) CloseConfigFile() error {
+func (f *fakeIptOperationShim) closeConfigFile() error {
 	f.fo.Close()
 	return nil
 }

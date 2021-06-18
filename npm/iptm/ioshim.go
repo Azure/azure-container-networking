@@ -11,10 +11,10 @@ import (
 )
 
 type ioshim interface {
-	GrabIptablesLocks() (*os.File, error)
-	SaveConfigFile(configFile string) (io.Writer, error)
-	OpenConfigFile(configFile string) (io.Reader, error)
-	CloseConfigFile() error
+	grabIptablesLocks() (*os.File, error)
+	saveConfigFile(configFile string) (io.Writer, error)
+	openConfigFile(configFile string) (io.Reader, error)
+	closeConfigFile() error
 }
 
 type IptOperationShim struct {
@@ -25,7 +25,7 @@ func NewIptOperationShim() *IptOperationShim {
 	return &IptOperationShim{}
 }
 
-func (i *IptOperationShim) SaveConfigFile(configFile string) (io.Writer, error) {
+func (i *IptOperationShim) saveConfigFile(configFile string) (io.Writer, error) {
 	f, err := os.Create(configFile)
 	if err != nil {
 		return f, err
@@ -34,7 +34,7 @@ func (i *IptOperationShim) SaveConfigFile(configFile string) (io.Writer, error) 
 	return i.f, err
 }
 
-func (i *IptOperationShim) OpenConfigFile(configFile string) (io.Reader, error) {
+func (i *IptOperationShim) openConfigFile(configFile string) (io.Reader, error) {
 	f, err := os.Open(configFile)
 	if err != nil {
 		return f, err
@@ -43,12 +43,12 @@ func (i *IptOperationShim) OpenConfigFile(configFile string) (io.Reader, error) 
 	return i.f, err
 }
 
-func (i *IptOperationShim) CloseConfigFile() error {
+func (i *IptOperationShim) closeConfigFile() error {
 	return i.f.Close()
 }
 
 // grabs iptables v1.6 xtable lock
-func (i *IptOperationShim) GrabIptablesLocks() (*os.File, error) {
+func (i *IptOperationShim) grabIptablesLocks() (*os.File, error) {
 	var success bool
 
 	l := &os.File{}
