@@ -30,7 +30,7 @@ func GetFakeExecWithScripts(calls []TestCmd) *fakeexec.FakeExec {
 		ccmd := call.Cmd
 		if call.ExitCode != 0 {
 			err := &fakeexec.FakeExitError{Status: call.ExitCode}
-			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte(stdout), []byte{}, err })
+			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte(stdout), nil, err })
 		} else {
 			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte(stdout), nil, nil })
 		}

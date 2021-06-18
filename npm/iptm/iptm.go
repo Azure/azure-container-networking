@@ -5,7 +5,6 @@ package iptm
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -443,27 +442,33 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := iptMgr.io.grabIptablesLocks()
+	err := iptMgr.io.lockIptables()
 	if err != nil {
 		return err
 	}
 
-	defer func(l *os.File) {
-		if err = l.Close(); err != nil {
-			log.Logf("Failed to close iptables locks")
+	defer func() {
+		er := iptMgr.io.unlockIptables()
+		if er != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to unlock iptables with err %v", er)
 		}
-	}(l)
+	}()
 
 	// create the config file for writing
-	f, err := os.Create(configFile)
+	f, err := iptMgr.io.createConfigFile(configFile)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open file: %s.", configFile)
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		er := iptMgr.io.closeConfigFile()
+		if er != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to close file: %s with err %v", configFile, er)
+		}
+	}()
 
 	cmd := iptMgr.exec.Command(util.IptablesSave)
-	//cmd.SetStdout(f)
+	cmd.SetStdout(f)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-save: err %v, output %v", err, output)
@@ -479,16 +484,17 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := iptMgr.io.grabIptablesLocks()
+	err := iptMgr.io.lockIptables()
 	if err != nil {
 		return err
 	}
 
-	defer func(l *os.File) {
-		if err = l.Close(); err != nil {
-			log.Logf("Failed to close iptables locks with err %v", err)
+	defer func() {
+		er := iptMgr.io.unlockIptables()
+		if er != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to unlock iptables with err %v", er)
 		}
-	}(l)
+	}()
 
 	// open the config file for reading
 	f, err := iptMgr.io.openConfigFile(configFile)

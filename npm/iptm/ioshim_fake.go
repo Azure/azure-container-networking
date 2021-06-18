@@ -3,7 +3,6 @@ package iptm
 import (
 	"io"
 	"io/fs"
-	"os"
 	"testing/fstest"
 
 	testingutils "github.com/Azure/azure-container-networking/test/utils"
@@ -52,11 +51,15 @@ func (f *fakeIptOperationShim) SetTestData(configname, configdata string) {
 func (f *fakeIptOperationShim) LoadExistingIPTablesState([]testingutils.TestCmd) {
 }
 
-func (f *fakeIptOperationShim) grabIptablesLocks() (*os.File, error) {
-	return &os.File{}, nil
+func (f *fakeIptOperationShim) lockIptables() error {
+	return nil
 }
 
-func (f *fakeIptOperationShim) saveConfigFile(configFile string) (io.Writer, error) {
+func (f *fakeIptOperationShim) unlockIptables() error {
+	return nil
+}
+
+func (f *fakeIptOperationShim) createConfigFile(configFile string) (io.Writer, error) {
 	return nil, nil
 }
 
@@ -67,6 +70,8 @@ func (f *fakeIptOperationShim) openConfigFile(configFile string) (io.Reader, err
 }
 
 func (f *fakeIptOperationShim) closeConfigFile() error {
-	f.fo.Close()
+	if f.fo != nil {
+		return f.fo.Close()
+	}
 	return nil
 }

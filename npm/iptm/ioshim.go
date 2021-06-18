@@ -1,6 +1,7 @@
 package iptm
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -11,27 +12,29 @@ import (
 )
 
 type ioshim interface {
-	grabIptablesLocks() (*os.File, error)
-	saveConfigFile(configFile string) (io.Writer, error)
+	lockIptables() error
+	unlockIptables() error
 	openConfigFile(configFile string) (io.Reader, error)
+	createConfigFile(configFile string) (io.Writer, error)
 	closeConfigFile() error
 }
 
 type IptOperationShim struct {
-	f *os.File
+	configFile   *os.File
+	iptablesLock *os.File
 }
 
 func NewIptOperationShim() *IptOperationShim {
 	return &IptOperationShim{}
 }
 
-func (i *IptOperationShim) saveConfigFile(configFile string) (io.Writer, error) {
+func (i *IptOperationShim) createConfigFile(configFile string) (io.Writer, error) {
 	f, err := os.Create(configFile)
 	if err != nil {
 		return f, err
 	}
-	i.f = f
-	return i.f, err
+	i.configFile = f
+	return i.configFile, err
 }
 
 func (i *IptOperationShim) openConfigFile(configFile string) (io.Reader, error) {
@@ -39,44 +42,52 @@ func (i *IptOperationShim) openConfigFile(configFile string) (io.Reader, error) 
 	if err != nil {
 		return f, err
 	}
-	i.f = f
-	return i.f, err
+	i.configFile = f
+	return i.configFile, err
 }
 
 func (i *IptOperationShim) closeConfigFile() error {
-	return i.f.Close()
+	return i.configFile.Close()
 }
 
 // grabs iptables v1.6 xtable lock
-func (i *IptOperationShim) grabIptablesLocks() (*os.File, error) {
+func (i *IptOperationShim) lockIptables() error {
 	var success bool
 
-	l := &os.File{}
+	i.iptablesLock = &os.File{}
 	defer func(l *os.File) {
 		// Clean up immediately on failure
 		if !success {
 			l.Close()
 		}
-	}(l)
+	}(i.iptablesLock)
 
 	// Grab 1.6.x style lock.
-	l, err := os.OpenFile(util.IptablesLockFile, os.O_CREATE, 0600)
+	var err error
+	i.iptablesLock, err = os.OpenFile(util.IptablesLockFile, os.O_CREATE, 0600)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open iptables lock file %s.", util.IptablesLockFile)
-		return nil, err
+		return err
 	}
 
 	if err := wait.PollImmediate(200*time.Millisecond, 2*time.Second, func() (bool, error) {
-		if err := grabIptablesFileLock(l); err != nil {
+		if err := grabIptablesFileLock(i.iptablesLock); err != nil {
 			return false, nil
 		}
 
 		return true, nil
 	}); err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to acquire new iptables lock: %v.", err)
-		return nil, err
+		return err
 	}
 
 	success = true
-	return l, nil
+	return nil
+}
+
+func (i *IptOperationShim) unlockIptables() error {
+	if err := i.iptablesLock.Close(); err != nil {
+		return fmt.Errorf("Failed to close iptables locks")
+	}
+	return nil
 }

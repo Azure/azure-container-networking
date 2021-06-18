@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -17,25 +18,21 @@ import (
 )
 
 func TestSave(t *testing.T) {
-	tmpFile, err := ioutil.TempFile(os.TempDir(), util.IpsetTestConfigFile)
-	defer os.Remove(tmpFile.Name())
-	require.NoError(t, err)
-
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "save", "-file", tmpFile.Name()}},
+		{Cmd: []string{"ipset", "save", "-file", "ipset.conf"}},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
 	defer testingutils.VerifyCalls(t, fexec, calls)
-	err = ipsMgr.Save(tmpFile.Name())
+	err := ipsMgr.Save("ipset.conf")
 	require.NoError(t, err)
 }
 
 func TestRestore(t *testing.T) {
-	tmpFile, err := ioutil.TempFile(os.TempDir(), util.IpsetTestConfigFile)
-	defer os.Remove(tmpFile.Name())
+	tmpFile, err := ioutil.TempFile(os.TempDir(), filepath.Base(util.IpsetTestConfigFile))
 	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
 
 	var calls = []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-F", "-exist"}},
@@ -371,7 +368,8 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 	}
 
 	// Delete from set, it will delete the set if this is the last member
-	ipsMgr.DeleteFromSet(setname, ip, pod2)
+	err = ipsMgr.DeleteFromSet(setname, ip, pod2)
+	require.NoError(t, err)
 }
 
 func TestDeleteFromSet(t *testing.T) {
@@ -531,7 +529,7 @@ func TestDestroy(t *testing.T) {
 		entry := &ipsEntry{
 			operationFlag: util.IpsetTestFlag,
 			set:           util.GetHashedName(setName),
-			spec:          append([]string{testIP}),
+			spec:          []string{testIP},
 		}
 
 		if _, err := ipsMgr.Run(entry); err == nil {
@@ -559,9 +557,9 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func TestRunError(t *testing.T) {
+func TestRunErrorWithNonZeroExitCode(t *testing.T) {
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-set"), "nethash"}, Stdout: "Test Failure", ExitCode: 2},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("test-set"), "nethash"}, Stdout: "test failure", ExitCode: 2},
 	}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
@@ -569,7 +567,7 @@ func TestRunError(t *testing.T) {
 	defer testingutils.VerifyCalls(t, fexec, calls)
 
 	entry := &ipsEntry{
-		operationFlag: util.IpsetCreationFlag,
+		operationFlag: util.IpsetAppendFlag,
 		set:           util.GetHashedName("test-set"),
 		spec:          []string{util.IpsetNetHashFlag},
 	}
@@ -852,7 +850,6 @@ func TestIPSetCannotBeAddedAsElementDoesNotExist(t *testing.T) {
 */
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
-	metrics.CreateFakeTelemetryHandle()
 
 	exitCode := m.Run()
 
