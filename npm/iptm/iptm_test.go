@@ -120,9 +120,8 @@ func TestRestore(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
-	if err := iptMgr.Restore(testFileName); err != nil {
-		t.Errorf("TestRestore failed @ iptMgr.Restore with err %v", err)
-	}
+	err := iptMgr.Restore(testFileName)
+	require.NoError(t, err)
 }
 
 func TestInitNpmChains(t *testing.T) {
@@ -132,9 +131,8 @@ func TestInitNpmChains(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
-	if err := iptMgr.InitNpmChains(); err != nil {
-		t.Errorf("	@ iptMgr.InitNpmChains")
-	}
+	err := iptMgr.InitNpmChains()
+	require.NoError(t, err)
 }
 
 func TestUninitNpmChains(t *testing.T) {
