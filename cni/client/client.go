@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/log"
+	semver "github.com/hashicorp/go-version"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -24,13 +26,7 @@ type AzureCNIClient struct {
 	exec utilexec.Interface
 }
 
-func NewCNIClient(exec utilexec.Interface) *AzureCNIClient {
-	return &AzureCNIClient{
-		exec: exec,
-	}
-}
-
-func (c *AzureCNIClient) GetEndpointState() (api.CNIState, error) {
+func (c *AzureCNIClient) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd := c.exec.Command(azureVnetBinName)
 	cmd.SetDir(azureVnetBinDirectory)
 
@@ -51,4 +47,22 @@ func (c *AzureCNIClient) GetEndpointState() (api.CNIState, error) {
 	}
 
 	return state, nil
+}
+
+func (c *AzureCNIClient) GetVersion() (*semver.Version, error) {
+	cmd := c.exec.Command(azureVnetBinName, "-v")
+	cmd.SetDir(azureVnetBinDirectory)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Azure CNI version with err: [%w], output: [%s]", err, string(output))
+	}
+
+	res := strings.Fields(string(output))
+
+	if len(res) != 4 {
+		return nil, fmt.Errorf("Unexpected Azure CNI Version formatting: %v", output)
+	}
+
+	return semver.NewVersion(res[3])
 }

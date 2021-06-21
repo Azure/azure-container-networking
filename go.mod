@@ -15,6 +15,7 @@ require (
 	github.com/golang/mock v1.2.0
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.8.0
+	github.com/hashicorp/go-version v1.3.0
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/ishidawataru/sctp v0.0.0-20210226210310-f2269e66cdee // indirect
@@ -43,9 +44,11 @@ require (
 	google.golang.org/protobuf v1.25.0
 	gotest.tools/v3 v3.0.2 // indirect
 	k8s.io/api v0.18.19
+	k8s.io/apiextensions-apiserver v0.18.2
 	k8s.io/apimachinery v0.18.19
 	k8s.io/client-go v0.18.19
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
 	sigs.k8s.io/controller-runtime v0.6.0
+	sigs.k8s.io/yaml v1.2.0
 )

@@ -105,10 +105,10 @@ func TestMain(m *testing.M) {
 	reportManager.ContentType = "application/json"
 	reportManager.Report = &CNIReport{}
 
-	tb = NewTelemetryBuffer(hostAgentUrl)
-	err = tb.StartServer(false)
+	tb = NewTelemetryBuffer()
+	err = tb.StartServer()
 	if err == nil {
-		go tb.BufferAndPushData(0)
+		go tb.PushData()
 	}
 
 	if err := tb.Connect(); err != nil {
@@ -200,14 +200,14 @@ func TestCloseTelemetryConnection(t *testing.T) {
 
 func TestServerCloseTelemetryConnection(t *testing.T) {
 	// create server telemetrybuffer and start server
-	tb = NewTelemetryBuffer(hostAgentUrl)
-	err := tb.StartServer(false)
+	tb = NewTelemetryBuffer()
+	err := tb.StartServer()
 	if err == nil {
-		go tb.BufferAndPushData(0)
+		go tb.PushData()
 	}
 
 	// create client telemetrybuffer and connect to server
-	tb1 := NewTelemetryBuffer(hostAgentUrl)
+	tb1 := NewTelemetryBuffer()
 	if err := tb1.Connect(); err != nil {
 		t.Errorf("connection to telemetry server failed %v", err)
 	}
@@ -233,10 +233,10 @@ func TestServerCloseTelemetryConnection(t *testing.T) {
 
 func TestClientCloseTelemetryConnection(t *testing.T) {
 	// create server telemetrybuffer and start server
-	tb = NewTelemetryBuffer(hostAgentUrl)
-	err := tb.StartServer(false)
+	tb = NewTelemetryBuffer()
+	err := tb.StartServer()
 	if err == nil {
-		go tb.BufferAndPushData(0)
+		go tb.PushData()
 	}
 
 	if !SockExists() {
@@ -244,7 +244,7 @@ func TestClientCloseTelemetryConnection(t *testing.T) {
 	}
 
 	// create client telemetrybuffer and connect to server
-	tb1 := NewTelemetryBuffer(hostAgentUrl)
+	tb1 := NewTelemetryBuffer()
 	if err := tb1.Connect(); err != nil {
 		t.Errorf("connection to telemetry server failed %v", err)
 	}

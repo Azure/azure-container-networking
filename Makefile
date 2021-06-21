@@ -136,6 +136,7 @@ CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNMS_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_IMAGE_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNI_IMAGE_ARCHIVE_NAME = azure-cni-manager-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNMS_IMAGE_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 TELEMETRY_IMAGE_ARCHIVE_NAME = azure-vnet-telemetry-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_IMAGE_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
@@ -176,6 +177,13 @@ azure-cns: $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) cns-archive
 azure-vnet-telemetry: $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT)
 acncli: $(ACNCLI_BUILD_DIR)/acncli$(EXE_EXT) acncli-archive
 
+# Tool paths
+CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
+GOCOV := $(TOOLS_BIN_DIR)/gocov
+GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
+GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
+GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
+
 # Azure-NPM only supports Linux for now.
 ifeq ($(GOOS),linux)
 azure-cnms: $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT) cnms-archive
@@ -204,15 +212,15 @@ clean:
 
 # Build the Azure CNM plugin.
 $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT): $(CNMFILES)
-	go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNM_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNM_DIR)/*.go
 
 # Build the Azure CNI network plugin.
 $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT): $(CNIFILES)
-	go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_NET_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_NET_DIR)/*.go
 
 # Build the Azure CNI IPAM plugin.
 $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT): $(CNIFILES)
-	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_IPAM_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_IPAM_DIR)/*.go
 
 # Build the Azure CNI IPAMV6 plugin.
 $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT): $(CNIFILES)
@@ -220,24 +228,24 @@ $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT): $(CNIFILES)
 
 # Build the Azure CNI telemetry plugin.
 $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT): $(CNIFILES)
-	go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/telemetry.aiMetadata=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true" $(CNI_TELEMETRY_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/telemetry.aiMetadata=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true" $(CNI_TELEMETRY_DIR)/*.go
 
 # Build the Azure CLI network plugin.
 $(ACNCLI_BUILD_DIR)/acncli$(EXE_EXT): $(CNIFILES)
-	CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(ACNCLI_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(ACNCLI_DIR)/*.go
 
 # Build the Azure CNS Service.
 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
-	go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(cnsaipath)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true" $(CNS_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(cnsaipath)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true" $(CNS_DIR)/*.go
 
 # Build the Azure CNMS Service.
 $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT): $(CNMSFILES)
-	go build -v -o $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNMS_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -o $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNMS_DIR)/*.go
 
 # Build the Azure NPM plugin.
 $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT): $(NPMFILES)
-	go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_TELEMETRY_DIR)/*.go
-	go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/npm.aiMetadata=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true" $(NPM_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(CNI_TELEMETRY_DIR)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/npm.aiMetadata=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true" $(NPM_DIR)/*.go
 
 # Build all binaries in a container.
 .PHONY: all-containerized
@@ -272,6 +280,7 @@ tools: acncli
 .PHONY: tools-images
 tools-images:
 	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
+	docker save $(AZURE_CNI_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNI_IMAGE_ARCHIVE_NAME)
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
 .PHONY: azure-vnet-plugin-image
@@ -459,6 +468,14 @@ release:
 
 PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 
+LINT_PKG ?= .
+
+lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues
+	$(GOLANGCI_LINT) run --new-from-rev=master -v $(LINT_PKG)/...
+
+lint-old: $(GOLANGCI_LINT) ## Fast lint including previous issues
+	$(GOLANGCI_LINT) run -v $(LINT_PKG)/...
+
 # run all tests
 .PHONY: test-all
 test-all:
@@ -482,28 +499,29 @@ kind:
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
 
-CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
-GOCOV := $(TOOLS_BIN_DIR)/gocov
 $(GOCOV): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov github.com/axw/gocov/gocov
 
 gocov: $(GOCOV) ## Build gocov
 
-GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
 $(GOCOV_XML): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov-xml github.com/AlekSi/gocov-xml
 
 gocov-xml: $(GOCOV_XML) ## Build gocov-xml
 
-GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
 $(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/go-junit-report github.com/jstemmer/go-junit-report
 
 go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
 
-tools: gocov gocov-xml go-junit-report ## Build bins for build tools
+$(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
+
+golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
+
+tools: gocov gocov-xml go-junit-report golangci-lint ## Build bins for build tools

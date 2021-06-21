@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni/api"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	ver "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +18,7 @@ func TestGetState(t *testing.T) {
 
 	fakeexec, _ := testutils.GetFakeExecWithScripts(calls)
 
-	c := NewCNIClient(fakeexec)
+	c := &AzureCNIClient{exec: fakeexec}
 	state, err := c.GetEndpointState()
 	require.NoError(t, err)
 
@@ -29,4 +30,21 @@ func TestGetState(t *testing.T) {
 	}
 
 	require.Equal(t, res, state)
+}
+
+func TestGetVersion(t *testing.T) {
+	calls := []testutils.TestCmd{
+		{Cmd: []string{"./azure-vnet", "-v"}, Stdout: `Azure CNI Version v1.4.0-2-g984c5a5e-dirty`},
+	}
+
+	fakeexec, _ := testutils.GetFakeExecWithScripts(calls)
+
+	c := &AzureCNIClient{exec: fakeexec}
+	version, err := c.GetVersion()
+	require.NoError(t, err)
+
+	expectedVersion, err := ver.NewVersion("v1.4.0-2-g984c5a5e-dirty")
+	require.NoError(t, err)
+
+	require.Equal(t, expectedVersion, version)
 }

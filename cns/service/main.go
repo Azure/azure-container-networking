@@ -57,9 +57,6 @@ const (
 
 // Version is populated by make during build.
 var version string
-
-// Reports channel
-var reports = make(chan interface{})
 var telemetryStopProcessing = make(chan bool)
 var stopheartbeat = make(chan bool)
 var stopSnapshots = make(chan bool)
@@ -436,7 +433,6 @@ func main() {
 		}
 
 		logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
-		logger.InitReportChannel(reports)
 	}
 
 	// Log platform information.
@@ -537,7 +533,6 @@ func main() {
 	}
 
 	if !disableTelemetry {
-		go logger.SendToTelemetryService(reports, telemetryStopProcessing)
 		go logger.SendHeartBeat(cnsconfig.TelemetrySettings.HeartBeatIntervalInMins, stopheartbeat)
 		go httpRestService.SendNCSnapShotPeriodically(cnsconfig.TelemetrySettings.SnapshotIntervalInMins, stopSnapshots)
 	}
@@ -567,9 +562,12 @@ func main() {
 		}
 		go func(ep, vnet, node string) {
 			// Periodically poll DNC for node updates
+			tickerChannel := time.Tick(time.Duration(cnsconfig.ManagedSettings.NodeSyncIntervalInSeconds) * time.Second)
 			for {
-				<-time.NewTicker(time.Duration(cnsconfig.ManagedSettings.NodeSyncIntervalInSeconds) * time.Second).C
-				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
+				select {
+				case <-tickerChannel:
+					httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
+				}
 			}
 		}(privateEndpoint, infravnet, nodeID)
 	}
@@ -743,9 +741,14 @@ func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig 
 	rootCxt := context.Background()
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
+		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond)
 		for {
-			<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond).C
-			httpRestServiceImpl.SyncHostNCVersion(rootCxt, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+			select {
+			case <-tickerChannel:
+				httpRestServiceImpl.SyncHostNCVersion(rootCxt, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+			case <-rootCxt.Done():
+				return
+			}
 		}
 	}()
 
@@ -842,12 +845,15 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	rootCxt := context.Background()
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
+		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond)
 		for {
-			<-time.NewTicker(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond).C
-			httpRestServiceImplementation.SyncHostNCVersion(rootCxt, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+			select {
+			case <-tickerChannel:
+				httpRestServiceImplementation.SyncHostNCVersion(rootCxt, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+            case <-rootCxt.Done():
+                return
+			}
 		}
-
-		logger.Printf("[Azure CNS] Exiting SyncHostNCVersion")
 	}()
 
 	return nil

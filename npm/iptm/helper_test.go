@@ -7,7 +7,7 @@ import (
 )
 
 func TestGetAllChainsAndRules(t *testing.T) {
-	allChainsandRules := getAllChainsAndRules()
+	allChainsandRules := getAllDefaultRules()
 
 	parentNpmRulesCount := 6
 
