@@ -5,12 +5,12 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller"
+	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 )
 
-var _ requestcontroller.RequestController = (*RequestControllerFake)(nil)
+var _ singletenantcontroller.RequestController = (*RequestControllerFake)(nil)
 
 type RequestControllerFake struct {
 	fakecns   *HTTPServiceFake
@@ -67,11 +67,11 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 	return cnsIPConfigs
 }
 
-func (rc *RequestControllerFake) InitRequestController(context.Context) error {
+func (rc *RequestControllerFake) Init(context.Context) error {
 	return nil
 }
 
-func (rc *RequestControllerFake) StartRequestController(context.Context) error {
+func (rc *RequestControllerFake) Start(context.Context) error {
 	return nil
 }
 

@@ -31,9 +31,9 @@ import (
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller/kubecontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
+	"github.com/Azure/azure-container-networking/cns/singletenantcontroller/kubecontroller"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
@@ -673,7 +673,7 @@ func main() {
 }
 
 func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
-	var multiTenantController multitenantcontroller.MultiTenantController
+	var multiTenantController multitenantcontroller.RequestController
 	kubeConfig, err := ctrl.GetConfig()
 	if err != nil {
 		return err
@@ -694,7 +694,7 @@ func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig 
 	httpRestServiceImpl.SetNodeOrchestrator(&orchestrator)
 
 	// Create multiTenantController.
-	multiTenantController, err = multitenantoperator.NewMultiTenantController(httpRestServiceImpl, kubeConfig)
+	multiTenantController, err = multitenantoperator.New(httpRestServiceImpl, kubeConfig)
 	if err != nil {
 		logger.Errorf("Failed to create multiTenantController:%v", err)
 		return err
@@ -703,7 +703,7 @@ func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig 
 	// Wait for multiTenantController to start.
 	go func() {
 		for {
-			if err := multiTenantController.StartMultiTenantController(rootCtx); err != nil {
+			if err := multiTenantController.Start(rootCtx); err != nil {
 				logger.Errorf("Failed to start multiTenantController: %v", err)
 			} else {
 				logger.Printf("Exiting multiTenantController")
@@ -745,7 +745,7 @@ func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig 
 
 // initializeCRD state
 func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
-	var requestController requestcontroller.RequestController
+	var requestController singletenantcontroller.RequestController
 
 	logger.Printf("[Azure CNS] Starting request controller")
 
@@ -770,7 +770,7 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
 
 	// Get crd implementation of request controller
-	requestController, err = kubecontroller.NewCrdRequestController(httpRestServiceImplementation, kubeConfig)
+	requestController, err = kubecontroller.New(httpRestServiceImplementation, kubeConfig)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to make crd request controller :%v", err)
 		return err
@@ -779,7 +779,7 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	// initialize the ipam pool monitor
 	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
 
-	err = requestController.InitRequestController(rootCtx)
+	err = requestController.Init(rootCtx)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to initialized cns state :%v", err)
 		return err
@@ -788,7 +788,7 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	//Start the RequestController which starts the reconcile loop
 	go func() {
 		for {
-			if err := requestController.StartRequestController(rootCtx); err != nil {
+			if err := requestController.Start(rootCtx); err != nil {
 				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
 				// retry to start the request controller
 				// todo: add a CNS metric to count # of failures

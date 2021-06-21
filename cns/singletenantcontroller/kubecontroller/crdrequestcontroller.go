@@ -11,8 +11,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,7 +33,7 @@ const (
 	prometheusAddress = "0" //0 means disabled
 )
 
-var _ requestcontroller.RequestController = (*requestController)(nil)
+var _ singletenantcontroller.RequestController = (*requestController)(nil)
 
 // requestController
 // - watches CRD status changes
@@ -64,8 +64,8 @@ func GetKubeConfig() (*rest.Config, error) {
 	return k8sconfig, nil
 }
 
-//NewCrdRequestController given a reference to CNS's HTTPRestService state, returns a crdRequestController struct
-func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*requestController, error) {
+// New given a reference to CNS's HTTPRestService state, returns a crdRequestController struct
+func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*requestController, error) {
 
 	//Check that logger package has been intialized
 	if logger.Log == nil {
@@ -133,7 +133,7 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 	}
 
 	// Create the requestController
-	crdRequestController := requestController{
+	rc := requestController{
 		mgr:             mgr,
 		KubeClient:      mgr.GetClient(),
 		directAPIClient: directAPIClient,
@@ -143,11 +143,11 @@ func NewCrdRequestController(restService *restserver.HTTPRestService, kubeconfig
 		Reconciler:      crdreconciler,
 	}
 
-	return &crdRequestController, nil
+	return &rc, nil
 }
 
-// InitRequestController will initialize/reconcile the CNS state
-func (rc *requestController) InitRequestController(ctx context.Context) error {
+// Init will initialize/reconcile the CNS state
+func (rc *requestController) Init(ctx context.Context) error {
 	logger.Printf("InitRequestController")
 
 	defer rc.lock.Unlock()
@@ -162,8 +162,8 @@ func (rc *requestController) InitRequestController(ctx context.Context) error {
 	return nil
 }
 
-// StartRequestController starts the Reconciler loop which watches for CRD status updates
-func (rc *requestController) StartRequestController(ctx context.Context) error {
+// Start starts the Reconciler loop which watches for CRD status updates
+func (rc *requestController) Start(ctx context.Context) error {
 	logger.Printf("StartRequestController")
 
 	rc.lock.Lock()

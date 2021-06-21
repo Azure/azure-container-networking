@@ -8,7 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/requestcontroller"
+	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
@@ -23,12 +23,12 @@ type CNSIPAMPoolMonitor struct {
 	httpService              cns.HTTPService
 	mu                       sync.RWMutex
 	pendingRelease           bool
-	rc                       requestcontroller.RequestController
+	rc                       singletenantcontroller.RequestController
 	scalarUnits              nnc.Scaler
 	updatingIpsNotInUseCount int
 }
 
-func NewCNSIPAMPoolMonitor(httpService cns.HTTPService, rc requestcontroller.RequestController) *CNSIPAMPoolMonitor {
+func NewCNSIPAMPoolMonitor(httpService cns.HTTPService, rc singletenantcontroller.RequestController) *CNSIPAMPoolMonitor {
 	logger.Printf("NewCNSIPAMPoolMonitor: Create IPAM Pool Monitor")
 	return &CNSIPAMPoolMonitor{
 		pendingRelease: false,

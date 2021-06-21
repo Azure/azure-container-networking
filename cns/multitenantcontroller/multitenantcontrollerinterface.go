@@ -2,8 +2,8 @@ package multitenantcontroller
 
 import "context"
 
-// MultiTenantController defines the interface for multi-tenant network container operations.
-type MultiTenantController interface {
-	StartMultiTenantController(context.Context) error
+// RequestController defines the interface for multi-tenant network container operations.
+type RequestController interface {
+	Start(context.Context) error
 	IsStarted() bool
 }

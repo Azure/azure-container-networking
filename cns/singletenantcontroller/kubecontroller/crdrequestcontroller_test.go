@@ -29,7 +29,6 @@ const (
 	networkContainerID   = "24fcd232-0364-41b0-8027-6e6ef9aeabc6"
 	existingNamespace    = k8sNamespace
 	nonexistingNNCName   = "nodenetconfig_nonexisting"
-	nonexistingPodName   = "pod_nonexisting"
 	nonexistingNamespace = "namespace_nonexisting"
 	ncPrimaryIP          = "10.0.0.1"
 	subnetRange          = "10.0.0.0/24"
@@ -179,7 +178,7 @@ func (mc *MockDirectAPIClient) ListPods(ctx context.Context, namespace, node str
 }
 func TestNewCrdRequestController(t *testing.T) {
 	//Test making request controller without logger initialized, should fail
-	_, err := NewCrdRequestController(nil, nil)
+	_, err := New(nil, nil)
 	if err == nil {
 		t.Fatalf("Expected error when making NewCrdRequestController without initializing logger, got nil error")
 	} else if !strings.Contains(err.Error(), "logger") {
@@ -199,7 +198,7 @@ func TestNewCrdRequestController(t *testing.T) {
 		}
 	}()
 
-	_, err = NewCrdRequestController(nil, nil)
+	_, err = New(nil, nil)
 	if err == nil {
 		t.Fatalf("Expected error when making NewCrdRequestController without setting " + nodeNameEnvVar + " env var, got nil error")
 	} else if !strings.Contains(err.Error(), nodeNameEnvVar) {
