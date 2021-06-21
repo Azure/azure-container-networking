@@ -243,6 +243,9 @@ var args = acn.ArgumentList{
 	},
 }
 
+// init() is executed before main() whenever this package is imported
+// to do pre-run setup of things like exit signal handling and building
+// the root context.
 func init() {
 	var cancel context.CancelFunc
 	rootCtx, cancel = context.WithCancel(context.Background())
