@@ -177,8 +177,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 				service.state.ContainerIDByOrchestratorContext = make(map[string]string)
 			}
 
-			service.state.ContainerIDByOrchestratorContext[podInfo.Key()] = req.NetworkContainerid
-			break
+			service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()] = req.NetworkContainerid
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
@@ -358,7 +357,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 
 		logger.Printf("pod info %+v", podInfo)
 
-		containerID, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Key()]
+		containerID, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 
 		if exists {
 			// If the goal state is available with CNS, check if the NC is pending VFP programming
@@ -677,7 +676,7 @@ func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPCo
 		return nil, EmptyOrchestratorContext, fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
 	}
 
-	// retrieve podinfo  from orchestrator context
+	// retrieve podinfo from orchestrator context
 	podInfo, err := cns.NewPodInfoFromIPConfigRequest(ipConfigRequest)
 	if err != nil {
 		return podInfo, UnsupportedOrchestratorContext, err.Error()

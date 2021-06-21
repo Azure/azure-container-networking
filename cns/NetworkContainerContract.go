@@ -153,14 +153,23 @@ type PodInfo interface {
 	String() string
 }
 
+type KubernetesPodInfo struct {
+	PodName      string
+	PodNamespace string
+}
+
+type KubernetesPodInfo struct {
+	PodName      string
+	PodNamespace string
+}
+
 var _ PodInfo = (*podInfo)(nil)
 
 // podInfo implements PodInfo for multiple schemas of Key
 type podInfo struct {
+	KubernetesPodInfo
 	PodInfraContainerID string
 	PodInterfaceID      string
-	PodName             string
-	PodNamespace        string
 	Version             podInfoScheme
 }
 
@@ -202,12 +211,25 @@ func (p *podInfo) String() string {
 // configuration for their namesake functions.
 func NewPodInfo(infraContainerID, interfaceID, name, namespace string) PodInfo {
 	return &podInfo{
+		KubernetesPodInfo: KubernetesPodInfo{
+			PodName:      name,
+			PodNamespace: namespace,
+		},
 		PodInfraContainerID: infraContainerID,
 		PodInterfaceID:      interfaceID,
-		PodName:             name,
-		PodNamespace:        namespace,
 		Version:             GlobalPodInfoScheme,
 	}
+}
+
+// UnmarshalPodInfo wraps json.Unmarshal to return an implementation of
+// PodInfo.
+func UnmarshalPodInfo(b []byte) (PodInfo, error) {
+	p := &podInfo{}
+	if err := json.Unmarshal(b, p); err != nil {
+		return nil, err
+	}
+	p.Version = GlobalPodInfoScheme
+	return p, nil
 }
 
 // NewPodInfoFromIPConfigRequest builds and returns an implementation of
@@ -222,17 +244,6 @@ func NewPodInfoFromIPConfigRequest(req IPConfigRequest) (PodInfo, error) {
 	}
 	p.(*podInfo).PodInfraContainerID = req.InfraContainerID
 	p.(*podInfo).PodInterfaceID = req.PodInterfaceID
-	return p, nil
-}
-
-// UnmarshalPodInfo wraps json.Unmarshal to return an implementation of
-// PodInfo.
-func UnmarshalPodInfo(b []byte) (PodInfo, error) {
-	p := &podInfo{}
-	if err := json.Unmarshal(b, p); err != nil {
-		return nil, err
-	}
-	p.Version = GlobalPodInfoScheme
 	return p, nil
 }
 

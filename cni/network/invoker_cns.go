@@ -50,11 +50,11 @@ func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
 
 //Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
 func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, hostSubnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
-
-	endpointId := GetEndpointID(args)
-
 	// Parse Pod arguments.
-	podInfo := cns.NewPodInfo(args.ContainerID, endpointId, invoker.podName, invoker.podNamespace)
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      invoker.podName,
+		PodNamespace: invoker.podNamespace,
+	}
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		return nil, nil, err
@@ -62,7 +62,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 
 	ipconfig := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
-		PodInterfaceID:      endpointId,
+		PodInterfaceID:      GetEndpointID(args),
 		InfraContainerID:    args.ContainerID,
 	}
 
@@ -178,10 +178,11 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 
 // Delete calls into the releaseipconfiguration API in CNS
 func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, options map[string]interface{}) error {
-
 	// Parse Pod arguments.
-	endpointId := GetEndpointID(args)
-	podInfo := cns.NewPodInfo(args.ContainerID, endpointId, invoker.podName, invoker.podNamespace)
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      invoker.podName,
+		PodNamespace: invoker.podNamespace,
+	}
 
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
@@ -190,7 +191,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 
 	req := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
-		PodInterfaceID:      endpointId,
+		PodInterfaceID:      GetEndpointID(args),
 		InfraContainerID:    args.ContainerID,
 	}
 

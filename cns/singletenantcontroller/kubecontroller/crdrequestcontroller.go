@@ -239,7 +239,7 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 	}
 
 	// Convert to CreateNetworkContainerRequest
-	ncRequest, err := crdStatusToNCRequest(nodeNetConfig.Status)
+	ncRequest, err := CRDStatusToNCRequest(nodeNetConfig.Status)
 	if err != nil {
 		logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
 		return err

@@ -71,7 +71,10 @@ func getContainerNetworkConfigurationInternal(address string, namespace string, 
 		return nil, nil, net.IPNet{}, err
 	}
 
-	podInfo := cns.NewPodInfo("", "", podName, namespace)
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      podName,
+		PodNamespace: namespace,
+	}
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
