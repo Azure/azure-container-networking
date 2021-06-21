@@ -552,7 +552,7 @@ func main() {
 		}
 		logger.Printf("Set GlobalPodInfoScheme %v", cns.GlobalPodInfoScheme)
 
-		err = InitializeCRDState(httpRestService, cnsconfig)
+		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -562,7 +562,7 @@ func main() {
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.
 	// It must be started before we start HTTPRestService.
 	if config.ChannelMode == cns.MultiTenantCRD {
-		err = InitializeMultiTenantController(httpRestService, cnsconfig)
+		err = InitializeMultiTenantController(rootCtx, httpRestService, cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
 			return
@@ -701,7 +701,7 @@ func main() {
 	logger.Close()
 }
 
-func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
+func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
 	var multiTenantController multitenantcontroller.RequestController
 	kubeConfig, err := ctrl.GetConfig()
 	if err != nil {
@@ -732,7 +732,7 @@ func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig 
 	// Wait for multiTenantController to start.
 	go func() {
 		for {
-			if err := multiTenantController.Start(rootCtx); err != nil {
+			if err := multiTenantController.Start(ctx); err != nil {
 				logger.Errorf("Failed to start multiTenantController: %v", err)
 			} else {
 				logger.Printf("Exiting multiTenantController")
@@ -755,15 +755,14 @@ func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig 
 
 	// TODO: do we need this to be running?
 	logger.Printf("Starting SyncHostNCVersion")
-	rootCxt := context.Background()
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
 		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond)
 		for {
 			select {
 			case <-tickerChannel:
-				httpRestServiceImpl.SyncHostNCVersion(rootCxt, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
-			case <-rootCxt.Done():
+				httpRestServiceImpl.SyncHostNCVersion(ctx, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+			case <-ctx.Done():
 				return
 			}
 		}
@@ -773,7 +772,7 @@ func InitializeMultiTenantController(httpRestService cns.HTTPService, cnsconfig 
 }
 
 // initializeCRD state
-func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
+func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
 	var requestController singletenantcontroller.RequestController
 
 	logger.Printf("[Azure CNS] Starting request controller")
@@ -813,7 +812,7 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	// initialize the ipam pool monitor
 	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
 
-	err = requestController.Init(rootCtx)
+	err = requestController.Init(ctx)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to initialized cns state :%v", err)
 		return err
@@ -822,7 +821,7 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	//Start the RequestController which starts the reconcile loop
 	go func() {
 		for {
-			if err := requestController.Start(rootCtx); err != nil {
+			if err := requestController.Start(ctx); err != nil {
 				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
 				// retry to start the request controller
 				// todo: add a CNS metric to count # of failures
@@ -849,7 +848,7 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 	logger.Printf("Starting IPAM Pool Monitor")
 	go func() {
 		for {
-			if err := httpRestServiceImplementation.IPAMPoolMonitor.Start(rootCtx, poolIPAMRefreshRateInMilliseconds); err != nil {
+			if err := httpRestServiceImplementation.IPAMPoolMonitor.Start(ctx, poolIPAMRefreshRateInMilliseconds); err != nil {
 				logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", err)
 				// todo: add a CNS metric to count # of failures
 			} else {
@@ -869,8 +868,8 @@ func InitializeCRDState(httpRestService cns.HTTPService, cnsconfig configuration
 		for {
 			select {
 			case <-tickerChannel:
-				httpRestServiceImplementation.SyncHostNCVersion(rootCtx, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
-			case <-rootCtx.Done():
+				httpRestServiceImplementation.SyncHostNCVersion(ctx, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+			case <-ctx.Done():
 				return
 			}
 		}
