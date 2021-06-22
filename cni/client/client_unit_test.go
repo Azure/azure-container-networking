@@ -37,7 +37,7 @@ func TestGetVersion(t *testing.T) {
 		{Cmd: []string{"./azure-vnet", "-v"}, Stdout: `Azure CNI Version v1.4.0-2-g984c5a5e-dirty`},
 	}
 
-	fakeexec, _ := testutils.GetFakeExecWithScripts(calls)
+	fakeexec := testutils.GetFakeExecWithScripts(calls)
 
 	c := &AzureCNIClient{exec: fakeexec}
 	version, err := c.GetVersion()
