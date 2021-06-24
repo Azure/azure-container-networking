@@ -268,8 +268,8 @@ func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
 
 	expectedAllocatedPods := map[string]cns.PodInfo{
-		"10.0.0.6": cns.NewPodInfo("reconc-eth0", "abcdef", "reconcilePod1", "PodNS1"),
-		"10.0.0.7": cns.NewPodInfo("reconc-eth0", "abcxyz", "reconcilePod2", "PodNS1"),
+		"10.0.0.6": cns.NewPodInfo("abcdef", "recon1-eth0", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("abcxyz", "recon2-eth0", "reconcilePod2", "PodNS1"),
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
