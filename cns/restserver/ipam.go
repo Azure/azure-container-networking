@@ -75,7 +75,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	podInfo, resp.ReturnCode, resp.Message = service.validateIpConfigRequest(req)
 
 	if err = service.releaseIPConfig(podInfo); err != nil {
-		resp.ReturnCode = NotFound
+		resp.ReturnCode = UnexpectedError
 		resp.Message = err.Error()
 		logger.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", resp.Message, req)
 		return
@@ -394,7 +394,7 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 				ipconfig.IPAddress, podInfo)
 		}
 	} else {
-		logger.Errorf("[releaseIPConfig] SetIPConfigAsAvailable failed to release, no allocation found for pod [%+v]", podInfo)
+		logger.Errorf("[releaseIPConfig] SetIPConfigAsAvailable ignoring request to release, no allocation found for pod [%+v]", podInfo)
 		return nil
 	}
 	return nil

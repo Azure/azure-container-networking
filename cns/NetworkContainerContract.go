@@ -236,7 +236,7 @@ func NewPodInfoFromIPConfigRequest(req IPConfigRequest) (PodInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	if GlobalPodInfoScheme == InterfaceIDPodInfoScheme && req.InfraContainerID == "" {
+	if GlobalPodInfoScheme == InterfaceIDPodInfoScheme && req.PodInterfaceID == "" {
 		return nil, fmt.Errorf("need interfaceID for pod info but request was empty")
 	}
 	p.(*podInfo).PodInfraContainerID = req.InfraContainerID

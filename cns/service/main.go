@@ -76,7 +76,6 @@ var args = acn.ArgumentList{
 			acn.OptEnvironmentFileIpam: 0,
 		},
 	},
-
 	{
 		Name:         acn.OptAPIServerURL,
 		Shorthand:    acn.OptAPIServerURLAlias,
@@ -428,31 +427,6 @@ func main() {
 	configuration.SetCNSConfigDefaults(&cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
-	// We might be configured to reinitialize state from the CNI instead of the apiserver.
-	// If so, we should check that the the CNI is new enough to support the state commands,
-	// otherwise we fall back to the existing behavior.
-	if cnsconfig.InitializeFromCNI {
-		isGoodVer, err := cni.IsDumpStateVer()
-		if err != nil {
-			logger.Errorf("error checking CNI ver: %v", err)
-		}
-
-		// override the prior config flag with the result of the ver check.
-		cnsconfig.InitializeFromCNI = isGoodVer
-
-		if cnsconfig.InitializeFromCNI {
-			// Set the PodInfoVersion by initialization type, so that the
-			// PodInfo maps use the correct key schema
-			cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
-		}
-	}
-	if cnsconfig.InitializeFromCNI {
-		logger.Printf("Initializing from CNI")
-	} else {
-		logger.Printf("Initializing from Kubernetes")
-	}
-	logger.Printf("Set GlobalPodInfoScheme %v", cns.GlobalPodInfoScheme)
-
 	if cnsconfig.WireserverIP != "" {
 		nmagentclient.WireserverIP = cnsconfig.WireserverIP
 	}
@@ -553,6 +527,31 @@ func main() {
 	// Initialze state in if CNS is running in CRD mode
 	// State must be initialized before we start HTTPRestService
 	if config.ChannelMode == cns.CRD {
+		// We might be configured to reinitialize state from the CNI instead of the apiserver.
+		// If so, we should check that the the CNI is new enough to support the state commands,
+		// otherwise we fall back to the existing behavior.
+		if cnsconfig.InitializeFromCNI {
+			isGoodVer, err := cni.IsDumpStateVer()
+			if err != nil {
+				logger.Errorf("error checking CNI ver: %v", err)
+			}
+
+			// override the prior config flag with the result of the ver check.
+			cnsconfig.InitializeFromCNI = isGoodVer
+
+			if cnsconfig.InitializeFromCNI {
+				// Set the PodInfoVersion by initialization type, so that the
+				// PodInfo maps use the correct key schema
+				cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
+			}
+		}
+		if cnsconfig.InitializeFromCNI {
+			logger.Printf("Initializing from CNI")
+		} else {
+			logger.Printf("Initializing from Kubernetes")
+		}
+		logger.Printf("Set GlobalPodInfoScheme %v", cns.GlobalPodInfoScheme)
+
 		err = InitializeCRDState(httpRestService, cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)

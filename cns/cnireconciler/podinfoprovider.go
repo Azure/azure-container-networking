@@ -1,6 +1,8 @@
 package cnireconciler
 
 import (
+	"fmt"
+
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/client"
 	"github.com/Azure/azure-container-networking/cns"
@@ -10,10 +12,14 @@ import (
 // NewCNIPodInfoProvider returns an implementation of cns.PodInfoByIPProvider
 // that execs out to the CNI and uses the response to build the PodInfo map.
 func NewCNIPodInfoProvider() (cns.PodInfoByIPProvider, error) {
-	cli := client.New(exec.New())
+	return newCNIPodInfoProvider(exec.New())
+}
+
+func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, error) {
+	cli := client.New(exec)
 	state, err := cli.GetEndpointState()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
 	}
 	return cns.PodInfoByIPProviderFunc(func() map[string]cns.PodInfo {
 		return cniStateToPodInfoByIP(state)

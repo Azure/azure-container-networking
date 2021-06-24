@@ -395,7 +395,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 				return getNetworkContainerResponse
 			}
 
-			containerID = service.state.ContainerIDByOrchestratorContext[podInfo.Key()]
+			containerID = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 		}
 
 		logger.Printf("containerid %v", containerID)

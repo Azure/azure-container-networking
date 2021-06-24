@@ -225,7 +225,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
+	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		t.Fatal(err)

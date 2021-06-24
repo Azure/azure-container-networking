@@ -234,10 +234,43 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	}
 	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
 
-	expectedAllocatedPods := make(map[string]cns.PodInfo)
-	expectedAllocatedPods["10.0.0.6"] = cns.NewPodInfo("", "", "reconcilePod1", "PodNS1")
+	expectedAllocatedPods := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("", "", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("", "", "reconcilePod2", "PodNS1"),
+	}
 
-	expectedAllocatedPods["10.0.0.7"] = cns.NewPodInfo("", "", "reconcilePod2", "PodNS1")
+	expectedNcCount := len(svc.state.ContainerStatus)
+	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	if returnCode != Success {
+		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
+	}
+
+	validateNCStateAfterReconcile(t, &req, expectedNcCount+1, expectedAllocatedPods)
+}
+
+func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
+	defer func() { cns.GlobalPodInfoScheme = cns.KubernetesPodInfoScheme }()
+
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+
+	var startingIndex = 6
+	for i := 0; i < 4; i++ {
+		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
+		secIpConfig := newSecondaryIPConfig(ipaddress, -1)
+		ipId := uuid.New()
+		secondaryIPConfigs[ipId.String()] = secIpConfig
+		startingIndex++
+	}
+	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
+
+	expectedAllocatedPods := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("reconc-eth0", "abcdef", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("reconc-eth0", "abcxyz", "reconcilePod2", "PodNS1"),
+	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))

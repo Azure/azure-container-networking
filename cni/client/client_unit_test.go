@@ -18,7 +18,7 @@ func TestGetState(t *testing.T) {
 
 	fakeexec, _ := testutils.GetFakeExecWithScripts(calls)
 
-	c := &AzureCNIClient{exec: fakeexec}
+	c := New(fakeexec)
 	state, err := c.GetEndpointState()
 	require.NoError(t, err)
 
@@ -39,7 +39,7 @@ func TestGetVersion(t *testing.T) {
 
 	fakeexec, _ := testutils.GetFakeExecWithScripts(calls)
 
-	c := &AzureCNIClient{exec: fakeexec}
+	c := New(fakeexec)
 	version, err := c.GetVersion()
 	require.NoError(t, err)
 
