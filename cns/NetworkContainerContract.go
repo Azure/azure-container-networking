@@ -149,13 +149,8 @@ type PodInfo interface {
 	Name() string
 	// Namespace is the orchestrator pod namespace.
 	Namespace() string
-	// String is a string rep of PodInfo.
-	String() string
-}
-
-type KubernetesPodInfo struct {
-	PodName      string
-	PodNamespace string
+	// OrchestratorContext is a JSON KubernetesPodInfo
+	OrchestratorContext() (json.RawMessage, error)
 }
 
 type KubernetesPodInfo struct {
@@ -201,10 +196,12 @@ func (p *podInfo) Namespace() string {
 	return p.PodNamespace
 }
 
-// String is a string rep of PodInfo.
-// String calls Key().
-func (p *podInfo) String() string {
-	return p.Key()
+func (p *podInfo) OrchestratorContext() (json.RawMessage, error) {
+	jsonContext, err := json.Marshal(p.KubernetesPodInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal PodInfo, error: %w", err)
+	}
+	return jsonContext, nil
 }
 
 // NewPodInfo returns an implementation of PodInfo that returns the passed

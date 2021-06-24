@@ -138,7 +138,7 @@ func getInMemory(client *CNSClient) error {
 }
 
 func printInMemoryStruct(data restserver.HttpRestServiceData) {
-	fmt.Println("PodIPIDByOrchestratorContext: ", data.PodIPIDByOrchestratorContext)
+	fmt.Println("PodIPIDByOrchestratorContext: ", data.PodIPIDByPodInterfaceKey)
 	fmt.Println("PodIPConfigState: ", data.PodIPConfigState)
 	fmt.Println("IPAMPoolMonitor: ", data.IPAMPoolMonitor)
 }

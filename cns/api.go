@@ -50,16 +50,16 @@ type HTTPService interface {
 // This is used for KubernetesCRD orchestrator Type where NC has multiple ips.
 // This struct captures the state for SecondaryIPs associated to a given NC
 type IPConfigurationStatus struct {
-	NCID                string
-	ID                  string //uuid
-	IPAddress           string
-	State               string
-	OrchestratorContext json.RawMessage
+	NCID      string
+	ID        string //uuid
+	IPAddress string
+	State     string
+	PodInfo   PodInfo
 }
 
 func (i IPConfigurationStatus) String() string {
-	return fmt.Sprintf("IPConfigurationStatus: Id: [%s], NcId: [%s], IpAddress: [%s], State: [%s], OrchestratorContext: [%s]",
-		i.ID, i.NCID, i.IPAddress, i.State, string(i.OrchestratorContext))
+	return fmt.Sprintf("IPConfigurationStatus: Id: [%s], NcId: [%s], IpAddress: [%s], State: [%s], PodInfo: [%v]",
+		i.ID, i.NCID, i.IPAddress, i.State, i.PodInfo)
 }
 
 // SetEnvironmentRequest describes the Request to set the environment in CNS.

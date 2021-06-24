@@ -224,11 +224,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 		if exists {
 			// pod ip exists, validate if state is not allocated, else fail
 			if ipConfigStatus.State == cns.Allocated {
-				var expectedPodInfo cns.PodInfo
-				if len(ipConfigStatus.OrchestratorContext) != 0 {
-					expectedPodInfo, _ = cns.UnmarshalPodInfo(ipConfigStatus.OrchestratorContext)
-				}
-				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v, PodInfo %+v", ipConfigStatus, expectedPodInfo)
+				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
 				return InconsistentIPConfigState, errMsg
 			}
 		}
@@ -280,11 +276,11 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVe
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
-			NCID:                ncId,
-			ID:                  ipId,
-			IPAddress:           ipconfig.IPAddress,
-			State:               newIPCNSStatus,
-			OrchestratorContext: nil,
+			NCID:      ncId,
+			ID:        ipId,
+			IPAddress: ipconfig.IPAddress,
+			State:     newIPCNSStatus,
+			PodInfo:   nil,
 		}
 		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 

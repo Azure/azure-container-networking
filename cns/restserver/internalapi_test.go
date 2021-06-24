@@ -406,18 +406,13 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 				}
 
 				// Validate IP state
-				if ipStatus.OrchestratorContext != nil {
-					podInfo, err := cns.UnmarshalPodInfo(ipStatus.OrchestratorContext)
-					if err != nil {
-						t.Fatalf("Failed to add IPConfig to state: %+v with error: %v", ipStatus, err)
-					}
-
-					if _, exists := svc.PodIPIDByOrchestratorContext[podInfo.Key()]; exists {
+				if ipStatus.PodInfo != nil {
+					if _, exists := svc.PodIPIDByPodInterfaceKey[ipStatus.PodInfo.Key()]; exists {
 						if ipStatus.State != cns.Allocated {
 							t.Fatalf("IPId: %s State is not Allocated, ipStatus: %+v", ipid, ipStatus)
 						}
 					} else {
-						t.Fatalf("Failed to find podContext for allocated ip: %+v, podinfo :%+v", ipStatus, podInfo)
+						t.Fatalf("Failed to find podContext for allocated ip: %+v, podinfo :%+v", ipStatus, ipStatus.PodInfo)
 					}
 				} else if ipStatus.State != expectedIPStatus {
 					// Todo: Validate for pendingRelease as well
@@ -474,12 +469,12 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 		validateNetworkRequest(t, *ncRequest)
 	}
 
-	if len(expectedAllocatedPods) != len(svc.PodIPIDByOrchestratorContext) {
-		t.Fatalf("Unexpected allocated pods, actual: %d, expected: %d", len(svc.PodIPIDByOrchestratorContext), len(expectedAllocatedPods))
+	if len(expectedAllocatedPods) != len(svc.PodIPIDByPodInterfaceKey) {
+		t.Fatalf("Unexpected allocated pods, actual: %d, expected: %d", len(svc.PodIPIDByPodInterfaceKey), len(expectedAllocatedPods))
 	}
 
 	for ipaddress, podInfo := range expectedAllocatedPods {
-		ipId := svc.PodIPIDByOrchestratorContext[podInfo.Key()]
+		ipId := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
 		ipConfigstate := svc.PodIPConfigState[ipId]
 
 		if ipConfigstate.State != cns.Allocated {
@@ -492,9 +487,8 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 		}
 
 		// Valdate pod context
-		expectedPodInfo, _ := cns.UnmarshalPodInfo(ipConfigstate.OrchestratorContext)
-		if reflect.DeepEqual(expectedPodInfo, podInfo) != true {
-			t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", expectedPodInfo, podInfo)
+		if reflect.DeepEqual(ipConfigstate.PodInfo, podInfo) != true {
+			t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", ipConfigstate.PodInfo, podInfo)
 		}
 
 		// Validate this IP belongs to a valid NCRequest

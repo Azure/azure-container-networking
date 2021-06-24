@@ -230,14 +230,17 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 		if podInfo, exists := podInfoByIp[secIpConfig.IPAddress]; exists {
 			logger.Printf("SecondaryIP %+v is allocated to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
 
-			jsonContext, err := json.Marshal(podInfo)
+			jsonContext, err := podInfo.OrchestratorContext()
 			if err != nil {
-				logger.Errorf("Failed to marshal PodInfo, error: %v", err)
+				logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
 				return UnexpectedError
 			}
+
 			ipconfigRequest := cns.IPConfigRequest{
 				DesiredIPAddress:    secIpConfig.IPAddress,
 				OrchestratorContext: jsonContext,
+				PodInterfaceID:      podInfo.InterfaceID(),
+				InfraContainerID:    podInfo.InfraContainerID(),
 			}
 
 			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
