@@ -26,6 +26,12 @@ func TestIsDumpStateVer(t *testing.T) {
 	}{
 		{
 			name:    "bad ver",
+			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.1`),
+			want:    false,
+			wantErr: false,
+		},
+		{
+			name:    "bad dirty ver",
 			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.0-2-g984c5a5e-dirty`),
 			want:    false,
 			wantErr: false,
@@ -33,6 +39,12 @@ func TestIsDumpStateVer(t *testing.T) {
 		{
 			name:    "good ver",
 			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.2`),
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name:    "good dirty ver",
+			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.2-7-g7b97e1eb`),
 			want:    true,
 			wantErr: false,
 		},

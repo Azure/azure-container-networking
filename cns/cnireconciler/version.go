@@ -8,7 +8,7 @@ import (
 	"k8s.io/utils/exec"
 )
 
-const cniDumpStateVer = "1.4.2"
+const lastCNIWithoutDumpStateVer = "1.4.1"
 
 // IsDumpStateVer checks if the CNI executable is a version that
 // has the dump state command required to initialize CNS from CNI
@@ -19,15 +19,14 @@ func IsDumpStateVer() (bool, error) {
 }
 
 func isDumpStateVer(exec exec.Interface) (bool, error) {
-	needVer, err := semver.NewVersion(cniDumpStateVer)
+	needVer, err := semver.NewVersion(lastCNIWithoutDumpStateVer)
 	if err != nil {
 		return false, err
 	}
 	cnicli := client.New(exec)
-	if ver, err := cnicli.GetVersion(); err != nil {
+	ver, err := cnicli.GetVersion()
+	if err != nil {
 		return false, fmt.Errorf("failed to invoke CNI client.GetVersion(): %w", err)
-	} else if ver.LessThan(needVer) {
-		return false, nil
 	}
-	return true, nil
+	return ver.GreaterThan(needVer), nil
 }
