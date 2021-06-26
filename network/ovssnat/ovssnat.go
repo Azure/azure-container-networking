@@ -1,16 +1,17 @@
+// +build linux
+
 package ovssnat
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/ebtables"
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
-
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
 )

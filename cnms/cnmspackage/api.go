@@ -1,3 +1,5 @@
+// +build linux
+
 package cnms
 
 import "github.com/Azure/azure-container-networking/telemetry"
