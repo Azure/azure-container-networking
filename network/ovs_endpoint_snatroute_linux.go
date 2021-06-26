@@ -12,7 +12,7 @@ func NewSnatClient(client *OVSEndpointClient, snatBridgeIP string, localIP strin
 		hostIfName := fmt.Sprintf("%s%s", snatVethInterfacePrefix, epInfo.Id[:7])
 		contIfName := fmt.Sprintf("%s%s-2", snatVethInterfacePrefix, epInfo.Id[:7])
 
-		client.snatClient = ovssnat.NewSnatClient(hostIfName, contIfName, localIP, snatBridgeIP, epInfo.DNS.Servers)
+		client.snatClient = ovssnat.NewSnatClient(hostIfName, contIfName, localIP, snatBridgeIP, client.hostPrimaryMac, epInfo.DNS.Servers)
 	}
 }
 
