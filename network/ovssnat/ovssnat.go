@@ -327,10 +327,10 @@ func setBridgeMac(hostPrimaryMac string) error {
 	return err
 }
 
-func dropArpForSnatBridgeIP(snatBridgeIP string) error {
+func dropArpForSnatBridgeIP(snatBridgeIP, azSnatVethIfName string) error {
 	var err error
-	ip, _, _ := net.ParseCIDR(snatBridgeIP)
-	if err = ebtables.SetArpDropRuleForIp(ip.String()); err != nil {
+	_, ipCidr, _ := net.ParseCIDR(snatBridgeIP)
+	if err = ebtables.SetArpDropRuleForIp(ipCidr.String(), azSnatVethIfName); err != nil {
 		log.Errorf("Error setting arp drop rule for snatbridge ip :%s", snatBridgeIP)
 	}
 
@@ -365,7 +365,7 @@ func CreateSnatBridge(snatBridgeIP string, hostPrimaryMac string, mainInterface 
 	}
 
 	log.Printf("Drop ARP for snat bridge ip: %s", snatBridgeIP)
-	if err := dropArpForSnatBridgeIP(snatBridgeIP); err != nil {
+	if err := dropArpForSnatBridgeIP(snatBridgeIP, azureSnatVeth0); err != nil {
 		return err
 	}
 

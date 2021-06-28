@@ -194,8 +194,8 @@ func SetBrouteAcceptByInterface(ifName string, protocol, action, target string) 
 	return runEbCmd(table, action, chain, rule)
 }
 
-func SetArpDropRuleForIp(ip string) error {
-	rule := fmt.Sprintf("-p ARP --arp-op Request --arp-ip-dst %s -j DROP", ip)
+func SetArpDropRuleForIp(ip string, ifName string) error {
+	rule := fmt.Sprintf("-p ARP -o %s --arp-op Request --arp-ip-dst %s -j DROP", ifName, ip)
 	exists, err := EbTableRuleExists(Nat, PostRouting, rule)
 	if err != nil {
 		return err
