@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
 	nnscontracts "github.com/Azure/azure-container-networking/proto/nodenetworkservice/3.302.0.744"
+	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -161,7 +162,9 @@ func (plugin *netPlugin) GetAllEndpointState(networkid string) (*api.AzureCNISta
 	}
 
 	eps, err := plugin.nm.GetAllEndpoints(networkid)
-	if err != nil {
+	if err == store.ErrStoreEmpty {
+		log.Printf("failed to retrieve endpoint state with err %v", err)
+	} else if err != nil {
 		return nil, err
 	}
 

@@ -389,7 +389,7 @@ func (nm *networkManager) GetAllEndpoints(networkId string) (map[string]*Endpoin
 	// Special case when CNS invokes CNI, but there is no state, but return gracefully
 	if len(nm.ExternalInterfaces) == 0 {
 		log.Printf("Network manager has no external interfaces, is the state file populated?")
-		return eps, nil
+		return eps, store.ErrStoreEmpty
 	}
 
 	nw, err := nm.getNetwork(networkId)

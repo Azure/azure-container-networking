@@ -78,7 +78,7 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 
 		if len(b) == 0 {
 			log.Printf("Unable to read file %s, was empty", kvs.fileName)
-			return nil
+			return ErrStoreEmpty
 		}
 
 		// Decode to raw JSON messages.
