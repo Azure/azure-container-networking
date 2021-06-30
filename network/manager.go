@@ -123,6 +123,9 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 			log.Printf("[net] network store key not found")
 			// Considered successful.
 			return nil
+		} else if err == store.ErrStoreEmpty {
+			log.Printf("[net] network store empty")
+			return nil
 		} else {
 			log.Printf("[net] Failed to restore state, err:%v\n", err)
 			return err

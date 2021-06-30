@@ -130,3 +130,11 @@ func TestGetAllEndpointState(t *testing.T) {
 
 	require.Exactly(t, res, state)
 }
+
+func TestEndpointsWithEmptyState(t *testing.T) {
+	plugin, _ := getTestResources()
+	networkid := "azure"
+	state, err := plugin.GetAllEndpointState(networkid)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(state.ContainerInterfaces))
+}
