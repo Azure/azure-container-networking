@@ -59,8 +59,7 @@ func TestMain(m *testing.M) {
 
 // todo: enable this test in CI, requires built azure vnet
 func TestGetStateFromAzureCNI(t *testing.T) {
-
-	c := AzureCNIClient{exec: exec.New()}
+	c := New(exec.New())
 	state, err := c.GetEndpointState()
 	require.NoError(t, err)
 
@@ -75,7 +74,7 @@ func TestGetStateFromAzureCNI(t *testing.T) {
 }
 
 func TestGetVersion(t *testing.T) {
-	c := &AzureCNIClient{exec: exec.New()}
+	c := New(exec.New())
 	version, err := c.GetVersion()
 	require.NoError(t, err)
 

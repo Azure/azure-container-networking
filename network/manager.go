@@ -384,12 +384,18 @@ func (nm *networkManager) GetAllEndpoints(networkId string) (map[string]*Endpoin
 	nm.Lock()
 	defer nm.Unlock()
 
+	eps := make(map[string]*EndpointInfo)
+
+	// Special case when CNS invokes CNI, but there is no state, but return gracefully
+	if len(nm.ExternalInterfaces) == 0 {
+		log.Printf("Network manager has no external interfaces, is the state file populated?")
+		return eps, nil
+	}
+
 	nw, err := nm.getNetwork(networkId)
 	if err != nil {
 		return nil, err
 	}
-
-	eps := make(map[string]*EndpointInfo)
 
 	for epid, ep := range nw.Endpoints {
 		eps[epid] = ep.getInfo()
