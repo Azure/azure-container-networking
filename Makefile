@@ -279,6 +279,7 @@ tools: acncli
 
 .PHONY: tools-images
 tools-images:
+	mkdir -p $(IMAGE_DIR)
 	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
 	docker save $(AZURE_CNI_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNI_IMAGE_ARCHIVE_NAME)
 
