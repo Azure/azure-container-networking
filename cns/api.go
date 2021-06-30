@@ -62,6 +62,45 @@ func (i IPConfigurationStatus) String() string {
 		i.ID, i.NCID, i.IPAddress, i.State, i.PodInfo)
 }
 
+// UnmarshalJSON is a custom unmarshaller for IPConfigurationStatus that
+// is capable of unmarshalling to interface type `PodInfo` contained in the
+// struct. Without this custom unmarshaller, the default unmarshaller can't
+// deserialize the json data in to that interface type.
+func (i *IPConfigurationStatus) UnmarshalJSON(b []byte) error {
+	m := map[string]json.RawMessage{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	if s, ok := m["NCID"]; ok {
+		if err := json.Unmarshal(s, &(i.NCID)); err != nil {
+			return err
+		}
+	}
+	if s, ok := m["ID"]; ok {
+		if err := json.Unmarshal(s, &(i.ID)); err != nil {
+			return err
+		}
+	}
+	if s, ok := m["IPAddress"]; ok {
+		if err := json.Unmarshal(s, &(i.IPAddress)); err != nil {
+			return err
+		}
+	}
+	if s, ok := m["State"]; ok {
+		if err := json.Unmarshal(s, &(i.State)); err != nil {
+			return err
+		}
+	}
+	if s, ok := m["PodInfo"]; ok {
+		pi, err := UnmarshalPodInfo(s)
+		if err != nil {
+			return err
+		}
+		i.PodInfo = pi
+	}
+	return nil
+}
+
 // SetEnvironmentRequest describes the Request to set the environment in CNS.
 type SetEnvironmentRequest struct {
 	Location    string
