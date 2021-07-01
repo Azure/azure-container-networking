@@ -4,6 +4,7 @@
 package restserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -164,8 +165,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		case cns.AzureFirstParty:
 			fallthrough
 		case cns.WebApps: // todo: Is WebApps an OrchastratorType or ContainerType?
-			var podInfo cns.KubernetesPodInfo
-			err := json.Unmarshal(req.OrchestratorContext, &podInfo)
+			podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 			if err != nil {
 				errBuf := fmt.Sprintf("Unmarshalling %s failed with error %v", req.NetworkContainerType, err)
 				return UnexpectedError, errBuf
@@ -177,8 +177,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 				service.state.ContainerIDByOrchestratorContext = make(map[string]string)
 			}
 
-			service.state.ContainerIDByOrchestratorContext[podInfo.PodName+podInfo.PodNamespace] = req.NetworkContainerid
-			break
+			service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()] = req.NetworkContainerid
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
@@ -225,11 +224,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 		if exists {
 			// pod ip exists, validate if state is not allocated, else fail
 			if ipConfigStatus.State == cns.Allocated {
-				var expectedPodInfo cns.KubernetesPodInfo
-				if len(ipConfigStatus.OrchestratorContext) != 0 {
-					json.Unmarshal(ipConfigStatus.OrchestratorContext, &expectedPodInfo)
-				}
-				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v, PodInfo %+v", ipConfigStatus, expectedPodInfo)
+				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
 				return InconsistentIPConfigState, errMsg
 			}
 		}
@@ -281,11 +276,11 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVe
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
-			NCID:                ncId,
-			ID:                  ipId,
-			IPAddress:           ipconfig.IPAddress,
-			State:               newIPCNSStatus,
-			OrchestratorContext: nil,
+			NCID:      ncId,
+			ID:        ipId,
+			IPAddress: ipconfig.IPAddress,
+			State:     newIPCNSStatus,
+			PodInfo:   nil,
 		}
 		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
@@ -349,8 +344,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 	case cns.DBforPostgreSQL:
 		fallthrough
 	case cns.AzureFirstParty:
-		var podInfo cns.KubernetesPodInfo
-		err := json.Unmarshal(req.OrchestratorContext, &podInfo)
+		podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 		if err != nil {
 			getNetworkContainerResponse.Response.ReturnCode = UnexpectedError
 			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Unmarshalling orchestrator context failed with error %v", err)
@@ -359,8 +353,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 
 		logger.Printf("pod info %+v", podInfo)
 
-		context := podInfo.PodName + podInfo.PodNamespace
-		containerID, exists = service.state.ContainerIDByOrchestratorContext[context]
+		containerID, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 
 		if exists {
 			// If the goal state is available with CNS, check if the NC is pending VFP programming
@@ -402,7 +395,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 				return getNetworkContainerResponse
 			}
 
-			containerID = service.state.ContainerIDByOrchestratorContext[context]
+			containerID = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 		}
 
 		logger.Printf("containerid %v", containerID)
@@ -539,8 +532,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 	returnMessage := ""
 	switch service.state.OrchestratorType {
 	case cns.Batch:
-		var podInfo cns.KubernetesPodInfo
-		err := json.Unmarshal(existing.CreateNetworkContainerRequest.OrchestratorContext, &podInfo)
+		podInfo, err := cns.UnmarshalPodInfo(existing.CreateNetworkContainerRequest.OrchestratorContext)
 		if err != nil {
 			returnCode = UnexpectedError
 			returnMessage = fmt.Sprintf("Unmarshalling orchestrator context failed with error %+v", err)
@@ -655,38 +647,36 @@ func (service *HTTPRestService) logNCSnapshots() {
 }
 
 // Sets up periodic timer for sending network container snapshots
-func (service *HTTPRestService) SendNCSnapShotPeriodically(ncSnapshotIntervalInMinutes int, stopSnapshot chan bool) {
-
+func (service *HTTPRestService) SendNCSnapShotPeriodically(ctx context.Context, ncSnapshotIntervalInMinutes int) {
 	// Emit snapshot on startup and then emit it periodically.
 	service.logNCSnapshots()
 
-	snapshot := time.NewTicker(time.Minute * time.Duration(ncSnapshotIntervalInMinutes)).C
+	ticker := time.NewTicker(time.Minute * time.Duration(ncSnapshotIntervalInMinutes))
+	defer ticker.Stop()
 	for {
 		select {
-		case <-snapshot:
-			service.logNCSnapshots()
-		case <-stopSnapshot:
+		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			service.logNCSnapshots()
 		}
 	}
 }
 
-func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPConfigRequest) (cns.KubernetesPodInfo, int, string) {
-	var podInfo cns.KubernetesPodInfo
-
+func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPConfigRequest) (cns.PodInfo, int, string) {
 	if service.state.OrchestratorType != cns.KubernetesCRD {
-		return podInfo, UnsupportedOrchestratorType, fmt.Sprintf("ReleaseIPConfig API supported only for kubernetes orchestrator")
+		return nil, UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
 	}
 
 	if ipConfigRequest.OrchestratorContext == nil {
-		return podInfo, EmptyOrchestratorContext, fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
+		return nil, EmptyOrchestratorContext, fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
 	}
 
-	// retrieve podinfo  from orchestrator context
-	if err := json.Unmarshal(ipConfigRequest.OrchestratorContext, &podInfo); err != nil {
+	// retrieve podinfo from orchestrator context
+	podInfo, err := cns.NewPodInfoFromIPConfigRequest(ipConfigRequest)
+	if err != nil {
 		return podInfo, UnsupportedOrchestratorContext, err.Error()
 	}
-
 	return podInfo, Success, ""
 }
 

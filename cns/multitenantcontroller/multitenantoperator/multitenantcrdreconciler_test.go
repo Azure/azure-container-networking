@@ -1,6 +1,7 @@
 package multitenantoperator
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -138,6 +139,10 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 		It("Should succeed when the NC subnet is in correct format", func() {
 			var uuid = "uuid"
 			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      namespacedName.Name,
+					Namespace: namespacedName.Namespace,
+				},
 				Spec: ncapi.MultiTenantNetworkContainerSpec{
 					UUID: uuid,
 				},
@@ -146,13 +151,31 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 					IPSubnet: "1.2.3.0/24",
 				},
 			}
+
+			orchestratorContext, err := json.Marshal(cns.KubernetesPodInfo{
+				PodName:      namespacedName.Name,
+				PodNamespace: namespacedName.Namespace,
+			})
+			Expect(err).To(BeNil())
+			var networkContainerRequest = cns.CreateNetworkContainerRequest{
+				NetworkContainerid:  nc.Spec.UUID,
+				OrchestratorContext: orchestratorContext,
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    nc.Status.IP,
+						PrefixLength: uint8(24),
+					},
+					GatewayIPAddress: nc.Status.Gateway,
+				},
+			}
+
 			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
 			statusWriter := mockclients.NewMockStatusWriter(mockCtl)
 			statusWriter.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 			kubeClient.EXPECT().Status().Return(statusWriter)
 			cnsClient.EXPECT().GetNC(cns.GetNetworkContainerRequest{NetworkContainerid: uuid}).Return(cns.GetNetworkContainerResponse{}, fmt.Errorf("NotFound"))
-			cnsClient.EXPECT().CreateOrUpdateNC(gomock.Any()).Return(nil)
-			_, err := reconciler.Reconcile(reconcile.Request{
+			cnsClient.EXPECT().CreateOrUpdateNC(networkContainerRequest).Return(nil)
+			_, err = reconciler.Reconcile(reconcile.Request{
 				NamespacedName: namespacedName,
 			})
 			Expect(err).To(BeNil())

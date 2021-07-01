@@ -2,6 +2,7 @@ package ovssnat
 
 import (
 	"fmt"
+	"github.com/Azure/azure-container-networking/ebtables"
 	"net"
 	"strings"
 
@@ -30,6 +31,7 @@ const (
 
 type OVSSnatClient struct {
 	hostSnatVethName       string
+	hostPrimaryMac         string
 	containerSnatVethName  string
 	localIP                string
 	snatBridgeIP           string
@@ -37,13 +39,14 @@ type OVSSnatClient struct {
 	containerSnatVethMac   net.HardwareAddr
 }
 
-func NewSnatClient(hostIfName string, contIfName string, localIP string, snatBridgeIP string, skipAddressesFromBlock []string) OVSSnatClient {
+func NewSnatClient(hostIfName string, contIfName string, localIP string, snatBridgeIP string, hostPrimaryMac string, skipAddressesFromBlock []string) OVSSnatClient {
 	log.Printf("Initialize new snat client")
 	snatClient := OVSSnatClient{
 		hostSnatVethName:      hostIfName,
 		containerSnatVethName: contIfName,
 		localIP:               localIP,
 		snatBridgeIP:          snatBridgeIP,
+		hostPrimaryMac:        hostPrimaryMac,
 	}
 
 	for _, address := range skipAddressesFromBlock {
@@ -57,7 +60,7 @@ func NewSnatClient(hostIfName string, contIfName string, localIP string, snatBri
 
 func (client *OVSSnatClient) CreateSnatEndpoint(bridgeName string) error {
 	// Create linux Bridge for outbound connectivity
-	if err := CreateSnatBridge(client.snatBridgeIP, bridgeName); err != nil {
+	if err := CreateSnatBridge(client.snatBridgeIP, client.hostPrimaryMac, bridgeName); err != nil {
 		log.Printf("creating snat bridge failed with error %v", err)
 		return err
 	}
@@ -311,26 +314,58 @@ func (client *OVSSnatClient) DeleteSnatEndpoint() error {
 	return nil
 }
 
+func setBridgeMac(hostPrimaryMac string) error {
+	hwAddr, err := net.ParseMAC(hostPrimaryMac)
+	if err != nil {
+		log.Errorf("Error while parsing host primary mac: %s error:%+v", hostPrimaryMac, err)
+		return err
+	}
+
+	if err = netlink.SetLinkAddress(SnatBridgeName, hwAddr); err != nil {
+		log.Errorf("Error while setting macaddr on bridge: %s error:%+v", hwAddr.String(), err)
+	}
+	return err
+}
+
+func dropArpForSnatBridgeApipaRange(snatBridgeIP, azSnatVethIfName string) error {
+	var err error
+	_, ipCidr, _ := net.ParseCIDR(snatBridgeIP)
+	if err = ebtables.SetArpDropRuleForIpCidr(ipCidr.String(), azSnatVethIfName); err != nil {
+		log.Errorf("Error setting arp drop rule for snatbridge ip :%s", snatBridgeIP)
+	}
+
+	return err
+}
+
 /**
 	This function creates linux bridge which will be used for outbound connectivity by NCs
 **/
-func CreateSnatBridge(snatBridgeIP string, mainInterface string) error {
+func CreateSnatBridge(snatBridgeIP string, hostPrimaryMac string, mainInterface string) error {
 	_, err := net.InterfaceByName(SnatBridgeName)
 	if err == nil {
 		log.Printf("Snat Bridge already exists")
-		return nil
+	} else {
+		log.Printf("[net] Creating Snat bridge %v.", SnatBridgeName)
+
+		link := netlink.BridgeLink{
+			LinkInfo: netlink.LinkInfo{
+				Type: netlink.LINK_TYPE_BRIDGE,
+				Name: SnatBridgeName,
+			},
+		}
+
+		if err := netlink.AddLink(&link); err != nil {
+			return err
+		}
 	}
 
-	log.Printf("[net] Creating Snat bridge %v.", SnatBridgeName)
-
-	link := netlink.BridgeLink{
-		LinkInfo: netlink.LinkInfo{
-			Type: netlink.LINK_TYPE_BRIDGE,
-			Name: SnatBridgeName,
-		},
+	log.Printf("Setting snat bridge mac: %s", hostPrimaryMac)
+	if err := setBridgeMac(hostPrimaryMac); err != nil {
+		return err
 	}
 
-	if err := netlink.AddLink(&link); err != nil {
+	log.Printf("Drop ARP for snat bridge ip: %s", snatBridgeIP)
+	if err := dropArpForSnatBridgeApipaRange(snatBridgeIP, azureSnatVeth0); err != nil {
 		return err
 	}
 

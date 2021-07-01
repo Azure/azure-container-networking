@@ -5,10 +5,10 @@ package common
 
 import (
 	"errors"
-	"github.com/Azure/azure-container-networking/server/tls"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 )
 
@@ -17,7 +17,7 @@ type Service struct {
 	Name        string
 	Version     string
 	Options     map[string]interface{}
-	ErrChan     chan error
+	ErrChan     chan<- error
 	Store       store.KeyValueStore
 	ChannelMode string
 }
@@ -36,7 +36,7 @@ type ServiceConfig struct {
 	Name        string
 	Version     string
 	Listener    *acn.Listener
-	ErrChan     chan error
+	ErrChan     chan<- error
 	Store       store.KeyValueStore
 	ChannelMode string
 	TlsSettings tls.TlsSettings

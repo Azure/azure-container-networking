@@ -20,7 +20,7 @@ var _ = Describe("multiTenantController", func() {
 		kubeconfig := &rest.Config{}
 
 		It("Should exist with an error when nodeName is not set", func() {
-			ctl, err := NewMultiTenantController(restService, kubeconfig)
+			ctl, err := New(restService, kubeconfig)
 			Expect(ctl).To(BeNil())
 			Expect(err).NotTo(BeNil())
 			Expect(err.Error()).To(Equal("Must declare NODENAME environment variable."))
@@ -29,7 +29,7 @@ var _ = Describe("multiTenantController", func() {
 		It("Should report an error when apiserver is not available", func() {
 			val := os.Getenv(nodeNameEnvVar)
 			os.Setenv(nodeNameEnvVar, "nodeName")
-			ctl, err := NewMultiTenantController(nil, nil)
+			ctl, err := New(nil, nil)
 			os.Setenv(nodeNameEnvVar, val)
 			Expect(ctl).To(BeNil())
 			Expect(err).NotTo(BeNil())

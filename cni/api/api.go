@@ -9,15 +9,11 @@ import (
 )
 
 type PodNetworkInterfaceInfo struct {
-	PodName        string
-	PodNamespace   string
+	PodName       string
+	PodNamespace  string
 	PodEndpointId string
-	ContainerID    string
-	IPAddresses    []net.IPNet
-}
-
-type CNIState interface {
-	PrintResult() error
+	ContainerID   string
+	IPAddresses   []net.IPNet
 }
 
 type AzureCNIState struct {

@@ -71,8 +71,18 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 		}
 		defer file.Close()
 
+		b, err := ioutil.ReadAll(file)
+		if err != nil {
+			return err
+		}
+
+		if len(b) == 0 {
+			log.Printf("Unable to read file %s, was empty", kvs.fileName)
+			return ErrStoreEmpty
+		}
+
 		// Decode to raw JSON messages.
-		if err := json.NewDecoder(file).Decode(&kvs.data); err != nil {
+		if err := json.Unmarshal(b, &kvs.data); err != nil {
 			return err
 		}
 

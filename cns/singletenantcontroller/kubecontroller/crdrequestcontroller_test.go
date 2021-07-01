@@ -29,7 +29,6 @@ const (
 	networkContainerID   = "24fcd232-0364-41b0-8027-6e6ef9aeabc6"
 	existingNamespace    = k8sNamespace
 	nonexistingNNCName   = "nodenetconfig_nonexisting"
-	nonexistingPodName   = "pod_nonexisting"
 	nonexistingNamespace = "namespace_nonexisting"
 	ncPrimaryIP          = "10.0.0.1"
 	subnetRange          = "10.0.0.0/24"
@@ -94,7 +93,7 @@ func (mc MockKubeClient) Update(ctx context.Context, obj runtime.Object, opts ..
 type MockCNSClient struct {
 	MockCNSUpdated     bool
 	MockCNSInitialized bool
-	Pods               map[string]cns.KubernetesPodInfo
+	Pods               map[string]cns.PodInfo
 	NCRequest          *cns.CreateNetworkContainerRequest
 }
 
@@ -116,7 +115,7 @@ func (mi *MockCNSClient) GetNC(nc cns.GetNetworkContainerRequest) (cns.GetNetwor
 	return cns.GetNetworkContainerResponse{NetworkContainerID: nc.NetworkContainerid}, nil
 }
 
-func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.KubernetesPodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
+func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
 	mi.MockCNSInitialized = true
 	mi.Pods = podInfoByIP
 	mi.NCRequest = ncRequest
@@ -130,7 +129,7 @@ type MockDirectCRDClient struct {
 	mockAPI *MockAPI
 }
 
-func (mc *MockDirectCRDClient) Get(cntxt context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
+func (mc *MockDirectCRDClient) Get(ctx context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
 	var (
 		mockKey       MockKey
 		nodeNetConfig *nnc.NodeNetworkConfig
@@ -157,7 +156,7 @@ type MockDirectAPIClient struct {
 	mockAPI *MockAPI
 }
 
-func (mc *MockDirectAPIClient) ListPods(cntxt context.Context, namespace, node string) (*corev1.PodList, error) {
+func (mc *MockDirectAPIClient) ListPods(ctx context.Context, namespace, node string) (*corev1.PodList, error) {
 	var (
 		pod  *corev1.Pod
 		pods corev1.PodList
@@ -179,7 +178,7 @@ func (mc *MockDirectAPIClient) ListPods(cntxt context.Context, namespace, node s
 }
 func TestNewCrdRequestController(t *testing.T) {
 	//Test making request controller without logger initialized, should fail
-	_, err := NewCrdRequestController(nil, nil)
+	_, err := New(Config{})
 	if err == nil {
 		t.Fatalf("Expected error when making NewCrdRequestController without initializing logger, got nil error")
 	} else if !strings.Contains(err.Error(), "logger") {
@@ -199,7 +198,7 @@ func TestNewCrdRequestController(t *testing.T) {
 		}
 	}()
 
-	_, err = NewCrdRequestController(nil, nil)
+	_, err = New(Config{})
 	if err == nil {
 		t.Fatalf("Expected error when making NewCrdRequestController without setting " + nodeNameEnvVar + " env var, got nil error")
 	} else if !strings.Contains(err.Error(), nodeNameEnvVar) {
@@ -228,7 +227,7 @@ func TestGetNonExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		KubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
@@ -260,7 +259,7 @@ func TestGetExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		KubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
@@ -295,7 +294,7 @@ func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		KubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
@@ -332,7 +331,7 @@ func TestUpdateExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		nodeName:   existingNNCName,
 		KubeClient: mockKubeClient,
 	}
@@ -372,7 +371,7 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		nodeName:   nonexistingNNCName,
 		KubeClient: mockKubeClient,
 	}
@@ -413,7 +412,7 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 	mockKubeClient := MockKubeClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		nodeName:   existingNNCName,
 		KubeClient: mockKubeClient,
 	}
@@ -459,7 +458,7 @@ func TestGetExistingNNCDirectClient(t *testing.T) {
 	mockCRDDirectClient := &MockDirectCRDClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directCRDClient: mockCRDDirectClient,
 	}
 
@@ -495,7 +494,7 @@ func TestGetNonExistingNNCDirectClient(t *testing.T) {
 	mockCRDDirectClient := &MockDirectCRDClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directCRDClient: mockCRDDirectClient,
 	}
 
@@ -533,7 +532,7 @@ func TestGetPodsExistingNodeDirectClient(t *testing.T) {
 	mockAPIDirectClient := &MockDirectAPIClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directAPIClient: mockAPIDirectClient,
 	}
 
@@ -574,7 +573,7 @@ func TestGetPodsNonExistingNodeDirectClient(t *testing.T) {
 	mockAPIDirectClient := &MockDirectAPIClient{
 		mockAPI: mockAPI,
 	}
-	rc := &crdRequestController{
+	rc := &requestController{
 		directAPIClient: mockAPIDirectClient,
 	}
 
@@ -660,14 +659,17 @@ func TestInitRequestController(t *testing.T) {
 		mockAPI: mockAPI,
 	}
 	mockCNSClient := &MockCNSClient{}
-	rc := &crdRequestController{
+	rc := &requestController{
+		cfg:             Config{},
 		directAPIClient: mockAPIDirectClient,
 		directCRDClient: mockCRDDirectClient,
 		CNSClient:       mockCNSClient,
 		nodeName:        existingNNCName,
 	}
 
-	if err := rc.initCNS(); err != nil {
+	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
+
+	if err := rc.initCNS(context.Background()); err != nil {
 		t.Fatalf("Expected no failure to init cns when given mock clients")
 	}
 

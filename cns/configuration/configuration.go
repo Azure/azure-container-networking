@@ -18,17 +18,18 @@ const (
 )
 
 type CNSConfig struct {
-	TelemetrySettings           TelemetrySettings
-	ManagedSettings             ManagedSettings
 	ChannelMode                 string
-	UseHTTPS                    bool
-	TLSSubjectName              string
-	TLSCertificatePath          string
-	TLSPort                     string
-	TLSEndpoint                 string
-	WireserverIP                string
-	SyncHostNCVersionIntervalMs time.Duration
+	InitializeFromCNI           bool
+	ManagedSettings             ManagedSettings
 	SyncHostNCTimeoutMs         time.Duration
+	SyncHostNCVersionIntervalMs time.Duration
+	TLSCertificatePath          string
+	TLSEndpoint                 string
+	TLSPort                     string
+	TLSSubjectName              string
+	TelemetrySettings           TelemetrySettings
+	UseHTTPS                    bool
+	WireserverIP                string
 }
 
 type TelemetrySettings struct {
