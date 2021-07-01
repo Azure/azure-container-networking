@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	utilexec "k8s.io/utils/exec"
 )
 
 // ReferCountOperation is used to indicate whether ipset refer count should be increased or decreased.
@@ -33,6 +34,7 @@ type ipsEntry struct {
 
 // IpsetManager stores ipset states.
 type IpsetManager struct {
+	exec    utilexec.Interface
 	ListMap map[string]*Ipset //tracks all set lists.
 	SetMap  map[string]*Ipset //label -> []ip
 }
@@ -62,8 +64,9 @@ func NewIpset(setName string) *Ipset {
 }
 
 // NewIpsetManager creates a new instance for IpsetManager object.
-func NewIpsetManager() *IpsetManager {
+func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	return &IpsetManager{
+		exec:    exec,
 		ListMap: make(map[string]*Ipset),
 		SetMap:  make(map[string]*Ipset),
 	}
@@ -445,7 +448,7 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 			return nil
 		}
 
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset entry. Entry: %+v", entry)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset entry: [%+v] err: [%v]", entry, err)
 		return err
 	}
 
@@ -517,14 +520,18 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	cmdArgs = util.DropEmptyFields(cmdArgs)
 
 	log.Logf("Executing ipset command %s %v", cmdName, cmdArgs)
-	_, err := exec.Command(cmdName, cmdArgs...).Output()
-	if msg, failed := err.(*exec.ExitError); failed {
-		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
-		if errCode > 0 {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(msg.Stderr), "\n"))
+
+	cmd := ipsMgr.exec.Command(cmdName, cmdArgs...)
+	output, err := cmd.CombinedOutput()
+
+	if result, isExitError := err.(utilexec.ExitError); isExitError {
+		exitCode := result.ExitStatus()
+		errfmt := fmt.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
+		if exitCode > 0 {
+			metrics.SendErrorLogAndMetric(util.IpsmID, errfmt.Error())
 		}
 
-		return errCode, err
+		return exitCode, errfmt
 	}
 
 	return 0, nil
@@ -536,9 +543,10 @@ func (ipsMgr *IpsetManager) Save(configFile string) error {
 		configFile = util.IpsetConfigFile
 	}
 
-	cmd := exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset to file.")
+	cmd := ipsMgr.exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset: [%s] Stderr: [%v, %s]", cmd, err, strings.TrimSuffix(string(output), "\n"))
 		return err
 	}
 	cmd.Wait()
@@ -564,12 +572,12 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 		}
 	}
 
-	cmd := exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file.")
+	cmd := ipsMgr.exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file: [%s] Stderr: [%v, %s]", cmd, err, strings.TrimSuffix(string(output), "\n"))
 		return err
 	}
-	cmd.Wait()
 
 	//TODO based on the set name and number of entries in the config file, update IPSetInventory
 
@@ -578,11 +586,10 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 
 // DestroyNpmIpsets destroys only ipsets created by NPM
 func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
-
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	reply, err := exec.Command(cmdName, cmdArgs).Output()
+	reply, err := ipsMgr.exec.Command(cmdName, cmdArgs).CombinedOutput()
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {

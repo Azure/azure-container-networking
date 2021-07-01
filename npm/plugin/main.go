@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/exec"
 )
 
 const (
@@ -73,7 +74,7 @@ func main() {
 	log.Logf("[INFO] Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	npMgr := npm.NewNetworkPolicyManager(clientset, factory, version)
+	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version)
 	metrics.CreateTelemetryHandle(npMgr.GetAppVersion(), npm.GetAIMetadata())
 
 	restserver := restserver.NewNpmRestServer(restserver.DefaultHTTPListeningAddress)

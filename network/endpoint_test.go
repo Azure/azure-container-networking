@@ -57,11 +57,11 @@ var (
 						Endpoints: map[string]*endpoint{},
 					}
 					nw.Endpoints["pod1"] = &endpoint{
-						PODName: podName,
+						PODName:      podName,
 						PODNameSpace: podNS,
 					}
 					nw.Endpoints["pod2"] = &endpoint{
-						PODName: podName,
+						PODName:      podName,
 						PODNameSpace: podNS,
 					}
 					ep, err := nw.getEndpointByPOD(podName, podNS, true)
@@ -89,7 +89,7 @@ var (
 						Endpoints: map[string]*endpoint{},
 					}
 					nw.Endpoints["pod"] = &endpoint{
-						PODName: podName,
+						PODName:      podName,
 						PODNameSpace: podNS,
 					}
 					ep, err := nw.getEndpointByPOD(podName, podNS, true)
@@ -187,9 +187,9 @@ var (
 			Context("When podnames have suffix or not", func() {
 				It("Should return podname without suffix", func() {
 					testData := map[string]string{
-						"nginx-deployment-5c689d88bb":       	"nginx",
-						"nginx-deployment-5c689d88bb-qwq47":	"nginx-deployment",
-						"nginx": 								"nginx",
+						"nginx-deployment-5c689d88bb":       "nginx",
+						"nginx-deployment-5c689d88bb-qwq47": "nginx-deployment",
+						"nginx":                             "nginx",
 					}
 					for testValue, expectedPodName := range testData {
 						podName := GetPodNameWithoutSuffix(testValue)

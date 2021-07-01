@@ -6,12 +6,12 @@ import (
 )
 
 const (
-    port = "6668"
+	port = "6668"
 )
 
-func main ()  {
+func main() {
 	fmt.Printf("starting mock nns server ....\n")
 
-	mockserver  := nnsmockserver.NewNnsMockServer()
+	mockserver := nnsmockserver.NewNnsMockServer()
 	mockserver.StartGrpcServer(port)
 }

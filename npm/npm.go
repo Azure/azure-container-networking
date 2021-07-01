@@ -24,6 +24,7 @@ import (
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	utilexec "k8s.io/utils/exec"
 )
 
 var aiMetadata string
@@ -42,6 +43,8 @@ const (
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
 	sync.Mutex
+
+	Exec      utilexec.Interface
 	clientset *kubernetes.Clientset
 
 	informerFactory informers.SharedInformerFactory
@@ -198,14 +201,14 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 }
 
 // NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, npmVersion string) *NetworkPolicyManager {
+func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
 	// Clear out left over iptables states
 	log.Logf("Azure-NPM creating, cleaning iptables")
 	iptMgr := iptm.NewIptablesManager()
 	iptMgr.UninitNpmChains()
 
 	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
-	ipsm.NewIpsetManager().DestroyNpmIpsets()
+	ipsm.NewIpsetManager(exec).DestroyNpmIpsets()
 
 	var (
 		podInformer   = informerFactory.Core().V1().Pods()
@@ -234,6 +237,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	}
 
 	npMgr := &NetworkPolicyManager{
+		Exec:            exec,
 		clientset:       clientset,
 		informerFactory: informerFactory,
 		podInformer:     podInformer,
@@ -254,7 +258,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		TelemetryEnabled: true,
 	}
 
-	allNs, _ := newNs(util.KubeAllNamespacesFlag)
+	allNs, _ := newNs(util.KubeAllNamespacesFlag, npMgr.Exec)
 	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 
 	// Create ipset for the namespace.

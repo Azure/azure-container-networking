@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/exec"
+	utilexec "k8s.io/utils/exec"
 )
 
 // To indicate the object is needed to be DeletedFinalStateUnknown Object
@@ -28,15 +30,16 @@ func getKey(obj interface{}, t *testing.T) string {
 	return key
 }
 
-func newNPMgr(t *testing.T) *NetworkPolicyManager {
+func newNPMgr(t *testing.T, exec utilexec.Interface) *NetworkPolicyManager {
 	npMgr := &NetworkPolicyManager{
+		Exec:             exec,
 		NsMap:            make(map[string]*Namespace),
 		PodMap:           make(map[string]*NpmPod),
 		TelemetryEnabled: false,
 	}
 
 	// This initialization important as without this NPM will panic
-	allNs, _ := newNs(util.KubeAllNamespacesFlag)
+	allNs, _ := newNs(util.KubeAllNamespacesFlag, npMgr.Exec)
 	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 	return npMgr
 }
@@ -44,15 +47,12 @@ func newNPMgr(t *testing.T) *NetworkPolicyManager {
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	iptMgr := iptm.NewIptablesManager()
-	iptMgr.Save(util.IptablesConfigFile)
+	iptMgr.UninitNpmChains()
 
-	ipsMgr := ipsm.NewIpsetManager()
-	ipsMgr.Save(util.IpsetConfigFile)
+	ipsMgr := ipsm.NewIpsetManager(exec.New())
+	ipsMgr.Destroy()
 
 	exitCode := m.Run()
-
-	iptMgr.Restore(util.IptablesConfigFile)
-	ipsMgr.Restore(util.IpsetConfigFile)
 
 	os.Exit(exitCode)
 }

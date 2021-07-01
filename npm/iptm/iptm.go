@@ -47,13 +47,22 @@ type IptEntry struct {
 	Chain                 string
 	Flag                  string
 	LockWaitTimeInSeconds string
-	IsJumpEntry           bool
 	Specs                 []string
 }
 
 // IptablesManager stores iptables entries.
 type IptablesManager struct {
 	OperationFlag string
+}
+
+func isDropsChain(chainName string) bool {
+
+	// Check if the chain name is one of the two DROP chains
+	if (chainName == util.IptablesAzureIngressDropsChain) ||
+		(chainName == util.IptablesAzureEgressDropsChain) {
+		return true
+	}
+	return false
 }
 
 // NewIptablesManager creates a new instance for IptablesManager object.
@@ -213,8 +222,8 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 // AddAllRulesToChains Checks and adds all the rules in NPM chains
 func (iptMgr *IptablesManager) AddAllRulesToChains() error {
 
-	allChainsAndRules := getAllChainsAndRules()
-	for _, rule := range allChainsAndRules {
+	allDefaultRules := getAllDefaultRules()
+	for _, rule := range allDefaultRules {
 		entry := &IptEntry{
 			Chain: rule[0],
 			Specs: rule[1:],
@@ -359,7 +368,9 @@ func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 
 	log.Logf("Adding iptables entry: %+v.", entry)
 
-	if entry.IsJumpEntry {
+	// Since there is a RETURN statement added to each DROP chain, we need to make sure
+	// any new DROP rule added to ingress or egress DROPS chain is added at the BOTTOM
+	if isDropsChain(entry.Chain) {
 		iptMgr.OperationFlag = util.IptablesAppendFlag
 	} else {
 		iptMgr.OperationFlag = util.IptablesInsertionFlag

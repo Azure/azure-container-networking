@@ -64,18 +64,17 @@ func getContainerNetworkConfiguration(
 	return getContainerNetworkConfigurationInternal(nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
 }
 
-func getContainerNetworkConfigurationInternal(
-	address string,
-	namespace string,
-	podName string,
-	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+func getContainerNetworkConfigurationInternal(address string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
 	cnsClient, err := cnsclient.GetCnsClient()
 	if err != nil {
 		log.Printf("Failed to get CNS client. Error: %v", err)
 		return nil, nil, net.IPNet{}, err
 	}
 
-	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: namespace}
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      podName,
+		PodNamespace: namespace,
+	}
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)

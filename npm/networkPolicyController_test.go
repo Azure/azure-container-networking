@@ -21,6 +21,7 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/exec"
 )
 
 type netPolFixture struct {
@@ -46,13 +47,13 @@ type netPolFixture struct {
 	isEnqueueEventIntoWorkQueue bool
 }
 
-func newNetPolFixture(t *testing.T) *netPolFixture {
+func newNetPolFixture(t *testing.T, utilexec exec.Interface) *netPolFixture {
 	f := &netPolFixture{
 		t:                           t,
 		netPolLister:                []*networkingv1.NetworkPolicy{},
 		kubeobjects:                 []runtime.Object{},
-		npMgr:                       newNPMgr(t),
-		ipsMgr:                      ipsm.NewIpsetManager(),
+		npMgr:                       newNPMgr(t, utilexec),
+		ipsMgr:                      ipsm.NewIpsetManager(utilexec),
 		iptMgr:                      iptm.NewIptablesManager(),
 		isEnqueueEventIntoWorkQueue: true,
 	}
@@ -77,7 +78,9 @@ func (f *netPolFixture) newNetPolController(stopCh chan struct{}) {
 		f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)
 	}
 
-	f.kubeInformer.Start(stopCh)
+	// Do not start informer to avoid unnecessary event triggers
+	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
+	//f.kubeInformer.Start(stopCh)
 }
 
 func (f *netPolFixture) saveIpTables(iptablesConfigFile string) {
@@ -271,7 +274,8 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 	// namedPort
 	netPolObj2.Spec.Ingress[0].Ports[0].Port = &intstr.IntOrString{StrVal: fmt.Sprintf("%s", netPolObj2.Name)}
 
-	f := newNetPolFixture(t)
+	fexec := exec.New()
+	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, netPolObj1, netPolObj2)
 	f.kubeobjects = append(f.kubeobjects, netPolObj1, netPolObj2)
 	stopCh := make(chan struct{})
@@ -290,7 +294,8 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 func TestAddNetworkPolicy(t *testing.T) {
 	netPolObj := createNetPol()
 
-	f := newNetPolFixture(t)
+	fexec := exec.New()
+	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
 	stopCh := make(chan struct{})
@@ -308,7 +313,8 @@ func TestAddNetworkPolicy(t *testing.T) {
 func TestDeleteNetworkPolicy(t *testing.T) {
 	netPolObj := createNetPol()
 
-	f := newNetPolFixture(t)
+	fexec := exec.New()
+	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
 	stopCh := make(chan struct{})
@@ -325,7 +331,8 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 	netPolObj := createNetPol()
 
-	f := newNetPolFixture(t)
+	fexec := exec.New()
+	f := newNetPolFixture(t, fexec)
 	f.isEnqueueEventIntoWorkQueue = false
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
@@ -349,7 +356,8 @@ func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) {
 	netPolObj := createNetPol()
 
-	f := newNetPolFixture(t)
+	fexec := exec.New()
+	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
 	stopCh := make(chan struct{})
@@ -368,7 +376,8 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 func TestUpdateNetworkPolicy(t *testing.T) {
 	oldNetPolObj := createNetPol()
 
-	f := newNetPolFixture(t)
+	fexec := exec.New()
+	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, oldNetPolObj)
 	f.kubeobjects = append(f.kubeobjects, oldNetPolObj)
 	stopCh := make(chan struct{})
@@ -390,7 +399,8 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	oldNetPolObj := createNetPol()
 
-	f := newNetPolFixture(t)
+	fexec := exec.New()
+	f := newNetPolFixture(t, fexec)
 	f.netPolLister = append(f.netPolLister, oldNetPolObj)
 	f.kubeobjects = append(f.kubeobjects, oldNetPolObj)
 	stopCh := make(chan struct{})

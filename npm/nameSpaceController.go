@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
+	utilexec "k8s.io/utils/exec"
 )
 
 type LabelAppendOperation bool
@@ -41,13 +42,12 @@ type Namespace struct {
 }
 
 // newNS constructs a new namespace object.
-// (TODO): need to change newNS function. It always returns "nil"
-func newNs(name string) (*Namespace, error) {
+func newNs(name string, exec utilexec.Interface) (*Namespace, error) {
 	ns := &Namespace{
 		name:      name,
 		LabelsMap: make(map[string]string),
 		SetMap:    make(map[string]string),
-		IpsMgr:    ipsm.NewIpsetManager(),
+		IpsMgr:    ipsm.NewIpsetManager(exec),
 		iptMgr:    iptm.NewIptablesManager(),
 	}
 
@@ -337,7 +337,7 @@ func (nsc *nameSpaceController) syncAddNameSpace(nsObj *corev1.Namespace) error 
 		return err
 	}
 
-	npmNs, _ := newNs(corev1NsName)
+	npmNs, _ := newNs(corev1NsName, nsc.npMgr.Exec)
 	nsc.npMgr.NsMap[corev1NsName] = npmNs
 
 	// Add the namespace to its label's ipset list.

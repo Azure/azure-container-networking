@@ -439,7 +439,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		}
 
 		// Add namespace object into NsMap cache only when two ipset operations are successful.
-		npmNs, _ := newNs(newPodObjNs)
+		npmNs, _ := newNs(newPodObjNs, c.npMgr.Exec)
 		c.npMgr.NsMap[newPodObjNs] = npmNs
 	}
 

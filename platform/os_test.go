@@ -74,7 +74,6 @@ func TestReadFileByLines(t *testing.T) {
 	}
 }
 
-
 func TestFileExists(t *testing.T) {
 	isExist, err := CheckIfFileExists("testfiles/test1")
 	if err != nil || !isExist {

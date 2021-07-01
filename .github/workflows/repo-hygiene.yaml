@@ -1,0 +1,28 @@
+name: golangci-lint
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+  schedule:
+    # run once a day at midnight
+    - cron: '0 0 * * *'
+jobs:
+  golangci:
+    strategy:
+      matrix:
+        go-version: [1.16.x]
+        os: [ubuntu-latest, windows-latest]
+    name: Lint
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.40
+          args: --timeout=5m 
+          only-new-issues: true

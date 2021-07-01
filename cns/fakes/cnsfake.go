@@ -96,8 +96,6 @@ func (ipm *IPStateManager) AddIPConfigs(ipconfigs []cns.IPConfigurationStatus) {
 			ipm.PendingReleaseIPConfigState[ipconfigs[i].ID] = ipconfigs[i]
 		}
 	}
-
-	return
 }
 
 func (ipm *IPStateManager) RemovePendingReleaseIPConfigs(ipconfigNames []string) {
@@ -107,8 +105,6 @@ func (ipm *IPStateManager) RemovePendingReleaseIPConfigs(ipconfigNames []string)
 	for i := 0; i < len(ipconfigNames); i++ {
 		delete(ipm.PendingReleaseIPConfigState, ipconfigNames[i])
 	}
-
-	return
 }
 
 func (ipm *IPStateManager) ReserveIPConfig() (cns.IPConfigurationStatus, error) {
@@ -176,6 +172,8 @@ func (ipm *IPStateManager) MarkIPAsPendingRelease(numberOfIPsToMark int) (map[st
 	return pendingRelease, nil
 }
 
+var _ cns.HTTPService = (*HTTPServiceFake)(nil)
+
 type HTTPServiceFake struct {
 	IPStateManager IPStateManager
 	PoolMonitor    cns.IPAMPoolMonitor
@@ -220,22 +218,16 @@ func (fake *HTTPServiceFake) SetNumberOfAllocatedIPs(desiredAllocatedIPCount int
 	return nil
 }
 
-func (fake *HTTPServiceFake) SendNCSnapShotPeriodically(int, chan bool) {
+func (fake *HTTPServiceFake) SendNCSnapShotPeriodically(context.Context, int) {}
 
-}
-
-func (fake *HTTPServiceFake) SetNodeOrchestrator(*cns.SetOrchestratorTypeRequest) {
-
-}
+func (fake *HTTPServiceFake) SetNodeOrchestrator(*cns.SetOrchestratorTypeRequest) {}
 
 func (fake *HTTPServiceFake) SyncNodeStatus(string, string, string, json.RawMessage) (int, string) {
 	return 0, ""
 }
 
 // SyncHostNCVersion will update HostVersion in containerstatus.
-func (fake *HTTPServiceFake) SyncHostNCVersion(context.Context, string, time.Duration) {
-	return
-}
+func (fake *HTTPServiceFake) SyncHostNCVersion(context.Context, string, time.Duration) {}
 
 func (fake *HTTPServiceFake) GetPendingProgramIPConfigs() []cns.IPConfigurationStatus {
 	ipconfigs := []cns.IPConfigurationStatus{}
@@ -305,7 +297,6 @@ func (fake *HTTPServiceFake) SetOption(string, interface{}) {}
 func (fake *HTTPServiceFake) Start(*common.ServiceConfig) error {
 	return nil
 }
-
 
 func (fake *HTTPServiceFake) Init(*common.ServiceConfig) error {
 	return nil

@@ -72,6 +72,7 @@ type NetworkManager interface {
 	CreateEndpoint(networkId string, epInfo *EndpointInfo) error
 	DeleteEndpoint(networkId string, endpointId string) error
 	GetEndpointInfo(networkId string, endpointId string) (*EndpointInfo, error)
+	GetAllEndpoints(networkId string) (map[string]*EndpointInfo, error)
 	GetEndpointInfoBasedOnPODDetails(networkId string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error)
 	AttachEndpoint(networkId string, endpointId string, sandboxKey string) (*endpoint, error)
 	DetachEndpoint(networkId string, endpointId string) error
@@ -121,6 +122,9 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		if err == store.ErrKeyNotFound {
 			log.Printf("[net] network store key not found")
 			// Considered successful.
+			return nil
+		} else if err == store.ErrStoreEmpty {
+			log.Printf("[net] network store empty")
 			return nil
 		} else {
 			log.Printf("[net] Failed to restore state, err:%v\n", err)
@@ -377,6 +381,30 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 	}
 
 	return ep.getInfo(), nil
+}
+
+func (nm *networkManager) GetAllEndpoints(networkId string) (map[string]*EndpointInfo, error) {
+	nm.Lock()
+	defer nm.Unlock()
+
+	eps := make(map[string]*EndpointInfo)
+
+	// Special case when CNS invokes CNI, but there is no state, but return gracefully
+	if len(nm.ExternalInterfaces) == 0 {
+		log.Printf("Network manager has no external interfaces, is the state file populated?")
+		return eps, store.ErrStoreEmpty
+	}
+
+	nw, err := nm.getNetwork(networkId)
+	if err != nil {
+		return nil, err
+	}
+
+	for epid, ep := range nw.Endpoints {
+		eps[epid] = ep.getInfo()
+	}
+
+	return eps, nil
 }
 
 // GetEndpointInfoBasedOnPODDetails returns information about the given endpoint.

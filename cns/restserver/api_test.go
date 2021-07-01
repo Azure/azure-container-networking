@@ -8,13 +8,14 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"github.com/Azure/azure-container-networking/store"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/store"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -774,9 +775,7 @@ func deleteNetworkContainerWithParams(t *testing.T, params createOrUpdateNetwork
 func getNetworkContainerByContext(t *testing.T, params createOrUpdateNetworkContainerParams) error {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerResponse
-	podInfo := cns.KubernetesPodInfo{
-		PodName:      params.podName,
-		PodNamespace: params.podNamespace}
+	podInfo := cns.KubernetesPodInfo{PodName: params.podName, PodNamespace: params.podNamespace}
 
 	podInfoBytes, err := json.Marshal(podInfo)
 	getReq := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}
@@ -803,9 +802,7 @@ func getNetworkContainerByContext(t *testing.T, params createOrUpdateNetworkCont
 func getNonExistNetworkContainerByContext(t *testing.T, params createOrUpdateNetworkContainerParams) error {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerResponse
-	podInfo := cns.KubernetesPodInfo{
-		PodName:      params.podName,
-		PodNamespace: params.podNamespace}
+	podInfo := cns.KubernetesPodInfo{PodName: params.podName, PodNamespace: params.podNamespace}
 
 	podInfoBytes, err := json.Marshal(podInfo)
 	getReq := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}
@@ -832,9 +829,7 @@ func getNonExistNetworkContainerByContext(t *testing.T, params createOrUpdateNet
 func getNetworkContainerByContextExpectedError(t *testing.T, params createOrUpdateNetworkContainerParams) error {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerResponse
-	podInfo := cns.KubernetesPodInfo{
-		PodName:      params.podName,
-		PodNamespace: params.podNamespace}
+	podInfo := cns.KubernetesPodInfo{PodName: params.podName, PodNamespace: params.podNamespace}
 
 	podInfoBytes, err := json.Marshal(podInfo)
 	getReq := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}

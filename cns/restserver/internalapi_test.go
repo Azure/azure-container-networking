@@ -5,7 +5,6 @@ package restserver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -209,7 +208,7 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
+	expectedAllocatedPods := make(map[string]cns.PodInfo)
 	returnCode := svc.ReconcileNCState(nil, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 	if returnCode != Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
@@ -235,15 +234,42 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	}
 	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
 
-	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
-	expectedAllocatedPods["10.0.0.6"] = cns.KubernetesPodInfo{
-		PodName:      "reconcilePod1",
-		PodNamespace: "PodNS1",
+	expectedAllocatedPods := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("", "", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("", "", "reconcilePod2", "PodNS1"),
 	}
 
-	expectedAllocatedPods["10.0.0.7"] = cns.KubernetesPodInfo{
-		PodName:      "reconcilePod2",
-		PodNamespace: "PodNS1",
+	expectedNcCount := len(svc.state.ContainerStatus)
+	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	if returnCode != Success {
+		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
+	}
+
+	validateNCStateAfterReconcile(t, &req, expectedNcCount+1, expectedAllocatedPods)
+}
+
+func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
+	defer func() { cns.GlobalPodInfoScheme = cns.KubernetesPodInfoScheme }()
+
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+
+	var startingIndex = 6
+	for i := 0; i < 4; i++ {
+		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
+		secIpConfig := newSecondaryIPConfig(ipaddress, -1)
+		ipId := uuid.New()
+		secondaryIPConfigs[ipId.String()] = secIpConfig
+		startingIndex++
+	}
+	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
+
+	expectedAllocatedPods := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("abcdef", "recon1-eth0", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("abcxyz", "recon2-eth0", "reconcilePod2", "PodNS1"),
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
@@ -272,17 +298,11 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	}
 	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String(), "-1")
 
-	expectedAllocatedPods := make(map[string]cns.KubernetesPodInfo)
-	expectedAllocatedPods["10.0.0.6"] = cns.KubernetesPodInfo{
-		PodName:      "customerpod1",
-		PodNamespace: "PodNS1",
-	}
+	expectedAllocatedPods := make(map[string]cns.PodInfo)
+	expectedAllocatedPods["10.0.0.6"] = cns.NewPodInfo("", "", "customerpod1", "PodNS1")
 
 	// Allocate non-vnet IP for system  pod
-	expectedAllocatedPods["192.168.0.1"] = cns.KubernetesPodInfo{
-		PodName:      "systempod",
-		PodNamespace: "kube-system",
-	}
+	expectedAllocatedPods["192.168.0.1"] = cns.NewPodInfo("", "", "systempod", "kube-system")
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
@@ -367,9 +387,13 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 
 func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncId, ncVersion string) {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, ncId, ncVersion)
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req)
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
+	}
+	returnCode = svc.UpdateIPAMPoolMonitorInternal(fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	if returnCode != 0 {
+		t.Fatalf("Failed to UpdateIPAMPoolMonitorInternal, err: %d", returnCode)
 	}
 	validateNetworkRequest(t, req)
 }
@@ -415,18 +439,13 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 				}
 
 				// Validate IP state
-				if ipStatus.OrchestratorContext != nil {
-					var podInfo cns.KubernetesPodInfo
-					if err := json.Unmarshal(ipStatus.OrchestratorContext, &podInfo); err != nil {
-						t.Fatalf("Failed to add IPConfig to state: %+v with error: %v", ipStatus, err)
-					}
-
-					if _, exists := svc.PodIPIDByOrchestratorContext[podInfo.GetOrchestratorContextKey()]; exists {
+				if ipStatus.PodInfo != nil {
+					if _, exists := svc.PodIPIDByPodInterfaceKey[ipStatus.PodInfo.Key()]; exists {
 						if ipStatus.State != cns.Allocated {
 							t.Fatalf("IPId: %s State is not Allocated, ipStatus: %+v", ipid, ipStatus)
 						}
 					} else {
-						t.Fatalf("Failed to find podContext for allocated ip: %+v, podinfo :%+v", ipStatus, podInfo)
+						t.Fatalf("Failed to find podContext for allocated ip: %+v, podinfo :%+v", ipStatus, ipStatus.PodInfo)
 					}
 				} else if ipStatus.State != expectedIPStatus {
 					// Todo: Validate for pendingRelease as well
@@ -473,7 +492,7 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 	return req
 }
 
-func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkContainerRequest, expectedNcCount int, expectedAllocatedPods map[string]cns.KubernetesPodInfo) {
+func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkContainerRequest, expectedNcCount int, expectedAllocatedPods map[string]cns.PodInfo) {
 	if ncRequest == nil {
 		// check svc ContainerStatus will be empty
 		if len(svc.state.ContainerStatus) != expectedNcCount {
@@ -483,12 +502,12 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 		validateNetworkRequest(t, *ncRequest)
 	}
 
-	if len(expectedAllocatedPods) != len(svc.PodIPIDByOrchestratorContext) {
-		t.Fatalf("Unexpected allocated pods, actual: %d, expected: %d", len(svc.PodIPIDByOrchestratorContext), len(expectedAllocatedPods))
+	if len(expectedAllocatedPods) != len(svc.PodIPIDByPodInterfaceKey) {
+		t.Fatalf("Unexpected allocated pods, actual: %d, expected: %d", len(svc.PodIPIDByPodInterfaceKey), len(expectedAllocatedPods))
 	}
 
 	for ipaddress, podInfo := range expectedAllocatedPods {
-		ipId := svc.PodIPIDByOrchestratorContext[podInfo.GetOrchestratorContextKey()]
+		ipId := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
 		ipConfigstate := svc.PodIPConfigState[ipId]
 
 		if ipConfigstate.State != cns.Allocated {
@@ -501,10 +520,8 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 		}
 
 		// Valdate pod context
-		var expectedPodInfo cns.KubernetesPodInfo
-		json.Unmarshal(ipConfigstate.OrchestratorContext, &expectedPodInfo)
-		if reflect.DeepEqual(expectedPodInfo, podInfo) != true {
-			t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", expectedPodInfo, podInfo)
+		if reflect.DeepEqual(ipConfigstate.PodInfo, podInfo) != true {
+			t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", ipConfigstate.PodInfo, podInfo)
 		}
 
 		// Validate this IP belongs to a valid NCRequest
@@ -535,9 +552,13 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 
 func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncID, ncVersion string) cns.CreateNetworkContainerRequest {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, ncID, ncVersion)
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req)
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
+	}
+	returnCode = svc.UpdateIPAMPoolMonitorInternal(fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	if returnCode != 0 {
+		t.Fatalf("Failed to UpdateIPAMPoolMonitorInternal, err: %d", returnCode)
 	}
 	return req
 }

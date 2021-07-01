@@ -7,13 +7,13 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 
 	"github.com/Azure/azure-container-networking/log"
+	localtls "github.com/Azure/azure-container-networking/server/tls"
 )
 
 // Listener represents an HTTP listener.
@@ -73,7 +73,7 @@ func GetTlsConfig(tlsSettings localtls.TlsSettings) (*tls.Config, error) {
 }
 
 // Start creates the listener socket and starts the HTTPS server.
-func (listener *Listener) StartTLS(errChan chan error, tlsSettings localtls.TlsSettings) error {
+func (listener *Listener) StartTLS(errChan chan<- error, tlsSettings localtls.TlsSettings) error {
 	tlsConfig, err := GetTlsConfig(tlsSettings)
 	if err != nil {
 		log.Printf("[Listener] Failed to compose Tls Configuration with errror: %+v", err)
@@ -102,7 +102,7 @@ func (listener *Listener) StartTLS(errChan chan error, tlsSettings localtls.TlsS
 }
 
 // Start creates the listener socket and starts the HTTP server.
-func (listener *Listener) Start(errChan chan error) error {
+func (listener *Listener) Start(errChan chan<- error) error {
 	var err error
 
 	// Succeed early if no socket was requested.
