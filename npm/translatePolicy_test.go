@@ -2,7 +2,6 @@ package npm
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -2514,50 +2513,6 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
 				"ALLOW-ns-!ns:netpol-4537-y-AND-pod:b:c-AND-app:test:int-TO-pod:a:x-IN-ns-netpol-4537-x",
-			},
-		},
-		&iptm.IptEntry{
-			Chain: util.IptablesAzureIngressPortChain,
-			Specs: []string{
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-netpol-4537-x"),
-				util.IptablesDstFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("pod:a:x"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAzureIngressFromChain,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				fmt.Sprintf("ALLOW-ALL-TO-pod:a:x-IN-ns-netpol-4537-x-TO-JUMP-TO-%s",
-					util.IptablesAzureIngressFromChain),
-			},
-		},
-		&iptm.IptEntry{
-			Chain: util.IptablesAzureIngressFromChain,
-			Specs: []string{
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("ns-netpol-4537-x"),
-				util.IptablesDstFlag,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName("pod:a:x"),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesAzureIngressDropsChain,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				fmt.Sprintf("ALLOW-ALL-TO-pod:a:x-IN-ns-netpol-4537-x-TO-JUMP-TO-%s",
-					util.IptablesAzureIngressDropsChain),
 			},
 		},
 	}

@@ -473,6 +473,12 @@ func TestParseSelector(t *testing.T) {
 	}
 }
 func TestFlattenNameSpaceSelector(t *testing.T) {
+
+	commonMatchLabel := map[string]string{
+		"c": "d",
+		"a": "b",
+	}
+
 	firstSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			metav1.LabelSelectorRequirement{
@@ -502,10 +508,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 				},
 			},
 		},
-		MatchLabels: map[string]string{
-			"c": "d",
-			"a": "b",
-		},
+		MatchLabels: commonMatchLabel,
 	}
 
 	testSelectors := FlattenNameSpaceSelector(firstSelector)
@@ -549,10 +552,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 				},
 			},
 		},
-		MatchLabels: map[string]string{
-			"c": "d",
-			"a": "b",
-		},
+		MatchLabels: commonMatchLabel,
 	}
 
 	testSelectors = FlattenNameSpaceSelector(secondSelector)
@@ -590,10 +590,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			MatchLabels: map[string]string{
-				"c": "d",
-				"a": "b",
-			},
+			MatchLabels: commonMatchLabel,
 		},
 		metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -624,10 +621,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			MatchLabels: map[string]string{
-				"c": "d",
-				"a": "b",
-			},
+			MatchLabels: commonMatchLabel,
 		},
 		metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -658,10 +652,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			MatchLabels: map[string]string{
-				"c": "d",
-				"a": "b",
-			},
+			MatchLabels: commonMatchLabel,
 		},
 		metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -692,10 +683,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			MatchLabels: map[string]string{
-				"c": "d",
-				"a": "b",
-			},
+			MatchLabels: commonMatchLabel,
 		},
 		metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -726,10 +714,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			MatchLabels: map[string]string{
-				"c": "d",
-				"a": "b",
-			},
+			MatchLabels: commonMatchLabel,
 		},
 		metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -760,10 +745,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			MatchLabels: map[string]string{
-				"c": "d",
-				"a": "b",
-			},
+			MatchLabels: commonMatchLabel,
 		},
 		metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -794,10 +776,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			MatchLabels: map[string]string{
-				"c": "d",
-				"a": "b",
-			},
+			MatchLabels: commonMatchLabel,
 		},
 		metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -828,10 +807,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			MatchLabels: map[string]string{
-				"c": "d",
-				"a": "b",
-			},
+			MatchLabels: commonMatchLabel,
 		},
 	}
 
