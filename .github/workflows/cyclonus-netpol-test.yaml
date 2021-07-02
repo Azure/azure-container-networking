@@ -8,6 +8,8 @@ on:
   pull_request:
     paths:
       - 'npm/**'
+      - 'github/**'
+      - 'test/**'
   schedule:
     # run once a day at midnight
     - cron: '0 0 * * *'
@@ -53,4 +55,3 @@ jobs:
           path: |
             ./npm-logs.txt
             ./cyclonus-test.txt
-
