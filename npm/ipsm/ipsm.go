@@ -465,6 +465,8 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 	return nil
 }
 
+// TODO this below function is to be extended while improving ipset refer count
+// support, if not used, please remove this stale function.
 // Clean removes all the empty sets & lists under the namespace.
 func (ipsMgr *IpsetManager) Clean() error {
 	for setName, set := range ipsMgr.SetMap {
