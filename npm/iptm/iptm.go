@@ -453,6 +453,8 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
+	log.Printf("Saving iptables...")
+
 	err := iptMgr.io.lockIptables()
 	if err != nil {
 		return err
@@ -494,6 +496,8 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 	if len(configFile) == 0 {
 		configFile = util.IptablesConfigFile
 	}
+
+	log.Printf("Restoring iptables...")
 
 	err := iptMgr.io.lockIptables()
 	if err != nil {

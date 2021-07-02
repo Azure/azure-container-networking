@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
-	testingutils "github.com/Azure/azure-container-networking/test/utils"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -24,12 +23,13 @@ func TestSave(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 	err := ipsMgr.Save("ipset.conf")
 	require.NoError(t, err)
 }
 
 func TestRestore(t *testing.T) {
+	// create temporary ipset config file to use
 	tmpFile, err := ioutil.TempFile(os.TempDir(), filepath.Base(util.IpsetTestConfigFile))
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
@@ -42,7 +42,7 @@ func TestRestore(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err = ipsMgr.Restore(tmpFile.Name())
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestCreateList(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.CreateList("test-list")
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestDeleteList(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.CreateList("test-list")
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestAddToList(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.CreateSet("test-set", []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestDeleteFromList(t *testing.T) {
 	defer func() { require.Equal(t, fexec.CommandCalls, len(calls)) }()
 
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	// Create set and validate set is created.
 	setName := "test-set"
@@ -211,7 +211,7 @@ func TestCreateSet(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	gaugeVal, err1 := promutil.GetValue(metrics.NumIPSets)
 	countVal, err2 := promutil.GetCountValue(metrics.AddIPSetExecTime)
@@ -261,7 +261,7 @@ func TestDeleteSet(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.CreateSet(testSetName, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestAddToSet(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, "")
 	require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.AddToSet(setname, ip, util.IpsetNetHashFlag, pod1)
 	require.NoError(t, err)
@@ -385,7 +385,7 @@ func TestDeleteFromSet(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, "")
 	require.NoError(t, err)
@@ -429,7 +429,7 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	if err := ipsMgr.AddToSet(setname, ip, util.IpsetNetHashFlag, pod1); err != nil {
 		t.Errorf("TestDeleteFromSetWithPodCache failed for pod1 @ ipsMgr.AddToSet with err %+v", err)
@@ -482,7 +482,7 @@ func TestClean(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
 		t.Errorf("TestClean failed @ ipsMgr.Save")
@@ -507,7 +507,7 @@ func TestDestroy(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	if err := ipsMgr.AddToSet(setName, testIP, util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestDestroy failed @ ipsMgr.AddToSet with err %+v", err)
@@ -545,7 +545,7 @@ func TestRun(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	entry := &ipsEntry{
 		operationFlag: util.IpsetCreationFlag,
@@ -564,7 +564,7 @@ func TestRunErrorWithNonZeroExitCode(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	entry := &ipsEntry{
 		operationFlag: util.IpsetAppendFlag,
@@ -584,7 +584,7 @@ func TestDestroyNpmIpsets(t *testing.T) {
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	defer testingutils.VerifyCalls(t, fexec, calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.CreateSet("azure-npm-123456", []string{"nethash"})
 	if err != nil {
