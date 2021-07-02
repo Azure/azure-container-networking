@@ -13,7 +13,7 @@ import (
 
 func TestGetState(t *testing.T) {
 	calls := []testutils.TestCmd{
-		{Cmd: []string{"./azure-vnet"}, Stdout: `{"ContainerInterfaces":{"3f813b02-eth0":{"PodName":"metrics-server-77c8679d7d-6ksdh","PodNamespace":"kube-system","PodEndpointID":"3f813b02-eth0","ContainerID":"3f813b029429b4e41a09ab33b6f6d365d2ed704017524c78d1d0dece33cdaf46","IPAddresses":[{"IP":"10.241.0.17","Mask":"//8AAA=="}]},"6e688597-eth0":{"PodName":"tunnelfront-5d96f9b987-65xbn","PodNamespace":"kube-system","PodEndpointID":"6e688597-eth0","ContainerID":"6e688597eafb97c83c84e402cc72b299bfb8aeb02021e4c99307a037352c0bed","IPAddresses":[{"IP":"10.241.0.13","Mask":"//8AAA=="}]}}}`},
+		{Cmd: []string{"/opt/cni/bin/azure-vnet"}, Stdout: `{"ContainerInterfaces":{"3f813b02-eth0":{"PodName":"metrics-server-77c8679d7d-6ksdh","PodNamespace":"kube-system","PodEndpointID":"3f813b02-eth0","ContainerID":"3f813b029429b4e41a09ab33b6f6d365d2ed704017524c78d1d0dece33cdaf46","IPAddresses":[{"IP":"10.241.0.17","Mask":"//8AAA=="}]},"6e688597-eth0":{"PodName":"tunnelfront-5d96f9b987-65xbn","PodNamespace":"kube-system","PodEndpointID":"6e688597-eth0","ContainerID":"6e688597eafb97c83c84e402cc72b299bfb8aeb02021e4c99307a037352c0bed","IPAddresses":[{"IP":"10.241.0.13","Mask":"//8AAA=="}]}}}`},
 	}
 
 	fakeexec := testutils.GetFakeExecWithScripts(calls)
@@ -34,7 +34,7 @@ func TestGetState(t *testing.T) {
 
 func TestGetVersion(t *testing.T) {
 	calls := []testutils.TestCmd{
-		{Cmd: []string{"./azure-vnet", "-v"}, Stdout: `Azure CNI Version v1.4.0-2-g984c5a5e-dirty`},
+		{Cmd: []string{"/opt/cni/bin/azure-vnet", "-v"}, Stdout: `Azure CNI Version v1.4.0-2-g984c5a5e-dirty`},
 	}
 
 	fakeexec := testutils.GetFakeExecWithScripts(calls)
