@@ -472,6 +472,24 @@ func TestParseSelector(t *testing.T) {
 		t.Errorf("TestparseSelector failed @ value comparison")
 	}
 }
+
+func TestFlattenNameSpaceSelectorCases(t *testing.T) {
+	firstSelector := &metav1.LabelSelector{}
+
+	testSelectors := FlattenNameSpaceSelector(firstSelector)
+	if len(testSelectors) != 1 {
+		t.Errorf("TestFlattenNameSpaceSelectorCases failed @ 1st selector length check %+v", testSelectors)
+	}
+
+	var secondSelector *metav1.LabelSelector
+
+	testSelectors = FlattenNameSpaceSelector(secondSelector)
+	if len(testSelectors) > 0 {
+		t.Errorf("TestFlattenNameSpaceSelectorCases failed @ 1st selector length check %+v", testSelectors)
+	}
+
+}
+
 func TestFlattenNameSpaceSelector(t *testing.T) {
 
 	commonMatchLabel := map[string]string{
