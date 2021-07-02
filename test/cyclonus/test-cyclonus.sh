@@ -15,6 +15,8 @@ kubectl create clusterrolebinding cyclonus --clusterrole=cluster-admin --service
 kubectl create sa cyclonus -n kube-system
 kubectl create -f ./install-cyclonus.yaml
 
+sleep 5
+
 time kubectl wait --for=condition=ready --timeout=5m pod -n kube-system -l job-name=cyclonus
 
 #!/bin/bash
