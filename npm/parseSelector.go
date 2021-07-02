@@ -176,7 +176,7 @@ func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSe
 	// To avoid any additional length checks, just return a slice of labelSelectors
 	// with original nsSelector
 	if nsSelector == nil {
-		return []metav1.LabelSelector{*nsSelector}
+		return []metav1.LabelSelector{}
 	}
 
 	if len(nsSelector.MatchExpressions) == 0 {
