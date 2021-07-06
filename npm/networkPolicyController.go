@@ -354,7 +354,7 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 
 	// lists is a map with list name and members as value
 	// NPM will create the list first and increments the refer count
-	for listKey, _ := range lists {
+	for listKey := range lists {
 		if err = ipsMgr.CreateList(listKey); err != nil {
 			return fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset list %s with err: %v", listKey, err)
 		}
@@ -410,7 +410,7 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 	}
 
 	// lists is a map with list name and members as value
-	for listKey, _ := range lists {
+	for listKey := range lists {
 		// We do not have delete the members before deleting set as,
 		// 1. ipset allows deleting a ipset list with members
 		// 2. if the refer count is more than one we should not remove members

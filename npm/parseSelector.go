@@ -295,18 +295,14 @@ func parseSelector(selector *metav1.LabelSelector) ([]string, map[string][]strin
 				// We are not adding the k:v to labels for multiple values, because, labels are used
 				// to contruct partial IptEntries and if these below labels are added then we are inducing
 				// AND condition on values of a match expression instead of OR
-				for _, v := range req.Values {
-					vals[k] = append(vals[k], v)
-				}
+				vals[k] = append(vals[k], req.Values...)
 			}
 		case metav1.LabelSelectorOpNotIn:
 			k = util.IptablesNotFlag + req.Key
 			if len(req.Values) == 1 {
 				labels = append(labels, k+":"+req.Values[0])
 			} else {
-				for _, v := range req.Values {
-					vals[k] = append(vals[k], v)
-				}
+				vals[k] = append(vals[k], req.Values...)
 			}
 		// Exists matches pods with req.Key as key
 		case metav1.LabelSelectorOpExists:

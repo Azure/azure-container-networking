@@ -493,7 +493,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 							listIPsets[nsLabelsWithoutOps[0]] = nil
 						}
 					} else {
-						for i, _ := range nsLabelsWithoutOps {
+						for i := range nsLabelsWithoutOps {
 							// Add namespaces prefix to distinguish namespace ipset lists and pod ipsets
 							nsLabelsWithoutOps[i] = util.GetNSNameWithPrefix(nsLabelsWithoutOps[i])
 							if _, ok := listIPsets[nsLabelsWithoutOps[i]]; !ok {
@@ -706,7 +706,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 			for _, nsSelector := range FlattenNameSpaceSelector(fromRule.NamespaceSelector) {
 				// we pass empty ns for the podspec and comment here because it's a combo of both selectors and not limited to network policy namespace
 				iptPartialNsSpec, nsLabelsWithoutOps, listLabelsWithMembers := craftPartialIptEntrySpecFromSelector("", &nsSelector, util.IptablesSrcFlag, true) // Add namespaces prefix to distinguish namespace ipsets and pod ipsets
-				for i, _ := range nsLabelsWithoutOps {
+				for i := range nsLabelsWithoutOps {
 					nsLabelsWithoutOps[i] = util.GetNSNameWithPrefix(nsLabelsWithoutOps[i])
 					if _, ok := listIPsets[nsLabelsWithoutOps[i]]; !ok {
 						listIPsets[nsLabelsWithoutOps[i]] = nil
@@ -1128,7 +1128,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 							listIPsets[nsLabelsWithoutOps[0]] = nil
 						}
 					} else {
-						for i, _ := range nsLabelsWithoutOps {
+						for i := range nsLabelsWithoutOps {
 							// Add namespaces prefix to distinguish namespace ipset lists and pod ipsets
 							nsLabelsWithoutOps[i] = util.GetNSNameWithPrefix(nsLabelsWithoutOps[i])
 							if _, ok := listIPsets[nsLabelsWithoutOps[i]]; !ok {
@@ -1341,7 +1341,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 				// we pass true for the podspec and comment here because it's a combo of both selectors and not limited to network policy namespace
 				iptPartialNsSpec, nsLabelsWithoutOps, listLabelsWithMembers := craftPartialIptEntrySpecFromSelector("", &nsSelector, util.IptablesDstFlag, true)
 				// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
-				for i, _ := range nsLabelsWithoutOps {
+				for i := range nsLabelsWithoutOps {
 					nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
 					if _, ok := listIPsets[nsLabelsWithoutOps[i]]; !ok {
 						listIPsets[nsLabelsWithoutOps[i]] = nil
