@@ -14,7 +14,7 @@ func newCNIStateFakeExec(stdout string) exec.Interface {
 		{Cmd: []string{"./azure-vnet"}, Stdout: stdout},
 	}
 
-	fake, _ := testutils.GetFakeExecWithScripts(calls)
+	fake := testutils.GetFakeExecWithScripts(calls)
 	return fake
 }
 

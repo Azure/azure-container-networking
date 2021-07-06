@@ -10,10 +10,10 @@ import (
 
 func newCNIVersionFakeExec(ver string) exec.Interface {
 	calls := []testutils.TestCmd{
-		{Cmd: []string{"./azure-vnet", "-v"}, Stdout: ver},
+		{Cmd: []string{"/opt/cni/bin/azure-vnet", "-v"}, Stdout: ver},
 	}
 
-	fake, _ := testutils.GetFakeExecWithScripts(calls)
+	fake := testutils.GetFakeExecWithScripts(calls)
 	return fake
 }
 
