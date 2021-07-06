@@ -8,6 +8,8 @@ on:
   pull_request:
     paths:
       - 'npm/**'
+      - 'github/**'
+      - 'test/**'
   schedule:
     # run once a day at midnight
     - cron: '0 0 * * *'
@@ -19,22 +21,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Make NPM image
-        run: |
-          VERSION=cyclonus make azure-npm-image
+
 
       - name: Setup Kind
         uses: engineerd/setup-kind@v0.5.0
         with:
-          version: "v0.9.0"
+          version: "v0.11.1"
           config: ./test/kind/kind.yaml
           name: npm-kind
+
+      - name: Check Kind
+        run: |
+          kubectl get po -owide -A
+
+      - name: Make NPM image
+        run: |
+          VERSION=cyclonus make azure-npm-image
       
       - name: Install Azure NPM
         run: |
           sed -i 's/mcr.microsoft.com\/containernetworking\/azure-npm:v1.3.1/acnpublic.azurecr.io\/azure-npm:cyclonus/' ./npm/azure-npm.yaml
           kind load docker-image acnpublic.azurecr.io/azure-npm:cyclonus --name npm-kind
           kubectl apply -f ./npm/azure-npm.yaml
+    
+      - name: Check Kind after installation
+        run: |
+          sleep 10
+          kubectl get po -owide -A
 
       - name: Run Cyclonus network policy test
         run: make test-cyclonus
@@ -53,4 +66,3 @@ jobs:
           path: |
             ./npm-logs.txt
             ./cyclonus-test.txt
-
