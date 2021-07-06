@@ -23,6 +23,10 @@ stages:
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
               echo "##vso[task.setvariable variable=ImageTag;isOutput=true]$(git describe --tags --always --dirty)-test"
               sudo chown -R $(whoami):$(whoami) .
+              go version
+              go env
+              which go
+              echo $PATH
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()

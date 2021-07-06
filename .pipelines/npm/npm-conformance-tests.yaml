@@ -17,15 +17,15 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)"
   steps:
 
   - checkout: self
 
   - script: |
-      go env
       go version
+      go env
+      which go
+      echo $PATH
       mkdir -p '$(GOBIN)'
       mkdir -p '$(GOPATH)/pkg'
       BUILD_NUMBER=$(Build.BuildNumber)
@@ -48,8 +48,6 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)"
   dependsOn: [setup]
   variables:
     GOBIN: "$(GOPATH)/bin" # Go binaries path
@@ -72,7 +70,6 @@ jobs:
       addPipelineData: false
 
   - script: |
-      go env
       echo Tag: $(TAG)
       echo ResourceGroup: $(RESOURCE_GROUP)
       VERSION=$(TAG) make azure-npm-image
@@ -104,8 +101,6 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)"
   dependsOn: [setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
@@ -140,8 +135,6 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)"
   dependsOn: [Create_cluster, Build_test, setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
@@ -201,8 +194,6 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  container:
-    image: "$(BUILD_IMAGE)"
   condition: always()
   dependsOn: [Run_test, setup]
   variables:
