@@ -21,7 +21,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.16'
+      - run: go version
 
       - name: Setup Kind
         uses: engineerd/setup-kind@v0.5.0
