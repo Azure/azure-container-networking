@@ -121,14 +121,14 @@ func createNetPol() *networkingv1.NetworkPolicy {
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				{
 					From: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{"app": "test"},
 							},
 						},
-						networkingv1.NetworkPolicyPeer{
+						{
 							IPBlock: &networkingv1.IPBlock{
 								CIDR: "0.0.0.0/0",
 							},
@@ -141,7 +141,7 @@ func createNetPol() *networkingv1.NetworkPolicy {
 				},
 			},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				{
 					To: []networkingv1.NetworkPolicyPeer{{
 						PodSelector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -272,7 +272,7 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 	netPolObj2.Namespace = fmt.Sprintf("%s-new", netPolObj1.Namespace)
 	netPolObj2.Name = fmt.Sprintf("%s-new", netPolObj1.Name)
 	// namedPort
-	netPolObj2.Spec.Ingress[0].Ports[0].Port = &intstr.IntOrString{StrVal: fmt.Sprintf("%s", netPolObj2.Name)}
+	netPolObj2.Spec.Ingress[0].Ports[0].Port = &intstr.IntOrString{StrVal: netPolObj2.Name}
 
 	fexec := exec.New()
 	f := newNetPolFixture(t, fexec)

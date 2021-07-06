@@ -113,7 +113,7 @@ func craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, s
 		}
 	}
 
-	for i, _ := range ops {
+	for i := range ops {
 		// TODO need to change this logic, create a list of lsts here and have a single match against it
 		spec = append(spec, craftPartialIptEntrySpecFromOpAndLabel(ops[i], labels[i], srcOrDstFlag, isNamespaceSelector)...)
 	}
@@ -200,7 +200,7 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 		}
 	}
 
-	for i, _ := range labelsWithoutOps {
+	for i := range labelsWithoutOps {
 		comment += prefix + ops[i] + labelsWithoutOps[i]
 		comment += "-AND-"
 	}

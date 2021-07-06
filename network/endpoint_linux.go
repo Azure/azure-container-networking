@@ -211,10 +211,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 		PODNameSpace:             epInfo.PODNameSpace,
 	}
 
-	for _, route := range epInfo.Routes {
-		ep.Routes = append(ep.Routes, route)
-	}
-
+	ep.Routes = append(ep.Routes, epInfo.Routes...)
 	return ep, nil
 }
 
@@ -381,9 +378,7 @@ func (nw *network) updateEndpointImpl(existingEpInfo *EndpointInfo, targetEpInfo
 	}
 
 	// Update existing endpoint state with the new routes to persist
-	for _, route := range targetEpInfo.Routes {
-		ep.Routes = append(ep.Routes, route)
-	}
+	ep.Routes = append(ep.Routes, targetEpInfo.Routes...)
 
 	return ep, nil
 }

@@ -373,7 +373,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	exists, _ := ipsMgr.SetExists(setName)
 
 	if !exists {
-		if err := ipsMgr.CreateSet(setName, append([]string{spec})); err != nil {
+		if err := ipsMgr.CreateSet(setName, []string{spec}); err != nil {
 			return err
 		}
 	}
@@ -381,9 +381,9 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	var resultSpec []string
 	if strings.Contains(ip, util.IpsetNomatch) {
 		ip = strings.Trim(ip, util.IpsetNomatch)
-		resultSpec = append([]string{ip, util.IpsetNomatch})
+		resultSpec = []string{ip, util.IpsetNomatch}
 	} else {
-		resultSpec = append([]string{ip})
+		resultSpec = []string{ip}
 	}
 
 	entry := &ipsEntry{
@@ -440,7 +440,7 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 	entry := &ipsEntry{
 		operationFlag: util.IpsetDeletionFlag,
 		set:           util.GetHashedName(setName),
-		spec:          append([]string{ip}),
+		spec:          []string{ip},
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil {

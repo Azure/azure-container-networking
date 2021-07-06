@@ -207,7 +207,7 @@ func main() {
 
 	// Relay these incoming signals to OS signal channel.
 	osSignalChannel := make(chan os.Signal, 1)
-	signal.Notify(osSignalChannel, os.Interrupt, os.Kill, syscall.SIGTERM)
+	signal.Notify(osSignalChannel, os.Interrupt, syscall.SIGTERM)
 
 	// Wait until receiving a signal.
 	select {

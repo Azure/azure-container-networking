@@ -65,9 +65,8 @@ func getDiskInfo(path string) (*DiskInfo, error) {
 // This function  creates a report with system details(memory, disk, cpu).
 func (report *CNIReport) GetSystemDetails() {
 	var errMsg string
-	var cpuCount int = 0
 
-	cpuCount = runtime.NumCPU()
+	cpuCount := runtime.NumCPU()
 
 	memInfo, err := getMemInfo()
 	if err != nil {

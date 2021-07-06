@@ -674,9 +674,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	epPolicies := getPoliciesFromRuntimeCfg(nwCfg)
-	for _, epPolicy := range epPolicies {
-		epInfo.Policies = append(epInfo.Policies, epPolicy)
-	}
+
+	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.
 	for _, ipconfig := range result.IPs {

@@ -139,7 +139,7 @@ func main() {
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 
-	for true {
+	for {
 		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + pluginName + ".json")
 		if err != nil {
 			fmt.Printf("[monitor] Failed to create store: %v\n", err)
@@ -178,6 +178,4 @@ func main() {
 		time.Sleep(time.Duration(timeout) * time.Second)
 		nm = nil
 	}
-
-	log.Close()
 }

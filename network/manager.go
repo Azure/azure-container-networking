@@ -27,7 +27,10 @@ const (
 )
 
 var (
-	Ipv4DefaultRouteDstPrefix = net.IPNet{net.IPv4zero, net.IPv4Mask(0, 0, 0, 0)}
+	Ipv4DefaultRouteDstPrefix = net.IPNet{
+		IP:   net.IPv4zero,
+		Mask: net.IPv4Mask(0, 0, 0, 0),
+	}
 )
 
 type NetworkClient interface {
