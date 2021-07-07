@@ -196,8 +196,6 @@ func (service *HTTPRestService) getPodIPIDByOrchestratorContexthandler(w http.Re
 	}()
 
 	resp.PodContext = service.GetPodIPIDByOrchestratorContext()
-
-	return
 }
 
 func (service *HTTPRestService) GetPodIPIDByOrchestratorContext() map[string]string {
@@ -224,7 +222,6 @@ func (service *HTTPRestService) GetHTTPRestDataHandler(w http.ResponseWriter, r 
 	}()
 
 	resp.HttpRestServiceData = service.GetHTTPStruct()
-	return
 }
 
 func (service *HTTPRestService) GetHTTPStruct() HttpRestServiceData {
@@ -287,8 +284,6 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 
 	// Get all IPConfigs matching a state, and append to a slice of IPAddressState
 	resp.IPConfigurationStatus = filterIPConfigsMatchingState(service.PodIPConfigState, req.IPConfigStateFilter, filterFunc)
-
-	return
 }
 
 // filter the ipconfigs in CNS matching a state (Available, Allocated, etc.) and return in a slice

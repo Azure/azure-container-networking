@@ -113,7 +113,6 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 		},
 	}
 
-	index := 1
 	// retrieve KUBE-SERVICES index
 	kubeServicesLine, err := iptMgr.GetChainLineNumber(util.IptablesKubeServicesChain, util.IptablesForwardChain)
 	if err != nil {
@@ -121,7 +120,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 		return err
 	}
 
-	index = kubeServicesLine + 1
+	index := kubeServicesLine + 1
 
 	exists, err := iptMgr.Exists(entry)
 	if err != nil {

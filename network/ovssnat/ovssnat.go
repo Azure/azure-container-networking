@@ -2,9 +2,10 @@ package ovssnat
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/ebtables"
 	"net"
 	"strings"
+
+	"github.com/Azure/azure-container-networking/ebtables"
 
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
@@ -19,8 +20,6 @@ const (
 	azureSnatVeth0      = "azSnatveth0"
 	azureSnatVeth1      = "azSnatveth1"
 	azureSnatIfName     = "eth1"
-	cniOutputChain      = "AZURECNIOUTPUT"
-	cniInputChain       = "AZURECNIINPUT"
 	SnatBridgeName      = "azSnatbr"
 	ImdsIP              = "169.254.169.254/32"
 	vlanDropDeleteRule  = "ebtables -t nat -D PREROUTING -p 802_1Q -j DROP"
@@ -36,7 +35,6 @@ type OVSSnatClient struct {
 	localIP                string
 	snatBridgeIP           string
 	SkipAddressesFromBlock []string
-	containerSnatVethMac   net.HardwareAddr
 }
 
 func NewSnatClient(hostIfName string, contIfName string, localIP string, snatBridgeIP string, hostPrimaryMac string, skipAddressesFromBlock []string) OVSSnatClient {
@@ -49,9 +47,7 @@ func NewSnatClient(hostIfName string, contIfName string, localIP string, snatBri
 		hostPrimaryMac:        hostPrimaryMac,
 	}
 
-	for _, address := range skipAddressesFromBlock {
-		snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, address)
-	}
+	snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, skipAddressesFromBlock...)
 
 	log.Printf("Initialize new snat client %+v", snatClient)
 

@@ -22,7 +22,6 @@ var (
 
 type NPMRestServer struct {
 	listeningAddress string
-	server           *http.Server
 	router           *mux.Router
 }
 

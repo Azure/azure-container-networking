@@ -12,35 +12,11 @@ import (
 )
 
 const (
-	getCmdArg            = "get"
-	getAvailableArg      = "Available"
-	getAllocatedArg      = "Allocated"
-	getAllArg            = "All"
-	getPendingReleaseArg = "PendingRelease"
-	getPodCmdArg         = "getPodContexts"
-	getInMemoryData      = "getInMemory"
-
-	releaseArg = "release"
-
-	eth0InterfaceName   = "eth0"
-	azure0InterfaceName = "azure0"
-
+	getCmdArg       = "get"
+	getPodCmdArg    = "getPodContexts"
+	getInMemoryData = "getInMemory"
 	envCNSIPAddress = "CNSIpAddress"
 	envCNSPort      = "CNSPort"
-)
-
-var (
-	availableCmds = []string{
-		getCmdArg,
-		getPodCmdArg,
-		getInMemoryData,
-	}
-
-	getFlags = []string{
-		getAvailableArg,
-		getAllocatedArg,
-		getAllocatedArg,
-	}
 )
 
 func HandleCNSClientCommands(cmd, arg string) error {

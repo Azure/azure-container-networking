@@ -116,7 +116,7 @@ func GetIPSetListCompareLabels(orig map[string]string, new map[string]string) ([
 func UniqueStrSlice(s []string) []string {
 	m, unique := map[string]bool{}, []string{}
 	for _, elem := range s {
-		if m[elem] == true {
+		if m[elem] {
 			continue
 		}
 
@@ -266,20 +266,12 @@ func CompareResourceVersions(rvOld string, rvNew string) bool {
 	// Ignore oldRV error as we care about new RV
 	tempRvOld := ParseResourceVersion(rvOld)
 	tempRvnew := ParseResourceVersion(rvNew)
-	if tempRvnew > tempRvOld {
-		return true
-	}
-
-	return false
+	return tempRvnew > tempRvOld
 }
 
 // CompareUintResourceVersions take in two resource versions as uint and returns true if new is greater than old
 func CompareUintResourceVersions(rvOld uint64, rvNew uint64) bool {
-	if rvNew > rvOld {
-		return true
-	}
-
-	return false
+	return rvNew > rvOld
 }
 
 // ParseResourceVersion get uint64 version of ResourceVersion

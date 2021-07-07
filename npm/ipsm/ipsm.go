@@ -266,9 +266,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 	}
 
 	// Now cleanup the cache
-	if _, exists := ipsMgr.ListMap[listName].elements[setName]; exists {
-		delete(ipsMgr.ListMap[listName].elements, setName)
-	}
+	delete(ipsMgr.ListMap[listName].elements, setName)
 
 	if len(ipsMgr.ListMap[listName].elements) == 0 {
 		if err := ipsMgr.DeleteList(listName); err != nil {
