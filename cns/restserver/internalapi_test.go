@@ -30,16 +30,7 @@ const (
 )
 
 var (
-	dnsservers        = []string{"8.8.8.8", "8.8.4.4"}
-	hostSupportedApis = `<SupportedRequestTypes>
-							<type>GetSupportedApis</type>
-							<type>GetIpRangesV1</type>
-							<type>GetIpRangesV2</type>
-							<type>GetInterfaceInfoV1</type>
-							<type>PortContainerIOVInformationV1</type>
-							<type>NetworkManagement</type>
-							<type>NetworkManagementDNSSupport</type>
-						</SupportedRequestTypes>`
+	dnsservers = []string{"8.8.8.8", "8.8.4.4"}
 )
 
 func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
@@ -164,7 +155,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	if len(receivedSecondaryIPConfigs) != 1 {
 		t.Errorf("Unexpected receivedSecondaryIPConfigs length %d, expeted length is 1", len(receivedSecondaryIPConfigs))
 	}
-	for i, _ := range receivedSecondaryIPConfigs {
+	for i := range receivedSecondaryIPConfigs {
 		podIPConfigState := svc.PodIPConfigState[i]
 		if podIPConfigState.State != cns.PendingProgramming {
 			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, cns.PendingProgramming, podIPConfigState.State, podIPConfigState.IPAddress)
@@ -177,7 +168,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	if len(receivedSecondaryIPConfigs) != 1 {
 		t.Errorf("Unexpected receivedSecondaryIPConfigs length %d, expeted length is 1", len(receivedSecondaryIPConfigs))
 	}
-	for i, _ := range receivedSecondaryIPConfigs {
+	for i := range receivedSecondaryIPConfigs {
 		podIPConfigState := svc.PodIPConfigState[i]
 		if podIPConfigState.State != cns.Available {
 			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, cns.Available, podIPConfigState.State, podIPConfigState.IPAddress)
@@ -484,7 +475,7 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 	req.SecondaryIPConfigs = make(map[string]cns.SecondaryIPConfig)
 	for k, v := range secondaryIps {
 		req.SecondaryIPConfigs[k] = v
-		ipconfig, _ := req.SecondaryIPConfigs[k]
+		ipconfig := req.SecondaryIPConfigs[k]
 		ipconfig.NCVersion = ncVersionInInt
 	}
 

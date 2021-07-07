@@ -9,7 +9,6 @@ const (
 )
 
 type DescribeIPSetRequest struct {
-	ipsetname string `json:"name"`
 }
 
 type DescribeIPSetResponse struct {

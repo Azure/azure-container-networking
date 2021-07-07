@@ -41,28 +41,6 @@ var ipamQueryResponse = "" +
 	"	</Interface>" +
 	"</Interfaces>"
 
-var sampleCniReport = CNIReport{
-	IsNewInstance: false,
-	EventMessage:  "[azure-cns] Code:UnknownContainerID {IPConfiguration:{IPSubnet:{IPAddress: PrefixLength:0} DNSServers:[] GatewayIPAddress:} Routes:[] CnetAddressSpace:[] MultiTenancyInfo:{EncapType: ID:0} PrimaryInterfaceIdentifier: LocalIPConfiguration:{IPSubnet:{IPAddress: PrefixLength:0} DNSServers:[] GatewayIPAddress:} {ReturnCode:18 Message:NetworkContainer doesn't exist.}}.",
-	Timestamp:     "2019-02-27 17:44:47.319911225 +0000 UTC",
-	Metadata: common.Metadata{
-		Location:             "EastUS2EUAP",
-		VMName:               "k8s-agentpool1-65609007-0",
-		Offer:                "aks",
-		OsType:               "Linux",
-		PlacementGroupID:     "",
-		PlatformFaultDomain:  "0",
-		PlatformUpdateDomain: "0",
-		Publisher:            "microsoft-aks",
-		ResourceGroupName:    "rghostnetagttest",
-		Sku:                  "aks-ubuntu-1604-201811",
-		SubscriptionID:       "eff73b63-f38d-4cb5-bad1-21f273c1e36b",
-		Tags:                 "acsengineVersion:v0.25.0;creationSource:acsengine-k8s-agentpool1-65609007-0;orchestrator:Kubernetes:1.10.9;poolName:agentpool1;resourceNameSuffix:65609007",
-		OSVersion:            "2018.11.02",
-		VMID:                 "eff73b63-f38d-4cb5-bad1-21f273c1e36b",
-		VMSize:               "Standard_DS2_v2",
-		KernelVersion:        ""}}
-
 func TestMain(m *testing.M) {
 	u, _ := url.Parse("tcp://" + ipamQueryUrl)
 	ipamAgent, err := common.NewListener(u)

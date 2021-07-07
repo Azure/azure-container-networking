@@ -64,7 +64,6 @@ func (s *azureSource) start(sink addressConfigSink) error {
 // Stops the Azure source.
 func (s *azureSource) stop() {
 	s.sink = nil
-	return
 }
 
 // Refreshes configuration.

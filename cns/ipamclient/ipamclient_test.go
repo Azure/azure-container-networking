@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 )
 
-var mux *http.ServeMux
 var ipamQueryUrl = "localhost:42424"
 var ic *IpamClient
 

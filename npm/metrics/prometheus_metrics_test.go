@@ -22,7 +22,7 @@ func TestPrometheusNodeHandler(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	assert.Contains(string(rr.Body.Bytes()), fmt.Sprintf("%s_%s", namespace, addPolicyExecTimeName))
+	assert.Contains(rr.Body.String(), fmt.Sprintf("%s_%s", namespace, addPolicyExecTimeName))
 }
 
 // TODO: evaluate why cluster metrics are nil

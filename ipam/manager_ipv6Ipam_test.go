@@ -25,10 +25,7 @@ func TestManagerIpv6Ipam(t *testing.T) {
 }
 
 func createTestIpv6AddressManager() (AddressManager, error) {
-	var config common.PluginConfig
-	var options map[string]interface{}
-
-	options = make(map[string]interface{})
+	options := map[string]interface{}{}
 	options[common.OptEnvironment] = common.OptEnvironmentIPv6NodeIpam
 
 	am, err := NewAddressManager()
@@ -36,6 +33,7 @@ func createTestIpv6AddressManager() (AddressManager, error) {
 		return nil, err
 	}
 
+	var config common.PluginConfig
 	err = am.Initialize(&config, false, options)
 	if err != nil {
 		return nil, err

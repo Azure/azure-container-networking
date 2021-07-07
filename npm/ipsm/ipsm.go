@@ -457,8 +457,8 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	}
 
 	// possible formats
-	//192.168.0.1
-	//192.168.0.1,tcp:25227
+	// 192.168.0.1
+	// 192.168.0.1,tcp:25227
 	// todo: handle ip and port with protocol, plus just ip
 	// always guaranteed to have ip, not guaranteed to have port + protocol
 	ipDetails := strings.Split(ip, ",")
@@ -516,8 +516,8 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 	}
 
 	// possible formats
-	//192.168.0.1
-	//192.168.0.1,tcp:25227
+	// 192.168.0.1
+	// 192.168.0.1,tcp:25227
 	// todo: handle ip and port with protocol, plus just ip
 	// always guaranteed to have ip, not guaranteed to have port + protocol
 	ipDetails := strings.Split(ip, ",")

@@ -19,13 +19,12 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
-const (
-	ipamV6 = "azure-vnet-ipamv6"
-)
+const ipamV6 = "azure-vnet-ipamv6"
 
-var (
-	ipv4DefaultRouteDstPrefix = net.IPNet{net.IPv4zero, net.IPv4Mask(0, 0, 0, 0)}
-)
+var ipv4DefaultRouteDstPrefix = net.IPNet{
+	IP:   net.IPv4zero,
+	Mask: net.IPv4Mask(0, 0, 0, 0),
+}
 
 // IpamPlugin represents the CNI IPAM plugin.
 type ipamPlugin struct {

@@ -37,14 +37,14 @@ func LogsCNICmd() *cobra.Command {
 				for line := range t.Lines {
 					fmt.Println(line.Text)
 				}
-				if viper.GetBool(c.FlagFollow) == false {
+				if !viper.GetBool(c.FlagFollow) {
 					return nil
 				}
 			}
 		}}
 
-	cmd.Flags().BoolP(c.FlagFollow, "f", c.DefaultToggles[c.FlagFollow], fmt.Sprintf("Follow the log file, similar to 'tail -f'"))
-	cmd.Flags().String(c.FlagLogFilePath, c.Defaults[c.FlagLogFilePath], fmt.Sprintf("Path of the Azure CNI log file"))
+	cmd.Flags().BoolP(c.FlagFollow, "f", c.DefaultToggles[c.FlagFollow], "Follow the log file, similar to 'tail -f'")
+	cmd.Flags().String(c.FlagLogFilePath, c.Defaults[c.FlagLogFilePath], "Path of the Azure CNI log file")
 
 	return cmd
 }

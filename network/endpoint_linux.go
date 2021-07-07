@@ -20,9 +20,6 @@ const (
 
 	// Prefix for host virtual network interface names.
 	hostVEthInterfacePrefix = commonInterfacePrefix + "v"
-
-	// Prefix for container network interface names.
-	containerInterfacePrefix = "eth"
 )
 
 func generateVethName(key string) string {
