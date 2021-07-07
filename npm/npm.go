@@ -158,11 +158,8 @@ func (npMgr *NetworkPolicyManager) restore() {
 
 // backup takes snapshots of iptables filter table and saves it periodically.
 func (npMgr *NetworkPolicyManager) backup(stopCh <-chan struct{}) {
-	var (
-		err    error
-		iptMgr = iptm.NewIptablesManager()
-		ticker = time.NewTicker(time.Second * time.Duration(backupWaitTimeInSeconds))
-	)
+	iptMgr := iptm.NewIptablesManager()
+	ticker := time.NewTicker(time.Second * time.Duration(backupWaitTimeInSeconds))
 	defer ticker.Stop()
 
 	for {
@@ -170,7 +167,7 @@ func (npMgr *NetworkPolicyManager) backup(stopCh <-chan struct{}) {
 		case <-stopCh:
 			return
 		case <-ticker.C:
-			if err = iptMgr.Save(util.IptablesConfigFile); err != nil {
+			if err := iptMgr.Save(util.IptablesConfigFile); err != nil {
 				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states %s", err.Error())
 			}
 		}
@@ -290,9 +287,9 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 // reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
 func (npMgr *NetworkPolicyManager) reconcileChains(stopCh <-chan struct{}) {
 	iptMgr := iptm.NewIptablesManager()
-
 	ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-stopCh:
