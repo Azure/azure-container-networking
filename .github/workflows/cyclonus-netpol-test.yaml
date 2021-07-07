@@ -40,7 +40,7 @@ jobs:
       
       - name: Install Azure NPM
         run: |
-          sed -i 's/mcr.microsoft.com\/containernetworking\/azure-npm:v1.3.1/acnpublic.azurecr.io\/azure-npm:cyclonus/' ./npm/azure-npm.yaml
+          sed -i 's/mcr.microsoft.com\/containernetworking\/azure-npm:v1.4.1/acnpublic.azurecr.io\/azure-npm:cyclonus/' ./npm/azure-npm.yaml
           kind load docker-image acnpublic.azurecr.io/azure-npm:cyclonus --name npm-kind
           kubectl apply -f ./npm/azure-npm.yaml
     
