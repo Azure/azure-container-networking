@@ -343,7 +343,7 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 		},
 	}
 	comment = craftPartialIptablesCommentFromSelector("testnamespace", selector, false)
-	expectedComment = "k0:v0-AND-!k2-AND-k1:v10:v11-IN-ns-testnamespace"
+	expectedComment = "!k2-AND-k0:v0-AND-k1:v10:v11-IN-ns-testnamespace"
 	if comment != expectedComment {
 		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ normal selector comparison")
 		t.Errorf("comment:\n%v", comment)
@@ -371,7 +371,7 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 		},
 	}
 	comment = craftPartialIptablesCommentFromSelector("", nsSelector, true)
-	expectedComment = "ns-k0:v0-AND-ns-!k2-AND-ns-k1:v10:v11"
+	expectedComment = "ns-!k2-AND-ns-k0:v0-AND-ns-k1:v10:v11"
 	if comment != expectedComment {
 		t.Errorf("TestCraftPartialIptablesCommentFromSelector failed @ namespace selector comparison")
 		t.Errorf("comment:\n%v", comment)
@@ -425,7 +425,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"DROP-ALL-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"DROP-ALL-TO-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 	}
@@ -465,7 +465,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"DROP-ALL-FROM-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"DROP-ALL-FROM-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 	}
@@ -505,7 +505,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"DROP-ALL-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"DROP-ALL-TO-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -532,7 +532,7 @@ func TestGetDefaultDropEntries(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"DROP-ALL-FROM-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"DROP-ALL-FROM-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 	}
@@ -717,7 +717,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-app:db-AND-testIn:frontend-IN-ns-testnamespace-AND-TCP-PORT-6783-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"ALLOW-app:db-AND-testIn:frontend-IN-ns-testnamespace-AND-TCP-PORT-6783-TO-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -760,7 +760,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-ns:dev-AND-ns-testIn:frontendns-AND-TCP-PORT-6783-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"ALLOW-ns-ns:dev-AND-ns-testIn:frontendns-AND-TCP-PORT-6783-TO-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -814,7 +814,7 @@ func TestTranslateIngress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-AND-TCP-PORT-6783-TO-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"ALLOW-ns-keyExists-AND-ns-planet:earth-AND-!k-AND-region:northpole-AND-TCP-PORT-6783-TO-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 	}
@@ -1000,7 +1000,7 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-app:db-AND-testIn:frontend-IN-ns-testnamespace-AND-TCP-PORT-6783-FROM-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"ALLOW-app:db-AND-testIn:frontend-IN-ns-testnamespace-AND-TCP-PORT-6783-FROM-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -1043,7 +1043,7 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-ns:dev-AND-ns-testIn:frontendns-AND-TCP-PORT-6783-FROM-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace",
+				"ALLOW-ns-ns:dev-AND-ns-testIn:frontendns-AND-TCP-PORT-6783-FROM-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -1097,7 +1097,7 @@ func TestTranslateEgress(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-context:dev-AND-!testNotIn:frontend-IN-ns-testnamespace-TO-ns-planet:earth-AND-ns-keyExists-AND-region:northpole-AND-!k-AND-TCP-PORT-6783",
+				"ALLOW-!testNotIn:frontend-AND-context:dev-IN-ns-testnamespace-TO-ns-keyExists-AND-ns-planet:earth-AND-!k-AND-region:northpole-AND-TCP-PORT-6783",
 			},
 		},
 	}
@@ -1588,7 +1588,7 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-namespace:dev-AND-ns-!namespace:test0-TO-app:frontend-IN-ns-testnamespace",
+				"ALLOW-ns-!namespace:test0-AND-ns-namespace:dev-TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -1622,7 +1622,7 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-namespace:dev-AND-ns-!namespace:test1-TO-app:frontend-IN-ns-testnamespace",
+				"ALLOW-ns-!namespace:test1-AND-ns-namespace:dev-TO-app:frontend-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -1731,7 +1731,7 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-all-namespaces-TO-app:frontend-AND-!k0-AND-k1:v0:v1-IN-ns-testnamespace",
+				"ALLOW-all-namespaces-TO-!k0-AND-app:frontend-AND-k1:v0:v1-IN-ns-testnamespace",
 			},
 		},
 		&iptm.IptEntry{
@@ -1763,7 +1763,7 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"DROP-ALL-TO-app:frontend-AND-!k0-AND-k1:v0:v1-IN-ns-testnamespace",
+				"DROP-ALL-TO-!k0-AND-app:frontend-AND-k1:v0:v1-IN-ns-testnamespace",
 			},
 		},
 	}
