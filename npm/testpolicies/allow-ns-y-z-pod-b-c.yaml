@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ns-y-z-pod-b-c
+  namespace: netpol-4537-x
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchExpressions:
+        - key: ns
+          operator: NotIn
+          values:
+          - netpol-4537-x
+          - netpol-4537-y
+      podSelector:
+        matchExpressions:
+        - key: pod
+          operator: In
+          values:
+          - b
+          - c
+        - key: app
+          operator: In
+          values:
+          - test
+          - int
+  podSelector:
+    matchExpressions:
+    - key: pod
+      operator: In
+      values:
+      - a
+      - x
+  policyTypes:
+  - Ingress

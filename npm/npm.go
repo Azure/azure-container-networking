@@ -158,14 +158,19 @@ func (npMgr *NetworkPolicyManager) restore() {
 }
 
 // backup takes snapshots of iptables filter table and saves it periodically.
-func (npMgr *NetworkPolicyManager) backup() {
+func (npMgr *NetworkPolicyManager) backup(stopCh <-chan struct{}) {
 	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
-	var err error
-	for {
-		time.Sleep(backupWaitTimeInSeconds * time.Second)
+	ticker := time.NewTicker(time.Second * time.Duration(backupWaitTimeInSeconds))
+	defer ticker.Stop()
 
-		if err = iptMgr.Save(util.IptablesConfigFile); err != nil {
-			metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states")
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			if err := iptMgr.Save(util.IptablesConfigFile); err != nil {
+				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states %s", err.Error())
+			}
 		}
 	}
 }
@@ -195,8 +200,8 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	go npMgr.podController.Run(threadness, stopCh)
 	go npMgr.nameSpaceController.Run(threadness, stopCh)
 	go npMgr.netPolController.Run(threadness, stopCh)
-	go npMgr.reconcileChains()
-	go npMgr.backup()
+	go npMgr.reconcileChains(stopCh)
+	go npMgr.backup(stopCh)
 
 	return nil
 }
@@ -281,13 +286,19 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 }
 
 // reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
-func (npMgr *NetworkPolicyManager) reconcileChains() error {
+func (npMgr *NetworkPolicyManager) reconcileChains(stopCh <-chan struct{}) {
 	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
-	select {
-	case <-time.After(reconcileChainTimeInMinutes * time.Minute):
-		if err := iptMgr.CheckAndAddForwardChain(); err != nil {
-			return err
+	ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			if err := iptMgr.CheckAndAddForwardChain(); err != nil {
+				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to reconcileChains Azure-NPM due to %s", err.Error())
+			}
 		}
 	}
-	return nil
 }

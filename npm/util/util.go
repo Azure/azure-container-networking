@@ -322,3 +322,22 @@ func GetLabelKVFromSet(ipsetName string) (string, string) {
 	}
 	return strSplit[0], ""
 }
+
+// StrExistsInSlice check if a string already exists in a given slice
+func StrExistsInSlice(items []string, val string) bool {
+	for _, item := range items {
+		if item == val {
+			return true
+		}
+	}
+	return false
+}
+
+func CompareSlices(list1, list2 []string) bool {
+	for _, item := range list1 {
+		if !StrExistsInSlice(list2, item) {
+			return false
+		}
+	}
+	return true
+}
