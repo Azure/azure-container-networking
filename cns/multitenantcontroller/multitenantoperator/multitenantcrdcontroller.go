@@ -1,6 +1,7 @@
 package multitenantoperator
 
 import (
+	"context"
 	"errors"
 	"os"
 	"sync"
@@ -8,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	ncapi "github.com/Azure/azure-container-networking/crds/multitenantnetworkcontainer/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -25,8 +27,10 @@ const (
 	prometheusAddress = "0" //0 means disabled
 )
 
-// multiTenantController operates multi-tenant CRD.
-type multiTenantController struct {
+var _ (multitenantcontroller.RequestController) = (*requestController)(nil)
+
+// requestController operates multi-tenant CRD.
+type requestController struct {
 	mgr        manager.Manager //Manager starts the reconcile loop which watches for crd status changes
 	KubeClient client.Client   //KubeClient is a cached client which interacts with API server
 	CNSClient  cnsclient.APIClient
@@ -36,8 +40,8 @@ type multiTenantController struct {
 	lock       sync.Mutex
 }
 
-// MultiTenantController create a new multi-tenant CRD operator.
-func NewMultiTenantController(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*multiTenantController, error) {
+// New creates a new multi-tenant CRD operator.
+func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*requestController, error) {
 	// Check that logger package has been initialized.
 	if logger.Log == nil {
 		return nil, errors.New("Must initialize logger before calling")
@@ -87,7 +91,7 @@ func NewMultiTenantController(restService *restserver.HTTPRestService, kubeconfi
 	}
 
 	// Create the multiTenantController
-	return &multiTenantController{
+	return &requestController{
 		mgr:        mgr,
 		KubeClient: mgr.GetClient(),
 		CNSClient:  httpClient,
@@ -97,19 +101,17 @@ func NewMultiTenantController(restService *restserver.HTTPRestService, kubeconfi
 }
 
 // StartMultiTenantController starts the Reconciler loop which watches for CRD status updates.
-// Blocks until SIGINT or SIGTERM is received
-// Notifies exitChan when kill signal received
-func (mtc *multiTenantController) StartMultiTenantController(exitChan <-chan struct{}) error {
+func (rc *requestController) Start(ctx context.Context) error {
 	logger.Printf("Starting MultiTenantController")
 
 	// Setting the started state
-	mtc.lock.Lock()
-	mtc.Started = true
-	mtc.lock.Unlock()
+	rc.lock.Lock()
+	rc.Started = true
+	rc.lock.Unlock()
 
 	logger.Printf("Starting reconcile loop")
-	if err := mtc.mgr.Start(exitChan); err != nil {
-		if mtc.isNotDefined(err) {
+	if err := rc.mgr.Start(ctx.Done()); err != nil {
+		if rc.isNotDefined(err) {
 			logger.Errorf("multi-tenant CRD is not defined on cluster, starting reconcile loop failed: %v", err)
 			os.Exit(1)
 		}
@@ -120,15 +122,15 @@ func (mtc *multiTenantController) StartMultiTenantController(exitChan <-chan str
 	return nil
 }
 
-// return if RequestController is started
-func (mtc *multiTenantController) IsStarted() bool {
-	defer mtc.lock.Unlock()
-	mtc.lock.Lock()
-	return mtc.Started
+// IsStarted return if RequestController is started
+func (rc *requestController) IsStarted() bool {
+	rc.lock.Lock()
+	defer rc.lock.Unlock()
+	return rc.Started
 }
 
 // isNotDefined tells whether the given error is a CRD not defined error
-func (mtc *multiTenantController) isNotDefined(err error) bool {
+func (rc *requestController) isNotDefined(err error) bool {
 	var (
 		statusError *apierrors.StatusError
 		ok          bool

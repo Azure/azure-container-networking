@@ -4,7 +4,6 @@
 package networkcontainers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -45,8 +44,7 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 		}
 	}
 
-	var podInfo cns.KubernetesPodInfo
-	err := json.Unmarshal(createNetworkContainerRequest.OrchestratorContext, &podInfo)
+	podInfo, err := cns.UnmarshalPodInfo(createNetworkContainerRequest.OrchestratorContext)
 	if err != nil {
 		logger.Printf("[Azure CNS] Unmarshalling %s failed with error %v", createNetworkContainerRequest.NetworkContainerType, err)
 		return err
@@ -59,8 +57,8 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 		NetNS:       "", // Not needed for CNI update operation
 		IfName:      createNetworkContainerRequest.NetworkContainerid,
 		Args: [][2]string{
-			{k8sPodNamespaceStr, podInfo.PodNamespace},
-			{k8sPodNameStr, podInfo.PodName},
+			{k8sPodNamespaceStr, podInfo.Namespace()},
+			{k8sPodNameStr, podInfo.Name()},
 		},
 	}
 

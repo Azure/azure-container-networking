@@ -184,7 +184,7 @@ func main() {
 	// CNI Acquires lock
 	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 		log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
-		tb := telemetry.NewTelemetryBuffer("")
+		tb := telemetry.NewTelemetryBuffer()
 		if tberr := tb.Connect(); tberr == nil {
 			reportPluginError(reportManager, tb, err)
 			tb.Close()
@@ -212,7 +212,7 @@ func main() {
 
 	// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 	// end up creating/killing telemetry process results in undesired state.
-	tb := telemetry.NewTelemetryBuffer("")
+	tb := telemetry.NewTelemetryBuffer()
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 

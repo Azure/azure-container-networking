@@ -35,7 +35,7 @@ func (m *MockAPIClient) EXPECT() *MockAPIClientMockRecorder {
 }
 
 // ReconcileNCState mocks base method
-func (m *MockAPIClient) ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.KubernetesPodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
+func (m *MockAPIClient) ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReconcileNCState", nc, pods, scalar, spec)
 	ret0, _ := ret[0].(error)

@@ -351,10 +351,24 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 			return fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset named port %s with err: %v", set, err)
 		}
 	}
-	for _, list := range lists {
-		if err = ipsMgr.CreateList(list); err != nil {
-			return fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset list %s with err: %v", list, err)
+
+	// lists is a map with list name and members as value
+	// NPM will create the list first and increments the refer count
+	for listKey := range lists {
+		if err = ipsMgr.CreateList(listKey); err != nil {
+			return fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset list %s with err: %v", listKey, err)
 		}
+		ipsMgr.IpSetReferIncOrDec(listKey, util.IpsetSetListFlag, ipsm.IncrementOp)
+	}
+	// Then NPM will add members to the above list, this is to avoid members being added
+	// to lists before they are created.
+	for listKey, listLabelsMembers := range lists {
+		for _, listMember := range listLabelsMembers {
+			if err = ipsMgr.AddToList(listKey, listMember); err != nil {
+				return fmt.Errorf("[syncAddAndUpdateNetPol] Error: Adding ipset member %s to ipset list %s with err: %v", listMember, listKey, err)
+			}
+		}
+		ipsMgr.IpSetReferIncOrDec(listKey, util.IpsetSetListFlag, ipsm.IncrementOp)
 	}
 
 	if err = c.createCidrsRule("in", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, ingressIPCidrs, ipsMgr); err != nil {
@@ -385,13 +399,24 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	iptMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].iptMgr
 	// translate policy from "cachedNetPolObj"
-	_, _, _, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(cachedNetPolObj)
+	_, _, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(cachedNetPolObj)
 
 	var err error
 	// delete iptables entries
 	for _, iptEntry := range iptEntries {
 		if err = iptMgr.Delete(iptEntry); err != nil {
 			return fmt.Errorf("[cleanUpNetworkPolicy] Error: failed to apply iptables rule. Rule: %+v with err: %v", iptEntry, err)
+		}
+	}
+
+	// lists is a map with list name and members as value
+	for listKey := range lists {
+		// We do not have delete the members before deleting set as,
+		// 1. ipset allows deleting a ipset list with members
+		// 2. if the refer count is more than one we should not remove members
+		// 3. for reduced datapath operations
+		if err = ipsMgr.DeleteList(listKey); err != nil {
+			return fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset list %s with err: %v", listKey, err)
 		}
 	}
 

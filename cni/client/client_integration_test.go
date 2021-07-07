@@ -5,41 +5,63 @@ package client
 
 import (
 	"io"
+	"log"
 	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni/api"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	ver "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
 )
 
-// todo: enable this test in CI, requires built azure vnet
-func TestGetStateFromAzureCNI(t *testing.T) {
-	testutils.RequireRootforTest(t)
+const (
+	stateFilePath = "/var/run/azure-vnet.json"
+)
 
+func setTestFile() error {
+	var err error
 	// copy test state file to /var/run/azure-vnet.json
 	in, err := os.Open("./testresources/azure-vnet-test.json")
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 
-	defer in.Close()
-
-	out, err := os.Create("/var/run/azure-vnet.json")
-	require.NoError(t, err)
-
-	defer func() {
-		out.Close()
-		err := os.Remove("/var/run/azure-vnet.json")
-		require.NoError(t, err)
-	}()
+	out, err := os.Create(stateFilePath)
+	if err != nil {
+		return err
+	}
 
 	_, err = io.Copy(out, in)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 
-	out.Close()
+	return nil
+}
 
-	realexec := exec.New()
-	c := NewCNIClient(realexec)
+func cleanupTestFile() {
+	err := os.Remove(stateFilePath)
+	if err != nil {
+		log.Print(err)
+	}
+}
+
+func TestMain(m *testing.M) {
+	testutils.RequireRootforTestMain()
+	err := setTestFile()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	os.Exit(m.Run())
+	cleanupTestFile()
+}
+
+// todo: enable this test in CI, requires built azure vnet
+func TestGetStateFromAzureCNI(t *testing.T) {
+	c := New(exec.New())
 	state, err := c.GetEndpointState()
 	require.NoError(t, err)
 
@@ -51,4 +73,36 @@ func TestGetStateFromAzureCNI(t *testing.T) {
 	}
 
 	require.Exactly(t, res, state)
+}
+
+func TestGetVersion(t *testing.T) {
+	c := New(exec.New())
+	version, err := c.GetVersion()
+	require.NoError(t, err)
+
+	expectedVersion, err := ver.NewVersion("v1.4.0-2-g984c5a5e-dirty")
+	require.NoError(t, err)
+
+	require.Equal(t, expectedVersion, version)
+}
+
+func TestGetStateWithEmptyStateFile(t *testing.T) {
+	defer func() {
+		cleanupTestFile()
+		setTestFile()
+	}()
+
+	c := New(exec.New())
+
+	err := os.Remove(stateFilePath)
+	require.NoError(t, err)
+
+	out, err := os.Create(stateFilePath)
+	require.NoError(t, err)
+	out.Close()
+
+	state, err := c.GetEndpointState()
+	require.NoError(t, err)
+	require.Exactly(t, 0, len(state.ContainerInterfaces))
+
 }

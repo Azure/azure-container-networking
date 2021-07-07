@@ -34,6 +34,7 @@ const (
 // jsonFileStore is an implementation of KeyValueStore using a local JSON file.
 type jsonFileStore struct {
 	fileName string
+	lockFileName string
 	data     map[string]*json.RawMessage
 	inSync   bool
 	locked   bool
@@ -46,8 +47,16 @@ func NewJsonFileStore(fileName string) (KeyValueStore, error) {
 		fileName = defaultFileName
 	}
 
+	if platform.CNILockPath != "" {
+		err := os.MkdirAll(platform.CNILockPath, os.FileMode(0664))
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	kvs := &jsonFileStore{
 		fileName: fileName,
+		lockFileName: platform.CNILockPath + filepath.Base(fileName) + lockExtension,
 		data:     make(map[string]*json.RawMessage),
 	}
 
@@ -71,8 +80,18 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 		}
 		defer file.Close()
 
+		b, err := ioutil.ReadAll(file)
+		if err != nil {
+			return err
+		}
+
+		if len(b) == 0 {
+			log.Printf("Unable to read file %s, was empty", kvs.fileName)
+			return ErrStoreEmpty
+		}
+
 		// Decode to raw JSON messages.
-		if err := json.NewDecoder(file).Decode(&kvs.data); err != nil {
+		if err := json.Unmarshal(b, &kvs.data); err != nil {
 			return err
 		}
 
@@ -166,7 +185,6 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 
 	var lockFile *os.File
 	var err error
-	lockName := kvs.fileName + lockExtension
 	lockPerm := os.FileMode(0664) + os.FileMode(os.ModeExclusive)
 
 	// Try to acquire the lock file.
@@ -174,7 +192,7 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 	var modTimeCur time.Time
 	var modTimePrev time.Time
 	for lockRetryCount < lockMaxRetries {
-		lockFile, err = os.OpenFile(lockName, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
+		lockFile, err = os.OpenFile(kvs.lockFileName, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
 		if err == nil {
 			break
 		}
@@ -184,7 +202,7 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 		}
 
 		// Reset the lock retry count if the timestamp for the lock file changes.
-		if fileInfo, err := os.Stat(lockName); err == nil {
+		if fileInfo, err := os.Stat(kvs.lockFileName); err == nil {
 			modTimeCur = fileInfo.ModTime()
 			if !modTimeCur.Equal(modTimePrev) {
 				lockRetryCount = 0
@@ -222,7 +240,7 @@ func (kvs *jsonFileStore) Unlock(forceUnlock bool) error {
 		return ErrStoreNotLocked
 	}
 
-	err := os.Remove(kvs.fileName + lockExtension)
+	err := os.Remove(kvs.lockFileName)
 	if err != nil {
 		return err
 	}
@@ -252,19 +270,17 @@ func (kvs *jsonFileStore) GetLockFileModificationTime() (time.Time, error) {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
 
-	lockFileName := kvs.fileName + lockExtension
-
 	// Check if the file exists.
-	file, err := os.Open(lockFileName)
+	file, err := os.Open(kvs.lockFileName)
 	if err != nil {
 		return time.Time{}.UTC(), err
 	}
 
 	defer file.Close()
 
-	info, err := os.Stat(lockFileName)
+	info, err := os.Stat(kvs.lockFileName)
 	if err != nil {
-		log.Printf("os.stat() for file %v failed: %v", lockFileName, err)
+		log.Printf("os.stat() for file %v failed: %v", kvs.lockFileName, err)
 		return time.Time{}.UTC(), err
 	}
 
@@ -272,7 +288,7 @@ func (kvs *jsonFileStore) GetLockFileModificationTime() (time.Time, error) {
 }
 
 func (kvs *jsonFileStore) GetLockFileName() string {
-	return kvs.fileName + lockExtension
+	return kvs.lockFileName
 }
 
 func (kvs *jsonFileStore) Remove() {

@@ -123,6 +123,9 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 			log.Printf("[net] network store key not found")
 			// Considered successful.
 			return nil
+		} else if err == store.ErrStoreEmpty {
+			log.Printf("[net] network store empty")
+			return nil
 		} else {
 			log.Printf("[net] Failed to restore state, err:%v\n", err)
 			return err
@@ -384,12 +387,18 @@ func (nm *networkManager) GetAllEndpoints(networkId string) (map[string]*Endpoin
 	nm.Lock()
 	defer nm.Unlock()
 
+	eps := make(map[string]*EndpointInfo)
+
+	// Special case when CNS invokes CNI, but there is no state, but return gracefully
+	if len(nm.ExternalInterfaces) == 0 {
+		log.Printf("Network manager has no external interfaces, is the state file populated?")
+		return eps, store.ErrStoreEmpty
+	}
+
 	nw, err := nm.getNetwork(networkId)
 	if err != nil {
 		return nil, err
 	}
-
-	eps := make(map[string]*EndpointInfo)
 
 	for epid, ep := range nw.Endpoints {
 		eps[epid] = ep.getInfo()

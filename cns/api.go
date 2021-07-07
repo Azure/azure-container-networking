@@ -36,7 +36,7 @@ const (
 // HTTPService describes the min API interface that every service should have.
 type HTTPService interface {
 	common.ServiceAPI
-	SendNCSnapShotPeriodically(int, chan bool)
+	SendNCSnapShotPeriodically(context.Context, int)
 	SetNodeOrchestrator(*SetOrchestratorTypeRequest)
 	SyncNodeStatus(string, string, string, json.RawMessage) (int, string)
 	GetPendingProgramIPConfigs() []IPConfigurationStatus
@@ -50,16 +50,55 @@ type HTTPService interface {
 // This is used for KubernetesCRD orchestrator Type where NC has multiple ips.
 // This struct captures the state for SecondaryIPs associated to a given NC
 type IPConfigurationStatus struct {
-	NCID                string
-	ID                  string //uuid
-	IPAddress           string
-	State               string
-	OrchestratorContext json.RawMessage
+	NCID      string
+	ID        string //uuid
+	IPAddress string
+	State     string
+	PodInfo   PodInfo
 }
 
 func (i IPConfigurationStatus) String() string {
-	return fmt.Sprintf("IPConfigurationStatus: Id: [%s], NcId: [%s], IpAddress: [%s], State: [%s], OrchestratorContext: [%s]",
-		i.ID, i.NCID, i.IPAddress, i.State, string(i.OrchestratorContext))
+	return fmt.Sprintf("IPConfigurationStatus: Id: [%s], NcId: [%s], IpAddress: [%s], State: [%s], PodInfo: [%v]",
+		i.ID, i.NCID, i.IPAddress, i.State, i.PodInfo)
+}
+
+// UnmarshalJSON is a custom unmarshaller for IPConfigurationStatus that
+// is capable of unmarshalling to interface type `PodInfo` contained in the
+// struct. Without this custom unmarshaller, the default unmarshaller can't
+// deserialize the json data in to that interface type.
+func (i *IPConfigurationStatus) UnmarshalJSON(b []byte) error {
+	m := map[string]json.RawMessage{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	if s, ok := m["NCID"]; ok {
+		if err := json.Unmarshal(s, &(i.NCID)); err != nil {
+			return err
+		}
+	}
+	if s, ok := m["ID"]; ok {
+		if err := json.Unmarshal(s, &(i.ID)); err != nil {
+			return err
+		}
+	}
+	if s, ok := m["IPAddress"]; ok {
+		if err := json.Unmarshal(s, &(i.IPAddress)); err != nil {
+			return err
+		}
+	}
+	if s, ok := m["State"]; ok {
+		if err := json.Unmarshal(s, &(i.State)); err != nil {
+			return err
+		}
+	}
+	if s, ok := m["PodInfo"]; ok {
+		pi, err := UnmarshalPodInfo(s)
+		if err != nil {
+			return err
+		}
+		i.PodInfo = pi
+	}
+	return nil
 }
 
 // SetEnvironmentRequest describes the Request to set the environment in CNS.

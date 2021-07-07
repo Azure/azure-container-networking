@@ -2,6 +2,7 @@ package multitenantoperator
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"strings"
 
@@ -88,6 +89,17 @@ func (r *multiTenantCrdReconciler) Reconcile(request reconcile.Request) (reconci
 		return ctrl.Result{}, err
 	}
 
+	// Parse KubernetesPodInfo as orchestratorContext.
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      nc.Name,
+		PodNamespace: nc.Namespace,
+	}
+	orchestratorContext, err := json.Marshal(podInfo)
+	if err != nil {
+		logger.Errorf("Failed to marshal podInfo (%v): %v", podInfo, err)
+		return ctrl.Result{}, err
+	}
+
 	// Persist NC states into CNS.
 	_, ipNet, err := net.ParseCIDR(nc.Status.IPSubnet)
 	if err != nil {
@@ -96,7 +108,8 @@ func (r *multiTenantCrdReconciler) Reconcile(request reconcile.Request) (reconci
 	}
 	prefixLength, _ := ipNet.Mask.Size()
 	networkContainerRequest := cns.CreateNetworkContainerRequest{
-		NetworkContainerid: nc.Spec.UUID,
+		NetworkContainerid:  nc.Spec.UUID,
+		OrchestratorContext: orchestratorContext,
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
 				IPAddress:    nc.Status.IP,

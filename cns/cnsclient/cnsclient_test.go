@@ -299,7 +299,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
+	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		t.Fatal(err)
@@ -339,7 +339,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
+	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		t.Fatal(err)
@@ -357,7 +357,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 		t.Errorf("Get in-memory http REST Struct failed %+v", err)
 	}
 
-	if len(inmemory.HttpRestServiceData.PodIPIDByOrchestratorContext) < 1 {
+	if len(inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
 		t.Errorf("OrchestratorContext map is expected but not returned")
 	}
 
@@ -392,7 +392,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 
 	t.Logf("In-memory Data: ")
-	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HttpRestServiceData.PodIPIDByOrchestratorContext)
+	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey)
 	t.Logf("PodIPConfigState: %+v", inmemory.HttpRestServiceData.PodIPConfigState)
 	t.Logf("IPAMPoolMonitor: %+v", inmemory.HttpRestServiceData.IPAMPoolMonitor)
 

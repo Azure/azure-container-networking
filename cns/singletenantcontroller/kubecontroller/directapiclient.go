@@ -18,13 +18,13 @@ type APIDirectClient struct {
 }
 
 // ListPods lists all pods in the given namespace and node
-func (apiClient *APIDirectClient) ListPods(cntxt context.Context, namespace, node string) (*corev1.PodList, error) {
+func (apiClient *APIDirectClient) ListPods(ctx context.Context, namespace, node string) (*corev1.PodList, error) {
 	var (
 		pods *corev1.PodList
 		err  error
 	)
 
-	pods, err = apiClient.clientset.CoreV1().Pods(namespace).List(cntxt, metav1.ListOptions{
+	pods, err = apiClient.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		FieldSelector: "spec.nodeName=" + node,
 	})
 

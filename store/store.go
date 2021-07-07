@@ -26,6 +26,7 @@ var (
 	ErrKeyNotFound                    = fmt.Errorf("key not found")
 	ErrStoreLocked                    = fmt.Errorf("store is already locked")
 	ErrStoreNotLocked                 = fmt.Errorf("store is not locked")
+	ErrStoreEmpty                     = fmt.Errorf("store is empty")
 	ErrTimeoutLockingStore            = fmt.Errorf("timed out locking store")
 	ErrNonBlockingLockIsAlreadyLocked = fmt.Errorf("attempted to perform non-blocking lock on an already locked store")
 )

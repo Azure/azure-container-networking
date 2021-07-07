@@ -36,17 +36,17 @@ var (
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
-	dockerClient                 *dockerclient.DockerClient
-	imdsClient                   imdsclient.ImdsClientInterface
-	ipamClient                   *ipamclient.IpamClient
-	nmagentClient                nmagentclient.NMAgentClientInterface
-	networkContainer             *networkcontainers.NetworkContainers
-	PodIPIDByOrchestratorContext map[string]string                    // OrchestratorContext is key and value is Pod IP uuid.
-	PodIPConfigState             map[string]cns.IPConfigurationStatus // seondaryipid(uuid) is key
-	IPAMPoolMonitor              cns.IPAMPoolMonitor
-	routingTable                 *routes.RoutingTable
-	store                        store.KeyValueStore
-	state                        *httpRestServiceState
+	dockerClient             *dockerclient.DockerClient
+	imdsClient               imdsclient.ImdsClientInterface
+	ipamClient               *ipamclient.IpamClient
+	nmagentClient            nmagentclient.NMAgentClientInterface
+	networkContainer         *networkcontainers.NetworkContainers
+	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
+	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
+	IPAMPoolMonitor          cns.IPAMPoolMonitor
+	routingTable             *routes.RoutingTable
+	store                    store.KeyValueStore
+	state                    *httpRestServiceState
 	sync.RWMutex
 	dncPartitionKey string
 }
@@ -58,9 +58,9 @@ type GetHTTPServiceDataResponse struct {
 
 //struct to return in-memory httprest data in debug api
 type HttpRestServiceData struct {
-	PodIPIDByOrchestratorContext map[string]string                    // OrchestratorContext is key and value is Pod IP uuid.
-	PodIPConfigState             map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
-	IPAMPoolMonitor              cns.IpamPoolMonitorStateSnapshot
+	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP uuid.
+	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
+	IPAMPoolMonitor          cns.IpamPoolMonitorStateSnapshot
 }
 
 type Response struct {
@@ -122,21 +122,21 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 	serviceState.Networks = make(map[string]*networkInfo)
 	serviceState.joinedNetworks = make(map[string]struct{})
 
-	podIPIDByOrchestratorContext := make(map[string]string)
+	podIPIDByPodInterfaceKey := make(map[string]string)
 	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
 
 	return &HTTPRestService{
-		Service:                      service,
-		store:                        service.Service.Store,
-		dockerClient:                 dc,
-		imdsClient:                   imdsClient,
-		ipamClient:                   ic,
-		nmagentClient:                nmagentClient,
-		networkContainer:             nc,
-		PodIPIDByOrchestratorContext: podIPIDByOrchestratorContext,
-		PodIPConfigState:             podIPConfigState,
-		routingTable:                 routingTable,
-		state:                        serviceState,
+		Service:                  service,
+		store:                    service.Service.Store,
+		dockerClient:             dc,
+		imdsClient:               imdsClient,
+		ipamClient:               ic,
+		nmagentClient:            nmagentClient,
+		networkContainer:         nc,
+		PodIPIDByPodInterfaceKey: podIPIDByPodInterfaceKey,
+		PodIPConfigState:         podIPConfigState,
+		routingTable:             routingTable,
+		state:                    serviceState,
 	}, nil
 }
 
