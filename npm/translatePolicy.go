@@ -3,7 +3,9 @@
 package npm
 
 import (
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/iptm"
@@ -191,7 +193,7 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 		ops = append(ops, op)
 	}
 
-	var comment, prefix, postfix string
+	var prefix, postfix string
 	if isNamespaceSelector {
 		prefix = "ns-"
 	} else {
@@ -200,11 +202,13 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 		}
 	}
 
-	for i, _ := range labelsWithoutOps {
-		comment += prefix + ops[i] + labelsWithoutOps[i]
-		comment += "-AND-"
+	comments := []string{}
+	for i := range labelsWithoutOps {
+		comments = append(comments, prefix+ops[i]+labelsWithoutOps[i])
 	}
 
+	sort.Strings(comments)
+	comment := strings.Join(comments, "-AND-") + "-AND-"
 	return comment[:len(comment)-len("-AND-")] + postfix
 }
 

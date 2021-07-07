@@ -2473,7 +2473,7 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-!ns:netpol-4537-x-AND-pod:b:c-AND-app:test:int-TO-pod:a:x-IN-ns-netpol-4537-x",
+				"ALLOW-ns-!ns:netpol-4537-x-AND-app:test:int-AND-pod:b:c-TO-pod:a:x-IN-ns-netpol-4537-x",
 			},
 		},
 		&iptm.IptEntry{
@@ -2512,7 +2512,7 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 				util.IptablesModuleFlag,
 				util.IptablesCommentModuleFlag,
 				util.IptablesCommentFlag,
-				"ALLOW-ns-!ns:netpol-4537-y-AND-pod:b:c-AND-app:test:int-TO-pod:a:x-IN-ns-netpol-4537-x",
+				"ALLOW-ns-!ns:netpol-4537-y-AND-app:test:int-AND-pod:b:c-TO-pod:a:x-IN-ns-netpol-4537-x",
 			},
 		},
 	}
