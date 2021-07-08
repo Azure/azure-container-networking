@@ -189,7 +189,7 @@ func BlockIPAddresses(bridgeName string, action string) error {
 func EnableIPForwarding(ifName string) error {
 	// Enable ip forwading on linux vm.
 	// sysctl -w net.ipv4.ip_forward=1
-	cmd := fmt.Sprintf(enableIPForwardCmd)
+	cmd := fmt.Sprint(enableIPForwardCmd)
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[net] Enable ipforwarding failed with: %v", err)
@@ -206,7 +206,7 @@ func EnableIPForwarding(ifName string) error {
 }
 
 func EnableIPV6Forwarding() error {
-	cmd := fmt.Sprintf(enableIPV6ForwardCmd)
+	cmd := fmt.Sprint(enableIPV6ForwardCmd)
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[net] Enable ipv6 forwarding failed with: %v", err)

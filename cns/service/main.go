@@ -48,7 +48,6 @@ const (
 	name                              = "azure-cns"
 	pluginName                        = "azure-vnet"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
-	configFileName                    = "config.json"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
 
@@ -321,19 +320,14 @@ func sendRegisterNodeRequest(
 	nodeRegisterRequest cns.NodeRegisterRequest,
 	registerURL string) (bool, error) {
 
-	var (
-		body     bytes.Buffer
-		response *http.Response
-		err      = fmt.Errorf("")
-	)
-
-	err = json.NewEncoder(&body).Encode(nodeRegisterRequest)
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
 		log.Errorf("[Azure CNS] Failed to register node while encoding json failed with non-retriable err %v", err)
 		return false, err
 	}
 
-	response, err = httpc.Post(registerURL, "application/json", &body)
+	response, err := httpc.Post(registerURL, "application/json", &body)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to register node with retriable err: %+v", err)
 		return false, nil
@@ -610,10 +604,8 @@ func main() {
 			// Periodically poll DNC for node updates
 			tickerChannel := time.Tick(time.Duration(cnsconfig.ManagedSettings.NodeSyncIntervalInSeconds) * time.Second)
 			for {
-				select {
-				case <-tickerChannel:
-					httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
-				}
+				<-tickerChannel
+				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
 			}
 		}(privateEndpoint, infravnet, nodeID)
 	}

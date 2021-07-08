@@ -195,7 +195,9 @@ func read(conn net.Conn) (b []byte, err error) {
 
 // Write - write to the file descriptor
 func (tb *TelemetryBuffer) Write(b []byte) (c int, err error) {
-	b = append(b, Delimiter)
+	buf := make([]byte, len(b))
+	copy(b, buf)
+	b = append(buf, Delimiter)
 	w := bufio.NewWriter(tb.client)
 	c, err = w.Write(b)
 	if err == nil {
@@ -254,15 +256,13 @@ func push(x interface{}) {
 		kvs.Unlock(true)
 	}
 
-	switch x.(type) {
+	switch y := x.(type) {
 	case CNIReport:
-		cniReport := x.(CNIReport)
-		cniReport.Metadata = metadata
-		SendAITelemetry(cniReport)
+		y.Metadata = metadata
+		SendAITelemetry(y)
 
 	case AIMetric:
-		aiMetric := x.(AIMetric)
-		SendAIMetric(aiMetric)
+		SendAIMetric(y)
 	}
 }
 

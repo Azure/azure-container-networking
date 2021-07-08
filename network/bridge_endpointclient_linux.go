@@ -44,9 +44,7 @@ func NewLinuxBridgeEndpointClient(
 		mode:              mode,
 	}
 
-	for _, ipAddr := range extIf.IPAddresses {
-		client.hostIPAddresses = append(client.hostIPAddresses, ipAddr)
-	}
+	client.hostIPAddresses = append(client.hostIPAddresses, extIf.IPAddresses...)
 
 	return client
 }
