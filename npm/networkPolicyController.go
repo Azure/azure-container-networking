@@ -282,7 +282,7 @@ func (c *networkPolicyController) initializeDefaultAzureNpmChain() error {
 
 	ipsMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].IpsMgr
 	iptMgr := c.npMgr.NsMap[util.KubeAllNamespacesFlag].iptMgr
-	if err := ipsMgr.CreateSet(util.KubeSystemFlag, append([]string{util.IpsetNetHashFlag})); err != nil {
+	if err := ipsMgr.CreateSet(util.KubeSystemFlag, []string{util.IpsetNetHashFlag}); err != nil {
 		return fmt.Errorf("[initializeDefaultAzureNpmChain] Error: failed to initialize kube-system ipset with err %s", err)
 	}
 	if err := iptMgr.InitNpmChains(); err != nil {
@@ -341,13 +341,13 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(netPolObj)
 	for _, set := range sets {
 		klog.Infof("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
-		if err = ipsMgr.CreateSet(set, append([]string{util.IpsetNetHashFlag})); err != nil {
+		if err = ipsMgr.CreateSet(set, []string{util.IpsetNetHashFlag}); err != nil {
 			return fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset %s with err: %v", set, err)
 		}
 	}
 	for _, set := range namedPorts {
 		klog.Infof("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
-		if err = ipsMgr.CreateSet(set, append([]string{util.IpsetIPPortHashFlag})); err != nil {
+		if err = ipsMgr.CreateSet(set, []string{util.IpsetIPPortHashFlag}); err != nil {
 			return fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset named port %s with err: %v", set, err)
 		}
 	}
@@ -451,10 +451,10 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 }
 
 func (c *networkPolicyController) createCidrsRule(ingressOrEgress, policyName, ns string, ipsetEntries [][]string, ipsMgr *ipsm.IpsetManager) error {
-	spec := append([]string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum})
+	spec := []string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum}
 
 	for i, ipCidrSet := range ipsetEntries {
-		if ipCidrSet == nil || len(ipCidrSet) == 0 {
+		if len(ipCidrSet) == 0 {
 			continue
 		}
 		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + ingressOrEgress
@@ -485,7 +485,7 @@ func (c *networkPolicyController) createCidrsRule(ingressOrEgress, policyName, n
 
 func (c *networkPolicyController) removeCidrsRule(ingressOrEgress, policyName, ns string, ipsetEntries [][]string, ipsMgr *ipsm.IpsetManager) error {
 	for i, ipCidrSet := range ipsetEntries {
-		if ipCidrSet == nil || len(ipCidrSet) == 0 {
+		if len(ipCidrSet) == 0 {
 			continue
 		}
 		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + ingressOrEgress

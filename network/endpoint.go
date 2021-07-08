@@ -218,13 +218,9 @@ func (ep *endpoint) getInfo() *EndpointInfo {
 		NetworkContainerID:       ep.NetworkContainerID,
 	}
 
-	for _, route := range ep.Routes {
-		info.Routes = append(info.Routes, route)
-	}
+	info.Routes = append(info.Routes, ep.Routes...)
 
-	for _, gw := range ep.Gateways {
-		info.Gateways = append(info.Gateways, gw)
-	}
+	info.Gateways = append(info.Gateways, ep.Gateways...)
 
 	// Call the platform implementation.
 	ep.getInfoImpl(info)

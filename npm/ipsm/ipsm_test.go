@@ -220,18 +220,17 @@ func TestCreateSet(t *testing.T) {
 	require.NoError(t, err)
 
 	spec := []string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum}
-	err = ipsMgr.CreateSet(testSet2Name, spec)
-	require.NoError(t, err)
+	if err := ipsMgr.CreateSet(testSet2Name, spec); err != nil {
+		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when set maxelem")
+	}
 
-	spec = append([]string{util.IpsetIPPortHashFlag})
-	err = ipsMgr.CreateSet(testSet3Name, spec)
-	require.NoError(t, err)
-
-	err = ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0") // test bad formatting
-	require.Error(t, err)
-
-	err = ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s,%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0")
-	require.NoError(t, err)
+	spec = []string{util.IpsetIPPortHashFlag}
+	if err := ipsMgr.CreateSet(testSet3Name, spec); err != nil {
+		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when creating port set")
+	}
+	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err != nil {
+		t.Errorf("AddToSet failed @ ipsMgr.CreateSet when set port")
+	}
 
 	newGaugeVal, err3 := promutil.GetValue(metrics.NumIPSets)
 	newCountVal, err4 := promutil.GetCountValue(metrics.AddIPSetExecTime)
