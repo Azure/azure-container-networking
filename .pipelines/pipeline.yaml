@@ -41,7 +41,6 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
-
           - script: |
               GOOS=windows make all-binaries VERSION=$(TAG)
             name: "BuildWindows"

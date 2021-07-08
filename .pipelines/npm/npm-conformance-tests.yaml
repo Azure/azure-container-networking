@@ -87,6 +87,7 @@ jobs:
     displayName: 'Clone Kubernetes Repo'
   - bash: |
       cd kubernetes
+      git checkout vakr/sleepinnpmtests
       export PATH=$PATH:/usr/local/go/bin/
       make WHAT=test/e2e/e2e.test
     displayName: 'Build Kubernetes e2e.test'
