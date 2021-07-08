@@ -208,8 +208,7 @@ func craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSe
 	}
 
 	sort.Strings(comments)
-	comment := strings.Join(comments, "-AND-") + "-AND-"
-	return comment[:len(comment)-len("-AND-")] + postfix
+	return strings.Join(comments, "-AND-") + postfix
 }
 
 func appendSelectorLabelsToLists(lists, listLabelsWithMembers map[string][]string, isNamespaceSelector bool) {
