@@ -2,6 +2,7 @@ package platform
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -46,7 +47,7 @@ func CheckIfFileExists(filepath string) (bool, error) {
 		return true, nil
 	}
 
-	if os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
 
@@ -70,4 +71,25 @@ func CreateDirectory(dirPath string) error {
 	}
 
 	return err
+}
+
+// Copy opens the two files specified and copies the contents of the
+// source file in to the destination file.
+func Copy(sourceFilename, destinationFilename string) error {
+	src, err := os.Open(sourceFilename)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	dest, err := os.Open(destinationFilename)
+	if err != nil {
+		return err
+	}
+	defer dest.Close()
+
+	if _, err := io.Copy(dest, src); err != nil {
+		return err
+	}
+	return dest.Sync()
 }

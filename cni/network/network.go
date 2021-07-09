@@ -6,6 +6,7 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -135,7 +136,7 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	// Initialize base plugin.
 	err := plugin.Initialize(config)
 	if err != nil {
-		log.Printf("[cni-net] Failed to initialize base plugin, err:%v.", err)
+		log.Printf("[cni-net] Failed to initialize base plugin, err: %v.", err)
 		return err
 	}
 
@@ -295,13 +296,13 @@ func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
 	}
 }
 
-func acquireLockForStore(config *common.PluginConfig, plugin *netPlugin) error {
+func (plugin *netPlugin) acquireLockForStore() error {
 	var err error
 	if err = plugin.Store.Lock(true); err != nil {
 		log.Printf("[CNI] Failed to lock store: %v. check if process running", err)
 		if isSafe, _ := plugin.IsSafeToRemoveLock(azureCniName); isSafe {
 			log.Printf("[CNI] Removing lock file as process holding lock exited")
-			if err = releaseLockForStore(plugin); err != nil {
+			if err = plugin.releaseLockForStore(); err != nil {
 				log.Errorf("Failed to release lock file, err:%v.\n", err)
 			}
 		}
@@ -310,7 +311,7 @@ func acquireLockForStore(config *common.PluginConfig, plugin *netPlugin) error {
 	return err
 }
 
-func releaseLockForStore(plugin *netPlugin) error {
+func (plugin *netPlugin) releaseLockForStore() error {
 	if plugin.Store != nil {
 		err := plugin.Store.Unlock(false)
 		if err != nil {
@@ -322,6 +323,63 @@ func releaseLockForStore(plugin *netPlugin) error {
 	log.Printf("Released lock file")
 	return nil
 }
+
+// MigrateKeyValueStore attempts to idempotently migrate a kvstore at the
+// legacy location in to the new location as a one-time operation. If a
+// migration is not necessary, returns nil. If a migration is required but
+// does not succeed for any reason, returns an error.
+func (plugin *netPlugin) MigrateKeyValueStore() error {
+	filename := platform.CNIRuntimePath + plugin.Name + ".json"
+	legacyFilename := platform.LegacyCNIRuntimePath + plugin.Name + ".json"
+
+	if plugin.Store == nil {
+		return errors.New("kvstore is not initialized")
+	}
+
+	// test if the backing state file exists in the current location
+	// if it does, no migration is necessary
+	ok, err := platform.CheckIfFileExists(filename)
+	if err != nil {
+		return fmt.Errorf("error checking current file store location %s: %w", filename, err)
+	}
+	if ok {
+		return nil
+	}
+
+	// a current statefile does not exists, so we need to check the legacy
+	// location to see if there is one there to migrate
+	// if it does not, no migration is necessary
+	ok, err = platform.CheckIfFileExists(legacyFilename)
+	if err != nil {
+		return fmt.Errorf("error checking legacy file store location %s: %w", legacyFilename, err)
+	}
+	if !ok {
+		return nil
+	}
+
+	// there is no current statefile, but there is a legacy one
+	// attempt to migrate
+
+	// take the lock
+	if err := plugin.acquireLockForStore(); err != nil {
+		return fmt.Errorf("error locking store for migration: %w", err)
+	}
+	defer plugin.releaseLockForStore()
+
+	// check the current location again in case someone else wrote it
+	// before we got the lock
+	ok, err = platform.CheckIfFileExists(filename)
+	if err != nil {
+		return fmt.Errorf("error checking current file store location %s after lock: %w", filename, err)
+	}
+	if ok {
+		return nil
+	}
+
+	// we have the lock and still require a migration
+	return platform.Copy(legacyFilename, filename)
+}
+
 //
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
@@ -373,12 +431,12 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	// acquire cni lock file
 	// TODO: check if we need pluginconfig and if not remove it
 	config := &common.PluginConfig{Store: plugin.Store}
-	if err := acquireLockForStore(config, plugin); err != nil {
+	if err := plugin.acquireLockForStore(); err != nil {
 		log.Errorf("Couldn't acquire lock: %+v", err)
 		return err
 	}
 
-	defer releaseLockForStore(plugin)
+	defer plugin.releaseLockForStore()
 
 	// restore network state
 	if err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot); err != nil {
@@ -812,12 +870,12 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
 	config := &common.PluginConfig{Store: plugin.Store}
-	if err := acquireLockForStore(config, plugin); err != nil {
+	if err := plugin.acquireLockForStore(); err != nil {
 		log.Errorf("Couldn't acquire lock: %+v", err)
 		return err
 	}
 
-	defer releaseLockForStore(plugin)
+	defer plugin.releaseLockForStore()
 
 	// restore network state
 	if err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot); err != nil {
@@ -912,12 +970,12 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	// acquire cni lock file
 	config := &common.PluginConfig{Store: plugin.Store}
-	if err := acquireLockForStore(config, plugin); err != nil {
+	if err := plugin.acquireLockForStore(); err != nil {
 		log.Errorf("Couldn't acquire lock: %+v", err)
 		return err
 	}
 
-	defer releaseLockForStore(plugin)
+	defer plugin.releaseLockForStore()
 
 	// restore network state
 	if err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot); err != nil {
@@ -1089,12 +1147,12 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 
 	// acquire cni lock file
 	config := &common.PluginConfig{Store: plugin.Store}
-	if err := acquireLockForStore(config, plugin); err != nil {
+	if err := plugin.acquireLockForStore(); err != nil {
 		log.Errorf("Couldn't acquire lock: %+v", err)
 		return err
 	}
 
-	defer releaseLockForStore(plugin)
+	defer plugin.releaseLockForStore()
 
 	// restore network state
 	if err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot); err != nil {

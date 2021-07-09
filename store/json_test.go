@@ -12,7 +12,7 @@ import (
 
 const (
 	// File name used for test store.
-	testFileName = "test.json"
+	testFileName     = "test.json"
 	testLockFileName = "locktest.json"
 	// Keys used during tests.
 	testKey1 = "key1"
@@ -231,11 +231,11 @@ func TestLockFilePath(t *testing.T) {
 	lockFileName := store.GetLockFileName()
 
 	if runtime.GOOS == "linux" {
-		if lockFileName != "/var/lock/azure-vnet/" + testLockFileName + ".lock" {
+		if lockFileName != "/var/lock/azure-vnet/"+testLockFileName+".lock" {
 			t.Errorf("Not expected file lock name: %v", lockFileName)
 		}
 	} else {
-		if lockFileName != testLockFileName + ".lock" {
+		if lockFileName != testLockFileName+".lock" {
 			t.Errorf("Not expected lockfilename: %v", lockFileName)
 		}
 	}

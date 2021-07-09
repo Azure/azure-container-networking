@@ -23,6 +23,9 @@ const (
 	// CNIRuntimePath is the path where CNI state files are stored.
 	CNIRuntimePath = ""
 
+	// LegacyCNIRuntimePath is where the CNI state files used to be stored.
+	LegacyCNIRuntimePath = ""
+
 	// CNILockPath is the path where CNI lock files are stored.
 	CNILockPath = ""
 

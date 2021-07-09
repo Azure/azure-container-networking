@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -33,11 +34,11 @@ const (
 
 // jsonFileStore is an implementation of KeyValueStore using a local JSON file.
 type jsonFileStore struct {
-	fileName string
+	fileName     string
 	lockFileName string
-	data     map[string]*json.RawMessage
-	inSync   bool
-	locked   bool
+	data         map[string]*json.RawMessage
+	inSync       bool
+	locked       bool
 	sync.Mutex
 }
 
@@ -45,6 +46,11 @@ type jsonFileStore struct {
 func NewJsonFileStore(fileName string) (KeyValueStore, error) {
 	if fileName == "" {
 		fileName = defaultFileName
+	}
+
+	// create the directory structure for the target file
+	if err := os.MkdirAll(path.Dir(fileName), os.FileMode(0644)); err != nil {
+		return nil, err
 	}
 
 	if platform.CNILockPath != "" {
@@ -55,9 +61,9 @@ func NewJsonFileStore(fileName string) (KeyValueStore, error) {
 	}
 
 	kvs := &jsonFileStore{
-		fileName: fileName,
+		fileName:     fileName,
 		lockFileName: platform.CNILockPath + filepath.Base(fileName) + lockExtension,
-		data:     make(map[string]*json.RawMessage),
+		data:         make(map[string]*json.RawMessage),
 	}
 
 	return kvs, nil

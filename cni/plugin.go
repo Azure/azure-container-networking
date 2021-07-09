@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
-
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -45,9 +44,7 @@ func NewPlugin(name, version string) (*Plugin, error) {
 // Initialize initializes the plugin.
 func (plugin *Plugin) Initialize(config *common.PluginConfig) error {
 	// Initialize the base plugin.
-	plugin.Plugin.Initialize(config)
-
-	return nil
+	return plugin.Plugin.Initialize(config)
 }
 
 // Uninitialize uninitializes the plugin.

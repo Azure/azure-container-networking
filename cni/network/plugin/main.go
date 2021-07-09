@@ -188,7 +188,17 @@ func main() {
 			reportPluginError(reportManager, tb, err)
 			tb.Close()
 		}
+		return
+	}
 
+	// try and migrate the kvstore
+	if err = netPlugin.MigrateKeyValueStore(); err != nil {
+		log.Errorf("Error migrating key-value store of network plugin: %v.\n", err)
+		tb := telemetry.NewTelemetryBuffer()
+		if tberr := tb.Connect(); tberr == nil {
+			reportPluginError(reportManager, tb, err)
+			tb.Close()
+		}
 		return
 	}
 
