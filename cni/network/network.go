@@ -41,7 +41,7 @@ const (
 	ipVersion             = "4"
 	ipamV6                = "azure-vnet-ipamv6"
 	defaultRequestTimeout = 15 * time.Second
-	name                            = "azure-vnet"
+	azureCniName          = "azure-vnet"
 )
 
 // CNI Operation Types
@@ -300,7 +300,7 @@ func acquireLockForStore(config *common.PluginConfig, plugin *netPlugin) error {
 	if err = plugin.InitializeKeyValueStore(config); err != nil {
 		log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
 
-		if isSafe, _ := plugin.IsSafeToRemoveLock(name); isSafe {
+		if isSafe, _ := plugin.IsSafeToRemoveLock(azureCniName); isSafe {
 			log.Printf("[CNI] Removing lock file as process holding lock exited")
 			if err = plugin.UninitializeKeyValueStore(true); err != nil {
 				log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", err)
