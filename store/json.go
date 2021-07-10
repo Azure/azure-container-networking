@@ -221,8 +221,15 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 
 	defer lockFile.Close()
 
+	currentPid := os.Getpid()
+	log.Printf("Write pid %d to lockfile", currentPid)
 	// Write the process ID for easy identification.
-	if _, err = lockFile.WriteString(strconv.Itoa(os.Getpid())); err != nil {
+	if _, err = lockFile.WriteString(strconv.Itoa(currentPid)); err != nil {
+		// remove lockfile
+		log.Errorf("Write to lockfile failed:%+v", err)
+		if errRem := os.Remove(kvs.lockFileName); errRem != nil {
+			log.Errorf("removing lockfile failed:%+v", errRem)
+		}
 		return err
 	}
 
