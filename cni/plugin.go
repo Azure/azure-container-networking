@@ -163,28 +163,13 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 		removeLockFileAfterReboot(plugin)
 	}
 
-	// Acquire store lock.
-	if err := plugin.Store.Lock(true); err != nil {
-		log.Printf("[cni] Failed to lock store: %v.", err)
-		return err
-	}
-
 	config.Store = plugin.Store
-
 	return nil
 }
 
 // Uninitialize key-value store
 func (plugin *Plugin) UninitializeKeyValueStore(force bool) error {
-	if plugin.Store != nil {
-		err := plugin.Store.Unlock(force)
-		if err != nil {
-			log.Printf("[cni] Failed to unlock store: %v.", err)
-			return err
-		}
-	}
 	plugin.Store = nil
-
 	return nil
 }
 

@@ -180,6 +180,27 @@ func main() {
 		log.Printf("Failed to create network plugin, err:%v.\n", err)
 		return
 	}
+	// CNI initializes store
+	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
+		log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
+		tb := telemetry.NewTelemetryBuffer()
+		if tberr := tb.Connect(); tberr == nil {
+			reportPluginError(reportManager, tb, err)
+			tb.Close()
+		}
+
+		return
+	}
+
+	defer func() {
+		if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(false); errUninit != nil {
+			log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
+		}
+
+		if recover() != nil {
+			os.Exit(1)
+		}
+	}()
 
 	// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 	// end up creating/killing telemetry process results in undesired state.
