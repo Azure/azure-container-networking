@@ -369,7 +369,11 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// acquire cni lock file
 	config := &common.PluginConfig{}
-	acquireLockForStore(config, plugin)
+	if err := acquireLockForStore(config, plugin); err != nil {
+		log.Errorf("Couldn't acquire lock: %+v", err)
+		return err
+	}
+
 	defer releaseLockForStore(plugin)
 
 	// restore network state
@@ -805,7 +809,11 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
 	config := &common.PluginConfig{}
-	acquireLockForStore(config, plugin)
+	if err := acquireLockForStore(config, plugin); err != nil {
+		log.Errorf("Couldn't acquire lock: %+v", err)
+		return err
+	}
+
 	defer releaseLockForStore(plugin)
 
 	// restore network state
@@ -902,7 +910,11 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	// acquire cni lock file
 	config := &common.PluginConfig{}
-	acquireLockForStore(config, plugin)
+	if err := acquireLockForStore(config, plugin); err != nil {
+		log.Errorf("Couldn't acquire lock: %+v", err)
+		return err
+	}
+
 	defer releaseLockForStore(plugin)
 
 	// restore network state
@@ -1076,7 +1088,11 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 
 	// acquire cni lock file
 	config := &common.PluginConfig{}
-	acquireLockForStore(config, plugin)
+	if err := acquireLockForStore(config, plugin); err != nil {
+		log.Errorf("Couldn't acquire lock: %+v", err)
+		return err
+	}
+
 	defer releaseLockForStore(plugin)
 
 	// restore network state
