@@ -301,10 +301,8 @@ func acquireLockForStore(config *common.PluginConfig, plugin *netPlugin) error {
 		log.Printf("[CNI] Failed to lock store: %v. check if process running", err)
 		if isSafe, _ := plugin.IsSafeToRemoveLock(azureCniName); isSafe {
 			log.Printf("[CNI] Removing lock file as process holding lock exited")
-			if errUninit := releaseLockForStore(plugin); errUninit != nil {
-				log.Errorf("Failed to release lock file, err:%v.\n", errUninit)
-			} else {
-				err = nil
+			if err = releaseLockForStore(plugin); err != nil {
+				log.Errorf("Failed to release lock file, err:%v.\n", err)
 			}
 		}
 	}
@@ -383,9 +381,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	defer releaseLockForStore(plugin)
 
 	// restore network state
-	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)
-	if err != nil {
-		log.Printf("[cni-net] Failed to initialize network manager, err:%v.", err)
+	if err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot); err != nil {
+		log.Printf("[cni-net] Failed to initialize network manager, err:%+v.", err)
 		return err
 	}
 
@@ -823,9 +820,8 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 	defer releaseLockForStore(plugin)
 
 	// restore network state
-	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)
-	if err != nil {
-		log.Printf("[cni-net] Failed to initialize network manager, err:%v.", err)
+	if err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot); err != nil {
+		log.Printf("[cni-net] Failed to initialize network manager, err:%+v.", err)
 		return err
 	}
 
@@ -924,9 +920,8 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	defer releaseLockForStore(plugin)
 
 	// restore network state
-	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)
-	if err != nil {
-		log.Printf("[cni-net] Failed to initialize network manager, err:%v.", err)
+	if err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot); err != nil {
+		log.Printf("[cni-net] Failed to initialize network manager, err:%+v.", err)
 		return err
 	}
 
@@ -1102,9 +1097,8 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 	defer releaseLockForStore(plugin)
 
 	// restore network state
-	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)
-	if err != nil {
-		log.Printf("[cni-net] Failed to initialize network manager, err:%v.", err)
+	if err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot); err != nil {
+		log.Printf("[cni-net] Failed to initialize network manager, err:%+v.", err)
 		return err
 	}
 
