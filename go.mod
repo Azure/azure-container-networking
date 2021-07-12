@@ -12,8 +12,10 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
+	github.com/golang/protobuf v1.4.1 // indirect
 	github.com/golang/mock v1.2.0
 	github.com/google/uuid v1.1.1
+	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-version v1.3.0
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
@@ -39,6 +41,7 @@ require (
 	golang.org/x/sys v0.0.0-20210514084401-e8d321eab015
 	golang.org/x/term v0.0.0-20210503060354-a79de5458b56 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
+	golang.org/x/tools v0.1.4 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/grpc v1.27.0
 	google.golang.org/protobuf v1.25.0

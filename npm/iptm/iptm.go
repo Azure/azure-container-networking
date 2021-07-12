@@ -450,7 +450,7 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := grabIptablesLocks()
+	l, err := GrabIptablesLocks()
 	if err != nil {
 		return err
 	}
@@ -486,7 +486,7 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 		configFile = util.IptablesConfigFile
 	}
 
-	l, err := grabIptablesLocks()
+	l, err := GrabIptablesLocks()
 	if err != nil {
 		return err
 	}
@@ -517,7 +517,7 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 }
 
 // grabs iptables v1.6 xtable lock
-func grabIptablesLocks() (*os.File, error) {
+func GrabIptablesLocks() (*os.File, error) {
 	var success bool
 
 	l := &os.File{}

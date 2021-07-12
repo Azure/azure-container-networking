@@ -21,4 +21,7 @@ ipam-*.xml
 # debug test files
 *.test
 
+controller-gen
+hack/http
+hack/main.go
 build/tools/bin

@@ -19,6 +19,11 @@ const (
 	k8sMinorVerForNewPolicyDef string = "11"
 )
 
+var (
+	CommitBytes = []byte("COMMIT")
+	SpaceBytes  = []byte(" ")
+)
+
 //iptables related constants.
 const (
 	Iptables                  string = "iptables"

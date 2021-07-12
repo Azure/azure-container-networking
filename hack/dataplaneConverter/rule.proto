@@ -1,0 +1,19 @@
+syntax = "proto3";
+package converter;
+
+message RuleResponse {
+    string Chain = 1;
+    repeated string SrcList = 2;
+    repeated string DstList = 3;
+    string Protocol = 4;
+    string DPort = 5;
+    string SPort = 6;
+    bool Allowed = 7;
+    string Direction = 8;
+    map<string, string> UnsortedIpset = 9;
+  }
+
+  message RuleResponseList {
+    repeated RuleResponse RuleList = 1;
+  }
+  
