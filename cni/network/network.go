@@ -315,9 +315,11 @@ func releaseLockForStore(plugin *netPlugin) error {
 	var err error
 	if err = plugin.UninitializeKeyValueStore(false); err != nil {
 		log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", err)
+		return err
 	}
 
-	return err
+	log.Printf("Released lock file")
+	return nil
 }
 //
 // CNI implementation
