@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/nns"
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/telemetry"
 	testingutils "github.com/Azure/azure-container-networking/test/utils"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -144,7 +145,13 @@ func TestEndpointsWithEmptyState(t *testing.T) {
 
 func TestMigrateKeyValueStore(t *testing.T) {
 	testingutils.RequireRootforTestMain()
-	legacy, err := os.Create("/var/run/azure-vnet.json")
+	plugin, _ := getTestResources()
+	plugin.InitializeKeyValueStore(&common.PluginConfig{})
+
+	filename := platform.CNIRuntimePath + plugin.Name + ".json"
+	legacyFilename := platform.LegacyCNIRuntimePath + plugin.Name + ".json"
+
+	legacy, err := os.Create(legacyFilename)
 	assert.NoError(t, err)
 	defer os.Remove(legacy.Name())
 	defer legacy.Close()
@@ -152,12 +159,10 @@ func TestMigrateKeyValueStore(t *testing.T) {
 	_, err = legacy.WriteString("test")
 	assert.NoError(t, err)
 
-	plugin, _ := getTestResources()
-	plugin.InitializeKeyValueStore(&common.PluginConfig{})
-	err = plugin.MigrateKeyValueStore()
+	err = plugin.MigrateKeyValueStore(filename, legacyFilename)
 	assert.NoError(t, err)
 
-	b, err := os.ReadFile("/var/run/azure-vnet/azure-vnet.json")
+	b, err := os.ReadFile(legacyFilename)
 	assert.NoError(t, err)
 	assert.Equal(t, string(b), "test")
 }

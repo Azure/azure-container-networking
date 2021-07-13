@@ -192,7 +192,9 @@ func main() {
 	}
 
 	// try and migrate the kvstore
-	if err = netPlugin.MigrateKeyValueStore(); err != nil {
+	filename := platform.CNIRuntimePath + netPlugin.Name + ".json"
+	legacyFilename := platform.LegacyCNIRuntimePath + netPlugin.Name + ".json"
+	if err = netPlugin.MigrateKeyValueStore(filename, legacyFilename); err != nil {
 		log.Errorf("Error migrating key-value store of network plugin: %v.\n", err)
 		tb := telemetry.NewTelemetryBuffer()
 		if tberr := tb.Connect(); tberr == nil {

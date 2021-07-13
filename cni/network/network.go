@@ -328,9 +328,8 @@ func (plugin *netPlugin) releaseLockForStore() error {
 // legacy location in to the new location as a one-time operation. If a
 // migration is not necessary, returns nil. If a migration is required but
 // does not succeed for any reason, returns an error.
-func (plugin *netPlugin) MigrateKeyValueStore() error {
-	filename := platform.CNIRuntimePath + plugin.Name + ".json"
-	legacyFilename := platform.LegacyCNIRuntimePath + plugin.Name + ".json"
+func (plugin *netPlugin) MigrateKeyValueStore(filename, legacyFilename string) error {
+	log.Printf("try migrating %s to %s", legacyFilename, filename)
 
 	if plugin.Store == nil {
 		return errors.New("kvstore is not initialized")
@@ -343,6 +342,7 @@ func (plugin *netPlugin) MigrateKeyValueStore() error {
 		return fmt.Errorf("error checking current file store location %s: %w", filename, err)
 	}
 	if ok {
+		log.Printf("skipping migration: current statefile exists")
 		return nil
 	}
 
@@ -354,6 +354,7 @@ func (plugin *netPlugin) MigrateKeyValueStore() error {
 		return fmt.Errorf("error checking legacy file store location %s: %w", legacyFilename, err)
 	}
 	if !ok {
+		log.Printf("skipping migration: no legacy statefile exists")
 		return nil
 	}
 
@@ -373,8 +374,11 @@ func (plugin *netPlugin) MigrateKeyValueStore() error {
 		return fmt.Errorf("error checking current file store location %s after lock: %w", filename, err)
 	}
 	if ok {
+		log.Printf("aborting migration: current statefile exists")
 		return nil
 	}
+
+	log.Printf("migrating statefile")
 
 	// we have the lock and still require a migration
 	return platform.Copy(legacyFilename, filename)
