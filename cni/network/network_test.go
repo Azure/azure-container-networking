@@ -3,6 +3,7 @@ package network
 import (
 	"fmt"
 	"net"
+	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -12,7 +13,9 @@ import (
 	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/telemetry"
+	testingutils "github.com/Azure/azure-container-networking/test/utils"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -137,4 +140,24 @@ func TestEndpointsWithEmptyState(t *testing.T) {
 	state, err := plugin.GetAllEndpointState(networkid)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(state.ContainerInterfaces))
+}
+
+func TestMigrateKeyValueStore(t *testing.T) {
+	testingutils.RequireRootforTestMain()
+	legacy, err := os.Create("/var/run/azure-vnet.json")
+	assert.NoError(t, err)
+	defer os.Remove(legacy.Name())
+	defer legacy.Close()
+
+	_, err = legacy.WriteString("test")
+	assert.NoError(t, err)
+
+	plugin, _ := getTestResources()
+	plugin.InitializeKeyValueStore(&common.PluginConfig{})
+	err = plugin.MigrateKeyValueStore()
+	assert.NoError(t, err)
+
+	b, err := os.ReadFile("/var/run/azure-vnet/azure-vnet.json")
+	assert.NoError(t, err)
+	assert.Equal(t, string(b), "test")
 }

@@ -82,7 +82,7 @@ func Copy(sourceFilename, destinationFilename string) error {
 	}
 	defer src.Close()
 
-	dest, err := os.Open(destinationFilename)
+	dest, err := os.Create(destinationFilename)
 	if err != nil {
 		return err
 	}
