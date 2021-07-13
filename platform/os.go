@@ -4,8 +4,20 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
+	"strconv"
+	"time"
+	"github.com/Azure/azure-container-networking/log"
+)
+
+var(
+	ErrTimeoutLocking                 = fmt.Errorf("timed out locking file")
+	ErrNonBlockingLockIsAlreadyLocked = fmt.Errorf("attempted to perform non-blocking lock on an already locked file")
+)
+
+const (
+	// Extension added to the file name for lock.
+	lockExtension = ".lock"
 )
 
 // ReadFileByLines reads file line by line and return array of lines.
@@ -67,6 +79,85 @@ func CreateDirectory(dirPath string) error {
 
 	if !isExist {
 		err = os.Mkdir(dirPath, os.ModePerm)
+	}
+
+	return err
+}
+
+func InitLock() error {
+	if CNILockPath == "" {
+		return nil
+	}
+
+	err := os.MkdirAll(CNILockPath, os.FileMode(0664))
+	if err != nil {
+		log.Errorf("failed creating lock directory:%+v", err)
+	}
+
+	return err
+}
+
+func AcquireLockFile(name string, block bool) error {
+	var lockFile *os.File
+	var err error
+	lockPerm := os.FileMode(0664) + os.FileMode(os.ModeExclusive)
+	// Maximum number of retries before failing a lock call.
+	lockMaxRetries := 200
+	// Delay between lock retries.
+	lockRetryDelay := 100 * time.Millisecond
+	lockFilePath := CNILockPath + name + lockExtension
+	// Try to acquire the lock file.
+	var lockRetryCount int
+	var modTimeCur time.Time
+	var modTimePrev time.Time
+	for lockRetryCount < lockMaxRetries {
+		lockFile, err = os.OpenFile(lockFilePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
+		if err == nil {
+			break
+		}
+
+		if !block {
+			return ErrNonBlockingLockIsAlreadyLocked
+		}
+
+		// Reset the lock retry count if the timestamp for the lock file changes.
+		if fileInfo, err := os.Stat(lockFilePath); err == nil {
+			modTimeCur = fileInfo.ModTime()
+			if !modTimeCur.Equal(modTimePrev) {
+				lockRetryCount = 0
+			}
+			modTimePrev = modTimeCur
+		}
+
+		time.Sleep(lockRetryDelay)
+
+		lockRetryCount++
+	}
+
+	if lockRetryCount == lockMaxRetries {
+		return ErrTimeoutLocking
+	}
+
+	defer lockFile.Close()
+
+	currentPid := os.Getpid()
+	log.Printf("Write pid %d to lockfile %s", currentPid, lockFilePath)
+	// Write the process ID for easy identification.
+	if _, err = lockFile.WriteString(strconv.Itoa(currentPid)); err == nil {
+		return nil
+	}
+
+	log.Errorf("Write to lockfile failed:%+v. Removing lock file", err)
+
+	// remove lockfile
+	return ReleaseLockFile(name)
+}
+
+func ReleaseLockFile(name string) error {
+	var err error
+	lockFilePath := CNILockPath + name + lockExtension
+	if err = os.Remove(lockFilePath); err != nil {
+		log.Errorf("Removing file %s failed with %+v", lockFilePath, err)
 	}
 
 	return err

@@ -30,6 +30,7 @@ const (
 	telemetryNumRetries             = 5
 	telemetryWaitTimeInMilliseconds = 200
 	name                            = "azure-vnet"
+	telemetryProcessName            = "azure-vnet-telemetry"
 )
 
 // Version is populated by make during build.
@@ -180,15 +181,35 @@ func main() {
 		log.Printf("Failed to create network plugin, err:%v.\n", err)
 		return
 	}
+
+	if err := platform.InitLock(); err != nil {
+		log.Errorf("Init lock failed: %+v", err)
+		return
+	}
+
+	// connect to telemetry socket if failed, cleanup and start telemetry process afresh.
+	tb := telemetry.NewTelemetryBuffer()
+	if err := tb.Connect(); err != nil {
+		if err := platform.AcquireLockFile(telemetryProcessName, true); err == nil {
+			// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
+			// end up creating/killing telemetry process results in undesired state.
+			tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
+			platform.ReleaseLockFile(telemetryProcessName)
+			log.Printf("telemetry process lock file released")
+		}
+	} else {
+		log.Printf("Connected to telemetry service. No need to start telemetry process")
+	}
+	defer tb.Close()
+
+	netPlugin.SetCNIReport(cniReport, tb)
+	t := time.Now()
+	cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
+
 	// CNI initializes store
 	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 		log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
-		tb := telemetry.NewTelemetryBuffer()
-		if tberr := tb.Connect(); tberr == nil {
-			reportPluginError(reportManager, tb, err)
-			tb.Close()
-		}
-
+		reportPluginError(reportManager, tb, err)
 		return
 	}
 
@@ -202,17 +223,6 @@ func main() {
 		}
 	}()
 
-	// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
-	// end up creating/killing telemetry process results in undesired state.
-	tb := telemetry.NewTelemetryBuffer()
-	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
-	defer tb.Close()
-
-	netPlugin.SetCNIReport(cniReport, tb)
-
-	t := time.Now()
-	cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
-
 	if err = netPlugin.Start(&config); err != nil {
 		log.Errorf("Failed to start network plugin, err:%v.\n", err)
 		reportPluginError(reportManager, tb, err)
@@ -223,23 +233,26 @@ func main() {
 	cniCmd := os.Getenv(cni.Cmd)
 	log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
 
-	// used to dump state
+	// used to dump state. used by cns as reconciler
 	if cniCmd == cni.CmdGetEndpointsState {
 		log.Printf("Retrieving state")
 		simpleState, err := netPlugin.GetAllEndpointState("azure")
 		if err != nil {
 			log.Errorf("Failed to get Azure CNI state, err:%v.\n", err)
+			reportPluginError(reportManager, tb, err)
 			return
 		}
 
 		err = simpleState.PrintResult()
 		if err != nil {
 			log.Errorf("Failed to print state result to stdout with err %v\n", err)
+			reportPluginError(reportManager, tb, err)
 		}
 
 		return
 	}
 
+	// handle cni update calls
 	handled, err := handleIfCniUpdate(netPlugin.Update)
 	if handled {
 		log.Printf("CNI UPDATE finished.")
@@ -248,12 +261,6 @@ func main() {
 	}
 
 	netPlugin.Stop()
-
-	// release cni lock
-	if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(false); errUninit != nil {
-		log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
-	}
-
 	executionTimeMs := time.Since(startTime).Milliseconds()
 
 	if err != nil {

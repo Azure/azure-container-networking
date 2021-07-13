@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -21,14 +20,7 @@ const (
 	// Default file name for backing persistent store.
 	defaultFileName = "azure-container-networking.json"
 
-	// Extension added to the file name for lock.
-	lockExtension = ".lock"
 
-	// Maximum number of retries before failing a lock call.
-	lockMaxRetries = 200
-
-	// Delay between lock retries.
-	lockRetryDelay = 100 * time.Millisecond
 )
 
 // jsonFileStore is an implementation of KeyValueStore using a local JSON file.
@@ -47,16 +39,9 @@ func NewJsonFileStore(fileName string) (KeyValueStore, error) {
 		fileName = defaultFileName
 	}
 
-	if platform.CNILockPath != "" {
-		err := os.MkdirAll(platform.CNILockPath, os.FileMode(0664))
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	kvs := &jsonFileStore{
 		fileName: fileName,
-		lockFileName: platform.CNILockPath + filepath.Base(fileName) + lockExtension,
+		lockFileName: filepath.Base(fileName),
 		data:     make(map[string]*json.RawMessage),
 	}
 
@@ -183,53 +168,7 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 		return ErrStoreLocked
 	}
 
-	var lockFile *os.File
-	var err error
-	lockPerm := os.FileMode(0664) + os.FileMode(os.ModeExclusive)
-
-	// Try to acquire the lock file.
-	var lockRetryCount uint
-	var modTimeCur time.Time
-	var modTimePrev time.Time
-	for lockRetryCount < lockMaxRetries {
-		lockFile, err = os.OpenFile(kvs.lockFileName, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
-		if err == nil {
-			break
-		}
-
-		if !block {
-			return ErrNonBlockingLockIsAlreadyLocked
-		}
-
-		// Reset the lock retry count if the timestamp for the lock file changes.
-		if fileInfo, err := os.Stat(kvs.lockFileName); err == nil {
-			modTimeCur = fileInfo.ModTime()
-			if !modTimeCur.Equal(modTimePrev) {
-				lockRetryCount = 0
-			}
-			modTimePrev = modTimeCur
-		}
-
-		time.Sleep(lockRetryDelay)
-
-		lockRetryCount++
-	}
-
-	if lockRetryCount == lockMaxRetries {
-		return ErrTimeoutLockingStore
-	}
-
-	defer lockFile.Close()
-
-	currentPid := os.Getpid()
-	log.Printf("Write pid %d to lockfile", currentPid)
-	// Write the process ID for easy identification.
-	if _, err = lockFile.WriteString(strconv.Itoa(currentPid)); err != nil {
-		// remove lockfile
-		log.Errorf("Write to lockfile failed:%+v", err)
-		if errRem := os.Remove(kvs.lockFileName); errRem != nil {
-			log.Errorf("removing lockfile failed:%+v", errRem)
-		}
+	if err := platform.AcquireLockFile(kvs.lockFileName, block); err != nil {
 		return err
 	}
 
@@ -247,8 +186,7 @@ func (kvs *jsonFileStore) Unlock(forceUnlock bool) error {
 		return ErrStoreNotLocked
 	}
 
-	err := os.Remove(kvs.lockFileName)
-	if err != nil {
+	if err := platform.ReleaseLockFile(kvs.lockFileName); err != nil {
 		return err
 	}
 
