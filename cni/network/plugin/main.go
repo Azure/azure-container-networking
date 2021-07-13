@@ -191,19 +191,6 @@ func main() {
 		return
 	}
 
-	// try and migrate the kvstore
-	filename := platform.CNIRuntimePath + netPlugin.Name + ".json"
-	legacyFilename := platform.LegacyCNIRuntimePath + netPlugin.Name + ".json"
-	if err = netPlugin.MigrateKeyValueStore(filename, legacyFilename); err != nil {
-		log.Errorf("Error migrating key-value store of network plugin: %v.\n", err)
-		tb := telemetry.NewTelemetryBuffer()
-		if tberr := tb.Connect(); tberr == nil {
-			reportPluginError(reportManager, tb, err)
-			tb.Close()
-		}
-		return
-	}
-
 	defer func() {
 		if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(false); errUninit != nil {
 			log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
@@ -224,6 +211,15 @@ func main() {
 
 	t := time.Now()
 	cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
+
+	// try and migrate the kvstore
+	filename := platform.CNIRuntimePath + netPlugin.Name + ".json"
+	legacyFilename := platform.LegacyCNIRuntimePath + netPlugin.Name + ".json"
+	if err = netPlugin.MigrateKeyValueStore(filename, legacyFilename); err != nil {
+		log.Errorf("Error migrating key-value store of network plugin: %v.\n", err)
+		reportPluginError(reportManager, tb, err)
+		return
+	}
 
 	if err = netPlugin.Start(&config); err != nil {
 		log.Errorf("Failed to start network plugin, err:%v.\n", err)

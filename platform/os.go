@@ -91,5 +91,5 @@ func Copy(sourceFilename, destinationFilename string) error {
 	if _, err := io.Copy(dest, src); err != nil {
 		return err
 	}
-	return dest.Sync()
+	return dest.Sync() // sync fs to disk
 }
