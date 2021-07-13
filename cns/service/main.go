@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	cni "github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -521,6 +522,13 @@ func main() {
 	// Initialze state in if CNS is running in CRD mode
 	// State must be initialized before we start HTTPRestService
 	if config.ChannelMode == cns.CRD {
+		// Check the CNI statefile mount, and if the file is empty
+		// stub an empty JSON object
+		if err := cnireconciler.WriteObjectToCNIStatefile(); err != nil {
+			logger.Errorf("Failed to write empty object to CNI state: %v", err)
+			return
+		}
+
 		// We might be configured to reinitialize state from the CNI instead of the apiserver.
 		// If so, we should check that the the CNI is new enough to support the state commands,
 		// otherwise we fall back to the existing behavior.
