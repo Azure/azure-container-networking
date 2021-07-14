@@ -317,12 +317,31 @@ func TestAddHostNetworkPod(t *testing.T) {
 		{0, 1, 0},
 	}
 	checkPodTestResult("TestAddHostNetworkPod", f, testCases)
-
 	if _, exists := f.npMgr.PodMap[podKey]; exists {
 		t.Error("TestAddHostNetworkPod failed @ cached pod obj exists check")
 	}
 
 	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
+}
+
+func TestAddPodWithIPv6(t *testing.T) {
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+
+	podObj := createPod("test-pod", "test-namespace", "0", "fc00:f853:ccd:e793::6", labels, NonHostNetwork, corev1.PodRunning)
+	f := newFixture(t)
+	f.podLister = append(f.podLister, podObj)
+	f.kubeobjects = append(f.kubeobjects, podObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newPodController(stopCh)
+
+	addPod(t, f, podObj)
+	testCases := []expectedValues{
+		{0, 1, 0},
+	}
+	checkPodTestResult("TestAddPodWithIPv6", f, testCases)
 }
 
 func TestDeletePod(t *testing.T) {
@@ -664,13 +683,23 @@ func TestPodStatusUpdatePod(t *testing.T) {
 }
 
 func TestHasValidPodIP(t *testing.T) {
-	podObj := &corev1.Pod{
-		Status: corev1.PodStatus{
-			Phase: "Running",
-			PodIP: "1.2.3.4",
-		},
+	testCases := map[string]bool{
+		"1.2.3.4":               true,
+		"172.19.0.6":            true,
+		"":                      false,
+		"1234":                  false,
+		"256.1.2.3":             false,
+		"fc00:f853:ccd:e793::6": false,
+		"::ffff:192.0.2.1":      false,
+		":::::":                 false,
 	}
-	if ok := hasValidPodIP(podObj); !ok {
-		t.Errorf("TestisValidPod failed @ isValidPod")
+
+	podObj := &corev1.Pod{}
+	for ip, want := range testCases {
+		podObj.Status.PodIP = ip
+
+		if got := hasValidPodIP(podObj); got != want {
+			t.Errorf("TestHasValidPodIP failed @ isValidPod got  %v, want %v", got, want)
+		}
 	}
 }
