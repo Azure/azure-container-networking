@@ -26,6 +26,7 @@ func writeObjectToFile(filename string) error {
 	fi, err := os.Stat(filename)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			logger.Printf("CNI statefile %s does not exist", filename)
 			return nil
 		}
 		return err
@@ -35,7 +36,7 @@ func writeObjectToFile(filename string) error {
 		return nil
 	}
 
-	logger.Printf("Writing {} to CNI statefile")
+	logger.Printf("Writing {} to CNI statefile %s", filename)
 	b, _ := json.Marshal(map[string]string{})
 	return os.WriteFile(filename, b, os.FileMode(0666))
 }
