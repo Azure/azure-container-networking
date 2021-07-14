@@ -172,7 +172,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	service.RUnlock()
 	if len(hostVersionNeedUpdateNcList) > 0 {
 		logger.Printf("Updating version of the following NC IDs: %v", hostVersionNeedUpdateNcList)
-		ncVersionChannel := make(chan map[string]int)
+		ncVersionChannel := make(chan map[string]int, 1)
 		ctxWithTimeout, _ := context.WithTimeout(ctx, syncHostNCTimeoutMilliSec*time.Millisecond)
 		go func() {
 			ncVersionChannel <- service.nmagentClient.GetNcVersionListWithOutToken(hostVersionNeedUpdateNcList)
