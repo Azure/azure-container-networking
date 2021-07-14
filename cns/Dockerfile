@@ -21,7 +21,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /usr/local/bin/azure-cn
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /usr/local/bin/azure-vnet-telemetry -ldflags "-X main.version="$VERSION" -s -w" cni/telemetry/service/*.go
 
 # Copy into final image
-FROM scratch
+# RUN true is due to ongoing issue https://github.com/moby/moby/issues/37965
+FROM alpine:latest
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 COPY --from=builder /usr/local/bin/azure-cns \
