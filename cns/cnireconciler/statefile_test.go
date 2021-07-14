@@ -2,15 +2,20 @@ package cnireconciler
 
 import (
 	"os"
+	"path"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWriteObjectToFile(t *testing.T) {
 	name := "testdata/test"
-	_, err := os.Stat(name)
+	err := os.MkdirAll(path.Dir(name), 0666)
+	require.NoError(t, err)
+
+	_, err = os.Stat(name)
 	require.ErrorIs(t, err, os.ErrNotExist)
 
 	// create empty file
@@ -29,4 +34,8 @@ func TestWriteObjectToFile(t *testing.T) {
 	b, err := os.ReadFile(name)
 	require.NoError(t, err)
 	assert.Equal(t, string(b), "{}")
+}
+
+func init() {
+	logger.InitLogger("testlogs", 0, 0, "./")
 }
