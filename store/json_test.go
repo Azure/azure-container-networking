@@ -231,7 +231,7 @@ func TestLockFilePath(t *testing.T) {
 	lockFileName := store.GetLockFileName()
 
 	if runtime.GOOS == "linux" {
-		if lockFileName != "/var/lock/azure-vnet/" + testLockFileName + ".lock" {
+		if lockFileName != "/var/run/azure-vnet/" + testLockFileName + ".lock" {
 			t.Errorf("Not expected file lock name: %v", lockFileName)
 		}
 	} else {
