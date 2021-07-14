@@ -614,7 +614,7 @@ func (service *HTTPRestService) joinNetwork(
 	return joinResponse, joinErr, err
 }
 
-func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerRequest) {
+func (service *HTTPRestService) logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerRequest) {
 	var aiEvent = aitelemetry.Event{
 		EventName:  logger.CnsNCSnapshotEventStr,
 		Properties: make(map[string]string),
@@ -631,7 +631,9 @@ func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerReque
 	aiEvent.Properties[logger.NetworkContainerTypeStr] = createNetworkContainerRequest.NetworkContainerType
 	aiEvent.Properties[logger.OrchestratorContextStr] = fmt.Sprintf("%s", createNetworkContainerRequest.OrchestratorContext)
 
-	// TODO - Add for SecondaryIPs (Task: https://msazure.visualstudio.com/One/_workitems/edit/7711831)
+	if service.state.OrchestratorType == cns.KubernetesCRD {
+		aiEvent.Properties[logger.SecondaryIpConfigsStr] = fmt.Sprintf("%+v", createNetworkContainerRequest.SecondaryIPConfigs)
+	}
 
 	logger.LogEvent(aiEvent)
 }
@@ -640,7 +642,7 @@ func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerReque
 func (service *HTTPRestService) logNCSnapshots() {
 
 	for _, ncStatus := range service.state.ContainerStatus {
-		logNCSnapshot(ncStatus.CreateNetworkContainerRequest)
+		service.logNCSnapshot(ncStatus.CreateNetworkContainerRequest)
 	}
 
 	logger.Printf("[Azure CNS] Logging periodic NC snapshots. NC Count %d", len(service.state.ContainerStatus))

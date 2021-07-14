@@ -19,4 +19,5 @@ const (
 	AllowHostToNCCommunicationStr = "AllowHostToNCCommunication"
 	NetworkContainerTypeStr       = "NetworkContainerType"
 	OrchestratorContextStr        = "OrchestratorContext"
+	SecondaryIpConfigsStr         = "SecondaryIpConfigs"
 )
