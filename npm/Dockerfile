@@ -1,6 +1,7 @@
 # Use a minimal image as a parent image
 FROM ubuntu:focal
 ARG NPM_BUILD_DIR
+ARG ACNCLI_BUILD_DIR
 
 # Install dependencies.
 RUN apt-get update
@@ -11,6 +12,7 @@ RUN apt-get upgrade -y
 
 # Install plugin.
 COPY $NPM_BUILD_DIR/azure-npm /usr/bin
+COPY $ACNCLI_BUILD_DIR/acn /usr/bin
 
 WORKDIR /usr/bin
 

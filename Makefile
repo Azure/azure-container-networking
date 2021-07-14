@@ -322,7 +322,7 @@ publish-azure-vnet-plugin-image:
 
 # Build the Azure NPM image.
 .PHONY: azure-npm-image
-azure-npm-image: azure-npm
+azure-npm-image: azure-npm tools
 ifeq ($(GOOS),linux)
 	mkdir -p $(IMAGE_DIR)
 	docker build \
@@ -330,6 +330,7 @@ ifeq ($(GOOS),linux)
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(VERSION) \
 	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
+	--build-arg ACNCLI_BUILD_DIR=$(ACNCLI_BUILD_DIR) \
 	.
 	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
 endif
