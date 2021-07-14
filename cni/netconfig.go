@@ -72,6 +72,12 @@ type NetworkConfig struct {
 		Address       string `json:"ipAddress,omitempty"`
 		QueryInterval string `json:"queryInterval,omitempty"`
 	} `json:"ipam,omitempty"`
+	// NonOverlappingMultitenancyMode :- populated when ExecutionMode is NonOverlappingMultitenancyMode
+	NonOverlappingMultitenancyMode struct {
+		ConnectivityType    string `json:"connectivityType,omitempty"`
+		EnablePodToNodeSnat bool   `json:"enablePodToNodeSnat,omitempty"`
+		EnableNodeToPodSnat bool   `json:"enableNodeToPodSnat,omitempty"`
+	} `json:"nonOverlappingMultitenancyMode,omitempty"`
 	DNS            cniTypes.DNS  `json:"dns,omitempty"`
 	RuntimeConfig  RuntimeConfig `json:"runtimeConfig,omitempty"`
 	AdditionalArgs []KVPair      `json:"AdditionalArgs,omitempty"`

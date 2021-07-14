@@ -160,18 +160,32 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 		},
 	}
 
-	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), iptables.AzureDNS, iptables.UDP, iptables.DNSPort)
-
+	ncSubnetPrefixStr := ncSubnetPrefix.String()
+	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefixStr, iptables.AzureDNS, iptables.UDP, iptables.DNSPort)
+	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
 	// TODO remove this rule once we remove adding MASQUEARDE from AgentBaker, check below PR
 	// https://github.com/Azure/AgentBaker/pull/367/files
-	podTrafficAccept := fmt.Sprintf(" -m iprange  ! --dst-range 168.63.129.16-168.63.129.16  -s %s ", ncSubnetPrefix.String())
-	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
-	options[network.IPTablesKey] = []iptables.IPTableEntry{
+	podTrafficAccept := fmt.Sprintf(" -m iprange  ! --dst-range 168.63.129.16-168.63.129.16  -s %s ", ncSubnetPrefixStr)
+	options[network.IPTablesKey] = make([]iptables.IPTableEntry, 0, 6)
+
+	if nwCfg.ExecutionMode == string(NonOverlappingMultitenancy) && nwCfg.NonOverlappingMultitenancyMode.ConnectivityType == string(Snat) {
+		if nwCfg.NonOverlappingMultitenancyMode.EnablePodToNodeSnat {
+			podTrafficAccept = fmt.Sprintf("%s -d %s", podTrafficAccept, ncSubnetPrefixStr)
+			masqueradeNc := fmt.Sprintf(" -s %s ", ncSubnetPrefixStr)
+			options[network.IPTablesKey] = append([]iptables.IPTableEntry{iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, masqueradeNc, iptables.Masquerade)}, options[network.IPTablesKey].([]iptables.IPTableEntry)...)
+		}
+
+		if nwCfg.NonOverlappingMultitenancyMode.EnableNodeToPodSnat {
+			nodeToPod := fmt.Sprintf(" -s %s -d %s ", hostSubnetPrefix.String(), ncSubnetPrefixStr)
+			options[network.IPTablesKey] = append([]iptables.IPTableEntry{iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, nodeToPod, snatPrimaryIPJump)}, options[network.IPTablesKey].([]iptables.IPTableEntry)...)
+		}
+	}
+
+	options[network.IPTablesKey] = append([]iptables.IPTableEntry{
 		iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
 		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, podTrafficAccept, iptables.Accept),
 		iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSMatch, snatPrimaryIPJump),
-	}
+		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSMatch, snatPrimaryIPJump)}, options[network.IPTablesKey].([]iptables.IPTableEntry)...)
 
 	return nil
 }
