@@ -3,7 +3,7 @@
 # Installs azure-vnet CNI plugins on a Linux node.
 
 # Arguments.
-PLUGIN_VERSION=$1
+PLUGIN_VERSION=v$1
 CNI_VERSION=$2
 CNI_BIN_DIR=/opt/cni/bin
 CNI_NETCONF_DIR=/etc/cni/net.d
