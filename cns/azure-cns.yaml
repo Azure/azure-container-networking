@@ -93,7 +93,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: mcr.microsoft.com/containernetworking/azure-cns:v1.4.0
+          image: mcr.microsoft.com/containernetworking/azure-cns:v1.4.6
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           volumeMounts:
@@ -103,6 +103,10 @@ spec:
               mountPath: /var/lib/azure-network
             - name: cns-config
               mountPath: /etc/azure-cns
+            - name: azure-vnet
+              mountPath: /var/run/azure-vnet
+            - name: legacy-cni-state
+              mountPath: /var/run/azure-vnet.json
           ports:
             - containerPort: 10090
           env:
@@ -129,6 +133,14 @@ spec:
           hostPath:
             path: /var/lib/azure-network
             type: DirectoryOrCreate
+        - name: azure-vnet
+          hostPath:
+            path: /var/run/azure-vnet
+            type: DirectoryOrCreate
+        - name: legacy-cni-state
+          hostPath:
+            path: /var/run/azure-vnet.json
+            type: FileOrCreate
         - name: cns-config
           configMap:
             name: cns-config
@@ -157,5 +169,6 @@ data:
           "NodeID": "",
           "NodeSyncIntervalInSeconds": 30
       },
-      "ChannelMode": "CRD"
+      "ChannelMode": "CRD",
+      "InitializeFromCNI": true
     }
