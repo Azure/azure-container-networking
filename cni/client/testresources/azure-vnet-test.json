@@ -1,0 +1,155 @@
+{
+	"Network": {
+		"Version": "v1.2.6",
+		"TimeStamp": "2021-06-04T17:15:58.638215441Z",
+		"ExternalInterfaces": {
+			"eth0": {
+				"Name": "eth0",
+				"Networks": {
+					"azure": {
+						"Id": "azure",
+						"Mode": "transparent",
+						"VlanId": 0,
+						"Subnets": [
+							{
+								"Family": 2,
+								"Prefix": {
+									"IP": "10.240.0.0",
+									"Mask": "//8AAA=="
+								},
+								"Gateway": "10.241.0.1",
+								"PrimaryIP": ""
+							}
+						],
+						"Endpoints": {
+							"3f813b02-eth0": {
+								"Id": "3f813b02-eth0",
+								"SandboxKey": "",
+								"IfName": "azvd805fb1b0f82",
+								"HostIfName": "azvd805fb1b0f8",
+								"MacAddress": "ipNAs8jK",
+								"InfraVnetIP": {
+									"IP": "",
+									"Mask": null
+								},
+								"LocalIP": "",
+								"IPAddresses": [
+									{
+										"IP": "10.241.0.17",
+										"Mask": "//8AAA=="
+									}
+								],
+								"Gateways": [
+									"0.0.0.0"
+								],
+								"DNS": {
+									"Suffix": "",
+									"Servers": null,
+									"Options": null
+								},
+								"Routes": [
+									{
+										"Dst": {
+											"IP": "0.0.0.0",
+											"Mask": "AAAAAA=="
+										},
+										"Src": "",
+										"Gw": "10.241.0.1",
+										"Protocol": 0,
+										"DevName": "",
+										"Scope": 0,
+										"Priority": 0
+									}
+								],
+								"VlanID": 0,
+								"EnableSnatOnHost": false,
+								"EnableInfraVnet": false,
+								"EnableMultitenancy": false,
+								"AllowInboundFromHostToNC": false,
+								"AllowInboundFromNCToHost": false,
+								"NetworkContainerID": "",
+								"NetworkNameSpace": "/var/run/netns/cni-e66c52d6-44be-555b-fb65-0b36296b6861",
+								"ContainerID": "3f813b029429b4e41a09ab33b6f6d365d2ed704017524c78d1d0dece33cdaf46",
+								"PODName": "metrics-server-77c8679d7d-6ksdh",
+								"PODNameSpace": "kube-system"
+							},
+							"6e688597-eth0": {
+								"Id": "6e688597-eth0",
+								"SandboxKey": "",
+								"IfName": "azvc214c1237ce2",
+								"HostIfName": "azvc214c1237ce",
+								"MacAddress": "ZjL4HSJ+",
+								"InfraVnetIP": {
+									"IP": "",
+									"Mask": null
+								},
+								"LocalIP": "",
+								"IPAddresses": [
+									{
+										"IP": "10.241.0.13",
+										"Mask": "//8AAA=="
+									}
+								],
+								"Gateways": [
+									"0.0.0.0"
+								],
+								"DNS": {
+									"Suffix": "",
+									"Servers": null,
+									"Options": null
+								},
+								"Routes": [
+									{
+										"Dst": {
+											"IP": "0.0.0.0",
+											"Mask": "AAAAAA=="
+										},
+										"Src": "",
+										"Gw": "10.241.0.1",
+										"Protocol": 0,
+										"DevName": "",
+										"Scope": 0,
+										"Priority": 0
+									}
+								],
+								"VlanID": 0,
+								"EnableSnatOnHost": false,
+								"EnableInfraVnet": false,
+								"EnableMultitenancy": false,
+								"AllowInboundFromHostToNC": false,
+								"AllowInboundFromNCToHost": false,
+								"NetworkContainerID": "",
+								"NetworkNameSpace": "/var/run/netns/cni-56872dcd-b3ab-fc90-ccd8-6a6dd11d56cf",
+								"ContainerID": "6e688597eafb97c83c84e402cc72b299bfb8aeb02021e4c99307a037352c0bed",
+								"PODName": "tunnelfront-5d96f9b987-65xbn",
+								"PODNameSpace": "kube-system"
+							}
+						},
+						"DNS": {
+							"Suffix": "",
+							"Servers": null,
+							"Options": null
+						},
+						"EnableSnatOnHost": false,
+						"NetNs": "",
+						"SnatBridgeIP": ""
+					}
+				},
+				"Subnets": [
+					"10.240.0.0/16"
+				],
+				"BridgeName": "",
+				"DNSInfo": {
+					"Suffix": "",
+					"Servers": null,
+					"Options": null
+				},
+				"MacAddress": "AA06xXdb",
+				"IPAddresses": null,
+				"Routes": null,
+				"IPv4Gateway": "0.0.0.0",
+				"IPv6Gateway": "::"
+			}
+		}
+	}
+}

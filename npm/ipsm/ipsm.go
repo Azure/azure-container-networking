@@ -17,6 +17,14 @@ import (
 	utilexec "k8s.io/utils/exec"
 )
 
+// ReferCountOperation is used to indicate whether ipset refer count should be increased or decreased.
+type ReferCountOperation bool
+
+const (
+	IncrementOp ReferCountOperation = true
+	DecrementOp ReferCountOperation = false
+)
+
 type ipsEntry struct {
 	operationFlag string
 	name          string
@@ -38,11 +46,20 @@ type Ipset struct {
 	referCount int
 }
 
+func (ipset *Ipset) incReferCount() {
+	ipset.referCount++
+}
+
+func (ipset *Ipset) decReferCount() {
+	ipset.referCount--
+}
+
 // NewIpset creates a new instance for Ipset object.
 func NewIpset(setName string) *Ipset {
 	return &Ipset{
-		name:     setName,
-		elements: make(map[string]string),
+		name:       setName,
+		elements:   make(map[string]string),
+		referCount: 0,
 	}
 }
 
@@ -71,6 +88,21 @@ func (ipsMgr *IpsetManager) Exists(listName string, setName string, kind string)
 	}
 
 	return true
+}
+
+// IpSetReferIncOrDec checks if an element exists in setMap/listMap and then increases or decreases this referCount.
+func (ipsMgr *IpsetManager) IpSetReferIncOrDec(ipsetName string, kind string, countOperation ReferCountOperation) {
+	m := ipsMgr.SetMap
+	if kind == util.IpsetSetListFlag {
+		m = ipsMgr.ListMap
+	}
+
+	switch countOperation {
+	case IncrementOp:
+		m[ipsetName].incReferCount()
+	case DecrementOp:
+		m[ipsetName].decReferCount()
+	}
 }
 
 // SetExists checks if an ipset exists, and returns the type
@@ -120,6 +152,11 @@ func (ipsMgr *IpsetManager) DeleteList(listName string) error {
 	entry := &ipsEntry{
 		operationFlag: util.IpsetDestroyFlag,
 		set:           util.GetHashedName(listName),
+	}
+
+	if ipsMgr.ListMap[listName].referCount > 0 {
+		ipsMgr.IpSetReferIncOrDec(listName, util.IpsetSetListFlag, DecrementOp)
+		return nil
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil {
@@ -336,7 +373,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	exists, _ := ipsMgr.SetExists(setName)
 
 	if !exists {
-		if err := ipsMgr.CreateSet(setName, append([]string{spec})); err != nil {
+		if err := ipsMgr.CreateSet(setName, []string{spec}); err != nil {
 			return err
 		}
 	}
@@ -344,9 +381,9 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	var resultSpec []string
 	if strings.Contains(ip, util.IpsetNomatch) {
 		ip = strings.Trim(ip, util.IpsetNomatch)
-		resultSpec = append([]string{ip, util.IpsetNomatch})
+		resultSpec = []string{ip, util.IpsetNomatch}
 	} else {
-		resultSpec = append([]string{ip})
+		resultSpec = []string{ip}
 	}
 
 	entry := &ipsEntry{
@@ -403,7 +440,7 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 	entry := &ipsEntry{
 		operationFlag: util.IpsetDeletionFlag,
 		set:           util.GetHashedName(setName),
-		spec:          append([]string{ip}),
+		spec:          []string{ip},
 	}
 
 	if errCode, err := ipsMgr.Run(entry); err != nil {
@@ -428,6 +465,8 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 	return nil
 }
 
+// TODO this below function is to be extended while improving ipset refer count
+// support, if not used, please remove this stale function.
 // Clean removes all the empty sets & lists under the namespace.
 func (ipsMgr *IpsetManager) Clean() error {
 	for setName, set := range ipsMgr.SetMap {

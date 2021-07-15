@@ -54,7 +54,7 @@ func newNetPolFixture(t *testing.T, utilexec exec.Interface) *netPolFixture {
 		kubeobjects:                 []runtime.Object{},
 		npMgr:                       newNPMgr(t, utilexec),
 		ipsMgr:                      ipsm.NewIpsetManager(utilexec),
-		iptMgr:                      iptm.NewIptablesManager(),
+		iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewFakeIptOperationShim()),
 		isEnqueueEventIntoWorkQueue: true,
 	}
 
@@ -78,7 +78,9 @@ func (f *netPolFixture) newNetPolController(stopCh chan struct{}) {
 		f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)
 	}
 
-	f.kubeInformer.Start(stopCh)
+	// Do not start informer to avoid unnecessary event triggers
+	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
+	//f.kubeInformer.Start(stopCh)
 }
 
 func (f *netPolFixture) saveIpTables(iptablesConfigFile string) {
@@ -119,14 +121,14 @@ func createNetPol() *networkingv1.NetworkPolicy {
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				{
 					From: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{"app": "test"},
 							},
 						},
-						networkingv1.NetworkPolicyPeer{
+						{
 							IPBlock: &networkingv1.IPBlock{
 								CIDR: "0.0.0.0/0",
 							},
@@ -139,7 +141,7 @@ func createNetPol() *networkingv1.NetworkPolicy {
 				},
 			},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				{
 					To: []networkingv1.NetworkPolicyPeer{{
 						PodSelector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "test"},
@@ -270,7 +272,7 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 	netPolObj2.Namespace = fmt.Sprintf("%s-new", netPolObj1.Namespace)
 	netPolObj2.Name = fmt.Sprintf("%s-new", netPolObj1.Name)
 	// namedPort
-	netPolObj2.Spec.Ingress[0].Ports[0].Port = &intstr.IntOrString{StrVal: fmt.Sprintf("%s", netPolObj2.Name)}
+	netPolObj2.Spec.Ingress[0].Ports[0].Port = &intstr.IntOrString{StrVal: netPolObj2.Name}
 
 	fexec := exec.New()
 	f := newNetPolFixture(t, fexec)

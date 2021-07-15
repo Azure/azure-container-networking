@@ -20,6 +20,8 @@ const (
 	CNMRuntimePath = "/var/lib/azure-network/"
 	// CNIRuntimePath is the path where CNI state files are stored.
 	CNIRuntimePath = "/var/run/"
+	// CNILockPath is the path where CNI lock files are stored.
+	CNILockPath = "/var/run/azure-vnet/"
 	// CNSRuntimePath is the path where CNS state files are stored.
 	CNSRuntimePath = "/var/run/"
 	// CNI runtime path on a Kubernetes cluster

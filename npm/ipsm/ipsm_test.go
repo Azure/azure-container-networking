@@ -4,95 +4,97 @@ package ipsm
 
 import (
 	"fmt"
-	"log"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/exec"
 )
 
 func TestSave(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestSave failed @ ipsMgr.Save")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "save", "-file", "ipset.conf"}},
 	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+	err := ipsMgr.Save("ipset.conf")
+	require.NoError(t, err)
 }
 
 func TestRestore(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
+	// create temporary ipset config file to use
+	tmpFile, err := ioutil.TempFile(os.TempDir(), filepath.Base(util.IpsetTestConfigFile))
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
 
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestRestore failed @ ipsMgr.Save with err %v", err)
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-F", "-exist"}},
+		{Cmd: []string{"ipset", "-X", "-exist"}},
+		{Cmd: []string{"ipset", "restore", "-file", tmpFile.Name()}},
 	}
 
-	if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestRestore failed @ ipsMgr.Restore with err %v", err)
-	}
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
+	err = ipsMgr.Restore(tmpFile.Name())
+	require.NoError(t, err)
 }
 
 func TestCreateList(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestCreateList failed @ ipsMgr.Save")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-list"), "setlist"}},
 	}
 
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestCreateList failed @ ipsMgr.Restore")
-		}
-	}()
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
-	if err := ipsMgr.CreateList("test-list"); err != nil {
-		t.Errorf("TestCreateList failed @ ipsMgr.CreateList")
-	}
+	err := ipsMgr.CreateList("test-list")
+	require.NoError(t, err)
 }
 
 func TestDeleteList(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestDeleteList failed @ ipsMgr.Save")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-list"), "setlist"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("test-list")}},
 	}
 
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestDeleteList failed @ ipsMgr.Restore")
-		}
-	}()
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
-	if err := ipsMgr.CreateList("test-list"); err != nil {
-		t.Errorf("TestDeleteList failed @ ipsMgr.CreateList")
-	}
+	err := ipsMgr.CreateList("test-list")
+	require.NoError(t, err)
 
-	if err := ipsMgr.DeleteList("test-list"); err != nil {
-		t.Errorf("TestDeleteList failed @ ipsMgr.DeleteList")
-	}
+	err = ipsMgr.DeleteList("test-list")
+	require.NoError(t, err)
 }
 
 func TestAddToList(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestAddToList failed @ ipsMgr.Save")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-set"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-list"), "setlist"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}},
 	}
 
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestAddToList failed @ ipsMgr.Restore")
-		}
-	}()
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
-	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
-		t.Errorf("TestAddToList failed @ ipsMgr.CreateSet")
-	}
+	err := ipsMgr.CreateSet("test-set", []string{util.IpsetNetHashFlag})
+	require.NoError(t, err)
 
-	if err := ipsMgr.AddToList("test-list", "test-set"); err != nil {
-		t.Errorf("TestAddToList failed @ ipsMgr.AddToList")
-	}
+	err = ipsMgr.AddToList("test-list", "test-set")
+	require.NoError(t, err)
+
 }
 
 func TestDeleteFromList(t *testing.T) {
@@ -104,137 +106,133 @@ func TestDeleteFromList(t *testing.T) {
 		{Cmd: []string{"ipset", "test", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}},
 		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}},
 		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("test-list")}},
-		{Cmd: []string{"ipset", "test", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}, Stderr: "ipset still exists", ExitCode: 2},
-		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName("test-list")}, Stderr: "ipset still exists", ExitCode: 2},
+		{Cmd: []string{"ipset", "test", "-exist", util.GetHashedName("test-list"), util.GetHashedName("test-set")}, Stdout: "ipset still exists", ExitCode: 2},
+		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName("test-list")}, Stdout: "ipset still exists", ExitCode: 2},
 		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("test-set")}},
-		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName("test-set")}, Stderr: "ipset still exists", ExitCode: 2},
+		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName("test-set")}, Stdout: "ipset still exists", ExitCode: 2},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer func() { require.Equal(t, fexec.CommandCalls, len(calls)) }()
 
 	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	// Create set and validate set is created.
 	setName := "test-set"
-	if err := ipsMgr.CreateSet(setName, append([]string{util.IpsetNetHashFlag})); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet")
-	}
+	err := ipsMgr.CreateSet(setName, []string{util.IpsetNetHashFlag})
+	require.NoError(t, err)
 
 	entry := &ipsEntry{
 		operationFlag: util.IPsetCheckListFlag,
 		set:           util.GetHashedName(setName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.CreateSet since %s not exist in kernel", setName)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.NoError(t, err)
 
 	// Create list, add set to list and validate set is in the list.
 	listName := "test-list"
-	if err := ipsMgr.AddToList(listName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList")
-	}
+	err = ipsMgr.AddToList(listName, setName)
+	require.NoError(t, err)
 
 	entry = &ipsEntry{
 		operationFlag: util.IpsetTestFlag,
 		set:           util.GetHashedName(listName),
-		spec:          append([]string{util.GetHashedName(setName)}),
+		spec:          []string{util.GetHashedName(setName)},
 	}
 
-	if _, err := ipsMgr.Run(entry); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.AddToList since %s not exist in %s set", listName, setName)
-	}
-
-	// Delete set from list and validate set is not in list anymore.
-	if err := ipsMgr.DeleteFromList(listName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.NoError(t, err)
 
 	// Delete set from list and validate set is not in list anymore.
-	if err := ipsMgr.DeleteFromList(listName, "nonexistentsetname"); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
-	}
+	err = ipsMgr.DeleteFromList(listName, setName)
+	require.NoError(t, err)
+
+	// Delete set from list and validate set is not in list anymore.
+	err = ipsMgr.DeleteFromList(listName, "nonexistentsetname")
+	require.NoError(t, err)
 
 	// Delete set from list, but list isn't of list type
-	if err := ipsMgr.DeleteFromList(setName, setName); err != nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList %v", err)
-	}
+	err = ipsMgr.DeleteFromList(setName, setName)
+	require.NoError(t, err)
 
 	entry = &ipsEntry{
 		operationFlag: util.IpsetTestFlag,
 		set:           util.GetHashedName(listName),
-		spec:          append([]string{util.GetHashedName(setName)}),
+		spec:          []string{util.GetHashedName(setName)},
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteFromList since %s still exist in %s set", listName, setName)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.Error(t, err)
 
 	// Delete List and validate list is not exist.
 
-	if err := ipsMgr.DeleteSet(listName); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
-	}
+	err = ipsMgr.DeleteSet(listName)
+	require.NoError(t, err)
 
 	entry = &ipsEntry{
 		operationFlag: util.IPsetCheckListFlag,
 		set:           util.GetHashedName(listName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", listName)
-	}
+	_, err = ipsMgr.Run(entry)
+	require.Error(t, err)
 
 	// Delete set and validate set is not exist.
-	if err := ipsMgr.DeleteSet(setName); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
-	}
+	err = ipsMgr.DeleteSet(setName)
+	require.NoError(t, err)
 
 	entry = &ipsEntry{
 		operationFlag: util.IPsetCheckListFlag,
 		set:           util.GetHashedName(setName),
 	}
 
-	if _, err := ipsMgr.Run(entry); err == nil {
-		t.Errorf("TestDeleteFromList failed @ ipsMgr.DeleteSet since %s still exist in kernel", setName)
-	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
+	_, err = ipsMgr.Run(entry)
+	require.Error(t, err)
 }
 
 func TestCreateSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestCreateSet failed @ ipsMgr.Save")
+
+	var (
+		testSet1Name = "test-set"
+		testSet2Name = "test-set-with-maxelem"
+		testSet3Name = "test-set-with-port"
+	)
+
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSet1Name), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSet2Name), "nethash", "maxelem", "4294967295"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSet3Name), "hash:ip,port"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSet3Name), "1.1.1.1,tcp8080"}, Stdout: "Bad formatting", ExitCode: 2},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSet3Name), "1.1.1.1,tcp,8080"}}, // todo: verify this is proper formatting
 	}
 
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestCreateSet failed @ ipsMgr.Restore")
-		}
-	}()
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	gaugeVal, err1 := promutil.GetValue(metrics.NumIPSets)
 	countVal, err2 := promutil.GetCountValue(metrics.AddIPSetExecTime)
 
-	testSet1Name := "test-set"
-	if err := ipsMgr.CreateSet(testSet1Name, []string{util.IpsetNetHashFlag}); err != nil {
-		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet")
-	}
+	err := ipsMgr.CreateSet(testSet1Name, []string{util.IpsetNetHashFlag})
+	require.NoError(t, err)
 
-	testSet2Name := "test-set-with-maxelem"
-	spec := append([]string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum})
+	spec := []string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum}
 	if err := ipsMgr.CreateSet(testSet2Name, spec); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when set maxelem")
 	}
 
-	testSet3Name := "test-set-with-port"
-	spec = append([]string{util.IpsetIPPortHashFlag})
+	spec = []string{util.IpsetIPPortHashFlag}
 	if err := ipsMgr.CreateSet(testSet3Name, spec); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when creating port set")
 	}
-	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err != nil {
+	
+	err = ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0")
+	require.Error(t, err)
+
+	if err := ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s,%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err != nil {
 		t.Errorf("AddToSet failed @ ipsMgr.CreateSet when set port")
 	}
 
@@ -246,39 +244,35 @@ func TestCreateSet(t *testing.T) {
 	entryCount, err8 := promutil.GetValue(metrics.NumIPSetEntries)
 	promutil.NotifyIfErrors(t, err1, err2, err3, err4, err5, err6, err7, err8)
 	if newGaugeVal != gaugeVal+3 {
-		t.Errorf("Change in ipset number didn't register in Prometheus")
+		require.FailNowf(t, "", "Change in ipset number didn't register in Prometheus")
 	}
 	if newCountVal != countVal+3 {
-		t.Errorf("Execution time didn't register in Prometheus")
+		require.FailNowf(t, "", "Execution time didn't register in Prometheus")
 	}
 	if testSet1Count != 0 || testSet2Count != 0 || testSet3Count != 1 || entryCount != 1 {
-		t.Errorf("Prometheus IPSet count has incorrect number of entries")
+		require.FailNowf(t, "", "Prometheus IPSet count has incorrect number of entries")
 	}
 }
 
 func TestDeleteSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.Save")
-	}
-
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestDeleteSet failed @ ipsMgr.Restore")
-		}
-	}()
-
 	testSetName := "test-delete-set"
-	if err := ipsMgr.CreateSet(testSetName, append([]string{util.IpsetNetHashFlag})); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.CreateSet")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSetName), "nethash"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName(testSetName)}},
 	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
+	err := ipsMgr.CreateSet(testSetName, []string{util.IpsetNetHashFlag})
+	require.NoError(t, err)
 
 	gaugeVal, err1 := promutil.GetValue(metrics.NumIPSets)
 
-	if err := ipsMgr.DeleteSet(testSetName); err != nil {
-		t.Errorf("TestDeleteSet failed @ ipsMgr.DeleteSet")
-	}
+	err = ipsMgr.DeleteSet(testSetName)
+	require.NoError(t, err)
 
 	newGaugeVal, err2 := promutil.GetValue(metrics.NumIPSets)
 	testSetCount, err3 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSetName))
@@ -294,45 +288,42 @@ func TestDeleteSet(t *testing.T) {
 
 func TestAddToSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Fatalf("TestAddToSet failed @ ipsMgr.Save")
-	}
-
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Fatalf("TestAddToSet failed @ ipsMgr.Restore")
-		}
-	}()
 
 	testSetName := "test-set"
-	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
-		t.Fatalf("TestAddToSet failed @ ipsMgr.AddToSet")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSetName), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSetName), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSetName), "1.2.3.4/", "nomatch"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSetName), "1.1.1.1,tcp:8080"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSetName), "1.1.1.1,:"}}, // todo: verify this is proper formatting
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSetName), "1.1.1.1"}},
 	}
 
-	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4/nomatch", util.IpsetNetHashFlag, ""); err != nil {
-		t.Fatalf("TestAddToSet with nomatch failed @ ipsMgr.AddToSet %v", err)
-	}
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
+	err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, "")
+	require.NoError(t, err)
+
+	err = ipsMgr.AddToSet(testSetName, "1.2.3.4/nomatch", util.IpsetNetHashFlag, "")
+	require.NoError(t, err)
 
 	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,%s:%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err != nil {
 		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when set port: %v", err)
 	}
 
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,:", "1.1.1.1"), util.IpsetIPPortHashFlag, "0"); err != nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when set port is empty: %v", err)
-	}
+	err = ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,:", "1.1.1.1"), util.IpsetIPPortHashFlag, "0")
+	require.NoError(t, err)
 
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,%s:%d", "", "tcp", 8080), util.IpsetIPPortHashFlag, "0"); err == nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when port is specified but ip is empty: %v", err)
-	}
+	err = ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s,%s:%d", "", "tcp", 8080), util.IpsetIPPortHashFlag, "0")
+	require.Errorf(t, err, "Expect failure when port is specified but ip is empty")
 
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf("%s", "1.1.1.1"), util.IpsetIPPortHashFlag, "0"); err != nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when only ip is specified: %v", err)
-	}
+	err = ipsMgr.AddToSet(testSetName, "1.1.1.1", util.IpsetIPPortHashFlag, "0")
+	require.NoError(t, err)
 
-	if err := ipsMgr.AddToSet(testSetName, fmt.Sprintf(""), util.IpsetIPPortHashFlag, "0"); err == nil {
-		t.Errorf("AddToSet failed @ ipsMgr.AddToSet when no ip is specified: %v", err)
-	}
+	err = ipsMgr.AddToSet(testSetName, "", util.IpsetIPPortHashFlag, "0")
+	require.Error(t, err)
 
 	testSetCount, err1 := promutil.GetVecValue(metrics.IPSetInventory, metrics.GetIPSetInventoryLabels(testSetName))
 	entryCount, err2 := promutil.GetValue(metrics.NumIPSetEntries)
@@ -343,23 +334,24 @@ func TestAddToSet(t *testing.T) {
 }
 
 func TestAddToSetWithCachePodInfo(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestAddToSetWithCachePodInfo failed @ ipsMgr.Save")
-	}
-
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestAddToSetWithCachePodInfo failed @ ipsMgr.Restore")
-		}
-	}()
-
 	var pod1 = "pod1"
 	var setname = "test-podcache_new"
 	var ip = "10.0.2.7"
-	if err := ipsMgr.AddToSet(setname, ip, util.IpsetNetHashFlag, pod1); err != nil {
-		t.Errorf("TestAddToSetWithCachePodInfo with pod1 failed @ ipsMgr.AddToSet, setname: %s, hashedname: %s", setname, util.GetHashedName(setname))
+	var pod2 = "pod2"
+
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(setname), ip}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName(setname), ip}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName(setname)}},
 	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
+	err := ipsMgr.AddToSet(setname, ip, util.IpsetNetHashFlag, pod1)
+	require.NoError(t, err)
 
 	// validate if Pod1 exists
 	cachedPodUid := ipsMgr.SetMap[setname].elements[ip]
@@ -368,7 +360,7 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 	}
 
 	// now add pod2 with the same ip. This is possible if DeletePod1 is handled after AddPod2 event callback.
-	var pod2 = "pod2"
+
 	if err := ipsMgr.AddToSet(setname, ip, util.IpsetNetHashFlag, pod2); err != nil {
 		t.Errorf("TestAddToSetWithCachePodInfo with pod2 failed @ ipsMgr.AddToSet")
 	}
@@ -379,34 +371,34 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 	}
 
 	// Delete from set, it will delete the set if this is the last member
-	ipsMgr.DeleteFromSet(setname, ip, pod2)
+	err = ipsMgr.DeleteFromSet(setname, ip, pod2)
+	require.NoError(t, err)
 }
 
 func TestDeleteFromSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestDeleteFromSet failed @ ipsMgr.Save")
-	}
-
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestDeleteFromSet failed @ ipsMgr.Restore")
-		}
-	}()
 
 	testSetName := "test-delete-from-set"
-	if err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, ""); err != nil {
-		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSetName), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSetName), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName(testSetName), "1.2.3.4"}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName(testSetName)}},
 	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
+	err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, "")
+	require.NoError(t, err)
 
 	if len(ipsMgr.SetMap[testSetName].elements) != 1 {
-		t.Errorf("TestDeleteFromSet failed @ ipsMgr.AddToSet")
+		require.FailNow(t, "TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
-	if err := ipsMgr.DeleteFromSet(testSetName, "1.2.3.4", ""); err != nil {
-		t.Errorf("TestDeleteFromSet failed @ ipsMgr.DeleteFromSet")
-	}
+	err = ipsMgr.DeleteFromSet(testSetName, "1.2.3.4", "")
+	require.NoError(t, err)
 
 	// After deleting the only entry, "1.2.3.4" from "test-set", "test-set" ipset won't exist
 	if _, exists := ipsMgr.SetMap[testSetName]; exists {
@@ -422,20 +414,26 @@ func TestDeleteFromSet(t *testing.T) {
 }
 
 func TestDeleteFromSetWithPodCache(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestDeleteFromSetWithPodCache failed @ ipsMgr.Save")
-	}
-
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestDeleteFromSetWithPodCache failed @ ipsMgr.Restore")
-		}
-	}()
-
 	var setname = "test-deleteset-withcache"
 	var ip = "10.0.2.8"
 	var pod1 = "pod1"
+	var pod2 = "pod2"
+
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(setname), ip}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName(setname), ip}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName(setname)}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(setname), ip}},
+		{Cmd: []string{"ipset", "-D", "-exist", util.GetHashedName(setname), ip}},
+		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName(setname)}},
+	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
 	if err := ipsMgr.AddToSet(setname, ip, util.IpsetNetHashFlag, pod1); err != nil {
 		t.Errorf("TestDeleteFromSetWithPodCache failed for pod1 @ ipsMgr.AddToSet with err %+v", err)
 	}
@@ -449,7 +447,7 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 	}
 
 	// now add the set again and then replace it with pod2
-	var pod2 = "pod2"
+
 	if err := ipsMgr.AddToSet(setname, ip, util.IpsetNetHashFlag, pod1); err != nil {
 		t.Errorf("TestDeleteFromSetWithPodCache failed for pod1 @ ipsMgr.AddToSet with err %+v", err)
 	}
@@ -481,19 +479,16 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 }
 
 func TestClean(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestClean failed @ ipsMgr.Save")
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "save", "-file", "/var/log/ipset-test.conf"}},
 	}
 
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestClean failed @ ipsMgr.Restore")
-		}
-	}()
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
-	if err := ipsMgr.CreateSet("test-set", append([]string{util.IpsetNetHashFlag})); err != nil {
-		t.Errorf("TestClean failed @ ipsMgr.CreateSet with err %+v", err)
+	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
+		t.Errorf("TestClean failed @ ipsMgr.Save")
 	}
 
 	if err := ipsMgr.Clean(); err != nil {
@@ -502,19 +497,21 @@ func TestClean(t *testing.T) {
 }
 
 func TestDestroy(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestDestroy failed @ ipsMgr.Save")
-	}
-
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestDestroy failed @ ipsMgr.Restore")
-		}
-	}()
-
 	setName := "test-destroy"
 	testIP := "1.2.3.4"
+
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setName), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(setName), testIP}},
+		{Cmd: []string{"ipset", "-F", "-exist"}},
+		{Cmd: []string{"ipset", "-X", "-exist"}},
+		{Cmd: []string{"ipset", "list", "-exist", util.GetHashedName(setName)}, ExitCode: 2},
+	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
 	if err := ipsMgr.AddToSet(setName, testIP, util.IpsetNetHashFlag, ""); err != nil {
 		t.Errorf("TestDestroy failed @ ipsMgr.AddToSet with err %+v", err)
 	}
@@ -535,7 +532,7 @@ func TestDestroy(t *testing.T) {
 		entry := &ipsEntry{
 			operationFlag: util.IpsetTestFlag,
 			set:           util.GetHashedName(setName),
-			spec:          append([]string{testIP}),
+			spec:          []string{testIP},
 		}
 
 		if _, err := ipsMgr.Run(entry); err == nil {
@@ -545,51 +542,52 @@ func TestDestroy(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestRun failed @ ipsMgr.Save with err %v", err)
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("test-set"), "nethash"}},
 	}
 
-	defer func() {
-		if err := ipsMgr.Restore(util.IpsetTestConfigFile); err != nil {
-			t.Errorf("TestRun failed @ ipsMgr.Restore with err %v", err)
-		}
-	}()
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	entry := &ipsEntry{
 		operationFlag: util.IpsetCreationFlag,
-		set:           "test-set",
-		spec:          append([]string{util.IpsetNetHashFlag}),
+		set:           util.GetHashedName("test-set"),
+		spec:          []string{util.IpsetNetHashFlag},
 	}
 	if _, err := ipsMgr.Run(entry); err != nil {
 		t.Errorf("TestRun failed @ ipsMgr.Run with err %+v", err)
 	}
 }
 
-func TestRunError(t *testing.T) {
-	setname := "test-set"
-
+func TestRunErrorWithNonZeroExitCode(t *testing.T) {
 	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(setname), "nethash"}, Stderr: "test failure", ExitCode: 2},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("test-set"), "nethash"}, Stdout: "test failure", ExitCode: 2},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
-
+	fexec := testutils.GetFakeExecWithScripts(calls)
 	ipsMgr := NewIpsetManager(fexec)
-	entry := &ipsEntry{
-		operationFlag: util.IpsetCreationFlag,
-		set:           util.GetHashedName(setname),
-		spec:          append([]string{util.IpsetNetHashFlag}),
-	}
-	if _, err := ipsMgr.Run(entry); err != nil {
-		require.Error(t, err)
-	}
+	defer testutils.VerifyCalls(t, fexec, calls)
 
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
+	entry := &ipsEntry{
+		operationFlag: util.IpsetAppendFlag,
+		set:           util.GetHashedName("test-set"),
+		spec:          []string{util.IpsetNetHashFlag},
+	}
+	_, err := ipsMgr.Run(entry)
+	require.Error(t, err)
 }
 
 func TestDestroyNpmIpsets(t *testing.T) {
-	ipsMgr := NewIpsetManager(exec.New())
+	var calls = []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("azure-npm-123456"), "nethash"}},
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("azure-npm-56543"), "nethash"}},
+		{Cmd: []string{"ipset", "list"}},
+	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	err := ipsMgr.CreateSet("azure-npm-123456", []string{"nethash"})
 	if err != nil {
@@ -855,13 +853,6 @@ func TestIPSetCannotBeAddedAsElementDoesNotExist(t *testing.T) {
 */
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
-
-	log.Printf("Uniniting iptables")
-	iptm := iptm.NewIptablesManager()
-	iptm.UninitNpmChains()
-	log.Printf("Uniniting ipsets")
-	ipsMgr := NewIpsetManager(exec.New())
-	ipsMgr.Destroy()
 
 	exitCode := m.Run()
 

@@ -1,23 +1,24 @@
 {
     "TelemetrySettings": {
-        "TelemetryBatchSizeBytes": 16384,
-        "TelemetryBatchIntervalInSecs": 15,
-        "RefreshIntervalInSecs": 15,
+        "DebugMode": false,
         "DisableAll": false,
         "HeartBeatIntervalInMins": 30,
-        "DebugMode": false,
-        "SnapshotIntervalInMins": 60
+        "RefreshIntervalInSecs": 15,
+        "SnapshotIntervalInMins": 60,
+        "TelemetryBatchIntervalInSecs": 15,
+        "TelemetryBatchSizeBytes": 16384
     },
     "ManagedSettings": {
-        "PrivateEndpoint": "",
         "InfrastructureNetworkID": "",
         "NodeID": "",
-        "NodeSyncIntervalInSeconds": 30
+        "NodeSyncIntervalInSeconds": 30,
+        "PrivateEndpoint": ""
     },
     "ChannelMode": "Direct",
-    "UseHTTPS" : false,
-    "TLSSubjectName" : "",
-    "TLSCertificatePath" : "",
-    "TLSPort" : "10091",
+    "InitializeFromCNI": false,
+    "TLSCertificatePath": "",
+    "TLSPort": "10091",
+    "TLSSubjectName": "",
+    "UseHTTPS": false,
     "WireserverIP": "168.63.129.16"
 }

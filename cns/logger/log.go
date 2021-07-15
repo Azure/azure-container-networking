@@ -51,10 +51,6 @@ func InitAI(aiConfig aitelemetry.AIConfig, disableTraceLogging, disableMetricLog
 	Log.DisableEventLogging = disableEventLogging
 }
 
-func InitReportChannel(reports chan interface{}) {
-	Log.logger.SetChannel(reports)
-}
-
 // Close CNS and AI telemetry handle
 func Close() {
 	Log.logger.Close()

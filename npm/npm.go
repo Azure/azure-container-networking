@@ -11,6 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
+
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -142,7 +143,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 
 // restore restores iptables from backup file
 func (npMgr *NetworkPolicyManager) restore() {
-	iptMgr := iptm.NewIptablesManager()
+	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
 	var err error
 	for i := 0; i < restoreMaxRetries; i++ {
 		if err = iptMgr.Restore(util.IptablesConfigFile); err == nil {
@@ -157,14 +158,19 @@ func (npMgr *NetworkPolicyManager) restore() {
 }
 
 // backup takes snapshots of iptables filter table and saves it periodically.
-func (npMgr *NetworkPolicyManager) backup() {
-	iptMgr := iptm.NewIptablesManager()
-	var err error
-	for {
-		time.Sleep(backupWaitTimeInSeconds * time.Second)
+func (npMgr *NetworkPolicyManager) backup(stopCh <-chan struct{}) {
+	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
+	ticker := time.NewTicker(time.Second * time.Duration(backupWaitTimeInSeconds))
+	defer ticker.Stop()
 
-		if err = iptMgr.Save(util.IptablesConfigFile); err != nil {
-			metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states")
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			if err := iptMgr.Save(util.IptablesConfigFile); err != nil {
+				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states %s", err.Error())
+			}
 		}
 	}
 }
@@ -194,8 +200,8 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	go npMgr.podController.Run(threadness, stopCh)
 	go npMgr.nameSpaceController.Run(threadness, stopCh)
 	go npMgr.netPolController.Run(threadness, stopCh)
-	go npMgr.reconcileChains()
-	go npMgr.backup()
+	go npMgr.reconcileChains(stopCh)
+	go npMgr.backup(stopCh)
 
 	return nil
 }
@@ -204,7 +210,7 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
 	// Clear out left over iptables states
 	log.Logf("Azure-NPM creating, cleaning iptables")
-	iptMgr := iptm.NewIptablesManager()
+	iptMgr := iptm.NewIptablesManager(exec, iptm.NewIptOperationShim())
 	iptMgr.UninitNpmChains()
 
 	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
@@ -263,7 +269,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 
 	// Create ipset for the namespace.
 	kubeSystemNs := util.GetNSNameWithPrefix(util.KubeSystemFlag)
-	if err := allNs.IpsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
+	if err := allNs.IpsMgr.CreateSet(kubeSystemNs, []string{util.IpsetNetHashFlag}); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
 	}
 
@@ -280,13 +286,19 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 }
 
 // reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
-func (npMgr *NetworkPolicyManager) reconcileChains() error {
-	iptMgr := iptm.NewIptablesManager()
-	select {
-	case <-time.After(reconcileChainTimeInMinutes * time.Minute):
-		if err := iptMgr.CheckAndAddForwardChain(); err != nil {
-			return err
+func (npMgr *NetworkPolicyManager) reconcileChains(stopCh <-chan struct{}) {
+	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
+	ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			if err := iptMgr.CheckAndAddForwardChain(); err != nil {
+				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to reconcileChains Azure-NPM due to %s", err.Error())
+			}
 		}
 	}
-	return nil
 }

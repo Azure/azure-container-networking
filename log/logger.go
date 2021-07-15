@@ -53,7 +53,6 @@ type Logger struct {
 	maxFileCount int
 	callCount    int
 	directory    string
-	reports      chan interface{}
 	mutex        *sync.Mutex
 }
 
@@ -89,11 +88,6 @@ func (logger *Logger) SetLevel(level int) {
 func (logger *Logger) SetLogFileLimits(maxFileSize int, maxFileCount int) {
 	logger.maxFileSize = maxFileSize
 	logger.maxFileCount = maxFileCount
-}
-
-// SetChannel sets the channel for error message reports.
-func (logger *Logger) SetChannel(reports chan interface{}) {
-	logger.reports = reports
 }
 
 // Close closes the log stream.
@@ -223,14 +217,7 @@ func (logger *Logger) Printf(format string, args ...interface{}) {
 		return
 	}
 
-	logger.mutex.Lock()
-	logger.logf(format, args...)
-	logger.mutex.Unlock()
-	go func() {
-		if logger.reports != nil {
-			logger.reports <- fmt.Sprintf(format, args...)
-		}
-	}()
+	logger.Logf(format, args...)
 }
 
 // Debugf logs a formatted string at info level.
@@ -239,22 +226,10 @@ func (logger *Logger) Debugf(format string, args ...interface{}) {
 		return
 	}
 
-	logger.mutex.Lock()
-	logger.logf(format, args...)
-	logger.mutex.Unlock()
-	go func() {
-		if logger.reports != nil {
-			logger.reports <- fmt.Sprintf(format, args...)
-		}
-	}()
+	logger.Logf(format, args...)
 }
 
 // Errorf logs a formatted string at info level and sends the string to TelemetryBuffer.
 func (logger *Logger) Errorf(format string, args ...interface{}) {
 	logger.Logf(format, args...)
-	go func() {
-		if logger.reports != nil {
-			logger.reports <- fmt.Sprintf(format, args...)
-		}
-	}()
 }

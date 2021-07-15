@@ -68,7 +68,6 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		handleCommonOptions(extIf.BridgeName, nwInfo)
 	case opModeTransparent:
 		handleCommonOptions(extIf.Name, nwInfo)
-		break
 	default:
 		return nil, errNetworkModeInvalid
 	}

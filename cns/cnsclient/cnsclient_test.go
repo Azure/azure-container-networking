@@ -73,9 +73,14 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 		Version: "-1",
 	}
 
-	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.CreateOrUpdateNetworkContainerInternal(req)
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
+	}
+
+	returnCode = svc.UpdateIPAMPoolMonitorInternal(fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	if returnCode != 0 {
+		t.Fatalf("Failed to UpdateIPAMPoolMonitorInternal, err: %d", returnCode)
 	}
 }
 
@@ -227,13 +232,13 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	}
 
 	// no IP reservation found with that context, expect no failure.
-	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	err = cnsClient.ReleaseIPAddress(&cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	if err != nil {
 		t.Fatalf("Release ip idempotent call failed: %+v", err)
 	}
 
 	// request IP address
-	resp, err := cnsClient.RequestIPAddress(orchestratorContext)
+	resp, err := cnsClient.RequestIPAddress(&cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	if err != nil {
 		t.Fatalf("get IP from CNS failed with %+v", err)
 	}
@@ -278,7 +283,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	t.Log(ipaddresses)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	err = cnsClient.ReleaseIPAddress(&cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
 	if err != nil {
 		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
 	}
@@ -294,14 +299,14 @@ func TestCNSClientPodContextApi(t *testing.T) {
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
+	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// request IP address
-	_, err = cnsClient.RequestIPAddress(orchestratorContext)
+	_, err = cnsClient.RequestIPAddress(&cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	if err != nil {
 		t.Fatalf("get IP from CNS failed with %+v", err)
 	}
@@ -318,7 +323,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	t.Log(podcontext)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(orchestratorContext)
+	err = cnsClient.ReleaseIPAddress(&cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	if err != nil {
 		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
 	}
@@ -334,14 +339,14 @@ func TestCNSClientDebugAPI(t *testing.T) {
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
+	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// request IP address
-	_, err1 := cnsClient.RequestIPAddress(orchestratorContext)
+	_, err1 := cnsClient.RequestIPAddress(&cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	if err1 != nil {
 		t.Fatalf("get IP from CNS failed with %+v", err1)
 	}
@@ -352,7 +357,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 		t.Errorf("Get in-memory http REST Struct failed %+v", err)
 	}
 
-	if len(inmemory.HttpRestServiceData.PodIPIDByOrchestratorContext) < 1 {
+	if len(inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
 		t.Errorf("OrchestratorContext map is expected but not returned")
 	}
 
@@ -387,7 +392,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 
 	t.Logf("In-memory Data: ")
-	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HttpRestServiceData.PodIPIDByOrchestratorContext)
+	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey)
 	t.Logf("PodIPConfigState: %+v", inmemory.HttpRestServiceData.PodIPConfigState)
 	t.Logf("IPAMPoolMonitor: %+v", inmemory.HttpRestServiceData.IPAMPoolMonitor)
 

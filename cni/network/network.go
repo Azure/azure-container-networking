@@ -16,6 +16,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/utils"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
@@ -26,6 +27,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
 	nnscontracts "github.com/Azure/azure-container-networking/proto/nodenetworkservice/3.302.0.744"
+	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -156,6 +158,34 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	log.Printf("[cni-net] Plugin started.")
 
 	return nil
+}
+
+func (plugin *netPlugin) GetAllEndpointState(networkid string) (*api.AzureCNIState, error) {
+	st := api.AzureCNIState{
+		ContainerInterfaces: make(map[string]api.PodNetworkInterfaceInfo),
+	}
+
+	eps, err := plugin.nm.GetAllEndpoints(networkid)
+	if err == store.ErrStoreEmpty {
+		log.Printf("failed to retrieve endpoint state with err %v", err)
+	} else if err != nil {
+		return nil, err
+	}
+
+	for _, ep := range eps {
+		id := ep.Id
+		info := api.PodNetworkInterfaceInfo{
+			PodName:       ep.PODName,
+			PodNamespace:  ep.PODNameSpace,
+			PodEndpointId: ep.Id,
+			ContainerID:   ep.ContainerID,
+			IPAddresses:   ep.IPAddresses,
+		}
+
+		st.ContainerInterfaces[id] = info
+	}
+
+	return &st, err
 }
 
 // Stops the plugin.
@@ -478,7 +508,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		log.Printf("[cni-net] Creating network %v.", networkId)
 
 		if !nwCfg.MultiTenancy {
-			result, resultV6, err = plugin.ipamInvoker.Add(nwCfg, &subnetPrefix, options)
+			result, resultV6, err = plugin.ipamInvoker.Add(nwCfg, args, &subnetPrefix, options)
 			if err != nil {
 				return err
 			}
@@ -486,10 +516,14 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			defer func() {
 				if err != nil {
 					if result != nil && len(result.IPs) > 0 {
-						plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, options)
+						if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
+							err = plugin.Errorf("Failed to cleanup when NwInfo was not nil with error %v, after Add failed with error %w", er, err)
+						}
 					}
 					if resultV6 != nil && len(resultV6.IPs) > 0 {
-						plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, options)
+						if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
+							err = plugin.Errorf("Failed to cleanup when NwInfo was not nil with error %v, after Add failed with error %w", er, err)
+						}
 					}
 				}
 			}()
@@ -580,7 +614,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		if !nwCfg.MultiTenancy {
 			// Network already exists.
 			log.Printf("[cni-net] Found network %v with subnet %v.", networkId, nwInfo.Subnets[0].Prefix.String())
-			result, resultV6, err = plugin.ipamInvoker.Add(nwCfg, &subnetPrefix, nwInfo.Options)
+			result, resultV6, err = plugin.ipamInvoker.Add(nwCfg, args, &subnetPrefix, nwInfo.Options)
 			if err != nil {
 				return err
 			}
@@ -590,10 +624,14 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			defer func() {
 				if err != nil {
 					if result != nil && len(result.IPs) > 0 {
-						plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, nwInfo.Options)
+						if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, nwInfo.Options); er != nil {
+							err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
+						}
 					}
 					if resultV6 != nil && len(resultV6.IPs) > 0 {
-						plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, nwInfo.Options)
+						if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, nwInfo.Options); er != nil {
+							err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
+						}
 					}
 				}
 			}()
@@ -640,9 +678,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	epPolicies := getPoliciesFromRuntimeCfg(nwCfg)
-	for _, epPolicy := range epPolicies {
-		epInfo.Policies = append(epInfo.Policies, epPolicy)
-	}
+
+	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.
 	for _, ipconfig := range result.IPs {
@@ -893,7 +930,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		if !nwCfg.MultiTenancy {
 			// attempt to release address associated with this Endpoint id
 			// This is to ensure clean up is done even in failure cases
-			err = plugin.ipamInvoker.Delete(nil, nwCfg, nwInfo.Options)
+			err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 			if err != nil {
 				log.Printf("Network not found, attempted to release address with error:  %v", err)
 			}
@@ -912,7 +949,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 			// attempt to release address associated with this Endpoint id
 			// This is to ensure clean up is done even in failure cases
 			log.Printf("release ip ep not found")
-			if err = plugin.ipamInvoker.Delete(nil, nwCfg, nwInfo.Options); err != nil {
+			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 				log.Printf("Endpoint not found, attempted to release address with error: %v", err)
 			}
 		}
@@ -935,7 +972,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// Call into IPAM plugin to release the endpoint's addresses.
 		for _, address := range epInfo.IPAddresses {
 			log.Printf("release ip:%s", address.IP.String())
-			err = plugin.ipamInvoker.Delete(&address, nwCfg, nwInfo.Options)
+			err = plugin.ipamInvoker.Delete(&address, nwCfg, args, nwInfo.Options)
 			if err != nil {
 				err = plugin.Errorf("Failed to release address %v with error: %v", address, err)
 				return err
@@ -944,7 +981,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	} else if epInfo.EnableInfraVnet {
 		nwCfg.Ipam.Subnet = nwInfo.Subnets[0].Prefix.String()
 		nwCfg.Ipam.Address = epInfo.InfraVnetIP.IP.String()
-		err = plugin.ipamInvoker.Delete(nil, nwCfg, nwInfo.Options)
+		err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 		if err != nil {
 			log.Printf("Failed to release address: %v", err)
 			err = plugin.Errorf("Failed to release address %v with error: %v", nwCfg.Ipam.Address, err)
@@ -1066,7 +1103,10 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 	}
 
 	// create struct with info for target POD
-	podInfo := cns.KubernetesPodInfo{PodName: k8sPodName, PodNamespace: k8sNamespace}
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      k8sPodName,
+		PodNamespace: k8sNamespace,
+	}
 	if orchestratorContext, err = json.Marshal(podInfo); err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
 		return plugin.Errorf(err.Error())

@@ -6,11 +6,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-container-networking/nns"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"time"
+
+	"github.com/Azure/azure-container-networking/nns"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/network"
@@ -183,7 +184,7 @@ func main() {
 	// CNI Acquires lock
 	if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 		log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
-		tb := telemetry.NewTelemetryBuffer("")
+		tb := telemetry.NewTelemetryBuffer()
 		if tberr := tb.Connect(); tberr == nil {
 			reportPluginError(reportManager, tb, err)
 			tb.Close()
@@ -211,7 +212,7 @@ func main() {
 
 	// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 	// end up creating/killing telemetry process results in undesired state.
-	tb := telemetry.NewTelemetryBuffer("")
+	tb := telemetry.NewTelemetryBuffer()
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 
@@ -230,8 +231,25 @@ func main() {
 	cniCmd := os.Getenv(cni.Cmd)
 	log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
 
+	// used to dump state
+	if cniCmd == cni.CmdGetEndpointsState {
+		log.Printf("Retrieving state")
+		simpleState, err := netPlugin.GetAllEndpointState("azure")
+		if err != nil {
+			log.Errorf("Failed to get Azure CNI state, err:%v.\n", err)
+			return
+		}
+
+		err = simpleState.PrintResult()
+		if err != nil {
+			log.Errorf("Failed to print state result to stdout with err %v\n", err)
+		}
+
+		return
+	}
+
 	handled, err := handleIfCniUpdate(netPlugin.Update)
-	if handled == true {
+	if handled {
 		log.Printf("CNI UPDATE finished.")
 	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
 		log.Errorf("Failed to execute network plugin, err:%v.\n", err)

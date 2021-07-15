@@ -1,6 +1,7 @@
 package ipampoolmonitor
 
 import (
+	"context"
 	"log"
 	"testing"
 
@@ -38,7 +39,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 		initialIPConfigCount    = 10
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -50,7 +51,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 	}
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
 	}
@@ -68,7 +69,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 
 	// when poolmonitor reconciles again here, the IP count will be within the thresholds
 	// so no CRD update and nothing pending
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to reconcile pool monitor after request controller updates CNS state: %v", err)
 	}
@@ -92,7 +93,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 		initialIPConfigCount    = 10
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -104,7 +105,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 	}
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
 	}
@@ -116,7 +117,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 	}
 
 	// poolmonitor reconciles, but doesn't actually update the CRD, because there is already a pending update
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to reconcile pool monitor after allocation ip increase with err: %v", err)
 	}
@@ -134,7 +135,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 
 	// when poolmonitor reconciles again here, the IP count will be within the thresholds
 	// so no CRD update and nothing pending
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to reconcile pool monitor after request controller updates CNS state: %v", err)
 	}
@@ -158,7 +159,7 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 		initialIPConfigCount    = 10
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -173,7 +174,7 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 	}
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
 	}
@@ -184,7 +185,7 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 	}
 
 	// reconcile pool monitor a second time, then verify requested ip count is still the same
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
 	}
@@ -197,11 +198,11 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 
 func TestPoolIncreasePastNodeLimit(t *testing.T) {
 	var (
-		batchSize = 16
-		initialIPConfigCount = 16
+		batchSize               = 16
+		initialIPConfigCount    = 16
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -216,7 +217,7 @@ func TestPoolIncreasePastNodeLimit(t *testing.T) {
 	}
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
 	}
@@ -229,11 +230,11 @@ func TestPoolIncreasePastNodeLimit(t *testing.T) {
 
 func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	var (
-		batchSize = 50
-		initialIPConfigCount = 16
+		batchSize               = 50
+		initialIPConfigCount    = 16
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -248,7 +249,7 @@ func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	}
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
 	}
@@ -261,12 +262,12 @@ func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 
 func TestPoolIncreaseMaxIPCountSetToZero(t *testing.T) {
 	var (
-		batchSize = 16
-		initialIPConfigCount = 16
+		batchSize               = 16
+		initialIPConfigCount    = 16
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		initialMaxPodIPCount = int64(0)
-		expectedMaxPodIPCount = defaultMaxIPCount
+		initialMaxPodIPCount    = int64(0)
+		expectedMaxPodIPCount   = defaultMaxIPCount
 	)
 
 	_, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, initialMaxPodIPCount)
@@ -282,7 +283,7 @@ func TestPoolDecrease(t *testing.T) {
 		initialIPConfigCount    = 20
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -297,7 +298,7 @@ func TestPoolDecrease(t *testing.T) {
 	}
 
 	// Pool monitor does nothing, as the current number of IP's falls in the threshold
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +310,7 @@ func TestPoolDecrease(t *testing.T) {
 	}
 
 	// Pool monitor will adjust the spec so the pool size will be 1 batch size smaller
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +340,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 		initialIPConfigCount    = 20
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 100
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -354,7 +355,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 	}
 
 	// Pool monitor does nothing, as the current number of IP's falls in the threshold
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
 	}
@@ -390,7 +391,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected no pool monitor failure after request controller reconcile: %v", err)
 	}
@@ -407,7 +408,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 		initialIPConfigCount    = 30
 		requestThresholdPercent = 30
 		releaseThresholdPercent = 100
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -422,7 +423,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 	}
 
 	// Pool monitor does nothing, as the current number of IP's falls in the threshold
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
 	}
@@ -435,7 +436,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 
 	// Pool monitor does nothing, as the current number of IP's falls in the threshold
 	t.Logf("Reconcile after Allocated count from 33 -> 3, Exepected free count = 10")
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
 	}
@@ -452,7 +453,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 
 	// Reconcile again, it should release the second batch
 	t.Logf("Reconcile again - 2, Exepected free count = 20")
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
 	}
@@ -473,7 +474,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected no pool monitor failure after request controller reconcile: %v", err)
 	}
@@ -486,13 +487,13 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 
 func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 	var (
-		batchSize = 16
-		initialIPConfigCount = 30
+		batchSize               = 16
+		initialIPConfigCount    = 30
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
-		expectedRequestedIP = 16
-		expectedDecreaseIP = int(maxPodIPCount) % batchSize
+		maxPodIPCount           = int64(30)
+		expectedRequestedIP     = 16
+		expectedDecreaseIP      = int(maxPodIPCount) % batchSize
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -505,7 +506,7 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
 	}
@@ -516,7 +517,7 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
 	}
@@ -534,11 +535,11 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 
 func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	var (
-		batchSize = 31
-		initialIPConfigCount = 30
+		batchSize               = 31
+		initialIPConfigCount    = 30
 		requestThresholdPercent = 50
 		releaseThresholdPercent = 150
-		maxPodIPCount = int64(30)
+		maxPodIPCount           = int64(30)
 	)
 
 	fakecns, _, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
@@ -553,7 +554,7 @@ func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	}
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to allocate test ipconfigs with err: %v", err)
 	}
@@ -564,7 +565,7 @@ func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = poolmonitor.Reconcile()
+	err = poolmonitor.Reconcile(context.Background())
 	if err != nil {
 		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
 	}

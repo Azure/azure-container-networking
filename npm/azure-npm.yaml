@@ -80,7 +80,7 @@ spec:
 
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.3.1
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.1
           resources:
             limits:
               cpu: 250m

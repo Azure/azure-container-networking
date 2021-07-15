@@ -17,12 +17,10 @@ spec:
             - --ignore-loopback=true
             - --cleanup-namespaces=true
             - --perturbation-wait-seconds=5
-            - --pod-creation-timeout-seconds=20
+            - --pod-creation-timeout-seconds=30
             - --job-timeout-seconds=2
             - --server-protocol=TCP,UDP
-            - --server-port=80
           name: cyclonus
           imagePullPolicy: IfNotPresent
-          image: mfenwick100/cyclonus:v0.4.4
+          image: mfenwick100/cyclonus:v0.4.7
       serviceAccount: cyclonus
-      

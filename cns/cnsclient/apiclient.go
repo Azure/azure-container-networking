@@ -7,6 +7,9 @@ import (
 
 // APIClient interface to update cns state
 type APIClient interface {
-	ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.KubernetesPodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
-	CreateOrUpdateNC(nc cns.CreateNetworkContainerRequest, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
+	ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.PodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
+	CreateOrUpdateNC(nc cns.CreateNetworkContainerRequest) error
+	UpdateIPAMPoolMonitor(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
+	GetNC(nc cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, error)
+	DeleteNC(nc cns.DeleteNetworkContainerRequest) error
 }

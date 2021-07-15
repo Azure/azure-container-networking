@@ -69,9 +69,10 @@ const (
 
 // ChannelMode :- CNS channel modes
 const (
-	Direct  = "Direct"
-	Managed = "Managed"
-	CRD     = "CRD"
+	Direct         = "Direct"
+	Managed        = "Managed"
+	CRD            = "CRD"
+	MultiTenantCRD = "MultiTenantCRD"
 )
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
@@ -106,16 +107,141 @@ type ConfigureContainerNetworkingRequest struct {
 	NetworkContainerid string
 }
 
-// KubernetesPodInfo is an OrchestratorContext that holds PodName and PodNamespace.
+// PodInfoByIPProvider to be implemented by initializers which provide a map
+// of PodInfos by IP.
+type PodInfoByIPProvider interface {
+	PodInfoByIP() map[string]PodInfo
+}
+
+var _ PodInfoByIPProvider = (PodInfoByIPProviderFunc)(nil)
+
+// PodInfoByIPProviderFunc functional type which implements PodInfoByIPProvider.
+// Allows one-off functional implementations of the PodInfoByIPProvider
+// interface when a custom type definition is not necessary.
+type PodInfoByIPProviderFunc func() map[string]PodInfo
+
+// PodInfoByIP implements PodInfoByIPProvider on PodInfByIPProviderFunc.
+func (f PodInfoByIPProviderFunc) PodInfoByIP() map[string]PodInfo {
+	return f()
+}
+
+var GlobalPodInfoScheme podInfoScheme
+
+// podInfoScheme indicates which schema should be used when generating
+// the map key in the Key() function on a podInfo object.
+type podInfoScheme int
+
+const (
+	KubernetesPodInfoScheme podInfoScheme = iota
+	InterfaceIDPodInfoScheme
+)
+
+// PodInfo represents the object that we are providing network for.
+type PodInfo interface {
+	// InfraContainerID the CRI infra container for the pod namespace.
+	InfraContainerID() string
+	// InterfaceID a short hash of the infra container and the primary network
+	// interface of the pod net ns.
+	InterfaceID() string
+	// Key is a unique string representation of the PodInfo.
+	Key() string
+	// Name is the orchestrator pod name.
+	Name() string
+	// Namespace is the orchestrator pod namespace.
+	Namespace() string
+	// OrchestratorContext is a JSON KubernetesPodInfo
+	OrchestratorContext() (json.RawMessage, error)
+}
+
 type KubernetesPodInfo struct {
 	PodName      string
 	PodNamespace string
 }
 
-// GetOrchestratorContext will return the orchestratorcontext as a string
-// TODO - should use a hashed name or can this be PODUid?
-func (podinfo *KubernetesPodInfo) GetOrchestratorContextKey() string {
-	return podinfo.PodName + ":" + podinfo.PodNamespace
+var _ PodInfo = (*podInfo)(nil)
+
+// podInfo implements PodInfo for multiple schemas of Key
+type podInfo struct {
+	KubernetesPodInfo
+	PodInfraContainerID string
+	PodInterfaceID      string
+	Version             podInfoScheme
+}
+
+func (p *podInfo) InfraContainerID() string {
+	return p.PodInfraContainerID
+}
+
+func (p *podInfo) InterfaceID() string {
+	return p.PodInterfaceID
+}
+
+// Key is a unique string representation of the PodInfo.
+// If the PodInfo.Version == kubernetes, the Key is composed of the
+// orchestrator pod name and namespace. if the Version is interfaceID, key is
+// composed of the CNI interfaceID, which is generated from the CRI infra
+// container ID and the pod net ns primary interface name.
+func (p *podInfo) Key() string {
+	if p.Version == InterfaceIDPodInfoScheme {
+		return p.PodInterfaceID
+	}
+	return p.PodName + ":" + p.PodNamespace
+}
+
+func (p *podInfo) Name() string {
+	return p.PodName
+}
+
+func (p *podInfo) Namespace() string {
+	return p.PodNamespace
+}
+
+func (p *podInfo) OrchestratorContext() (json.RawMessage, error) {
+	jsonContext, err := json.Marshal(p.KubernetesPodInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal PodInfo, error: %w", err)
+	}
+	return jsonContext, nil
+}
+
+// NewPodInfo returns an implementation of PodInfo that returns the passed
+// configuration for their namesake functions.
+func NewPodInfo(infraContainerID, interfaceID, name, namespace string) PodInfo {
+	return &podInfo{
+		KubernetesPodInfo: KubernetesPodInfo{
+			PodName:      name,
+			PodNamespace: namespace,
+		},
+		PodInfraContainerID: infraContainerID,
+		PodInterfaceID:      interfaceID,
+		Version:             GlobalPodInfoScheme,
+	}
+}
+
+// UnmarshalPodInfo wraps json.Unmarshal to return an implementation of
+// PodInfo.
+func UnmarshalPodInfo(b []byte) (PodInfo, error) {
+	p := &podInfo{}
+	if err := json.Unmarshal(b, p); err != nil {
+		return nil, err
+	}
+	p.Version = GlobalPodInfoScheme
+	return p, nil
+}
+
+// NewPodInfoFromIPConfigRequest builds and returns an implementation of
+// PodInfo from the provided IPConfigRequest.
+func NewPodInfoFromIPConfigRequest(req IPConfigRequest) (PodInfo, error) {
+	p, err := UnmarshalPodInfo(req.OrchestratorContext)
+	if err != nil {
+		return nil, err
+	}
+	if GlobalPodInfoScheme == InterfaceIDPodInfoScheme && req.PodInterfaceID == "" {
+		return nil, fmt.Errorf("need interfaceID for pod info but request was empty")
+	}
+	p.(*podInfo).PodInfraContainerID = req.InfraContainerID
+	p.(*podInfo).PodInterfaceID = req.PodInterfaceID
+	return p, nil
 }
 
 // MultiTenancyInfo contains encap type and id.
@@ -218,12 +344,14 @@ type HostIPInfo struct {
 
 type IPConfigRequest struct {
 	DesiredIPAddress    string
+	PodInterfaceID      string
+	InfraContainerID    string
 	OrchestratorContext json.RawMessage
 }
 
 func (i IPConfigRequest) String() string {
-	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, OrchestratorContext %s]",
-		i.DesiredIPAddress, string(i.OrchestratorContext))
+	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
+		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD

@@ -5,9 +5,12 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 )
+
+var _ singletenantcontroller.RequestController = (*RequestControllerFake)(nil)
 
 type RequestControllerFake struct {
 	fakecns   *HTTPServiceFake
@@ -22,9 +25,11 @@ func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, su
 			Spec: nnc.NodeNetworkConfigSpec{},
 			Status: nnc.NodeNetworkConfigStatus{
 				Scaler: scalar,
-				NetworkContainers: []nnc.NetworkContainer{nnc.NetworkContainer{
-					SubnetAddressSpace: subnetAddressSpace,
-				}},
+				NetworkContainers: []nnc.NetworkContainer{
+					{
+						SubnetAddressSpace: subnetAddressSpace,
+					},
+				},
 			},
 		},
 	}
@@ -62,11 +67,11 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 	return cnsIPConfigs
 }
 
-func (rc *RequestControllerFake) InitRequestController() error {
+func (rc *RequestControllerFake) Init(context.Context) error {
 	return nil
 }
 
-func (rc *RequestControllerFake) StartRequestController(exitChan <-chan struct{}) error {
+func (rc *RequestControllerFake) Start(context.Context) error {
 	return nil
 }
 
@@ -74,9 +79,8 @@ func (rc *RequestControllerFake) IsStarted() bool {
 	return true
 }
 
-func (rc *RequestControllerFake) UpdateCRDSpec(cntxt context.Context, desiredSpec nnc.NodeNetworkConfigSpec) error {
+func (rc *RequestControllerFake) UpdateCRDSpec(_ context.Context, desiredSpec nnc.NodeNetworkConfigSpec) error {
 	rc.cachedCRD.Spec = desiredSpec
-
 	return nil
 }
 

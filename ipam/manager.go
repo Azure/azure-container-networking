@@ -106,6 +106,9 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 		if err == store.ErrKeyNotFound {
 			log.Printf("[ipam] store key not found")
 			return nil
+		} else if err == store.ErrStoreEmpty {
+			log.Printf("[ipam] store empty")
+			return nil
 		} else {
 			log.Printf("[ipam] Failed to restore state, err:%v\n", err)
 			return err

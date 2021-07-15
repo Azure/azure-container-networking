@@ -157,14 +157,14 @@ func main() {
 	log.Logf("Config after setting defaults %+v", config)
 
 	// Cleaning up orphan socket if present
-	tbtemp := telemetry.NewTelemetryBuffer("")
+	tbtemp := telemetry.NewTelemetryBuffer()
 	tbtemp.Cleanup(telemetry.FdName)
 
 	for {
-		tb = telemetry.NewTelemetryBuffer("")
+		tb = telemetry.NewTelemetryBuffer()
 
 		log.Logf("[Telemetry] Starting telemetry server")
-		err = tb.StartServer(config.DisableTelemetryToNetAgent)
+		err = tb.StartServer()
 		if err == nil || tb.FdExists {
 			break
 		}
@@ -189,7 +189,7 @@ func main() {
 	err = telemetry.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric)
 	log.Printf("[Telemetry] AI Handle creation status:%v", err)
 	log.Logf("[Telemetry] Report to host for an interval of %d seconds", config.ReportToHostIntervalInSeconds)
-	tb.BufferAndPushData(config.ReportToHostIntervalInSeconds * time.Second)
+	tb.PushData()
 	telemetry.CloseAITelemetryHandle()
 
 	log.Close()

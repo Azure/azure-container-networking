@@ -47,8 +47,6 @@ func TestReadFileByLines(t *testing.T) {
 		t.Errorf("Line count %d didn't match expected count", len(lines))
 	}
 
-	lines = nil
-
 	lines, err = ReadFileByLines("testfiles/test2")
 	if err != nil {
 		t.Errorf("ReadFileByLines failed: %v", err)
@@ -57,8 +55,6 @@ func TestReadFileByLines(t *testing.T) {
 	if len(lines) != 1 {
 		t.Errorf("Line count %d didn't match expected count", len(lines))
 	}
-
-	lines = nil
 
 	lines, err = ReadFileByLines("testfiles/test3")
 	if err != nil {
@@ -73,7 +69,6 @@ func TestReadFileByLines(t *testing.T) {
 		t.Errorf("Expected empty line but got %s", lines[1])
 	}
 }
-
 
 func TestFileExists(t *testing.T) {
 	isExist, err := CheckIfFileExists("testfiles/test1")

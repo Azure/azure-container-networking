@@ -7,7 +7,7 @@ type TlsSettings struct {
 	TLSSubjectName     string
 	TLSCertificatePath string
 	TLSEndpoint        string
-	TLSPort			   string
+	TLSPort            string
 }
 
 func GetTlsCertificateRetriever(settings TlsSettings) (TlsCertificateRetriever, error) {

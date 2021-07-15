@@ -304,6 +304,8 @@ func createHostNCApipaNetwork(
 				},
 				GatewayIPAddress: localIPConfiguration.GatewayIPAddress,
 			}
+			logger.Printf("Print interfaces before creating loopback adapter")
+			LogNetworkInterfaces()
 
 			if err = networkcontainers.CreateLoopbackAdapter(
 				hostNCLoopbackAdapterName,
@@ -312,6 +314,9 @@ func createHostNCApipaNetwork(
 				"" /* Empty primary Interface Identifier as setWeakHostOnInterface is not needed*/); err != nil {
 				return nil, fmt.Errorf("Failed to create loopback adapter. Error: %v", err)
 			}
+
+			logger.Printf("Print interfaces after creating loopback adapter")
+			LogNetworkInterfaces()
 		}
 
 		// Create the HNS network.
@@ -327,6 +332,20 @@ func createHostNCApipaNetwork(
 	}
 
 	return network, err
+}
+
+// LogNetworkInterfaces logs the host's network interfaces in the default namespace.
+func LogNetworkInterfaces() {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		logger.Printf("Failed to query network interfaces, err:%v", err)
+		return
+	}
+
+	for _, iface := range interfaces {
+		addrs, _ := iface.Addrs()
+		logger.Printf("Network interface: %+v with IP: %+v", iface, addrs)
+	}
 }
 
 func addAclToEndpointPolicy(
@@ -666,28 +685,6 @@ func DeleteHostNCApipaEndpoint(
 	}
 
 	logger.Debugf("[Azure CNS] Successfully deleted HostNCApipaEndpoint: %s", endpointName)
-
-	namedLock.LockAcquire(hostNCApipaNetworkName)
-	defer namedLock.LockRelease(hostNCApipaNetworkName)
-
-	// Check if hostNCApipaNetworkName has any endpoints left
-	if network, err := hcn.GetNetworkByName(hostNCApipaNetworkName); err == nil {
-		var endpoints []hcn.HostComputeEndpoint
-		if endpoints, err = hcn.ListEndpointsOfNetwork(network.Id); err != nil {
-			logger.Errorf("[Azure CNS] Failed to list endpoints in the network: %s. Error: %v",
-				hostNCApipaNetworkName, err)
-			return nil
-		}
-
-		// Delete network if it doesn't have any endpoints
-		if len(endpoints) == 0 {
-			logger.Debugf("[Azure CNS] Deleting network with ID: %s", network.Id)
-			if err = deleteNetworkByIDHnsV2(network.Id); err == nil {
-				// Delete the loopback adapter created for this network
-				networkcontainers.DeleteLoopbackAdapter(hostNCLoopbackAdapterName)
-			}
-		}
-	}
 
 	return nil
 }

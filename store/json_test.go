@@ -5,6 +5,7 @@ package store
 
 import (
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,7 @@ import (
 const (
 	// File name used for test store.
 	testFileName = "test.json"
-
+	testLockFileName = "locktest.json"
 	// Keys used during tests.
 	testKey1 = "key1"
 	testKey2 = "key2"
@@ -205,4 +206,37 @@ func TestLockingStoreGivesExclusiveAccess(t *testing.T) {
 
 	// Cleanup.
 	os.Remove(testFileName)
+}
+
+// test case for testing newjsonfilestore idempotent
+func TestNewJsonFileStoreIdempotent(t *testing.T) {
+	_, err := NewJsonFileStore(testLockFileName)
+	if err != nil {
+		t.Errorf("Failed to initialize store: %v", err)
+	}
+
+	_, err = NewJsonFileStore(testLockFileName)
+	if err != nil {
+		t.Errorf("Failed to initialize same store second time: %v", err)
+	}
+}
+
+// test case for checking if lockfilepath is expected
+func TestLockFilePath(t *testing.T) {
+	store, err := NewJsonFileStore(testLockFileName)
+	if err != nil {
+		t.Errorf("Failed to initialize store: %v", err)
+	}
+
+	lockFileName := store.GetLockFileName()
+
+	if runtime.GOOS == "linux" {
+		if lockFileName != "/var/run/azure-vnet/" + testLockFileName + ".lock" {
+			t.Errorf("Not expected file lock name: %v", lockFileName)
+		}
+	} else {
+		if lockFileName != testLockFileName + ".lock" {
+			t.Errorf("Not expected lockfilename: %v", lockFileName)
+		}
+	}
 }

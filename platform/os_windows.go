@@ -6,12 +6,12 @@ package platform
 import (
 	"bytes"
 	"fmt"
+	"golang.org/x/sys/windows"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
-	"golang.org/x/sys/windows"
 
 	"github.com/Azure/azure-container-networking/log"
 )
@@ -22,6 +22,9 @@ const (
 
 	// CNIRuntimePath is the path where CNI state files are stored.
 	CNIRuntimePath = ""
+
+	// CNILockPath is the path where CNI lock files are stored.
+	CNILockPath = ""
 
 	// CNI runtime path on a Kubernetes cluster
 	K8SCNIRuntimePath = "C:\\k\\azurecni\\bin"

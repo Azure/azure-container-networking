@@ -70,8 +70,9 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	for _, ns := range f.nsLister {
 		f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Add(ns)
 	}
-
-	f.kubeInformer.Start(stopCh)
+	// Do not start informer to avoid unnecessary event triggers.
+	// (TODO) Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
+	//f.kubeInformer.Start()
 }
 
 func (f *nameSpaceFixture) ipSetSave(ipsetConfigFile string) {

@@ -270,3 +270,59 @@ func TestParseResourceVersion(t *testing.T) {
 		t.Errorf("TestParseResourceVersion failed @ inavlid RV gave no error")
 	}
 }
+
+func TestCompareSlices(t *testing.T) {
+	list1 := []string{
+		"a",
+		"b",
+		"c",
+		"d",
+	}
+	list2 := []string{
+		"c",
+		"d",
+		"a",
+		"b",
+	}
+
+	if !CompareSlices(list1, list2) {
+		t.Errorf("TestCompareSlices failed @ slice comparison 1")
+	}
+
+	list2 = []string{
+		"c",
+		"a",
+		"b",
+	}
+
+	if CompareSlices(list1, list2) {
+		t.Errorf("TestCompareSlices failed @ slice comparison 2")
+	}
+	list1 = []string{
+		"a",
+		"b",
+		"c",
+		"d",
+		"123",
+		"44",
+	}
+	list2 = []string{
+		"c",
+		"44",
+		"d",
+		"a",
+		"b",
+		"123",
+	}
+
+	if !CompareSlices(list1, list2) {
+		t.Errorf("TestCompareSlices failed @ slice comparison 3")
+	}
+
+	list1 = []string{}
+	list2 = []string{}
+
+	if !CompareSlices(list1, list2) {
+		t.Errorf("TestCompareSlices failed @ slice comparison 4")
+	}
+}

@@ -67,7 +67,9 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 		f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Add(pod)
 	}
 
-	f.kubeInformer.Start(stopCh)
+	// Do not start informer to avoid unnecessary event triggers
+	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
+	//f.kubeInformer.Start(stopCh)
 }
 
 func (f *podFixture) ipSetSave(ipsetConfigFile string) {
@@ -232,7 +234,8 @@ func TestAddMultiplePods(t *testing.T) {
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod-2"), "1.2.3.5,8080"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj1, podObj2)
@@ -250,8 +253,6 @@ func TestAddMultiplePods(t *testing.T) {
 	checkPodTestResult("TestAddMultiplePods", f, testCases)
 	checkNpmPodWithInput("TestAddMultiplePods", f, podObj1)
 	checkNpmPodWithInput("TestAddMultiplePods", f, podObj2)
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestAddPod(t *testing.T) {
@@ -273,7 +274,8 @@ func TestAddPod(t *testing.T) {
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "1.2.3.4,8080"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
@@ -288,8 +290,6 @@ func TestAddPod(t *testing.T) {
 	}
 	checkPodTestResult("TestAddPod", f, testCases)
 	checkNpmPodWithInput("TestAddPod", f, podObj)
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestAddHostNetworkPod(t *testing.T) {
@@ -301,7 +301,8 @@ func TestAddHostNetworkPod(t *testing.T) {
 
 	var calls = []testutils.TestCmd{}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
@@ -319,8 +320,6 @@ func TestAddHostNetworkPod(t *testing.T) {
 	if _, exists := f.npMgr.PodMap[podKey]; exists {
 		t.Error("TestAddHostNetworkPod failed @ cached pod obj exists check")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeletePod(t *testing.T) {
@@ -354,7 +353,8 @@ func TestDeletePod(t *testing.T) {
 		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
@@ -372,8 +372,6 @@ func TestDeletePod(t *testing.T) {
 	if _, exists := f.npMgr.PodMap[podKey]; exists {
 		t.Error("TestDeletePod failed @ cached pod obj exists check")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeleteHostNetworkPod(t *testing.T) {
@@ -385,7 +383,8 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 
 	var calls = []testutils.TestCmd{}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
@@ -402,8 +401,6 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 	if _, exists := f.npMgr.PodMap[podKey]; exists {
 		t.Error("TestDeleteHostNetworkPod failed @ cached pod obj exists check")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeletePodWithTombstone(t *testing.T) {
@@ -414,7 +411,8 @@ func TestDeletePodWithTombstone(t *testing.T) {
 
 	var calls = []testutils.TestCmd{}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	stopCh := make(chan struct{})
@@ -432,8 +430,6 @@ func TestDeletePodWithTombstone(t *testing.T) {
 		{0, 1, 0},
 	}
 	checkPodTestResult("TestDeletePodWithTombstone", f, testCases)
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
@@ -466,7 +462,8 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, podObj)
@@ -480,8 +477,6 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 		{0, 2, 0},
 	}
 	checkPodTestResult("TestDeletePodWithTombstoneAfterAddingPod", f, testCases)
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestLabelUpdatePod(t *testing.T) {
@@ -510,7 +505,8 @@ func TestLabelUpdatePod(t *testing.T) {
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("app:new-test-pod"), "1.2.3.4"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, oldPodObj)
@@ -533,8 +529,6 @@ func TestLabelUpdatePod(t *testing.T) {
 	}
 	checkPodTestResult("TestLabelUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestLabelUpdatePod", f, newPodObj)
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestIPAddressUpdatePod(t *testing.T) {
@@ -575,7 +569,8 @@ func TestIPAddressUpdatePod(t *testing.T) {
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("namedport:app:test-pod"), "4.3.2.1,8080"}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, oldPodObj)
@@ -597,8 +592,6 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	}
 	checkPodTestResult("TestIPAddressUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestIPAddressUpdatePod", f, newPodObj)
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestPodStatusUpdatePod(t *testing.T) {
@@ -632,7 +625,8 @@ func TestPodStatusUpdatePod(t *testing.T) {
 		{Cmd: []string{"ipset", "-X", "-exist", util.GetHashedName("namedport:app:test-pod")}},
 	}
 
-	fexec, fcmd := testutils.GetFakeExecWithScripts(calls)
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	defer testutils.VerifyCalls(t, fexec, calls)
 
 	f := newFixture(t, fexec)
 	f.podLister = append(f.podLister, oldPodObj)
@@ -657,8 +651,6 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	if _, exists := f.npMgr.PodMap[podKey]; exists {
 		t.Error("TestPodStatusUpdatePod failed @ cached pod obj exists check")
 	}
-
-	testutils.VerifyCallsMatch(t, calls, fexec, fcmd)
 }
 
 func TestHasValidPodIP(t *testing.T) {

@@ -5,12 +5,12 @@ import (
 )
 
 type KeyValueStoreMock struct {
-	ReadError error
-	WriteError error
-	FlushError error
-	LockError error
-	UnlockError error
-	ModificationTime time.Time
+	ReadError                error
+	WriteError               error
+	FlushError               error
+	LockError                error
+	UnlockError              error
+	ModificationTime         time.Time
 	GetModificationTimeError error
 }
 
@@ -50,4 +50,3 @@ func (store *KeyValueStoreMock) GetLockFileName() string {
 func (store *KeyValueStoreMock) Remove() {
 	return
 }
-

@@ -14,7 +14,7 @@ import (
 
 type windowsTlsCertificateRetriever struct {
 	pemBlock []*pem.Block
-	settings    TlsSettings
+	settings TlsSettings
 }
 
 const (
@@ -53,7 +53,7 @@ func (wtls *windowsTlsCertificateRetriever) GetPrivateKey() (crypto.PrivateKey, 
 }
 
 // ReadFile reads a from disk
-func (wtls *windowsTlsCertificateRetriever) readFile() ([]byte,error) {
+func (wtls *windowsTlsCertificateRetriever) readFile() ([]byte, error) {
 	content, err := ioutil.ReadFile(wtls.settings.TLSCertificatePath)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading file from path %s with error: %+v ", wtls.settings.TLSCertificatePath, err)
@@ -62,7 +62,7 @@ func (wtls *windowsTlsCertificateRetriever) readFile() ([]byte,error) {
 }
 
 // ParsePEMFile Parses a file to PEM format
-func (fcert *windowsTlsCertificateRetriever) parsePEMFile(content []byte) (error) {
+func (fcert *windowsTlsCertificateRetriever) parsePEMFile(content []byte) error {
 	pemBlocks := make([]*pem.Block, 0)
 
 	var pemBlock *pem.Block
@@ -89,7 +89,7 @@ func (fcert *windowsTlsCertificateRetriever) parsePEMFile(content []byte) (error
 func (wtls *windowsTlsCertificateRetriever) decrypt(content []byte) (string, error) {
 	decrypted, err := dpapi.Decrypt(string(content))
 	if err != nil {
-		return "",fmt.Errorf("Error decrypting file from path %s with error: %+v ", wtls.settings.TLSCertificatePath, err)
+		return "", fmt.Errorf("Error decrypting file from path %s with error: %+v ", wtls.settings.TLSCertificatePath, err)
 	}
 
 	decrypted = formatDecryptedPemString(decrypted)
@@ -130,7 +130,7 @@ func NewTlsCertificateRetriever(settings TlsSettings) (TlsCertificateRetriever, 
 		return nil, fmt.Errorf("Failed to decrypt file with error %+v", err)
 	}
 
-	if err:= windowsCertStoreRetriever.parsePEMFile([]byte(decrypted)); err != nil{
+	if err := windowsCertStoreRetriever.parsePEMFile([]byte(decrypted)); err != nil {
 		return nil, fmt.Errorf("Failed to parse PEM file with error %+v", err)
 	}
 

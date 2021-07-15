@@ -48,7 +48,7 @@ func newNs(name string, exec utilexec.Interface) (*Namespace, error) {
 		LabelsMap: make(map[string]string),
 		SetMap:    make(map[string]string),
 		IpsMgr:    ipsm.NewIpsetManager(exec),
-		iptMgr:    iptm.NewIptablesManager(),
+		iptMgr:    iptm.NewIptablesManager(exec, iptm.NewIptOperationShim()),
 	}
 
 	return ns, nil
