@@ -480,7 +480,7 @@ lint-old: $(GOLANGCI_LINT) ## Fast lint including previous issues
 # run all tests
 .PHONY: test-all
 test-all:
-	go test -tags "unit" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
+	go test -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
 
 
 # run all tests
