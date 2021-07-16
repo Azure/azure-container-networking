@@ -110,7 +110,7 @@ type ConfigureContainerNetworkingRequest struct {
 // PodInfoByIPProvider to be implemented by initializers which provide a map
 // of PodInfos by IP.
 type PodInfoByIPProvider interface {
-	PodInfoByIP() map[string]PodInfo
+	PodInfoByIP() (map[string]PodInfo, error)
 }
 
 var _ PodInfoByIPProvider = (PodInfoByIPProviderFunc)(nil)
@@ -118,10 +118,10 @@ var _ PodInfoByIPProvider = (PodInfoByIPProviderFunc)(nil)
 // PodInfoByIPProviderFunc functional type which implements PodInfoByIPProvider.
 // Allows one-off functional implementations of the PodInfoByIPProvider
 // interface when a custom type definition is not necessary.
-type PodInfoByIPProviderFunc func() map[string]PodInfo
+type PodInfoByIPProviderFunc func() (map[string]PodInfo, error)
 
 // PodInfoByIP implements PodInfoByIPProvider on PodInfByIPProviderFunc.
-func (f PodInfoByIPProviderFunc) PodInfoByIP() map[string]PodInfo {
+func (f PodInfoByIPProviderFunc) PodInfoByIP() (map[string]PodInfo, error) {
 	return f()
 }
 

@@ -262,24 +262,32 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 			logger.Errorf("error when getting all pods when initializing cns: %v", err)
 			return err
 		}
-		podInfoByIPProvider = cns.PodInfoByIPProviderFunc(func() map[string]cns.PodInfo {
+		podInfoByIPProvider = cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 			return rc.kubePodsToPodInfoByIP(pods.Items)
 		})
 	}
 
+	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
+	if err != nil {
+		return err
+	}
+
 	// Call cnsclient init cns passing those two things
-	return rc.CNSClient.ReconcileNCState(&ncRequest, podInfoByIPProvider.PodInfoByIP(), nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
+	return rc.CNSClient.ReconcileNCState(&ncRequest, podInfoByIP, nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
 }
 
 // kubePodsToPodInfoByIP maps kubernetes pods to cns.PodInfos by IP
-func (rc *requestController) kubePodsToPodInfoByIP(pods []corev1.Pod) map[string]cns.PodInfo {
+func (rc *requestController) kubePodsToPodInfoByIP(pods []corev1.Pod) (map[string]cns.PodInfo, error) {
 	podInfoByIP := map[string]cns.PodInfo{}
 	for _, pod := range pods {
 		if !pod.Spec.HostNetwork {
+			if _, ok := podInfoByIP[pod.Status.PodIP]; ok {
+				return nil, fmt.Errorf("duplicate IP %s detected during apiserver reconcile", pod.Status.PodIP)
+			}
 			podInfoByIP[pod.Status.PodIP] = cns.NewPodInfo("", "", pod.Name, pod.Namespace)
 		}
 	}
-	return podInfoByIP
+	return podInfoByIP, nil
 }
 
 // UpdateCRDSpec updates the CRD spec

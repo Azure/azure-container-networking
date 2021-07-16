@@ -21,16 +21,19 @@ func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
 	}
-	return cns.PodInfoByIPProviderFunc(func() map[string]cns.PodInfo {
+	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 		return cniStateToPodInfoByIP(state)
 	}), nil
 }
 
 // cniStateToPodInfoByIP converts an AzureCNIState dumped from a CNI exec
 // into a PodInfo map, using the first endpoint IP as the key in the map.
-func cniStateToPodInfoByIP(state *api.AzureCNIState) map[string]cns.PodInfo {
+func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, error) {
 	podInfoByIP := map[string]cns.PodInfo{}
 	for _, endpoint := range state.ContainerInterfaces {
+		if _, ok := podInfoByIP[endpoint.IPAddresses[0].IP.String()]; ok {
+			return nil, fmt.Errorf("duplicate IP %s detected in CNI reconcile", endpoint.IPAddresses[0].IP.String())
+		}
 		podInfoByIP[endpoint.IPAddresses[0].IP.String()] = cns.NewPodInfo(
 			endpoint.ContainerID,
 			endpoint.PodEndpointId,
@@ -38,5 +41,5 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) map[string]cns.PodInfo {
 			endpoint.PodNamespace,
 		)
 	}
-	return podInfoByIP
+	return podInfoByIP, nil
 }
