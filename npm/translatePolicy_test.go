@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/iptm"
@@ -2519,6 +2520,15 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
 	// has egress, but empty map means allow all
 	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("netpol-4537-x", multiPodSlector.Spec.PodSelector, true, false)...)
+
+	// Since the order of all ipset values in Specs is not guaranteed in MultiplePodSelectors case, sorting Specs is necessary before comparing them.
+	if len(iptEntries) == len(expectedIptEntries) {
+		for i := 0; i < len(expectedIptEntries); i++ {
+			sort.Strings(iptEntries[i].Specs)
+			sort.Strings(expectedIptEntries[i].Specs)
+		}
+	}
+
 	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
 		t.Errorf("translatedPolicy failed @ allow-ns-y-z-pod-b-c policy comparison")
 		marshalledIptEntries, _ := json.Marshal(iptEntries)
