@@ -22,20 +22,18 @@ import (
 )
 
 const (
-	versionStr              = "cniVersion"
-	pluginsStr              = "plugins"
-	nameStr                 = "name"
-	k8sPodNamespaceStr      = "K8S_POD_NAMESPACE"
-	k8sPodNameStr           = "K8S_POD_NAME"
-	k8sPodInfraContainerStr = "K8S_POD_INFRA_CONTAINER_ID"
-	cniAdd                  = "ADD"
-	cniDelete               = "DEL"
-	cniUpdate               = "UPDATE"
+	versionStr         = "cniVersion"
+	pluginsStr         = "plugins"
+	nameStr            = "name"
+	k8sPodNamespaceStr = "K8S_POD_NAMESPACE"
+	k8sPodNameStr      = "K8S_POD_NAME"
+	cniAdd             = "ADD"
+	cniDelete          = "DEL"
+	cniUpdate          = "UPDATE"
 )
 
 // NetworkContainers can be used to perform operations on network containers.
 type NetworkContainers struct {
-	logpath string
 }
 
 // NetPluginConfiguration represent network plugin configuration that is used during CNI ADD/DELETE/UPDATE operation

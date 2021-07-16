@@ -114,7 +114,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 			var resp cns.CreateNetworkContainerResponse
 			if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == Success {
 				service.Lock()
-				ncstatus, _ := service.state.ContainerStatus[ncid]
+				ncstatus := service.state.ContainerStatus[ncid]
 				ncstatus.VfpUpdateComplete = !waitingForUpdate
 				service.state.ContainerStatus[ncid] = ncstatus
 				service.Unlock()
@@ -329,7 +329,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.C
 	existingNCInfo, ok := service.getNetworkContainerDetails(req.NetworkContainerid)
 	if ok {
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
-		if reflect.DeepEqual(existingReq.IPConfiguration, req.IPConfiguration) != true {
+		if !reflect.DeepEqual(existingReq.IPConfiguration, req.IPConfiguration) {
 			logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s, new CA %s", req.NetworkContainerid, existingReq.PrimaryInterfaceIdentifier, req.PrimaryInterfaceIdentifier)
 			return PrimaryCANotSame
 		}

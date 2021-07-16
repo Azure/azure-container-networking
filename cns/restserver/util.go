@@ -39,8 +39,6 @@ func (service *HTTPRestService) setNetworkInfo(networkName string, networkInfo *
 	service.Lock()
 	defer service.Unlock()
 	service.state.Networks[networkName] = networkInfo
-
-	return
 }
 
 // Remove the network info from the service network state
@@ -48,8 +46,6 @@ func (service *HTTPRestService) removeNetworkInfo(networkName string) {
 	service.Lock()
 	defer service.Unlock()
 	delete(service.state.Networks, networkName)
-
-	return
 }
 
 // saveState writes CNS state to persistent store.
@@ -99,7 +95,6 @@ func (service *HTTPRestService) restoreState() {
 	}
 
 	logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
-	return
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (int, string) {
@@ -219,7 +214,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	}
 
 	// Validate TobeDeletedIps are ready to be deleted.
-	for ipId, _ := range tobeDeletedIpConfigs {
+	for ipId := range tobeDeletedIpConfigs {
 		ipConfigStatus, exists := service.PodIPConfigState[ipId]
 		if exists {
 			// pod ip exists, validate if state is not allocated, else fail
@@ -231,7 +226,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 	}
 
 	// now actually remove the deletedIPs
-	for ipId, _ := range tobeDeletedIpConfigs {
+	for ipId := range tobeDeletedIpConfigs {
 		returncode, errMsg := service.removeToBeDeletedIpsStateUntransacted(ipId, true)
 		if returncode != Success {
 			return returncode, errMsg
@@ -367,13 +362,13 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 			}
 
 			vfpUpdateComplete := !waitingForUpdate
-			ncstatus, _ := service.state.ContainerStatus[containerID]
+			ncstatus := service.state.ContainerStatus[containerID]
 			// Update the container status if-
 			// 1. VfpUpdateCompleted successfully
 			// 2. VfpUpdateComplete changed to false
 			if (getNetworkContainerResponse.Response.ReturnCode == NetworkContainerVfpProgramComplete &&
-				vfpUpdateComplete == true && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
-				(vfpUpdateComplete == false && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
+				vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
+				(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
 				logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NC: %s", vfpUpdateComplete, containerID)
 				ncstatus.VfpUpdateComplete = vfpUpdateComplete
 				service.state.ContainerStatus[containerID] = ncstatus
@@ -399,7 +394,6 @@ func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkCo
 		}
 
 		logger.Printf("containerid %v", containerID)
-		break
 
 	default:
 		getNetworkContainerResponse.Response.ReturnCode = UnsupportedOrchestratorType
@@ -769,7 +763,7 @@ func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (wa
 	} else {
 		returnCode = NetworkContainerVfpProgramComplete
 		waitingForUpdate = false
-		message = fmt.Sprintf("Vfp programming complete")
+		message = "Vfp programming complete"
 		logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
 	}
 

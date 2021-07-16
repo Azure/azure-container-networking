@@ -280,7 +280,7 @@ func (cnsClient *CNSClient) ReleaseIPAddress(ipconfig *cns.IPConfigRequest) erro
 		return err
 	}
 
-	log.Printf("Releasing ipconfig %s", string(body.Bytes()))
+	log.Printf("Releasing ipconfig %s", body.String())
 
 	res, err = cnsClient.httpc.Post(url, contentTypeJSON, &body)
 	if err != nil {

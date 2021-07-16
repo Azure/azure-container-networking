@@ -90,7 +90,7 @@ func (imdsClient *ImdsClient) GetPrimaryInterfaceInfoFromHost() (*InterfaceInfo,
 
 				interfaceInfo.Gateway = fmt.Sprintf("%s.%s.%s.1", ip[0], ip[1], ip[2])
 				for _, ip := range s.IPAddress {
-					if ip.IsPrimary == true {
+					if ip.IsPrimary {
 						interfaceInfo.PrimaryIP = ip.Address
 					}
 				}

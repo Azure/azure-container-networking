@@ -79,8 +79,7 @@ type DummyLink struct {
 
 // AddLink adds a new network interface of a specified type.
 func AddLink(link Link) error {
-	var info *LinkInfo
-	info = link.Info()
+	info := link.Info()
 
 	if info.Name == "" || info.Type == "" {
 		return fmt.Errorf("Invalid link name or type")

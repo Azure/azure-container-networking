@@ -48,5 +48,4 @@ func (store *KeyValueStoreMock) GetLockFileName() string {
 }
 
 func (store *KeyValueStoreMock) Remove() {
-	return
 }

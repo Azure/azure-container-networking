@@ -21,19 +21,17 @@ const (
 	// Prefix for bridge names.
 	bridgePrefix = "azure"
 	// Virtual MAC address used by Azure VNET.
-	virtualMacAddress     = "12:34:56:78:9a:bc"
-	versionID             = "VERSION_ID"
-	distroID              = "ID"
-	ubuntuStr             = "ubuntu"
-	dnsServersStr         = "DNS Servers"
-	dnsDomainStr          = "DNS Domain"
-	ubuntuVersion17       = 17
-	defaultDnsServerIP    = "168.63.129.16"
-	systemdResolvConfFile = "/run/systemd/resolve/resolv.conf"
-	SnatBridgeIPKey       = "snatBridgeIP"
-	LocalIPKey            = "localIP"
-	InfraVnetIPKey        = "infraVnetIP"
-	OptVethName           = "vethname"
+	virtualMacAddress = "12:34:56:78:9a:bc"
+	versionID         = "VERSION_ID"
+	distroID          = "ID"
+	ubuntuStr         = "ubuntu"
+	dnsServersStr     = "DNS Servers"
+	dnsDomainStr      = "DNS Domain"
+	ubuntuVersion17   = 17
+	SnatBridgeIPKey   = "snatBridgeIP"
+	LocalIPKey        = "localIP"
+	InfraVnetIPKey    = "infraVnetIP"
+	OptVethName       = "vethname"
 )
 
 const (

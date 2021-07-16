@@ -92,7 +92,7 @@ func getAzureNPMChainRules() [][]string {
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			fmt.Sprintf("ACCEPT-on-connection-state"),
+			"ACCEPT-on-connection-state",
 		},
 	}
 }
@@ -109,7 +109,7 @@ func getAzureNPMAcceptChainRules() [][]string {
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			fmt.Sprintf("Clear-AZURE-NPM-MARKS"),
+			"Clear-AZURE-NPM-MARKS",
 		},
 		{
 			util.IptablesAzureAcceptChain,
@@ -118,7 +118,7 @@ func getAzureNPMAcceptChainRules() [][]string {
 			util.IptablesModuleFlag,
 			util.IptablesCommentModuleFlag,
 			util.IptablesCommentFlag,
-			fmt.Sprintf("ACCEPT-All-packets"),
+			"ACCEPT-All-packets",
 		},
 	}
 }

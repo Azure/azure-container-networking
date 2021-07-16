@@ -228,7 +228,7 @@ func TestCreateSet(t *testing.T) {
 	if err := ipsMgr.CreateSet(testSet3Name, spec); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when creating port set")
 	}
-	
+
 	err = ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0")
 	require.Error(t, err)
 

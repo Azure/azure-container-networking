@@ -30,14 +30,13 @@ func (s *nullSource) start(sink addressConfigSink) error {
 // Stops the null source.
 func (s *nullSource) stop() {
 	s.sink = nil
-	return
 }
 
 // Refreshes configuration.
 func (s *nullSource) refresh() error {
 
 	// Initialize once.
-	if s.initialized == true {
+	if s.initialized {
 		return nil
 	}
 	s.initialized = true

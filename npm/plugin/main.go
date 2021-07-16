@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	waitForTelemetryInSeconds = 60
-	resyncPeriodInMinutes     = 15
+	resyncPeriodInMinutes = 15
 )
 
 // Version is populated by make during build.
