@@ -54,7 +54,8 @@ func TestNewCNIPodInfoProvider(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			assert.Equal(t, tt.want, got.PodInfoByIP())
+			podInfoByIP, _ := got.PodInfoByIP()
+			assert.Equal(t, tt.want, podInfoByIP)
 		})
 	}
 }
