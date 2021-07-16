@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-cni-installer
-          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.4.0
+          image: mcr.microsoft.com/containernetworking/azure-cni-manager:v1.4.6
           imagePullPolicy: Always
           env:
             - name: AZURE_CNI_OS
