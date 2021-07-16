@@ -49,7 +49,7 @@ func createAddressManager(options map[string]interface{}) (AddressManager, error
 		return nil, err
 	}
 
-	if err := am.Initialize(&config, options); err != nil {
+	if err := am.Initialize(&config, false, options); err != nil {
 		return nil, err
 	}
 
@@ -164,7 +164,7 @@ var (
 					am, err := NewAddressManager()
 					Expect(am).NotTo(BeNil())
 					Expect(err).NotTo(HaveOccurred())
-					err = am.Initialize(&config, options)
+					err = am.Initialize(&config, false,options)
 					Expect(err).To(BeNil())
 				})
 			})
@@ -180,7 +180,7 @@ var (
 					am, err := NewAddressManager()
 					Expect(am).NotTo(BeNil())
 					Expect(err).NotTo(HaveOccurred())
-					err = am.Initialize(&config, options)
+					err = am.Initialize(&config, false,options)
 					Expect(err).To(BeNil())
 				})
 			})
@@ -196,7 +196,7 @@ var (
 					am, err := NewAddressManager()
 					Expect(am).NotTo(BeNil())
 					Expect(err).NotTo(HaveOccurred())
-					err = am.Initialize(&config, options)
+					err = am.Initialize(&config, false, options)
 					Expect(err).To(HaveOccurred())
 				})
 			})
@@ -209,7 +209,7 @@ var (
 					am, err := NewAddressManager()
 					Expect(am).NotTo(BeNil())
 					Expect(err).NotTo(HaveOccurred())
-					err = am.Initialize(&config, options)
+					err = am.Initialize(&config, false,options)
 					Expect(err).To(HaveOccurred())
 				})
 			})
@@ -221,7 +221,7 @@ var (
 					am := &addressManager{
 						AddrSpaces: make(map[string]*addressSpace),
 					}
-					err := am.restore()
+					err := am.restore(false)
 					Expect(err).To(BeNil())
 				})
 			})
@@ -250,7 +250,7 @@ var (
 					}
 					as.Pools["ap-test"] = ap
 					am.AddrSpaces["as-test"] = as
-					err := am.restore()
+					err := am.restore(false)
 					Expect(err).To(BeNil())
 					as = am.AddrSpaces["as-test"]
 					ap = as.Pools["ap-test"]
@@ -284,7 +284,7 @@ var (
 					}
 					as.Pools["ap-test"] = ap
 					am.AddrSpaces["as-test"] = as
-					err := am.restore()
+					err := am.restore(false)
 					Expect(err).To(BeNil())
 					as = am.AddrSpaces["as-test"]
 					ap = as.Pools["ap-test"]
@@ -316,7 +316,7 @@ var (
 					}
 					as.Pools["ap-test"] = ap
 					am.AddrSpaces["as-test"] = as
-					err := am.restore()
+					err := am.restore(false)
 					Expect(err).To(BeNil())
 					as = am.AddrSpaces["as-test"]
 					ap = as.Pools["ap-test"]
