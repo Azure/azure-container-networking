@@ -21,6 +21,7 @@ import (
 
 const (
 	ipamV6 = "azure-vnet-ipamv6"
+	rehydrateIpamInfoOnReboot = false
 )
 
 var (
@@ -72,7 +73,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	log.Printf("[cni-ipam] Running on %v", platform.GetOSInfo())
 
 	// Initialize address manager.
-	err = plugin.am.Initialize(config, plugin.Options)
+	err = plugin.am.Initialize(config, rehydrateIpamInfoOnReboot, plugin.Options)
 	if err != nil {
 		log.Printf("[cni-ipam] Failed to initialize address manager, err:%v.", err)
 		return err

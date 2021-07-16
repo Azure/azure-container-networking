@@ -22,7 +22,6 @@ const (
 
 const (
 	snatConfigFileName           = "/tmp/snatConfig"
-	rehydrateNetworkInfoOnReboot = false
 )
 
 // handleConsecutiveAdd is a dummy function for Linux platform.

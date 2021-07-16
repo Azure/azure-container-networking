@@ -29,9 +29,7 @@ var (
 	win1903Version = 18362
 )
 
-const (
-	rehydrateNetworkInfoOnReboot = true
-)
+
 
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
  * This is a temporary work around for issue #57253 of Kubernetes.
