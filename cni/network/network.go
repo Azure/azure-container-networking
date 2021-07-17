@@ -181,7 +181,7 @@ func (plugin *netPlugin) GetAllEndpointState(networkid string) (*api.AzureCNISta
 		st.ContainerInterfaces[id] = info
 	}
 
-	return &st, err
+	return &st, nil
 }
 
 // Stops the plugin.
