@@ -30,8 +30,7 @@ import (
 var aiMetadata string
 
 const (
-	heartbeatIntervalInMinutes  = 30
-	reconcileChainTimeInMinutes = 5
+	heartbeatIntervalInMinutes = 30
 	// TODO: consider increasing thread number later when logics are correct
 	threadness = 1
 )
@@ -118,14 +117,14 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	// create network policy controller
 	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, clientset, npMgr.ipsMgr)
 
-	// (TODO): Need to handle panic if initializing iptables and ipsets are failed?
+	// (TODO): Do we need to handle panic if initializing iptables and ipsets are failed with multiple retries?
 	// It is important to keep cleaning-up order between iptables and ipset
 	// 1. clean-up NPM-related iptables information and then running regular processes to keep iptable information
-	npMgr.netPolController.initializeIpTables()
+	npMgr.netPolController.initializeIPTables()
 
 	// 2. then initialize ipsets states (clean-up existing ipset and then install default ipset)
 	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
-	npMgr.nameSpaceController.initializeIpSets()
+	npMgr.nameSpaceController.initializeIPSets()
 
 	return npMgr
 }
