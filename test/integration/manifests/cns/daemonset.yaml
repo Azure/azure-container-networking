@@ -99,30 +99,3 @@ spec:
           configMap:
             name: cns-config
       serviceAccountName: azure-cns
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cns-config
-  namespace: kube-system
-data:
-  cns_config.json: |
-    {
-      "TelemetrySettings": {
-          "TelemetryBatchSizeBytes": 16384,
-          "TelemetryBatchIntervalInSecs": 15,
-          "RefreshIntervalInSecs": 15,
-          "DisableAll": false,
-          "HeartBeatIntervalInMins": 30,
-          "DebugMode": false,
-          "SnapshotIntervalInMins": 60
-      },
-      "ManagedSettings": {
-          "PrivateEndpoint": "",
-          "InfrastructureNetworkID": "",
-          "NodeID": "",
-          "NodeSyncIntervalInSeconds": 30
-      },
-      "ChannelMode": "CRD",
-      "InitializeFromCNI": true
-    }
