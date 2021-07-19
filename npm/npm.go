@@ -35,8 +35,8 @@ const (
 	threadness = 1
 )
 
-// Cache to hold npm-namespace struct which will be shared between podController and NameSpaceController.
-// For avoiding racing condition, it has mutex.
+// Cache to store namespace struct in nameSpaceController.go.
+// Since this cache is shared between podController and NameSpaceController, it has mutex for avoiding racing condition between them.
 type npmNamespaceCache struct {
 	sync.Mutex
 	nsMap map[string]*Namespace // Key is ns-<nsname>
@@ -56,7 +56,7 @@ type NetworkPolicyManager struct {
 	npInformer       networkinginformers.NetworkPolicyInformer
 	netPolController *networkPolicyController
 
-	// ipsMgr are shared in all controllers, so we need to manage lock in IpsetManager.
+	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management and uses lock to avoid unintentional race condictions in IpsetManager.
 	ipsMgr            *ipsm.IpsetManager
 	npmNamespaceCache *npmNamespaceCache
 	// Azure-specific variables
@@ -91,13 +91,12 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	}
 
 	npMgr := &NetworkPolicyManager{
-		clientset:       clientset,
-		informerFactory: informerFactory,
-		podInformer:     informerFactory.Core().V1().Pods(),
-		nsInformer:      informerFactory.Core().V1().Namespaces(),
-		npInformer:      informerFactory.Networking().V1().NetworkPolicies(),
-		ipsMgr:          ipsm.NewIpsetManager(exec),
-		// (TODO): make Functions
+		clientset:         clientset,
+		informerFactory:   informerFactory,
+		podInformer:       informerFactory.Core().V1().Pods(),
+		nsInformer:        informerFactory.Core().V1().Namespaces(),
+		npInformer:        informerFactory.Networking().V1().NetworkPolicies(),
+		ipsMgr:            ipsm.NewIpsetManager(exec),
 		npmNamespaceCache: &npmNamespaceCache{nsMap: make(map[string]*Namespace)},
 		clusterState: telemetry.ClusterState{
 			PodCount:      0,
@@ -117,16 +116,9 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	// create network policy controller
 	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, clientset, npMgr.ipsMgr)
 
-	// (TODO): Do we need to handle panic if initializing iptables and ipsets are failed with multiple retries?
-	// It is important to keep cleaning-up order between iptables and ipset
-	// 1. clean-up NPM-related iptables information and then running regular processes to keep iptable information
+	// TODO(jungukcho) Do we need to handle panic if initializing iptables and ipsets is failed? (better to add re-try logic if it is failed)
 	npMgr.netPolController.initializeDataPlane()
 
-	// 2. then initialize ipsets states (clean-up existing ipset)
-	npMgr.ipsMgr.DestroyNpmIpsets()
-
-	// 3. install default namespace
-	npMgr.nameSpaceController.initializeDefaultNs()
 	return npMgr
 }
 
@@ -165,7 +157,7 @@ func GetAIMetadata() string {
 }
 
 // SendClusterMetrics :- send NPM cluster metrics using AppInsights
-// (QUESTION): Where is this function called?
+// QUESTION(jungukcho): Where is this function called?
 func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	var (
 		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
@@ -189,7 +181,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 		<-heartbeat
 
 		// Reducing one to remove all-namespaces ns obj
-		// (TODO): Check this is safe or not?
+		// TODO(jungukcho) Check this is safe or not?
 		lenOfNsMap := len(npMgr.npmNamespaceCache.nsMap)
 		nsCount.Value = float64(lenOfNsMap - 1)
 

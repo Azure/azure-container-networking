@@ -100,21 +100,6 @@ func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, cl
 	return nameSpaceController
 }
 
-// Set up default IPsets
-func (nsc *nameSpaceController) initializeDefaultNs() error {
-	allNs := newNs(util.KubeAllNamespacesFlag)
-	nsc.npmNamespaceCache.nsMap[util.KubeAllNamespacesFlag] = allNs
-
-	// Create ipset for the namespace.
-	kubeSystemNs := util.GetNSNameWithPrefix(util.KubeSystemFlag)
-	if err := nsc.ipsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
-		return err
-	}
-
-	return nil
-}
-
 // filter this event if we do not need to handle this event
 func (nsc *nameSpaceController) needSync(obj interface{}, event string) (string, bool) {
 	needSync := false

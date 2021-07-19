@@ -32,8 +32,6 @@ const (
 	unSafeToCleanUpAzureNpmChain  IsSafeCleanUpAzureNpmChain = false
 	restoreRetryWaitTimeInSeconds                            = 5
 	restoreMaxRetries                                        = 10
-	reconcileChainTimeInMinutes                              = 5
-	backupWaitTimeInSeconds                                  = 60
 )
 
 type networkPolicyController struct {
@@ -73,13 +71,20 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 	return netPolController
 }
 
+// initializeDataPlane do all initialization tasks for data plane
 func (c *networkPolicyController) initializeDataPlane() error {
-	klog.Infof("Azure-NPM creating, cleaning iptables")
+	klog.Infof("Initiailize data plane. Clean up Azure-NPM chians and start reconcile iptables")
 
+	// It is important to keep order to clean-up iptables and ipset.
+	// IPtables should be cleaned first to avoid failures to clean-up iptables due to "ipset is using in kernel" error
+	// 1. clean-up NPM-related iptables information and then running periodic processes to keep iptables correct
 	err := c.iptMgr.UninitNpmChains()
 	if err != nil {
 		return err
 	}
+
+	// 2. then clean-up all NPM ipsets states
+	c.ipsMgr.DestroyNpmIpsets()
 
 	return nil
 }
