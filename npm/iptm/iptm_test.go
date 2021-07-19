@@ -167,9 +167,8 @@ func TestExists(t *testing.T) {
 			util.IptablesAccept,
 		},
 	}
-
-	if _, err := iptMgr.Exists(entry); err != nil {
-		t.Errorf("TestExists failed @ iptMgr.Exists")
+	if _, err := iptMgr.exists(entry); err != nil {
+		t.Errorf("TestExists failed @ iptMgr.exists")
 	}
 }
 
@@ -182,8 +181,8 @@ func TestAddChain(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
-	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestAddChain failed @ iptMgr.AddChain")
+	if err := iptMgr.addChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestAddChain failed @ iptMgr.addChain")
 	}
 }
 
@@ -197,12 +196,12 @@ func TestDeleteChain(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
-	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestDeleteChain failed @ iptMgr.AddChain")
+	if err := iptMgr.addChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestDeleteChain failed @ iptMgr.addChain")
 	}
 
-	if err := iptMgr.DeleteChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestDeleteChain failed @ iptMgr.DeleteChain")
+	if err := iptMgr.deleteChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestDeleteChain failed @ iptMgr.deleteChain")
 	}
 }
 
@@ -289,8 +288,8 @@ func TestRun(t *testing.T) {
 	entry := &IptEntry{
 		Chain: "TEST-CHAIN",
 	}
-	if _, err := iptMgr.Run(entry); err != nil {
-		t.Errorf("TestRun failed @ iptMgr.Run")
+	if _, err := iptMgr.run(entry); err != nil {
+		t.Errorf("TestRun failed @ iptMgr.run")
 	}
 
 }
@@ -305,7 +304,7 @@ func TestGetChainLineNumber(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
-	lineNum, err := iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+	lineNum, err := iptMgr.getChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	require.NoError(t, err)
 	require.Equal(t, lineNum, 3)
 }

@@ -101,8 +101,7 @@ func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, cl
 }
 
 // Set up default IPsets
-func (nsc *nameSpaceController) initializeIpSets() error {
-	// (TODO): Panic
+func (nsc *nameSpaceController) initializeIPSets() error {
 	nsc.ipsMgr.DestroyNpmIpsets()
 
 	allNs := newNs(util.KubeAllNamespacesFlag)
@@ -244,7 +243,6 @@ func (nsc *nameSpaceController) processNextWorkItem() bool {
 		}
 		// Run the syncNameSpace, passing it the namespace string of the
 		// resource to be synced.
-		// TODO : may consider using "c.queue.AddAfter(key, *requeueAfter)" according to error type later
 		if err := nsc.syncNameSpace(key); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			nsc.workqueue.AddRateLimited(key)
@@ -270,11 +268,11 @@ func (nsc *nameSpaceController) processNextWorkItem() bool {
 func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	// Get the NameSpace resource with this key
 	nsObj, err := nsc.nameSpaceLister.Get(key)
+	cachedNsKey := util.GetNSNameWithPrefix(key)
 
-	// find the nsMap key
+	// hold lock to avoid racing condition with PodController
 	nsc.npmNamespaceCache.Lock()
 	defer nsc.npmNamespaceCache.Unlock()
-	cachedNsKey := util.GetNSNameWithPrefix(key)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			klog.Infof("NameSpace %s not found, may be it is deleted", key)
@@ -303,7 +301,6 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 	}
 
 	err = nsc.syncUpdateNameSpace(nsObj)
-	// 1. deal with error code and retry this
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.NSID, "[syncNameSpace] failed to sync namespace due to  %s", err.Error())
 		return err
@@ -315,7 +312,6 @@ func (nsc *nameSpaceController) syncNameSpace(key string) error {
 // syncAddNameSpace handles adding namespace to ipset.
 func (nsc *nameSpaceController) syncAddNameSpace(nsObj *corev1.Namespace) error {
 	var err error
-
 	corev1NsName, corev1NsLabels := util.GetNSNameWithPrefix(nsObj.ObjectMeta.Name), nsObj.ObjectMeta.Labels
 	klog.Infof("NAMESPACE CREATING: [%s/%v]", corev1NsName, corev1NsLabels)
 
@@ -360,13 +356,10 @@ func (nsc *nameSpaceController) syncAddNameSpace(nsObj *corev1.Namespace) error 
 func (nsc *nameSpaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) error {
 	var err error
 	newNsName, newNsLabel := util.GetNSNameWithPrefix(newNsObj.ObjectMeta.Name), newNsObj.ObjectMeta.Labels
-	klog.Infof(
-		"NAMESPACE UPDATING:\n namespace: [%s/%v]",
-		newNsName, newNsLabel,
-	)
+	klog.Infof("NAMESPACE UPDATING:\n namespace: [%s/%v]", newNsName, newNsLabel)
 
-	// If orignal AddNamespace failed for some reason, then NS will not be found
-	// in nsMap, resulting in retry of ADD.
+	// If previous syncAddNameSpace failed for some reasons before caching npm namespace object or syncUpdateNameSpace is called due to namespace creation event,
+	// then there is no cached object in nsMap.
 	curNsObj, exists := nsc.npmNamespaceCache.nsMap[newNsName]
 	if !exists {
 		if newNsObj.ObjectMeta.DeletionTimestamp == nil && newNsObj.ObjectMeta.DeletionGracePeriodSeconds == nil {

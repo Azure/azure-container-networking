@@ -122,7 +122,6 @@ func (ipsMgr *IpsetManager) setExists(setName string) (bool, string) {
 	return exists, ""
 }
 
-// (TODO): delete. not used in any other places
 func isNsSet(setName string) bool {
 	return !strings.Contains(setName, "-") && !strings.Contains(setName, ":")
 }
@@ -183,7 +182,6 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 	return 0, nil
 }
 
-// to avoid trying to hold lock multiple times (e.g., AddToList called CreateList)
 func (ipsMgr *IpsetManager) createList(listName string) error {
 	if _, exists := ipsMgr.listMap[listName]; exists {
 		return nil
@@ -241,6 +239,7 @@ func (ipsMgr *IpsetManager) createSet(setName string, spec []string) error {
 		spec: spec,
 	}
 	log.Logf("Creating Set: %+v", entry)
+
 	// (TODO): need to differentiate errCode handler
 	// since errCode can be one in case of "set with the same name already exists" and "maximal number of sets reached, cannot create more."
 	// It may have more situations with errCode==1.

@@ -663,6 +663,8 @@ func TestHasValidPodIP(t *testing.T) {
 	}
 }
 
+// Extra unit test which is not quite related to PodController, but help to understand how workqueue works to make event handler logic lock-free.
+// If the same key are queued into workqueue in multiple times, they are combined into one item (accurately, if the item is not processed).
 func TestWorkQueue(t *testing.T) {
 	labels := map[string]string{
 		"app": "test-pod",
@@ -678,15 +680,14 @@ func TestWorkQueue(t *testing.T) {
 	defer close(stopCh)
 	f.newPodController(stopCh)
 
-	podKey := getKey(podObj, t)
-	// (TODO): will confirm WQ internals.
-	// It does not add multiple elements with the same key.
-	f.podController.workqueue.Add(podKey)
-	t.Logf("WQ len %d ", f.podController.workqueue.Len())
+	podKeys := []string{"test-pod", "test-pod", "test-pod1"}
+	expectedWorkQueueLength := []int{1, 1, 2}
 
-	f.podController.workqueue.Add(podKey)
-	t.Logf("WQ len %d ", f.podController.workqueue.Len())
-
-	f.podController.workqueue.Add(podKey + "1")
-	t.Logf("WQ len %d ", f.podController.workqueue.Len())
+	for idx, podKey := range podKeys {
+		f.podController.workqueue.Add(podKey)
+		workQueueLength := f.podController.workqueue.Len()
+		if workQueueLength != expectedWorkQueueLength[idx] {
+			t.Errorf("TestWorkQueue failed due to returned workqueue length = %d, want %d", workQueueLength, expectedWorkQueueLength)
+		}
+	}
 }
