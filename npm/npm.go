@@ -120,12 +120,13 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	// (TODO): Do we need to handle panic if initializing iptables and ipsets are failed with multiple retries?
 	// It is important to keep cleaning-up order between iptables and ipset
 	// 1. clean-up NPM-related iptables information and then running regular processes to keep iptable information
-	npMgr.netPolController.initializeIPTables()
+	npMgr.netPolController.initializeDataPlane()
 
-	// 2. then initialize ipsets states (clean-up existing ipset and then install default ipset)
-	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
-	npMgr.nameSpaceController.initializeIPSets()
+	// 2. then initialize ipsets states (clean-up existing ipset)
+	npMgr.ipsMgr.DestroyNpmIpsets()
 
+	// 3. install default namespace
+	npMgr.nameSpaceController.initializeDefaultNs()
 	return npMgr
 }
 

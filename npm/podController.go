@@ -360,7 +360,6 @@ func (c *podController) syncPod(key string) error {
 
 	err = c.syncAddAndUpdatePod(pod)
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.PodID, "Error: Failed to sync pod due to %v", err)
 		return fmt.Errorf("Failed to sync pod due to %v\n", err)
 	}
 
@@ -454,7 +453,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	// NPM should clean up existing references of cached pod obj and its IP.
 	// then, re-add new pod obj.
 	if cachedNpmPodObj.PodIP != newPodObj.Status.PodIP {
-		metrics.SendErrorLogAndMetric(util.PodID, "[syncAddAndUpdatePod] Info: Unexpected state. Pod (Namespace:%s, Name:%s, newUid:%s) , has cachedPodIp:%s which is different from PodIp:%s",
+		klog.Infof("[syncAddAndUpdatePod] Info: Unexpected state. Pod (Namespace:%s, Name:%s, newUid:%s) , has cachedPodIp:%s which is different from PodIp:%s",
 			newPodObj.Namespace, newPodObj.Name, string(newPodObj.UID), cachedNpmPodObj.PodIP, newPodObj.Status.PodIP)
 
 		klog.Infof("Deleting cached Pod with key:%s first due to IP Mistmatch", podKey)
