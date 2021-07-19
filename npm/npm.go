@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -38,6 +39,13 @@ const (
 	threadness = 1
 )
 
+// Cache to hold npm-namespace struct which will be shared between podController and NameSpaceController.
+// For avoiding racing condition, it has mutex.
+type npmNamespaceCache struct {
+	sync.Mutex
+	nsMap map[string]*Namespace // Key is ns-<nsname>
+}
+
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
 	clientset *kubernetes.Clientset
@@ -53,8 +61,8 @@ type NetworkPolicyManager struct {
 	netPolController *networkPolicyController
 
 	// ipsMgr are shared in all controllers, so we need to manage lock in IpsetManager.
-	ipsMgr *ipsm.IpsetManager
-
+	ipsMgr            *ipsm.IpsetManager
+	npmNamespaceCache *npmNamespaceCache
 	// Azure-specific variables
 	clusterState     telemetry.ClusterState
 	serverVersion    *version.Info
@@ -93,6 +101,8 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		nsInformer:      informerFactory.Core().V1().Namespaces(),
 		npInformer:      informerFactory.Networking().V1().NetworkPolicies(),
 		ipsMgr:          ipsm.NewIpsetManager(exec),
+		// (TODO): make Functions
+		npmNamespaceCache: &npmNamespaceCache{nsMap: make(map[string]*Namespace)},
 		clusterState: telemetry.ClusterState{
 			PodCount:      0,
 			NsCount:       0,
@@ -105,9 +115,9 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	}
 
 	// create pod controller
-	npMgr.podController = NewPodController(npMgr.podInformer, clientset, npMgr.ipsMgr)
+	npMgr.podController = NewPodController(npMgr.podInformer, clientset, npMgr.ipsMgr, npMgr.npmNamespaceCache)
 	// create NameSpace controller
-	npMgr.nameSpaceController = NewNameSpaceController(npMgr.nsInformer, clientset, npMgr.ipsMgr)
+	npMgr.nameSpaceController = NewNameSpaceController(npMgr.nsInformer, clientset, npMgr.ipsMgr, npMgr.npmNamespaceCache)
 	// create network policy controller
 	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, clientset, npMgr.ipsMgr)
 
@@ -115,6 +125,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	// 1. first initialize iptables
 	npMgr.netPolController.initializeIptables()
 
+	// (TODO): correct return values
 	// err = npMgr.netPolController.initializeIptables()
 	// if err != nil {
 	// 	klog.Info(err.Error())
@@ -125,6 +136,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
 	npMgr.ipsMgr.DestroyNpmIpsets()
 
+	// (TODO): correct return values
 	// err = npMgr.ipsMgr.DestroyNpmIpsets()
 	// if err != nil {
 	// 	klog.Info(err.Error())

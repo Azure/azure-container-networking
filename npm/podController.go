@@ -113,18 +113,19 @@ type podController struct {
 	ipsMgr          *ipsm.IpsetManager
 	podMap          map[string]*NpmPod // Key is <nsname>/<podname>
 	// podMapMutex     sync.RWMutex
-	nsSet map[string]struct{}
+	//nsSet map[string]struct{}
+	npmNamespaceCache *npmNamespaceCache
 }
 
-func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes.Interface, ipsMgr *ipsm.IpsetManager) *podController {
+func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes.Interface, ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *podController {
 	podController := &podController{
-		clientset:       clientset,
-		podLister:       podInformer.Lister(),
-		podListerSynced: podInformer.Informer().HasSynced,
-		workqueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Pods"),
-		ipsMgr:          ipsMgr,
-		podMap:          make(map[string]*NpmPod),
-		nsSet:           make(map[string]struct{}),
+		clientset:         clientset,
+		podLister:         podInformer.Lister(),
+		podListerSynced:   podInformer.Informer().HasSynced,
+		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Pods"),
+		ipsMgr:            ipsMgr,
+		podMap:            make(map[string]*NpmPod),
+		npmNamespaceCache: npmNamespaceCache,
 	}
 
 	podInformer.Informer().AddEventHandler(
@@ -444,21 +445,24 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	newPodObjNs := util.GetNSNameWithPrefix(newPodObj.Namespace)
 
 	// lock before using nsMap since nsMap is shared with namespace controller
-	// (TODO) We can have another map here to store NsMap.
-	// Then use filtering this in IPSet Manager.
-	if _, exists := c.nsSet[newPodObjNs]; !exists {
+	c.npmNamespaceCache.Lock()
+	if _, exists := c.npmNamespaceCache.nsMap[newPodObjNs]; !exists {
 		// Create ipset related to namespace which this pod belong to if it does not exist.
 		if err = c.ipsMgr.CreateSet(newPodObjNs, []string{util.IpsetNetHashFlag}); err != nil {
+			c.npmNamespaceCache.Unlock()
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to create ipset for namespace %s with err: %v", newPodObjNs, err)
 		}
 
 		if err = c.ipsMgr.AddToList(util.KubeAllNamespacesFlag, newPodObjNs); err != nil {
+			c.npmNamespaceCache.Unlock()
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add %s to all-namespace ipset list with err: %v", newPodObjNs, err)
 		}
 
 		// Add namespace object into NsMap cache only when two ipset operations are successful.
-		c.nsSet[newPodObjNs] = struct{}{}
+		npmNs := newNs(newPodObjNs)
+		c.npmNamespaceCache.nsMap[newPodObjNs] = npmNs
 	}
+	c.npmNamespaceCache.Unlock()
 
 	podKey, _ := cache.MetaNamespaceKeyFunc(newPodObj)
 	cachedNpmPodObj, exists := c.podMap[podKey]
