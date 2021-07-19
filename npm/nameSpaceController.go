@@ -90,18 +90,6 @@ func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, cl
 		npmNamespaceCache:     npmNamespaceCache,
 	}
 
-	// add all namespaces
-	nameSpaceController.npmNamespaceCache.nsMap[util.KubeAllNamespacesFlag] = newNs(util.KubeAllNamespacesFlag)
-
-	// Create ipset for the namespace.
-	// (TODO): check whether we need to panic when it is failed.
-	kubeSystemNs := util.GetNSNameWithPrefix(util.KubeSystemFlag)
-	if err := nameSpaceController.ipsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
-		// (Question): Do we need to panic here?
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
-		// panic(err.Error)
-	}
-
 	nameSpaceInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    nameSpaceController.addNamespace,
@@ -112,11 +100,22 @@ func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, cl
 	return nameSpaceController
 }
 
-func (c *nameSpaceController) LengthOfNsMap() int {
-	length := len(c.npmNamespaceCache.nsMap)
-	// Reducing one to remove all-namespaces ns obj
-	// (TODO): Check this is safe or not?
-	return length - 1
+// Set up default IPsets
+func (nsc *nameSpaceController) initializeIpSets() error {
+	// (TODO): Panic
+	nsc.ipsMgr.DestroyNpmIpsets()
+
+	allNs := newNs(util.KubeAllNamespacesFlag)
+	nsc.npmNamespaceCache.nsMap[util.KubeAllNamespacesFlag] = allNs
+
+	// Create ipset for the namespace.
+	kubeSystemNs := util.GetNSNameWithPrefix(util.KubeSystemFlag)
+	if err := nsc.ipsMgr.CreateSet(kubeSystemNs, append([]string{util.IpsetNetHashFlag})); err != nil {
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
+		return err
+	}
+
+	return nil
 }
 
 // filter this event if we do not need to handle this event
@@ -169,18 +168,6 @@ func (nsc *nameSpaceController) updateNamespace(old, new interface{}) {
 	}
 
 	nsc.workqueue.Add(key)
-
-	// nsKey := util.GetNSNameWithPrefix(key)
-	// nsc.npMgr.NsMapMutex.Lock()
-	// defer nsc.npMgr.NsMapMutex.Unlock()
-	// cachedNsObj, nsExists := nsc.npMgr.NsMap[nsKey]
-	// if nsExists {
-	// 	if reflect.DeepEqual(cachedNsObj.LabelsMap, nsObj.ObjectMeta.Labels) {
-	// 		klog.Infof("[NAMESPACE UPDATE EVENT] Namespace [%s] labels did not change", key)
-	// 		return
-	// 	}
-	// }
-	// nsc.workqueue.Add(key)
 }
 
 func (nsc *nameSpaceController) deleteNamespace(obj interface{}) {
@@ -211,15 +198,6 @@ func (nsc *nameSpaceController) deleteNamespace(obj interface{}) {
 	}
 
 	nsc.workqueue.Add(key)
-	// nsc.npMgr.NsMapMutex.RLock()
-	// defer nsc.npMgr.NsMapMutex.RUnlock()
-	// nsKey := util.GetNSNameWithPrefix(key)
-	// _, nsExists := nsc.npMgr.NsMap[nsKey]
-	// if !nsExists {
-	// 	klog.Infof("[NAMESPACE DELETE EVENT] Namespace [%s] does not exist in case, so returning", key)
-	// 	return
-	// }
-
 }
 
 func (nsc *nameSpaceController) Run(threadiness int, stopCh <-chan struct{}) error {
