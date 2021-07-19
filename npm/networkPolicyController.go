@@ -73,7 +73,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 	return netPolController
 }
 
-func (c *networkPolicyController) initializeIPTables() error {
+func (c *networkPolicyController) initializeDataPlane() error {
 	klog.Infof("Azure-NPM creating, cleaning iptables")
 
 	err := c.iptMgr.UninitNpmChains()

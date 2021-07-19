@@ -101,9 +101,7 @@ func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, cl
 }
 
 // Set up default IPsets
-func (nsc *nameSpaceController) initializeIPSets() error {
-	nsc.ipsMgr.DestroyNpmIpsets()
-
+func (nsc *nameSpaceController) initializeDefaultNs() error {
 	allNs := newNs(util.KubeAllNamespacesFlag)
 	nsc.npmNamespaceCache.nsMap[util.KubeAllNamespacesFlag] = allNs
 

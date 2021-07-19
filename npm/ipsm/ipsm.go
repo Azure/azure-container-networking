@@ -548,6 +548,8 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 
 // DestroyNpmIpsets destroys only ipsets created by NPM
 func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
+	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
+
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
 
@@ -662,7 +664,6 @@ func (ipsMgr *IpsetManager) Restore(configFile string) error {
 	return nil
 }
 
-// not used in any other codes
 // Clean removes all the empty sets & lists under the namespace.
 func (ipsMgr *IpsetManager) Clean() error {
 	ipsMgr.Lock()
