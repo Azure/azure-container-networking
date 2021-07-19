@@ -31,8 +31,8 @@ var aiMetadata string
 const (
 	telemetryRetryTimeInSeconds = 60
 	heartbeatIntervalInMinutes  = 30
-	// TODO(jungukcho) consider increasing thread number later when controller logics are safe to run in parallel
-	threadness = 1
+	// TODO(jungukcho): consider increasing thread numbers later when controller logics are safe to run in parallel
+	// threadness = 1
 )
 
 // Cache to store namespace struct in nameSpaceController.go.
@@ -220,9 +220,9 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	}
 
 	// start controllers after synced
-	go npMgr.podController.Run(threadness, stopCh)
-	go npMgr.nameSpaceController.Run(threadness, stopCh)
-	go npMgr.netPolController.Run(threadness, stopCh)
+	go npMgr.podController.Run(stopCh)
+	go npMgr.nameSpaceController.Run(stopCh)
+	go npMgr.netPolController.Run(stopCh)
 	go npMgr.netPolController.runPeriodicTasks(stopCh)
 	return nil
 }

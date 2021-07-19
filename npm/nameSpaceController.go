@@ -182,16 +182,14 @@ func (nsc *nameSpaceController) deleteNamespace(obj interface{}) {
 	nsc.workqueue.Add(key)
 }
 
-func (nsc *nameSpaceController) Run(threadiness int, stopCh <-chan struct{}) error {
+func (nsc *nameSpaceController) Run(stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 	defer nsc.workqueue.ShutDown()
 
 	klog.Info("Starting Namespace controller\n")
 	klog.Info("Starting workers")
 	// Launch workers to process namespace resources
-	for i := 0; i < threadiness; i++ {
-		go wait.Until(nsc.runWorker, time.Second, stopCh)
-	}
+	go wait.Until(nsc.runWorker, time.Second, stopCh)
 
 	klog.Info("Started workers")
 	<-stopCh
