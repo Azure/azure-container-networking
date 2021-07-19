@@ -106,14 +106,12 @@ func (nPod *NpmPod) updateNpmPodAttributes(podObj *corev1.Pod) {
 }
 
 type podController struct {
-	clientset       kubernetes.Interface
-	podLister       corelisters.PodLister
-	podListerSynced cache.InformerSynced
-	workqueue       workqueue.RateLimitingInterface
-	ipsMgr          *ipsm.IpsetManager
-	podMap          map[string]*NpmPod // Key is <nsname>/<podname>
-	// podMapMutex     sync.RWMutex
-	//nsSet map[string]struct{}
+	clientset         kubernetes.Interface
+	podLister         corelisters.PodLister
+	podListerSynced   cache.InformerSynced
+	workqueue         workqueue.RateLimitingInterface
+	ipsMgr            *ipsm.IpsetManager
+	podMap            map[string]*NpmPod // Key is <nsname>/<podname>
 	npmNamespaceCache *npmNamespaceCache
 }
 
@@ -138,10 +136,7 @@ func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes
 	return podController
 }
 
-// (TODO) need lock if we really want very accurate podMap numbers, but I think it is over engineering.
-func (c *podController) LengthOfPodMap() int {
-	// c.podMapMutex.RLock()
-	// defer c.podMapMutex.RUnlock()
+func (c *podController) lengthOfPodMap() int {
 	return len(c.podMap)
 }
 
@@ -215,17 +210,6 @@ func (c *podController) updatePod(old, new interface{}) {
 	}
 
 	c.workqueue.Add(key)
-	// c.podMapMutex.RLock()
-	// defer c.podMapMutex.RUnlock()
-	// cachedNpmPodObj, npmPodExists := c.PodMap[key]
-	// if npmPodExists {
-	// 	// if newPod does not have different states against lastly applied states stored in cachedNpmPodObj,
-	// 	// podController does not need to reconcile this update.
-	// 	// in this updatePod event, newPod was updated with states which PodController does not need to reconcile.
-	// 	if isInvalidPodUpdate(cachedNpmPodObj, newPod) {
-	// 		return
-	// 	}
-	// }
 }
 
 func (c *podController) deletePod(obj interface{}) {
@@ -263,17 +247,6 @@ func (c *podController) deletePod(obj interface{}) {
 	}
 
 	c.workqueue.Add(key)
-	// // (TODO): Reduce scope of lock later
-	// c.podMapMutex.RLock()
-	// defer c.podMapMutex.RUnlock()
-
-	// // If this pod object is not in the PodMap, we do not need to clean-up states for this pod
-	// // since podController did not apply for any states for this pod
-	// _, npmPodExists := c.PodMap[key]
-	// if !npmPodExists {
-	// 	return
-	// }
-
 }
 
 func (c *podController) Run(threadiness int, stopCh <-chan struct{}) error {
