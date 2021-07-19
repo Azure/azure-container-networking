@@ -37,8 +37,6 @@ type IpsetManager struct {
 	exec    utilexec.Interface
 	ListMap map[string]*ipset //tracks all set lists.
 	SetMap  map[string]*ipset //label -> []ip
-	// (TODO): Further optimization:
-	// Will have two locks for ListMap and SetMap
 	sync.Mutex
 }
 

@@ -57,7 +57,8 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
-	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.kubeclient, f.ipsMgr)
+	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
+	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.kubeclient, f.ipsMgr, npmNamespaceCache)
 	f.podController.podListerSynced = alwaysReady
 
 	for _, pod := range f.podLister {
@@ -164,7 +165,7 @@ func checkPodTestResult(testName string, f *podFixture, testCases []expectedValu
 		if got := len(f.podController.podMap); got != test.expectedLenOfPodMap {
 			f.t.Errorf("%s failed @ PodMap length = %d, want %d", testName, got, test.expectedLenOfPodMap)
 		}
-		if got := len(f.podController.nsSet); got != test.expectedLenOfNsMap {
+		if got := len(f.podController.npmNamespaceCache.nsMap); got != test.expectedLenOfNsMap {
 			f.t.Errorf("%s failed @ NsMap length = %d, want %d", testName, got, test.expectedLenOfNsMap)
 		}
 		if got := f.podController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
