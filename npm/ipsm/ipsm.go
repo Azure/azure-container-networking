@@ -6,7 +6,8 @@ package ipsm
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	osexec "os/exec"
+
 	"regexp"
 	"strings"
 	"sync"
@@ -34,6 +35,7 @@ type ipsEntry struct {
 }
 
 // IpsetManager stores ipset states.
+// Hold lock only exposed methods are called to avoid race condition from all controllers
 type IpsetManager struct {
 	exec    utilexec.Interface
 	listMap map[string]*ipset //tracks all set lists.
@@ -223,7 +225,7 @@ func (ipsMgr *IpsetManager) destroy() error {
 	return nil
 }
 
-// CreateSet creates an ipset.
+// createSet creates an ipset.
 func (ipsMgr *IpsetManager) createSet(setName string, spec []string) error {
 	timer := metrics.StartNewTimer()
 
@@ -556,8 +558,9 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	reply, err := exec.Command(cmdName, cmdArgs).Output()
-	if msg, failed := err.(*exec.ExitError); failed {
+	reply, err := ipsMgr.exec.Command(cmdName, cmdArgs).Output()
+	// use osexec instead of exec when importing package to avoid using exec instead ipsMgr.exec
+	if msg, failed := err.(*osexec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {
 			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
