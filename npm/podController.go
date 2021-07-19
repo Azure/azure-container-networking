@@ -249,14 +249,12 @@ func (c *podController) deletePod(obj interface{}) {
 	c.workqueue.Add(key)
 }
 
-func (c *podController) Run(threadiness int, stopCh <-chan struct{}) error {
+func (c *podController) Run(stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
-	klog.Infof("Starting Pod %d worker(s)", threadiness)
-	for i := 0; i < threadiness; i++ {
-		go wait.Until(c.runWorker, time.Second, stopCh)
-	}
+	klog.Infof("Starting Pod worker")
+	go wait.Until(c.runWorker, time.Second, stopCh)
 
 	klog.Info("Started Pod workers")
 	<-stopCh

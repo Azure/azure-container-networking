@@ -181,16 +181,14 @@ func (c *networkPolicyController) deleteNetworkPolicy(obj interface{}) {
 	c.workqueue.Add(netPolkey)
 }
 
-func (c *networkPolicyController) Run(threadiness int, stopCh <-chan struct{}) error {
+func (c *networkPolicyController) Run(stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
-	klog.Infof("Starting Network Policy %d worker(s)", threadiness)
-	for i := 0; i < threadiness; i++ {
-		go wait.Until(c.runWorker, time.Second, stopCh)
-	}
+	klog.Infof("Starting Network Policy worker")
+	go wait.Until(c.runWorker, time.Second, stopCh)
 
-	klog.Infof("Started Network Policy %d worker(s)", threadiness)
+	klog.Infof("Started Network Policy worker")
 	<-stopCh
 	klog.Info("Shutting down Network Policy workers")
 

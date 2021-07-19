@@ -32,7 +32,7 @@ var aiMetadata string
 const (
 	heartbeatIntervalInMinutes = 30
 	// TODO: consider increasing thread number later when logics are correct
-	threadness = 1
+	//threadness = 1
 )
 
 // Cache to store namespace struct in nameSpaceController.go.
@@ -220,9 +220,9 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	}
 
 	// start controllers after synced
-	go npMgr.podController.Run(threadness, stopCh)
-	go npMgr.nameSpaceController.Run(threadness, stopCh)
-	go npMgr.netPolController.Run(threadness, stopCh)
+	go npMgr.podController.Run(stopCh)
+	go npMgr.nameSpaceController.Run(stopCh)
+	go npMgr.netPolController.Run(stopCh)
 	go npMgr.netPolController.runPeriodicTasks(stopCh)
 	return nil
 }
