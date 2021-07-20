@@ -72,10 +72,6 @@ const (
 	Baremetal ExecutionMode = "baremetal"
 )
 
-const (
-	rehydrateNetworkInfoOnReboot = false
-)
-
 // NetPlugin represents the CNI network plugin.
 type netPlugin struct {
 	*cni.Plugin
@@ -148,6 +144,7 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	platform.PrintDependencyPackageDetails()
 	common.LogNetworkInterfaces()
 
+	rehydrateNetworkInfoOnReboot := false
 	// Initialize network manager.
 	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)
 	if err != nil {
