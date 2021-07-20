@@ -497,6 +497,9 @@ test-cyclonus:
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
 
+version: ## prints the version
+	@echo $(VERSION)
+
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
 
