@@ -64,6 +64,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 		return err
 	}
 
+	// rehyrdration required on reboot for cnm ipam plugin
 	rehydrateIpamInfoOnReboot := true
 	// Initialize address manager.
 	err = plugin.am.Initialize(config, rehydrateIpamInfoOnReboot, plugin.Options)

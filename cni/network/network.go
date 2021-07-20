@@ -144,6 +144,7 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	platform.PrintDependencyPackageDetails()
 	common.LogNetworkInterfaces()
 
+	// rehyrdration not required on reboot for cni plugin
 	rehydrateNetworkInfoOnReboot := false
 	// Initialize network manager.
 	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)

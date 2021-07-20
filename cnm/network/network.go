@@ -70,6 +70,7 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 		return err
 	}
 
+	// rehyrdration required on reboot for cnm plugin
 	rehydrateNetworkInfoOnReboot := true
 	// Initialize network manager.
 	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)

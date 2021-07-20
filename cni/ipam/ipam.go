@@ -71,6 +71,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	log.Printf("[cni-ipam] Plugin %v version %v.", plugin.Name, plugin.Version)
 	log.Printf("[cni-ipam] Running on %v", platform.GetOSInfo())
 
+	// rehyrdration required on reboot for cni ipam plugin
 	rehydrateIpamInfoOnReboot := false
 	// Initialize address manager.
 	err = plugin.am.Initialize(config, rehydrateIpamInfoOnReboot, plugin.Options)
