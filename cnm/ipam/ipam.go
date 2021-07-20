@@ -21,7 +21,6 @@ const (
 	requiresRequestReplay = false
 	returnCode            = 0
 	returnStr             = "Success"
-	rehydrateIpamInfoOnReboot = true
 )
 
 // IpamPlugin represents a CNM (libnetwork) IPAM plugin.
@@ -65,6 +64,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 		return err
 	}
 
+	rehydrateIpamInfoOnReboot := true
 	// Initialize address manager.
 	err = plugin.am.Initialize(config, rehydrateIpamInfoOnReboot, plugin.Options)
 	if err != nil {
