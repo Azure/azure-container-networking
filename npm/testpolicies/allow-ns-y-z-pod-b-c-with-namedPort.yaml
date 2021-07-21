@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ns-y-z-pod-b-c
+  name: allow-ns-y-z-pod-b-c-with-namedPort
   namespace: netpol-4537-x
 spec:
   ingress:
