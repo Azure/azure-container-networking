@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -334,10 +335,7 @@ func StrExistsInSlice(items []string, val string) bool {
 }
 
 func CompareSlices(list1, list2 []string) bool {
-	for _, item := range list1 {
-		if !StrExistsInSlice(list2, item) {
-			return false
-		}
-	}
-	return true
+	sort.Strings(list1)
+	sort.Strings(list2)
+	return reflect.DeepEqual(list1, list2)
 }

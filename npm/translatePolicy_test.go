@@ -2,6 +2,7 @@ package npm
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"reflect"
 	"sort"
@@ -2389,13 +2390,78 @@ func TestAllowAllFromAppBackend(t *testing.T) {
 	}
 }
 
+// sortedIpSetMap returns a map which has direction and sorted ipsets as key and values respectively.
+func sortedIpSetMap(specs []string) map[string][]string {
+	var prevSpec string
+	namedPortIpSet := fmt.Sprintf("%s,%s", util.IptablesDstFlag, util.IptablesDstFlag)
+	ipSetMap := make(map[string][]string)
+
+	// Direction is always followed after ipset
+	for _, spec := range specs {
+		if spec == util.IptablesDstFlag || spec == util.IptablesSrcFlag || spec == namedPortIpSet {
+			ipSetMap[spec] = append(ipSetMap[spec], prevSpec)
+		}
+		prevSpec = spec
+	}
+
+	//  sorting ipsets
+	for _, ipsets := range ipSetMap {
+		sort.Strings(ipsets)
+	}
+	return ipSetMap
+}
+
+// equalSetNamesInIptEntries checks whether ipset is the same or not after sorting them
+func equalIPSetsInIptEntries(iptEntries, expectedIptEntries []*iptm.IptEntry, t *testing.T) bool {
+	if len(iptEntries) != len(expectedIptEntries) {
+		return false
+	}
+
+	for i := 0; i < len(expectedIptEntries); i++ {
+		IpSetMap := sortedIpSetMap(iptEntries[i].Specs)
+		expectedIpsetMap := sortedIpSetMap(expectedIptEntries[i].Specs)
+
+		if !reflect.DeepEqual(IpSetMap, expectedIpsetMap) {
+			t.Errorf("Ipsets are different\n got %+v\n want %+v", IpSetMap, expectedIpsetMap)
+			return false
+		}
+	}
+
+	return true
+}
+
+// check all returned values from translation function against expected values
+func checkNetPolTranslationResult(netPolPolicy string, sets, expectedSets []string, lists, expectedLists map[string][]string, iptEntries, expectedIptEntries []*iptm.IptEntry, t *testing.T) bool {
+	if !util.CompareSlices(sets, expectedSets) {
+		t.Errorf("translatedPolicy failed @ %s\n sets: %v\n expectedSets: %v", netPolPolicy, sets, expectedSets)
+		return false
+	}
+
+	// TODO(jungukcho): check whether this (map) is the same issue or not before merging it to master
+	if !reflect.DeepEqual(lists, expectedLists) {
+		t.Errorf("translatedPolicy failed @ %s\n lists: %v\n expectedLists: %v", netPolPolicy, lists, expectedLists)
+		return false
+	}
+
+	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
+		if !equalIPSetsInIptEntries(iptEntries, expectedIptEntries, t) {
+			marshalledIptEntries, _ := json.Marshal(iptEntries)
+			marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
+			t.Errorf("translatedPolicy failed @ %s\n iptEntries: %s\n expectedIptEntries: %s", netPolPolicy, marshalledIptEntries, marshalledExpectedIptEntries)
+			return false
+		}
+	}
+
+	return true
+}
 func TestAllowMultiplePodSelectors(t *testing.T) {
-	multiPodSlector, err := readPolicyYaml("testpolicies/allow-ns-y-z-pod-b-c.yaml")
+	// TODO(jungukcho): need to set util.IsNewNwPolicyVerFlag as true. It is a very strong dependency. Need to remove this dependency.
+	util.IsNewNwPolicyVerFlag = true
+	netPolFile := "allow-ns-y-z-pod-b-c.yaml"
+	multiPodSlector, err := readPolicyYaml(fmt.Sprintf("testpolicies/%s", netPolFile))
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	util.IsNewNwPolicyVerFlag = true
 
 	sets, _, lists, _, _, iptEntries := translatePolicy(multiPodSlector)
 
@@ -2407,11 +2473,6 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 		"pod:c",
 		"app:test",
 		"app:int",
-	}
-	if !util.CompareSlices(sets, expectedSets) {
-		t.Errorf("translatedPolicy failed @ allow-ns-y-z-pod-b-c sets comparison")
-		t.Errorf("sets: %v", sets)
-		t.Errorf("expectedSets: %v", expectedSets)
 	}
 
 	expectedLists := map[string][]string{
@@ -2430,14 +2491,8 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 			"pod:c",
 		},
 	}
-	if !reflect.DeepEqual(lists, expectedLists) {
-		t.Errorf("translatedPolicy failed @ allow-ns-y-z-pod-b-c lists comparison")
-		t.Errorf("lists: %v", lists)
-		t.Errorf("expectedLists: %v", expectedLists)
-	}
 
-	expectedIptEntries := []*iptm.IptEntry{}
-	nonKubeSystemEntries := []*iptm.IptEntry{
+	expectedIptEntries := []*iptm.IptEntry{
 		{
 			Chain: util.IptablesAzureIngressFromChain,
 			Specs: []string{
@@ -2517,24 +2572,43 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 			},
 		},
 	}
-	expectedIptEntries = append(expectedIptEntries, nonKubeSystemEntries...)
-	// has egress, but empty map means allow all
 	expectedIptEntries = append(expectedIptEntries, getDefaultDropEntries("netpol-4537-x", multiPodSlector.Spec.PodSelector, true, false)...)
 
-	// Since the order of all ipset values in Specs is not guaranteed in MultiplePodSelectors case, sorting Specs is necessary before comparing them.
-	if len(iptEntries) == len(expectedIptEntries) {
-		for i := 0; i < len(expectedIptEntries); i++ {
-			sort.Strings(iptEntries[i].Specs)
-			sort.Strings(expectedIptEntries[i].Specs)
-		}
+	if !checkNetPolTranslationResult(netPolFile, sets, expectedSets, lists, expectedLists, iptEntries, expectedIptEntries, t) {
+		t.Errorf("translatedPolicy failed @ %s", netPolFile)
 	}
 
-	if !reflect.DeepEqual(iptEntries, expectedIptEntries) {
-		t.Errorf("translatedPolicy failed @ allow-ns-y-z-pod-b-c policy comparison")
-		marshalledIptEntries, _ := json.Marshal(iptEntries)
-		marshalledExpectedIptEntries, _ := json.Marshal(expectedIptEntries)
-		t.Errorf("iptEntries: %s", marshalledIptEntries)
-		t.Errorf("expectedIptEntries: %s", marshalledExpectedIptEntries)
+	netPolFile = "allow-ns-y-z-pod-b-c-with-namedPort.yaml"
+	multiPodSlector, err = readPolicyYaml(fmt.Sprintf("testpolicies/%s", netPolFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var namedPorts []string
+	sets, namedPorts, lists, _, _, iptEntries = translatePolicy(multiPodSlector)
+
+	// reuse previously used ipentries
+	entriesForNamePort := []string{
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName("namedport:serve-80"),
+		util.IptablesDstFlag + "," + util.IptablesDstFlag,
+		util.IptablesJumpFlag,
+	}
+	// Do not add namedPort entries in last drop rule
+	for i := 0; i < len(expectedIptEntries)-1; i++ {
+		expectedIptEntries[i].Specs = append(entriesForNamePort, expectedIptEntries[i].Specs...)
+	}
+
+	// compared NamedPort results
+	expectedNamedPorts := []string{"namedport:serve-80"}
+	if !reflect.DeepEqual(namedPorts, expectedNamedPorts) {
+		t.Errorf("translatedPolicy failed namedPort @ %s comparison\n sets: %v\n expectedSets %v", netPolFile, namedPorts, expectedNamedPorts)
+	}
+
+	if !checkNetPolTranslationResult(netPolFile, sets, expectedSets, lists, expectedLists, iptEntries, expectedIptEntries, t) {
+		t.Errorf("translatedPolicy failed @ %s", netPolFile)
 	}
 }
 
