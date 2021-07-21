@@ -191,7 +191,7 @@ func TestDeleteFromList(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestcreateSet(t *testing.T) {
+func TestCreateSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
 
 	var (
@@ -253,7 +253,7 @@ func TestcreateSet(t *testing.T) {
 	}
 }
 
-func TestdeleteSet(t *testing.T) {
+func TestDeleteSet(t *testing.T) {
 	metrics.NumIPSetEntries.Set(0)
 	testSetName := "test-delete-set"
 	var calls = []testutils.TestCmd{

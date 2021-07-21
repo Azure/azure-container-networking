@@ -182,7 +182,7 @@ func (nsc *nameSpaceController) deleteNamespace(obj interface{}) {
 	nsc.workqueue.Add(key)
 }
 
-func (nsc *nameSpaceController) Run(stopCh <-chan struct{}) error {
+func (nsc *nameSpaceController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer nsc.workqueue.ShutDown()
 
@@ -194,8 +194,6 @@ func (nsc *nameSpaceController) Run(stopCh <-chan struct{}) error {
 	klog.Info("Started workers")
 	<-stopCh
 	klog.Info("Shutting down workers")
-
-	return nil
 }
 
 func (nsc *nameSpaceController) runWorker() {

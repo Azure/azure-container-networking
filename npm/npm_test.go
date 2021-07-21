@@ -45,11 +45,10 @@ func TestMain(m *testing.M) {
 	iptMgr.UninitNpmChains()
 
 	ipsMgr := ipsm.NewIpsetManager(exec)
-	// (TODO:) Think whether using DestroyNpmIpsets() is ok?
-	//ipsMgr.Destroy()
+	// Do not check returned error here to proceed all UTs.
+	// TODO(jungukcho): are there any side effect?
 	ipsMgr.DestroyNpmIpsets()
 
 	exitCode := m.Run()
-
 	os.Exit(exitCode)
 }

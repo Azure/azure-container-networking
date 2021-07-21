@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -81,7 +82,7 @@ func main() {
 	go restserver.NPMRestServerListenAndServe(npMgr)
 
 	if err = npMgr.Start(wait.NeverStop); err != nil {
-		log.Logf("npm failed with error %v.", err)
+		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %s", err)
 		panic(err.Error)
 	}
 

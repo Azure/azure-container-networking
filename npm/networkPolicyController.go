@@ -78,13 +78,14 @@ func (c *networkPolicyController) initializeDataPlane() error {
 	// It is important to keep order to clean-up iptables and ipset.
 	// IPtables should be cleaned first to avoid failures to clean-up iptables due to "ipset is using in kernel" error
 	// 1. clean-up NPM-related iptables information and then running periodic processes to keep iptables correct
-	err := c.iptMgr.UninitNpmChains()
-	if err != nil {
+	if err := c.iptMgr.UninitNpmChains(); err != nil {
 		return err
 	}
 
 	// 2. then clean-up all NPM ipsets states
-	c.ipsMgr.DestroyNpmIpsets()
+	if err := c.ipsMgr.DestroyNpmIpsets(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -181,7 +182,7 @@ func (c *networkPolicyController) deleteNetworkPolicy(obj interface{}) {
 	c.workqueue.Add(netPolkey)
 }
 
-func (c *networkPolicyController) Run(stopCh <-chan struct{}) error {
+func (c *networkPolicyController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
@@ -191,8 +192,6 @@ func (c *networkPolicyController) Run(stopCh <-chan struct{}) error {
 	klog.Infof("Started Network Policy worker")
 	<-stopCh
 	klog.Info("Shutting down Network Policy workers")
-
-	return nil
 }
 
 func (c *networkPolicyController) runWorker() {
