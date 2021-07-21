@@ -249,7 +249,7 @@ func (c *podController) deletePod(obj interface{}) {
 	c.workqueue.Add(key)
 }
 
-func (c *podController) Run(stopCh <-chan struct{}) error {
+func (c *podController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
@@ -259,8 +259,6 @@ func (c *podController) Run(stopCh <-chan struct{}) error {
 	klog.Info("Started Pod workers")
 	<-stopCh
 	klog.Info("Shutting down Pod workers")
-
-	return nil
 }
 
 func (c *podController) runWorker() {

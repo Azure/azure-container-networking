@@ -390,10 +390,8 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 		return err
 	}
 
-	// Now cleanup the cache
-	if _, exists := ipsMgr.listMap[listName].elements[setName]; exists {
-		delete(ipsMgr.listMap[listName].elements, setName)
-	}
+	// Now cleanup the cache. Do nothing if the specified key doesn't exist.
+	delete(ipsMgr.listMap[listName].elements, setName)
 
 	if len(ipsMgr.listMap[listName].elements) == 0 {
 		if err := ipsMgr.deleteList(listName); err != nil {
@@ -451,7 +449,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	exists, _ := ipsMgr.setExists(setName)
 
 	if !exists {
-		if err := ipsMgr.createSet(setName, append([]string{spec})); err != nil {
+		if err := ipsMgr.createSet(setName, []string{spec}); err != nil {
 			return err
 		}
 	}
@@ -540,7 +538,9 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 	metrics.DecIPSetInventory(setName)
 
 	if len(ipsMgr.setMap[setName].elements) == 0 {
-		ipsMgr.deleteSet(setName)
+		if err := ipsMgr.deleteSet(setName); err != nil {
+			return err
+		}
 	}
 
 	return nil

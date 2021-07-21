@@ -116,9 +116,6 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	// create network policy controller
 	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, clientset, npMgr.ipsMgr)
 
-	// TODO(jungukcho) Do we need to handle panic if initializing iptables and ipsets is failed? (better to add re-try logic if it is failed)
-	npMgr.netPolController.initializeDataPlane()
-
 	return npMgr
 }
 
@@ -200,22 +197,24 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
+	// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
+	if err := npMgr.netPolController.initializeDataPlane(); err != nil {
+		return fmt.Errorf("Failed to initialized data plane")
+	}
+
 	// Starts all informers manufactured by npMgr's informerFactory.
 	npMgr.informerFactory.Start(stopCh)
 
 	// Wait for the initial sync of local cache.
 	if !cache.WaitForCacheSync(stopCh, npMgr.podInformer.Informer().HasSynced) {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Pod informer failed to sync")
 		return fmt.Errorf("Pod informer failed to sync")
 	}
 
 	if !cache.WaitForCacheSync(stopCh, npMgr.nsInformer.Informer().HasSynced) {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Namespace informer failed to sync")
 		return fmt.Errorf("Namespace informer failed to sync")
 	}
 
 	if !cache.WaitForCacheSync(stopCh, npMgr.npInformer.Informer().HasSynced) {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Network policy informer failed to sync")
 		return fmt.Errorf("Network policy informer failed to sync")
 	}
 
