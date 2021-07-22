@@ -29,6 +29,7 @@ func (p *Parser) ParseIptablesObject(tableName string, filenames ...string) *ipt
 		return iptable.NewIptables(tableName, chains)
 
 	} else {
+		// TODO: need to get iptable's lock
 		cmdArgs := []string{"-t", string(tableName)}
 		cmd := exec.Command(util.IptablesSave, cmdArgs...)
 
