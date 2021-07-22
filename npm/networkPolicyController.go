@@ -75,17 +75,14 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 func (c *networkPolicyController) initializeDataPlane() error {
 	klog.Infof("Initiailize data plane. Clean up Azure-NPM chians and start reconcile iptables")
 
+	// TODO(jungukcho): will clean-up error handling codes to initialize iptables and ipset in a separate PR
 	// It is important to keep order to clean-up iptables and ipset.
 	// IPtables should be cleaned first to avoid failures to clean-up iptables due to "ipset is using in kernel" error
 	// 1. clean-up NPM-related iptables information and then running periodic processes to keep iptables correct
-	if err := c.iptMgr.UninitNpmChains(); err != nil {
-		return err
-	}
+	c.iptMgr.UninitNpmChains()
 
 	// 2. then clean-up all NPM ipsets states
-	if err := c.ipsMgr.DestroyNpmIpsets(); err != nil {
-		return err
-	}
+	c.ipsMgr.DestroyNpmIpsets()
 
 	return nil
 }
