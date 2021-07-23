@@ -72,21 +72,6 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 	//f.kubeInformer.Start(stopCh)
 }
 
-func (f *podFixture) ipSetSave(ipsetConfigFile string) {
-	//  call /sbin/ipset save -file /var/log/ipset-test.conf
-	f.t.Logf("Start storing ipset to %s", ipsetConfigFile)
-	if err := f.ipsMgr.Save(ipsetConfigFile); err != nil {
-		f.t.Errorf("TestAddPod failed @ ipsMgr.Save")
-	}
-}
-func (f *podFixture) ipSetRestore(ipsetConfigFile string) {
-	//  call /sbin/ipset restore -file /var/log/ipset-test.conf
-	f.t.Logf("Start re-storing ipset to %s", ipsetConfigFile)
-	if err := f.ipsMgr.Restore(ipsetConfigFile); err != nil {
-		f.t.Errorf("TestAddPod failed @ ipsMgr.Restore")
-	}
-}
-
 func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNewtwork bool, podPhase corev1.PodPhase) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

@@ -4,9 +4,7 @@ package ipsm
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -15,38 +13,6 @@ import (
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 )
-
-func TestSave(t *testing.T) {
-	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "save", "-file", "ipset.conf"}},
-	}
-
-	fexec := testutils.GetFakeExecWithScripts(calls)
-	ipsMgr := NewIpsetManager(fexec)
-	defer testutils.VerifyCalls(t, fexec, calls)
-	err := ipsMgr.Save("ipset.conf")
-	require.NoError(t, err)
-}
-
-func TestRestore(t *testing.T) {
-	// create temporary ipset config file to use
-	tmpFile, err := ioutil.TempFile(os.TempDir(), filepath.Base(util.IpsetTestConfigFile))
-	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-
-	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "-F", "-exist"}},
-		{Cmd: []string{"ipset", "-X", "-exist"}},
-		{Cmd: []string{"ipset", "restore", "-file", tmpFile.Name()}},
-	}
-
-	fexec := testutils.GetFakeExecWithScripts(calls)
-	ipsMgr := NewIpsetManager(fexec)
-	defer testutils.VerifyCalls(t, fexec, calls)
-
-	err = ipsMgr.Restore(tmpFile.Name())
-	require.NoError(t, err)
-}
 
 func TestCreateList(t *testing.T) {
 	var calls = []testutils.TestCmd{
@@ -228,7 +194,7 @@ func TestCreateSet(t *testing.T) {
 	if err := ipsMgr.CreateSet(testSet3Name, spec); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when creating port set")
 	}
-	
+
 	err = ipsMgr.AddToSet(testSet3Name, fmt.Sprintf("%s,%s%d", "1.1.1.1", "tcp", 8080), util.IpsetIPPortHashFlag, "0")
 	require.Error(t, err)
 
@@ -478,23 +444,26 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 	}
 }
 
-func TestClean(t *testing.T) {
-	var calls = []testutils.TestCmd{
-		{Cmd: []string{"ipset", "save", "-file", "/var/log/ipset-test.conf"}},
-	}
+// (TODO): it looks this UT is not valid to test Clean function It tests "ipset save".
+// I am not sure when Clean function is used and how Clean function changes.
+// When someone wants to use Clean function, please update this UT function properly.
+// func TestClean(t *testing.T) {
+// 	var calls = []testutils.TestCmd{
+// 		{Cmd: []string{"ipset", "save", "-file", "/var/log/ipset-test.conf"}},
+// 	}
 
-	fexec := testutils.GetFakeExecWithScripts(calls)
-	ipsMgr := NewIpsetManager(fexec)
-	defer testutils.VerifyCalls(t, fexec, calls)
+// 	fexec := testutils.GetFakeExecWithScripts(calls)
+// 	ipsMgr := NewIpsetManager(fexec)
+// 	defer testutils.VerifyCalls(t, fexec, calls)
 
-	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
-		t.Errorf("TestClean failed @ ipsMgr.Save")
-	}
+// 	if err := ipsMgr.Save(util.IpsetTestConfigFile); err != nil {
+// 		t.Errorf("TestClean failed @ ipsMgr.Save")
+// 	}
 
-	if err := ipsMgr.Clean(); err != nil {
-		t.Errorf("TestClean failed @ ipsMgr.Clean")
-	}
-}
+// 	if err := ipsMgr.Clean(); err != nil {
+// 		t.Errorf("TestClean failed @ ipsMgr.Clean")
+// 	}
+// }
 
 func TestDestroy(t *testing.T) {
 	setName := "test-destroy"

@@ -75,22 +75,6 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	//f.kubeInformer.Start()
 }
 
-func (f *nameSpaceFixture) ipSetSave(ipsetConfigFile string) {
-	//  call /sbin/ipset save -file /var/log/ipset-test.conf
-	f.t.Logf("Start storing ipset to %s", ipsetConfigFile)
-	if err := f.ipsMgr.Save(ipsetConfigFile); err != nil {
-		f.t.Errorf("TestAddPod failed @ ipsMgr.Save")
-	}
-}
-
-func (f *nameSpaceFixture) ipSetRestore(ipsetConfigFile string) {
-	//  call /sbin/ipset restore -file /var/log/ipset-test.conf
-	f.t.Logf("Start re-storing ipset to %s", ipsetConfigFile)
-	if err := f.ipsMgr.Restore(ipsetConfigFile); err != nil {
-		f.t.Errorf("TestAddPod failed @ ipsMgr.Restore")
-	}
-}
-
 func newNameSpace(name, rv string, labels map[string]string) *corev1.Namespace {
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -162,8 +146,6 @@ func TestNewNs(t *testing.T) {
 func TestAddNamespace(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
-	f.ipSetSave(util.IpsetTestConfigFile)
-	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
 	nsObj := newNameSpace(
 		"test-namespace",
@@ -194,8 +176,6 @@ func TestAddNamespace(t *testing.T) {
 func TestUpdateNamespace(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
-	f.ipSetSave(util.IpsetTestConfigFile)
-	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
 	oldNsObj := newNameSpace(
 		"test-namespace",
@@ -240,8 +220,6 @@ func TestUpdateNamespace(t *testing.T) {
 func TestAddNamespaceLabel(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
-	f.ipSetSave(util.IpsetTestConfigFile)
-	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
 	oldNsObj := newNameSpace(
 		"test-namespace",
@@ -286,8 +264,6 @@ func TestAddNamespaceLabel(t *testing.T) {
 func TestAddNamespaceLabelSameRv(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
-	f.ipSetSave(util.IpsetTestConfigFile)
-	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
 	oldNsObj := newNameSpace(
 		"test-namespace",
@@ -333,8 +309,6 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
-	f.ipSetSave(util.IpsetTestConfigFile)
-	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
 	oldNsObj := newNameSpace(
 		"test-namespace",
@@ -385,8 +359,6 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 func TestNewNameSpaceUpdate(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
-	f.ipSetSave(util.IpsetTestConfigFile)
-	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
 	oldNsObj := newNameSpace(
 		"test-namespace",
@@ -436,8 +408,6 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 func TestDeleteNamespace(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
-	f.ipSetSave(util.IpsetTestConfigFile)
-	defer f.ipSetRestore(util.IpsetTestConfigFile)
 
 	nsObj := newNameSpace(
 		"test-namespace",
@@ -467,8 +437,6 @@ func TestDeleteNamespace(t *testing.T) {
 func TestDeleteNamespaceWithTombstone(t *testing.T) {
 	fexec := exec.New()
 	f := newNsFixture(t, fexec)
-	f.ipSetSave(util.IpsetTestConfigFile)
-	defer f.ipSetRestore(util.IpsetTestConfigFile)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	f.newNsController(stopCh)
