@@ -31,12 +31,9 @@ import (
 var aiMetadata string
 
 const (
-	restoreRetryWaitTimeInSeconds = 5
-	restoreMaxRetries             = 10
-	backupWaitTimeInSeconds       = 60
-	telemetryRetryTimeInSeconds   = 60
-	heartbeatIntervalInMinutes    = 30
-	reconcileChainTimeInMinutes   = 5
+	telemetryRetryTimeInSeconds = 60
+	heartbeatIntervalInMinutes  = 30
+	reconcileChainTimeInMinutes = 5
 	// TODO: consider increasing thread number later when logics are correct
 	threadness = 1
 )
@@ -141,40 +138,6 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	}
 }
 
-// restore restores iptables from backup file
-func (npMgr *NetworkPolicyManager) restore() {
-	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
-	var err error
-	for i := 0; i < restoreMaxRetries; i++ {
-		if err = iptMgr.Restore(util.IptablesConfigFile); err == nil {
-			return
-		}
-
-		time.Sleep(restoreRetryWaitTimeInSeconds * time.Second)
-	}
-
-	metrics.SendErrorLogAndMetric(util.NpmID, "Error: timeout restoring Azure-NPM states")
-	panic(err.Error)
-}
-
-// backup takes snapshots of iptables filter table and saves it periodically.
-func (npMgr *NetworkPolicyManager) backup(stopCh <-chan struct{}) {
-	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
-	ticker := time.NewTicker(time.Second * time.Duration(backupWaitTimeInSeconds))
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-stopCh:
-			return
-		case <-ticker.C:
-			if err := iptMgr.Save(util.IptablesConfigFile); err != nil {
-				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states %s", err.Error())
-			}
-		}
-	}
-}
-
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	// Starts all informers manufactured by npMgr's informerFactory.
@@ -201,7 +164,6 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	go npMgr.nameSpaceController.Run(threadness, stopCh)
 	go npMgr.netPolController.Run(threadness, stopCh)
 	go npMgr.reconcileChains(stopCh)
-	go npMgr.backup(stopCh)
 
 	return nil
 }
