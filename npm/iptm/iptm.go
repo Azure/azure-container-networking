@@ -481,10 +481,17 @@ func (iptMgr *IptablesManager) Save(configFile string) error {
 	}()
 
 	cmd := iptMgr.exec.Command(util.IptablesSave)
-	cmd.SetStdout(f)
+	// below commeneted codes have an error to run this code with os/exec with this message "exec: Stdout already set"
+	//cmd.SetStdout(f)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-save: err %v, output %v", err, output)
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-save: err %v, output %v", err, string(output))
+		return err
+	}
+
+	_, err = f.Write(output)
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: Cannot write iptable-save output %s to %s file due to %v", string(output), configFile, err)
 		return err
 	}
 
@@ -527,8 +534,16 @@ func (iptMgr *IptablesManager) Restore(configFile string) error {
 	cmd := iptMgr.exec.Command(util.IptablesRestore)
 	cmd.SetStdin(f)
 	output, err := cmd.CombinedOutput()
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-restore with err: %v, output: %v", output, err)
+
+	// below commeneted codes has an error to run this code with os/exec with this message "exec: already started"
+	// if err := cmd.Start(); err != nil {
+	// 	metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-restore with err: %v, output: %v", output, err)
+	// 	return err
+	// }
+
+	// a fix version
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-restore with err: %v, output: %v", err, string(output))
 		return err
 	}
 
