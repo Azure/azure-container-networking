@@ -36,8 +36,7 @@ type multiTenantCrdReconciler struct {
 }
 
 // Reconcile is called on multi-tenant CRD status changes.
-func (r *multiTenantCrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	ctx := context.Background()
+func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	logger.Printf("Reconcling MultiTenantNetworkContainer %v", request.NamespacedName.String())
 
 	var nc ncapi.MultiTenantNetworkContainer

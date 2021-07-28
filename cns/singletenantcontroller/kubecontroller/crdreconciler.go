@@ -22,7 +22,7 @@ type CrdReconciler struct {
 }
 
 // Reconcile is called on CRD status changes
-func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	var (
 		nodeNetConfig nnc.NodeNetworkConfig
 		ncRequest     cns.CreateNetworkContainerRequest
@@ -30,7 +30,7 @@ func (r *CrdReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 	)
 
 	//Get the CRD object
-	if err = r.KubeClient.Get(context.TODO(), request.NamespacedName, &nodeNetConfig); err != nil {
+	if err = r.KubeClient.Get(ctx, request.NamespacedName, &nodeNetConfig); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
 			return reconcile.Result{}, client.IgnoreNotFound(err)

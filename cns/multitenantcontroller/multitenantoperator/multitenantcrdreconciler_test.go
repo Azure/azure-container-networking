@@ -1,6 +1,7 @@
 package multitenantoperator
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -53,7 +54,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				},
 			}
 			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).Return(expectedError)
-			_, err := reconciler.Reconcile(reconcile.Request{
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
 			})
 			Expect(err).To(BeNil())
@@ -66,7 +67,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				},
 			}
 			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).Return(expectedError)
-			_, err := reconciler.Reconcile(reconcile.Request{
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
 			})
 			Expect(err).NotTo(BeNil())
@@ -83,7 +84,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				},
 			}
 			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
-			_, err := reconciler.Reconcile(reconcile.Request{
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
 			})
 			Expect(err).To(BeNil())
@@ -96,7 +97,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				},
 			}
 			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
-			_, err := reconciler.Reconcile(reconcile.Request{
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
 			})
 			Expect(err).To(BeNil())
@@ -125,7 +126,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				NetworkContainerid:  uuid,
 				OrchestratorContext: orchestratorContext,
 			}).Return(cns.GetNetworkContainerResponse{}, nil)
-			_, err = reconciler.Reconcile(reconcile.Request{
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
 			})
 			Expect(err).To(BeNil())
@@ -155,7 +156,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				NetworkContainerid:  uuid,
 				OrchestratorContext: orchestratorContext,
 			}).Return(cns.GetNetworkContainerResponse{}, fmt.Errorf("NotFound"))
-			_, err = reconciler.Reconcile(reconcile.Request{
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
 			})
 			Expect(err).NotTo(BeNil())
@@ -206,7 +207,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				OrchestratorContext: orchestratorContext,
 			}).Return(cns.GetNetworkContainerResponse{}, fmt.Errorf("NotFound"))
 			cnsClient.EXPECT().CreateOrUpdateNC(networkContainerRequest).Return(nil)
-			_, err = reconciler.Reconcile(reconcile.Request{
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
 				NamespacedName: namespacedName,
 			})
 			Expect(err).To(BeNil())

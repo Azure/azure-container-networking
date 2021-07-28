@@ -183,6 +183,7 @@ GOCOV := $(TOOLS_BIN_DIR)/gocov
 GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
 GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
 GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
+MOCKGEN := $(TOOLS_BIN_DIR)/mockgen
 
 # Azure-NPM only supports Linux for now.
 ifeq ($(GOOS),linux)
@@ -527,5 +528,10 @@ $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
+
+$(MOCKGEN): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/mockgen github.com/golang/mock/mockgen
+
+mockgen: $(MOCKGEN) ## Build mockgen
 
 tools: gocov gocov-xml go-junit-report golangci-lint ## Build bins for build tools

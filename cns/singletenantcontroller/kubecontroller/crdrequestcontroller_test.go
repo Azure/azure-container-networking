@@ -15,7 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -53,7 +52,7 @@ type MockKubeClient struct {
 
 // Mock implementation of the KubeClient interface Get method
 // Mimics that of controller-runtime's client.Client
-func (mc MockKubeClient) Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+func (mc MockKubeClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 	mockKey := MockKey{
 		Namespace: key.Namespace,
 		Name:      key.Name,
@@ -70,7 +69,7 @@ func (mc MockKubeClient) Get(ctx context.Context, key client.ObjectKey, obj runt
 
 //Mock implementation of the KubeClient interface Update method
 //Mimics that of controller-runtime's client.Client
-func (mc MockKubeClient) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+func (mc MockKubeClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	nodeNetConfig := obj.(*nnc.NodeNetworkConfig)
 
 	mockKey := MockKey{

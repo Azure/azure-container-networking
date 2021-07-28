@@ -188,7 +188,7 @@ func (rc *requestController) Start(ctx context.Context) error {
 	rc.lock.Unlock()
 
 	logger.Printf("Starting reconcile loop")
-	if err := rc.mgr.Start(ctx.Done()); err != nil {
+	if err := rc.mgr.Start(ctx); err != nil {
 		if rc.isNotDefined(err) {
 			logger.Errorf("[cns-rc] CRD is not defined on cluster, starting reconcile loop failed: %v", err)
 			os.Exit(1)
