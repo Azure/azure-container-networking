@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	"github.com/Azure/azure-container-networking/log"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
@@ -25,6 +24,7 @@ import (
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -75,17 +75,17 @@ type NetworkPolicyManager struct {
 func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 	pods, err := npMgr.clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list pods in GetClusterState")
+		klog.Info("Error: Failed to list pods in GetClusterState")
 	}
 
 	namespaces, err := npMgr.clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list namespaces in GetClusterState")
+		klog.Info("Error: Failed to list namespaces in GetClusterState")
 	}
 
 	networkpolicies, err := npMgr.clientset.NetworkingV1().NetworkPolicies("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list networkpolicies in GetClusterState")
+		klog.Info("Error: Failed to list networkpolicies in GetClusterState")
 	}
 
 	npMgr.clusterState.PodCount = len(pods.Items)
@@ -209,11 +209,11 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 // NewNetworkPolicyManager creates a NetworkPolicyManager
 func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
 	// Clear out left over iptables states
-	log.Logf("Azure-NPM creating, cleaning iptables")
+	klog.Info("Azure-NPM creating, cleaning iptables")
 	iptMgr := iptm.NewIptablesManager(exec, iptm.NewIptOperationShim())
 	iptMgr.UninitNpmChains()
 
-	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
+	klog.Info("Azure-NPM creating, cleaning existing Azure NPM IPSets")
 	ipsm.NewIpsetManager(exec).DestroyNpmIpsets()
 
 	var (
@@ -235,7 +235,9 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
 		panic(err.Error)
 	}
-	log.Logf("API server version: %+v", serverVersion)
+
+	// This K8s api server version information is used to support backward-compatibility in translatePolicy.go
+	klog.Infof("Run NPM (%s) on K8s version %+v", npmVersion, serverVersion)
 
 	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
