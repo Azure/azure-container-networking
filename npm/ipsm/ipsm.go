@@ -349,7 +349,10 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 		spec:          resultSpec,
 	}
 
-	// todo: check err handling besides error code, corrupt state possible here
+	// TODO(jungukcho): revisit all error code handling codes in ipsm.go and iptm.go.
+	// For example, in below code, ipsm caches the item even though invalid IPv4 or IPv6 address are inserted in case returned error code is 1.
+	// Further it causes controllers to process the rest of operations.
+	// May use error handler code in npm/util/errors/errors.go when revisiting error handling codes.
 	if errCode, err := ipsMgr.Run(entry); err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset rules. %+v", entry)
 		return err
