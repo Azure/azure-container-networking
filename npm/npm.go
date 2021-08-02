@@ -31,7 +31,6 @@ import (
 var aiMetadata string
 
 const (
-	telemetryRetryTimeInSeconds = 60
 	heartbeatIntervalInMinutes  = 30
 	reconcileChainTimeInMinutes = 5
 	// TODO: consider increasing thread number later when logics are correct
