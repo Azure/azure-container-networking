@@ -6,7 +6,7 @@ package ipsm
 import (
 	"fmt"
 	"os"
-	osexec "os/exec"
+	"os/exec"
 
 	"regexp"
 	"strings"
@@ -558,9 +558,8 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	reply, err := ipsMgr.exec.Command(cmdName, cmdArgs).Output()
-	// use osexec instead of exec when importing package to avoid using exec instead ipsMgr.exec
-	if msg, failed := err.(*osexec.ExitError); failed {
+	reply, err := ipsMgr.exec.Command(cmdName, cmdArgs).CombinedOutput()
+	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {
 			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: There was an error running command: [%s] Stderr: [%v, %s]", cmdName, err, strings.TrimSuffix(string(msg.Stderr), "\n"))
