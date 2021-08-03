@@ -556,7 +556,7 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	cmdName := util.Ipset
 	cmdArgs := util.IPsetCheckListFlag
 
-	reply, err := ipsMgr.exec.Command(cmdName, cmdArgs).Output()
+	reply, err := ipsMgr.exec.Command(cmdName, cmdArgs).CombinedOutput()
 	if msg, failed := err.(*exec.ExitError); failed {
 		errCode := msg.Sys().(syscall.WaitStatus).ExitStatus()
 		if errCode > 0 {
