@@ -73,7 +73,7 @@ func main() {
 	factor := rand.Float64() + 1
 	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
 
-	klog.Info("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
+	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
 	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version)
@@ -83,7 +83,7 @@ func main() {
 	go restserver.NPMRestServerListenAndServe(npMgr)
 
 	if err = npMgr.Start(wait.NeverStop); err != nil {
-		klog.Info("npm failed with error %v.", err)
+		klog.Infof("npm failed with error %v.", err)
 		panic(err.Error)
 	}
 
