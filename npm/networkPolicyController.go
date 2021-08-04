@@ -39,7 +39,7 @@ type networkPolicyController struct {
 	netPolLister       netpollister.NetworkPolicyLister
 	netPolListerSynced cache.InformerSynced
 	workqueue          workqueue.RateLimitingInterface
-	RawNpMap           map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
+	rawNpMap           map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
 	// (TODO): will leverage this strucute to manage network policy more efficiently
 	//ProcessedNpMap map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<podSelectorHash>
 	// flag to indicate default Azure NPM chain is created or not
@@ -54,7 +54,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 		netPolLister:       npInformer.Lister(),
 		netPolListerSynced: npInformer.Informer().HasSynced,
 		workqueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
-		RawNpMap:           make(map[string]*networkingv1.NetworkPolicy),
+		rawNpMap:           make(map[string]*networkingv1.NetworkPolicy),
 		//ProcessedNpMap:         make(map[string]*networkingv1.NetworkPolicy),
 		isAzureNpmChainCreated: false,
 		ipsMgr:                 ipsMgr,
@@ -72,17 +72,22 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 }
 
 // initializeDataPlane do all initialization tasks for data plane
-func (c *networkPolicyController) initializeDataPlane() error {
+// TODO(jungukcho) Need to refactor UninitNpmChains since it assumes it has already AZURE-NPM chains
+func (c *networkPolicyController) resetDataPlane() error {
 	klog.Infof("Initiailize data plane. Clean up Azure-NPM chians and start reconcile iptables")
 
 	// TODO(jungukcho): will clean-up error handling codes to initialize iptables and ipset in a separate PR
 	// It is important to keep order to clean-up iptables and ipset.
 	// IPtables should be cleaned first to avoid failures to clean-up iptables due to "ipset is using in kernel" error
 	// 1. clean-up NPM-related iptables information and then running periodic processes to keep iptables correct
-	c.iptMgr.UninitNpmChains()
+	if err := c.iptMgr.UninitNpmChains(); err != nil {
+		utilruntime.HandleError(fmt.Errorf("Failed to UninitNpmChains with err: %s", err))
+	}
 
 	// 2. then clean-up all NPM ipsets states
-	c.ipsMgr.DestroyNpmIpsets()
+	if err := c.ipsMgr.DestroyNpmIpsets(); err != nil {
+		utilruntime.HandleError(fmt.Errorf("Failed to DestroyNpmIpsets with err: %s", err))
+	}
 
 	return nil
 }
@@ -92,12 +97,8 @@ func (c *networkPolicyController) runPeriodicTasks(stopCh <-chan struct{}) {
 	c.iptMgr.ReconcileIPTables(stopCh)
 }
 
-// c.podMapMutex.RLock()
-// defer c.podMapMutex.RUnlock()
 func (c *networkPolicyController) lengthOfRawNpMap() int {
-	// c.rawNpMapMutex.RLock()
-	// defer c.rawNpMapMutex.RUnlock()
-	return len(c.RawNpMap)
+	return len(c.rawNpMap)
 }
 
 // getNetworkPolicyKey returns namespace/name of network policy object if it is valid network policy object and has valid namespace/name.
@@ -273,7 +274,7 @@ func (c *networkPolicyController) syncNetPol(key string) error {
 		return nil
 	}
 
-	cachedNetPolObj, netPolExists := c.RawNpMap[key]
+	cachedNetPolObj, netPolExists := c.rawNpMap[key]
 	if netPolExists {
 		// if network policy does not have different states against lastly applied states stored in cachedNetPolObj,
 		// netPolController does not need to reconcile this update.
@@ -348,7 +349,7 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// Cache network object first before applying ipsets and iptables.
 	// If error happens while applying ipsets and iptables,
 	// the key is re-queued in workqueue and process this function again, which eventually meets desired states of network policy
-	c.RawNpMap[netpolKey] = netPolObj
+	c.rawNpMap[netpolKey] = netPolObj
 	metrics.NumPolicies.Inc()
 
 	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(netPolObj)
@@ -403,7 +404,7 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 
 // DeleteNetworkPolicy handles deleting network policy based on netPolKey.
 func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeCleanUpAzureNpmChain IsSafeCleanUpAzureNpmChain) error {
-	cachedNetPolObj, cachedNetPolObjExists := c.RawNpMap[netPolKey]
+	cachedNetPolObj, cachedNetPolObjExists := c.rawNpMap[netPolKey]
 	// if there is no applied network policy with the netPolKey, do not need to clean up process.
 	if !cachedNetPolObjExists {
 		return nil
@@ -442,13 +443,13 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 	}
 
 	// Sucess to clean up ipset and iptables operations in kernel and delete the cached network policy from RawNpMap
-	delete(c.RawNpMap, netPolKey)
+	delete(c.rawNpMap, netPolKey)
 	metrics.NumPolicies.Dec()
 
 	// If there is no cached network policy in RawNPMap anymore and no immediate network policy to process, start cleaning up default azure npm chains
 	// However, UninitNpmChains function is failed which left failed states and will not retry, but functionally it is ok.
 	// (TODO): Ideally, need to decouple cleaning-up default azure npm chains from "network policy deletion" event.
-	if isSafeCleanUpAzureNpmChain && len(c.RawNpMap) == 0 {
+	if isSafeCleanUpAzureNpmChain && len(c.rawNpMap) == 0 {
 		// Even though UninitNpmChains function returns error, isAzureNpmChainCreated sets up false.
 		// So, when a new network policy is added, the "default Azure NPM chain" can be installed.
 		c.isAzureNpmChainCreated = false

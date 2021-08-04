@@ -29,9 +29,7 @@ import (
 var aiMetadata string
 
 const (
-	// QUESTION(jungukcho): telemetryRetryTimeInSeconds is not used. Where can we use this const telemetryRetryTimeInSeconds?
-	telemetryRetryTimeInSeconds = 60
-	heartbeatIntervalInMinutes  = 30
+	heartbeatIntervalInMinutes = 30
 	// TODO(jungukcho): consider increasing thread numbers later when controller logics are safe to run in parallel
 	// threadness = 1
 )
@@ -84,7 +82,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
 		panic(err.Error)
 	}
-	log.Logf("API server version: %+v", serverVersion)
+	log.Logf("API server version: %+v ai meta data", serverVersion, aiMetadata)
 
 	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
@@ -155,7 +153,7 @@ func GetAIMetadata() string {
 }
 
 // SendClusterMetrics :- send NPM cluster metrics using AppInsights
-// QUESTION(jungukcho): Where is this function called?
+// TODO(jungukcho): need to move codes into metrics packages
 func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	var (
 		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
@@ -179,14 +177,12 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 		<-heartbeat
 
 		// Reducing one to remove all-namespaces ns obj
-		// TODO(jungukcho) Check this is safe or not?
 		lenOfNsMap := len(npMgr.npmNamespaceCache.nsMap)
 		nsCount.Value = float64(lenOfNsMap - 1)
 
 		lenOfRawNpMap := npMgr.netPolController.lengthOfRawNpMap()
 		nwPolicyCount.Value += float64(lenOfRawNpMap)
 
-		podCount.Value = 0
 		lenOfPodMap := npMgr.podController.lengthOfPodMap()
 		podCount.Value += float64(lenOfPodMap)
 
@@ -199,7 +195,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
-	if err := npMgr.netPolController.initializeDataPlane(); err != nil {
+	if err := npMgr.netPolController.resetDataPlane(); err != nil {
 		return fmt.Errorf("Failed to initialized data plane")
 	}
 
