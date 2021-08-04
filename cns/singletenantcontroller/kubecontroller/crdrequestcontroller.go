@@ -26,11 +26,10 @@ import (
 )
 
 const (
-	nodeNameEnvVar    = "NODENAME"
-	k8sNamespace      = "kube-system"
-	crdTypeName       = "nodenetworkconfigs"
-	allNamespaces     = ""
-	prometheusAddress = "0" // 0 means disabled
+	nodeNameEnvVar = "NODENAME"
+	k8sNamespace   = "kube-system"
+	crdTypeName    = "nodenetworkconfigs"
+	allNamespaces  = ""
 )
 
 // Config has crdRequestController options
@@ -114,7 +113,7 @@ func New(cfg Config) (*requestController, error) {
 	// for serving prometheus metrics, set to "0" to disable
 	mgr, err := ctrl.NewManager(cfg.KubeConfig, ctrl.Options{
 		Scheme:             scheme,
-		MetricsBindAddress: prometheusAddress,
+		MetricsBindAddress: "9090",
 		Namespace:          k8sNamespace,
 	})
 	if err != nil {

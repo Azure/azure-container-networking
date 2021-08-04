@@ -24,7 +24,7 @@ func (n NodeNetworkConfigFilter) Create(e event.CreateEvent) bool {
 	return n.isNodeName(e.Object.GetName())
 }
 
-//TODO: Decide what deleteing crd means with DNC
+// TODO: Decide what deleteing crd means with DNC
 // Ignore all for now
 func (n NodeNetworkConfigFilter) Delete(e event.DeleteEvent) bool {
 	return false
