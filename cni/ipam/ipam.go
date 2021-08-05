@@ -71,8 +71,8 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	log.Printf("[cni-ipam] Plugin %v version %v.", plugin.Name, plugin.Version)
 	log.Printf("[cni-ipam] Running on %v", platform.GetOSInfo())
 
-	// Initialize address manager.
-	err = plugin.am.Initialize(config, plugin.Options)
+	// Initialize address manager. rehyrdration not required on reboot for cni ipam plugin
+	err = plugin.am.Initialize(config, false, plugin.Options)
 	if err != nil {
 		log.Printf("[cni-ipam] Failed to initialize address manager, err:%v.", err)
 		return err

@@ -22,6 +22,14 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 // Important: Run "make" to regenerate code after modifying this file
 
+// MultiTenantInfo holds the encap type and id for the NC
+type MultiTenantInfo struct {
+	// EncapType is type of encapsulation
+	EncapType string `json:"encapType,omitempty"`
+	// ID of encapsulation, can be vlanid, vxlanid, gre-key, etc depending on EncapType
+	ID int64 `json:"id,omitempty"`
+}
+
 // MultiTenantNetworkContainerSpec defines the desired state of MultiTenantNetworkContainer
 type MultiTenantNetworkContainerSpec struct {
 	// UUID - network container UUID
@@ -48,6 +56,10 @@ type MultiTenantNetworkContainerStatus struct {
 	State string `json:"state,omitempty"`
 	// The subnet CIDR
 	IPSubnet string `json:"ipSubnet,omitempty"`
+	// The primary interface identifier
+	PrimaryInterfaceIdentifier string `json:"primaryInterfaceIdentifier,omitempty"`
+	// MultiTenantInfo holds the encap type and id
+	MultiTenantInfo MultiTenantInfo `json:"multiTenantInfo,omitempty"`
 }
 
 // +kubebuilder:object:root=true

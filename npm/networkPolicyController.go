@@ -511,24 +511,6 @@ func (c *networkPolicyController) removeCidrsRule(ingressOrEgress, policyName, n
 	return nil
 }
 
-// backup takes snapshots of iptables filter table and saves it periodically.
-// Moved this function from npm.go here since it only use iptMgr.
-// QUESTION(jungukcho) When do we want to use this function? Currently no one calls this.
-func (c *networkPolicyController) restore() {
-	var err error
-	for i := 0; i < restoreMaxRetries; i++ {
-		if err = c.iptMgr.Restore(util.IptablesConfigFile); err == nil {
-			return
-		}
-
-		time.Sleep(restoreRetryWaitTimeInSeconds * time.Second)
-	}
-
-	metrics.SendErrorLogAndMetric(util.NpmID, "Error: timeout restoring Azure-NPM states")
-	// Check this panic
-	panic(err.Error)
-}
-
 // GetProcessedNPKey will return netpolKey
 // (TODO): will use this function when optimizing management of multiple network policies with merging and deducting multiple network policies.
 // func (c *networkPolicyController) getProcessedNPKey(netPolObj *networkingv1.NetworkPolicy) string {

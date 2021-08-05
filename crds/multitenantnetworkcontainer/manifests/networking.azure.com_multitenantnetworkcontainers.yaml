@@ -70,6 +70,21 @@ spec:
             ipSubnet:
               description: The subnet CIDR
               type: string
+            multiTenantInfo:
+              description: MultiTenantInfo holds the encap type and id
+              properties:
+                encapType:
+                  description: EncapType is type of encapsulation
+                  type: string
+                id:
+                  description: ID of encapsulation, can be vlanid, vxlanid, gre-key,
+                    etc depending on EncapType
+                  format: int64
+                  type: integer
+              type: object
+            primaryInterfaceIdentifier:
+              description: The primary interface identifier
+              type: string
             state:
               description: The state of network container
               type: string

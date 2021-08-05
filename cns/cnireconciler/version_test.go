@@ -38,13 +38,13 @@ func TestIsDumpStateVer(t *testing.T) {
 		},
 		{
 			name:    "good ver",
-			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.2`),
+			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.7`),
 			want:    true,
 			wantErr: false,
 		},
 		{
 			name:    "good dirty ver",
-			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.2-7-g7b97e1eb`),
+			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.7-7-g7b97e1eb`),
 			want:    true,
 			wantErr: false,
 		},

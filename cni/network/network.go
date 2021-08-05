@@ -144,8 +144,8 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	platform.PrintDependencyPackageDetails()
 	common.LogNetworkInterfaces()
 
-	// Initialize network manager.
-	err = plugin.nm.Initialize(config, rehydrateNetworkInfoOnReboot)
+	// Initialize network manager. rehyrdration not required on reboot for cni plugin
+	err = plugin.nm.Initialize(config, false)
 	if err != nil {
 		log.Printf("[cni-net] Failed to initialize network manager, err:%v.", err)
 		return err

@@ -193,7 +193,6 @@ func (iptMgr *IptablesManager) Delete(entry *IptEntry) error {
 func (iptMgr *IptablesManager) ReconcileIPTables(stopCh <-chan struct{}) {
 	// (TODO) Ideally, we only need this when network policy installs iptables
 	// Control below two functions with InitNpmChains and UninitNpmChains functions together
-	go iptMgr.backup(stopCh)
 	go iptMgr.reconcileChains(stopCh)
 }
 
@@ -289,23 +288,6 @@ func (iptMgr *IptablesManager) reconcileChains(stopCh <-chan struct{}) {
 		case <-ticker.C:
 			if err := iptMgr.checkAndAddForwardChain(); err != nil {
 				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to reconcileChains Azure-NPM due to %s", err.Error())
-			}
-		}
-	}
-}
-
-// backup takes snapshots of iptables filter table and saves it periodically.
-func (iptMgr *IptablesManager) backup(stopCh <-chan struct{}) {
-	ticker := time.NewTicker(time.Second * time.Duration(backupWaitTimeInSeconds))
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-stopCh:
-			return
-		case <-ticker.C:
-			if err := iptMgr.Save(util.IptablesConfigFile); err != nil {
-				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states %s", err.Error())
 			}
 		}
 	}
@@ -487,94 +469,6 @@ func (iptMgr *IptablesManager) run(entry *IptEntry) (int, error) {
 	fmt.Println(output)
 
 	return 0, nil
-}
-
-// Save saves current iptables configuration to /var/log/iptables.conf
-func (iptMgr *IptablesManager) Save(configFile string) error {
-	if len(configFile) == 0 {
-		configFile = util.IptablesConfigFile
-	}
-
-	log.Printf("Saving iptables...")
-
-	err := iptMgr.io.lockIptables()
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		er := iptMgr.io.unlockIptables()
-		if er != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to unlock iptables with err %v", er)
-		}
-	}()
-
-	// create the config file for writing
-	f, err := iptMgr.io.createConfigFile(configFile)
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open file: %s.", configFile)
-		return err
-	}
-	defer func() {
-		er := iptMgr.io.closeConfigFile()
-		if er != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to close file: %s with err %v", configFile, er)
-		}
-	}()
-
-	cmd := iptMgr.exec.Command(util.IptablesSave)
-	cmd.SetStdout(f)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-save: err %v, output %v", err, output)
-		return err
-	}
-
-	return nil
-}
-
-// Restore restores iptables configuration from /var/log/iptables.conf
-func (iptMgr *IptablesManager) Restore(configFile string) error {
-	if len(configFile) == 0 {
-		configFile = util.IptablesConfigFile
-	}
-
-	log.Printf("Restoring iptables...")
-
-	err := iptMgr.io.lockIptables()
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		er := iptMgr.io.unlockIptables()
-		if er != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to unlock iptables with err %v", er)
-		}
-	}()
-
-	// open the config file for reading
-	f, err := iptMgr.io.openConfigFile(configFile)
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open file: %s with err %v", configFile, err)
-		return err
-	}
-
-	defer func() {
-		if er := iptMgr.io.closeConfigFile(); err != nil {
-			log.Printf("Failed to close config file with err %v", er)
-		}
-	}()
-
-	cmd := iptMgr.exec.Command(util.IptablesRestore)
-	cmd.SetStdin(f)
-	output, err := cmd.CombinedOutput()
-	if err := cmd.Start(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to run iptables-restore with err: %v, output: %v", output, err)
-		return err
-	}
-
-	return nil
 }
 
 // TO-DO :- Use iptables-restore to update iptables.

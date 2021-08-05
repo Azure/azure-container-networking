@@ -146,6 +146,8 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		fallthrough
 	case cns.Docker:
 		fallthrough
+	case cns.Kubernetes:
+		fallthrough
 	case cns.Basic:
 		fallthrough
 	case cns.JobObject:
@@ -664,7 +666,7 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ctx context.Context, 
 }
 
 func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPConfigRequest) (cns.PodInfo, int, string) {
-	if service.state.OrchestratorType != cns.KubernetesCRD {
+	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
 		return nil, UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
 	}
 

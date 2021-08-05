@@ -13,15 +13,15 @@ type NodeNetworkConfigFilter struct {
 // Returns true if request is to be processed by Reconciler
 // Checks that old generation equals new generation because status changes don't change generation number
 func (n NodeNetworkConfigFilter) Update(e event.UpdateEvent) bool {
-	isNodeName := n.isNodeName(e.MetaOld.GetName())
-	oldGeneration := e.MetaOld.GetGeneration()
-	newGeneration := e.MetaNew.GetGeneration()
+	isNodeName := n.isNodeName(e.ObjectOld.GetName())
+	oldGeneration := e.ObjectOld.GetGeneration()
+	newGeneration := e.ObjectOld.GetGeneration()
 	return (oldGeneration == newGeneration) && isNodeName
 }
 
 // Only process create events if CRD name equals this host's name
 func (n NodeNetworkConfigFilter) Create(e event.CreateEvent) bool {
-	return n.isNodeName(e.Meta.GetName())
+	return n.isNodeName(e.Object.GetName())
 }
 
 //TODO: Decide what deleteing crd means with DNC

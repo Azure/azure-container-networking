@@ -20,10 +20,7 @@ const (
 	infraInterface = "eth2"
 )
 
-const (
-	snatConfigFileName           = "/tmp/snatConfig"
-	rehydrateNetworkInfoOnReboot = false
-)
+const snatConfigFileName = "/tmp/snatConfig"
 
 // handleConsecutiveAdd is a dummy function for Linux platform.
 func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo network.NetworkInfo, epInfo *network.EndpointInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
