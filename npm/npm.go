@@ -31,7 +31,7 @@ var aiMetadata string
 
 const (
 	heartbeatIntervalInMinutes = 30
-	// TODO(jungukcho): consider increasing thread numbers later when controller logics are safe to run in parallel
+	// TODO: consider increasing thread number later when logics are correct
 	// threadness = 1
 )
 

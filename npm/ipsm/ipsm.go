@@ -6,6 +6,7 @@ package ipsm
 import (
 	"fmt"
 	"os/exec"
+
 	"regexp"
 	"strings"
 	"sync"
@@ -618,7 +619,6 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	return nil
 }
 
-// not used in any other codes
 // Clean removes all the empty sets & lists under the namespace.
 func (ipsMgr *IpsetManager) Clean() error {
 	ipsMgr.Lock()
