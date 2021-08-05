@@ -13,9 +13,9 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Microsoft/hcsshim"
-	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/google/uuid"
+	"github.com/microsoft/hcsshim"
+	"github.com/microsoft/hcsshim/hcn"
 )
 
 const (

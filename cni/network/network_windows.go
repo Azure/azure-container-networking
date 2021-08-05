@@ -14,8 +14,8 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
-	"github.com/Microsoft/hcsshim"
-	hnsv2 "github.com/Microsoft/hcsshim/hcn"
+	"github.com/microsoft/hcsshim"
+	hnsv2 "github.com/microsoft/hcsshim/hcn"
 	"golang.org/x/sys/windows/registry"
 
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -28,8 +28,6 @@ var (
 	// windows build for version 1903
 	win1903Version = 18362
 )
-
-
 
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
  * This is a temporary work around for issue #57253 of Kubernetes.

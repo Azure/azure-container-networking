@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Microsoft/hcsshim"
-	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/microsoft/hcsshim"
+	"github.com/microsoft/hcsshim/hcn"
 )
 
 const (
