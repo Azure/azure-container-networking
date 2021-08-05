@@ -111,12 +111,10 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 	}
 
 	// For backward compatibility, we should be cleaning older chains
-	allAzureChains := []string{
+	allAzureChains := append(IptablesAzureChainList,
 		util.IptablesAzureTargetSetsChain,
 		util.IptablesAzureIngressWrongDropsChain,
-	}
-
-	allAzureChains = append(allAzureChains, IptablesAzureChainList...)
+	)
 
 	iptMgr.OperationFlag = util.IptablesFlushFlag
 	for _, chain := range allAzureChains {
