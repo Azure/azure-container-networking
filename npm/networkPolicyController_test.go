@@ -45,7 +45,7 @@ func newNetPolFixture(t *testing.T, utilexec exec.Interface) *netPolFixture {
 		netPolLister: []*networkingv1.NetworkPolicy{},
 		kubeobjects:  []runtime.Object{},
 		ipsMgr:       ipsm.NewIpsetManager(utilexec),
-		//iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewFakeIptOperationShim()),
+		// iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewFakeIptOperationShim()),
 	}
 
 	// While running "make test-all", metrics hold states which was executed in previous unit test.

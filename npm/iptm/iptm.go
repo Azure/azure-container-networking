@@ -19,7 +19,6 @@ import (
 const (
 	defaultlockWaitTimeInSeconds string = "60"
 	iptablesErrDoesNotExist      int    = 1
-	backupWaitTimeInSeconds             = 60
 	reconcileChainTimeInMinutes         = 5
 )
 
@@ -87,16 +86,11 @@ func (iptMgr *IptablesManager) InitNpmChains() error {
 		return err
 	}
 
-	err := iptMgr.checkAndAddForwardChain()
-	if err != nil {
+	if err := iptMgr.checkAndAddForwardChain(); err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain. %s", err.Error())
 	}
 
-	if err = iptMgr.addAllRulesToChains(); err != nil {
-		return err
-	}
-
-	return nil
+	return iptMgr.addAllRulesToChains()
 }
 
 // UninitNpmChains uninitializes Azure NPM chains in iptables.
@@ -117,11 +111,12 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 	}
 
 	// For backward compatibility, we should be cleaning older chains
-	allAzureChains := append(
-		IptablesAzureChainList,
+	allAzureChains := []string{
 		util.IptablesAzureTargetSetsChain,
 		util.IptablesAzureIngressWrongDropsChain,
-	)
+	}
+
+	allAzureChains = append(allAzureChains, IptablesAzureChainList...)
 
 	iptMgr.OperationFlag = util.IptablesFlushFlag
 	for _, chain := range allAzureChains {

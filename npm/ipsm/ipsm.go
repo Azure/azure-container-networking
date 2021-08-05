@@ -6,7 +6,6 @@ package ipsm
 import (
 	"fmt"
 	"os/exec"
-
 	"regexp"
 	"strings"
 	"sync"
@@ -37,8 +36,8 @@ type ipsEntry struct {
 // Hold lock only exposed methods are called to avoid race condition from all controllers
 type IpsetManager struct {
 	exec    utilexec.Interface
-	listMap map[string]*ipset //tracks all set lists.
-	setMap  map[string]*ipset //label -> []ip
+	listMap map[string]*ipset // tracks all set lists.
+	setMap  map[string]*ipset // label -> []ip
 	sync.Mutex
 }
 
@@ -220,7 +219,7 @@ func (ipsMgr *IpsetManager) destroy() error {
 		return err
 	}
 
-	//TODO set IPSetInventory to 0 for all set names
+	// TODO set IPSetInventory to 0 for all set names
 	return nil
 }
 
@@ -303,7 +302,7 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		return nil
 	}
 
-	//Check if list being added exists in the listMap, if it exists we don't care about the set type
+	// Check if list being added exists in the listMap, if it exists we don't care about the set type
 	exists, _ := ipsMgr.setExists(setName)
 
 	// if set does not exist, then return because the ipset call will fail due to set not existing
@@ -350,7 +349,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
 
-	//Check if list being added exists in the listMap, if it exists we don't care about the set type
+	// Check if list being added exists in the listMap, if it exists we don't care about the set type
 	exists, _ := ipsMgr.setExists(setName)
 
 	// if set does not exist, then return because the ipset call will fail due to set not existing
@@ -360,7 +359,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 		return nil
 	}
 
-	//Check if list being added exists in the listMap, if it exists we don't care about the set type
+	// Check if list being added exists in the listMap, if it exists we don't care about the set type
 	exists, listtype := ipsMgr.setExists(listName)
 
 	// if set does not exist, then return because the ipset call will fail due to set not existing

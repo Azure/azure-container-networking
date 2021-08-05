@@ -28,10 +28,8 @@ import (
 type IsSafeCleanUpAzureNpmChain bool
 
 const (
-	SafeToCleanUpAzureNpmChain    IsSafeCleanUpAzureNpmChain = true
-	unSafeToCleanUpAzureNpmChain  IsSafeCleanUpAzureNpmChain = false
-	restoreRetryWaitTimeInSeconds                            = 5
-	restoreMaxRetries                                        = 10
+	safeToCleanUpAzureNpmChain   IsSafeCleanUpAzureNpmChain = true
+	unSafeToCleanUpAzureNpmChain IsSafeCleanUpAzureNpmChain = false
 )
 
 type networkPolicyController struct {
@@ -41,7 +39,7 @@ type networkPolicyController struct {
 	workqueue          workqueue.RateLimitingInterface
 	rawNpMap           map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
 	// (TODO): will leverage this strucute to manage network policy more efficiently
-	//ProcessedNpMap map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<podSelectorHash>
+	// ProcessedNpMap map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<podSelectorHash>
 	// flag to indicate default Azure NPM chain is created or not
 	isAzureNpmChainCreated bool
 	ipsMgr                 *ipsm.IpsetManager
@@ -55,7 +53,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 		netPolListerSynced: npInformer.Informer().HasSynced,
 		workqueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
 		rawNpMap:           make(map[string]*networkingv1.NetworkPolicy),
-		//ProcessedNpMap:         make(map[string]*networkingv1.NetworkPolicy),
+		// ProcessedNpMap:         make(map[string]*networkingv1.NetworkPolicy),
 		isAzureNpmChainCreated: false,
 		ipsMgr:                 ipsMgr,
 		iptMgr:                 iptm.NewIptablesManager(exec.New(), iptm.NewIptOperationShim()),
@@ -81,12 +79,12 @@ func (c *networkPolicyController) resetDataPlane() error {
 	// IPtables should be cleaned first to avoid failures to clean-up iptables due to "ipset is using in kernel" error
 	// 1. clean-up NPM-related iptables information and then running periodic processes to keep iptables correct
 	if err := c.iptMgr.UninitNpmChains(); err != nil {
-		utilruntime.HandleError(fmt.Errorf("Failed to UninitNpmChains with err: %s", err))
+		utilruntime.HandleError(fmt.Errorf("Failed to UninitNpmChains with err: %w", err))
 	}
 
 	// 2. then clean-up all NPM ipsets states
 	if err := c.ipsMgr.DestroyNpmIpsets(); err != nil {
-		utilruntime.HandleError(fmt.Errorf("Failed to DestroyNpmIpsets with err: %s", err))
+		utilruntime.HandleError(fmt.Errorf("Failed to DestroyNpmIpsets with err: %w", err))
 	}
 
 	return nil
@@ -255,7 +253,7 @@ func (c *networkPolicyController) syncNetPol(key string) error {
 			klog.Infof("Network Policy %s is not found, may be it is deleted", key)
 			// netPolObj is not found, but should need to check the RawNpMap cache with key.
 			// cleanUpNetworkPolicy method will take care of the deletion of a cached network policy if the cached network policy exists with key in our RawNpMap cache.
-			err = c.cleanUpNetworkPolicy(key, SafeToCleanUpAzureNpmChain)
+			err = c.cleanUpNetworkPolicy(key, safeToCleanUpAzureNpmChain)
 			if err != nil {
 				return fmt.Errorf("[syncNetPol] Error: %v when network policy is not found\n", err)
 			}
@@ -267,7 +265,7 @@ func (c *networkPolicyController) syncNetPol(key string) error {
 	// If DeletionTimestamp of the netPolObj is set, start cleaning up lastly applied states.
 	// This is early cleaning up process from updateNetPol event
 	if netPolObj.ObjectMeta.DeletionTimestamp != nil || netPolObj.ObjectMeta.DeletionGracePeriodSeconds != nil {
-		err = c.cleanUpNetworkPolicy(key, SafeToCleanUpAzureNpmChain)
+		err = c.cleanUpNetworkPolicy(key, safeToCleanUpAzureNpmChain)
 		if err != nil {
 			return fmt.Errorf("Error: %v when ObjectMeta.DeletionTimestamp field is set\n", err)
 		}
