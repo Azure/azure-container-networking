@@ -8,7 +8,9 @@ import (
 	"k8s.io/utils/exec"
 )
 
-const lastCNIWithoutDumpStateVer = "1.4.1"
+// >= 1.4.7 is required due to a bug in CNI when the statefile is empty
+// even though the command existed since 1.4.2.
+const lastCNIWithoutDumpStateVer = "1.4.6"
 
 // IsDumpStateVer checks if the CNI executable is a version that
 // has the dump state command required to initialize CNS from CNI

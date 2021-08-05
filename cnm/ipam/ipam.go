@@ -64,8 +64,8 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 		return err
 	}
 
-	// Initialize address manager.
-	err = plugin.am.Initialize(config, plugin.Options)
+	// Initialize address manager. rehyrdration required on reboot for cnm ipam plugin
+	err = plugin.am.Initialize(config, true, plugin.Options)
 	if err != nil {
 		log.Printf("[ipam] Failed to initialize address manager, err:%v.", err)
 		return err

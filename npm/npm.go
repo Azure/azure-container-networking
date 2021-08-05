@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	"github.com/Azure/azure-container-networking/log"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -23,14 +22,15 @@ import (
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
 
 var aiMetadata string
 
 const (
-	heartbeatIntervalInMinutes = 30
-	// TODO(jungukcho): consider increasing thread numbers later when controller logics are safe to run in parallel
+	heartbeatIntervalInMinutes  = 30
+	// TODO: consider increasing thread number later when logics are correct
 	// threadness = 1
 )
 
@@ -122,17 +122,17 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 	pods, err := npMgr.clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list pods in GetClusterState")
+		klog.Info("Error: Failed to list pods in GetClusterState")
 	}
 
 	namespaces, err := npMgr.clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list namespaces in GetClusterState")
+		klog.Info("Error: Failed to list namespaces in GetClusterState")
 	}
 
 	networkpolicies, err := npMgr.clientset.NetworkingV1().NetworkPolicies("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list networkpolicies in GetClusterState")
+		klog.Info("Error: Failed to list networkpolicies in GetClusterState")
 	}
 
 	npMgr.clusterState.PodCount = len(pods.Items)
@@ -222,3 +222,4 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	go npMgr.netPolController.runPeriodicTasks(stopCh)
 	return nil
 }
+
