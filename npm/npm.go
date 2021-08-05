@@ -32,7 +32,7 @@ var aiMetadata string
 const (
 	heartbeatIntervalInMinutes = 30
 	// TODO: consider increasing thread number later when logics are correct
-	threadness = 1
+	// threadness = 1
 )
 
 // Cache to store namespace struct in nameSpaceController.go.
