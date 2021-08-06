@@ -37,6 +37,7 @@ func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, su
 	rc.ip, _, _ = net.ParseCIDR(subnetAddressSpace)
 
 	rc.CarveIPConfigsAndAddToStatusAndCNS(numberOfIPConfigs)
+	rc.cachedCRD.Spec.RequestedIPCount = int64(numberOfIPConfigs)
 
 	return rc
 }
@@ -62,7 +63,6 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 	}
 
 	rc.fakecns.IPStateManager.AddIPConfigs(cnsIPConfigs)
-	rc.cachedCRD.Spec.RequestedIPCount = int64(len(cnsIPConfigs))
 
 	return cnsIPConfigs
 }
@@ -88,7 +88,7 @@ func remove(slice []nnc.IPAssignment, s int) []nnc.IPAssignment {
 	return append(slice[:s], slice[s+1:]...)
 }
 
-func (rc *RequestControllerFake) Reconcile() error {
+func (rc *RequestControllerFake) Reconcile(removePendingReleaseIPs bool) error {
 
 	diff := int(rc.cachedCRD.Spec.RequestedIPCount) - len(rc.fakecns.GetPodIPConfigState())
 
@@ -115,11 +115,13 @@ func (rc *RequestControllerFake) Reconcile() error {
 
 		}
 
-		// remove ipconfig from CNS
-		rc.fakecns.IPStateManager.RemovePendingReleaseIPConfigs(rc.cachedCRD.Spec.IPsNotInUse)
-
 		// empty the not in use ip's from the spec
-		rc.cachedCRD.Spec.IPsNotInUse = []string{}
+		// rc.cachedCRD.Spec.IPsNotInUse = []string{}
+	}
+
+	// remove ipconfig from CNS
+	if removePendingReleaseIPs {
+		rc.fakecns.IPStateManager.RemovePendingReleaseIPConfigs(rc.cachedCRD.Spec.IPsNotInUse)
 	}
 
 	// update

@@ -28,7 +28,7 @@ func initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, release
 
 	fakecns.PoolMonitor = poolmonitor
 
-	fakerc.Reconcile()
+	fakerc.Reconcile(true)
 
 	return fakecns, fakerc, poolmonitor
 }
@@ -62,7 +62,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 	}
 
 	// request controller reconciles, carves new IP's from the test subnet and adds to CNS state
-	err = fakerc.Reconcile()
+	err = fakerc.Reconcile(true)
 	if err != nil {
 		t.Fatalf("Failed to reconcile fake requestcontroller with err: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 	}
 
 	// request controller reconciles, carves new IP's from the test subnet and adds to CNS state
-	err = fakerc.Reconcile()
+	err = fakerc.Reconcile(true)
 	if err != nil {
 		t.Fatalf("Failed to reconcile fake requestcontroller with err: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestPoolDecrease(t *testing.T) {
 	}
 
 	// reconcile the fake request controller
-	err = fakerc.Reconcile()
+	err = fakerc.Reconcile(true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +386,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 		t.Fatalf("Expected pool size to be one batch size smaller after reconcile, and not change after existing call, expected %v, actual %v", (initialIPConfigCount - batchSize), len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
 	}
 
-	err = fakerc.Reconcile()
+	err = fakerc.Reconcile(true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -401,6 +401,81 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 		t.Fatalf("Expected IP's not in use to be 0 after reconcile, expected %v, actual %v", (initialIPConfigCount - batchSize), len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
 	}
 }
+
+func TestDecreaseAndIncreaseToSameCount(t *testing.T) {
+	var (
+		batchSize               = 10
+		initialIPConfigCount    = 10
+		requestThresholdPercent = 50
+		releaseThresholdPercent = 150
+		maxPodIPCount           = int64(30)
+	)
+
+	fakecns, fakerc, poolmonitor := initFakes(batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
+
+	log.Printf("Min free IP's %v", poolmonitor.MinimumFreeIps)
+	log.Printf("Max free IP %v", poolmonitor.MaximumFreeIps)
+
+	// initial pool count is 10, set 5 of them to be allocated
+	err := fakecns.SetNumberOfAllocatedIPs(7)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Pool monitor will increase the count to 20
+	t.Logf("Scaleup: Increase pool size to 20")
+	ReconcileAndValidate(t, context.Background(), poolmonitor, 20, 0)
+
+	// Update the IPConfig state
+	t.Logf("Reconcile with PodIPState")
+	err = fakerc.Reconcile(true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Release all IPs
+	err = fakecns.SetNumberOfAllocatedIPs(0)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("Scaledown: Decrease pool size to 10")
+	ReconcileAndValidate(t, context.Background(), poolmonitor, 10, 10)
+
+	// Increase it back to 20
+	// initial pool count is 10, set 5 of them to be allocated
+	t.Logf("Scaleup:  pool size back to 20 without updating the PodIpState for previous scale down")
+	err = fakecns.SetNumberOfAllocatedIPs(7)
+	if err != nil {
+		t.Error(err)
+	}
+	ReconcileAndValidate(t, context.Background(), poolmonitor, 20, 10)
+
+	// Update the IPConfig count and dont remove the pending IPs
+	t.Logf("Reconcile with PodIPState")
+	err = fakerc.Reconcile(false)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// reconcile again
+	t.Logf("Reconcole with pool monitor again, it should not cleanup ipsnotinuse")
+	ReconcileAndValidate(t, context.Background(), poolmonitor, 20, 10)
+
+	t.Logf("Now update podipconfig state")
+	err = fakerc.Reconcile(true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = poolmonitor.Reconcile(context.Background())
+	if err != nil {
+		t.Errorf("Expected no pool monitor failure after request controller reconcile: %v", err)
+	}
+	ReconcileAndValidate(t, context.Background(), poolmonitor, 20, 0)
+}
+
+
 
 func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 	var (
@@ -469,7 +544,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 	}
 
 	t.Logf("Update Request Controller")
-	err = fakerc.Reconcile()
+	err = fakerc.Reconcile(true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -573,5 +648,22 @@ func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	// ensure pool monitor has only requested the max pod ip count
 	if poolmonitor.cachedNNC.Spec.RequestedIPCount != maxPodIPCount {
 		t.Fatalf("Pool monitor target IP count (%v) should be the node limit (%v) when the max has been reached", poolmonitor.cachedNNC.Spec.RequestedIPCount, maxPodIPCount)
+	}
+}
+
+func ReconcileAndValidate(t *testing.T, ctx context.Context, poolmonitor *CNSIPAMPoolMonitor, expectedRequestCount int64, expectedIpsNotInUse int) {
+	err := poolmonitor.Reconcile(context.Background())
+	if err != nil {
+		t.Errorf("Expected pool monitor to not fail after CNS set number of allocated IP's %v", err)
+	}
+
+	// Increased the new count to be 20
+	if poolmonitor.cachedNNC.Spec.RequestedIPCount != expectedRequestCount {
+		t.Fatalf("ScaleUp: Expected pool size failed, expected %v, actual %v", expectedRequestCount, poolmonitor.cachedNNC.Spec.RequestedIPCount)
+	}
+
+	// Ensure there is no pending release ips
+	if len(poolmonitor.cachedNNC.Spec.IPsNotInUse) != expectedIpsNotInUse {
+		t.Fatalf("Expected IP's not in use be one batch size smaller after reconcile, expected %v, actual %v", expectedIpsNotInUse, len(poolmonitor.cachedNNC.Spec.IPsNotInUse))
 	}
 }
