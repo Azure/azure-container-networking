@@ -5,7 +5,6 @@ package ipsm
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -537,53 +536,6 @@ func (ipsMgr *IpsetManager) Run(entry *ipsEntry) (int, error) {
 	}
 
 	return 0, nil
-}
-
-// Save saves ipset to file.
-func (ipsMgr *IpsetManager) Save(configFile string) error {
-	if len(configFile) == 0 {
-		configFile = util.IpsetConfigFile
-	}
-
-	cmd := ipsMgr.exec.Command(util.Ipset, util.IpsetSaveFlag, util.IpsetFileFlag, configFile)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to save ipset: [%s] Stderr: [%v, %s]", cmd, err, strings.TrimSuffix(string(output), "\n"))
-		return err
-	}
-	cmd.Wait()
-
-	return nil
-}
-
-// Restore restores ipset from file.
-func (ipsMgr *IpsetManager) Restore(configFile string) error {
-	if len(configFile) == 0 {
-		configFile = util.IpsetConfigFile
-	}
-
-	f, err := os.Stat(configFile)
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to get file %s stat from ipsm.Restore", configFile)
-		return err
-	}
-
-	if f.Size() == 0 {
-		if err := ipsMgr.Destroy(); err != nil {
-			return err
-		}
-	}
-
-	cmd := ipsMgr.exec.Command(util.Ipset, util.IpsetRestoreFlag, util.IpsetFileFlag, configFile)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to to restore ipset from file: [%s] Stderr: [%v, %s]", cmd, err, strings.TrimSuffix(string(output), "\n"))
-		return err
-	}
-
-	//TODO based on the set name and number of entries in the config file, update IPSetInventory
-
-	return nil
 }
 
 // DestroyNpmIpsets destroys only ipsets created by NPM

@@ -83,33 +83,6 @@ func (f *netPolFixture) newNetPolController(stopCh chan struct{}) {
 	//f.kubeInformer.Start(stopCh)
 }
 
-func (f *netPolFixture) saveIpTables(iptablesConfigFile string) {
-	if err := f.iptMgr.Save(iptablesConfigFile); err != nil {
-		f.t.Errorf("Failed to save iptables rules")
-	}
-}
-
-func (f *netPolFixture) restoreIpTables(iptablesConfigFile string) {
-	if err := f.iptMgr.Restore(iptablesConfigFile); err != nil {
-		f.t.Errorf("Failed to restore iptables rules")
-	}
-}
-
-func (f *netPolFixture) saveIpSet(ipsetConfigFile string) {
-	//  call /sbin/ipset save -file /var/log/ipset-test.conf
-	f.t.Logf("Start storing ipset to %s", ipsetConfigFile)
-	if err := f.ipsMgr.Save(ipsetConfigFile); err != nil {
-		f.t.Errorf("Failed to save ipsets")
-	}
-}
-func (f *netPolFixture) restoreIpSet(ipsetConfigFile string) {
-	//  call /sbin/ipset restore -file /var/log/ipset-test.conf
-	f.t.Logf("Start re-storing ipset to %s", ipsetConfigFile)
-	if err := f.ipsMgr.Restore(ipsetConfigFile); err != nil {
-		f.t.Errorf("failed to restore ipsets")
-	}
-}
-
 // (TODO): make createNetPol flexible
 func createNetPol() *networkingv1.NetworkPolicy {
 	tcp := corev1.ProtocolTCP

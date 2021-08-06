@@ -1700,10 +1700,9 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, map
 	}
 
 	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
-	resultSets = util.UniqueStrSlice(resultSets)
 	for resultListKey, resultLists := range resultListMap {
 		resultListMap[resultListKey] = util.UniqueStrSlice(resultLists)
 	}
 
-	return resultSets, resultNamedPorts, resultListMap, resultIngressIPCidrs, resultEgressIPCidrs, entries
+	return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultNamedPorts), resultListMap, resultIngressIPCidrs, resultEgressIPCidrs, entries
 }

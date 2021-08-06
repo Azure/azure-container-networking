@@ -17,8 +17,10 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 )
 
 // This file contains the internal functions called by either HTTP APIs (api.go) or
@@ -42,31 +44,32 @@ func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRe
 }
 
 // SyncNodeStatus :- Retrieve the latest node state from DNC & returns the first occurence of returnCode and error with respect to contextFromCNI
-func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode int, errStr string) {
+func (service *HTTPRestService) SyncNodeStatus(
+	dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
 	logger.Printf("[Azure CNS] SyncNodeStatus")
 	var (
-		response         *http.Response
-		err              error
+		resp             *http.Response
 		nodeInfoResponse cns.NodeInfoResponse
-		req              *http.Request
 		body             []byte
 		httpc            = common.GetHttpClient()
 	)
 
 	// try to retrieve NodeInfoResponse from mDNC
-	response, err = httpc.Get(fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, dncEP, infraVnet, nodeID, dncApiVersion))
+	url := fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, dncEP, infraVnet, nodeID, dncApiVersion)
+	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, url, nil)
+	resp, err := httpc.Do(req)
 	if err == nil {
-		if response.StatusCode == http.StatusOK {
-			err = json.NewDecoder(response.Body).Decode(&nodeInfoResponse)
+		if resp.StatusCode == http.StatusOK {
+			err = json.NewDecoder(resp.Body).Decode(&nodeInfoResponse)
 		} else {
-			err = fmt.Errorf("%d", response.StatusCode)
+			err = errors.Errorf("http err: %d", resp.StatusCode)
 		}
 
-		response.Body.Close()
+		resp.Body.Close()
 	}
 
 	if err != nil {
-		returnCode = UnexpectedError
+		returnCode = types.UnexpectedError
 		errStr = fmt.Sprintf("[Azure-CNS] Failed to sync node with error: %+v", err)
 		logger.Errorf(errStr)
 		return
@@ -112,7 +115,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		service.createOrUpdateNetworkContainer(w, req)
 		if w.Result().StatusCode == http.StatusOK {
 			var resp cns.CreateNetworkContainerResponse
-			if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == Success {
+			if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
 				service.Lock()
 				ncstatus, _ := service.state.ContainerStatus[ncid]
 				ncstatus.VfpUpdateComplete = !waitingForUpdate
@@ -207,33 +210,35 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 }
 
 // This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIp map[string]cns.PodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
-	logger.Printf("Reconciling NC state with podInfo %+v", podInfoByIp)
+func (service *HTTPRestService) ReconcileNCState(
+	ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar nnc.Scaler,
+	spec nnc.NodeNetworkConfigSpec) types.ResponseCode {
+	logger.Printf("Reconciling NC state with podInfo %+v", podInfoByIP)
 	// check if ncRequest is null, then return as there is no CRD state yet
 	if ncRequest == nil {
-		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIp))
-		return Success
+		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIP))
+		return types.Success
 	}
 
 	// If the NC was created successfully, then reconcile the allocated pod state
 	returnCode := service.CreateOrUpdateNetworkContainerInternal(*ncRequest)
-	if returnCode != Success {
+	if returnCode != types.Success {
 		return returnCode
 	}
 	returnCode = service.UpdateIPAMPoolMonitorInternal(scalar, spec)
-	if returnCode != Success {
+	if returnCode != types.Success {
 		return returnCode
 	}
 
 	// now parse the secondaryIP list, if it exists in PodInfo list, then allocate that ip
 	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
-		if podInfo, exists := podInfoByIp[secIpConfig.IPAddress]; exists {
+		if podInfo, exists := podInfoByIP[secIpConfig.IPAddress]; exists {
 			logger.Printf("SecondaryIP %+v is allocated to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
 
 			jsonContext, err := podInfo.OrchestratorContext()
 			if err != nil {
 				logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
-				return UnexpectedError
+				return types.UnexpectedError
 			}
 
 			ipconfigRequest := cns.IPConfigRequest{
@@ -245,7 +250,7 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 
 			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
 				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIpConfig, podInfo, ncRequest.NetworkContainerid, err)
-				return FailedToAllocateIpConfig
+				return types.FailedToAllocateIPConfig
 			}
 		} else {
 			logger.Printf("SecondaryIP %+v is not allocated. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
@@ -255,25 +260,29 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 	err := service.MarkExistingIPsAsPending(spec.IPsNotInUse)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error. Failed to mark IP's as pending %v", spec.IPsNotInUse)
-		return UnexpectedError
+		return types.UnexpectedError
 	}
 
 	return 0
 }
 
 // GetNetworkContainerInternal gets network container details.
-func (service *HTTPRestService) GetNetworkContainerInternal(req cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, int) {
+func (service *HTTPRestService) GetNetworkContainerInternal(
+	req cns.GetNetworkContainerRequest,
+) (cns.GetNetworkContainerResponse, types.ResponseCode) {
 	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
 	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	return getNetworkContainerResponse, returnCode
 }
 
 // DeleteNetworkContainerInternal deletes a network container.
-func (service *HTTPRestService) DeleteNetworkContainerInternal(req cns.DeleteNetworkContainerRequest) int {
+func (service *HTTPRestService) DeleteNetworkContainerInternal(
+	req cns.DeleteNetworkContainerRequest,
+) types.ResponseCode {
 	_, exist := service.getNetworkContainerDetails(req.NetworkContainerid)
 	if !exist {
 		logger.Printf("network container for id %v doesn't exist", req.NetworkContainerid)
-		return Success
+		return types.Success
 	}
 
 	service.Lock()
@@ -292,28 +301,30 @@ func (service *HTTPRestService) DeleteNetworkContainerInternal(req cns.DeleteNet
 	}
 
 	service.saveState()
-	return Success
+	return types.Success
 }
 
 // This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.CreateNetworkContainerRequest) int {
+func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(
+	req cns.CreateNetworkContainerRequest,
+) types.ResponseCode {
 	if req.NetworkContainerid == "" {
 		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
-		return NetworkContainerNotSpecified
+		return types.NetworkContainerNotSpecified
 	}
 
 	// For now only RequestController uses this API which will be initialized only for AKS scenario.
 	// Validate ContainerType is set as Docker
-	if service.state.OrchestratorType != cns.KubernetesCRD {
+	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
 		logger.Errorf("[Azure CNS] Error. Unsupported OrchestratorType: %s", service.state.OrchestratorType)
-		return UnsupportedOrchestratorType
+		return types.UnsupportedOrchestratorType
 	}
 
 	// Validate PrimaryCA must never be empty
 	err := validateIPSubnet(req.IPConfiguration.IPSubnet)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error. PrimaryCA is invalid, NC Req: %v", req)
-		return InvalidPrimaryIPConfig
+		return types.InvalidPrimaryIPConfig
 	}
 
 	// Validate SecondaryIPConfig
@@ -321,7 +332,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.C
 		// Validate Ipconfig
 		if secIpconfig.IPAddress == "" {
 			logger.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.IPAddress", secIpconfig)
-			return InvalidSecondaryIPConfig
+			return types.InvalidSecondaryIPConfig
 		}
 	}
 
@@ -331,7 +342,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.C
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if reflect.DeepEqual(existingReq.IPConfiguration, req.IPConfiguration) != true {
 			logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s, new CA %s", req.NetworkContainerid, existingReq.PrimaryInterfaceIdentifier, req.PrimaryInterfaceIdentifier)
-			return PrimaryCANotSame
+			return types.PrimaryCANotSame
 		}
 	}
 
@@ -348,11 +359,13 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req cns.C
 	return returnCode
 }
 
-func (service *HTTPRestService) UpdateIPAMPoolMonitorInternal(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) int {
+func (service *HTTPRestService) UpdateIPAMPoolMonitorInternal(
+	scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec,
+) types.ResponseCode {
 	if err := service.IPAMPoolMonitor.Update(scalar, spec); err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating IPAM Pool Monitor: %v", err)
 		// requeue
-		return UnexpectedError
+		return types.UnexpectedError
 	}
 
 	return 0

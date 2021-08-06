@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
 )
 
@@ -661,7 +662,7 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 	var createHostNCApipaEndpointResponse cns.CreateHostNCApipaEndpointResponse
 
 	err = decodeResponse(w, &createHostNCApipaEndpointResponse)
-	if err != nil || createHostNCApipaEndpointResponse.Response.ReturnCode != UnknownContainerID {
+	if err != nil || createHostNCApipaEndpointResponse.Response.ReturnCode != types.UnknownContainerID {
 		t.Errorf("createHostNCApipaEndpoint failed with response %+v", createHostNCApipaEndpointResponse)
 	}
 
@@ -817,7 +818,7 @@ func getNonExistNetworkContainerByContext(t *testing.T, params createOrUpdateNet
 	mux.ServeHTTP(w, req)
 
 	err = decodeResponse(w, &resp)
-	if err != nil || resp.Response.ReturnCode != UnknownContainerID {
+	if err != nil || resp.Response.ReturnCode != types.UnknownContainerID {
 		t.Errorf("GetNetworkContainerByContext unexpected response %+v Err:%+v", resp, err)
 		t.Fatal(err)
 	}

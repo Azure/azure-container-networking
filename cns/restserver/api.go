@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 )
@@ -48,7 +49,7 @@ func (service *HTTPRestService) setEnvironment(w http.ResponseWriter, r *http.Re
 	resp := &cns.Response{ReturnCode: 0}
 	err = service.Listener.Encode(w, &resp)
 
-	logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
 // Handles CreateNetwork requests.
@@ -56,7 +57,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 	logger.Printf("[Azure CNS] createNetwork")
 
 	var err error
-	returnCode := 0
+	var returnCode types.ResponseCode
 	returnMessage := ""
 
 	if service.state.Initialized {
@@ -66,7 +67,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
-			returnCode = InvalidParameter
+			returnCode = types.InvalidParameter
 		} else {
 			switch r.Method {
 			case "POST":
@@ -94,14 +95,14 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 							nicInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromHost()
 							if err != nil {
 								returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryInterfaceInfoFromHost failed %v.", err.Error())
-								returnCode = UnexpectedError
+								returnCode = types.UnexpectedError
 								break
 							}
 
 							err = dc.CreateNetwork(req.NetworkName, nicInfo, req.Options)
 							if err != nil {
 								returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateNetwork failed %v.", err.Error())
-								returnCode = UnexpectedError
+								returnCode = types.UnexpectedError
 							}
 
 							err = rt.RestoreRoutingTable()
@@ -119,11 +120,11 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 
 						case "StandAlone":
 							returnMessage = fmt.Sprintf("[Azure CNS] Error. Underlay network is not supported in StandAlone environment. %v.", err.Error())
-							returnCode = UnsupportedEnvironment
+							returnCode = types.UnsupportedEnvironment
 						}
 					case "Overlay":
 						returnMessage = fmt.Sprintf("[Azure CNS] Error. Overlay support not yet available. %v.", err.Error())
-						returnCode = UnsupportedEnvironment
+						returnCode = types.UnsupportedEnvironment
 					}
 				} else {
 					returnMessage = fmt.Sprintf("[Azure CNS] Received a request to create an already existing network %v", req.NetworkName)
@@ -132,13 +133,13 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 
 			default:
 				returnMessage = "[Azure CNS] Error. CreateNetwork did not receive a POST."
-				returnCode = InvalidParameter
+				returnCode = types.InvalidParameter
 			}
 		}
 
 	} else {
 		returnMessage = fmt.Sprintf("[Azure CNS] Error. CNS is not yet initialized with environment.")
-		returnCode = UnsupportedEnvironment
+		returnCode = types.UnsupportedEnvironment
 	}
 
 	resp := &cns.Response{
@@ -152,7 +153,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 		service.saveState()
 	}
 
-	logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
 // Handles DeleteNetwork requests.
@@ -160,7 +161,7 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 	logger.Printf("[Azure CNS] deleteNetwork")
 
 	var req cns.DeleteNetworkRequest
-	returnCode := 0
+	var returnCode types.ResponseCode
 	returnMessage := ""
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
@@ -180,20 +181,20 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 			err := dc.DeleteNetwork(req.NetworkName)
 			if err != nil {
 				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetwork failed %v.", err.Error())
-				returnCode = UnexpectedError
+				returnCode = types.UnexpectedError
 			}
 		} else {
 			if err == fmt.Errorf("Network not found") {
 				logger.Printf("[Azure CNS] Received a request to delete network that does not exist: %v.", req.NetworkName)
 			} else {
-				returnCode = UnexpectedError
+				returnCode = types.UnexpectedError
 				returnMessage = err.Error()
 			}
 		}
 
 	default:
 		returnMessage = "[Azure CNS] Error. DeleteNetwork did not receive a POST."
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 	}
 
 	resp := &cns.Response{
@@ -208,7 +209,7 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 		service.saveState()
 	}
 
-	logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
 // Handles CreateHnsNetwork requests.
@@ -216,7 +217,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 	logger.Printf("[Azure CNS] createHnsNetwork")
 
 	var err error
-	returnCode := 0
+	var returnCode types.ResponseCode
 	returnMessage := ""
 
 	var req cns.CreateHnsNetworkRequest
@@ -225,7 +226,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 
 	if err != nil {
 		returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 	} else {
 		switch r.Method {
 		case "POST":
@@ -239,11 +240,11 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 				returnMessage = fmt.Sprintf("[Azure CNS] Successfully created HNS network: %s", req.NetworkName)
 			} else {
 				returnMessage = fmt.Sprintf("[Azure CNS] CreateHnsNetwork failed with error %v", err.Error())
-				returnCode = UnexpectedError
+				returnCode = types.UnexpectedError
 			}
 		default:
 			returnMessage = "[Azure CNS] Error. CreateHnsNetwork did not receive a POST."
-			returnCode = InvalidParameter
+			returnCode = types.InvalidParameter
 		}
 	}
 
@@ -258,7 +259,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 		service.saveState()
 	}
 
-	logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
 // Handles deleteHnsNetwork requests.
@@ -267,7 +268,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 
 	var err error
 	var req cns.DeleteHnsNetworkRequest
-	returnCode := 0
+	var returnCode types.ResponseCode
 	returnMessage := ""
 
 	err = service.Listener.Decode(w, r, &req)
@@ -275,7 +276,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 
 	if err != nil {
 		returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 	} else {
 		switch r.Method {
 		case "POST":
@@ -285,15 +286,15 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 					returnMessage = fmt.Sprintf("[Azure CNS] Successfully deleted HNS network: %s", req.NetworkName)
 				} else {
 					returnMessage = fmt.Sprintf("[Azure CNS] DeleteHnsNetwork failed with error %v", err.Error())
-					returnCode = UnexpectedError
+					returnCode = types.UnexpectedError
 				}
 			} else {
 				returnMessage = fmt.Sprintf("[Azure CNS] Network %s not found", req.NetworkName)
-				returnCode = InvalidParameter
+				returnCode = types.InvalidParameter
 			}
 		default:
 			returnMessage = "[Azure CNS] Error. DeleteHnsNetwork did not receive a POST."
-			returnCode = InvalidParameter
+			returnCode = types.InvalidParameter
 		}
 	}
 
@@ -309,7 +310,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 		service.saveState()
 	}
 
-	logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
 // Handles ip reservation requests.
@@ -317,8 +318,8 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 	logger.Printf("[Azure CNS] reserveIPAddress")
 
 	var req cns.ReserveIPAddressRequest
+	var returnCode types.ResponseCode
 	returnMessage := ""
-	returnCode := 0
 	addr := ""
 	address := ""
 	err := service.Listener.Decode(w, r, &req)
@@ -330,7 +331,7 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 	}
 
 	if req.ReservationID == "" {
-		returnCode = ReservationNotFound
+		returnCode = types.ReservationNotFound
 		returnMessage = fmt.Sprintf("[Azure CNS] Error. ReservationId is empty")
 	}
 
@@ -341,42 +342,42 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		asID, err := ic.GetAddressSpace()
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetAddressSpace failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		poolID, err := ic.GetPoolID(asID, ifInfo.Subnet)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPoolID failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		addr, err = ic.ReserveIPAddress(poolID, req.ReservationID)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] ReserveIpAddress failed with %+v", err.Error())
-			returnCode = AddressUnavailable
+			returnCode = types.AddressUnavailable
 			break
 		}
 
 		addressIP, _, err := net.ParseCIDR(addr)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] ParseCIDR failed with %+v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 		address = addressIP.String()
 
 	default:
 		returnMessage = "[Azure CNS] Error. ReserveIP did not receive a POST."
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 
 	}
 
@@ -387,7 +388,7 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 
 	reserveResp := &cns.ReserveIPAddressResponse{Response: resp, IPAddress: address}
 	err = service.Listener.Encode(w, &reserveResp)
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
 // Handles release ip reservation requests.
@@ -395,8 +396,8 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	logger.Printf("[Azure CNS] releaseIPAddress")
 
 	var req cns.ReleaseIPAddressRequest
+	var returnCode types.ResponseCode
 	returnMessage := ""
-	returnCode := 0
 
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
@@ -406,7 +407,7 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	}
 
 	if req.ReservationID == "" {
-		returnCode = ReservationNotFound
+		returnCode = types.ReservationNotFound
 		returnMessage = fmt.Sprintf("[Azure CNS] Error. ReservationId is empty")
 	}
 
@@ -417,33 +418,33 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		asID, err := ic.GetAddressSpace()
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetAddressSpace failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		poolID, err := ic.GetPoolID(asID, ifInfo.Subnet)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPoolID failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		err = ic.ReleaseIPAddress(poolID, req.ReservationID)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] ReleaseIpAddress failed with %+v", err.Error())
-			returnCode = ReservationNotFound
+			returnCode = types.ReservationNotFound
 		}
 
 	default:
 		returnMessage = "[Azure CNS] Error. ReleaseIP did not receive a POST."
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 	}
 
 	resp := cns.Response{
@@ -452,7 +453,7 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	}
 
 	err = service.Listener.Encode(w, &resp)
-	logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
 // Retrieves the host local ip address. Containers can talk to host using this IP address.
@@ -488,9 +489,9 @@ func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	returnCode := 0
+	var returnCode types.ResponseCode
 	if !found {
-		returnCode = NotFound
+		returnCode = types.NotFound
 		if errmsg == "" {
 			errmsg = "[Azure-CNS] Unable to get host local ip. Check if environment is initialized.."
 		}
@@ -504,7 +505,7 @@ func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 
 	err := service.Listener.Encode(w, &hostLocalIPResponse)
 
-	logger.Response(service.Name, hostLocalIPResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, hostLocalIPResponse, resp.ReturnCode, err)
 }
 
 // Handles ip address utilization requests.
@@ -512,8 +513,8 @@ func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r
 	logger.Printf("[Azure CNS] getIPAddressUtilization")
 	logger.Request(service.Name, "getIPAddressUtilization", nil)
 
+	var returnCode types.ResponseCode
 	returnMessage := ""
-	returnCode := 0
 	capacity := 0
 	available := 0
 	var unhealthyAddrs []string
@@ -525,35 +526,35 @@ func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r
 		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		asID, err := ic.GetAddressSpace()
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetAddressSpace failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		poolID, err := ic.GetPoolID(asID, ifInfo.Subnet)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPoolID failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		capacity, available, unhealthyAddrs, err = ic.GetIPAddressUtilization(poolID)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetIPUtilization failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 		logger.Printf("[Azure CNS] Capacity %v Available %v UnhealthyAddrs %v", capacity, available, unhealthyAddrs)
 
 	default:
 		returnMessage = "[Azure CNS] Error. GetIPUtilization did not receive a GET."
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 	}
 
 	resp := cns.Response{
@@ -569,7 +570,7 @@ func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r
 	}
 
 	err := service.Listener.Encode(w, &utilResponse)
-	logger.Response(service.Name, utilResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, utilResponse, resp.ReturnCode, err)
 }
 
 // Handles retrieval of ip addresses that are available to be reserved from ipam driver.
@@ -586,7 +587,7 @@ func (service *HTTPRestService) getAvailableIPAddresses(w http.ResponseWriter, r
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	logger.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
 
 // Handles retrieval of reserved ip addresses from ipam driver.
@@ -603,7 +604,7 @@ func (service *HTTPRestService) getReservedIPAddresses(w http.ResponseWriter, r 
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	logger.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
 
 // Handles retrieval of ghost ip addresses from ipam driver.
@@ -611,8 +612,8 @@ func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 	logger.Printf("[Azure CNS] getUnhealthyIPAddresses")
 	logger.Request(service.Name, "getUnhealthyIPAddresses", nil)
 
+	var returnCode types.ResponseCode
 	returnMessage := ""
-	returnCode := 0
 	capacity := 0
 	available := 0
 	var unhealthyAddrs []string
@@ -624,35 +625,35 @@ func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		asID, err := ic.GetAddressSpace()
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetAddressSpace failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		poolID, err := ic.GetPoolID(asID, ifInfo.Subnet)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPoolID failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 
 		capacity, available, unhealthyAddrs, err = ic.GetIPAddressUtilization(poolID)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetIPUtilization failed %v", err.Error())
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			break
 		}
 		logger.Printf("[Azure CNS] Capacity %v Available %v UnhealthyAddrs %v", capacity, available, unhealthyAddrs)
 
 	default:
 		returnMessage = "[Azure CNS] Error. GetUnhealthyIP did not receive a POST."
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 	}
 
 	resp := cns.Response{
@@ -666,7 +667,7 @@ func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 	}
 
 	err := service.Listener.Encode(w, &ipResp)
-	logger.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
 
 // getAllIPAddresses retrieves all ip addresses from ipam driver.
@@ -683,7 +684,7 @@ func (service *HTTPRestService) getAllIPAddresses(w http.ResponseWriter, r *http
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := service.Listener.Encode(w, &ipResp)
 
-	logger.Response(service.Name, ipResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
 
 // Handles health report requests.
@@ -699,7 +700,7 @@ func (service *HTTPRestService) getHealthReport(w http.ResponseWriter, r *http.R
 	resp := &cns.Response{ReturnCode: 0}
 	err := service.Listener.Encode(w, &resp)
 
-	logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *http.Request) {
@@ -708,7 +709,7 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	var (
 		req           cns.SetOrchestratorTypeRequest
 		returnMessage string
-		returnCode    int
+		returnCode    types.ResponseCode
 		nodeID        string
 	)
 
@@ -743,11 +744,11 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 			service.saveState()
 		default:
 			returnMessage = fmt.Sprintf("Invalid Orchestrator type %v", req.OrchestratorType)
-			returnCode = UnsupportedOrchestratorType
+			returnCode = types.UnsupportedOrchestratorType
 		}
 	} else {
 		returnMessage = fmt.Sprintf("Invalid request since this node has already been registered as %s", nodeID)
-		returnCode = InvalidRequest
+		returnCode = types.InvalidRequest
 	}
 
 	service.Unlock()
@@ -758,15 +759,13 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	}
 
 	err = service.Listener.Encode(w, &resp)
-	logger.Response(service.Name, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] createOrUpdateNetworkContainer")
 
 	var req cns.CreateNetworkContainerRequest
-	returnMessage := ""
-	returnCode := 0
 
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
@@ -774,11 +773,8 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 		return
 	}
 
-	if req.NetworkContainerid == "" {
-		returnCode = NetworkContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. NetworkContainerid is empty")
-	}
-
+	var returnCode types.ResponseCode
+	var returnMessage string
 	switch r.Method {
 	case "POST":
 		if req.NetworkContainerType == cns.WebApps {
@@ -790,7 +786,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 				nc := service.networkContainer
 				if err = nc.Create(req); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
-					returnCode = UnexpectedError
+					returnCode = types.UnexpectedError
 					break
 				}
 			}
@@ -804,7 +800,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 				netPluginConfig := service.getNetPluginDetails()
 				if err = nc.Update(req, netPluginConfig); err != nil {
 					returnMessage = fmt.Sprintf("[Azure CNS] Error. CreateOrUpdateNetworkContainer failed %v", err.Error())
-					returnCode = UnexpectedError
+					returnCode = types.UnexpectedError
 					break
 				}
 			}
@@ -814,7 +810,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 
 	default:
 		returnMessage = "[Azure CNS] Error. CreateOrUpdateNetworkContainer did not receive a POST."
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 	}
 
 	resp := cns.Response{
@@ -826,19 +822,19 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 	err = service.Listener.Encode(w, &reserveResp)
 
 	// If the NC was created successfully, log NC snapshot.
-	if returnCode == Success {
+	if returnCode == types.Success {
 		logNCSnapshot(req)
 	}
 
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] getNetworkContainerByID")
 
 	var req cns.GetNetworkContainerRequest
+	var returnCode types.ResponseCode
 	returnMessage := ""
-	returnCode := 0
 
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
@@ -853,7 +849,7 @@ func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r
 
 	reserveResp := &cns.GetNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
@@ -878,15 +874,15 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
 	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	err = service.Listener.Encode(w, &getNetworkContainerResponse)
-	logger.Response(service.Name, getNetworkContainerResponse, returnCode, ReturnCodeToString(returnCode), err)
+	logger.Response(service.Name, getNetworkContainerResponse, returnCode, err)
 }
 
 func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] deleteNetworkContainer")
 
 	var req cns.DeleteNetworkContainerRequest
+	var returnCode types.ResponseCode
 	returnMessage := ""
-	returnCode := 0
 
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
@@ -895,7 +891,7 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 	}
 
 	if req.NetworkContainerid == "" {
-		returnCode = NetworkContainerNotSpecified
+		returnCode = types.NetworkContainerNotSpecified
 		returnMessage = fmt.Sprintf("[Azure CNS] Error. NetworkContainerid is empty")
 	}
 
@@ -915,7 +911,7 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 			nc := service.networkContainer
 			if err := nc.Delete(req.NetworkContainerid); err != nil {
 				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetworkContainer failed %v", err.Error())
-				returnCode = UnexpectedError
+				returnCode = types.UnexpectedError
 				break
 			}
 		}
@@ -940,7 +936,7 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		break
 	default:
 		returnMessage = "[Azure CNS] Error. DeleteNetworkContainer did not receive a POST."
-		returnCode = InvalidParameter
+		returnCode = types.InvalidParameter
 	}
 
 	resp := cns.Response{
@@ -950,15 +946,15 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 	reserveResp := &cns.DeleteNetworkContainerResponse{Response: resp}
 	err = service.Listener.Encode(w, &reserveResp)
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] getInterfaceForContainer")
 
 	var req cns.GetInterfaceForContainerRequest
+	var returnCode types.ResponseCode
 	returnMessage := ""
-	returnCode := 0
 
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
@@ -983,7 +979,7 @@ func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, 
 		version = savedReq.Version
 	} else {
 		returnMessage = "[Azure CNS] Never received call to create this container."
-		returnCode = UnknownContainerID
+		returnCode = types.UnknownContainerID
 		interfaceName = ""
 		ipaddress = ""
 		version = ""
@@ -1004,7 +1000,7 @@ func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, 
 
 	err = service.Listener.Encode(w, &getInterfaceForContainerResponse)
 
-	logger.Response(service.Name, getInterfaceForContainerResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, getInterfaceForContainerResponse, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseWriter, r *http.Request) {
@@ -1020,7 +1016,7 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 	resp := service.attachOrDetachHelper(req, attach, r.Method)
 	attachResp := &cns.AttachContainerToNetworkResponse{Response: resp}
 	err = service.Listener.Encode(w, &attachResp)
-	logger.Response(service.Name, attachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, attachResp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.ResponseWriter, r *http.Request) {
@@ -1036,7 +1032,7 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 	resp := service.attachOrDetachHelper(req, detach, r.Method)
 	detachResp := &cns.DetachContainerFromNetworkResponse{Response: resp}
 	err = service.Listener.Encode(w, &detachResp)
-	logger.Response(service.Name, detachResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, detachResp, resp.ReturnCode, err)
 }
 
 // Retrieves the number of logic processors on a node. It will be primarily
@@ -1047,7 +1043,7 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 
 	var (
 		num        int
-		returnCode int
+		returnCode types.ResponseCode
 		errMsg     string
 	)
 
@@ -1056,7 +1052,7 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 		num = runtime.NumCPU()
 	default:
 		errMsg = "[Azure-CNS] getNumberOfCPUCores API expects a GET."
-		returnCode = UnsupportedVerb
+		returnCode = types.UnsupportedVerb
 	}
 
 	resp := cns.Response{ReturnCode: returnCode, Message: errMsg}
@@ -1067,7 +1063,7 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 
 	err := service.Listener.Encode(w, &numOfCPUCoresResp)
 
-	logger.Response(service.Name, numOfCPUCoresResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.Response(service.Name, numOfCPUCoresResp, resp.ReturnCode, err)
 }
 
 func getInterfaceIdFromCreateNetworkContainerURL(
@@ -1097,7 +1093,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	var (
 		err                 error
 		req                 cns.PublishNetworkContainerRequest
-		returnCode          int
+		returnCode          types.ResponseCode
 		returnMessage       string
 		publishResponse     *http.Response
 		publishStatusCode   int
@@ -1131,7 +1127,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			isNetworkJoined = true
 		} else {
 			returnMessage = err.Error()
-			returnCode = NetworkJoinFailed
+			returnCode = types.NetworkJoinFailed
 		}
 
 		if isNetworkJoined {
@@ -1142,7 +1138,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 				req.CreateNetworkContainerRequestBody)
 			if publishError != nil || publishResponse.StatusCode != http.StatusOK {
 				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
-				returnCode = NetworkContainerPublishFailed
+				returnCode = types.NetworkContainerPublishFailed
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
 			}
 		}
@@ -1166,7 +1162,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 	default:
 		returnMessage = "PublishNetworkContainer API expects a POST"
-		returnCode = UnsupportedVerb
+		returnCode = types.UnsupportedVerb
 	}
 
 	if publishError != nil {
@@ -1180,7 +1176,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		publishResponseBody, errParse = ioutil.ReadAll(publishResponse.Body)
 		if errParse != nil {
 			returnMessage = fmt.Sprintf("Failed to parse the publish body. Error: %v", errParse)
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 			logger.Errorf("[Azure-CNS] %s", returnMessage)
 		}
 
@@ -1198,7 +1194,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	}
 
 	err = service.Listener.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, ReturnCodeToString(response.Response.ReturnCode), err)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
 // Unpublish Network Container by calling nmagent
@@ -1208,7 +1204,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	var (
 		err                   error
 		req                   cns.UnpublishNetworkContainerRequest
-		returnCode            int
+		returnCode            types.ResponseCode
 		returnMessage         string
 		unpublishResponse     *http.Response
 		unpublishStatusCode   int
@@ -1244,7 +1240,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				isNetworkJoined = true
 			} else {
 				returnMessage = err.Error()
-				returnCode = NetworkJoinFailed
+				returnCode = types.NetworkJoinFailed
 			}
 		}
 
@@ -1255,7 +1251,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				req.DeleteNetworkContainerURL)
 			if unpublishError != nil || unpublishResponse.StatusCode != http.StatusOK {
 				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
-				returnCode = NetworkContainerUnpublishFailed
+				returnCode = types.NetworkContainerUnpublishFailed
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
 			}
 
@@ -1264,7 +1260,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				unpublishResponseBody, errParse = ioutil.ReadAll(unpublishResponse.Body)
 				if errParse != nil {
 					returnMessage = fmt.Sprintf("Failed to parse the unpublish body. Error: %v", errParse)
-					returnCode = UnexpectedError
+					returnCode = types.UnexpectedError
 					logger.Errorf("[Azure-CNS] %s", returnMessage)
 				}
 
@@ -1276,7 +1272,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		ncVersionURLs.Delete(cns.SwiftPrefix + req.NetworkContainerID)
 	default:
 		returnMessage = "UnpublishNetworkContainer API expects a POST"
-		returnCode = UnsupportedVerb
+		returnCode = types.UnsupportedVerb
 	}
 
 	if unpublishError != nil {
@@ -1298,7 +1294,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	}
 
 	err = service.Listener.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, ReturnCodeToString(response.Response.ReturnCode), err)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) createHostNCApipaEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -1307,7 +1303,7 @@ func (service *HTTPRestService) createHostNCApipaEndpoint(w http.ResponseWriter,
 	var (
 		err           error
 		req           cns.CreateHostNCApipaEndpointRequest
-		returnCode    int
+		returnCode    types.ResponseCode
 		returnMessage string
 		endpointID    string
 	)
@@ -1326,7 +1322,7 @@ func (service *HTTPRestService) createHostNCApipaEndpoint(w http.ResponseWriter,
 				!networkContainerDetails.CreateNetworkContainerRequest.AllowHostToNCCommunication {
 				returnMessage = fmt.Sprintf("HostNCApipaEndpoint creation is not supported unless " +
 					"AllowNCToHostCommunication or AllowHostToNCCommunication is set to true")
-				returnCode = InvalidRequest
+				returnCode = types.InvalidRequest
 			} else {
 				if endpointID, err = hnsclient.CreateHostNCApipaEndpoint(
 					req.NetworkContainerID,
@@ -1335,17 +1331,17 @@ func (service *HTTPRestService) createHostNCApipaEndpoint(w http.ResponseWriter,
 					networkContainerDetails.CreateNetworkContainerRequest.AllowHostToNCCommunication,
 					networkContainerDetails.CreateNetworkContainerRequest.EndpointPolicies); err != nil {
 					returnMessage = fmt.Sprintf("CreateHostNCApipaEndpoint failed with error: %v", err)
-					returnCode = UnexpectedError
+					returnCode = types.UnexpectedError
 				}
 			}
 		} else {
 			returnMessage = fmt.Sprintf("CreateHostNCApipaEndpoint failed with error: Unable to find goal state for"+
 				" the given Network Container: %s", req.NetworkContainerID)
-			returnCode = UnknownContainerID
+			returnCode = types.UnknownContainerID
 		}
 	default:
 		returnMessage = "createHostNCApipaEndpoint API expects a POST"
-		returnCode = UnsupportedVerb
+		returnCode = types.UnsupportedVerb
 	}
 
 	response := cns.CreateHostNCApipaEndpointResponse{
@@ -1357,7 +1353,7 @@ func (service *HTTPRestService) createHostNCApipaEndpoint(w http.ResponseWriter,
 	}
 
 	err = service.Listener.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, ReturnCodeToString(response.Response.ReturnCode), err)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) deleteHostNCApipaEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -1366,7 +1362,7 @@ func (service *HTTPRestService) deleteHostNCApipaEndpoint(w http.ResponseWriter,
 	var (
 		err           error
 		req           cns.DeleteHostNCApipaEndpointRequest
-		returnCode    int
+		returnCode    types.ResponseCode
 		returnMessage string
 	)
 
@@ -1381,11 +1377,11 @@ func (service *HTTPRestService) deleteHostNCApipaEndpoint(w http.ResponseWriter,
 		if err = hnsclient.DeleteHostNCApipaEndpoint(req.NetworkContainerID); err != nil {
 			returnMessage = fmt.Sprintf("Failed to delete endpoint for Network Container: %s "+
 				"due to error: %v", req.NetworkContainerID, err)
-			returnCode = UnexpectedError
+			returnCode = types.UnexpectedError
 		}
 	default:
 		returnMessage = "deleteHostNCApipaEndpoint API expects a DELETE"
-		returnCode = UnsupportedVerb
+		returnCode = types.UnsupportedVerb
 	}
 
 	response := cns.DeleteHostNCApipaEndpointResponse{
@@ -1396,7 +1392,7 @@ func (service *HTTPRestService) deleteHostNCApipaEndpoint(w http.ResponseWriter,
 	}
 
 	err = service.Listener.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, ReturnCodeToString(response.Response.ReturnCode), err)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
 // This function is used to query NMagents's supported APIs list
@@ -1405,7 +1401,7 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 	var (
 		err, retErr   error
 		req           cns.NmAgentSupportedApisRequest
-		returnCode    int
+		returnCode    types.ResponseCode
 		returnMessage string
 		supportedApis []string
 	)
@@ -1421,7 +1417,7 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 		supportedApis, retErr = nmagentclient.GetNmAgentSupportedApis(common.GetHttpClient(),
 			req.GetNmAgentSupportedApisURL)
 		if retErr != nil {
-			returnCode = NmAgentSupportedApisError
+			returnCode = types.NmAgentSupportedApisError
 			returnMessage = fmt.Sprintf("[Azure-CNS] %s", retErr.Error())
 		}
 		if supportedApis == nil {
@@ -1440,5 +1436,5 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 
 	serviceErr := service.Listener.Encode(w, &nmAgentSupportedApisResponse)
 
-	logger.Response(service.Name, nmAgentSupportedApisResponse, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), serviceErr)
+	logger.Response(service.Name, nmAgentSupportedApisResponse, resp.ReturnCode, serviceErr)
 }

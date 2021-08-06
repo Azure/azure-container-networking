@@ -31,7 +31,7 @@ type addressManager struct {
 
 // AddressManager API.
 type AddressManager interface {
-	Initialize(config *common.PluginConfig, options map[string]interface{}) error
+	Initialize(config *common.PluginConfig, rehydrateIpamInfoOnReboot bool, options map[string]interface{}) error
 	Uninitialize()
 
 	StartSource(options map[string]interface{}) error
@@ -70,13 +70,13 @@ func NewAddressManager() (AddressManager, error) {
 }
 
 // Initialize configures address manager.
-func (am *addressManager) Initialize(config *common.PluginConfig, options map[string]interface{}) error {
+func (am *addressManager) Initialize(config *common.PluginConfig, rehydrateIpamInfoOnReboot bool, options map[string]interface{}) error {
 	am.Version = config.Version
 	am.store = config.Store
 	am.netApi = config.NetApi
 
 	// Restore persisted state.
-	err := am.restore()
+	err := am.restore(rehydrateIpamInfoOnReboot)
 	if err != nil {
 		return err
 	}
@@ -93,29 +93,15 @@ func (am *addressManager) Uninitialize() {
 }
 
 // Restore reads address manager state from persistent store.
-func (am *addressManager) restore() error {
+func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 	// Skip if a store is not provided.
 	if am.store == nil {
 		log.Printf("[ipam] ipam store is nil")
 		return nil
 	}
 
-	rebooted := false
-
-	// Check if the VM is rebooted.
-	modTime, err := am.store.GetModificationTime()
-	if err == nil {
-		rebootTime, err := platform.GetLastRebootTime()
-		log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
-
-		if err == nil && rebootTime.After(modTime) {
-			log.Printf("[ipam] Detected Reboot")
-			rebooted = true
-		}
-	}
-
 	// Read any persisted state.
-	err = am.store.Read(storeKey, am)
+	err := am.store.Read(storeKey, am)
 	if err != nil {
 		if err == store.ErrKeyNotFound {
 			log.Printf("[ipam] store key not found")
@@ -144,15 +130,24 @@ func (am *addressManager) restore() error {
 	}
 
 	// if rebooted mark the ip as not in use.
-	if rebooted {
-		log.Printf("[ipam] Rehydrating ipam state from persistent store")
-		for _, as := range am.AddrSpaces {
-			for _, ap := range as.Pools {
-				ap.as = as
-				ap.RefCount = 0
+	if rehydrateIpamInfoOnReboot {
+		// Check if the VM is rebooted.
+		modTime, err := am.store.GetModificationTime()
+		if err == nil {
+			rebootTime, err := platform.GetLastRebootTime()
+			log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
 
-				for _, ar := range ap.Addresses {
-					ar.InUse = false
+			if err == nil && rebootTime.After(modTime) {
+				log.Printf("[ipam] Rehydrating ipam state from persistent store")
+				for _, as := range am.AddrSpaces {
+					for _, ap := range as.Pools {
+						ap.as = as
+						ap.RefCount = 0
+
+						for _, ar := range ap.Addresses {
+							ar.InUse = false
+						}
+					}
 				}
 			}
 		}

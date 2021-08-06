@@ -36,7 +36,7 @@ func createTestIpv6AddressManager() (AddressManager, error) {
 		return nil, err
 	}
 
-	err = am.Initialize(&config, options)
+	err = am.Initialize(&config, false, options)
 	if err != nil {
 		return nil, err
 	}

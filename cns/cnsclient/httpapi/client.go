@@ -5,7 +5,9 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/types"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 )
 
 // Client implements APIClient interface. Used to update CNS state
@@ -47,15 +49,15 @@ func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequ
 }
 
 func (client *Client) GetNC(req cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, error) {
-	response, returnCode := client.RestService.GetNetworkContainerInternal(req)
+	resp, returnCode := client.RestService.GetNetworkContainerInternal(req)
 	if returnCode != 0 {
-		if returnCode == restserver.UnknownContainerID {
-			return response, fmt.Errorf("NotFound")
+		if returnCode == types.UnknownContainerID {
+			return resp, errors.New("containerID not found")
 		}
-		return response, fmt.Errorf("Failed to get NC, request: %+v, errorCode: %d", req, returnCode)
+		return resp, errors.Errorf("failed to get NC, request: %+v, errorCode: %d", req, returnCode)
 	}
 
-	return response, nil
+	return resp, nil
 }
 
 func (client *Client) DeleteNC(req cns.DeleteNetworkContainerRequest) error {

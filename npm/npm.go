@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	"github.com/Azure/azure-container-networking/log"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
@@ -25,18 +24,15 @@ import (
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
 
 var aiMetadata string
 
 const (
-	restoreRetryWaitTimeInSeconds = 5
-	restoreMaxRetries             = 10
-	backupWaitTimeInSeconds       = 60
-	telemetryRetryTimeInSeconds   = 60
-	heartbeatIntervalInMinutes    = 30
-	reconcileChainTimeInMinutes   = 5
+	heartbeatIntervalInMinutes  = 30
+	reconcileChainTimeInMinutes = 5
 	// TODO: consider increasing thread number later when logics are correct
 	threadness = 1
 )
@@ -75,17 +71,17 @@ type NetworkPolicyManager struct {
 func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
 	pods, err := npMgr.clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list pods in GetClusterState")
+		klog.Info("Error: Failed to list pods in GetClusterState")
 	}
 
 	namespaces, err := npMgr.clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list namespaces in GetClusterState")
+		klog.Info("Error: Failed to list namespaces in GetClusterState")
 	}
 
 	networkpolicies, err := npMgr.clientset.NetworkingV1().NetworkPolicies("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Logf("Error: Failed to list networkpolicies in GetClusterState")
+		klog.Info("Error: Failed to list networkpolicies in GetClusterState")
 	}
 
 	npMgr.clusterState.PodCount = len(pods.Items)
@@ -141,40 +137,6 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	}
 }
 
-// restore restores iptables from backup file
-func (npMgr *NetworkPolicyManager) restore() {
-	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
-	var err error
-	for i := 0; i < restoreMaxRetries; i++ {
-		if err = iptMgr.Restore(util.IptablesConfigFile); err == nil {
-			return
-		}
-
-		time.Sleep(restoreRetryWaitTimeInSeconds * time.Second)
-	}
-
-	metrics.SendErrorLogAndMetric(util.NpmID, "Error: timeout restoring Azure-NPM states")
-	panic(err.Error)
-}
-
-// backup takes snapshots of iptables filter table and saves it periodically.
-func (npMgr *NetworkPolicyManager) backup(stopCh <-chan struct{}) {
-	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
-	ticker := time.NewTicker(time.Second * time.Duration(backupWaitTimeInSeconds))
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-stopCh:
-			return
-		case <-ticker.C:
-			if err := iptMgr.Save(util.IptablesConfigFile); err != nil {
-				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to back up Azure-NPM states %s", err.Error())
-			}
-		}
-	}
-}
-
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	// Starts all informers manufactured by npMgr's informerFactory.
@@ -201,7 +163,6 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 	go npMgr.nameSpaceController.Run(threadness, stopCh)
 	go npMgr.netPolController.Run(threadness, stopCh)
 	go npMgr.reconcileChains(stopCh)
-	go npMgr.backup(stopCh)
 
 	return nil
 }
@@ -209,11 +170,11 @@ func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
 // NewNetworkPolicyManager creates a NetworkPolicyManager
 func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
 	// Clear out left over iptables states
-	log.Logf("Azure-NPM creating, cleaning iptables")
+	klog.Info("Azure-NPM creating, cleaning iptables")
 	iptMgr := iptm.NewIptablesManager(exec, iptm.NewIptOperationShim())
 	iptMgr.UninitNpmChains()
 
-	log.Logf("Azure-NPM creating, cleaning existing Azure NPM IPSets")
+	klog.Info("Azure-NPM creating, cleaning existing Azure NPM IPSets")
 	ipsm.NewIpsetManager(exec).DestroyNpmIpsets()
 
 	var (
@@ -235,7 +196,9 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
 		panic(err.Error)
 	}
-	log.Logf("API server version: %+v", serverVersion)
+
+	// This K8s api server version information is used to support backward-compatibility in translatePolicy.go
+	klog.Infof("Run NPM (%s) on K8s version %+v", npmVersion, serverVersion)
 
 	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")

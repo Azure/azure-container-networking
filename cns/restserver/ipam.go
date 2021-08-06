@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/types"
 )
 
 // used to request an IPConfig from the CNS state
@@ -18,7 +19,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		err             error
 		ipconfigRequest cns.IPConfigRequest
 		podIpInfo       cns.PodIpInfo
-		returnCode      int
+		returnCode      types.ResponseCode
 		returnMessage   string
 	)
 
@@ -30,10 +31,10 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	}
 
 	// retrieve ipconfig from nc
-	_, returnCode, returnMessage = service.validateIpConfigRequest(ipconfigRequest)
-	if returnCode == Success {
+	_, returnCode, returnMessage = service.validateIPConfigRequest(ipconfigRequest)
+	if returnCode == types.Success {
 		if podIpInfo, err = requestIPConfigHelper(service, ipconfigRequest); err != nil {
-			returnCode = FailedToAllocateIpConfig
+			returnCode = types.FailedToAllocateIPConfig
 			returnMessage = fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest)
 		}
 	}
@@ -49,7 +50,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	reserveResp.PodIpInfo = podIpInfo
 
 	err = service.Listener.Encode(w, &reserveResp)
-	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -59,23 +60,23 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 
 	defer func() {
 		err = service.Listener.Encode(w, &resp)
-		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, ReturnCodeToString(resp.ReturnCode), err)
+		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
 	}()
 
 	err = service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name+"releaseIPConfigHandler", req, err)
 	if err != nil {
-		resp.ReturnCode = UnexpectedError
+		resp.ReturnCode = types.UnexpectedError
 		resp.Message = err.Error()
 		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, req)
 		return
 	}
 
 	var podInfo cns.PodInfo
-	podInfo, resp.ReturnCode, resp.Message = service.validateIpConfigRequest(req)
+	podInfo, resp.ReturnCode, resp.Message = service.validateIPConfigRequest(req)
 
 	if err = service.releaseIPConfig(podInfo); err != nil {
-		resp.ReturnCode = UnexpectedError
+		resp.ReturnCode = types.UnexpectedError
 		resp.Message = err.Error()
 		logger.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", resp.Message, req)
 		return
@@ -178,12 +179,12 @@ func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigura
 func (service *HTTPRestService) getPodIPIDByOrchestratorContexthandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		resp          cns.GetPodContextResponse
-		statusCode    int
+		statusCode    types.ResponseCode
 		returnMessage string
 		err           error
 	)
 
-	statusCode = UnexpectedError
+	statusCode = types.UnexpectedError
 
 	defer func() {
 		if err != nil {
@@ -192,7 +193,7 @@ func (service *HTTPRestService) getPodIPIDByOrchestratorContexthandler(w http.Re
 		}
 
 		err = service.Listener.Encode(w, &resp)
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, ReturnCodeToString(resp.Response.ReturnCode), err)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 	}()
 
 	resp.PodContext = service.GetPodIPIDByOrchestratorContext()
@@ -215,12 +216,12 @@ func (service *HTTPRestService) GetHTTPRestDataHandler(w http.ResponseWriter, r 
 
 	defer func() {
 		if err != nil {
-			resp.Response.ReturnCode = UnexpectedError
+			resp.Response.ReturnCode = types.UnexpectedError
 			resp.Response.Message = returnMessage
 		}
 
 		err = service.Listener.Encode(w, &resp)
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, ReturnCodeToString(resp.Response.ReturnCode), err)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 	}()
 
 	resp.HttpRestServiceData = service.GetHTTPStruct()
@@ -251,12 +252,12 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 	var (
 		req           cns.GetIPAddressesRequest
 		resp          cns.GetIPAddressStatusResponse
-		statusCode    int
+		statusCode    types.ResponseCode
 		returnMessage string
 		err           error
 	)
 
-	statusCode = UnexpectedError
+	statusCode = types.UnexpectedError
 
 	defer func() {
 		if err != nil {
@@ -265,7 +266,7 @@ func (service *HTTPRestService) getIPAddressesHandler(w http.ResponseWriter, r *
 		}
 
 		err = service.Listener.Encode(w, &resp)
-		logger.ResponseEx(service.Name, req, resp, resp.Response.ReturnCode, ReturnCodeToString(resp.Response.ReturnCode), err)
+		logger.ResponseEx(service.Name, req, resp, resp.Response.ReturnCode, err)
 	}()
 
 	err = service.Listener.Decode(w, r, &req)

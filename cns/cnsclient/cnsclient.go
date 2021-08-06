@@ -9,7 +9,9 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/pkg/errors"
 )
 
 // CNSClient specifies a client to connect to Ipam Plugin.
@@ -51,7 +53,7 @@ func GetCnsClient() (*CNSClient, error) {
 
 	if cnsClient == nil {
 		err = &CNSClientError{
-			restserver.UnexpectedError,
+			types.UnexpectedError,
 			fmt.Errorf("[Azure CNSClient] CNS Client not initialized")}
 	}
 
@@ -75,13 +77,13 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	err := json.NewEncoder(&body).Encode(payload)
 	if err != nil {
 		log.Errorf("encoding json failed with %v", err)
-		return nil, &CNSClientError{restserver.UnexpectedError, err}
+		return nil, &CNSClientError{types.UnexpectedError, err}
 	}
 
 	res, err := cnsClient.httpc.Post(url, contentTypeJSON, &body)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
-		return nil, &CNSClientError{restserver.UnexpectedError, err}
+		return nil, &CNSClientError{types.UnexpectedError, err}
 	}
 
 	defer res.Body.Close()
@@ -89,7 +91,7 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	if res.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("[Azure CNSClient] GetNetworkConfiguration invalid http status code: %v", res.StatusCode)
 		log.Errorf(errMsg)
-		return nil, &CNSClientError{restserver.UnexpectedError, fmt.Errorf(errMsg)}
+		return nil, &CNSClientError{types.UnexpectedError, errors.New(errMsg)}
 	}
 
 	var resp cns.GetNetworkContainerResponse
@@ -97,7 +99,7 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] Error received while parsing GetNetworkConfiguration response resp:%v err:%v", res.Body, err.Error())
-		return nil, &CNSClientError{restserver.UnexpectedError, err}
+		return nil, &CNSClientError{types.UnexpectedError, err}
 	}
 
 	if resp.Response.ReturnCode != 0 {
@@ -280,7 +282,7 @@ func (cnsClient *CNSClient) ReleaseIPAddress(ipconfig *cns.IPConfigRequest) erro
 		return err
 	}
 
-	log.Printf("Releasing ipconfig %s", string(body.Bytes()))
+	log.Printf("Releasing ipconfig %s", body.String())
 
 	res, err = cnsClient.httpc.Post(url, contentTypeJSON, &body)
 	if err != nil {

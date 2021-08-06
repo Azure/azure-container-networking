@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/types"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
@@ -222,7 +223,7 @@ func (fake *HTTPServiceFake) SendNCSnapShotPeriodically(context.Context, int) {}
 
 func (fake *HTTPServiceFake) SetNodeOrchestrator(*cns.SetOrchestratorTypeRequest) {}
 
-func (fake *HTTPServiceFake) SyncNodeStatus(string, string, string, json.RawMessage) (int, string) {
+func (fake *HTTPServiceFake) SyncNodeStatus(string, string, string, json.RawMessage) (types.ResponseCode, string) {
 	return 0, ""
 }
 
