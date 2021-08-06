@@ -115,6 +115,10 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				},
 				Status: ncapi.MultiTenantNetworkContainerStatus{
 					State: "Initialized",
+					MultiTenantInfo: ncapi.MultiTenantInfo{
+						EncapType: "Vlan",
+						ID:        1,
+					},
 				},
 			}
 
@@ -145,6 +149,10 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				Status: ncapi.MultiTenantNetworkContainerStatus{
 					State:    "Initialized",
 					IPSubnet: "1.2.3.4.5",
+					MultiTenantInfo: ncapi.MultiTenantInfo{
+						EncapType: "Vlan",
+						ID:        1,
+					},
 				},
 			}
 
@@ -176,6 +184,10 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 				Status: ncapi.MultiTenantNetworkContainerStatus{
 					State:    "Initialized",
 					IPSubnet: "1.2.3.0/24",
+					MultiTenantInfo: ncapi.MultiTenantInfo{
+						EncapType: "Vlan",
+						ID:        1,
+					},
 				},
 			}
 
