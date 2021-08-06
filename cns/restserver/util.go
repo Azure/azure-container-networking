@@ -269,10 +269,13 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVe
 			ipconfig.NCVersion = existingIPConfig.NCVersion
 			ipconfigs[ipId] = ipconfig
 		}
-		logger.Printf("[Azure-Cns] Set IP %s version to %d, programmed host nc version is %d", ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
-		if _, exists := service.PodIPConfigState[ipId]; exists {
+
+		if ipState, exists := service.PodIPConfigState[ipId]; exists {
+			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, ipState: %+v", ipId, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
 			continue
 		}
+
+		logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d", ipId, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
 		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
 		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
 		var newIPCNSStatus string

@@ -80,13 +80,13 @@ func (pm *CNSIPAMPoolMonitor) Reconcile(ctx context.Context) error {
 		return pm.increasePoolSize(ctx)
 
 	// pod count is decreasing
-	case freeIPConfigCount > pm.MaximumFreeIps:
+	case freeIPConfigCount >= pm.MaximumFreeIps:
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...%s ", msg)
 		return pm.decreasePoolSize(ctx, pendingReleaseIPCount)
 
 	// CRD has reconciled CNS state, and target spec is now the same size as the state
 	// free to remove the IP's from the CRD
-	case pm.pendingRelease && int(pm.cachedNNC.Spec.RequestedIPCount) == cnsPodIPConfigCount:
+	case len(pm.cachedNNC.Spec.IPsNotInUse) != pendingReleaseIPCount:
 		logger.Printf("[ipam-pool-monitor] Removing Pending Release IP's from CRD...%s ", msg)
 		return pm.cleanPendingRelease(ctx)
 
@@ -105,7 +105,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize(ctx context.Context) error {
 
 	var err error
 	var tempNNCSpec nnc.NodeNetworkConfigSpec
-	tempNNCSpec, err = pm.createNNCSpecForCRD(false)
+	tempNNCSpec, err = pm.createNNCSpecForCRD()
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(ctx context.Context, existingPend
 	}
 
 	var tempNNCSpec nnc.NodeNetworkConfigSpec
-	tempNNCSpec, err = pm.createNNCSpecForCRD(false)
+	tempNNCSpec, err = pm.createNNCSpecForCRD()
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 
 	var err error
 	var tempNNCSpec nnc.NodeNetworkConfigSpec
-	tempNNCSpec, err = pm.createNNCSpecForCRD(true)
+	tempNNCSpec, err = pm.createNNCSpecForCRD()
 	if err != nil {
 		return err
 	}
@@ -249,7 +249,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 }
 
 // CNSToCRDSpec translates CNS's map of Ips to be released and requested ip count into a CRD Spec
-func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD(resetNotInUseList bool) (nnc.NodeNetworkConfigSpec, error) {
+func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() (nnc.NodeNetworkConfigSpec, error) {
 	var (
 		spec nnc.NodeNetworkConfigSpec
 	)
@@ -257,15 +257,10 @@ func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD(resetNotInUseList bool) (nnc.N
 	// DUpdate the count from cached spec
 	spec.RequestedIPCount = pm.cachedNNC.Spec.RequestedIPCount
 
-	// Discard the ToBeDeleted list if requested. This happens if DNC has cleaned up the pending ips and CNS has also updated its state.
-	if resetNotInUseList == true {
-		spec.IPsNotInUse = make([]string, 0)
-	} else {
-		// Get All Pending IPs from CNS and populate it again.
-		pendingIps := pm.httpService.GetPendingReleaseIPConfigs()
-		for _, pendingIp := range pendingIps {
-			spec.IPsNotInUse = append(spec.IPsNotInUse, pendingIp.ID)
-		}
+	// Get All Pending IPs from CNS and populate it again.
+	pendingIps := pm.httpService.GetPendingReleaseIPConfigs()
+	for _, pendingIp := range pendingIps {
+		spec.IPsNotInUse = append(spec.IPsNotInUse, pendingIp.ID)
 	}
 
 	return spec, nil
