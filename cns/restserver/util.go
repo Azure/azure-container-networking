@@ -255,20 +255,20 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 // acquire/release the service lock.
 func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVersion int, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
-	for ipId, ipconfig := range ipconfigs {
+	for ipID, ipconfig := range ipconfigs {
 		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new NC version
 		// Set it back to previous NC version if IP already exist.
-		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipId]; existsInPreviousIPConfig {
+		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipID]; existsInPreviousIPConfig {
 			ipconfig.NCVersion = existingIPConfig.NCVersion
-			ipconfigs[ipId] = ipconfig
+			ipconfigs[ipID] = ipconfig
 		}
 
-		if ipState, exists := service.PodIPConfigState[ipId]; exists {
-			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, ipState: %+v", ipId, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
+		if ipState, exists := service.PodIPConfigState[ipID]; exists {
+			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, ipState: %+v", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
 			continue
 		}
 
-		logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d", ipId, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
+		logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
 		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
 		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
 		var newIPCNSStatus string
@@ -280,14 +280,14 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVe
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
 			NCID:      ncId,
-			ID:        ipId,
+			ID:        ipID,
 			IPAddress: ipconfig.IPAddress,
 			State:     newIPCNSStatus,
 			PodInfo:   nil,
 		}
 		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
-		service.PodIPConfigState[ipId] = ipconfigStatus
+		service.PodIPConfigState[ipID] = ipconfigStatus
 
 		// Todo Update batch API and maintain the count
 	}
