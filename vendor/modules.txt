@@ -10,32 +10,32 @@ github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
 github.com/Microsoft/go-winio/pkg/security
 github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.8.18
+# github.com/microsoft/hcsshim v0.8.18
 ## explicit
-github.com/Microsoft/hcsshim
-github.com/Microsoft/hcsshim/computestorage
-github.com/Microsoft/hcsshim/hcn
-github.com/Microsoft/hcsshim/internal/cni
-github.com/Microsoft/hcsshim/internal/cow
-github.com/Microsoft/hcsshim/internal/hcs
-github.com/Microsoft/hcsshim/internal/hcs/schema1
-github.com/Microsoft/hcsshim/internal/hcs/schema2
-github.com/Microsoft/hcsshim/internal/hcserror
-github.com/Microsoft/hcsshim/internal/hns
-github.com/Microsoft/hcsshim/internal/interop
-github.com/Microsoft/hcsshim/internal/log
-github.com/Microsoft/hcsshim/internal/logfields
-github.com/Microsoft/hcsshim/internal/longpath
-github.com/Microsoft/hcsshim/internal/mergemaps
-github.com/Microsoft/hcsshim/internal/oc
-github.com/Microsoft/hcsshim/internal/regstate
-github.com/Microsoft/hcsshim/internal/runhcs
-github.com/Microsoft/hcsshim/internal/safefile
-github.com/Microsoft/hcsshim/internal/timeout
-github.com/Microsoft/hcsshim/internal/vmcompute
-github.com/Microsoft/hcsshim/internal/wclayer
-github.com/Microsoft/hcsshim/internal/winapi
-github.com/Microsoft/hcsshim/osversion
+github.com/microsoft/hcsshim
+github.com/microsoft/hcsshim/computestorage
+github.com/microsoft/hcsshim/hcn
+github.com/microsoft/hcsshim/internal/cni
+github.com/microsoft/hcsshim/internal/cow
+github.com/microsoft/hcsshim/internal/hcs
+github.com/microsoft/hcsshim/internal/hcs/schema1
+github.com/microsoft/hcsshim/internal/hcs/schema2
+github.com/microsoft/hcsshim/internal/hcserror
+github.com/microsoft/hcsshim/internal/hns
+github.com/microsoft/hcsshim/internal/interop
+github.com/microsoft/hcsshim/internal/log
+github.com/microsoft/hcsshim/internal/logfields
+github.com/microsoft/hcsshim/internal/longpath
+github.com/microsoft/hcsshim/internal/mergemaps
+github.com/microsoft/hcsshim/internal/oc
+github.com/microsoft/hcsshim/internal/regstate
+github.com/microsoft/hcsshim/internal/runhcs
+github.com/microsoft/hcsshim/internal/safefile
+github.com/microsoft/hcsshim/internal/timeout
+github.com/microsoft/hcsshim/internal/vmcompute
+github.com/microsoft/hcsshim/internal/wclayer
+github.com/microsoft/hcsshim/internal/winapi
+github.com/microsoft/hcsshim/osversion
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
 # github.com/billgraziano/dpapi v0.3.0
@@ -154,7 +154,7 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 ## explicit
 github.com/microsoft/ApplicationInsights-Go/appinsights
 github.com/microsoft/ApplicationInsights-Go/appinsights/contracts
-# github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8 => github.com/Microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
+# github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8 => github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
 ## explicit
 # github.com/mitchellh/mapstructure v1.1.2
 github.com/mitchellh/mapstructure
@@ -850,6 +850,6 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 ## explicit
 sigs.k8s.io/yaml
-# github.com/microsoft/hcsshim => github.com/Microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
+# github.com/microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
 # github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 # github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
