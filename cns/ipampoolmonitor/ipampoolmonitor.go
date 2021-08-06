@@ -30,8 +30,8 @@ type CNSIPAMPoolMonitor struct {
 func NewCNSIPAMPoolMonitor(httpService cns.HTTPService, rc singletenantcontroller.RequestController) *CNSIPAMPoolMonitor {
 	logger.Printf("NewCNSIPAMPoolMonitor: Create IPAM Pool Monitor")
 	return &CNSIPAMPoolMonitor{
-		httpService:    httpService,
-		rc:             rc,
+		httpService: httpService,
+		rc:          rc,
 	}
 }
 
@@ -236,7 +236,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 }
 
 // CNSToCRDSpec translates CNS's map of Ips to be released and requested ip count into a CRD Spec
-func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() (nnc.NodeNetworkConfigSpec) {
+func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() nnc.NodeNetworkConfigSpec {
 	var (
 		spec nnc.NodeNetworkConfigSpec
 	)
