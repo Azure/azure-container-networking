@@ -103,10 +103,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize(ctx context.Context) error {
 
 	var err error
 	var tempNNCSpec nnc.NodeNetworkConfigSpec
-	tempNNCSpec, err = pm.createNNCSpecForCRD()
-	if err != nil {
-		return err
-	}
+	tempNNCSpec = pm.createNNCSpecForCRD()
 
 	// Query the max IP count
 	maxIPCount := pm.getMaxIPCount()
@@ -185,10 +182,7 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(ctx context.Context, existingPend
 	}
 
 	var tempNNCSpec nnc.NodeNetworkConfigSpec
-	tempNNCSpec, err = pm.createNNCSpecForCRD()
-	if err != nil {
-		return err
-	}
+	tempNNCSpec = pm.createNNCSpecForCRD()
 
 	if newIpsMarkedAsPending {
 		// cache the updatingPendingRelease so that we dont re-set new IPs to PendingRelease in case UpdateCRD call fails
@@ -226,10 +220,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 
 	var err error
 	var tempNNCSpec nnc.NodeNetworkConfigSpec
-	tempNNCSpec, err = pm.createNNCSpecForCRD()
-	if err != nil {
-		return err
-	}
+	tempNNCSpec = pm.createNNCSpecForCRD()
 
 	err = pm.rc.UpdateCRDSpec(ctx, tempNNCSpec)
 	if err != nil {
@@ -245,7 +236,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 }
 
 // CNSToCRDSpec translates CNS's map of Ips to be released and requested ip count into a CRD Spec
-func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() (nnc.NodeNetworkConfigSpec, error) {
+func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() (nnc.NodeNetworkConfigSpec) {
 	var (
 		spec nnc.NodeNetworkConfigSpec
 	)
@@ -254,12 +245,12 @@ func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() (nnc.NodeNetworkConfigSpec, 
 	spec.RequestedIPCount = pm.cachedNNC.Spec.RequestedIPCount
 
 	// Get All Pending IPs from CNS and populate it again.
-	pendingIps := pm.httpService.GetPendingReleaseIPConfigs()
-	for _, pendingIp := range pendingIps {
-		spec.IPsNotInUse = append(spec.IPsNotInUse, pendingIp.ID)
+	pendingIPs := pm.httpService.GetPendingReleaseIPConfigs()
+	for _, pendingIP := range pendingIPs {
+		spec.IPsNotInUse = append(spec.IPsNotInUse, pendingIP.ID)
 	}
 
-	return spec, nil
+	return spec
 }
 
 // UpdatePoolLimitsTransacted called by request controller on reconcile to set the batch size limits
