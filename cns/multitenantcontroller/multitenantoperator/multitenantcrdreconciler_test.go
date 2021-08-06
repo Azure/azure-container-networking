@@ -208,6 +208,10 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 					},
 					GatewayIPAddress: nc.Status.Gateway,
 				},
+				MultiTenancyInfo: cns.MultiTenancyInfo{
+					EncapType: "Vlan",
+					ID:        1,
+				},
 			}
 
 			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
