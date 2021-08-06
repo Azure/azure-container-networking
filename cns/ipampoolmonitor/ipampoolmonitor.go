@@ -22,7 +22,6 @@ type CNSIPAMPoolMonitor struct {
 	cachedNNC                nnc.NodeNetworkConfig
 	httpService              cns.HTTPService
 	mu                       sync.RWMutex
-	pendingRelease           bool
 	rc                       singletenantcontroller.RequestController
 	scalarUnits              nnc.Scaler
 	updatingIpsNotInUseCount int
@@ -31,7 +30,6 @@ type CNSIPAMPoolMonitor struct {
 func NewCNSIPAMPoolMonitor(httpService cns.HTTPService, rc singletenantcontroller.RequestController) *CNSIPAMPoolMonitor {
 	logger.Printf("NewCNSIPAMPoolMonitor: Create IPAM Pool Monitor")
 	return &CNSIPAMPoolMonitor{
-		pendingRelease: false,
 		httpService:    httpService,
 		rc:             rc,
 	}
@@ -212,7 +210,6 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(ctx context.Context, existingPend
 
 	// save the updated state to cachedSpec
 	pm.cachedNNC.Spec = tempNNCSpec
-	pm.pendingRelease = true
 
 	// clear the updatingPendingIpsNotInUse, as we have Updated the CRD
 	logger.Printf("[ipam-pool-monitor] cleaning the updatingPendingIpsNotInUse, existing length %d", pm.updatingIpsNotInUseCount)
@@ -244,7 +241,6 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 
 	// save the updated state to cachedSpec
 	pm.cachedNNC.Spec = tempNNCSpec
-	pm.pendingRelease = false
 	return nil
 }
 
