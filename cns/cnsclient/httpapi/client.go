@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 )
 
 // Client implements APIClient interface. Used to update CNS state
@@ -51,9 +52,9 @@ func (client *Client) GetNC(req cns.GetNetworkContainerRequest) (cns.GetNetworkC
 	resp, returnCode := client.RestService.GetNetworkContainerInternal(req)
 	if returnCode != 0 {
 		if returnCode == types.UnknownContainerID {
-			return resp, fmt.Errorf("NotFound")
+			return resp, errors.New("containerID not found")
 		}
-		return resp, fmt.Errorf("Failed to get NC, request: %+v, errorCode: %d", req, returnCode)
+		return resp, errors.Errorf("failed to get NC, request: %+v, errorCode: %d", req, returnCode)
 	}
 
 	return resp, nil

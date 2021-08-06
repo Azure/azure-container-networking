@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/pkg/errors"
 )
 
 // CNSClient specifies a client to connect to Ipam Plugin.
@@ -90,7 +91,7 @@ func (cnsClient *CNSClient) GetNetworkConfiguration(orchestratorContext []byte) 
 	if res.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("[Azure CNSClient] GetNetworkConfiguration invalid http status code: %v", res.StatusCode)
 		log.Errorf(errMsg)
-		return nil, &CNSClientError{types.UnexpectedError, fmt.Errorf(errMsg)}
+		return nil, &CNSClientError{types.UnexpectedError, errors.New(errMsg)}
 	}
 
 	var resp cns.GetNetworkContainerResponse

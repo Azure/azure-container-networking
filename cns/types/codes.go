@@ -2,6 +2,7 @@ package types
 
 type ResponseCode int
 
+// ResponseCode definitions
 const (
 	Success                                ResponseCode = 0
 	UnsupportedNetworkType                 ResponseCode = 1
@@ -30,7 +31,7 @@ const (
 	InconsistentIPConfigState              ResponseCode = 29
 	InvalidSecondaryIPConfig               ResponseCode = 30
 	NetworkContainerVfpProgramPending      ResponseCode = 31
-	FailedToAllocateIpConfig               ResponseCode = 32
+	FailedToAllocateIPConfig               ResponseCode = 32
 	EmptyOrchestratorContext               ResponseCode = 33
 	UnsupportedOrchestratorContext         ResponseCode = 34
 	NetworkContainerVfpProgramComplete     ResponseCode = 35
@@ -40,42 +41,79 @@ const (
 	UnexpectedError                        ResponseCode = 99
 )
 
+// nolint:gocyclo
 func (c ResponseCode) String() string {
 	switch c {
-	case Success:
-		return "Success"
-	case UnsupportedNetworkType:
-		return "UnsupportedNetworkType"
-	case InvalidParameter:
-		return "InvalidParameter"
-	case UnreachableHost:
-		return "UnreachableHost"
-	case ReservationNotFound:
-		return "ReservationNotFound"
-	case MalformedSubnet:
-		return "MalformedSubnet"
-	case UnreachableDockerDaemon:
-		return "UnreachableDockerDaemon"
-	case UnspecifiedNetworkName:
-		return "UnspecifiedNetworkName"
-	case NotFound:
-		return "NotFound"
 	case AddressUnavailable:
 		return "AddressUnavailable"
-	case NetworkContainerNotSpecified:
-		return "NetworkContainerNotSpecified"
 	case CallToHostFailed:
 		return "CallToHostFailed"
-	case UnknownContainerID:
-		return "UnknownContainerID"
-	case UnsupportedOrchestratorType:
-		return "UnsupportedOrchestratorType"
-	case UnexpectedError:
-		return "UnexpectedError"
 	case DockerContainerNotSpecified:
 		return "DockerContainerNotSpecified"
+	case EmptyOrchestratorContext:
+		return "EmptyOrchestratorContext"
+	case FailedToAllocateIPConfig:
+		return "FailedToAllocateIpConfig"
+	case InconsistentIPConfigState:
+		return "InconsistentIPConfigState"
+	case InvalidParameter:
+		return "InvalidParameter"
+	case InvalidPrimaryIPConfig:
+		return "InvalidPrimaryIPConfig"
+	case InvalidRequest:
+		return "InvalidRequest"
+	case InvalidSecondaryIPConfig:
+		return "InvalidSecondaryIPConfig"
+	case MalformedSubnet:
+		return "MalformedSubnet"
+	case NetworkContainerNotSpecified:
+		return "NetworkContainerNotSpecified"
+	case NetworkContainerPublishFailed:
+		return "NetworkContainerPublishFailed"
+	case NetworkContainerUnpublishFailed:
+		return "NetworkContainerUnpublishFailed"
+	case NetworkContainerVfpProgramCheckSkipped:
+		return "NetworkContainerVfpProgramCheckSkipped"
+	case NetworkContainerVfpProgramComplete:
+		return "NetworkContainerVfpProgramComplete"
 	case NetworkContainerVfpProgramPending:
 		return "NetworkContainerVfpProgramPending"
+	case NetworkJoinFailed:
+		return "NetworkJoinFailed"
+	case NmAgentSupportedApisError:
+		return "NmAgentSupportedApisError"
+	case NotFound:
+		return "NotFound"
+	case PrimaryCANotSame:
+		return "PrimaryCANotSame"
+	case ReservationNotFound:
+		return "ReservationNotFound"
+	case Success:
+		return "Success"
+	case UnexpectedError:
+		return "UnexpectedError"
+	case UnknownContainerID:
+		return "UnknownContainerID"
+	case UnreachableDockerDaemon:
+		return "UnreachableDockerDaemon"
+	case UnreachableHost:
+		return "UnreachableHost"
+	case UnspecifiedNetworkName:
+		return "UnspecifiedNetworkName"
+	case UnsupportedEnvironment:
+		return "UnsupportedEnvironment"
+	case UnsupportedNCVersion:
+		return "UnsupportedNCVersion"
+	case UnsupportedNetworkContainerType:
+		return "UnsupportedNetworkContainerType"
+	case UnsupportedNetworkType:
+		return "UnsupportedNetworkType"
+	case UnsupportedOrchestratorContext:
+		return "UnsupportedOrchestratorContext"
+	case UnsupportedOrchestratorType:
+		return "UnsupportedOrchestratorType"
+	case UnsupportedVerb:
+		return "UnsupportedVerb"
 	default:
 		return "UnknownError"
 	}

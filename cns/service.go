@@ -5,15 +5,16 @@ package cns
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -58,7 +59,7 @@ func (service *Service) Initialize(config *common.ServiceConfig) error {
 
 	// Initialize the base service.
 	if err := service.Service.Initialize(config); err != nil {
-		return err
+		return errors.Wrap(err, "failed to initialize")
 	}
 
 	// Initialize the listener.

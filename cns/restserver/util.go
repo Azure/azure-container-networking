@@ -103,7 +103,9 @@ func (service *HTTPRestService) restoreState() {
 	return
 }
 
-func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
+func (service *HTTPRestService) saveNetworkContainerGoalState(
+	req cns.CreateNetworkContainerRequest,
+) (types.ResponseCode, string) {
 	// we don't want to overwrite what other calls may have written
 	service.Lock()
 	defer service.Unlock()
@@ -184,7 +186,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
-			returnCode, returnMesage := service.updateIpConfigsStateUntransacted(req, existingSecondaryIPConfigs, hostVersion)
+			returnCode, returnMesage := service.updateIPConfigsStateUntransacted(req, existingSecondaryIPConfigs, hostVersion)
 			if returnCode != 0 {
 				return returnCode, returnMesage
 			}
@@ -206,7 +208,9 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 
 // This func will compute the deltaIpConfigState which needs to be updated (Added or Deleted) from the inmemory map
 // Note: Also this func is an untransacted API as the caller will take a Service lock
-func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string) (types.ResponseCode, string) {
+func (service *HTTPRestService) updateIPConfigsStateUntransacted(
+	req cns.CreateNetworkContainerRequest, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig, hostVersion string,
+) (types.ResponseCode, string) {
 	// parse the existingSecondaryIpConfigState to find the deleted Ips
 	newIPConfigs := req.SecondaryIPConfigs
 	var tobeDeletedIpConfigs = make(map[string]cns.SecondaryIPConfig)
@@ -235,7 +239,7 @@ func (service *HTTPRestService) updateIpConfigsStateUntransacted(req cns.CreateN
 
 	// now actually remove the deletedIPs
 	for ipId, _ := range tobeDeletedIpConfigs {
-		returncode, errMsg := service.removeToBeDeletedIpsStateUntransacted(ipId, true)
+		returncode, errMsg := service.removeToBeDeletedIPStateUntransacted(ipId, true)
 		if returncode != types.Success {
 			return returncode, errMsg
 		}
@@ -304,13 +308,15 @@ func validateIPSubnet(ipSubnet cns.IPSubnet) error {
 	return nil
 }
 
-// removeToBeDeletedIpsStateUntransacted removes IPConfigs from the PodIpConfigState map
+// removeToBeDeletedIPStateUntransacted removes IPConfigs from the PodIpConfigState map
 // Caller will acquire/release the service lock.
-func (service *HTTPRestService) removeToBeDeletedIpsStateUntransacted(ipId string, skipValidation bool) (types.ResponseCode, string) {
+func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
+	ipID string, skipValidation bool,
+) (types.ResponseCode, string) {
 
 	// this is set if caller has already done the validation
 	if !skipValidation {
-		ipConfigStatus, exists := service.PodIPConfigState[ipId]
+		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
 			// pod ip exists, validate if state is not allocated, else fail
 			if ipConfigStatus.State == cns.Allocated {
@@ -321,12 +327,16 @@ func (service *HTTPRestService) removeToBeDeletedIpsStateUntransacted(ipId strin
 	}
 
 	// Delete this ip from PODIpConfigState Map
-	logger.Printf("[Azure-Cns] Delete the PodIpConfigState, IpId: %s, IPConfigStatus: %v", ipId, service.PodIPConfigState[ipId])
-	delete(service.PodIPConfigState, ipId)
+	logger.Printf("[Azure-Cns] Delete the PodIpConfigState, IpId: %s, IPConfigStatus: %v",
+		ipID,
+		service.PodIPConfigState[ipID])
+	delete(service.PodIPConfigState, ipID)
 	return 0, ""
 }
 
-func (service *HTTPRestService) getNetworkContainerResponse(req cns.GetNetworkContainerRequest) cns.GetNetworkContainerResponse {
+func (service *HTTPRestService) getNetworkContainerResponse(
+	req cns.GetNetworkContainerRequest,
+) cns.GetNetworkContainerResponse {
 	var (
 		containerID                 string
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
@@ -531,8 +541,8 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 			Message:    fmt.Sprintf("[Azure CNS] Error. Network Container %s does not exist.", req.NetworkContainerid)}
 	}
 
-	var returnCode types.ResponseCode = 0
-	returnMessage := ""
+	var returnCode types.ResponseCode
+	var returnMessage string
 	switch service.state.OrchestratorType {
 	case cns.Batch:
 		podInfo, err := cns.UnmarshalPodInfo(existing.CreateNetworkContainerRequest.OrchestratorContext)
@@ -666,13 +676,17 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ctx context.Context, 
 	}
 }
 
-func (service *HTTPRestService) validateIpConfigRequest(ipConfigRequest cns.IPConfigRequest) (cns.PodInfo, types.ResponseCode, string) {
+func (service *HTTPRestService) validateIPConfigRequest(
+	ipConfigRequest cns.IPConfigRequest,
+) (cns.PodInfo, types.ResponseCode, string) {
 	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
 		return nil, types.UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
 	}
 
 	if ipConfigRequest.OrchestratorContext == nil {
-		return nil, types.EmptyOrchestratorContext, fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
+		return nil,
+			types.EmptyOrchestratorContext,
+			fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
 	}
 
 	// retrieve podinfo from orchestrator context
@@ -716,9 +730,12 @@ func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus 
 }
 
 // isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version
-// Return error and waitingForUpdate as true only CNS gets response from NMAgent indicating the VFP programming is pending
+// Return error and waitingForUpdate as true only CNS gets response from NMAgent indicating
+// the VFP programming is pending
 // This returns success / waitingForUpdate as false in all other cases.
-func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
+func (service *HTTPRestService) isNCWaitingForUpdate(
+	ncVersion, ncid string,
+) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
 	waitingForUpdate = true
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
@@ -746,6 +763,7 @@ func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string) (wa
 		returnCode = types.NetworkContainerVfpProgramCheckSkipped
 		return
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with http status %d. "+

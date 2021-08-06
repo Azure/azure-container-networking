@@ -31,10 +31,10 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	}
 
 	// retrieve ipconfig from nc
-	_, returnCode, returnMessage = service.validateIpConfigRequest(ipconfigRequest)
+	_, returnCode, returnMessage = service.validateIPConfigRequest(ipconfigRequest)
 	if returnCode == types.Success {
 		if podIpInfo, err = requestIPConfigHelper(service, ipconfigRequest); err != nil {
-			returnCode = types.FailedToAllocateIpConfig
+			returnCode = types.FailedToAllocateIPConfig
 			returnMessage = fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest)
 		}
 	}
@@ -73,7 +73,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	}
 
 	var podInfo cns.PodInfo
-	podInfo, resp.ReturnCode, resp.Message = service.validateIpConfigRequest(req)
+	podInfo, resp.ReturnCode, resp.Message = service.validateIPConfigRequest(req)
 
 	if err = service.releaseIPConfig(podInfo); err != nil {
 		resp.ReturnCode = types.UnexpectedError
