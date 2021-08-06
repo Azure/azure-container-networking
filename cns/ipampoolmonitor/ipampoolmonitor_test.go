@@ -521,7 +521,12 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 		maxPodIPCount           = int64(30)
 	)
 
-	fakecns, fakerc, poolmonitor := exit(t, batchSize, initialIPConfigCount, requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
+	fakecns, fakerc, poolmonitor := initFakes(t,
+		batchSize,
+		initialIPConfigCount,
+		requestThresholdPercent,
+		releaseThresholdPercent,
+		maxPodIPCount)
 
 	log.Printf("Min free IP's %v", poolmonitor.MinimumFreeIps)
 	log.Printf("Max free IP %v", poolmonitor.MaximumFreeIps)
