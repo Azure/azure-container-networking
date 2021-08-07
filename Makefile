@@ -181,8 +181,9 @@ acncli: $(ACNCLI_BUILD_DIR)/acncli$(EXE_EXT) acncli-archive
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
 GOCOV := $(TOOLS_BIN_DIR)/gocov
 GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
-GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
+GOFUMPT := $(TOOLS_BIN_DIR)/gofumpt
 GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
+GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
 MOCKGEN := $(TOOLS_BIN_DIR)/mockgen
 
 # Azure-NPM only supports Linux for now.
@@ -473,10 +474,15 @@ PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
 LINT_PKG ?= .
 
 lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues
-	$(GOLANGCI_LINT) run --new-from-rev=master -v $(LINT_PKG)/...
+	$(GOLANGCI_LINT) run --new-from-rev master --timeout 10m -v $(LINT_PKG)/...
 
 lint-old: $(GOLANGCI_LINT) ## Fast lint including previous issues
 	$(GOLANGCI_LINT) run -v $(LINT_PKG)/...
+
+FMT_PKG ?= cni cns npm
+
+fmt format: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
+	$(GOFUMPT) -s -w $(FMT_PKG)
 
 # run all tests
 .PHONY: test-all
@@ -519,15 +525,20 @@ $(GOCOV_XML): $(TOOLS_DIR)/go.mod
 
 gocov-xml: $(GOCOV_XML) ## Build gocov-xml
 
-$(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/go-junit-report github.com/jstemmer/go-junit-report
+$(GOFUMPT): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gofumpt mvdan.cc/gofumpt
 
-go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
+gofmt gofumpt: $(GOFUMPT) ## Build gofumpt
 
 $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
+
+$(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/go-junit-report github.com/jstemmer/go-junit-report
+
+go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
 
 $(MOCKGEN): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/mockgen github.com/golang/mock/mockgen
