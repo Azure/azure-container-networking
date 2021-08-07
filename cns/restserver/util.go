@@ -266,8 +266,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVe
 	// add ipconfigs to state
 	for ipID, ipconfig := range ipconfigs {
 		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new
-		//NC version
-		// Set it back to previous NC version if IP already exist.
+		// NC version. Set it back to previous NC version if IP already exist.
 		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipID]; existsInPreviousIPConfig {
 			ipconfig.NCVersion = existingIPConfig.NCVersion
 			ipconfigs[ipID] = ipconfig
