@@ -226,8 +226,8 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	}
 
 	// Validate TobeDeletedIps are ready to be deleted.
-	for ipId := range tobeDeletedIpConfigs {
-		ipConfigStatus, exists := service.PodIPConfigState[ipId]
+	for ipID := range tobeDeletedIpConfigs {
+		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
 			// pod ip exists, validate if state is not allocated, else fail
 			if ipConfigStatus.State == cns.Allocated {
@@ -238,8 +238,8 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	}
 
 	// now actually remove the deletedIPs
-	for ipId := range tobeDeletedIpConfigs {
-		returncode, errMsg := service.removeToBeDeletedIpsStateUntransacted(ipId, true)
+	for ipID := range tobeDeletedIpConfigs {
+		returncode, errMsg := service.removeToBeDeletedIPStateUntransacted(ipID, true)
 		if returncode != types.Success {
 			return returncode, errMsg
 		}
@@ -261,7 +261,7 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVersion int, ipconfigs,
+func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVersion int, ipconfigs,
 	existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
 	for ipID, ipconfig := range ipconfigs {
@@ -290,7 +290,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVe
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
-			NCID:      ncId,
+			NCID:      ncID,
 			ID:        ipID,
 			IPAddress: ipconfig.IPAddress,
 			State:     newIPCNSStatus,
