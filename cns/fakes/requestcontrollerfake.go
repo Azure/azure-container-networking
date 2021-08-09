@@ -114,9 +114,6 @@ func (rc *RequestControllerFake) Reconcile(removePendingReleaseIPs bool) error {
 			rc.cachedCRD.Status.NetworkContainers[0].IPAssignments = remove(rc.cachedCRD.Status.NetworkContainers[0].IPAssignments, index)
 
 		}
-
-		// empty the not in use ip's from the spec
-		// rc.cachedCRD.Spec.IPsNotInUse = []string{}
 	}
 
 	// remove ipconfig from CNS

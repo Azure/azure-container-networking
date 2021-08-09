@@ -378,13 +378,12 @@ func TestPoolDecrease(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Ensure the size of the requested spec is still the same
-	if len(poolmonitor.cachedNNC.Spec.IPsNotInUse) != 0 {
-		t.Fatalf("Expected IPsNotInUse to be 0 after request controller reconcile, "+
-			"actual %v", poolmonitor.cachedNNC.Spec.IPsNotInUse)
+	// CNS won't actually clean up the IPsNotInUse until it changes the spec for some other reason (i.e. scale up)
+	// so instead we should just verify that the CNS state has no more PendingReleaseIPConfigs,
+	// and that they were cleaned up.
+	if len(fakecns.GetPendingReleaseIPConfigs()) != 0 {
+		t.Fatalf("expected 0 PendingReleaseIPConfigs, got %d", len(fakecns.GetPendingReleaseIPConfigs()))
 	}
-
-	return
 }
 
 func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
