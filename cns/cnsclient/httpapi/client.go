@@ -27,14 +27,8 @@ func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerReque
 }
 
 // UpdateIPAMPoolMonitor updates IPAM pool monitor.
-func (client *Client) UpdateIPAMPoolMonitor(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
-	returnCode := client.RestService.UpdateIPAMPoolMonitorInternal(scalar, spec)
-
-	if returnCode != 0 {
-		return fmt.Errorf("Failed to update IPAM pool monitor scalar: %+v, spec: %+v, errorCode: %d", scalar, spec, returnCode)
-	}
-
-	return nil
+func (client *Client) UpdateIPAMPoolMonitor(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) {
+	client.RestService.IPAMPoolMonitor.Update(scalar, spec)
 }
 
 // ReconcileNCState initializes cns state

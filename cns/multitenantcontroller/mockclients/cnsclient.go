@@ -93,11 +93,9 @@ func (mr *MockAPIClientMockRecorder) ReconcileNCState(nc, pods, scalar, spec int
 }
 
 // UpdateIPAMPoolMonitor mocks base method.
-func (m *MockAPIClient) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
+func (m *MockAPIClient) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateIPAMPoolMonitor", scalar, spec)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "UpdateIPAMPoolMonitor", scalar, spec)
 }
 
 // UpdateIPAMPoolMonitor indicates an expected call of UpdateIPAMPoolMonitor.

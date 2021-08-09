@@ -36,7 +36,7 @@ func getTestService() *HTTPRestService {
 	var config common.ServiceConfig
 	httpsvc, _ := NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	svc = httpsvc.(*HTTPRestService)
-	svc.IPAMPoolMonitor = fakes.NewIPAMPoolMonitorFake()
+	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{}
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
 	return svc
@@ -525,7 +525,6 @@ func TestAvailableIPConfigs(t *testing.T) {
 	desiredAllocatedIpConfigs[desiredState.ID] = desiredState
 	allocatedIps = svc.GetAllocatedIPConfigs()
 	validateIpState(t, allocatedIps, desiredAllocatedIpConfigs)
-
 }
 
 func validateIpState(t *testing.T, actualIps []cns.IPConfigurationStatus, expectedList map[string]cns.IPConfigurationStatus) {
@@ -613,10 +612,9 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
-	returnCode = svc.UpdateIPAMPoolMonitorInternal(fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	if returnCode != 0 {
-		t.Fatalf("Failed to UpdateIPAMPoolMonitorInternal, req: %+v, err: %d", req, returnCode)
-	}
+	svc.IPAMPoolMonitor.Update(
+		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
+		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 
 	// Release pending programming IPs
 	ips, err := svc.MarkIPAsPendingRelease(2)

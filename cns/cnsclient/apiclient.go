@@ -9,7 +9,7 @@ import (
 type APIClient interface {
 	ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.PodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
 	CreateOrUpdateNC(nc cns.CreateNetworkContainerRequest) error
-	UpdateIPAMPoolMonitor(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
+	UpdateIPAMPoolMonitor(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec)
 	GetNC(nc cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, error)
 	DeleteNC(nc cns.DeleteNetworkContainerRequest) error
 }

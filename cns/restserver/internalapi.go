@@ -225,10 +225,7 @@ func (service *HTTPRestService) ReconcileNCState(
 	if returnCode != types.Success {
 		return returnCode
 	}
-	returnCode = service.UpdateIPAMPoolMonitorInternal(scalar, spec)
-	if returnCode != types.Success {
-		return returnCode
-	}
+	service.IPAMPoolMonitor.Update(scalar, spec)
 
 	// now parse the secondaryIP list, if it exists in PodInfo list, then allocate that ip
 	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
@@ -357,16 +354,4 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(
 	}
 
 	return returnCode
-}
-
-func (service *HTTPRestService) UpdateIPAMPoolMonitorInternal(
-	scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec,
-) types.ResponseCode {
-	if err := service.IPAMPoolMonitor.Update(scalar, spec); err != nil {
-		logger.Errorf("[cns-rc] Error creating or updating IPAM Pool Monitor: %v", err)
-		// requeue
-		return types.UnexpectedError
-	}
-
-	return 0
 }
