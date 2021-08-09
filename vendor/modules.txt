@@ -4,7 +4,7 @@ code.cloudfoundry.org/clock
 # github.com/Masterminds/semver v1.5.0
 ## explicit
 github.com/Masterminds/semver
-# github.com/Microsoft/go-winio v0.4.17
+# github.com/Microsoft/go-winio v0.4.17 => github.com/microsoft/go-winio v0.4.17
 ## explicit
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
@@ -848,6 +848,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 ## explicit
 sigs.k8s.io/yaml
+# github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
 # github.com/microsoft/hcsshim => github.com/Microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
 # github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 # github.com/onsi/gomega => github.com/onsi/gomega v1.10.0

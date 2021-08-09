@@ -27,7 +27,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	golang.org/x/net v0.0.0-20210510120150-4163338589ed // indirect
-	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c 
+	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
 	golang.org/x/term v0.0.0-20210503060354-a79de5458b56 // indirect
 	google.golang.org/grpc v1.33.2
 	google.golang.org/protobuf v1.26.0
@@ -42,6 +42,7 @@ require (
 )
 
 replace (
+	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
 	github.com/microsoft/hcsshim => github.com/Microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
