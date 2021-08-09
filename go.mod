@@ -6,6 +6,7 @@ require (
 	code.cloudfoundry.org/clock v1.0.0 // indirect
 	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/go-winio v0.4.17
+	github.com/Microsoft/hcsshim v0.8.18
 	github.com/billgraziano/dpapi v0.3.0
 	github.com/containernetworking/cni v0.8.1
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
@@ -15,7 +16,6 @@ require (
 	github.com/hashicorp/go-version v1.3.0
 	github.com/ishidawataru/sctp v0.0.0-20210226210310-f2269e66cdee // indirect
 	github.com/microsoft/ApplicationInsights-Go v0.4.3
-	github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.14.0
@@ -43,7 +43,7 @@ require (
 
 replace (
 	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
-	github.com/microsoft/hcsshim => github.com/Microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
+	github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )

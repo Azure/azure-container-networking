@@ -12,8 +12,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/policy"
-	"github.com/microsoft/hcsshim"
-	"github.com/microsoft/hcsshim/hcn"
+	"github.com/Microsoft/hcsshim"
+	"github.com/Microsoft/hcsshim/hcn"
 )
 
 const (

@@ -10,8 +10,11 @@ github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
 github.com/Microsoft/go-winio/pkg/security
 github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.8.18
+# github.com/Microsoft/hcsshim v0.8.18 => github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
+## explicit
+github.com/Microsoft/hcsshim
 github.com/Microsoft/hcsshim/computestorage
+github.com/Microsoft/hcsshim/hcn
 github.com/Microsoft/hcsshim/internal/cni
 github.com/Microsoft/hcsshim/internal/cow
 github.com/Microsoft/hcsshim/internal/hcs
@@ -150,10 +153,6 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 ## explicit
 github.com/microsoft/ApplicationInsights-Go/appinsights
 github.com/microsoft/ApplicationInsights-Go/appinsights/contracts
-# github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8 => github.com/Microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
-## explicit
-github.com/microsoft/hcsshim
-github.com/microsoft/hcsshim/hcn
 # github.com/mitchellh/mapstructure v1.1.2
 github.com/mitchellh/mapstructure
 # github.com/moby/spdystream v0.2.0
@@ -849,6 +848,6 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit
 sigs.k8s.io/yaml
 # github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
-# github.com/microsoft/hcsshim => github.com/Microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
+# github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
 # github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 # github.com/onsi/gomega => github.com/onsi/gomega v1.10.0

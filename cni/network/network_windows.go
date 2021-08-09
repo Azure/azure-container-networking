@@ -14,8 +14,8 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
-	"github.com/microsoft/hcsshim"
-	hnsv2 "github.com/microsoft/hcsshim/hcn"
+	"github.com/Microsoft/hcsshim"
+	hnsv2 "github.com/Microsoft/hcsshim/hcn"
 	"golang.org/x/sys/windows/registry"
 
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
