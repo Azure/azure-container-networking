@@ -11,15 +11,13 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Azure/azure-container-networking/platform"
-
-	"github.com/Azure/azure-container-networking/nns"
-
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/network"
-	"github.com/Azure/azure-container-networking/common"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/nns"
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/containernetworking/cni/pkg/skel"
 )
