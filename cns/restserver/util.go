@@ -226,8 +226,8 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	}
 
 	// Validate TobeDeletedIps are ready to be deleted.
-	for ipId, _ := range tobeDeletedIpConfigs {
-		ipConfigStatus, exists := service.PodIPConfigState[ipId]
+	for ipID := range tobeDeletedIpConfigs {
+		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
 			// pod ip exists, validate if state is not allocated, else fail
 			if ipConfigStatus.State == cns.Allocated {
@@ -238,8 +238,8 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	}
 
 	// now actually remove the deletedIPs
-	for ipId, _ := range tobeDeletedIpConfigs {
-		returncode, errMsg := service.removeToBeDeletedIPStateUntransacted(ipId, true)
+	for ipID := range tobeDeletedIpConfigs {
+		returncode, errMsg := service.removeToBeDeletedIPStateUntransacted(ipID, true)
 		if returncode != types.Success {
 			return returncode, errMsg
 		}
@@ -252,7 +252,8 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	if hostNCVersionInInt, err = strconv.Atoi(hostVersion); err != nil {
 		return types.UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
 	}
-	service.addIPConfigStateUntransacted(req.NetworkContainerid, hostNCVersionInInt, req.SecondaryIPConfigs, existingSecondaryIPConfigs)
+	service.addIPConfigStateUntransacted(req.NetworkContainerid, hostNCVersionInInt, req.SecondaryIPConfigs,
+		existingSecondaryIPConfigs)
 
 	return 0, ""
 }
@@ -260,19 +261,25 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
-func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVersion int, ipconfigs, existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
+func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVersion int, ipconfigs,
+	existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	// add ipconfigs to state
-	for ipId, ipconfig := range ipconfigs {
-		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new NC version
-		// Set it back to previous NC version if IP already exist.
-		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipId]; existsInPreviousIPConfig {
+	for ipID, ipconfig := range ipconfigs {
+		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new
+		// NC version. Set it back to previous NC version if IP already exist.
+		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipID]; existsInPreviousIPConfig {
 			ipconfig.NCVersion = existingIPConfig.NCVersion
-			ipconfigs[ipId] = ipconfig
+			ipconfigs[ipID] = ipconfig
 		}
-		logger.Printf("[Azure-Cns] Set IP %s version to %d, programmed host nc version is %d", ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
-		if _, exists := service.PodIPConfigState[ipId]; exists {
+
+		if ipState, exists := service.PodIPConfigState[ipID]; exists {
+			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, "+
+				"ipState: %+v", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
 			continue
 		}
+
+		logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d",
+			ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
 		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
 		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
 		var newIPCNSStatus string
@@ -283,15 +290,15 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncId string, hostVe
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
-			NCID:      ncId,
-			ID:        ipId,
+			NCID:      ncID,
+			ID:        ipID,
 			IPAddress: ipconfig.IPAddress,
 			State:     newIPCNSStatus,
 			PodInfo:   nil,
 		}
 		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
-		service.PodIPConfigState[ipId] = ipconfigStatus
+		service.PodIPConfigState[ipID] = ipconfigStatus
 
 		// Todo Update batch API and maintain the count
 	}
