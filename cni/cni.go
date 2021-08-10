@@ -9,16 +9,16 @@ import (
 
 const (
 	// CNI commands.
-	Cmd        = "CNI_COMMAND"
-	// CNI ADD command.
-	CmdAdd     = "ADD"
-	// CNI GET command.
-	CmdGet     = "GET"
-	// CNI DEL command.
-	CmdDel     = "DEL"
-	// CNI UPDATE command.
-	CmdUpdate  = "UPDATE"
-	// CNI VERSION command.
+	Cmd = "CNI_COMMAND"
+	// CmdAdd - CNI ADD command.
+	CmdAdd = "ADD"
+	// CmdGet - CNI GET command.
+	CmdGet = "GET"
+	// CmdDel - CNI DEL command.
+	CmdDel = "DEL"
+	// CmdUpdate - CNI UPDATE command.
+	CmdUpdate = "UPDATE"
+	// CmdVersion - CNI VERSION command.
 	CmdVersion = "VERSION"
 
 	// nonstandard CNI spec command, used to dump CNI state to stdout
