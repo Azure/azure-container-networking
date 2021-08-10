@@ -6,7 +6,7 @@ CONTROLLER_GEN = $(TOOLS_BIN_DIR)/controller-gen
 .PHONY: generate manifests
 
 generate: $(CONTROLLER_GEN)
-	$(CONTROLLER_GEN) object:headerFile="boilerplate.go.txt" paths="./..."
+	$(CONTROLLER_GEN) object paths="./..."
 
 manifests: $(CONTROLLER_GEN)
 	mkdir -p manifests
