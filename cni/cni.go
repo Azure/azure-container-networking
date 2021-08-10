@@ -9,11 +9,12 @@ import (
 
 const (
 	// CNI commands.
-	Cmd       = "CNI_COMMAND"
-	CmdAdd    = "ADD"
-	CmdGet    = "GET"
-	CmdDel    = "DEL"
-	CmdUpdate = "UPDATE"
+	Cmd        = "CNI_COMMAND"
+	CmdAdd     = "ADD"
+	CmdGet     = "GET"
+	CmdDel     = "DEL"
+	CmdUpdate  = "UPDATE"
+	CmdVersion = "VERSION"
 
 	// nonstandard CNI spec command, used to dump CNI state to stdout
 	CmdGetEndpointsState = "GET_ENDPOINT_STATE"
