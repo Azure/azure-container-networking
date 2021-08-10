@@ -19,7 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
 

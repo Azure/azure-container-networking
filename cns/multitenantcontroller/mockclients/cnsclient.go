@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 
 	cns "github.com/Azure/azure-container-networking/cns"
-	v1alpha "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	v1alpha "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	gomock "github.com/golang/mock/gomock"
 )
 

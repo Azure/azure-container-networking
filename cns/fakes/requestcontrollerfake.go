@@ -6,7 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 )
 
@@ -89,15 +89,12 @@ func remove(slice []nnc.IPAssignment, s int) []nnc.IPAssignment {
 }
 
 func (rc *RequestControllerFake) Reconcile(removePendingReleaseIPs bool) error {
-
 	diff := int(rc.cachedCRD.Spec.RequestedIPCount) - len(rc.fakecns.GetPodIPConfigState())
 
 	if diff > 0 {
 		// carve the difference of test IPs and add them to CNS, assume dnc has populated the CRD status
 		rc.CarveIPConfigsAndAddToStatusAndCNS(diff)
-
 	} else if diff < 0 {
-
 		// Assume DNC has removed the IPConfigs from the status
 
 		// mimic DNC removing IPConfigs from the CRD

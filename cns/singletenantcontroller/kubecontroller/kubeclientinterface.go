@@ -5,7 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

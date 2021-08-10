@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Azure/azure-container-networking/cns"
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 type IPAMPoolMonitorFake struct {

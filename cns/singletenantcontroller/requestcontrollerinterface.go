@@ -3,7 +3,7 @@ package singletenantcontroller
 import (
 	"context"
 
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 // RequestController interface for cns to interact with the request controller
