@@ -83,7 +83,7 @@ func GetLastRebootTime() (time.Time, error) {
 		return time.Time{}.UTC(), err
 	}
 	rebootTime := currentTime.Add(-time.Duration(output) * time.Millisecond).Truncate(time.Second)
-	log.Printf("Formatted Boot time: %s", rebootTime.Format("2006-01-02 15:04:05"))
+	log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
 	return rebootTime.UTC(), nil
 }
 
