@@ -310,7 +310,8 @@ func (service *HTTPRestService) GetPendingReleaseIPConfigs() []cns.IPConfigurati
 	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StatePendingRelease)
 }
 
-// SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated, does not take a lock
+// SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated.
+// Does not take a lock.
 func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	ipconfig, err := service.updateIPConfigState(ipconfig.ID, cns.Allocated, podInfo)
 	if err != nil {

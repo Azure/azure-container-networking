@@ -72,7 +72,7 @@ func GetKubeConfig() (*rest.Config, error) {
 	return k8sconfig, nil
 }
 
-// New returns a crdRequestController struct built from the passed config.
+// New builds a requestController struct given a reference to CNS's HTTPRestService state.
 func New(cfg Config) (*requestController, error) {
 	// Check that logger package has been intialized
 	if logger.Log == nil {
@@ -113,7 +113,7 @@ func New(cfg Config) (*requestController, error) {
 	// for serving prometheus metrics, set to "0" to disable
 	mgr, err := ctrl.NewManager(cfg.KubeConfig, ctrl.Options{
 		Scheme:             scheme,
-		MetricsBindAddress: "9090",
+		MetricsBindAddress: ":9090",
 		Namespace:          k8sNamespace,
 	})
 	if err != nil {

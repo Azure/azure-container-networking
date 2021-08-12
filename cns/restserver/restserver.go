@@ -57,7 +57,7 @@ type GetHTTPServiceDataResponse struct {
 	Response            Response
 }
 
-//struct to return in-memory httprest data in debug api
+// HttpRestServiceData struct to return in-memory httprest data in debug api
 type HttpRestServiceData struct {
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
@@ -109,7 +109,6 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 	routingTable := &routes.RoutingTable{}
 	nc := &networkcontainers.NetworkContainers{}
 	dc, err := dockerclient.NewDefaultDockerClient(imdsClientInterface)
-
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +180,8 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.DeleteHostNCApipaEndpointPath, service.deleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.PublishNetworkContainer, service.publishNetworkContainer)
 	listener.AddHandler(cns.UnpublishNetworkContainer, service.unpublishNetworkContainer)
-	listener.AddHandler(cns.RequestIPConfig, service.requestIPConfigHandler)
-	listener.AddHandler(cns.ReleaseIPConfig, service.releaseIPConfigHandler)
+	listener.AddHandler(cns.RequestIPConfig, newHandlerFuncWithHistogram(service.requestIPConfigHandler, requestLatency))
+	listener.AddHandler(cns.ReleaseIPConfig, newHandlerFuncWithHistogram(service.releaseIPConfigHandler, requestLatency))
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.GetIPAddresses, service.getIPAddressesHandler)
 	listener.AddHandler(cns.GetPodIPOrchestratorContext, service.getPodIPIDByOrchestratorContexthandler)
@@ -224,7 +223,6 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 
 // Start starts the CNS listener.
 func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
-
 	// Start the listener.
 	// continue to listen on the normal endpoint for http traffic, this will be supported
 	// for sometime until partners migrate fully to https
