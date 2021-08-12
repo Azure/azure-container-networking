@@ -175,7 +175,11 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
-	return service.PodIPConfigState
+	podIPConfigState := make(map[string]cns.IPConfigurationStatus, len(service.PodIPConfigState))
+	for k, v := range service.PodIPConfigState {
+		podIPConfigState[k] = v
+	}
+	return podIPConfigState
 }
 
 func (service *HTTPRestService) getPodIPIDByOrchestratorContexthandler(w http.ResponseWriter, r *http.Request) {
