@@ -59,6 +59,9 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		networkContainer.PrimaryIP,
 		len(networkContainer.IPAssignments))
 
+	// record assigned IP metric
+	assignedIPs.Set(float64(len(nodeNetConfig.Status.NetworkContainers[0].IPAssignments)))
+
 	// Otherwise, create NC request and hand it off to CNS
 	ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status)
 	if err != nil {

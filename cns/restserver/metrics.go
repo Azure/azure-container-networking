@@ -13,7 +13,7 @@ var requestLatency = prometheus.NewHistogramVec(
 		Name: "request_latency",
 		Help: "Request latency in seconds by endpoint, verb, and response code.",
 		//nolint:gomnd
-		Buckets: prometheus.ExponentialBuckets(0.050, 2, 15),
+		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15),
 	},
 	[]string{"url", "verb", "code"},
 )

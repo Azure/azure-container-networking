@@ -300,6 +300,9 @@ func (rc *requestController) UpdateCRDSpec(ctx context.Context, crdSpec v1alpha.
 		return err
 	}
 
+	// record IP metrics
+	requestedIPs.Set(float64(crdSpec.RequestedIPCount))
+	unusedIPs.Set(float64(len(crdSpec.IPsNotInUse)))
 	return nil
 }
 
