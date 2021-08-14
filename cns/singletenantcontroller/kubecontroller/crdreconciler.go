@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -23,14 +24,9 @@ type CrdReconciler struct {
 
 // Reconcile is called on CRD status changes
 func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	var (
-		nodeNetConfig v1alpha.NodeNetworkConfig
-		ncRequest     cns.CreateNetworkContainerRequest
-		err           error
-	)
-
 	// Get the CRD object
-	if err = r.KubeClient.Get(ctx, request.NamespacedName, &nodeNetConfig); err != nil {
+	var nodeNetConfig v1alpha.NodeNetworkConfig
+	if err := r.KubeClient.Get(ctx, request.NamespacedName, &nodeNetConfig); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
 			return reconcile.Result{}, client.IgnoreNotFound(err)
@@ -59,11 +55,8 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		networkContainer.PrimaryIP,
 		len(networkContainer.IPAssignments))
 
-	// record assigned IP metric
-	assignedIPs.Set(float64(len(nodeNetConfig.Status.NetworkContainers[0].IPAssignments)))
-
 	// Otherwise, create NC request and hand it off to CNS
-	ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status)
+	ncRequest, err := CRDStatusToNCRequest(nodeNetConfig.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
 		// requeue
@@ -77,7 +70,12 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 	}
 
 	r.CNSClient.UpdateIPAMPoolMonitor(nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
-	return reconcile.Result{}, err
+	// record assigned IPs metric
+	assignedIPs.Set(float64(len(nodeNetConfig.Status.NetworkContainers[0].IPAssignments)))
+	// observe elapsed duration for IP alloc/dealloc
+	metric.ObserveIPAllocLatency()
+
+	return reconcile.Result{}, nil
 }
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter

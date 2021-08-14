@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
@@ -63,6 +64,15 @@ func (pm *CNSIPAMPoolMonitor) Reconcile(ctx context.Context) error {
 
 	msg := fmt.Sprintf("[ipam-pool-monitor] Pool Size: %v, Goal Size: %v, BatchSize: %v, MaxIPCount: %v, MinFree: %v, MaxFree:%v, Allocated: %v, Available: %v, Pending Release: %v, Free: %v, Pending Program: %v",
 		cnsPodIPConfigCount, pm.cachedNNC.Spec.RequestedIPCount, batchSize, maxIPCount, pm.MinimumFreeIps, pm.MaximumFreeIps, allocatedPodIPCount, availableIPConfigCount, pendingReleaseIPCount, freeIPConfigCount, pendingProgramCount)
+
+	ipamAllocatedIPCount.Set(float64(allocatedPodIPCount))
+	ipamAvailableIPCount.Set(float64(availableIPConfigCount))
+	ipamBatchSize.Set(float64(batchSize))
+	ipamFreeIPCount.Set(float64(freeIPConfigCount))
+	ipamIPPool.Set(float64(cnsPodIPConfigCount))
+	ipamMaxIPCount.Set(float64(maxIPCount))
+	ipamPendingProgramIPCount.Set(float64(pendingProgramCount))
+	ipamPendingReleaseIPCount.Set(float64(pendingReleaseIPCount))
 
 	switch {
 	// pod count is increasing
@@ -121,13 +131,14 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize(ctx context.Context) error {
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Updated Requested IP Count: %v, Pods with IP's:%v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
-	err := pm.rc.UpdateCRDSpec(ctx, tempNNCSpec)
-	if err != nil {
+	if err := pm.rc.UpdateCRDSpec(ctx, tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
 		return err
 	}
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
+	// start an alloc timer
+	metric.StartIPAllocTimer(int(batchSize))
 	// save the updated state to cachedSpec
 	pm.cachedNNC.Spec = tempNNCSpec
 	return nil
@@ -196,6 +207,8 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(ctx context.Context, existingPend
 	}
 
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
+	// start a dealloc timer
+	metric.StartIPDeallocTimer(int(batchSize))
 
 	// save the updated state to cachedSpec
 	pm.cachedNNC.Spec = tempNNCSpec

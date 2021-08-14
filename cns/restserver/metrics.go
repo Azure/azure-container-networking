@@ -13,7 +13,7 @@ var requestLatency = prometheus.NewHistogramVec(
 		Name: "request_latency",
 		Help: "Request latency in seconds by endpoint, verb, and response code.",
 		//nolint:gomnd
-		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15),
+		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1 ms to ~16 seconds
 	},
 	[]string{"url", "verb", "code"},
 )
@@ -28,7 +28,7 @@ func newHandlerFuncWithHistogram(handler http.HandlerFunc, histogram *prometheus
 	return func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		defer func() {
-			histogram.WithLabelValues(req.URL.RequestURI(), req.Method, "0").Observe(float64(time.Since(start).Seconds()))
+			histogram.WithLabelValues(req.URL.RequestURI(), req.Method, "0").Observe(time.Since(start).Seconds())
 		}()
 		handler(w, req)
 	}
