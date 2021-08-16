@@ -59,7 +59,6 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 
 	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
 	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.kubeclient, f.ipsMgr, npmNamespaceCache)
-	f.podController.podListerSynced = alwaysReady
 
 	for _, pod := range f.podLister {
 		f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Add(pod)

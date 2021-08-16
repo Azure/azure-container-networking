@@ -108,7 +108,6 @@ func (nPod *NpmPod) updateNpmPodAttributes(podObj *corev1.Pod) {
 type podController struct {
 	clientset         kubernetes.Interface
 	podLister         corelisters.PodLister
-	podListerSynced   cache.InformerSynced
 	workqueue         workqueue.RateLimitingInterface
 	ipsMgr            *ipsm.IpsetManager
 	podMap            map[string]*NpmPod // Key is <nsname>/<podname>
@@ -120,7 +119,6 @@ func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes
 	podController := &podController{
 		clientset:         clientset,
 		podLister:         podInformer.Lister(),
-		podListerSynced:   podInformer.Informer().HasSynced,
 		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Pods"),
 		ipsMgr:            ipsMgr,
 		podMap:            make(map[string]*NpmPod),

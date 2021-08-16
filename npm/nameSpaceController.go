@@ -72,23 +72,21 @@ func isSystemNs(nsObj *corev1.Namespace) bool {
 }
 
 type nameSpaceController struct {
-	clientset             kubernetes.Interface
-	nameSpaceLister       corelisters.NamespaceLister
-	nameSpaceListerSynced cache.InformerSynced
-	workqueue             workqueue.RateLimitingInterface
-	ipsMgr                *ipsm.IpsetManager
-	npmNamespaceCache     *npmNamespaceCache
+	clientset         kubernetes.Interface
+	nameSpaceLister   corelisters.NamespaceLister
+	workqueue         workqueue.RateLimitingInterface
+	ipsMgr            *ipsm.IpsetManager
+	npmNamespaceCache *npmNamespaceCache
 }
 
 func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, clientset kubernetes.Interface,
 	ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *nameSpaceController {
 	nameSpaceController := &nameSpaceController{
-		clientset:             clientset,
-		nameSpaceLister:       nameSpaceInformer.Lister(),
-		nameSpaceListerSynced: nameSpaceInformer.Informer().HasSynced,
-		workqueue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Namespaces"),
-		ipsMgr:                ipsMgr,
-		npmNamespaceCache:     npmNamespaceCache,
+		clientset:         clientset,
+		nameSpaceLister:   nameSpaceInformer.Lister(),
+		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Namespaces"),
+		ipsMgr:            ipsMgr,
+		npmNamespaceCache: npmNamespaceCache,
 	}
 
 	nameSpaceInformer.Informer().AddEventHandler(

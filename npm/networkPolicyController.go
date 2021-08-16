@@ -33,11 +33,10 @@ const (
 )
 
 type networkPolicyController struct {
-	clientset          kubernetes.Interface
-	netPolLister       netpollister.NetworkPolicyLister
-	netPolListerSynced cache.InformerSynced
-	workqueue          workqueue.RateLimitingInterface
-	rawNpMap           map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
+	clientset    kubernetes.Interface
+	netPolLister netpollister.NetworkPolicyLister
+	workqueue    workqueue.RateLimitingInterface
+	rawNpMap     map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
 	// (TODO): will leverage this strucute to manage network policy more efficiently
 	// ProcessedNpMap map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<podSelectorHash>
 	// flag to indicate default Azure NPM chain is created or not
@@ -49,11 +48,10 @@ type networkPolicyController struct {
 func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer,
 	clientset kubernetes.Interface, ipsMgr *ipsm.IpsetManager) *networkPolicyController {
 	netPolController := &networkPolicyController{
-		clientset:          clientset,
-		netPolLister:       npInformer.Lister(),
-		netPolListerSynced: npInformer.Informer().HasSynced,
-		workqueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
-		rawNpMap:           make(map[string]*networkingv1.NetworkPolicy),
+		clientset:    clientset,
+		netPolLister: npInformer.Lister(),
+		workqueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
+		rawNpMap:     make(map[string]*networkingv1.NetworkPolicy),
 		// ProcessedNpMap:         make(map[string]*networkingv1.NetworkPolicy),
 		isAzureNpmChainCreated: false,
 		ipsMgr:                 ipsMgr,

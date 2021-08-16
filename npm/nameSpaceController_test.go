@@ -64,7 +64,6 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
 	f.nsController = NewNameSpaceController(
 		f.kubeInformer.Core().V1().Namespaces(), f.kubeclient, f.ipsMgr, npmNamespaceCache)
-	f.nsController.nameSpaceListerSynced = alwaysReady
 
 	for _, ns := range f.nsLister {
 		f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Add(ns)
