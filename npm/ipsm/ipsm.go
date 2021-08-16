@@ -171,7 +171,7 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 
 	if result, isExitError := err.(utilexec.ExitError); isExitError {
 		exitCode := result.ExitStatus()
-		errfmt := fmt.Errorf("error running command: [%s %v] Stderr: [%v, %s]",
+		errfmt := fmt.Errorf("error running command: [%s %v] Stderr: [%w, %s]",
 			cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
 		if exitCode > 0 {
 			metrics.SendErrorLogAndMetric(util.IpsmID, errfmt.Error())

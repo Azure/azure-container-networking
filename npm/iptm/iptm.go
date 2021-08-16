@@ -110,7 +110,9 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		return err
 	}
 
-	// For backward compatibility, we should be cleaning older chains
+	// For backward compatibility, we should be cleaning older chains.
+	// TODO(jungukcho): need to check K8s or NPM version and do it selectively
+	// to avoid unnecessary call.
 	allAzureChains := append(IptablesAzureChainList,
 		util.IptablesAzureTargetSetsChain,
 		util.IptablesAzureIngressWrongDropsChain,

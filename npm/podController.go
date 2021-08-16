@@ -28,8 +28,8 @@ import (
 type NamedPortOperation string
 
 const (
-	DeleteNamedPort NamedPortOperation = "del"
-	AddNamedPort    NamedPortOperation = "add"
+	deleteNamedPort NamedPortOperation = "del"
+	addNamedPort    NamedPortOperation = "add"
 )
 
 type NpmPod struct {
@@ -398,7 +398,7 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 	// Add pod's named ports from its ipset.
 	klog.Infof("Adding named port ipsets")
 	containerPorts := getContainerPortList(podObj)
-	if err = c.manageNamedPortIpsets(containerPorts, podKey, npmPodObj.PodIP, AddNamedPort); err != nil {
+	if err = c.manageNamedPortIpsets(containerPorts, podKey, npmPodObj.PodIP, addNamedPort); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to named port ipset with err: %v", err)
 	}
 	npmPodObj.appendContainerPorts(podObj)
@@ -511,15 +511,15 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	newPodPorts := getContainerPortList(newPodObj)
 	if !reflect.DeepEqual(cachedNpmPod.ContainerPorts, newPodPorts) {
 		// Delete cached pod's named ports from its ipset.
-		if err = c.manageNamedPortIpsets(cachedNpmPod.ContainerPorts, podKey,
-			cachedNpmPod.PodIP, DeleteNamedPort); err != nil {
+		if err = c.manageNamedPortIpsets(
+			cachedNpmPod.ContainerPorts, podKey, cachedNpmPod.PodIP, deleteNamedPort); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from named port ipset with err: %v", err)
 		}
 		// Since portList ipset deletion is successful, NPM can remove cachedContainerPorts
 		cachedNpmPod.removeContainerPorts()
 
 		// Add new pod's named ports from its ipset.
-		if err = c.manageNamedPortIpsets(newPodPorts, podKey, newPodObj.Status.PodIP, AddNamedPort); err != nil {
+		if err = c.manageNamedPortIpsets(newPodPorts, podKey, newPodObj.Status.PodIP, addNamedPort); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to named port ipset with err: %v", err)
 		}
 		cachedNpmPod.appendContainerPorts(newPodObj)
@@ -561,8 +561,8 @@ func (c *podController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	}
 
 	// Delete pod's named ports from its ipset. Need to pass true in the manageNamedPortIpsets function call
-	if err = c.manageNamedPortIpsets(cachedNpmPod.ContainerPorts, cachedNpmPodKey,
-		cachedNpmPod.PodIP, DeleteNamedPort); err != nil {
+	if err = c.manageNamedPortIpsets(
+		cachedNpmPod.ContainerPorts, cachedNpmPodKey, cachedNpmPod.PodIP, deleteNamedPort); err != nil {
 		return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from named port ipset with err: %v", err)
 	}
 
@@ -589,11 +589,11 @@ func (c *podController) manageNamedPortIpsets(portList []corev1.ContainerPort, p
 		namedPort := util.NamedPortIPSetPrefix + port.Name
 		namedPortIpsetEntry := fmt.Sprintf("%s,%s%d", podIP, protocol, port.ContainerPort)
 		switch namedPortOperation {
-		case DeleteNamedPort:
+		case deleteNamedPort:
 			if err := c.ipsMgr.DeleteFromSet(namedPort, namedPortIpsetEntry, podKey); err != nil {
 				return err
 			}
-		case AddNamedPort:
+		case addNamedPort:
 			if err := c.ipsMgr.AddToSet(namedPort, namedPortIpsetEntry, util.IpsetIPPortHashFlag, podKey); err != nil {
 				return err
 			}

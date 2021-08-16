@@ -59,8 +59,8 @@ func (f *netPolFixture) newNetPolController(stopCh chan struct{}) {
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
-	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(),
-		f.kubeclient, f.ipsMgr)
+	f.netPolController = NewNetworkPolicyController(
+		f.kubeInformer.Networking().V1().NetworkPolicies(), f.kubeclient, f.ipsMgr)
 	f.netPolController.netPolListerSynced = alwaysReady
 
 	for _, netPol := range f.netPolLister {
