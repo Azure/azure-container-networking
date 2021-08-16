@@ -46,7 +46,8 @@ type networkPolicyController struct {
 	iptMgr                 *iptm.IptablesManager
 }
 
-func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, clientset kubernetes.Interface, ipsMgr *ipsm.IpsetManager) *networkPolicyController {
+func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer,
+	clientset kubernetes.Interface, ipsMgr *ipsm.IpsetManager) *networkPolicyController {
 	netPolController := &networkPolicyController{
 		clientset:          clientset,
 		netPolLister:       npInformer.Lister(),
@@ -72,7 +73,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 // initializeDataPlane do all initialization tasks for data plane
 // TODO(jungukcho) Need to refactor UninitNpmChains since it assumes it has already AZURE-NPM chains
 func (c *networkPolicyController) resetDataPlane() error {
-	klog.Infof("Initiailize data plane. Clean up Azure-NPM chians and start reconcile iptables")
+	klog.Infof("Initiailize data plane. Clean up Azure-NPM chains and start reconcile iptables")
 
 	// TODO(jungukcho): will clean-up error handling codes to initialize iptables and ipset in a separate PR
 	// It is important to keep order to clean-up iptables and ipset.
@@ -276,7 +277,8 @@ func (c *networkPolicyController) syncNetPol(key string) error {
 	if netPolExists {
 		// if network policy does not have different states against lastly applied states stored in cachedNetPolObj,
 		// netPolController does not need to reconcile this update.
-		// in this updateNetworkPolicy event, newNetPol was updated with states which netPolController does not need to reconcile.
+		// In this updateNetworkPolicy event,
+		// newNetPol was updated with states which netPolController does not need to reconcile.
 		if isSameNetworkPolicy(cachedNetPolObj, netPolObj) {
 			return nil
 		}
@@ -383,11 +385,11 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 		c.ipsMgr.IpSetReferIncOrDec(listKey, util.IpsetSetListFlag, ipsm.IncrementOp)
 	}
 
-	if err = c.createCidrsRule("in", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, ingressIPCidrs); err != nil {
+	if err = c.createCidrsRule("in", netPolObj.Name, netPolObj.Namespace, ingressIPCidrs); err != nil {
 		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: createCidrsRule in due to %v", err)
 	}
 
-	if err = c.createCidrsRule("out", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, egressIPCidrs); err != nil {
+	if err = c.createCidrsRule("out", netPolObj.Name, netPolObj.Namespace, egressIPCidrs); err != nil {
 		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: createCidrsRule out due to %v", err)
 	}
 
@@ -461,14 +463,14 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 }
 
 // (TODO) do not need to ipsMgr parameter
-func (c *networkPolicyController) createCidrsRule(ingressOrEgress, policyName, ns string, ipsetEntries [][]string) error {
+func (c *networkPolicyController) createCidrsRule(direction, policyName, ns string, ipsets [][]string) error {
 	spec := []string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum}
 
-	for i, ipCidrSet := range ipsetEntries {
+	for i, ipCidrSet := range ipsets {
 		if len(ipCidrSet) == 0 {
 			continue
 		}
-		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + ingressOrEgress
+		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + direction
 		klog.Infof("Creating set: %v, hashedSet: %v", setName, util.GetHashedName(setName))
 		if err := c.ipsMgr.CreateSet(setName, spec); err != nil {
 			return fmt.Errorf("[createCidrsRule] Error: creating ipset %s with err: %v", ipCidrSet, err)
@@ -494,12 +496,12 @@ func (c *networkPolicyController) createCidrsRule(ingressOrEgress, policyName, n
 	return nil
 }
 
-func (c *networkPolicyController) removeCidrsRule(ingressOrEgress, policyName, ns string, ipsetEntries [][]string) error {
-	for i, ipCidrSet := range ipsetEntries {
+func (c *networkPolicyController) removeCidrsRule(direction, policyName, ns string, ipsets [][]string) error {
+	for i, ipCidrSet := range ipsets {
 		if len(ipCidrSet) == 0 {
 			continue
 		}
-		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + ingressOrEgress
+		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + direction
 		klog.Infof("Delete set: %v, hashedSet: %v", setName, util.GetHashedName(setName))
 		if err := c.ipsMgr.DeleteSet(setName); err != nil {
 			return fmt.Errorf("[removeCidrsRule] deleting ipset %s with err: %v", ipCidrSet, err)

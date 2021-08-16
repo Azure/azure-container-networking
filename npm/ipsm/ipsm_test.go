@@ -321,7 +321,8 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 	// validate if Pod1 exists
 	cachedPodKey := ipsMgr.setMap[setname].elements[ip]
 	if cachedPodKey != pod1 {
-		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s", setname, util.GetHashedName(setname), cachedPodKey, pod1)
+		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s",
+			setname, util.GetHashedName(setname), cachedPodKey, pod1)
 	}
 
 	// now add pod2 with the same ip. This is possible if DeletePod1 is handled after AddPod2 event callback.
@@ -332,7 +333,8 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 
 	cachedPodKey = ipsMgr.setMap[setname].elements[ip]
 	if cachedPodKey != pod2 {
-		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s", setname, util.GetHashedName(setname), cachedPodKey, pod2)
+		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s",
+			setname, util.GetHashedName(setname), cachedPodKey, pod2)
 	}
 
 	// Delete from set, it will delete the set if this is the last member
@@ -430,7 +432,8 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 	// note the set will stil exist with pod ip
 	cachedPodKey := ipsMgr.setMap[setname].elements[ip]
 	if cachedPodKey != pod2 {
-		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s", setname, util.GetHashedName(setname), cachedPodKey, pod2)
+		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s",
+			setname, util.GetHashedName(setname), cachedPodKey, pod2)
 	}
 
 	// Now cleanup and delete pod2

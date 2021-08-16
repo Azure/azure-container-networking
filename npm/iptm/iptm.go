@@ -106,7 +106,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 	iptMgr.OperationFlag = util.IptablesDeletionFlag
 	errCode, err := iptMgr.run(entry)
 	if errCode != iptablesErrDoesNotExist && err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to delete AZURE-NPM from Forward chain")
 		return err
 	}
 

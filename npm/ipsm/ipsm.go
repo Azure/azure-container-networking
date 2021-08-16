@@ -171,7 +171,8 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 
 	if result, isExitError := err.(utilexec.ExitError); isExitError {
 		exitCode := result.ExitStatus()
-		errfmt := fmt.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
+		errfmt := fmt.Errorf("error running command: [%s %v] Stderr: [%v, %s]",
+			cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
 		if exitCode > 0 {
 			metrics.SendErrorLogAndMetric(util.IpsmID, errfmt.Error())
 		}
@@ -241,7 +242,8 @@ func (ipsMgr *IpsetManager) createSet(setName string, spec []string) error {
 	log.Logf("Creating Set: %+v", entry)
 
 	// (TODO): need to differentiate errCode handler
-	// since errCode can be one in case of "set with the same name already exists" and "maximal number of sets reached, cannot create more."
+	// since errCode can be one in case of "set with the same name already exists"
+	// and "maximal number of sets reached, cannot create more."
 	// It may have more situations with errCode==1.
 	if errCode, err := ipsMgr.run(entry); err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset.")

@@ -80,7 +80,8 @@ type nameSpaceController struct {
 	npmNamespaceCache     *npmNamespaceCache
 }
 
-func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, clientset kubernetes.Interface, ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *nameSpaceController {
+func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, clientset kubernetes.Interface,
+	ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *nameSpaceController {
 	nameSpaceController := &nameSpaceController{
 		clientset:             clientset,
 		nameSpaceLister:       nameSpaceInformer.Lister(),
@@ -337,7 +338,8 @@ func (nsc *nameSpaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 	newNsName, newNsLabel := util.GetNSNameWithPrefix(newNsObj.ObjectMeta.Name), newNsObj.ObjectMeta.Labels
 	klog.Infof("NAMESPACE UPDATING:\n namespace: [%s/%v]", newNsName, newNsLabel)
 
-	// If previous syncAddNameSpace failed for some reasons before caching npm namespace object or syncUpdateNameSpace is called due to namespace creation event,
+	// If previous syncAddNameSpace failed for some reasons
+	// before caching npm namespace object or syncUpdateNameSpace is called due to namespace creation event,
 	// then there is no cached object in nsMap.
 	curNsObj, exists := nsc.npmNamespaceCache.nsMap[newNsName]
 	if !exists {
