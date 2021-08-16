@@ -20,7 +20,7 @@ var (
 	)
 	unusedIPs = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "unused_ip",
+			Name: "unused_ips",
 			Help: "Unused IP count.",
 		},
 	)

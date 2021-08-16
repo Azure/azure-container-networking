@@ -230,15 +230,15 @@ func (service *HTTPRestService) GetHTTPRestDataHandler(w http.ResponseWriter, r 
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 	}()
 
-	resp.HttpRestServiceData = service.GetHTTPStruct()
+	resp.HTTPRestServiceData = service.GetHTTPStruct()
 	return
 }
 
-func (service *HTTPRestService) GetHTTPStruct() HttpRestServiceData {
+func (service *HTTPRestService) GetHTTPStruct() HTTPRestServiceData {
 	service.RLock()
 	defer service.RUnlock()
 
-	return HttpRestServiceData{
+	return HTTPRestServiceData{
 		PodIPIDByPodInterfaceKey: service.PodIPIDByPodInterfaceKey,
 		PodIPConfigState:         service.PodIPConfigState,
 		IPAMPoolMonitor:          service.IPAMPoolMonitor.GetStateSnapshot(),

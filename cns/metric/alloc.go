@@ -27,7 +27,7 @@ import (
 //
 // This data will be left-skewed: if there is no in-flight alloc or dealloc,
 // and we queue one right before receiving an NNC status update, we have no
-// way to decorrelate that update with the in-flight requsets and will record
+// way to decorrelate that update with the in-flight requests and will record
 // a very short response latency.
 
 var allocLatency = prometheus.NewHistogramVec(
@@ -35,7 +35,7 @@ var allocLatency = prometheus.NewHistogramVec(
 		//nolint:gomnd
 		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), // 50 ms to ~800 seconds
 		Help:    "IP allocation latency in seconds by batch size",
-		Name:    "ip_alloc_latency",
+		Name:    "ip_alloc_latency_seconds",
 	},
 	[]string{"batch"},
 )
@@ -45,7 +45,7 @@ var deallocLatency = prometheus.NewHistogramVec(
 		//nolint:gomnd
 		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), // 50 ms to ~800 seconds
 		Help:    "IP deallocation latency in seconds by batch size",
-		Name:    "ip_dealloc_latency",
+		Name:    "ip_dealloc_latency_seconds",
 	},
 	[]string{"batch"},
 )

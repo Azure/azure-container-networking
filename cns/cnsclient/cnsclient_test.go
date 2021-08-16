@@ -352,22 +352,22 @@ func TestCNSClientDebugAPI(t *testing.T) {
 		t.Errorf("Get in-memory http REST Struct failed %+v", err)
 	}
 
-	if len(inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
+	if len(inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
 		t.Errorf("OrchestratorContext map is expected but not returned")
 	}
 
 	// testing Pod IP Configuration Status values set for test
-	podConfig := inmemory.HttpRestServiceData.PodIPConfigState
+	podConfig := inmemory.HTTPRestServiceData.PodIPConfigState
 	for _, v := range podConfig {
 		if v.IPAddress != "10.0.0.5" || v.State != "Allocated" || v.NCID != "testNcId1" {
 			t.Errorf("Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 		}
 	}
-	if len(inmemory.HttpRestServiceData.PodIPConfigState) < 1 {
+	if len(inmemory.HTTPRestServiceData.PodIPConfigState) < 1 {
 		t.Errorf("PodIpConfigState with atleast 1 entry expected but not returned.")
 	}
 
-	testIpamPoolMonitor := inmemory.HttpRestServiceData.IPAMPoolMonitor
+	testIpamPoolMonitor := inmemory.HTTPRestServiceData.IPAMPoolMonitor
 	if testIpamPoolMonitor.MinimumFreeIps != 10 || testIpamPoolMonitor.MaximumFreeIps != 20 || testIpamPoolMonitor.UpdatingIpsNotInUseCount != 13 {
 		t.Errorf("IPAMPoolMonitor state is not reflecting the initial set values, %+v", testIpamPoolMonitor)
 	}
@@ -387,7 +387,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 
 	t.Logf("In-memory Data: ")
-	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey)
-	t.Logf("PodIPConfigState: %+v", inmemory.HttpRestServiceData.PodIPConfigState)
-	t.Logf("IPAMPoolMonitor: %+v", inmemory.HttpRestServiceData.IPAMPoolMonitor)
+	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey)
+	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
+	t.Logf("IPAMPoolMonitor: %+v", inmemory.HTTPRestServiceData.IPAMPoolMonitor)
 }

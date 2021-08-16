@@ -8,49 +8,49 @@ import (
 var (
 	ipamAllocatedIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_allocated_ip",
+			Name: "ipam_allocated_ips",
 			Help: "Allocated IP count.",
 		},
 	)
 	ipamAvailableIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_available_ip",
+			Name: "ipam_available_ips",
 			Help: "Available IP count.",
 		},
 	)
 	ipamBatchSize = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_batch",
+			Name: "ipam_batch_size",
 			Help: "IPAM IP pool batch size.",
 		},
 	)
 	ipamFreeIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_free_ip",
+			Name: "ipam_free_ips",
 			Help: "Free IP count.",
 		},
 	)
 	ipamIPPool = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_ip_pool",
+			Name: "ipam_ip_pool_size",
 			Help: "IP pool size.",
 		},
 	)
 	ipamMaxIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_max_ip",
+			Name: "ipam_max_ips",
 			Help: "Maximum IP count.",
 		},
 	)
 	ipamPendingProgramIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_pending_programming_ip",
+			Name: "ipam_pending_programming_ips",
 			Help: "Pending programming IP count.",
 		},
 	)
 	ipamPendingReleaseIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_pending_release_ip",
+			Name: "ipam_pending_release_ips",
 			Help: "Pending release IP count.",
 		},
 	)

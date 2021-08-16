@@ -108,7 +108,6 @@ func printIPAddresses(addrSlice []cns.IPConfigurationStatus) {
 }
 
 func getPodCmd(client *CNSClient) error {
-
 	resp, err := client.GetPodOrchestratorContext()
 	if err != nil {
 		return err
@@ -119,7 +118,7 @@ func getPodCmd(client *CNSClient) error {
 }
 
 func printPodContext(podContext map[string]string) {
-	var i = 1
+	i := 1
 	for orchContext, podID := range podContext {
 		fmt.Println(i, " ", orchContext, " : ", podID)
 		i++
@@ -127,17 +126,16 @@ func printPodContext(podContext map[string]string) {
 }
 
 func getInMemory(client *CNSClient) error {
-
 	inmemoryData, err := client.GetHTTPServiceData()
 	if err != nil {
 		return err
 	}
 
-	printInMemoryStruct(inmemoryData.HttpRestServiceData)
+	printInMemoryStruct(inmemoryData.HTTPRestServiceData)
 	return nil
 }
 
-func printInMemoryStruct(data restserver.HttpRestServiceData) {
+func printInMemoryStruct(data restserver.HTTPRestServiceData) {
 	fmt.Println("PodIPIDByOrchestratorContext: ", data.PodIPIDByPodInterfaceKey)
 	fmt.Println("PodIPConfigState: ", data.PodIPConfigState)
 	fmt.Println("IPAMPoolMonitor: ", data.IPAMPoolMonitor)

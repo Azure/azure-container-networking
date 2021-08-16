@@ -53,12 +53,12 @@ type HTTPRestService struct {
 }
 
 type GetHTTPServiceDataResponse struct {
-	HttpRestServiceData HttpRestServiceData
+	HTTPRestServiceData HTTPRestServiceData
 	Response            Response
 }
 
-// HttpRestServiceData struct to return in-memory httprest data in debug api
-type HttpRestServiceData struct {
+// HTTPRestServiceData represents in-memory CNS data in the debug API paths.
+type HTTPRestServiceData struct {
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
 	IPAMPoolMonitor          cns.IpamPoolMonitorStateSnapshot
