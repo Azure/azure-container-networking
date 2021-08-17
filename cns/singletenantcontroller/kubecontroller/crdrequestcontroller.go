@@ -35,9 +35,10 @@ const (
 // Config has crdRequestController options
 type Config struct {
 	// InitializeFromCNI whether or not to initialize CNS state from k8s/CRDs
-	InitializeFromCNI bool
-	KubeConfig        *rest.Config
-	Service           *restserver.HTTPRestService
+	InitializeFromCNI  bool
+	KubeConfig         *rest.Config
+	MetricsBindAddress string
+	Service            *restserver.HTTPRestService
 }
 
 var _ singletenantcontroller.RequestController = (*requestController)(nil)
@@ -113,7 +114,7 @@ func New(cfg Config) (*requestController, error) {
 	// for serving prometheus metrics, set to "0" to disable
 	mgr, err := ctrl.NewManager(cfg.KubeConfig, ctrl.Options{
 		Scheme:             scheme,
-		MetricsBindAddress: ":9090",
+		MetricsBindAddress: cfg.MetricsBindAddress,
 		Namespace:          k8sNamespace,
 	})
 	if err != nil {
