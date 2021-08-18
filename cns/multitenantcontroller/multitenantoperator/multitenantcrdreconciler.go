@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/types"
 	ncapi "github.com/Azure/azure-container-networking/crds/multitenantnetworkcontainer/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -103,7 +104,7 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 	if err == nil {
 		logger.Printf("NC %s (UUID: %s) has already been created in CNS", request.NamespacedName.String(), nc.Spec.UUID)
 		return ctrl.Result{}, nil
-	} else if err.Error() != "NotFound" {
+	} else if !strings.EqualFold(err.Error(), types.UnknownContainerID.String()) {
 		logger.Errorf("Failed to fetch NC %s (UUID: %s) from CNS: %v", request.NamespacedName.String(), nc.Spec.UUID, err)
 		return ctrl.Result{}, err
 	}

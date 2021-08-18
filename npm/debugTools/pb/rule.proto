@@ -1,0 +1,39 @@
+syntax = "proto3";
+package pb;
+
+enum SetType {
+  NAMESPACE = 0;
+  KEYLABELOFNAMESPACE = 1;
+  KEYVALUELABELOFNAMESPACE = 2;
+  KEYLABELOFPOD = 3;
+  KEYVALUELABELOFPOD = 4;
+  NAMEDPORTS = 5;
+  NESTEDLABELOFPOD = 6;
+  CIDRBLOCKS = 7;
+}
+
+enum Direction {
+  UNDEFINED = 0;
+  EGRESS = 1;
+  INGRESS = 2;
+}
+
+message RuleResponse {
+    string Chain = 1;
+    message SetInfo {
+      SetType Type = 1;
+      string Name = 2;
+      string HashedSetName = 3;
+      repeated string Contents = 4;
+      bool Included = 5;
+    }
+    repeated SetInfo SrcList = 2;
+    repeated SetInfo DstList = 3;
+    string Protocol = 4;
+    int32 DPort = 5;
+    int32 SPort = 6;
+    bool Allowed = 7;
+    Direction Direction = 8;
+    map<string, string> UnsortedIpset = 9;
+  }
+  

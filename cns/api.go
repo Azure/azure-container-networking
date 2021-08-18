@@ -52,7 +52,7 @@ type HTTPService interface {
 // This struct captures the state for SecondaryIPs associated to a given NC
 type IPConfigurationStatus struct {
 	NCID      string
-	ID        string //uuid
+	ID        string // uuid
 	IPAddress string
 	State     string
 	PodInfo   PodInfo
@@ -212,13 +212,14 @@ type NodeConfiguration struct {
 	NodeID     string
 	NodeSubnet Subnet
 }
+
 type IPAMPoolMonitor interface {
 	Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error
-	Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error
+	Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec)
 	GetStateSnapshot() IpamPoolMonitorStateSnapshot
 }
 
-//struct to expose state values for IPAMPoolMonitor struct
+// IpamPoolMonitorStateSnapshot struct to expose state values for IPAMPoolMonitor struct
 type IpamPoolMonitorStateSnapshot struct {
 	MinimumFreeIps           int64
 	MaximumFreeIps           int64

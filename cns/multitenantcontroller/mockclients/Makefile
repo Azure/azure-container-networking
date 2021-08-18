@@ -8,6 +8,7 @@ MOCKGEN = $(TOOLS_BIN_DIR)/mockgen
 generate: $(MOCKGEN) ## Generate mock clients
 	$(MOCKGEN) -source=$(REPO_ROOT)/cns/cnsclient/apiclient.go -package=mockclients APIClient > cnsclient.go
 	$(MOCKGEN) -source=$(REPO_ROOT)/vendor/sigs.k8s.io/controller-runtime/pkg/client/interfaces.go -package=mockclients Client > kubeclient.go
+	@sed -i s,$(REPO_ROOT)/,,g cnsclient.go kubeclient.go
 
 $(MOCKGEN):
 	@make -C $(REPO_ROOT) $(MOCKGEN)

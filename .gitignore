@@ -21,4 +21,6 @@ ipam-*.xml
 # debug test files
 *.test
 
+controller-gen
 build/tools/bin
+npm/debugTools/http

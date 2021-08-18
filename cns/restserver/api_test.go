@@ -37,6 +37,7 @@ type IPAddress struct {
 	Address   string   `xml:"Address,attr"`
 	IsPrimary bool     `xml:"IsPrimary,attr"`
 }
+
 type IPSubnet struct {
 	XMLName   xml.Name `xml:"IPSubnet"`
 	Prefix    string   `xml:"Prefix,attr"`
@@ -61,19 +62,22 @@ var (
 	mux               *http.ServeMux
 	hostQueryResponse = xmlDocument{
 		XMLName: xml.Name{Local: "Interfaces"},
-		Interface: []Interface{Interface{
+		Interface: []Interface{{
 			XMLName:    xml.Name{Local: "Interface"},
 			MacAddress: "*",
 			IsPrimary:  true,
 			IPSubnet: []IPSubnet{
-				IPSubnet{XMLName: xml.Name{Local: "IPSubnet"},
-					Prefix: "10.0.0.0/16",
+				{
+					XMLName: xml.Name{Local: "IPSubnet"},
+					Prefix:  "10.0.0.0/16",
 					IPAddress: []IPAddress{
-						IPAddress{
+						{
 							XMLName:   xml.Name{Local: "IPAddress"},
 							Address:   "10.0.0.4",
-							IsPrimary: true},
-					}},
+							IsPrimary: true,
+						},
+					},
+				},
 			},
 		}},
 	}
@@ -287,7 +291,6 @@ func TestCreateNetworkContainer(t *testing.T) {
 		t.Errorf("Failed to delete the saved goal state due to error: %+v", err)
 		t.Fatal(err)
 	}
-
 }
 
 func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
@@ -519,7 +522,6 @@ func createNC(
 func TestPublishNCViaCNS(t *testing.T) {
 	fmt.Println("Test: publishNetworkContainer")
 	publishNCViaCNS(t, "vnet1", "ethWebApp")
-
 }
 
 func publishNCViaCNS(t *testing.T,
@@ -637,7 +639,6 @@ func TestNmAgentSupportedApisHandler(t *testing.T) {
 	// Since we are testing the NMAgent API in internalapi_test, we will skip POST call
 	// and test other paths
 	fmt.Printf("nmAgentSupportedApisHandler Responded with %+v\n", nmAgentSupportedApisResponse)
-
 }
 
 func TestCreateHostNCApipaEndpoint(t *testing.T) {
@@ -667,7 +668,6 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 	}
 
 	fmt.Printf("createHostNCApipaEndpoint Responded with %+v\n", createHostNCApipaEndpointResponse)
-
 }
 
 func setOrchestratorType(t *testing.T, orchestratorType string) error {
@@ -930,7 +930,7 @@ func startService() error {
 		return err
 	}
 
-	svc.IPAMPoolMonitor = fakes.NewIPAMPoolMonitorFake()
+	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{}
 
 	if service != nil {
 		// Create empty azure-cns.json. CNS should start successfully by deleting this file

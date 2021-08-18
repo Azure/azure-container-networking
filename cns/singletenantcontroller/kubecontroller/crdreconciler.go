@@ -29,7 +29,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		err           error
 	)
 
-	//Get the CRD object
+	// Get the CRD object
 	if err = r.KubeClient.Get(ctx, request.NamespacedName, &nodeNetConfig); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
@@ -63,7 +63,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 	ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
-		//requeue
+		// requeue
 		return reconcile.Result{}, err
 	}
 
@@ -73,12 +73,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	if err = r.CNSClient.UpdateIPAMPoolMonitor(nodeNetConfig.Status.Scaler, nodeNetConfig.Spec); err != nil {
-		logger.Errorf("[cns-rc] Error update IPAM pool monitor in reconcile: %v", err)
-		// requeue
-		return reconcile.Result{}, err
-	}
-
+	r.CNSClient.UpdateIPAMPoolMonitor(nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
 	return reconcile.Result{}, err
 }
 

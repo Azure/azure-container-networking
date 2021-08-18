@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Azure/azure-container-networking/cns"
-
 	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
 )
 
@@ -15,17 +14,11 @@ type IPAMPoolMonitorFake struct {
 	FakecachedNNC        nnc.NodeNetworkConfig
 }
 
-func NewIPAMPoolMonitorFake() *IPAMPoolMonitorFake {
-	return &IPAMPoolMonitorFake{}
-}
-
 func (ipm *IPAMPoolMonitorFake) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
 	return nil
 }
 
-func (ipm *IPAMPoolMonitorFake) Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
-	return nil
-}
+func (ipm *IPAMPoolMonitorFake) Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) {}
 
 func (ipm *IPAMPoolMonitorFake) Reconcile() error {
 	return nil
