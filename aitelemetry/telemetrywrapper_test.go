@@ -142,6 +142,10 @@ func TestTrackEvent(t *testing.T) {
 	th.TrackEvent(event)
 }
 
+func TestFlush(t *testing.T) {
+	th.Flush()
+}
+
 func TestClose(t *testing.T) {
 	th.Close(10)
 }

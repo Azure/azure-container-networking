@@ -311,3 +311,8 @@ func (th *telemetryHandle) Close(timeout int) {
 		th.diagListener = nil
 	}
 }
+
+// Flush - forces the current queue to be sent
+func (th *telemetryHandle) Flush() {
+	th.client.Channel().Flush()
+}
