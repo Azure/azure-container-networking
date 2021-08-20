@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/npm/debugTools/dataplane"
+	"github.com/Azure/azure-container-networking/npm/debug/dataplane"
 	"github.com/spf13/cobra"
 )
 

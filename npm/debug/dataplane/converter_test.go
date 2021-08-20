@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	NPMIPtable "github.com/Azure/azure-container-networking/npm/debugTools/dataplane/iptables"
-	"github.com/Azure/azure-container-networking/npm/debugTools/pb"
+	NPMIPtable "github.com/Azure/azure-container-networking/npm/debug/dataplane/iptables"
+	"github.com/Azure/azure-container-networking/npm/debug/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/google/go-cmp/cmp"
 )

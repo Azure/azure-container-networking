@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm"
-	"github.com/Azure/azure-container-networking/npm/debugTools/pb"
+	"github.com/Azure/azure-container-networking/npm/debug/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"google.golang.org/protobuf/encoding/protojson"
 )

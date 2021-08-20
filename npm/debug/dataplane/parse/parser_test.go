@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	NPMIPtable "github.com/Azure/azure-container-networking/npm/debugTools/dataplane/iptables"
+	NPMIPtable "github.com/Azure/azure-container-networking/npm/debug/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
