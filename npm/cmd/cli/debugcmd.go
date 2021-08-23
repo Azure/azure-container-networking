@@ -1,11 +1,18 @@
-package cmd
+package cli
 
 import (
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/npm/debug/dataplane"
+	"github.com/Azure/azure-container-networking/npm/pkg/debug/dataplane"
+	"github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/spf13/cobra"
 )
+
+// convertIptableCmd represents the convertIptable command
+var debugCmd = &cobra.Command{
+	Use:   "debug",
+	Short: "Debug mode",
+}
 
 // getTuplesCmd represents the getTuples command
 var getTuplesCmd = &cobra.Command{
@@ -14,11 +21,11 @@ var getTuplesCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		src, _ := cmd.Flags().GetString("src")
 		if src == "" {
-			return fmt.Errorf("%w", errSrcNotSpecified)
+			return fmt.Errorf("%w", errors.SrcNotSpecified)
 		}
 		dst, _ := cmd.Flags().GetString("dst")
 		if dst == "" {
-			return fmt.Errorf("%w", errDstNotSpecified)
+			return fmt.Errorf("%w", errors.DstNotSpecified)
 		}
 		npmCacheF, _ := cmd.Flags().GetString("npmF")
 		iptableSaveF, _ := cmd.Flags().GetString("iptF")
@@ -46,12 +53,4 @@ var getTuplesCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-func init() {
-	debugCmd.AddCommand(getTuplesCmd)
-	getTuplesCmd.Flags().StringP("src", "s", "", "set the source")
-	getTuplesCmd.Flags().StringP("dst", "d", "", "set the destination")
-	getTuplesCmd.Flags().StringP("iptF", "i", "", "Set the iptable-save file path (optional)")
-	getTuplesCmd.Flags().StringP("npmF", "n", "", "Set the NPM cache file path (optional)")
 }

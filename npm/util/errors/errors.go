@@ -1,10 +1,16 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/util"
+)
+
+var (
+	SrcNotSpecified = errors.New("source not specified")
+	DstNotSpecified = errors.New("destination not specified")
 )
 
 /*

@@ -10,7 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm"
-	"github.com/Azure/azure-container-networking/npm/cmd"
+	"github.com/Azure/azure-container-networking/npm/cmd/cli"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -43,7 +43,7 @@ func initLogging() error {
 func main() {
 	if len(os.Args) > 1 {
 		// Cobra will handle invalid command, will prompt user to run `--help` for usage
-		cmd.Execute()
+		cli.Execute()
 		return
 	}
 
