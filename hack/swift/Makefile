@@ -12,7 +12,7 @@ USER       ?= $(whoami)
 CLUSTER    ?= $(USER)-swift-$(REGION)
 GROUP      ?= $(CLUSTER)
 REGION     ?= centraluseuap
-SUB        ?= $(AZURE_SUBSCRIPTION) # must be defined in calling context
+SUB        ?= $(AZURE_SUBSCRIPTION)
 VNET       ?= $(CLUSTER)
 
 
