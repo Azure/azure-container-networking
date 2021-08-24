@@ -11,6 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -138,7 +139,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 }
 
 // Start starts shared informers and waits for the shared informer cache to sync.
-func (npMgr *NetworkPolicyManager) Start(stopCh <-chan struct{}) error {
+func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
 	// Starts all informers manufactured by npMgr's informerFactory.
 	npMgr.informerFactory.Start(stopCh)
 

@@ -1,4 +1,4 @@
-package cli
+package main
 
 import (
 	"fmt"
@@ -8,10 +8,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// convertIptableCmd represents the convertIptable command
-var debugCmd = &cobra.Command{
-	Use:   "debug",
-	Short: "Debug mode",
+func init() {
+	debugCmd.AddCommand(getTuplesCmd)
+	getTuplesCmd.Flags().StringP("src", "s", "", "set the source")
+	getTuplesCmd.Flags().StringP("dst", "d", "", "set the destination")
+	getTuplesCmd.Flags().StringP("iptF", "i", "", "Set the iptable-save file path (optional)")
+	getTuplesCmd.Flags().StringP("npmF", "n", "", "Set the NPM cache file path (optional)")
 }
 
 // getTuplesCmd represents the getTuples command

@@ -3,31 +3,37 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"math/rand"
-	"os"
-	"time"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm"
-	"github.com/Azure/azure-container-networking/npm/cmd/cli"
-	restserver "github.com/Azure/azure-container-networking/npm/http/server"
-	"github.com/Azure/azure-container-networking/npm/metrics"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"k8s.io/klog"
-	"k8s.io/utils/exec"
-)
-
-const (
-	// waitForTelemetryInSeconds = 60 unused
-	resyncPeriodInMinutes = 15
 )
 
 // Version is populated by make during build.
 var version string
+var cfgFile string
+
+// rootCmd represents the base command when called without any subcommands
+var rootCmd = &cobra.Command{
+	Use:   "azure-npm",
+	Short: "Collection of functions related to Azure NPM's debugging tools",
+
+	RunE: func(cmd *cobra.Command, args []string) error {
+		config := &npmconfig.Config{}
+		err := viper.Unmarshal(config)
+		if err != nil {
+			fmt.Printf("unable to decode into config struct, %v", err)
+		}
+
+		Start(*config)
+		return nil
+	},
+}
 
 func initLogging() error {
 	log.SetName("azure-npm")
@@ -41,64 +47,34 @@ func initLogging() error {
 }
 
 func main() {
-	if len(os.Args) > 1 {
-		// Cobra will handle invalid command, will prompt user to run `--help` for usage
-		cli.Execute()
-		return
-	}
-
 	klog.Infof("Start NPM version: %s", version)
+	cobra.CheckErr(rootCmd.Execute())
+}
 
-	var err error
-	defer func() {
-		if r := recover(); r != nil {
-			klog.Infof("recovered from error: %v", err)
-		}
-	}()
+func init() {
+	cobra.OnInitialize(initConfig)
+	rootCmd.Flags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.azure-npm-debug-cli.yaml)")
+}
 
-	if err = initLogging(); err != nil {
-		panic(err.Error())
+// initConfig reads in config file and ENV variables if set.
+func initConfig() {
+	if cfgFile != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(cfgFile)
+	} else {
+		viper.SetConfigFile(npmconfig.GetConfigPath())
 	}
 
-	metrics.InitializeAll()
+	viper.AutomaticEnv() // read in environment variables that match
 
-	// Creates the in-cluster config
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err.Error())
+	// If a config file is found, read it in.
+	if err := viper.ReadInConfig(); err == nil {
+		klog.Error("Using config file:", viper.ConfigFileUsed())
+	} else {
+		klog.Error(err)
+		klog.Info("Using default config")
+		b, _ := json.Marshal(npmconfig.DefaultConfig)
+		err := viper.ReadConfig(bytes.NewBuffer(b))
+		cobra.CheckErr(err)
 	}
-
-	// Creates the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		klog.Infof("clientset creation failed with error %v.", err)
-		panic(err.Error())
-	}
-
-	// Setting reSyncPeriod to 15 mins
-	minResyncPeriod := resyncPeriodInMinutes * time.Minute
-
-	// Adding some randomness so all NPM pods will not request for info at once.
-	factor := rand.Float64() + 1
-	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
-
-	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
-	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
-
-	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version)
-	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
-	if err != nil {
-		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
-		panic(err.Error())
-	}
-
-	restserver := restserver.NewNpmRestServer(restserver.DefaultHTTPListeningAddress)
-	go restserver.NPMRestServerListenAndServe(npMgr)
-
-	if err = npMgr.Start(wait.NeverStop); err != nil {
-		klog.Infof("npm failed with error %v.", err)
-		panic(err.Error)
-	}
-
-	select {}
 }
