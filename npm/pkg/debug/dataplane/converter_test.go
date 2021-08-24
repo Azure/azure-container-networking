@@ -14,8 +14,8 @@ func TestGetJSONRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
 	_, err := c.GetJSONRulesFromIptableFile(
 		util.IptablesFilterTable,
-		"../testFiles/npmCache.json",
-		"../testFiles/iptableSave",
+		"../testfiles/npmCache.json",
+		"../testfiles/iptableSave",
 	)
 	if err != nil {
 		t.Errorf("error during TestGetJSONRulesFromIptable : %w", err)
@@ -26,8 +26,8 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
 	_, err := c.GetProtobufRulesFromIptableFile(
 		util.IptablesFilterTable,
-		"../testFiles/npmCache.json",
-		"../testFiles/iptableSave",
+		"../testfiles/npmCache.json",
+		"../testfiles/iptableSave",
 	)
 	if err != nil {
 		t.Errorf("error during TestGetJSONRulesFromIptable : %w", err)
@@ -83,7 +83,7 @@ func TestGetSetType(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile("../testFiles/npmCache.json")
+	err := c.initConverterFile("../testfiles/npmCache.json")
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}
@@ -305,7 +305,7 @@ func TestGetRulesFromChain(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile("../testFiles/npmCache.json")
+	err := c.initConverterFile("../testfiles/npmCache.json")
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}
@@ -494,7 +494,7 @@ func TestGetModulesFromRule(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile("../testFiles/npmCache.json")
+	err := c.initConverterFile("../testfiles/npmCache.json")
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}

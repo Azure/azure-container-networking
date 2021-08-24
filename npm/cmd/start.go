@@ -63,14 +63,14 @@ func Start(config npmconfig.Config) error {
 	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
-		return err
+		return fmt.Errorf("CreateTelemetryHandle failed with error %w", err)
 	}
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
 	if err = npMgr.Start(config, wait.NeverStop); err != nil {
 		klog.Infof("npm failed with error %v.", err)
-		return err
+		return fmt.Errorf("starting NPM failed with error %w", err)
 	}
 
 	select {}

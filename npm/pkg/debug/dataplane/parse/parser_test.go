@@ -11,7 +11,7 @@ import (
 )
 
 func TestParseIptablesObjectFile(t *testing.T) {
-	_, err := IptablesFile(util.IptablesFilterTable, "../../testFiles/iptableSave")
+	_, err := IptablesFile(util.IptablesFilterTable, "../../testfiles/iptablesave")
 	if err != nil {
 		t.Fatal(err)
 	}

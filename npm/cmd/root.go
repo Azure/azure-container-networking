@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -15,7 +17,7 @@ var rootCmd = &cobra.Command{
 		config := &npmconfig.Config{}
 		err := viper.Unmarshal(config)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to load config with error %w", err)
 		}
 
 		return Start(*config)
