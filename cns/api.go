@@ -54,7 +54,7 @@ type IPConfigurationStatus struct {
 	NCID      string
 	ID        string // uuid
 	IPAddress string
-	State     string
+	State     IPConfigState
 	PodInfo   PodInfo
 }
 

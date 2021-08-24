@@ -60,11 +60,17 @@ const (
 )
 
 // IPConfig States for CNS IPAM
+type IPConfigState string
+
 const (
-	Available          = "Available"
-	Allocated          = "Allocated"
-	PendingRelease     = "PendingRelease"
-	PendingProgramming = "PendingProgramming"
+	// Available IPConfigState for available IPs.
+	Available IPConfigState = "Available"
+	// Allocated IPConfigState for allocated IPs.
+	Allocated IPConfigState = "Allocated"
+	// PendingRelease IPConfigState for pending release IPs.
+	PendingRelease IPConfigState = "PendingRelease"
+	// PendingProgramming IPConfigState for pending programming IPs.
+	PendingProgramming IPConfigState = "PendingProgramming"
 )
 
 // ChannelMode :- CNS channel modes
@@ -85,7 +91,7 @@ type CreateNetworkContainerRequest struct {
 	LocalIPConfiguration       IPConfiguration
 	OrchestratorContext        json.RawMessage
 	IPConfiguration            IPConfiguration
-	SecondaryIPConfigs         map[string]SecondaryIPConfig //uuid is key
+	SecondaryIPConfigs         map[string]SecondaryIPConfig // uuid is key
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
 	Routes                     []Route
@@ -270,7 +276,7 @@ type IPSubnet struct {
 	PrefixLength uint8
 }
 
-//GetIPNet converts the IPSubnet to the standard net type
+// GetIPNet converts the IPSubnet to the standard net type
 func (ips *IPSubnet) GetIPNet() (net.IP, *net.IPNet, error) {
 	prefix := strconv.Itoa(int(ips.PrefixLength))
 	return net.ParseCIDR(ips.IPAddress + "/" + prefix)
@@ -363,7 +369,7 @@ type IPConfigResponse struct {
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs
 // The IPConfigStateFilter is a slice of IP's to fetch from CNS that match those states
 type GetIPAddressesRequest struct {
-	IPConfigStateFilter []string
+	IPConfigStateFilter []IPConfigState
 }
 
 // GetIPAddressStateResponse is used in CNS IPAM mode as a response to get IP address state
@@ -378,7 +384,7 @@ type GetIPAddressStatusResponse struct {
 	Response              Response
 }
 
-//GetPodContextResponse is used in CNS Client debug mode to get mapping of Orchestrator Context to Pod IP UUID
+// GetPodContextResponse is used in CNS Client debug mode to get mapping of Orchestrator Context to Pod IP UUID
 type GetPodContextResponse struct {
 	PodContext map[string]string
 	Response   Response
@@ -492,19 +498,19 @@ func (networkContainerRequestPolicy *NetworkContainerRequestPolicies) Validate()
 			if err := json.Unmarshal(networkContainerRequestPolicy.Settings, &requestedAclPolicy); err != nil {
 				return fmt.Errorf("ACL policy failed to pass validation with error: %+v ", err)
 			}
-			//Deny request if ACL Action is empty
+			// Deny request if ACL Action is empty
 			if len(strings.TrimSpace(string(requestedAclPolicy.Action))) == 0 {
 				return fmt.Errorf("Action field cannot be empty in ACL Policy")
 			}
-			//Deny request if ACL Action is not Allow or Deny
+			// Deny request if ACL Action is not Allow or Deny
 			if !strings.EqualFold(requestedAclPolicy.Action, ActionTypeAllow) && !strings.EqualFold(requestedAclPolicy.Action, ActionTypeBlock) {
 				return fmt.Errorf("Only Allow or Block is supported in Action field")
 			}
-			//Deny request if ACL Direction is empty
+			// Deny request if ACL Direction is empty
 			if len(strings.TrimSpace(string(requestedAclPolicy.Direction))) == 0 {
 				return fmt.Errorf("Direction field cannot be empty in ACL Policy")
 			}
-			//Deny request if ACL direction is not In or Out
+			// Deny request if ACL direction is not In or Out
 			if !strings.EqualFold(requestedAclPolicy.Direction, DirectionTypeIn) && !strings.EqualFold(requestedAclPolicy.Direction, DirectionTypeOut) {
 				return fmt.Errorf("Only In or Out is supported in Direction field")
 			}
