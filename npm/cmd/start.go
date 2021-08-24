@@ -3,9 +3,11 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
@@ -18,7 +20,7 @@ import (
 	"k8s.io/utils/exec"
 )
 
-func Start(config npmconfig.Config) {
+func Start(config npmconfig.Config) error {
 	klog.Infof("Using config: %+v", config)
 
 	var err error
@@ -29,7 +31,7 @@ func Start(config npmconfig.Config) {
 	}()
 
 	if err = initLogging(); err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	metrics.InitializeAll()
@@ -37,14 +39,14 @@ func Start(config npmconfig.Config) {
 	// Creates the in-cluster config
 	k8sConfig, err := rest.InClusterConfig()
 	if err != nil {
-		panic(err.Error())
+		return fmt.Errorf("failed to load in cluster config: %w", err)
 	}
 
 	// Creates the clientset
 	clientset, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		klog.Infof("clientset creation failed with error %v.", err)
-		panic(err.Error())
+		return fmt.Errorf("failed to generate clientset with cluster config: %w", err)
 	}
 
 	// Setting reSyncPeriod to 15 mins
@@ -61,15 +63,26 @@ func Start(config npmconfig.Config) {
 	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
-		panic(err.Error())
+		return err
 	}
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
 	if err = npMgr.Start(config, wait.NeverStop); err != nil {
 		klog.Infof("npm failed with error %v.", err)
-		panic(err.Error)
+		return err
 	}
 
 	select {}
+}
+
+func initLogging() error {
+	log.SetName("azure-npm")
+	log.SetLevel(log.LevelInfo)
+	if err := log.SetTargetLogDirectory(log.TargetStdout, ""); err != nil {
+		log.Logf("Failed to configure logging, err:%v.", err)
+		return fmt.Errorf("%w", err)
+	}
+
+	return nil
 }
