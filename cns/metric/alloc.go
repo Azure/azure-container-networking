@@ -30,7 +30,7 @@ import (
 // way to decorrelate that update with the in-flight requests and will record
 // a very short response latency.
 
-var allocLatency = prometheus.NewHistogramVec(
+var allocLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		//nolint:gomnd
 		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), // 50 ms to ~800 seconds
@@ -40,7 +40,7 @@ var allocLatency = prometheus.NewHistogramVec(
 	[]string{"batch"},
 )
 
-var deallocLatency = prometheus.NewHistogramVec(
+var deallocLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		//nolint:gomnd
 		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), // 50 ms to ~800 seconds
