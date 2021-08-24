@@ -15,8 +15,10 @@ import (
 )
 
 // Version is populated by make during build.
-var version string
-var cfgFile string
+var (
+	version string
+	cfgFile string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{

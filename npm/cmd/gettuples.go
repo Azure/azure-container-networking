@@ -23,11 +23,11 @@ var getTuplesCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		src, _ := cmd.Flags().GetString("src")
 		if src == "" {
-			return fmt.Errorf("%w", errors.SrcNotSpecified)
+			return fmt.Errorf("%w", errors.ErrSrcNotSpecified)
 		}
 		dst, _ := cmd.Flags().GetString("dst")
 		if dst == "" {
-			return fmt.Errorf("%w", errors.DstNotSpecified)
+			return fmt.Errorf("%w", errors.ErrDstNotSpecified)
 		}
 		npmCacheF, _ := cmd.Flags().GetString("npmF")
 		iptableSaveF, _ := cmd.Flags().GetString("iptF")

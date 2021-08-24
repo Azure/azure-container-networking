@@ -9,8 +9,11 @@ import (
 )
 
 var (
-	SrcNotSpecified = errors.New("source not specified")
-	DstNotSpecified = errors.New("destination not specified")
+	// ErrSrcNotSpecified thrown during NPM debug cli mode when the source packet is not specified
+	ErrSrcNotSpecified = errors.New("source not specified")
+
+	// ErrDstNotSpecified thrown during NPM debug cli mode when the source packet is not specified
+	ErrDstNotSpecified = errors.New("destination not specified")
 )
 
 /*
