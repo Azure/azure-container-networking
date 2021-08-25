@@ -7,7 +7,7 @@ import (
 	"net/http/pprof"
 	_ "net/http/pprof"
 
-	"github.com/Azure/azure-container-networking/log"
+	"k8s.io/klog"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/http/api"
@@ -58,8 +58,8 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npMgr *npm.NetworkPoli
 		Addr:    rs.listeningAddress,
 	}
 
-	log.Logf("Starting NPM HTTP API on %s... ", rs.listeningAddress)
-	log.Errorf("Failed to start NPM HTTP Server with error: %+v", srv.ListenAndServe())
+	klog.Infof("Starting NPM HTTP API on %s... ", rs.listeningAddress)
+	klog.Errorf("Failed to start NPM HTTP Server with error: %+v", srv.ListenAndServe())
 }
 
 func (n *NPMRestServer) GetNpmMgr(npMgr *npm.NetworkPolicyManager) http.Handler {

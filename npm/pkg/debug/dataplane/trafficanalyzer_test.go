@@ -233,8 +233,8 @@ func TestGetNetworkTuple(t *testing.T) {
 			_, actualTupleList, err := GetNetworkTupleFile(
 				test.input.src,
 				test.input.dst,
-				"../testfiles/npmCache.json",
-				"../testfiles/iptableSave",
+				"../testfiles/npmcache.json",
+				"../testfiles/iptablesave",
 			)
 			if err != nil {
 				t.Errorf("error during get network tuple : %w", err)

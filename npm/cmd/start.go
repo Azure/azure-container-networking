@@ -49,7 +49,7 @@ func Start(config npmconfig.Config) error {
 		return fmt.Errorf("failed to generate clientset with cluster config: %w", err)
 	}
 
-	// Setting reSyncPeriod to 15 mins
+	// Setting reSyncPeriod
 	minResyncPeriod := time.Duration(config.ResyncPeriodInMinutes) * time.Minute
 
 	// Adding some randomness so all NPM pods will not request for info at once.
