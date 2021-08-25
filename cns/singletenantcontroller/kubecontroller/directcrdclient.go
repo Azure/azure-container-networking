@@ -3,7 +3,7 @@ package kubecontroller
 import (
 	"context"
 
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -18,13 +18,13 @@ type CRDDirectClient struct {
 }
 
 // Get gets a crd
-func (crdClient *CRDDirectClient) Get(ctx context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
+func (crdClient *CRDDirectClient) Get(ctx context.Context, name, namespace, typeName string) (*v1alpha.NodeNetworkConfig, error) {
 	var (
-		nodeNetConfig *nnc.NodeNetworkConfig
+		nodeNetConfig *v1alpha.NodeNetworkConfig
 		err           error
 	)
 
-	nodeNetConfig = &nnc.NodeNetworkConfig{}
+	nodeNetConfig = &v1alpha.NodeNetworkConfig{}
 	if err = crdClient.restClient.Get().Namespace(namespace).Resource(crdTypeName).Name(name).Do(ctx).Into(nodeNetConfig); err != nil {
 		return nil, err
 	}

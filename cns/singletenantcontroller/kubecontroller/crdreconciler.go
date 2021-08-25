@@ -6,7 +6,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,7 +24,7 @@ type CrdReconciler struct {
 // Reconcile is called on CRD status changes
 func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	var (
-		nodeNetConfig nnc.NodeNetworkConfig
+		nodeNetConfig v1alpha.NodeNetworkConfig
 		ncRequest     cns.CreateNetworkContainerRequest
 		err           error
 	)
@@ -80,7 +80,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter
 func (r *CrdReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&nnc.NodeNetworkConfig{}).
+		For(&v1alpha.NodeNetworkConfig{}).
 		WithEventFilter(NodeNetworkConfigFilter{nodeName: r.NodeName}).
 		Complete(r)
 }

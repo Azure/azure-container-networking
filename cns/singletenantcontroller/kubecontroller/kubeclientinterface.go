@@ -3,9 +3,8 @@ package kubecontroller
 import (
 	"context"
 
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	corev1 "k8s.io/api/core/v1"
-
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -17,7 +16,7 @@ type KubeClient interface {
 
 // DirectCRDClient is an interface to get CRDs directly, without cache
 type DirectCRDClient interface {
-	Get(ctx context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error)
+	Get(ctx context.Context, name, namespace, typeName string) (*v1alpha.NodeNetworkConfig, error)
 }
 
 // DirectAPIClient is an interface to talk directly with API Server without cache

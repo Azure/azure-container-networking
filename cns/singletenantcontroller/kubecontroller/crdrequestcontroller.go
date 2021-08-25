@@ -15,7 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	"github.com/Azure/azure-container-networking/crd"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -93,7 +93,7 @@ func New(cfg Config) (*requestController, error) {
 	}
 
 	// Add CRD scheme to runtime sheme so manager can recognize it
-	if err := nnc.AddToScheme(scheme); err != nil {
+	if err := v1alpha.AddToScheme(scheme); err != nil {
 		return nil, errors.New("Error adding NodeNetworkConfig scheme to runtime scheme")
 	}
 
@@ -104,7 +104,7 @@ func New(cfg Config) (*requestController, error) {
 	}
 
 	// Create a direct client to the API server configured to get nodenetconfigs to get nnc for same reason above
-	directCRDClient, err := NewCRDDirectClient(cfg.KubeConfig, &nnc.GroupVersion)
+	directCRDClient, err := NewCRDDirectClient(cfg.KubeConfig, &v1alpha.GroupVersion)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating direct CRD client: %v", err)
 	}
@@ -281,7 +281,7 @@ func (rc *requestController) kubePodsToPodInfoByIP(pods []corev1.Pod) map[string
 }
 
 // UpdateCRDSpec updates the CRD spec
-func (rc *requestController) UpdateCRDSpec(ctx context.Context, crdSpec nnc.NodeNetworkConfigSpec) error {
+func (rc *requestController) UpdateCRDSpec(ctx context.Context, crdSpec v1alpha.NodeNetworkConfigSpec) error {
 	nodeNetworkConfig, err := rc.getNodeNetConfig(ctx, rc.nodeName, k8sNamespace)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error getting CRD when updating spec %v", err)
@@ -305,8 +305,8 @@ func (rc *requestController) UpdateCRDSpec(ctx context.Context, crdSpec nnc.Node
 }
 
 // getNodeNetConfig gets the nodeNetworkConfig CRD given the name and namespace of the CRD object
-func (rc *requestController) getNodeNetConfig(ctx context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {
-	nodeNetworkConfig := &nnc.NodeNetworkConfig{}
+func (rc *requestController) getNodeNetConfig(ctx context.Context, name, namespace string) (*v1alpha.NodeNetworkConfig, error) {
+	nodeNetworkConfig := &v1alpha.NodeNetworkConfig{}
 
 	err := rc.KubeClient.Get(ctx, client.ObjectKey{
 		Namespace: namespace,
@@ -320,9 +320,9 @@ func (rc *requestController) getNodeNetConfig(ctx context.Context, name, namespa
 }
 
 // getNodeNetConfigDirect gets the nodeNetworkConfig CRD using a direct client
-func (rc *requestController) getNodeNetConfigDirect(ctx context.Context, name, namespace string) (*nnc.NodeNetworkConfig, error) {
+func (rc *requestController) getNodeNetConfigDirect(ctx context.Context, name, namespace string) (*v1alpha.NodeNetworkConfig, error) {
 	var (
-		nodeNetworkConfig *nnc.NodeNetworkConfig
+		nodeNetworkConfig *v1alpha.NodeNetworkConfig
 		err               error
 	)
 
@@ -334,7 +334,7 @@ func (rc *requestController) getNodeNetConfigDirect(ctx context.Context, name, n
 }
 
 // updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
-func (rc *requestController) updateNodeNetConfig(ctx context.Context, nodeNetworkConfig *nnc.NodeNetworkConfig) error {
+func (rc *requestController) updateNodeNetConfig(ctx context.Context, nodeNetworkConfig *v1alpha.NodeNetworkConfig) error {
 	if err := rc.KubeClient.Update(ctx, nodeNetworkConfig); err != nil {
 		return err
 	}

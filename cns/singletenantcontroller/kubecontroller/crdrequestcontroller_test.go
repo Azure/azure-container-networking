@@ -11,7 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,7 +35,7 @@ const (
 
 // MockAPI is a mock of kubernete's API server
 type MockAPI struct {
-	nodeNetConfigs map[MockKey]*nnc.NodeNetworkConfig
+	nodeNetConfigs map[MockKey]*v1alpha.NodeNetworkConfig
 	pods           map[MockKey]*corev1.Pod
 }
 
@@ -62,7 +62,7 @@ func (mc MockKubeClient) Get(ctx context.Context, key client.ObjectKey, obj clie
 	if !ok {
 		return errors.New("Node Net Config not found in mock store")
 	}
-	nodeNetConfig.DeepCopyInto(obj.(*nnc.NodeNetworkConfig))
+	nodeNetConfig.DeepCopyInto(obj.(*v1alpha.NodeNetworkConfig))
 
 	return nil
 }
@@ -70,7 +70,7 @@ func (mc MockKubeClient) Get(ctx context.Context, key client.ObjectKey, obj clie
 // Mock implementation of the KubeClient interface Update method
 // Mimics that of controller-runtime's client.Client
 func (mc MockKubeClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-	nodeNetConfig := obj.(*nnc.NodeNetworkConfig)
+	nodeNetConfig := obj.(*v1alpha.NodeNetworkConfig)
 
 	mockKey := MockKey{
 		Namespace: nodeNetConfig.ObjectMeta.Namespace,
@@ -102,7 +102,8 @@ func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRe
 	return nil
 }
 
-func (mi *MockCNSClient) UpdateIPAMPoolMonitor(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) {}
+func (mi *MockCNSClient) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
+}
 
 func (mi *MockCNSClient) DeleteNC(nc cns.DeleteNetworkContainerRequest) error {
 	return nil
@@ -112,7 +113,7 @@ func (mi *MockCNSClient) GetNC(nc cns.GetNetworkContainerRequest) (cns.GetNetwor
 	return cns.GetNetworkContainerResponse{NetworkContainerID: nc.NetworkContainerid}, nil
 }
 
-func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
+func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
 	mi.MockCNSInitialized = true
 	mi.Pods = podInfoByIP
 	mi.NCRequest = ncRequest
@@ -126,10 +127,10 @@ type MockDirectCRDClient struct {
 	mockAPI *MockAPI
 }
 
-func (mc *MockDirectCRDClient) Get(ctx context.Context, name, namespace, typeName string) (*nnc.NodeNetworkConfig, error) {
+func (mc *MockDirectCRDClient) Get(ctx context.Context, name, namespace, typeName string) (*v1alpha.NodeNetworkConfig, error) {
 	var (
 		mockKey       MockKey
-		nodeNetConfig *nnc.NodeNetworkConfig
+		nodeNetConfig *v1alpha.NodeNetworkConfig
 		ok            bool
 	)
 
@@ -206,7 +207,7 @@ func TestNewCrdRequestController(t *testing.T) {
 }
 
 func TestGetNonExistingNodeNetConfig(t *testing.T) {
-	nodeNetConfig := &nnc.NodeNetworkConfig{
+	nodeNetConfig := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
@@ -217,7 +218,7 @@ func TestGetNonExistingNodeNetConfig(t *testing.T) {
 		Name:      existingNNCName,
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfig,
 		},
 	}
@@ -237,7 +238,7 @@ func TestGetNonExistingNodeNetConfig(t *testing.T) {
 }
 
 func TestGetExistingNodeNetConfig(t *testing.T) {
-	nodeNetConfig := &nnc.NodeNetworkConfig{
+	nodeNetConfig := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
@@ -248,7 +249,7 @@ func TestGetExistingNodeNetConfig(t *testing.T) {
 		Name:      existingNNCName,
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfig,
 		},
 	}
@@ -272,7 +273,7 @@ func TestGetExistingNodeNetConfig(t *testing.T) {
 }
 
 func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
-	nodeNetConfig := &nnc.NodeNetworkConfig{
+	nodeNetConfig := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
@@ -283,7 +284,7 @@ func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
 		Name:      existingNNCName,
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfig,
 		},
 	}
@@ -296,7 +297,7 @@ func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
 	// Test updating non existing NodeNetworkConfig obj
-	nodeNetConfigNonExisting := &nnc.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
+	nodeNetConfigNonExisting := &v1alpha.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
 		Name:      nonexistingNNCName,
 		Namespace: nonexistingNamespace,
 	}}
@@ -309,7 +310,7 @@ func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
 }
 
 func TestUpdateExistingNodeNetConfig(t *testing.T) {
-	nodeNetConfig := &nnc.NodeNetworkConfig{
+	nodeNetConfig := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
@@ -320,7 +321,7 @@ func TestUpdateExistingNodeNetConfig(t *testing.T) {
 		Name:      existingNNCName,
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfig,
 		},
 	}
@@ -349,7 +350,7 @@ func TestUpdateExistingNodeNetConfig(t *testing.T) {
 }
 
 func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
-	nodeNetConfig := &nnc.NodeNetworkConfig{
+	nodeNetConfig := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
@@ -360,7 +361,7 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 		Name:      existingNNCName,
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfig,
 		},
 	}
@@ -373,7 +374,7 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	spec := nnc.NodeNetworkConfigSpec{
+	spec := v1alpha.NodeNetworkConfigSpec{
 		RequestedIPCount: int64(10),
 		IPsNotInUse: []string{
 			allocatedUUID,
@@ -390,7 +391,7 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 }
 
 func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
-	nodeNetConfig := &nnc.NodeNetworkConfig{
+	nodeNetConfig := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
@@ -401,7 +402,7 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 		Name:      existingNNCName,
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfig,
 		},
 	}
@@ -414,7 +415,7 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
-	spec := nnc.NodeNetworkConfigSpec{
+	spec := v1alpha.NodeNetworkConfigSpec{
 		RequestedIPCount: int64(10),
 		IPsNotInUse: []string{
 			allocatedUUID,
@@ -435,7 +436,7 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 
 // test get nnc directly
 func TestGetExistingNNCDirectClient(t *testing.T) {
-	nodeNetConfigFill := &nnc.NodeNetworkConfig{
+	nodeNetConfigFill := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
@@ -446,7 +447,7 @@ func TestGetExistingNNCDirectClient(t *testing.T) {
 		Name:      existingNNCName,
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfigFill,
 		},
 	}
@@ -469,7 +470,7 @@ func TestGetExistingNNCDirectClient(t *testing.T) {
 
 // test get nnc directly non existing
 func TestGetNonExistingNNCDirectClient(t *testing.T) {
-	nodeNetConfigFill := &nnc.NodeNetworkConfig{
+	nodeNetConfigFill := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
@@ -480,7 +481,7 @@ func TestGetNonExistingNNCDirectClient(t *testing.T) {
 		Name:      existingNNCName,
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfigFill,
 		},
 	}
@@ -578,17 +579,17 @@ func TestGetPodsNonExistingNodeDirectClient(t *testing.T) {
 
 // test that cns init gets called
 func TestInitRequestController(t *testing.T) {
-	nodeNetConfigFill := &nnc.NodeNetworkConfig{
+	nodeNetConfigFill := &v1alpha.NodeNetworkConfig{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      existingNNCName,
 			Namespace: existingNamespace,
 		},
-		Status: nnc.NodeNetworkConfigStatus{
-			NetworkContainers: []nnc.NetworkContainer{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			NetworkContainers: []v1alpha.NetworkContainer{
 				{
 					PrimaryIP: ncPrimaryIP,
 					ID:        networkContainerID,
-					IPAssignments: []nnc.IPAssignment{
+					IPAssignments: []v1alpha.IPAssignment{
 						{
 							Name: allocatedUUID,
 							IP:   allocatedPodIP,
@@ -636,7 +637,7 @@ func TestInitRequestController(t *testing.T) {
 		},
 	}
 	mockAPI := &MockAPI{
-		nodeNetConfigs: map[MockKey]*nnc.NodeNetworkConfig{
+		nodeNetConfigs: map[MockKey]*v1alpha.NodeNetworkConfig{
 			mockNNCKey: nodeNetConfigFill,
 		},
 		pods: map[MockKey]*corev1.Pod{

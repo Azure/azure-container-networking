@@ -7,7 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 func initFakes(t *testing.T,
@@ -18,7 +18,7 @@ func initFakes(t *testing.T,
 	maxPodIPCount int64) (*fakes.HTTPServiceFake, *fakes.RequestControllerFake, *CNSIPAMPoolMonitor) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 
-	scalarUnits := nnc.Scaler{
+	scalarUnits := v1alpha.Scaler{
 		BatchSize:               int64(batchSize),
 		RequestThresholdPercent: int64(requestThresholdPercent),
 		ReleaseThresholdPercent: int64(releaseThresholdPercent),

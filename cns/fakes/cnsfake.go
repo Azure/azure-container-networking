@@ -10,7 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 type StringStack struct {
@@ -18,16 +18,16 @@ type StringStack struct {
 	items []string
 }
 
-func NewFakeScalar(releaseThreshold, requestThreshold, batchSize int) nnc.Scaler {
-	return nnc.Scaler{
+func NewFakeScalar(releaseThreshold, requestThreshold, batchSize int) v1alpha.Scaler {
+	return v1alpha.Scaler{
 		BatchSize:               int64(batchSize),
 		ReleaseThresholdPercent: int64(releaseThreshold),
 		RequestThresholdPercent: int64(requestThreshold),
 	}
 }
 
-func NewFakeNodeNetworkConfigSpec(requestedIPCount int) nnc.NodeNetworkConfigSpec {
-	return nnc.NodeNetworkConfigSpec{
+func NewFakeNodeNetworkConfigSpec(requestedIPCount int) v1alpha.NodeNetworkConfigSpec {
+	return v1alpha.NodeNetworkConfigSpec{
 		RequestedIPCount: int64(requestedIPCount),
 	}
 }

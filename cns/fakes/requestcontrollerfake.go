@@ -6,7 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 )
 
@@ -14,18 +14,18 @@ var _ singletenantcontroller.RequestController = (*RequestControllerFake)(nil)
 
 type RequestControllerFake struct {
 	fakecns   *HTTPServiceFake
-	cachedCRD nnc.NodeNetworkConfig
+	cachedCRD v1alpha.NodeNetworkConfig
 	ip        net.IP
 }
 
-func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar nnc.Scaler, subnetAddressSpace string, numberOfIPConfigs int) *RequestControllerFake {
+func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar v1alpha.Scaler, subnetAddressSpace string, numberOfIPConfigs int) *RequestControllerFake {
 	rc := &RequestControllerFake{
 		fakecns: cnsService,
-		cachedCRD: nnc.NodeNetworkConfig{
-			Spec: nnc.NodeNetworkConfigSpec{},
-			Status: nnc.NodeNetworkConfigStatus{
+		cachedCRD: v1alpha.NodeNetworkConfig{
+			Spec: v1alpha.NodeNetworkConfigSpec{},
+			Status: v1alpha.NodeNetworkConfigStatus{
 				Scaler: scalar,
-				NetworkContainers: []nnc.NetworkContainer{
+				NetworkContainers: []v1alpha.NetworkContainer{
 					{
 						SubnetAddressSpace: subnetAddressSpace,
 					},
@@ -46,7 +46,7 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 	var cnsIPConfigs []cns.IPConfigurationStatus
 	for i := 0; i < numberOfIPConfigs; i++ {
 
-		ipconfigCRD := nnc.IPAssignment{
+		ipconfigCRD := v1alpha.IPAssignment{
 			Name: uuid.New().String(),
 			IP:   rc.ip.String(),
 		}
@@ -79,12 +79,12 @@ func (rc *RequestControllerFake) IsStarted() bool {
 	return true
 }
 
-func (rc *RequestControllerFake) UpdateCRDSpec(_ context.Context, desiredSpec nnc.NodeNetworkConfigSpec) error {
+func (rc *RequestControllerFake) UpdateCRDSpec(_ context.Context, desiredSpec v1alpha.NodeNetworkConfigSpec) error {
 	rc.cachedCRD.Spec = desiredSpec
 	return nil
 }
 
-func remove(slice []nnc.IPAssignment, s int) []nnc.IPAssignment {
+func remove(slice []v1alpha.IPAssignment, s int) []v1alpha.IPAssignment {
 	return append(slice[:s], slice[s+1:]...)
 }
 

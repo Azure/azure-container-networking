@@ -9,7 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 const defaultMaxIPCount = int64(250)
@@ -17,11 +17,11 @@ const defaultMaxIPCount = int64(250)
 type CNSIPAMPoolMonitor struct {
 	MaximumFreeIps           int64
 	MinimumFreeIps           int64
-	cachedNNC                nnc.NodeNetworkConfig
+	cachedNNC                v1alpha.NodeNetworkConfig
 	httpService              cns.HTTPService
 	mu                       sync.RWMutex
 	rc                       singletenantcontroller.RequestController
-	scalarUnits              nnc.Scaler
+	scalarUnits              v1alpha.Scaler
 	updatingIpsNotInUseCount int
 }
 
@@ -229,8 +229,8 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 }
 
 // createNNCSpecForCRD translates CNS's map of IPs to be released and requested IP count into an NNC Spec.
-func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() nnc.NodeNetworkConfigSpec {
-	var spec nnc.NodeNetworkConfigSpec
+func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() v1alpha.NodeNetworkConfigSpec {
+	var spec v1alpha.NodeNetworkConfigSpec
 
 	// Update the count from cached spec
 	spec.RequestedIPCount = pm.cachedNNC.Spec.RequestedIPCount
@@ -245,7 +245,7 @@ func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() nnc.NodeNetworkConfigSpec {
 }
 
 // UpdatePoolLimitsTransacted called by request controller on reconcile to set the batch size limits
-func (pm *CNSIPAMPoolMonitor) Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) {
+func (pm *CNSIPAMPoolMonitor) Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
