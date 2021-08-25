@@ -58,7 +58,9 @@ func (pm *CNSIPAMPoolMonitor) Reconcile(ctx context.Context) error {
 	allocatedPodIPCount := len(pm.httpService.GetAllocatedIPConfigs())
 	pendingReleaseIPCount := len(pm.httpService.GetPendingReleaseIPConfigs())
 	availableIPConfigCount := len(pm.httpService.GetAvailableIPConfigs()) // TODO: add pending allocation count to real cns
-	freeIPConfigCount := pm.cachedNNC.Spec.RequestedIPCount - int64(allocatedPodIPCount)
+	requestedIPConfigCount := pm.cachedNNC.Spec.RequestedIPCount
+	unallocatedIPConfigCount := cnsPodIPConfigCount - allocatedPodIPCount
+	freeIPConfigCount := requestedIPConfigCount - int64(allocatedPodIPCount)
 	batchSize := pm.getBatchSize() // Use getters in case customer changes batchsize manually
 	maxIPCount := pm.getMaxIPCount()
 
@@ -73,6 +75,8 @@ func (pm *CNSIPAMPoolMonitor) Reconcile(ctx context.Context) error {
 	ipamMaxIPCount.Set(float64(maxIPCount))
 	ipamPendingProgramIPCount.Set(float64(pendingProgramCount))
 	ipamPendingReleaseIPCount.Set(float64(pendingReleaseIPCount))
+	ipamRequestedIPConfigCount.Set(float64(requestedIPConfigCount))
+	ipamUnallocatedIPCount.Set(float64(unallocatedIPConfigCount))
 
 	switch {
 	// pod count is increasing
@@ -138,7 +142,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize(ctx context.Context) error {
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
 	// start an alloc timer
-	metric.StartIPAllocTimer(int(batchSize))
+	metric.StartPoolIncreaseTimer(int(batchSize))
 	// save the updated state to cachedSpec
 	pm.cachedNNC.Spec = tempNNCSpec
 	return nil
@@ -208,7 +212,7 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(ctx context.Context, existingPend
 
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
 	// start a dealloc timer
-	metric.StartIPDeallocTimer(int(batchSize))
+	metric.StartPoolDecreaseTimer(int(batchSize))
 
 	// save the updated state to cachedSpec
 	pm.cachedNNC.Spec = tempNNCSpec
@@ -268,6 +272,13 @@ func (pm *CNSIPAMPoolMonitor) Update(scalar v1alpha.Scaler, spec v1alpha.NodeNet
 	pm.MaximumFreeIps = int64(float64(pm.getBatchSize()) * (float64(pm.scalarUnits.ReleaseThresholdPercent) / 100))
 
 	pm.cachedNNC.Spec = spec
+
+	// if the nnc has conveged, observe the pool scaling latency (if any)
+	allocatedIPs := len(pm.httpService.GetPodIPConfigState()) - len(pm.httpService.GetPendingReleaseIPConfigs())
+	if int(pm.cachedNNC.Spec.RequestedIPCount) == allocatedIPs {
+		// observe elapsed duration for IP alloc/dealloc
+		metric.ObserverPoolScaleLatency()
+	}
 
 	logger.Printf("[ipam-pool-monitor] Update spec %+v, pm.MinimumFreeIps %d, pm.MaximumFreeIps %d",
 		pm.cachedNNC.Spec, pm.MinimumFreeIps, pm.MaximumFreeIps)

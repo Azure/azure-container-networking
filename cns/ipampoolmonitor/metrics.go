@@ -54,6 +54,18 @@ var (
 			Help: "Pending release IP count.",
 		},
 	)
+	ipamRequestedIPConfigCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "ipam_reuested_ips",
+			Help: "Requested IP count.",
+		},
+	)
+	ipamUnallocatedIPCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "ipam_unallocated_ips",
+			Help: "Unallocated IP count.",
+		},
+	)
 )
 
 func init() {

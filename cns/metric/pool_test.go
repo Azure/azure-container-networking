@@ -40,16 +40,16 @@ func newMockObserverVec() *mockObserverVec {
 	}
 }
 
-func TestObserveIPAllocLatency(t *testing.T) {
+func TestObservePoolScaleLatency(t *testing.T) {
 	mockAllocLatency := newMockObserverVec()
 	mockDeallocLatency := newMockObserverVec()
-	allocLatency = mockAllocLatency
-	deallocLatency = mockDeallocLatency
+	incLatency = mockAllocLatency
+	decLatency = mockDeallocLatency
 
 	start := time.Now()
-	StartIPAllocTimer(1)
-	StartIPDeallocTimer(1)
-	ObserveIPAllocLatency()
+	StartPoolIncreaseTimer(1)
+	StartPoolDecreaseTimer(1)
+	ObserverPoolScaleLatency()
 	elapsed := time.Since(start)
 
 	assert.ElementsMatch(t, []string{"1"}, mockAllocLatency.observer.labels)
@@ -57,11 +57,11 @@ func TestObserveIPAllocLatency(t *testing.T) {
 	assert.GreaterOrEqual(t, elapsed.Seconds(), mockAllocLatency.observer.observed)
 	assert.GreaterOrEqual(t, elapsed.Seconds(), mockDeallocLatency.observer.observed)
 
-	StartIPAllocTimer(2)
-	StartIPDeallocTimer(2)
+	StartPoolIncreaseTimer(2)
+	StartPoolDecreaseTimer(2)
 	start = time.Now()
 	elapsed = time.Since(start)
-	ObserveIPAllocLatency()
+	ObserverPoolScaleLatency()
 
 	assert.ElementsMatch(t, []string{"2"}, mockAllocLatency.observer.labels)
 	assert.ElementsMatch(t, []string{"2"}, mockDeallocLatency.observer.labels)
@@ -72,14 +72,14 @@ func TestObserveIPAllocLatency(t *testing.T) {
 func TestNonBlocking(t *testing.T) {
 	mockAllocLatency := newMockObserverVec()
 	mockDeallocLatency := newMockObserverVec()
-	allocLatency = mockAllocLatency
-	deallocLatency = mockDeallocLatency
-	StartIPAllocTimer(1)
-	StartIPDeallocTimer(1)
-	StartIPAllocTimer(2)
-	StartIPDeallocTimer(2)
-	ObserveIPAllocLatency()
-	ObserveIPAllocLatency()
+	incLatency = mockAllocLatency
+	decLatency = mockDeallocLatency
+	StartPoolIncreaseTimer(1)
+	StartPoolDecreaseTimer(1)
+	StartPoolIncreaseTimer(2)
+	StartPoolDecreaseTimer(2)
+	ObserverPoolScaleLatency()
+	ObserverPoolScaleLatency()
 	assert.Equal(t, 1, mockAllocLatency.observer.called)
 	assert.Equal(t, 1, mockDeallocLatency.observer.called)
 	assert.ElementsMatch(t, []string{"1"}, mockAllocLatency.observer.labels)

@@ -30,22 +30,22 @@ import (
 // way to decorrelate that update with the in-flight requests and will record
 // a very short response latency.
 
-var allocLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
+var incLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		//nolint:gomnd
 		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), // 50 ms to ~800 seconds
-		Help:    "IP allocation latency in seconds by batch size",
-		Name:    "ip_alloc_latency_seconds",
+		Help:    "IP pool size increase latency in seconds by batch size",
+		Name:    "ip_pool_inc_latency_seconds",
 	},
 	[]string{"batch"},
 )
 
-var deallocLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
+var decLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		//nolint:gomnd
 		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), // 50 ms to ~800 seconds
-		Help:    "IP deallocation latency in seconds by batch size",
-		Name:    "ip_dealloc_latency_seconds",
+		Help:    "IP pool size decrease latency in seconds by batch size",
+		Name:    "ip_pool_dec_latency_seconds",
 	},
 	[]string{"batch"},
 )
@@ -56,56 +56,56 @@ type scaleEvent struct {
 }
 
 var (
-	allocEvents   = make(chan scaleEvent, 1)
-	deallocEvents = make(chan scaleEvent, 1)
+	incEvents = make(chan scaleEvent, 1)
+	decEvents = make(chan scaleEvent, 1)
 )
 
-// StartIPAllocTimer records the start of an IP allocation request.
+// StartPoolIncreaseTimer records the start of an IP allocation request.
 // If an IP allocation request is already in flight, this method noops.
-func StartIPAllocTimer(batch int) {
+func StartPoolIncreaseTimer(batch int) {
 	e := scaleEvent{
 		start: time.Now(),
 		batch: batch,
 	}
 	select {
-	case allocEvents <- e:
+	case incEvents <- e:
 	default:
 	}
 }
 
-// StartIPDeallocTimer records the start of an IP deallocation request.
+// StartPoolDecreaseTimer records the start of an IP deallocation request.
 // If an IP deallocation request is already in flight, this method noops.
-func StartIPDeallocTimer(batch int) {
+func StartPoolDecreaseTimer(batch int) {
 	e := scaleEvent{
 		start: time.Now(),
 		batch: batch,
 	}
 	select {
-	case deallocEvents <- e:
+	case decEvents <- e:
 	default:
 	}
 }
 
-// ObserveIPAllocLatency records the elapsed interval since the oldest
+// ObserverPoolScaleLatency records the elapsed interval since the oldest
 // unobserved allocation and deallocation requests. If there are no recorded
 // request starts, this method noops.
-func ObserveIPAllocLatency() {
+func ObserverPoolScaleLatency() {
 	select {
-	case e := <-allocEvents:
-		allocLatency.WithLabelValues(strconv.Itoa(e.batch)).Observe(time.Since(e.start).Seconds())
+	case e := <-incEvents:
+		incLatency.WithLabelValues(strconv.Itoa(e.batch)).Observe(time.Since(e.start).Seconds())
 	default:
 	}
 
 	select {
-	case e := <-deallocEvents:
-		deallocLatency.WithLabelValues(strconv.Itoa(e.batch)).Observe(time.Since(e.start).Seconds())
+	case e := <-decEvents:
+		decLatency.WithLabelValues(strconv.Itoa(e.batch)).Observe(time.Since(e.start).Seconds())
 	default:
 	}
 }
 
 func init() {
 	metrics.Registry.MustRegister(
-		allocLatency,
-		deallocLatency,
+		incLatency,
+		decLatency,
 	)
 }
