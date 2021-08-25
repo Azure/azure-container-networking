@@ -26,14 +26,9 @@ func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerReque
 	return nil
 }
 
-// UpdateIPAMPoolMonitor updates IPAM pool monitor.
-func (client *Client) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
-	client.RestService.IPAMPoolMonitor.Update(scalar, spec)
-}
-
 // ReconcileNCState initializes cns state
-func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
-	returnCode := client.RestService.ReconcileNCState(ncRequest, podInfoByIP, scalar, spec)
+func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc v1alpha.NodeNetworkConfig) error {
+	returnCode := client.RestService.ReconcileNCState(ncRequest, podInfoByIP, nnc)
 
 	if returnCode != 0 {
 		return fmt.Errorf("Failed to Reconcile ncState: ncRequest %+v, podInfoMap: %+v, errorCode: %d", *ncRequest, podInfoByIP, returnCode)

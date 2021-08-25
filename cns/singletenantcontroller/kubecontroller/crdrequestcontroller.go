@@ -129,9 +129,10 @@ func New(cfg Config) (*requestController, error) {
 
 	// Create reconciler
 	crdreconciler := &CrdReconciler{
-		KubeClient: mgr.GetClient(),
-		NodeName:   nodeName,
-		CNSClient:  httpClient,
+		KubeClient:      mgr.GetClient(),
+		NodeName:        nodeName,
+		CNSClient:       httpClient,
+		IPAMPoolMonitor: httpClient.RestService.IPAMPoolMonitor,
 	}
 
 	// Setup manager with reconciler
@@ -223,7 +224,8 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
-			return rc.CNSClient.ReconcileNCState(nil, nil, nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
+			//nolint:wrapcheck
+			return rc.CNSClient.ReconcileNCState(nil, nil, *nodeNetConfig)
 		}
 
 		// If it's any other error, log it and return
@@ -233,7 +235,8 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 
 	// If there are no NCs, pass nil to CNSClient
 	if len(nodeNetConfig.Status.NetworkContainers) == 0 {
-		return rc.CNSClient.ReconcileNCState(nil, nil, nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
+		//nolint:wrapcheck
+		return rc.CNSClient.ReconcileNCState(nil, nil, *nodeNetConfig)
 	}
 
 	// Convert to CreateNetworkContainerRequest
@@ -266,7 +269,8 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 	}
 
 	// Call cnsclient init cns passing those two things
-	return rc.CNSClient.ReconcileNCState(&ncRequest, podInfoByIPProvider.PodInfoByIP(), nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
+	//nolint:wrapcheck
+	return rc.CNSClient.ReconcileNCState(&ncRequest, podInfoByIPProvider.PodInfoByIP(), *nodeNetConfig)
 }
 
 // kubePodsToPodInfoByIP maps kubernetes pods to cns.PodInfos by IP

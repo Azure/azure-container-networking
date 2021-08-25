@@ -79,27 +79,15 @@ func (mr *MockAPIClientMockRecorder) GetNC(nc interface{}) *gomock.Call {
 }
 
 // ReconcileNCState mocks base method.
-func (m *MockAPIClient) ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
+func (m *MockAPIClient) ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.PodInfo, nnc v1alpha.NodeNetworkConfig) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReconcileNCState", nc, pods, scalar, spec)
+	ret := m.ctrl.Call(m, "ReconcileNCState", nc, pods, nnc)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ReconcileNCState indicates an expected call of ReconcileNCState.
-func (mr *MockAPIClientMockRecorder) ReconcileNCState(nc, pods, scalar, spec interface{}) *gomock.Call {
+func (mr *MockAPIClientMockRecorder) ReconcileNCState(nc, pods, nnc interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconcileNCState", reflect.TypeOf((*MockAPIClient)(nil).ReconcileNCState), nc, pods, scalar, spec)
-}
-
-// UpdateIPAMPoolMonitor mocks base method.
-func (m *MockAPIClient) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateIPAMPoolMonitor", scalar, spec)
-}
-
-// UpdateIPAMPoolMonitor indicates an expected call of UpdateIPAMPoolMonitor.
-func (mr *MockAPIClientMockRecorder) UpdateIPAMPoolMonitor(scalar, spec interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateIPAMPoolMonitor", reflect.TypeOf((*MockAPIClient)(nil).UpdateIPAMPoolMonitor), scalar, spec)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconcileNCState", reflect.TypeOf((*MockAPIClient)(nil).ReconcileNCState), nc, pods, nnc)
 }

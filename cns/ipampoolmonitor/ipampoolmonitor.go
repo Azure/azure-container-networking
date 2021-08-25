@@ -245,16 +245,16 @@ func (pm *CNSIPAMPoolMonitor) createNNCSpecForCRD() v1alpha.NodeNetworkConfigSpe
 }
 
 // UpdatePoolLimitsTransacted called by request controller on reconcile to set the batch size limits
-func (pm *CNSIPAMPoolMonitor) Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
+func (pm *CNSIPAMPoolMonitor) Update(nnc v1alpha.NodeNetworkConfig) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	pm.scalarUnits = scalar
+	pm.scalarUnits = nnc.Status.Scaler
 
 	pm.MinimumFreeIps = int64(float64(pm.getBatchSize()) * (float64(pm.scalarUnits.RequestThresholdPercent) / 100))
 	pm.MaximumFreeIps = int64(float64(pm.getBatchSize()) * (float64(pm.scalarUnits.ReleaseThresholdPercent) / 100))
 
-	pm.cachedNNC.Spec = spec
+	pm.cachedNNC.Spec = nnc.Spec
 
 	logger.Printf("[ipam-pool-monitor] Update spec %+v, pm.MinimumFreeIps %d, pm.MaximumFreeIps %d",
 		pm.cachedNNC.Spec, pm.MinimumFreeIps, pm.MaximumFreeIps)

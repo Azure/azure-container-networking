@@ -119,7 +119,7 @@ func (rc *RequestControllerFake) Reconcile(removePendingReleaseIPs bool) error {
 	}
 
 	// update
-	rc.fakecns.PoolMonitor.Update(rc.cachedCRD.Status.Scaler, rc.cachedCRD.Spec)
+	rc.fakecns.PoolMonitor.Update(rc.cachedCRD)
 
 	return nil
 }

@@ -73,7 +73,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	r.CNSClient.UpdateIPAMPoolMonitor(nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
+	r.IPAMPoolMonitor.Update(nodeNetConfig)
 	return reconcile.Result{}, err
 }
 

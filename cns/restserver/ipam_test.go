@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 var (
@@ -613,8 +614,12 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
 	svc.IPAMPoolMonitor.Update(
-		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
-		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+		v1alpha.NodeNetworkConfig{
+			Status: v1alpha.NodeNetworkConfigStatus{
+				Scaler: fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
+			},
+			Spec: fakes.NewFakeNodeNetworkConfigSpec(initPoolSize),
+		})
 
 	// Release pending programming IPs
 	ips, err := svc.MarkIPAsPendingRelease(2)

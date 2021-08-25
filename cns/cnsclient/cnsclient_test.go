@@ -74,8 +74,12 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	}
 
 	svc.IPAMPoolMonitor.Update(
-		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
-		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+		v1alpha.NodeNetworkConfig{
+			Status: v1alpha.NodeNetworkConfigStatus{
+				Scaler: fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
+			},
+			Spec: fakes.NewFakeNodeNetworkConfigSpec(initPoolSize),
+		})
 }
 
 func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {

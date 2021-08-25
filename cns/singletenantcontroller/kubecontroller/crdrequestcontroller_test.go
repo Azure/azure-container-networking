@@ -102,7 +102,7 @@ func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRe
 	return nil
 }
 
-func (mi *MockCNSClient) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
+func (mi *MockCNSClient) UpdateIPAMPoolMonitor(v1alpha.NodeNetworkConfig) {
 }
 
 func (mi *MockCNSClient) DeleteNC(nc cns.DeleteNetworkContainerRequest) error {
@@ -113,7 +113,7 @@ func (mi *MockCNSClient) GetNC(nc cns.GetNetworkContainerRequest) (cns.GetNetwor
 	return cns.GetNetworkContainerResponse{NetworkContainerID: nc.NetworkContainerid}, nil
 }
 
-func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
+func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc v1alpha.NodeNetworkConfig) error {
 	mi.MockCNSInitialized = true
 	mi.Pods = podInfoByIP
 	mi.NCRequest = ncRequest

@@ -14,11 +14,11 @@ type IPAMPoolMonitorFake struct {
 	FakecachedNNC        v1alpha.NodeNetworkConfig
 }
 
-func (ipm *IPAMPoolMonitorFake) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
+func (ipm *IPAMPoolMonitorFake) Start(context.Context, int) error {
 	return nil
 }
 
-func (ipm *IPAMPoolMonitorFake) Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {}
+func (ipm *IPAMPoolMonitorFake) Update(v1alpha.NodeNetworkConfig) {}
 
 func (ipm *IPAMPoolMonitorFake) Reconcile() error {
 	return nil
