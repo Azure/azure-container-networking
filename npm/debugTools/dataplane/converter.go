@@ -47,7 +47,6 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 
 // NpmCache initialize NPM cache from node.
 func (c *Converter) NpmCache() error {
-	c.NPMCache = &cache.NPMCache{}
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
@@ -63,6 +62,7 @@ func (c *Converter) NpmCache() error {
 	}
 	defer resp.Body.Close()
 
+	c.NPMCache = &cache.NPMCache{}
 	c.NPMCache, err = cache.Decode(resp.Body)
 	if err != nil {
 		return err

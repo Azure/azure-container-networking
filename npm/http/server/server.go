@@ -26,7 +26,7 @@ type NPMRestServer struct {
 	router           *mux.Router
 }
 
-func (n *NPMRestServer) NPMRestServerListenAndServe(NPMEncoder npm.NetworkPolicyManagerEncoder) {
+func (n *NPMRestServer) NPMRestServerListenAndServe(npmEncoder npm.NetworkPolicyManagerEncoder) {
 	n.router = mux.NewRouter()
 
 	//prometheus handlers
@@ -34,7 +34,7 @@ func (n *NPMRestServer) NPMRestServerListenAndServe(NPMEncoder npm.NetworkPolicy
 	n.router.Handle(api.ClusterMetricsPath, metrics.GetHandler(false))
 
 	// ACN CLI debug handlerss
-	n.router.Handle(api.NPMMgrPath, n.GetNpmMgr(NPMEncoder)).Methods(http.MethodGet)
+	n.router.Handle(api.NPMMgrPath, n.npmCacheHandler(npmEncoder)).Methods(http.MethodGet)
 
 	n.router.PathPrefix("/debug/").Handler(http.DefaultServeMux)
 	n.router.HandleFunc("/debug/pprof/", pprof.Index)
@@ -63,9 +63,9 @@ func NewNpmRestServer(listeningAddress string) *NPMRestServer {
 	}
 }
 
-func (n *NPMRestServer) GetNpmMgr(NPMEncoder npm.NetworkPolicyManagerEncoder) http.Handler {
+func (n *NPMRestServer) npmCacheHandler(npmEncoder npm.NetworkPolicyManagerEncoder) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := cache.Encode(w, NPMEncoder)
+		err := cache.Encode(w, npmEncoder)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return

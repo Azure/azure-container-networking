@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/util/wait"
+	k8sversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -39,6 +40,28 @@ func initLogging() error {
 	}
 
 	return nil
+}
+func k8sServerVersion(clientset *kubernetes.Clientset) *k8sversion.Info {
+	var err error
+	var serverVersion *k8sversion.Info
+	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
+		<-ticker
+		serverVersion, err = clientset.ServerVersion()
+		if err == nil {
+			break
+		}
+	}
+
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
+		panic(err.Error)
+	}
+
+	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
+		panic(err.Error)
+	}
+	return serverVersion
 }
 
 func main() {
@@ -78,15 +101,14 @@ func main() {
 
 	// Setting reSyncPeriod to 15 mins
 	minResyncPeriod := resyncPeriodInMinutes * time.Minute
-
 	// Adding some randomness so all NPM pods will not request for info at once.
 	factor := rand.Float64() + 1
 	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
-
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version)
+	k8sServerVersion := k8sServerVersion(clientset)
+	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version, k8sServerVersion)
 	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v.", err)

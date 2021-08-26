@@ -17,6 +17,7 @@ type NPMCache struct {
 	SetMap   map[string]*ipsm.Ipset
 }
 
+// Decode returns NPMCache object after decoding data.
 // TODO(jungukcho): This Decode has tight ordering for decoding data due to dependency with Encode function.
 // It needs to find a way of relaxing this strong ordering.
 func Decode(reader io.Reader) (*NPMCache, error) {
@@ -46,10 +47,11 @@ func Decode(reader io.Reader) (*NPMCache, error) {
 	return cache, nil
 }
 
+// Encode returns encoded NPMCache data.
 // TODO(jungukcho): This Encode has tight ordering for encoding data due to dependency with Decode function.
 // It needs to find a way of relaxing this strong ordering.
-func Encode(writer io.Writer, NPMEncoder npm.NetworkPolicyManagerEncoder) error {
-	if err := NPMEncoder.Encode(writer); err != nil {
+func Encode(writer io.Writer, npmEncoder npm.NetworkPolicyManagerEncoder) error {
+	if err := npmEncoder.Encode(writer); err != nil {
 		return fmt.Errorf("failed to encode NPMCache %w", err)
 	}
 

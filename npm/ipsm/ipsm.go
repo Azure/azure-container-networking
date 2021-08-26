@@ -37,8 +37,8 @@ type ipsEntry struct {
 // Hold lock only exposed methods are called to avoid race condition from all controllers
 type IpsetManager struct {
 	exec    utilexec.Interface
-	listMap map[string]*Ipset //tracks all set lists.
-	setMap  map[string]*Ipset //label -> []ip
+	listMap map[string]*Ipset // tracks all set lists.
+	setMap  map[string]*Ipset // label -> []ip
 	sync.Mutex
 }
 
@@ -82,10 +82,8 @@ func (ipsMgr *IpsetManager) Encode(enc *json.Encoder) error {
 	if err := enc.Encode(ipsMgr.listMap); err != nil {
 		return err
 	}
-	if err := enc.Encode(ipsMgr.setMap); err != nil {
-		return err
-	}
-	return nil
+
+	return enc.Encode(ipsMgr.setMap)
 }
 
 // Exists checks if an element exists in setMap/listMap.

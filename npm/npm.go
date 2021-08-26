@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	"github.com/Azure/azure-container-networking/log"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -51,8 +50,7 @@ type NetworkPolicyManagerEncoder interface {
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
-	clientset *kubernetes.Clientset
-
+	clientset       kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	podInformer     coreinformers.PodInformer
 	podController   *podController
@@ -69,35 +67,16 @@ type NetworkPolicyManager struct {
 	npmNamespaceCache *npmNamespaceCache
 	// Azure-specific variables
 	clusterState     telemetry.ClusterState
-	serverVersion    *version.Info
+	k8sServerVersion *version.Info
 	NodeName         string
 	version          string
 	TelemetryEnabled bool
 }
 
 // NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory,
-	exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
-	var serverVersion *version.Info
-	var err error
-	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
-		<-ticker
-		serverVersion, err = clientset.ServerVersion()
-		if err == nil {
-			break
-		}
-	}
-
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
-		panic(err.Error)
-	}
-	log.Logf("API server version: %+v ai meta data", serverVersion, aiMetadata)
-
-	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
-		panic(err.Error)
-	}
+func NewNetworkPolicyManager(clientset kubernetes.Interface, informerFactory informers.SharedInformerFactory,
+	exec utilexec.Interface, npmVersion string, k8sServerVersion *version.Info) *NetworkPolicyManager {
+	klog.Infof("API server version: %+v ai meta data %+v", k8sServerVersion, aiMetadata)
 
 	npMgr := &NetworkPolicyManager{
 		clientset:         clientset,
@@ -112,7 +91,7 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 			NsCount:       0,
 			NwPolicyCount: 0,
 		},
-		serverVersion:    serverVersion,
+		k8sServerVersion: k8sServerVersion,
 		NodeName:         os.Getenv("HOSTNAME"),
 		version:          npmVersion,
 		TelemetryEnabled: true,
@@ -135,20 +114,15 @@ func (npMgr *NetworkPolicyManager) encode(enc *json.Encoder) error {
 
 	npMgr.npmNamespaceCache.Lock()
 	defer npMgr.npmNamespaceCache.Unlock()
-	if err := enc.Encode(npMgr.npmNamespaceCache.nsMap); err != nil {
-		return err
-	}
-
-	return nil
+	return enc.Encode(npMgr.npmNamespaceCache.nsMap)
 }
 
-// Encode retuns all information of pod, namespace, ipsm map information.
+// Encode returns all information of pod, namespace, ipsm map information.
 // TODO(jungukcho): While this approach is beneficial to hold separate lock instead of global lock,
 // it has strict ordering limitation between encoding and decoding.
 // Will find flexible way by maintaining performance benefit.
 func (npMgr *NetworkPolicyManager) Encode(writer io.Writer) error {
 	enc := json.NewEncoder(writer)
-
 	if err := npMgr.encode(enc); err != nil {
 		return err
 	}
@@ -157,11 +131,7 @@ func (npMgr *NetworkPolicyManager) Encode(writer io.Writer) error {
 		return err
 	}
 
-	if err := npMgr.ipsMgr.Encode(enc); err != nil {
-		return err
-	}
-
-	return nil
+	return npMgr.ipsMgr.Encode(enc)
 }
 
 // GetClusterState returns current cluster state.
@@ -204,7 +174,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	var (
 		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
 		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.NodeName),
-			"APIServer": npMgr.serverVersion.String()}
+			"APIServer": npMgr.k8sServerVersion.String()}
 		podCount = aitelemetry.Metric{
 			Name:             "PodCount",
 			CustomDimensions: customDimensions,
