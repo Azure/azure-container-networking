@@ -38,3 +38,10 @@ var (
 	errInvalidInput     = errors.New("invalid input")
 	errSetType          = errors.New("invalid set type")
 )
+
+// To test paser, converter, and trafficAnalyzer with stored files.
+const (
+	iptableSaveFile              = "../testFiles/iptableSave"
+	npmCacheFile                 = "../testFiles/npmCache.json"
+	npmCacheWithCustomFormatFile = "../testFiles/npmCacheWithCustomFormat.json"
+)

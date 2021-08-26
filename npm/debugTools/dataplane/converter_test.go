@@ -10,16 +10,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-const (
-	iptableSaveFile = "../testFiles/iptableSave"
-	npmCacheFile    = "../testFiles/npmCache.json"
-)
-
 func TestGetJSONRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
 	_, err := c.GetJSONRulesFromIptableFile(
 		util.IptablesFilterTable,
-		npmCacheFile,
+		npmCacheWithCustomFormatFile,
 		iptableSaveFile,
 	)
 	if err != nil {
@@ -31,7 +26,7 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
 	_, err := c.GetProtobufRulesFromIptableFile(
 		util.IptablesFilterTable,
-		npmCacheFile,
+		npmCacheWithCustomFormatFile,
 		iptableSaveFile,
 	)
 	if err != nil {
@@ -41,9 +36,9 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 
 func TestNpmCacheFromFile(t *testing.T) {
 	c := &Converter{}
-	err := c.NpmCacheFromFile(npmCacheFile)
+	err := c.NpmCacheFromFile(npmCacheWithCustomFormatFile)
 	if err != nil {
-		t.Errorf("error during TestNpmCacheFromFile : %w", err)
+		t.Errorf("Failed to decode NPMCache from %s file : %w", npmCacheWithCustomFormatFile, err)
 	}
 }
 
@@ -96,7 +91,7 @@ func TestGetSetType(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheFile)
+	err := c.initConverterFile(npmCacheWithCustomFormatFile)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}
@@ -318,7 +313,7 @@ func TestGetRulesFromChain(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheFile)
+	err := c.initConverterFile(npmCacheWithCustomFormatFile)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}
@@ -507,7 +502,7 @@ func TestGetModulesFromRule(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheFile)
+	err := c.initConverterFile(npmCacheWithCustomFormatFile)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}

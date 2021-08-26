@@ -37,7 +37,6 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 	}
 
 	defer file.Close()
-	c.NPMCache = &cache.NPMCache{}
 	c.NPMCache, err = cache.Decode(bufio.NewReader(file))
 	if err != nil {
 		return fmt.Errorf("failed to decode npm cache due to : %w", err)
@@ -62,7 +61,6 @@ func (c *Converter) NpmCache() error {
 	}
 	defer resp.Body.Close()
 
-	c.NPMCache = &cache.NPMCache{}
 	c.NPMCache, err = cache.Decode(resp.Body)
 	if err != nil {
 		return err
