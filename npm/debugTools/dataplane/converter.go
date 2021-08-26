@@ -17,9 +17,9 @@ import (
 	"github.com/Azure/azure-container-networking/npm/debugTools/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/debugTools/pb"
 	"github.com/Azure/azure-container-networking/npm/http/api"
+	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"google.golang.org/protobuf/encoding/protojson"
-	networkingv1 "k8s.io/api/networking/v1"
 )
 
 // Converter struct
@@ -32,13 +32,11 @@ type Converter struct {
 
 // NPMCache struct
 type NPMCache struct {
-	Exec             interface{}
-	Nodename         string
-	NsMap            map[string]*npm.Namespace
-	PodMap           map[string]*npm.NpmPod
-	RawNpMap         map[string]*networkingv1.NetworkPolicy
-	ProcessedNpMap   map[string]*networkingv1.NetworkPolicy
-	TelemetryEnabled bool
+	Nodename string
+	NsMap    map[string]*npm.Namespace
+	PodMap   map[string]*npm.NpmPod
+	ListMap  map[string]*ipsm.Ipset
+	SetMap   map[string]*ipsm.Ipset
 }
 
 // NpmCacheFromFile initialize NPM cache from file.
@@ -114,11 +112,11 @@ func (c *Converter) initConverterMaps() {
 	c.ListMap = make(map[string]string)
 	c.SetMap = make(map[string]string)
 
-	for k := range c.NPMCache.NsMap[util.KubeAllNamespacesFlag].IpsMgr.ListMap {
+	for k := range c.NPMCache.ListMap {
 		hashedName := util.GetHashedName(k)
 		c.ListMap[hashedName] = k
 	}
-	for k := range c.NPMCache.NsMap[util.KubeAllNamespacesFlag].IpsMgr.SetMap {
+	for k := range c.NPMCache.SetMap {
 		hashedName := util.GetHashedName(k)
 		c.SetMap[hashedName] = k
 	}

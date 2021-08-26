@@ -62,8 +62,8 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
 	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
-	f.nsController = NewNameSpaceController(f.kubeInformer.Core().V1().Namespaces(), f.kubeclient, f.ipsMgr, npmNamespaceCache)
-	f.nsController.nameSpaceListerSynced = alwaysReady
+	f.nsController = NewNameSpaceController(
+		f.kubeInformer.Core().V1().Namespaces(), f.kubeclient, f.ipsMgr, npmNamespaceCache)
 
 	for _, ns := range f.nsLister {
 		f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Add(ns)
@@ -499,7 +499,8 @@ func TestIsSystemNs(t *testing.T) {
 func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expectedNsValues) {
 	for _, test := range testCases {
 		if got := len(f.nsController.npmNamespaceCache.nsMap); got != test.expectedLenOfNsMap {
-			f.t.Errorf("NsMap length = %d, want %d. Map: %+v", got, test.expectedLenOfNsMap, f.nsController.npmNamespaceCache.nsMap)
+			f.t.Errorf("NsMap length = %d, want %d. Map: %+v",
+				got, test.expectedLenOfNsMap, f.nsController.npmNamespaceCache.nsMap)
 		}
 		if got := f.nsController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
 			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)

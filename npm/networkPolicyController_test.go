@@ -45,7 +45,7 @@ func newNetPolFixture(t *testing.T, utilexec exec.Interface) *netPolFixture {
 		netPolLister: []*networkingv1.NetworkPolicy{},
 		kubeobjects:  []runtime.Object{},
 		ipsMgr:       ipsm.NewIpsetManager(utilexec),
-		//iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewFakeIptOperationShim()),
+		// iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewFakeIptOperationShim()),
 	}
 
 	// While running "make test-all", metrics hold states which was executed in previous unit test.
@@ -59,8 +59,8 @@ func (f *netPolFixture) newNetPolController(stopCh chan struct{}) {
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 
-	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(), f.kubeclient, f.ipsMgr)
-	f.netPolController.netPolListerSynced = alwaysReady
+	f.netPolController = NewNetworkPolicyController(
+		f.kubeInformer.Networking().V1().NetworkPolicies(), f.kubeclient, f.ipsMgr)
 
 	for _, netPol := range f.netPolLister {
 		f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)

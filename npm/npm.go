@@ -36,7 +36,8 @@ const (
 )
 
 // Cache to store namespace struct in nameSpaceController.go.
-// Since this cache is shared between podController and NameSpaceController, it has mutex for avoiding racing condition between them.
+// Since this cache is shared between podController and NameSpaceController,
+// it has mutex for avoiding racing condition between them.
 type npmNamespaceCache struct {
 	sync.Mutex
 	nsMap map[string]*Namespace // Key is ns-<nsname>
@@ -56,7 +57,8 @@ type NetworkPolicyManager struct {
 	npInformer       networkinginformers.NetworkPolicyInformer
 	netPolController *networkPolicyController
 
-	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management and uses lock to avoid unintentional race condictions in IpsetManager.
+	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management
+	// and uses lock to avoid unintentional race condictions in IpsetManager.
 	ipsMgr            *ipsm.IpsetManager
 	npmNamespaceCache *npmNamespaceCache
 	// Azure-specific variables
@@ -68,7 +70,8 @@ type NetworkPolicyManager struct {
 }
 
 // NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
+func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory,
+	exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
 	var serverVersion *version.Info
 	var err error
 	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {

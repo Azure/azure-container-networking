@@ -65,14 +65,10 @@ func NewNpmRestServer(listeningAddress string) *NPMRestServer {
 
 func (n *NPMRestServer) GetNpmMgr(npMgr *npm.NetworkPolicyManager) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// QUESTION(jungukcho) What information does it need from npMgr?
-		// Is this function required to hold lock for npMgr?
-		// npMgr.Lock()
 		err := json.NewEncoder(w).Encode(npMgr)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// npMgr.Unlock()
 	})
 }

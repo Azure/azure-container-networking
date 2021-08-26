@@ -6,7 +6,6 @@ package ipsm
 import (
 	"fmt"
 	"os/exec"
-
 	"regexp"
 	"strings"
 	"sync"
@@ -37,29 +36,29 @@ type ipsEntry struct {
 // Hold lock only exposed methods are called to avoid race condition from all controllers
 type IpsetManager struct {
 	exec    utilexec.Interface
-	listMap map[string]*ipset //tracks all set lists.
-	setMap  map[string]*ipset //label -> []ip
+	listMap map[string]*Ipset //tracks all set lists.
+	setMap  map[string]*Ipset //label -> []ip
 	sync.Mutex
 }
 
 // Ipset represents one ipset entry.
-type ipset struct {
+type Ipset struct {
 	name       string
 	elements   map[string]string // key = ip, value: context associated to the ip like podKey
 	referCount int
 }
 
-func (ipset *ipset) incReferCount() {
+func (ipset *Ipset) incReferCount() {
 	ipset.referCount++
 }
 
-func (ipset *ipset) decReferCount() {
+func (ipset *Ipset) decReferCount() {
 	ipset.referCount--
 }
 
 // NewIpset creates a new instance for Ipset object.
-func newIpset(setName string) *ipset {
-	return &ipset{
+func newIpset(setName string) *Ipset {
+	return &Ipset{
 		name:       setName,
 		elements:   make(map[string]string),
 		referCount: 0,
@@ -70,8 +69,8 @@ func newIpset(setName string) *ipset {
 func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	return &IpsetManager{
 		exec:    exec,
-		listMap: make(map[string]*ipset),
-		setMap:  make(map[string]*ipset),
+		listMap: make(map[string]*Ipset),
+		setMap:  make(map[string]*Ipset),
 	}
 }
 
@@ -172,7 +171,8 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 
 	if result, isExitError := err.(utilexec.ExitError); isExitError {
 		exitCode := result.ExitStatus()
-		errfmt := fmt.Errorf("Error: There was an error running command: [%s %v] Stderr: [%v, %s]", cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
+		errfmt := fmt.Errorf("error running command: [%s %v] Stderr: [%w, %s]",
+			cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
 		if exitCode > 0 {
 			metrics.SendErrorLogAndMetric(util.IpsmID, errfmt.Error())
 		}
@@ -220,7 +220,7 @@ func (ipsMgr *IpsetManager) destroy() error {
 		return err
 	}
 
-	//TODO set IPSetInventory to 0 for all set names
+	// TODO set IPSetInventory to 0 for all set names
 	return nil
 }
 
@@ -242,7 +242,8 @@ func (ipsMgr *IpsetManager) createSet(setName string, spec []string) error {
 	log.Logf("Creating Set: %+v", entry)
 
 	// (TODO): need to differentiate errCode handler
-	// since errCode can be one in case of "set with the same name already exists" and "maximal number of sets reached, cannot create more."
+	// since errCode can be one in case of "set with the same name already exists"
+	// and "maximal number of sets reached, cannot create more."
 	// It may have more situations with errCode==1.
 	if errCode, err := ipsMgr.run(entry); err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset.")
@@ -303,7 +304,7 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		return nil
 	}
 
-	//Check if list being added exists in the listMap, if it exists we don't care about the set type
+	// Check if list being added exists in the listMap, if it exists we don't care about the set type
 	exists, _ := ipsMgr.setExists(setName)
 
 	// if set does not exist, then return because the ipset call will fail due to set not existing
@@ -350,7 +351,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
 
-	//Check if list being added exists in the listMap, if it exists we don't care about the set type
+	// Check if list being added exists in the listMap, if it exists we don't care about the set type
 	exists, _ := ipsMgr.setExists(setName)
 
 	// if set does not exist, then return because the ipset call will fail due to set not existing
@@ -360,7 +361,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 		return nil
 	}
 
-	//Check if list being added exists in the listMap, if it exists we don't care about the set type
+	// Check if list being added exists in the listMap, if it exists we don't care about the set type
 	exists, listtype := ipsMgr.setExists(listName)
 
 	// if set does not exist, then return because the ipset call will fail due to set not existing

@@ -59,7 +59,6 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 
 	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
 	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.kubeclient, f.ipsMgr, npmNamespaceCache)
-	f.podController.podListerSynced = alwaysReady
 
 	for _, pod := range f.podLister {
 		f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Add(pod)
@@ -649,8 +648,10 @@ func TestHasValidPodIP(t *testing.T) {
 	}
 }
 
-// Extra unit test which is not quite related to PodController, but help to understand how workqueue works to make event handler logic lock-free.
-// If the same key are queued into workqueue in multiple times, they are combined into one item (accurately, if the item is not processed).
+// Extra unit test which is not quite related to PodController,
+// but help to understand how workqueue works to make event handler logic lock-free.
+// If the same key are queued into workqueue in multiple times,
+// they are combined into one item (accurately, if the item is not processed).
 func TestWorkQueue(t *testing.T) {
 	labels := map[string]string{
 		"app": "test-pod",
@@ -673,7 +674,8 @@ func TestWorkQueue(t *testing.T) {
 		f.podController.workqueue.Add(podKey)
 		workQueueLength := f.podController.workqueue.Len()
 		if workQueueLength != expectedWorkQueueLength[idx] {
-			t.Errorf("TestWorkQueue failed due to returned workqueue length = %d, want %d", workQueueLength, expectedWorkQueueLength)
+			t.Errorf("TestWorkQueue failed due to returned workqueue length = %d, want %d",
+				workQueueLength, expectedWorkQueueLength)
 		}
 	}
 }
