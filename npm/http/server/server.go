@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 
+	"github.com/Azure/azure-container-networking/npm/cache"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 
@@ -26,7 +26,7 @@ type NPMRestServer struct {
 	router           *mux.Router
 }
 
-func (n *NPMRestServer) NPMRestServerListenAndServe(npMgr *npm.NetworkPolicyManager) {
+func (n *NPMRestServer) NPMRestServerListenAndServe(NPMEncoder npm.NetworkPolicyManagerEncoder) {
 	n.router = mux.NewRouter()
 
 	//prometheus handlers
@@ -34,7 +34,7 @@ func (n *NPMRestServer) NPMRestServerListenAndServe(npMgr *npm.NetworkPolicyMana
 	n.router.Handle(api.ClusterMetricsPath, metrics.GetHandler(false))
 
 	// ACN CLI debug handlerss
-	n.router.Handle(api.NPMMgrPath, n.GetNpmMgr(npMgr)).Methods(http.MethodGet)
+	n.router.Handle(api.NPMMgrPath, n.GetNpmMgr(NPMEncoder)).Methods(http.MethodGet)
 
 	n.router.PathPrefix("/debug/").Handler(http.DefaultServeMux)
 	n.router.HandleFunc("/debug/pprof/", pprof.Index)
@@ -63,9 +63,9 @@ func NewNpmRestServer(listeningAddress string) *NPMRestServer {
 	}
 }
 
-func (n *NPMRestServer) GetNpmMgr(npMgr *npm.NetworkPolicyManager) http.Handler {
+func (n *NPMRestServer) GetNpmMgr(NPMEncoder npm.NetworkPolicyManagerEncoder) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := json.NewEncoder(w).Encode(npMgr)
+		err := cache.Encode(w, NPMEncoder)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return

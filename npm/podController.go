@@ -3,8 +3,10 @@
 package npm
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
@@ -106,11 +108,12 @@ func (nPod *NpmPod) updateNpmPodAttributes(podObj *corev1.Pod) {
 }
 
 type podController struct {
-	clientset         kubernetes.Interface
-	podLister         corelisters.PodLister
-	workqueue         workqueue.RateLimitingInterface
-	ipsMgr            *ipsm.IpsetManager
-	podMap            map[string]*NpmPod // Key is <nsname>/<podname>
+	clientset kubernetes.Interface
+	podLister corelisters.PodLister
+	workqueue workqueue.RateLimitingInterface
+	ipsMgr    *ipsm.IpsetManager
+	podMap    map[string]*NpmPod // Key is <nsname>/<podname>
+	sync.Mutex
 	npmNamespaceCache *npmNamespaceCache
 }
 
@@ -133,6 +136,15 @@ func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes
 		},
 	)
 	return podController
+}
+
+func (c *podController) Encode(enc *json.Encoder) error {
+	c.Lock()
+	defer c.Unlock()
+	if err := enc.Encode(c.podMap); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *podController) lengthOfPodMap() int {
@@ -318,6 +330,9 @@ func (c *podController) syncPod(key string) error {
 
 	// Get the Pod resource with this namespace/name
 	pod, err := c.podLister.Pods(namespace).Get(name)
+
+	c.Lock()
+	defer c.Unlock()
 
 	if err != nil {
 		if errors.IsNotFound(err) {

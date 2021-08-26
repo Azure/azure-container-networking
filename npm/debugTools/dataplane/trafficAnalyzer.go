@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm"
+	"github.com/Azure/azure-container-networking/npm/cache"
 	"github.com/Azure/azure-container-networking/npm/debugTools/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -77,7 +78,7 @@ func GetNetworkTupleFile(
 // Common function.
 func getNetworkTupleCommon(
 	src, dst *Input,
-	npmCache *NPMCache,
+	npmCache *cache.NPMCache,
 	allRules []*pb.RuleResponse,
 ) ([][]byte, []*Tuple, error) {
 
@@ -129,7 +130,7 @@ func getNetworkTupleCommon(
 	return ruleResListJSON, resTupleList, nil
 }
 
-func getNPMPod(input *Input, npmCache *NPMCache) (*npm.NpmPod, error) {
+func getNPMPod(input *Input, npmCache *cache.NPMCache) (*npm.NpmPod, error) {
 	switch input.Type {
 	case PODNAME:
 		if pod, ok := npmCache.PodMap[input.Content]; ok {
@@ -208,7 +209,7 @@ func generateTuple(src, dst *npm.NpmPod, rule *pb.RuleResponse) *Tuple {
 func getHitRules(
 	src, dst *npm.NpmPod,
 	rules []*pb.RuleResponse,
-	npmCache *NPMCache,
+	npmCache *cache.NPMCache,
 ) ([]*pb.RuleResponse, error) {
 
 	res := make([]*pb.RuleResponse, 0)
@@ -266,7 +267,7 @@ func evaluateSetInfo(
 	setInfo *pb.RuleResponse_SetInfo,
 	pod *npm.NpmPod,
 	rule *pb.RuleResponse,
-	npmCache *NPMCache,
+	npmCache *cache.NPMCache,
 ) (bool, error) {
 
 	switch setInfo.Type {
@@ -291,7 +292,7 @@ func evaluateSetInfo(
 	}
 }
 
-func matchKEYVALUELABELOFNAMESPACE(pod *npm.NpmPod, npmCache *NPMCache, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYVALUELABELOFNAMESPACE(pod *npm.NpmPod, npmCache *cache.NPMCache, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	key, expectedValue := processKeyValueLabelOfNameSpace(setInfo.Name)
 	actualValue := npmCache.NsMap[srcNamespace].LabelsMap[key]
@@ -330,7 +331,7 @@ func matchNESTEDLABELOFPOD(pod *npm.NpmPod, setInfo *pb.RuleResponse_SetInfo) bo
 	return true
 }
 
-func matchKEYLABELOFNAMESPACE(pod *npm.NpmPod, npmCache *NPMCache, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYLABELOFNAMESPACE(pod *npm.NpmPod, npmCache *cache.NPMCache, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	key := strings.TrimPrefix(setInfo.Name, util.NamespacePrefix)
 	if _, ok := npmCache.NsMap[srcNamespace].LabelsMap[key]; ok {

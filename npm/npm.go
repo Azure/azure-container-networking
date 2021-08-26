@@ -4,7 +4,9 @@ package npm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -41,6 +43,10 @@ const (
 type npmNamespaceCache struct {
 	sync.Mutex
 	nsMap map[string]*Namespace // Key is ns-<nsname>
+}
+
+type NetworkPolicyManagerEncoder interface {
+	Encode(writer io.Writer) error
 }
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
@@ -120,6 +126,42 @@ func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory in
 	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, clientset, npMgr.ipsMgr)
 
 	return npMgr
+}
+
+func (npMgr *NetworkPolicyManager) encode(enc *json.Encoder) error {
+	if err := enc.Encode(npMgr.NodeName); err != nil {
+		return err
+	}
+
+	npMgr.npmNamespaceCache.Lock()
+	defer npMgr.npmNamespaceCache.Unlock()
+	if err := enc.Encode(npMgr.npmNamespaceCache.nsMap); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Encode retuns all information of pod, namespace, ipsm map information.
+// TODO(jungukcho): While this approach is beneficial to hold separate lock instead of global lock,
+// it has strict ordering limitation between encoding and decoding.
+// Will find flexible way by maintaining performance benefit.
+func (npMgr *NetworkPolicyManager) Encode(writer io.Writer) error {
+	enc := json.NewEncoder(writer)
+
+	if err := npMgr.encode(enc); err != nil {
+		return err
+	}
+
+	if err := npMgr.podController.Encode(enc); err != nil {
+		return err
+	}
+
+	if err := npMgr.ipsMgr.Encode(enc); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetClusterState returns current cluster state.

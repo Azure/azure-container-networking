@@ -4,6 +4,7 @@
 package ipsm
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -72,6 +73,19 @@ func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 		listMap: make(map[string]*Ipset),
 		setMap:  make(map[string]*Ipset),
 	}
+}
+
+func (ipsMgr *IpsetManager) Encode(enc *json.Encoder) error {
+	ipsMgr.Lock()
+	defer ipsMgr.Unlock()
+
+	if err := enc.Encode(ipsMgr.listMap); err != nil {
+		return err
+	}
+	if err := enc.Encode(ipsMgr.setMap); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Exists checks if an element exists in setMap/listMap.
