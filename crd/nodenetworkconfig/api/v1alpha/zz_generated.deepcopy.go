@@ -158,4 +158,4 @@ func (in *Scaler) DeepCopy() *Scaler {
 	out := new(Scaler)
 	in.DeepCopyInto(out)
 	return out
-}
+}	

@@ -486,8 +486,10 @@ fmt format: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
 
 # run all tests
 .PHONY: test-all
-test-all:
-	go test -tags "unit" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
+test-all:	
+	@$(eval CVPKG=`go list ./... | grep -v mock | tr '\n' ','`)
+	@echo Testing: $(CVPKG)
+	go test -tags "unit" -coverpkg=$(CVPKG) -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
 
 
 # run all tests
