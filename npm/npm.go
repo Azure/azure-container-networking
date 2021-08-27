@@ -109,12 +109,16 @@ func NewNetworkPolicyManager(clientset kubernetes.Interface, informerFactory inf
 
 func (npMgr *NetworkPolicyManager) encode(enc *json.Encoder) error {
 	if err := enc.Encode(npMgr.NodeName); err != nil {
-		return err
+		return fmt.Errorf("failed to encode nodename %w", err)
 	}
 
 	npMgr.npmNamespaceCache.Lock()
 	defer npMgr.npmNamespaceCache.Unlock()
-	return enc.Encode(npMgr.npmNamespaceCache.nsMap)
+	if err := enc.Encode(npMgr.npmNamespaceCache.nsMap); err != nil {
+		return fmt.Errorf("failed to encode npm namespace cache %w", err)
+	}
+
+	return nil
 }
 
 // Encode returns all information of pod, namespace, ipsm map information.
@@ -131,7 +135,11 @@ func (npMgr *NetworkPolicyManager) Encode(writer io.Writer) error {
 		return err
 	}
 
-	return npMgr.ipsMgr.Encode(enc)
+	if err := npMgr.ipsMgr.Encode(enc); err != nil {
+		return fmt.Errorf("failed to encode ipsm cache %w", err)
+	}
+
+	return nil
 }
 
 // GetClusterState returns current cluster state.

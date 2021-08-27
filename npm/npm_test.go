@@ -7,7 +7,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
-
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/exec"
 	utilexec "k8s.io/utils/exec"

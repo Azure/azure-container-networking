@@ -52,7 +52,7 @@ func Decode(reader io.Reader) (*NPMCache, error) {
 // It needs to find a way of relaxing this strong ordering.
 func Encode(writer io.Writer, npmEncoder npm.NetworkPolicyManagerEncoder) error {
 	if err := npmEncoder.Encode(writer); err != nil {
-		return fmt.Errorf("failed to encode NPMCache %w", err)
+		return fmt.Errorf("cannot encode NPMCache %w", err)
 	}
 
 	return nil

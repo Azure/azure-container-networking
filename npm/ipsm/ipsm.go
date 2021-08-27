@@ -75,15 +75,22 @@ func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	}
 }
 
+// Encode encodes listmap and setmap.
+// The ordering to encode them is important.
+// Do encode listMap first and then setMap.
 func (ipsMgr *IpsetManager) Encode(enc *json.Encoder) error {
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
 
 	if err := enc.Encode(ipsMgr.listMap); err != nil {
-		return err
+		return fmt.Errorf("failed to encode listMap %w", err)
 	}
 
-	return enc.Encode(ipsMgr.setMap)
+	if err := enc.Encode(ipsMgr.setMap); err != nil {
+		return fmt.Errorf("failed to encode setMap %w", err)
+	}
+
+	return nil
 }
 
 // Exists checks if an element exists in setMap/listMap.

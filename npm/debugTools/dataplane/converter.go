@@ -63,7 +63,7 @@ func (c *Converter) NpmCache() error {
 
 	c.NPMCache, err = cache.Decode(resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot decode NPM Cache : %w", err)
 	}
 
 	return nil

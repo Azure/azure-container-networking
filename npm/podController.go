@@ -141,7 +141,12 @@ func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes
 func (c *podController) Encode(enc *json.Encoder) error {
 	c.Lock()
 	defer c.Unlock()
-	return enc.Encode(c.podMap)
+
+	if err := enc.Encode(c.podMap); err != nil {
+		return fmt.Errorf("failed to encode podMap %w", err)
+	}
+
+	return nil
 }
 
 func (c *podController) lengthOfPodMap() int {
