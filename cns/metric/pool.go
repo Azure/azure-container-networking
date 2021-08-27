@@ -8,8 +8,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-// IP allocations and deallocations go through the NodeNetworkConfig
-// CRD, meaning they are asynchronous and eventually consistent, and have
+// IP pool scaling requests go through the NodeNetworkConfig CRD,
+// meaning they are asynchronous and eventually consistent, and have
 // no guarantees on the order they are processed in. It's currently
 // impractical to include an identifier with these requests that could
 // be used to correlate the request with the result.

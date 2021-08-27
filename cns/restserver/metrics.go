@@ -8,9 +8,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-var requestLatency = prometheus.NewHistogramVec(
+var httpRequestLatency = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Name: "request_latency_seconds",
+		Name: "http_request_latency_seconds",
 		Help: "Request latency in seconds by endpoint, verb, and response code.",
 		//nolint:gomnd
 		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1 ms to ~16 seconds
@@ -24,7 +24,7 @@ var requestLatency = prometheus.NewHistogramVec(
 
 func init() {
 	metrics.Registry.MustRegister(
-		requestLatency,
+		httpRequestLatency,
 	)
 }
 

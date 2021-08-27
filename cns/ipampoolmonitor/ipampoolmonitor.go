@@ -276,7 +276,7 @@ func (pm *CNSIPAMPoolMonitor) Update(scalar v1alpha.Scaler, spec v1alpha.NodeNet
 	// if the nnc has conveged, observe the pool scaling latency (if any)
 	allocatedIPs := len(pm.httpService.GetPodIPConfigState()) - len(pm.httpService.GetPendingReleaseIPConfigs())
 	if int(pm.cachedNNC.Spec.RequestedIPCount) == allocatedIPs {
-		// observe elapsed duration for IP alloc/dealloc
+		// observe elapsed duration for IP pool scaling
 		metric.ObserverPoolScaleLatency()
 	}
 
