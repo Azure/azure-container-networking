@@ -2,7 +2,6 @@ package kubecontroller
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -36,6 +36,7 @@ type Config struct {
 	// InitializeFromCNI whether or not to initialize CNS state from k8s/CRDs
 	InitializeFromCNI bool
 	KubeConfig        *rest.Config
+	NodeName          string
 }
 
 var _ singletenantcontroller.RequestController = (*requestController)(nil)
@@ -72,16 +73,11 @@ func GetKubeConfig() (*rest.Config, error) {
 }
 
 // New returns a crdRequestController struct built from the passed config.
+//nolint:revive
 func New(cfg Config, cnsClient cnsclient.APIClient, ipampoolMon cns.IPAMPoolMonitor) (*requestController, error) {
 	// Check that logger package has been intialized
 	if logger.Log == nil {
 		return nil, errors.New("Must initialize logger before calling")
-	}
-
-	// Check that NODENAME environment variable is set. NODENAME is name of node running this program
-	nodeName := os.Getenv(nodeNameEnvVar)
-	if nodeName == "" {
-		return nil, errors.New("Must declare " + nodeNameEnvVar + " environment variable.")
 	}
 
 	// Add client-go scheme to runtime sheme so manager can recognize it
@@ -123,7 +119,7 @@ func New(cfg Config, cnsClient cnsclient.APIClient, ipampoolMon cns.IPAMPoolMoni
 	// Create reconciler
 	crdreconciler := &CrdReconciler{
 		kubeclient:  mgr.GetClient(),
-		nodeName:    nodeName,
+		nodeName:    cfg.NodeName,
 		cnsclient:   cnsClient,
 		ipampoolMon: ipampoolMon,
 	}
@@ -143,7 +139,7 @@ func New(cfg Config, cnsClient cnsclient.APIClient, ipampoolMon cns.IPAMPoolMoni
 		directCRDClient: directCRDClient,
 		cnsClient:       cnsClient,
 		ipampoolMon:     ipampoolMon,
-		nodeName:        nodeName,
+		nodeName:        cfg.NodeName,
 		reconciler:      crdreconciler,
 	}
 
@@ -334,7 +330,7 @@ func (rc *requestController) getNodeNetConfigDirect(ctx context.Context, name, n
 // updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
 func (rc *requestController) updateNodeNetConfig(ctx context.Context, nodeNetworkConfig *v1alpha.NodeNetworkConfig) error {
 	if err := rc.kubeClient.Update(ctx, nodeNetworkConfig); err != nil {
-		return err
+		return errors.Wrap(err, "failed to update nnc")
 	}
 
 	return nil

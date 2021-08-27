@@ -803,7 +803,16 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
 
-	nncClient, err := nodenetworkconfig.NewClient(kubeConfig, types.NamespacedName{})
+	nodeName, err := configuration.NodeNameFromEnv()
+	if err != nil {
+		return errors.Wrap(err, "failed to construct nnc key with node name")
+	}
+	nncKey := types.NamespacedName{
+		Name:      nodeName,
+		Namespace: "kube-system",
+	}
+
+	nncClient, err := nodenetworkconfig.NewClient(kubeConfig, nncKey)
 	if err != nil {
 		return errors.Wrap(err, "failed to get new nnc client")
 	}
@@ -815,6 +824,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		kubecontroller.Config{
 			InitializeFromCNI: cnsconfig.InitializeFromCNI,
 			KubeConfig:        kubeConfig,
+			NodeName:          nodeName,
 		},
 		&httpapi.Client{
 			RestService: httpRestServiceImplementation,

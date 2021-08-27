@@ -57,7 +57,7 @@ type GetHTTPServiceDataResponse struct {
 	Response            Response
 }
 
-// struct to return in-memory httprest data in debug api
+// HttpRestServiceData holds in-memory httprest data for debug api.
 type HttpRestServiceData struct {
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key

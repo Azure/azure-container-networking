@@ -12,10 +12,6 @@ var _ Client = (*fakeclient)(nil)
 
 type fakeclient struct{}
 
-func NewFakeClient() *fakeclient {
-	return &fakeclient{}
-}
-
 func (fc *fakeclient) PatchSpec(context.Context, *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
 	return nil, nil
 }
