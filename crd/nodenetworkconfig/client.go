@@ -5,7 +5,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -24,7 +23,9 @@ func init() {
 
 // Client is provided to interface with a single NodeNetworkConfig.
 type Client interface {
-	PatchSpec(context.Context, *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error)
+	// PatchSpec(context.Context, *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error)
+	Get(context.Context) (*v1alpha.NodeNetworkConfig, error)
+	UpdateSpec(context.Context, *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error)
 }
 
 type client struct {
@@ -57,25 +58,45 @@ func NewWithClient(cli ctrlcli.Client, key types.NamespacedName) Client {
 	}
 }
 
-// PatchSpec performs a server-side patch of the object identified by the passed key, updating just the passed Spec.
-func (c *client) PatchSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
-	obj := &v1alpha.NodeNetworkConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      c.Name,
-			Namespace: c.Namespace,
-		},
-	}
+// TODO(rbtr): migrate from the fetch/overwrite/update pattern to this server-side patch.
+// // PatchSpec performs a server-side patch of the object identified by the passed key, updating just the passed Spec.
+// func (c *client) PatchSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
+// 	obj := &v1alpha.NodeNetworkConfig{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:      c.Name,
+// 			Namespace: c.Namespace,
+// 		},
+// 	}
 
-	patch, err := specToJSON(spec)
+// 	patch, err := specToJSON(spec)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	if err := c.cli.Patch(ctx, obj, ctrlcli.RawPatch(types.ApplyPatchType, patch)); err != nil {
+// 		return nil, errors.Wrap(err, "failed to patch nnc")
+// 	}
+
+// 	return obj, nil
+// }
+
+// Get returns the NodeNetworkConfig that of this client.
+func (c *client) Get(ctx context.Context) (*v1alpha.NodeNetworkConfig, error) {
+	nodeNetworkConfig := &v1alpha.NodeNetworkConfig{}
+	return nodeNetworkConfig, errors.Wrapf(c.cli.Get(ctx, c.NamespacedName, nodeNetworkConfig), "failed to get nnc %v", c.NamespacedName)
+}
+
+// UpdateSpec does a fetch, deepcopy, and update of the NodeNetworkConfig with the passed spec.
+func (c *client) UpdateSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
+	nnc, err := c.Get(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to update nnc")
 	}
-
-	if err := c.cli.Patch(ctx, obj, ctrlcli.RawPatch(types.ApplyPatchType, patch)); err != nil {
-		return nil, errors.Wrap(err, "failed to patch nnc")
+	spec.DeepCopyInto(&nnc.Spec)
+	if err := c.cli.Update(ctx, nnc); err != nil {
+		return nil, errors.Wrap(err, "failed to update nnc")
 	}
-
-	return obj, nil
+	return nnc, nil
 }
 
 func specToJSON(spec *v1alpha.NodeNetworkConfigSpec) ([]byte, error) {

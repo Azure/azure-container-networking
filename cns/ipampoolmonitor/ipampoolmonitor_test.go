@@ -29,7 +29,7 @@ func initFakes(t *testing.T,
 	fakecns := fakes.NewHTTPServiceFake()
 	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, initialIPConfigCount)
 
-	poolmonitor := NewCNSIPAMPoolMonitor(fakecns, fakes.NewNNCClientFake())
+	poolmonitor := NewCNSIPAMPoolMonitor(fakecns, fakes.NewFakeNNCClient(fakerc.NNC))
 
 	fakecns.PoolMonitor = poolmonitor
 

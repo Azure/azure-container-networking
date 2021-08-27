@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -179,28 +178,6 @@ func TestNewCrdRequestController(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "logger") {
 		t.Fatalf("Expected logger error when making NewCrdRequestController without initializing logger, got: %+v", err)
 	}
-
-	// Initialize logger
-	logger.InitLogger("Azure CRD Request Controller", 3, 3, "")
-
-	// Test making request controller without NODENAME env var set, should fail
-	// Save old value though
-	nodeName, found := os.LookupEnv(nodeNameEnvVar)
-	os.Unsetenv(nodeNameEnvVar)
-	defer func() {
-		if found {
-			os.Setenv(nodeNameEnvVar, nodeName)
-		}
-	}()
-
-	_, err = New(Config{}, nil, nil)
-	if err == nil {
-		t.Fatalf("Expected error when making NewCrdRequestController without setting " + nodeNameEnvVar + " env var, got nil error")
-	} else if !strings.Contains(err.Error(), nodeNameEnvVar) {
-		t.Fatalf("Expected error when making NewCrdRequestController without setting "+nodeNameEnvVar+" env var, got: %+v", err)
-	}
-
-	// TODO: Create integration tests with minikube
 }
 
 func TestGetNonExistingNodeNetConfig(t *testing.T) {

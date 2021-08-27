@@ -1,20 +1,11 @@
 package nodenetworkconfig
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
-
-var _ Client = (*fakeclient)(nil)
-
-type fakeclient struct{}
-
-func (fc *fakeclient) PatchSpec(context.Context, *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
-	return nil, nil
-}
 
 func TestSpecToJSON(t *testing.T) {
 	tests := []struct {

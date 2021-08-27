@@ -121,14 +121,15 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize(ctx context.Context) error {
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Updated Requested IP Count: %v, Pods with IP's:%v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
-	if _, err := pm.client.PatchSpec(ctx, &tempNNCSpec); err != nil {
+	nnc, err := pm.client.UpdateSpec(ctx, &tempNNCSpec)
+	if err != nil {
 		// caller will retry to update the CRD again
 		return err
 	}
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
 	// save the updated state to cachedSpec
-	pm.cachedNNC.Spec = tempNNCSpec
+	pm.cachedNNC.Spec = nnc.Spec
 	return nil
 }
 
@@ -188,15 +189,16 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(ctx context.Context, existingPend
 	tempNNCSpec.RequestedIPCount -= int64(len(pendingIPAddresses))
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IP's: %v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
-	if _, err := pm.client.PatchSpec(ctx, &tempNNCSpec); err != nil {
+	nnc, err := pm.client.UpdateSpec(ctx, &tempNNCSpec)
+	if err != nil {
 		// caller will retry to update the CRD again
 		return err
 	}
 
-	logger.Printf("[ipam-pool-monitor] Decreasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
+	logger.Printf("[ipam-pool-monitor] Decreasing pool size: UpdateCRDSpec succeeded for spec %+v", nnc.Spec)
 
 	// save the updated state to cachedSpec
-	pm.cachedNNC.Spec = tempNNCSpec
+	pm.cachedNNC.Spec = nnc.Spec
 
 	// clear the updatingPendingIpsNotInUse, as we have Updated the CRD
 	logger.Printf("[ipam-pool-monitor] cleaning the updatingPendingIpsNotInUse, existing length %d", pm.updatingIpsNotInUseCount)
@@ -213,15 +215,16 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 
 	tempNNCSpec := pm.createNNCSpecForCRD()
 
-	if _, err := pm.client.PatchSpec(ctx, &tempNNCSpec); err != nil {
+	nnc, err := pm.client.UpdateSpec(ctx, &tempNNCSpec)
+	if err != nil {
 		// caller will retry to update the CRD again
 		return err
 	}
 
-	logger.Printf("[ipam-pool-monitor] cleanPendingRelease: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
+	logger.Printf("[ipam-pool-monitor] cleanPendingRelease: UpdateCRDSpec succeeded for spec %+v", nnc.Spec)
 
 	// save the updated state to cachedSpec
-	pm.cachedNNC.Spec = tempNNCSpec
+	pm.cachedNNC.Spec = nnc.Spec
 	return nil
 }
 
