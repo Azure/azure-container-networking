@@ -10,9 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
-	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -38,7 +36,6 @@ type Config struct {
 	// InitializeFromCNI whether or not to initialize CNS state from k8s/CRDs
 	InitializeFromCNI bool
 	KubeConfig        *rest.Config
-	Service           *restserver.HTTPRestService
 }
 
 var _ singletenantcontroller.RequestController = (*requestController)(nil)
@@ -49,14 +46,15 @@ var _ singletenantcontroller.RequestController = (*requestController)(nil)
 type requestController struct {
 	cfg             Config
 	mgr             manager.Manager // Manager starts the reconcile loop which watches for crd status changes
-	KubeClient      KubeClient      // KubeClient is a cached client which interacts with API server
+	kubeClient      KubeClient      // KubeClient is a cached client which interacts with API server
 	directAPIClient DirectAPIClient // Direct client to interact with API server
 	directCRDClient DirectCRDClient // Direct client to interact with CRDs on API server
-	CNSClient       cnsclient.APIClient
+	cnsClient       cnsclient.APIClient
+	ipampoolMon     cns.IPAMPoolMonitor
 	nodeName        string // name of node running this program
-	Reconciler      *CrdReconciler
+	reconciler      *CrdReconciler
 	initialized     bool
-	Started         bool
+	started         bool
 	lock            sync.Mutex
 }
 
@@ -74,7 +72,7 @@ func GetKubeConfig() (*rest.Config, error) {
 }
 
 // New returns a crdRequestController struct built from the passed config.
-func New(cfg Config) (*requestController, error) {
+func New(cfg Config, cnsClient cnsclient.APIClient, ipampoolMon cns.IPAMPoolMonitor) (*requestController, error) {
 	// Check that logger package has been intialized
 	if logger.Log == nil {
 		return nil, errors.New("Must initialize logger before calling")
@@ -122,17 +120,12 @@ func New(cfg Config) (*requestController, error) {
 		return nil, err
 	}
 
-	// Create httpClient
-	httpClient := &httpapi.Client{
-		RestService: cfg.Service,
-	}
-
 	// Create reconciler
 	crdreconciler := &CrdReconciler{
-		KubeClient:      mgr.GetClient(),
-		NodeName:        nodeName,
-		CNSClient:       httpClient,
-		IPAMPoolMonitor: httpClient.RestService.IPAMPoolMonitor,
+		kubeclient:  mgr.GetClient(),
+		nodeName:    nodeName,
+		cnsclient:   cnsClient,
+		ipampoolMon: ipampoolMon,
 	}
 
 	// Setup manager with reconciler
@@ -145,12 +138,13 @@ func New(cfg Config) (*requestController, error) {
 	rc := requestController{
 		cfg:             cfg,
 		mgr:             mgr,
-		KubeClient:      mgr.GetClient(),
+		kubeClient:      mgr.GetClient(),
 		directAPIClient: directAPIClient,
 		directCRDClient: directCRDClient,
-		CNSClient:       httpClient,
+		cnsClient:       cnsClient,
+		ipampoolMon:     ipampoolMon,
 		nodeName:        nodeName,
-		Reconciler:      crdreconciler,
+		reconciler:      crdreconciler,
 	}
 
 	return &rc, nil
@@ -183,7 +177,7 @@ func (rc *requestController) Start(ctx context.Context) error {
 	}
 
 	// Setting the started state
-	rc.Started = true
+	rc.started = true
 	rc.lock.Unlock()
 
 	logger.Printf("Starting reconcile loop")
@@ -203,7 +197,7 @@ func (rc *requestController) Start(ctx context.Context) error {
 func (rc *requestController) IsStarted() bool {
 	rc.lock.Lock()
 	defer rc.lock.Unlock()
-	return rc.Started
+	return rc.started
 }
 
 // InitCNS initializes cns by passing pods and a createnetworkcontainerrequest
@@ -225,7 +219,7 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
 			//nolint:wrapcheck
-			return rc.CNSClient.ReconcileNCState(nil, nil, *nodeNetConfig)
+			return rc.cnsClient.ReconcileNCState(nil, nil, *nodeNetConfig)
 		}
 
 		// If it's any other error, log it and return
@@ -236,7 +230,7 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 	// If there are no NCs, pass nil to CNSClient
 	if len(nodeNetConfig.Status.NetworkContainers) == 0 {
 		//nolint:wrapcheck
-		return rc.CNSClient.ReconcileNCState(nil, nil, *nodeNetConfig)
+		return rc.cnsClient.ReconcileNCState(nil, nil, *nodeNetConfig)
 	}
 
 	// Convert to CreateNetworkContainerRequest
@@ -270,7 +264,7 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 
 	// Call cnsclient init cns passing those two things
 	//nolint:wrapcheck
-	return rc.CNSClient.ReconcileNCState(&ncRequest, podInfoByIPProvider.PodInfoByIP(), *nodeNetConfig)
+	return rc.cnsClient.ReconcileNCState(&ncRequest, podInfoByIPProvider.PodInfoByIP(), *nodeNetConfig)
 }
 
 // kubePodsToPodInfoByIP maps kubernetes pods to cns.PodInfos by IP
@@ -312,7 +306,7 @@ func (rc *requestController) UpdateCRDSpec(ctx context.Context, crdSpec v1alpha.
 func (rc *requestController) getNodeNetConfig(ctx context.Context, name, namespace string) (*v1alpha.NodeNetworkConfig, error) {
 	nodeNetworkConfig := &v1alpha.NodeNetworkConfig{}
 
-	err := rc.KubeClient.Get(ctx, client.ObjectKey{
+	err := rc.kubeClient.Get(ctx, client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,
 	}, nodeNetworkConfig)
@@ -339,7 +333,7 @@ func (rc *requestController) getNodeNetConfigDirect(ctx context.Context, name, n
 
 // updateNodeNetConfig updates the nodeNetConfig object in the API server with the given nodeNetworkConfig object
 func (rc *requestController) updateNodeNetConfig(ctx context.Context, nodeNetworkConfig *v1alpha.NodeNetworkConfig) error {
-	if err := rc.KubeClient.Update(ctx, nodeNetworkConfig); err != nil {
+	if err := rc.kubeClient.Update(ctx, nodeNetworkConfig); err != nil {
 		return err
 	}
 

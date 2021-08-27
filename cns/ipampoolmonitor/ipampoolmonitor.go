@@ -8,7 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
@@ -18,18 +18,18 @@ type CNSIPAMPoolMonitor struct {
 	MaximumFreeIps           int64
 	MinimumFreeIps           int64
 	cachedNNC                v1alpha.NodeNetworkConfig
+	client                   nodenetworkconfig.Client
 	httpService              cns.HTTPService
 	mu                       sync.RWMutex
-	rc                       singletenantcontroller.RequestController
 	scalarUnits              v1alpha.Scaler
 	updatingIpsNotInUseCount int
 }
 
-func NewCNSIPAMPoolMonitor(httpService cns.HTTPService, rc singletenantcontroller.RequestController) *CNSIPAMPoolMonitor {
+func NewCNSIPAMPoolMonitor(httpService cns.HTTPService, client nodenetworkconfig.Client) *CNSIPAMPoolMonitor {
 	logger.Printf("NewCNSIPAMPoolMonitor: Create IPAM Pool Monitor")
 	return &CNSIPAMPoolMonitor{
 		httpService: httpService,
-		rc:          rc,
+		client:      client,
 	}
 }
 
@@ -121,8 +121,7 @@ func (pm *CNSIPAMPoolMonitor) increasePoolSize(ctx context.Context) error {
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Updated Requested IP Count: %v, Pods with IP's:%v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
-	err := pm.rc.UpdateCRDSpec(ctx, tempNNCSpec)
-	if err != nil {
+	if _, err := pm.client.PatchSpec(ctx, &tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
 		return err
 	}
@@ -189,8 +188,7 @@ func (pm *CNSIPAMPoolMonitor) decreasePoolSize(ctx context.Context, existingPend
 	tempNNCSpec.RequestedIPCount -= int64(len(pendingIPAddresses))
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IP's: %v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
-	err := pm.rc.UpdateCRDSpec(ctx, tempNNCSpec)
-	if err != nil {
+	if _, err := pm.client.PatchSpec(ctx, &tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
 		return err
 	}
@@ -215,8 +213,7 @@ func (pm *CNSIPAMPoolMonitor) cleanPendingRelease(ctx context.Context) error {
 
 	tempNNCSpec := pm.createNNCSpecForCRD()
 
-	err := pm.rc.UpdateCRDSpec(ctx, tempNNCSpec)
-	if err != nil {
+	if _, err := pm.client.PatchSpec(ctx, &tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
 		return err
 	}

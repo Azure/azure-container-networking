@@ -102,9 +102,6 @@ func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRe
 	return nil
 }
 
-func (mi *MockCNSClient) UpdateIPAMPoolMonitor(v1alpha.NodeNetworkConfig) {
-}
-
 func (mi *MockCNSClient) DeleteNC(nc cns.DeleteNetworkContainerRequest) error {
 	return nil
 }
@@ -176,7 +173,7 @@ func (mc *MockDirectAPIClient) ListPods(ctx context.Context, namespace, node str
 
 func TestNewCrdRequestController(t *testing.T) {
 	// Test making request controller without logger initialized, should fail
-	_, err := New(Config{})
+	_, err := New(Config{}, nil, nil)
 	if err == nil {
 		t.Fatalf("Expected error when making NewCrdRequestController without initializing logger, got nil error")
 	} else if !strings.Contains(err.Error(), "logger") {
@@ -196,7 +193,7 @@ func TestNewCrdRequestController(t *testing.T) {
 		}
 	}()
 
-	_, err = New(Config{})
+	_, err = New(Config{}, nil, nil)
 	if err == nil {
 		t.Fatalf("Expected error when making NewCrdRequestController without setting " + nodeNameEnvVar + " env var, got nil error")
 	} else if !strings.Contains(err.Error(), nodeNameEnvVar) {
@@ -226,7 +223,7 @@ func TestGetNonExistingNodeNetConfig(t *testing.T) {
 		mockAPI: mockAPI,
 	}
 	rc := &requestController{
-		KubeClient: mockKubeClient,
+		kubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
@@ -257,7 +254,7 @@ func TestGetExistingNodeNetConfig(t *testing.T) {
 		mockAPI: mockAPI,
 	}
 	rc := &requestController{
-		KubeClient: mockKubeClient,
+		kubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
@@ -292,7 +289,7 @@ func TestUpdateNonExistingNodeNetConfig(t *testing.T) {
 		mockAPI: mockAPI,
 	}
 	rc := &requestController{
-		KubeClient: mockKubeClient,
+		kubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
@@ -330,7 +327,7 @@ func TestUpdateExistingNodeNetConfig(t *testing.T) {
 	}
 	rc := &requestController{
 		nodeName:   existingNNCName,
-		KubeClient: mockKubeClient,
+		kubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
@@ -370,7 +367,7 @@ func TestUpdateSpecOnNonExistingNodeNetConfig(t *testing.T) {
 	}
 	rc := &requestController{
 		nodeName:   nonexistingNNCName,
-		KubeClient: mockKubeClient,
+		kubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
@@ -411,7 +408,7 @@ func TestUpdateSpecOnExistingNodeNetConfig(t *testing.T) {
 	}
 	rc := &requestController{
 		nodeName:   existingNNCName,
-		KubeClient: mockKubeClient,
+		kubeClient: mockKubeClient,
 	}
 	logger.InitLogger("Azure CNS RequestController", 0, 0, "")
 
@@ -656,7 +653,7 @@ func TestInitRequestController(t *testing.T) {
 		cfg:             Config{},
 		directAPIClient: mockAPIDirectClient,
 		directCRDClient: mockCRDDirectClient,
-		CNSClient:       mockCNSClient,
+		cnsClient:       mockCNSClient,
 		nodeName:        existingNNCName,
 	}
 

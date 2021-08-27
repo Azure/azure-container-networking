@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	cni "github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
+	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
@@ -37,10 +38,13 @@ import (
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller/kubecontroller"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -56,8 +60,10 @@ const (
 	maxRetryNodeRegister = 720
 )
 
-var rootCtx context.Context
-var rootErrCh chan error
+var (
+	rootCtx   context.Context
+	rootErrCh chan error
+)
 
 // Version is populated by make during build.
 var version string
@@ -292,14 +298,14 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 		return retErr
 	}
 
-	//To avoid any null-pointer deferencing errors.
+	// To avoid any null-pointer deferencing errors.
 	if supportedApis == nil {
 		supportedApis = []string{}
 	}
 
 	nodeRegisterRequest.NmAgentSupportedApis = supportedApis
 
-	//CNS tries to register Node for maximum of an hour.
+	// CNS tries to register Node for maximum of an hour.
 	for tryNum := 0; tryNum <= maxRetryNodeRegister; tryNum++ {
 		success, err := sendRegisterNodeRequest(httpc, httpRestService, nodeRegisterRequest, url)
 		if err != nil {
@@ -708,7 +714,7 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 		return err
 	}
 
-	//convert interface type to implementation type
+	// convert interface type to implementation type
 	httpRestServiceImpl, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
 		logger.Errorf("Failed to convert interface httpRestService to implementation: %v", httpRestService)
@@ -783,7 +789,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return err
 	}
 
-	//convert interface type to implementation type
+	// convert interface type to implementation type
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
 		logger.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v", httpRestService)
@@ -797,20 +803,28 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
 
+	nncClient, err := nodenetworkconfig.NewClient(kubeConfig, types.NamespacedName{})
+	if err != nil {
+		return errors.Wrap(err, "failed to get new nnc client")
+	}
+	// initialize the ipam pool monitor
+	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, nncClient)
+
 	// Get crd implementation of request controller
 	requestController, err = kubecontroller.New(
 		kubecontroller.Config{
 			InitializeFromCNI: cnsconfig.InitializeFromCNI,
 			KubeConfig:        kubeConfig,
-			Service:           httpRestServiceImplementation,
-		})
+		},
+		&httpapi.Client{
+			RestService: httpRestServiceImplementation,
+		},
+		httpRestServiceImplementation.IPAMPoolMonitor,
+	)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to make crd request controller :%v", err)
 		return err
 	}
-
-	// initialize the ipam pool monitor
-	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, requestController)
 
 	err = requestController.Init(ctx)
 	if err != nil {
@@ -818,7 +832,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return err
 	}
 
-	//Start the RequestController which starts the reconcile loop
+	// Start the RequestController which starts the reconcile loop
 	go func() {
 		for {
 			if err := requestController.Start(ctx); err != nil {

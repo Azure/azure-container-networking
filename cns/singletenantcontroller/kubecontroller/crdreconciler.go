@@ -15,10 +15,10 @@ import (
 
 // CrdReconciler watches for CRD status changes
 type CrdReconciler struct {
-	KubeClient      KubeClient
-	NodeName        string
-	CNSClient       cnsclient.APIClient
-	IPAMPoolMonitor cns.IPAMPoolMonitor
+	kubeclient  KubeClient
+	nodeName    string
+	cnsclient   cnsclient.APIClient
+	ipampoolMon cns.IPAMPoolMonitor
 }
 
 // Reconcile is called on CRD status changes
@@ -30,7 +30,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 	)
 
 	// Get the CRD object
-	if err = r.KubeClient.Get(ctx, request.NamespacedName, &nodeNetConfig); err != nil {
+	if err = r.kubeclient.Get(ctx, request.NamespacedName, &nodeNetConfig); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
 			return reconcile.Result{}, client.IgnoreNotFound(err)
@@ -67,13 +67,13 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	if err = r.CNSClient.CreateOrUpdateNC(ncRequest); err != nil {
+	if err = r.cnsclient.CreateOrUpdateNC(ncRequest); err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 		// requeue
 		return reconcile.Result{}, err
 	}
 
-	r.IPAMPoolMonitor.Update(nodeNetConfig)
+	r.ipampoolMon.Update(nodeNetConfig)
 	return reconcile.Result{}, err
 }
 
@@ -81,6 +81,6 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 func (r *CrdReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.NodeNetworkConfig{}).
-		WithEventFilter(NodeNetworkConfigFilter{nodeName: r.NodeName}).
+		WithEventFilter(NodeNetworkConfigFilter{nodeName: r.nodeName}).
 		Complete(r)
 }

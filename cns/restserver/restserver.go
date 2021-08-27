@@ -57,7 +57,7 @@ type GetHTTPServiceDataResponse struct {
 	Response            Response
 }
 
-//struct to return in-memory httprest data in debug api
+// struct to return in-memory httprest data in debug api
 type HttpRestServiceData struct {
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
@@ -109,7 +109,6 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 	routingTable := &routes.RoutingTable{}
 	nc := &networkcontainers.NetworkContainers{}
 	dc, err := dockerclient.NewDefaultDockerClient(imdsClientInterface)
-
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +223,6 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 
 // Start starts the CNS listener.
 func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
-
 	// Start the listener.
 	// continue to listen on the normal endpoint for http traffic, this will be supported
 	// for sometime until partners migrate fully to https
