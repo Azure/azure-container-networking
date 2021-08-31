@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os/exec"
 
-	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/debug/dataplane/iptables"
+	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 

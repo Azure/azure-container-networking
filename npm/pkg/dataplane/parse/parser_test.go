@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/debug/dataplane/iptables"
+	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
 func TestParseIptablesObjectFile(t *testing.T) {
-	_, err := IptablesFile(util.IptablesFilterTable, "../../testfiles/iptablesave")
+	_, err := IptablesFile(util.IptablesFilterTable, "../testfiles/iptablesave")
 	if err != nil {
 		t.Fatal(err)
 	}

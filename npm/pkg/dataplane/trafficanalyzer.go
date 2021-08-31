@@ -8,7 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/cache"
-	"github.com/Azure/azure-container-networking/npm/pkg/debug/pb"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"google.golang.org/protobuf/encoding/protojson"
 )
