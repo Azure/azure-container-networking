@@ -13,9 +13,7 @@ import (
 )
 
 // Version is populated by make during build.
-var (
-	version string
-)
+var version string
 
 func main() {
 	klog.Infof("Start NPM version: %s", version)

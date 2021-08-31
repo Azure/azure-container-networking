@@ -22,24 +22,6 @@ import (
 	"k8s.io/utils/exec"
 )
 
-const (
-	// waitForTelemetryInSeconds = 60 unused
-	resyncPeriodInMinutes = 15
-)
-
-// Version is populated by make during build.
-var version string
-
-func initLogging() error {
-	log.SetName("azure-npm")
-	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetStdout, ""); err != nil {
-		log.Logf("Failed to configure logging, err:%v.", err)
-		return fmt.Errorf("%w", err)
-	}
-
-	return nil
-}
 func k8sServerVersion(clientset *kubernetes.Clientset) *k8sversion.Info {
 	var err error
 	var serverVersion *k8sversion.Info

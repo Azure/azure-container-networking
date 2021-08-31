@@ -6,12 +6,11 @@ import (
 	"net/http/pprof"
 	_ "net/http/pprof"
 
-	"k8s.io/klog"
-
 	"github.com/Azure/azure-container-networking/npm/cache"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"k8s.io/klog"
 
 	"github.com/Azure/azure-container-networking/npm"
 	"github.com/gorilla/mux"
@@ -23,8 +22,10 @@ type NPMRestServer struct {
 	router           *mux.Router
 }
 
-func (n *NPMRestServer) NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder npm.NetworkPolicyManagerEncoder) {
-	n.router = mux.NewRouter()
+func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder npm.NetworkPolicyManagerEncoder) {
+	rs := NPMRestServer{}
+
+	rs.router = mux.NewRouter()
 
 	//prometheus handlers
 	if config.Toggles.EnablePrometheusMetrics {
@@ -34,7 +35,7 @@ func (n *NPMRestServer) NPMRestServerListenAndServe(config npmconfig.Config, npm
 
 	if config.Toggles.EnableHTTPDebugAPI {
 		// ACN CLI debug handlerss
-		n.router.Handle(api.NPMMgrPath, n.npmCacheHandler(npmEncoder)).Methods(http.MethodGet)
+		rs.router.Handle(api.NPMMgrPath, rs.npmCacheHandler(npmEncoder)).Methods(http.MethodGet)
 	}
 
 	if config.Toggles.EnablePprof {

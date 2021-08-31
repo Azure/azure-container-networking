@@ -41,9 +41,9 @@ var (
 
 // To test paser, converter, and trafficAnalyzer with stored files.
 const (
-	iptableSaveFile = "../testFiles/iptableSave"
+	iptableSaveFile = "../testfiles/iptablesave"
 	// stored file with json compatible form (i.e., can call json.Unmarshal)
-	// npmCacheFile                 = "../testFiles/npmCache.json"
+	// npmCacheFile                 = "../testfiles/npmCache.json"
 	// stored file with custom encoding in Encode function in npmCache.go
-	npmCacheWithCustomFormatFile = "../testFiles/npmCacheWithCustomFormat.json"
+	npmCacheWithCustomFormatFile = "../testfiles/npmCacheWithCustomFormat.json"
 )

@@ -12,14 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-<<<<<<< HEAD:npm/pkg/debug/dataplane/converter.go
-	"github.com/Azure/azure-container-networking/npm"
-=======
 	"github.com/Azure/azure-container-networking/npm/cache"
-	NPMIPtable "github.com/Azure/azure-container-networking/npm/debugTools/dataplane/iptables"
-	"github.com/Azure/azure-container-networking/npm/debugTools/dataplane/parse"
-	"github.com/Azure/azure-container-networking/npm/debugTools/pb"
->>>>>>> master:npm/debugTools/dataplane/converter.go
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/debug/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/debug/dataplane/parse"

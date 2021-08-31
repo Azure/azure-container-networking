@@ -37,7 +37,7 @@ func TestGetNPMCacheHandler(t *testing.T) {
 	assert := assert.New(t)
 
 	npmEncoder := NPMEncoder()
-	n := NewNpmRestServer("")
+	n := &NPMRestServer{}
 	handler := n.npmCacheHandler(npmEncoder)
 
 	req, err := http.NewRequest(http.MethodGet, api.NPMMgrPath, nil)
