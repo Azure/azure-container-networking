@@ -12,8 +12,8 @@ func init() {
 	debugCmd.AddCommand(getTuplesCmd)
 	getTuplesCmd.Flags().StringP("src", "s", "", "set the source")
 	getTuplesCmd.Flags().StringP("dst", "d", "", "set the destination")
-	getTuplesCmd.Flags().StringP("iptF", "i", "", "Set the iptable-save file path (optional)")
-	getTuplesCmd.Flags().StringP("npmF", "n", "", "Set the NPM cache file path (optional)")
+	getTuplesCmd.Flags().StringP("iptables-file", "i", "", "Set the iptable-save file path (optional)")
+	getTuplesCmd.Flags().StringP("cache-file", "c", "", "Set the NPM cache file path (optional)")
 }
 
 // getTuplesCmd represents the getTuples command
@@ -29,8 +29,8 @@ var getTuplesCmd = &cobra.Command{
 		if dst == "" {
 			return fmt.Errorf("%w", errors.ErrDstNotSpecified)
 		}
-		npmCacheF, _ := cmd.Flags().GetString("npmF")
-		iptableSaveF, _ := cmd.Flags().GetString("iptF")
+		npmCacheF, _ := cmd.Flags().GetString("cache-file")
+		iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
 		srcType := dataplane.GetInputType(src)
 		dstType := dataplane.GetInputType(dst)
 		srcInput := &dataplane.Input{Content: src, Type: srcType}
