@@ -407,11 +407,16 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		If custom dns server is updated, VM needs reboot for the change to take effect.
 	*/
 	isGreaterOrEqualUbuntu17 := isGreaterOrEqaulUbuntuVersion(ubuntuVersion17)
+	isSystemdResolvedActive := false
 	if isGreaterOrEqualUbuntu17 {
-		log.Printf("[net] Saving dns config from %v", extIf.Name)
-		if err = saveDnsConfig(extIf); err != nil {
-			log.Printf("[net] Failed to save dns config: %v", err)
-			return err
+		// Don't copy dns servers if systemd-resolved isn't available
+		if _, cmderr := platform.ExecuteCommand("systemctl status systemd-resolved"); cmderr == nil {
+			isSystemdResolvedActive = true
+			log.Printf("[net] Saving dns config from %v", extIf.Name)
+			if err = saveDnsConfig(extIf); err != nil {
+				log.Printf("[net] Failed to save dns config: %v", err)
+				return err
+			}
 		}
 	}
 
@@ -463,7 +468,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		return err
 	}
 
-	if isGreaterOrEqualUbuntu17 {
+	if isGreaterOrEqualUbuntu17 && isSystemdResolvedActive {
 		log.Printf("[net] Applying dns config on %v", bridgeName)
 
 		if err = applyDnsConfig(extIf, bridgeName); err != nil {

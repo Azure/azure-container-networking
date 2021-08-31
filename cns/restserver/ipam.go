@@ -175,7 +175,11 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
-	return service.PodIPConfigState
+	podIPConfigState := make(map[string]cns.IPConfigurationStatus, len(service.PodIPConfigState))
+	for k, v := range service.PodIPConfigState {
+		podIPConfigState[k] = v
+	}
+	return podIPConfigState
 }
 
 func (service *HTTPRestService) getPodIPIDByOrchestratorContexthandler(w http.ResponseWriter, r *http.Request) {
@@ -226,15 +230,15 @@ func (service *HTTPRestService) GetHTTPRestDataHandler(w http.ResponseWriter, r 
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 	}()
 
-	resp.HttpRestServiceData = service.GetHTTPStruct()
+	resp.HTTPRestServiceData = service.GetHTTPStruct()
 	return
 }
 
-func (service *HTTPRestService) GetHTTPStruct() HttpRestServiceData {
+func (service *HTTPRestService) GetHTTPStruct() HTTPRestServiceData {
 	service.RLock()
 	defer service.RUnlock()
 
-	return HttpRestServiceData{
+	return HTTPRestServiceData{
 		PodIPIDByPodInterfaceKey: service.PodIPIDByPodInterfaceKey,
 		PodIPConfigState:         service.PodIPConfigState,
 		IPAMPoolMonitor:          service.IPAMPoolMonitor.GetStateSnapshot(),
@@ -306,7 +310,8 @@ func (service *HTTPRestService) GetPendingReleaseIPConfigs() []cns.IPConfigurati
 	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StatePendingRelease)
 }
 
-// SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated, does not take a lock
+// SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated.
+// Does not take a lock.
 func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	ipconfig, err := service.updateIPConfigState(ipconfig.ID, cns.Allocated, podInfo)
 	if err != nil {

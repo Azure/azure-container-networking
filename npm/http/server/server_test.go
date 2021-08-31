@@ -1,28 +1,44 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
+	"github.com/Azure/azure-container-networking/npm/cache"
 	"github.com/Azure/azure-container-networking/npm/http/api"
+	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/azure-container-networking/npm"
+	k8sversion "k8s.io/apimachinery/pkg/version"
+	kubeinformers "k8s.io/client-go/informers"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
+	fakeexec "k8s.io/utils/exec/testing"
 )
 
-func TestGetNpmMgrHandler(t *testing.T) {
-	assert := assert.New(t)
-	npMgr := &npm.NetworkPolicyManager{
-		PodMap: map[string]*npm.NpmPod{
-			"": &npm.NpmPod{
-				Name: "testpod",
-			},
-		},
+func NPMEncoder() npm.NetworkPolicyManagerEncoder {
+	noResyncPeriodFunc := func() time.Duration { return 0 }
+	kubeclient := k8sfake.NewSimpleClientset()
+	kubeInformer := kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
+	fakeK8sVersion := &k8sversion.Info{
+		GitVersion: "v1.20.2",
 	}
-	n := NPMRestServer{}
-	handler := n.GetNpmMgr(npMgr)
+	exec := &fakeexec.FakeExec{}
+	npmVersion := "npm-ut-test"
+
+	npmEncoder := npm.NewNetworkPolicyManager(kubeclient, kubeInformer, exec, npmVersion, fakeK8sVersion)
+	return npmEncoder
+}
+
+func TestGetNPMCacheHandler(t *testing.T) {
+	assert := assert.New(t)
+
+	npmEncoder := NPMEncoder()
+	n := NewNpmRestServer("")
+	handler := n.npmCacheHandler(npmEncoder)
 
 	req, err := http.NewRequest(http.MethodGet, api.NPMMgrPath, nil)
 	if err != nil {
@@ -37,11 +53,19 @@ func TestGetNpmMgrHandler(t *testing.T) {
 			status, http.StatusOK)
 	}
 
-	var ns npm.NetworkPolicyManager
-	err = json.NewDecoder(rr.Body).Decode(&ns)
+	var actual *cache.NPMCache
+	actual, err = cache.Decode(rr.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Exactly(&ns, npMgr)
+	expected := &cache.NPMCache{
+		Nodename: os.Getenv("HOSTNAME"),
+		NsMap:    make(map[string]*npm.Namespace),
+		PodMap:   make(map[string]*npm.NpmPod),
+		ListMap:  make(map[string]*ipsm.Ipset),
+		SetMap:   make(map[string]*ipsm.Ipset),
+	}
+
+	assert.Exactly(expected, actual)
 }

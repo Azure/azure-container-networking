@@ -12,7 +12,9 @@ import (
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/apimachinery/pkg/util/wait"
+	k8sversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -20,8 +22,50 @@ import (
 	"k8s.io/utils/exec"
 )
 
+const (
+	// waitForTelemetryInSeconds = 60 unused
+	resyncPeriodInMinutes = 15
+)
+
+// Version is populated by make during build.
+var version string
+
+func initLogging() error {
+	log.SetName("azure-npm")
+	log.SetLevel(log.LevelInfo)
+	if err := log.SetTargetLogDirectory(log.TargetStdout, ""); err != nil {
+		log.Logf("Failed to configure logging, err:%v.", err)
+		return fmt.Errorf("%w", err)
+	}
+
+	return nil
+}
+func k8sServerVersion(clientset *kubernetes.Clientset) *k8sversion.Info {
+	var err error
+	var serverVersion *k8sversion.Info
+	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
+		<-ticker
+		serverVersion, err = clientset.ServerVersion()
+		if err == nil {
+			break
+		}
+	}
+
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
+		panic(err.Error)
+	}
+
+	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
+		panic(err.Error)
+	}
+	return serverVersion
+}
+
 func Start(config npmconfig.Config) error {
 	klog.Infof("Using config: %+v", config)
+	klog.Infof("Start NPM version: %s", version)
 
 	var err error
 	defer func() {
@@ -55,11 +99,11 @@ func Start(config npmconfig.Config) error {
 	// Adding some randomness so all NPM pods will not request for info at once.
 	factor := rand.Float64() + 1
 	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
-
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version)
+	k8sServerVersion := k8sServerVersion(clientset)
+	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version, k8sServerVersion)
 	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
@@ -69,8 +113,8 @@ func Start(config npmconfig.Config) error {
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
 	if err = npMgr.Start(config, wait.NeverStop); err != nil {
-		klog.Infof("npm failed with error %v.", err)
-		return fmt.Errorf("starting NPM failed with error %w", err)
+		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %s", err)
+		panic(err.Error)
 	}
 
 	select {}

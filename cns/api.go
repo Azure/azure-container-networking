@@ -10,7 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 // Container Network Service remote API Contract
@@ -215,7 +215,7 @@ type NodeConfiguration struct {
 
 type IPAMPoolMonitor interface {
 	Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error
-	Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec)
+	Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec)
 	GetStateSnapshot() IpamPoolMonitorStateSnapshot
 }
 
@@ -224,7 +224,7 @@ type IpamPoolMonitorStateSnapshot struct {
 	MinimumFreeIps           int64
 	MaximumFreeIps           int64
 	UpdatingIpsNotInUseCount int
-	CachedNNC                nnc.NodeNetworkConfig
+	CachedNNC                v1alpha.NodeNetworkConfig
 }
 
 // Response describes generic response from CNS.

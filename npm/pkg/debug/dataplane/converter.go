@@ -1,25 +1,31 @@
 package dataplane
 
 import (
+	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 
+<<<<<<< HEAD:npm/pkg/debug/dataplane/converter.go
 	"github.com/Azure/azure-container-networking/npm"
+=======
+	"github.com/Azure/azure-container-networking/npm/cache"
+	NPMIPtable "github.com/Azure/azure-container-networking/npm/debugTools/dataplane/iptables"
+	"github.com/Azure/azure-container-networking/npm/debugTools/dataplane/parse"
+	"github.com/Azure/azure-container-networking/npm/debugTools/pb"
+>>>>>>> master:npm/debugTools/dataplane/converter.go
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/debug/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/debug/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/pkg/debug/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"google.golang.org/protobuf/encoding/protojson"
-	networkingv1 "k8s.io/api/networking/v1"
 )
 
 // Converter struct
@@ -27,38 +33,26 @@ type Converter struct {
 	ListMap        map[string]string // key: hash(value), value: one of namespace, label of namespace, multiple values
 	SetMap         map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
 	AzureNPMChains map[string]bool
-	NPMCache       *NPMCache
-}
-
-// NPMCache struct
-type NPMCache struct {
-	Exec             interface{}
-	Nodename         string
-	NsMap            map[string]*npm.Namespace
-	PodMap           map[string]*npm.NpmPod
-	RawNpMap         map[string]*networkingv1.NetworkPolicy
-	ProcessedNpMap   map[string]*networkingv1.NetworkPolicy
-	TelemetryEnabled bool
+	NPMCache       *cache.NPMCache
 }
 
 // NpmCacheFromFile initialize NPM cache from file.
 func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
-	c.NPMCache = &NPMCache{}
-	// for dev
-	byteArray, err := ioutil.ReadFile(npmCacheJSONFile)
+	file, err := os.Open(npmCacheJSONFile)
 	if err != nil {
-		return fmt.Errorf("error occurred during reading in file : %w", err)
+		return fmt.Errorf("failed to open file : %w", err)
 	}
-	err = json.Unmarshal(byteArray, c.NPMCache)
+
+	defer file.Close()
+	c.NPMCache, err = cache.Decode(bufio.NewReader(file))
 	if err != nil {
-		return fmt.Errorf("error occurred during unmarshalling : %w", err)
+		return fmt.Errorf("failed to decode npm cache due to : %w", err)
 	}
 	return nil
 }
 
 // NpmCache initialize NPM cache from node.
 func (c *Converter) NpmCache() error {
-	c.NPMCache = &NPMCache{}
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
@@ -66,21 +60,19 @@ func (c *Converter) NpmCache() error {
 		nil,
 	)
 	if err != nil {
-		return fmt.Errorf("error occurred during creating http request : %w", err)
+		return fmt.Errorf("failed to create http request : %w", err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("error occurred during requesting NPM Cache : %w", err)
+		return fmt.Errorf("failed to request NPM Cache : %w", err)
 	}
 	defer resp.Body.Close()
-	byteArray, err := ioutil.ReadAll(resp.Body)
+
+	c.NPMCache, err = cache.Decode(resp.Body)
 	if err != nil {
-		return fmt.Errorf("error occurred during reading response's data : %w", err)
+		return fmt.Errorf("cannot decode NPM Cache : %w", err)
 	}
-	err = json.Unmarshal(byteArray, c.NPMCache)
-	if err != nil {
-		return fmt.Errorf("error occurred during unmarshalling : %w", err)
-	}
+
 	return nil
 }
 
@@ -114,11 +106,11 @@ func (c *Converter) initConverterMaps() {
 	c.ListMap = make(map[string]string)
 	c.SetMap = make(map[string]string)
 
-	for k := range c.NPMCache.NsMap[util.KubeAllNamespacesFlag].IpsMgr.ListMap {
+	for k := range c.NPMCache.ListMap {
 		hashedName := util.GetHashedName(k)
 		c.ListMap[hashedName] = k
 	}
-	for k := range c.NPMCache.NsMap[util.KubeAllNamespacesFlag].IpsMgr.SetMap {
+	for k := range c.NPMCache.SetMap {
 		hashedName := util.GetHashedName(k)
 		c.SetMap[hashedName] = k
 	}

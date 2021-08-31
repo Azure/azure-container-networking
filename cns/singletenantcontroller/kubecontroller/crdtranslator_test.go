@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 const (
@@ -22,16 +22,16 @@ const (
 
 func TestStatusToNCRequestMalformedPrimaryIP(t *testing.T) {
 	var (
-		status nnc.NodeNetworkConfigStatus
+		status v1alpha.NodeNetworkConfigStatus
 		err    error
 	)
 
-	status = nnc.NodeNetworkConfigStatus{
-		NetworkContainers: []nnc.NetworkContainer{
+	status = v1alpha.NodeNetworkConfigStatus{
+		NetworkContainers: []v1alpha.NetworkContainer{
 			{
 				PrimaryIP: ipMalformed,
 				ID:        ncID,
-				IPAssignments: []nnc.IPAssignment{
+				IPAssignments: []v1alpha.IPAssignment{
 					{
 						Name: allocatedUUID,
 						IP:   testSecIp1,
@@ -52,16 +52,16 @@ func TestStatusToNCRequestMalformedPrimaryIP(t *testing.T) {
 
 func TestStatusToNCRequestMalformedIPAssignment(t *testing.T) {
 	var (
-		status nnc.NodeNetworkConfigStatus
+		status v1alpha.NodeNetworkConfigStatus
 		err    error
 	)
 
-	status = nnc.NodeNetworkConfigStatus{
-		NetworkContainers: []nnc.NetworkContainer{
+	status = v1alpha.NodeNetworkConfigStatus{
+		NetworkContainers: []v1alpha.NetworkContainer{
 			{
 				PrimaryIP: primaryIp,
 				ID:        ncID,
-				IPAssignments: []nnc.IPAssignment{
+				IPAssignments: []v1alpha.IPAssignment{
 					{
 						Name: allocatedUUID,
 						IP:   ipMalformed,
@@ -82,16 +82,16 @@ func TestStatusToNCRequestMalformedIPAssignment(t *testing.T) {
 
 func TestStatusToNCRequestPrimaryIPInCIDR(t *testing.T) {
 	var (
-		status nnc.NodeNetworkConfigStatus
+		status v1alpha.NodeNetworkConfigStatus
 		err    error
 	)
 
-	status = nnc.NodeNetworkConfigStatus{
-		NetworkContainers: []nnc.NetworkContainer{
+	status = v1alpha.NodeNetworkConfigStatus{
+		NetworkContainers: []v1alpha.NetworkContainer{
 			{
 				PrimaryIP: ipInCIDR,
 				ID:        ncID,
-				IPAssignments: []nnc.IPAssignment{
+				IPAssignments: []v1alpha.IPAssignment{
 					{
 						Name: allocatedUUID,
 						IP:   testSecIp1,
@@ -112,16 +112,16 @@ func TestStatusToNCRequestPrimaryIPInCIDR(t *testing.T) {
 
 func TestStatusToNCRequestIPAssignmentNotCIDR(t *testing.T) {
 	var (
-		status nnc.NodeNetworkConfigStatus
+		status v1alpha.NodeNetworkConfigStatus
 		err    error
 	)
 
-	status = nnc.NodeNetworkConfigStatus{
-		NetworkContainers: []nnc.NetworkContainer{
+	status = v1alpha.NodeNetworkConfigStatus{
+		NetworkContainers: []v1alpha.NetworkContainer{
 			{
 				PrimaryIP: primaryIp,
 				ID:        ncID,
-				IPAssignments: []nnc.IPAssignment{
+				IPAssignments: []v1alpha.IPAssignment{
 					{
 						Name: allocatedUUID,
 						IP:   ipInCIDR,
@@ -142,16 +142,16 @@ func TestStatusToNCRequestIPAssignmentNotCIDR(t *testing.T) {
 
 func TestStatusToNCRequestWithIncorrectSubnetAddressSpace(t *testing.T) {
 	var (
-		status nnc.NodeNetworkConfigStatus
+		status v1alpha.NodeNetworkConfigStatus
 		err    error
 	)
 
-	status = nnc.NodeNetworkConfigStatus{
-		NetworkContainers: []nnc.NetworkContainer{
+	status = v1alpha.NodeNetworkConfigStatus{
+		NetworkContainers: []v1alpha.NetworkContainer{
 			{
 				PrimaryIP: primaryIp,
 				ID:        ncID,
-				IPAssignments: []nnc.IPAssignment{
+				IPAssignments: []v1alpha.IPAssignment{
 					{
 						Name: allocatedUUID,
 						IP:   testSecIp1,
@@ -172,7 +172,7 @@ func TestStatusToNCRequestWithIncorrectSubnetAddressSpace(t *testing.T) {
 
 func TestStatusToNCRequestSuccess(t *testing.T) {
 	var (
-		status       nnc.NodeNetworkConfigStatus
+		status       v1alpha.NodeNetworkConfigStatus
 		ncRequest    cns.CreateNetworkContainerRequest
 		secondaryIPs map[string]cns.SecondaryIPConfig
 		secondaryIP  cns.SecondaryIPConfig
@@ -180,12 +180,12 @@ func TestStatusToNCRequestSuccess(t *testing.T) {
 		err          error
 	)
 
-	status = nnc.NodeNetworkConfigStatus{
-		NetworkContainers: []nnc.NetworkContainer{
+	status = v1alpha.NodeNetworkConfigStatus{
+		NetworkContainers: []v1alpha.NetworkContainer{
 			{
 				PrimaryIP: primaryIp,
 				ID:        ncID,
-				IPAssignments: []nnc.IPAssignment{
+				IPAssignments: []v1alpha.IPAssignment{
 					{
 						Name: allocatedUUID,
 						IP:   testSecIp1,

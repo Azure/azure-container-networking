@@ -18,7 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,25 +133,25 @@ func TestMain(m *testing.M) {
 	httpRestService, err := restserver.NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	svc = httpRestService.(*restserver.HTTPRestService)
 	svc.Name = "cns-test-server"
-	fakeNNC := nnc.NodeNetworkConfig{
+	fakeNNC := v1alpha.NodeNetworkConfig{
 		TypeMeta:   metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{},
-		Spec: nnc.NodeNetworkConfigSpec{
+		Spec: v1alpha.NodeNetworkConfigSpec{
 			RequestedIPCount: 16,
 			IPsNotInUse:      []string{"abc"},
 		},
-		Status: nnc.NodeNetworkConfigStatus{
-			Scaler: nnc.Scaler{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
 				BatchSize:               10,
 				ReleaseThresholdPercent: 50,
 				RequestThresholdPercent: 40,
 			},
-			NetworkContainers: []nnc.NetworkContainer{
+			NetworkContainers: []v1alpha.NetworkContainer{
 				{
 					ID:         "nc1",
 					PrimaryIP:  "10.0.0.11",
 					SubnetName: "sub1",
-					IPAssignments: []nnc.IPAssignment{
+					IPAssignments: []v1alpha.IPAssignment{
 						{
 							Name: "ip1",
 							IP:   "10.0.0.10",
@@ -352,22 +352,22 @@ func TestCNSClientDebugAPI(t *testing.T) {
 		t.Errorf("Get in-memory http REST Struct failed %+v", err)
 	}
 
-	if len(inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
+	if len(inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
 		t.Errorf("OrchestratorContext map is expected but not returned")
 	}
 
 	// testing Pod IP Configuration Status values set for test
-	podConfig := inmemory.HttpRestServiceData.PodIPConfigState
+	podConfig := inmemory.HTTPRestServiceData.PodIPConfigState
 	for _, v := range podConfig {
 		if v.IPAddress != "10.0.0.5" || v.State != "Allocated" || v.NCID != "testNcId1" {
 			t.Errorf("Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 		}
 	}
-	if len(inmemory.HttpRestServiceData.PodIPConfigState) < 1 {
+	if len(inmemory.HTTPRestServiceData.PodIPConfigState) < 1 {
 		t.Errorf("PodIpConfigState with atleast 1 entry expected but not returned.")
 	}
 
-	testIpamPoolMonitor := inmemory.HttpRestServiceData.IPAMPoolMonitor
+	testIpamPoolMonitor := inmemory.HTTPRestServiceData.IPAMPoolMonitor
 	if testIpamPoolMonitor.MinimumFreeIps != 10 || testIpamPoolMonitor.MaximumFreeIps != 20 || testIpamPoolMonitor.UpdatingIpsNotInUseCount != 13 {
 		t.Errorf("IPAMPoolMonitor state is not reflecting the initial set values, %+v", testIpamPoolMonitor)
 	}
@@ -387,7 +387,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 
 	t.Logf("In-memory Data: ")
-	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey)
-	t.Logf("PodIPConfigState: %+v", inmemory.HttpRestServiceData.PodIPConfigState)
-	t.Logf("IPAMPoolMonitor: %+v", inmemory.HttpRestServiceData.IPAMPoolMonitor)
+	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey)
+	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
+	t.Logf("IPAMPoolMonitor: %+v", inmemory.HTTPRestServiceData.IPAMPoolMonitor)
 }

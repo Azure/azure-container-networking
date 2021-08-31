@@ -56,8 +56,10 @@ const (
 	maxRetryNodeRegister = 720
 )
 
-var rootCtx context.Context
-var rootErrCh chan error
+var (
+	rootCtx   context.Context
+	rootErrCh chan error
+)
 
 // Version is populated by make during build.
 var version string
@@ -292,14 +294,14 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 		return retErr
 	}
 
-	//To avoid any null-pointer deferencing errors.
+	// To avoid any null-pointer deferencing errors.
 	if supportedApis == nil {
 		supportedApis = []string{}
 	}
 
 	nodeRegisterRequest.NmAgentSupportedApis = supportedApis
 
-	//CNS tries to register Node for maximum of an hour.
+	// CNS tries to register Node for maximum of an hour.
 	for tryNum := 0; tryNum <= maxRetryNodeRegister; tryNum++ {
 		success, err := sendRegisterNodeRequest(httpc, httpRestService, nodeRegisterRequest, url)
 		if err != nil {
@@ -708,7 +710,7 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 		return err
 	}
 
-	//convert interface type to implementation type
+	// convert interface type to implementation type
 	httpRestServiceImpl, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
 		logger.Errorf("Failed to convert interface httpRestService to implementation: %v", httpRestService)
@@ -783,7 +785,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return err
 	}
 
-	//convert interface type to implementation type
+	// convert interface type to implementation type
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
 		logger.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v", httpRestService)
@@ -800,9 +802,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// Get crd implementation of request controller
 	requestController, err = kubecontroller.New(
 		kubecontroller.Config{
-			InitializeFromCNI: cnsconfig.InitializeFromCNI,
-			KubeConfig:        kubeConfig,
-			Service:           httpRestServiceImplementation,
+			InitializeFromCNI:  cnsconfig.InitializeFromCNI,
+			KubeConfig:         kubeConfig,
+			MetricsBindAddress: cnsconfig.MetricsBindAddress,
+			Service:            httpRestServiceImplementation,
 		})
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to make crd request controller :%v", err)
@@ -818,7 +821,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return err
 	}
 
-	//Start the RequestController which starts the reconcile loop
+	// Start the RequestController which starts the reconcile loop
 	go func() {
 		for {
 			if err := requestController.Start(ctx); err != nil {

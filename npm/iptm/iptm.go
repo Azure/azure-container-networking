@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -18,6 +19,7 @@ import (
 const (
 	defaultlockWaitTimeInSeconds string = "60"
 	iptablesErrDoesNotExist      int    = 1
+	reconcileChainTimeInMinutes         = 5
 )
 
 var (
@@ -80,27 +82,120 @@ func NewIptablesManager(exec utilexec.Interface, io ioshim) *IptablesManager {
 func (iptMgr *IptablesManager) InitNpmChains() error {
 	log.Logf("Initializing AZURE-NPM chains.")
 
-	if err := iptMgr.AddAllChains(); err != nil {
+	if err := iptMgr.addAllChains(); err != nil {
 		return err
 	}
 
-	err := iptMgr.CheckAndAddForwardChain()
-	if err != nil {
+	if err := iptMgr.checkAndAddForwardChain(); err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain. %s", err.Error())
 	}
 
-	if err = iptMgr.AddAllRulesToChains(); err != nil {
+	return iptMgr.addAllRulesToChains()
+}
+
+// UninitNpmChains uninitializes Azure NPM chains in iptables.
+func (iptMgr *IptablesManager) UninitNpmChains() error {
+	// Remove AZURE-NPM chain from FORWARD chain.
+	entry := &IptEntry{
+		Chain: util.IptablesForwardChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesAzureChain,
+		},
+	}
+	iptMgr.OperationFlag = util.IptablesDeletionFlag
+	errCode, err := iptMgr.run(entry)
+	if errCode != iptablesErrDoesNotExist && err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to delete AZURE-NPM from Forward chain")
 		return err
+	}
+
+	// For backward compatibility, we should be cleaning older chains.
+	// TODO(jungukcho): need to check K8s or NPM version and do it selectively
+	// to avoid unnecessary call.
+	allAzureChains := append(IptablesAzureChainList,
+		util.IptablesAzureTargetSetsChain,
+		util.IptablesAzureIngressWrongDropsChain,
+	)
+
+	iptMgr.OperationFlag = util.IptablesFlushFlag
+	for _, chain := range allAzureChains {
+		entry := &IptEntry{
+			Chain: chain,
+		}
+		errCode, err := iptMgr.run(entry)
+		if errCode != iptablesErrDoesNotExist && err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to flush iptables chain %s.", chain)
+		}
+	}
+
+	for _, chain := range allAzureChains {
+		if err := iptMgr.deleteChain(chain); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-// CheckAndAddForwardChain initializes and reconciles Azure-NPM chain in right order
-func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
+// Add adds a rule in iptables.
+func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
+	timer := metrics.StartNewTimer()
+
+	log.Logf("Adding iptables entry: %+v.", entry)
+
+	// Since there is a RETURN statement added to each DROP chain, we need to make sure
+	// any new DROP rule added to ingress or egress DROPS chain is added at the BOTTOM
+	if isDropsChain(entry.Chain) {
+		iptMgr.OperationFlag = util.IptablesAppendFlag
+	} else {
+		iptMgr.OperationFlag = util.IptablesInsertionFlag
+	}
+	if _, err := iptMgr.run(entry); err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to create iptables rules.")
+		return err
+	}
+
+	metrics.NumIPTableRules.Inc()
+	timer.StopAndRecord(metrics.AddIPTableRuleExecTime)
+
+	return nil
+}
+
+// Delete removes a rule in iptables.
+func (iptMgr *IptablesManager) Delete(entry *IptEntry) error {
+	log.Logf("Deleting iptables entry: %+v", entry)
+
+	exists, err := iptMgr.exists(entry)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return nil
+	}
+
+	iptMgr.OperationFlag = util.IptablesDeletionFlag
+	if _, err := iptMgr.run(entry); err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to delete iptables rules.")
+		return err
+	}
+
+	metrics.NumIPTableRules.Dec()
+	return nil
+}
+
+func (iptMgr *IptablesManager) ReconcileIPTables(stopCh <-chan struct{}) {
+	// (TODO) Ideally, we only need this when network policy installs iptables
+	// Control below two functions with InitNpmChains and UninitNpmChains functions together
+	go iptMgr.reconcileChains(stopCh)
+}
+
+// checkAndAddForwardChain initializes and reconciles Azure-NPM chain in right order
+func (iptMgr *IptablesManager) checkAndAddForwardChain() error {
 
 	// TODO Adding this chain is printing error messages try to clean it up
-	if err := iptMgr.AddChain(util.IptablesAzureChain); err != nil {
+	if err := iptMgr.addChain(util.IptablesAzureChain); err != nil {
 		return err
 	}
 
@@ -115,7 +210,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 
 	index := 1
 	// retrieve KUBE-SERVICES index
-	kubeServicesLine, err := iptMgr.GetChainLineNumber(util.IptablesKubeServicesChain, util.IptablesForwardChain)
+	kubeServicesLine, err := iptMgr.getChainLineNumber(util.IptablesKubeServicesChain, util.IptablesForwardChain)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of KUBE-SERVICES in FORWARD chain with error: %s", err.Error())
 		return err
@@ -123,7 +218,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 
 	index = kubeServicesLine + 1
 
-	exists, err := iptMgr.Exists(entry)
+	exists, err := iptMgr.exists(entry)
 	if err != nil {
 		return err
 	}
@@ -132,7 +227,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 		// position Azure-NPM chain after Kube-Forward and Kube-Service chains if it exists
 		iptMgr.OperationFlag = util.IptablesInsertionFlag
 		entry.Specs = append([]string{strconv.Itoa(index)}, entry.Specs...)
-		if _, err = iptMgr.Run(entry); err != nil {
+		if _, err = iptMgr.run(entry); err != nil {
 			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain.")
 			return err
 		}
@@ -140,7 +235,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 		return nil
 	}
 
-	npmChainLine, err := iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+	npmChainLine, err := iptMgr.getChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get index of AZURE-NPM in FORWARD chain with error: %s", err.Error())
 		return err
@@ -158,7 +253,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 	// delete existing NPM chain and add it in the right order
 	iptMgr.OperationFlag = util.IptablesDeletionFlag
 	metrics.SendErrorLogAndMetric(util.IptmID, "Info: Reconciler deleting and re-adding AZURE-NPM in FORWARD table.")
-	if errCode, err = iptMgr.Run(entry); err != nil {
+	if errCode, err = iptMgr.run(entry); err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to delete AZURE-NPM chain from FORWARD chain with error code %d.", errCode)
 		return err
 	}
@@ -168,7 +263,7 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 		index--
 	}
 	entry.Specs = append([]string{strconv.Itoa(index)}, entry.Specs...)
-	if errCode, err = iptMgr.Run(entry); err != nil {
+	if errCode, err = iptMgr.run(entry); err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add AZURE-NPM chain to FORWARD chain with error code %d.", errCode)
 		return err
 	}
@@ -176,53 +271,25 @@ func (iptMgr *IptablesManager) CheckAndAddForwardChain() error {
 	return nil
 }
 
-// UninitNpmChains uninitializes Azure NPM chains in iptables.
-func (iptMgr *IptablesManager) UninitNpmChains() error {
+// reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
+func (iptMgr *IptablesManager) reconcileChains(stopCh <-chan struct{}) {
+	ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
+	defer ticker.Stop()
 
-	// Remove AZURE-NPM chain from FORWARD chain.
-	entry := &IptEntry{
-		Chain: util.IptablesForwardChain,
-		Specs: []string{
-			util.IptablesJumpFlag,
-			util.IptablesAzureChain,
-		},
-	}
-	iptMgr.OperationFlag = util.IptablesDeletionFlag
-	errCode, err := iptMgr.Run(entry)
-	if errCode != iptablesErrDoesNotExist && err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to add default allow CONNECTED/RELATED rule to AZURE-NPM chain.")
-		return err
-	}
-
-	// For backward compatibility, we should be cleaning older chains
-	allAzureChains := append(
-		IptablesAzureChainList,
-		util.IptablesAzureTargetSetsChain,
-		util.IptablesAzureIngressWrongDropsChain,
-	)
-
-	iptMgr.OperationFlag = util.IptablesFlushFlag
-	for _, chain := range allAzureChains {
-		entry := &IptEntry{
-			Chain: chain,
-		}
-		errCode, err := iptMgr.Run(entry)
-		if errCode != iptablesErrDoesNotExist && err != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to flush iptables chain %s.", chain)
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			if err := iptMgr.checkAndAddForwardChain(); err != nil {
+				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to reconcileChains Azure-NPM due to %s", err.Error())
+			}
 		}
 	}
-
-	for _, chain := range allAzureChains {
-		if err := iptMgr.DeleteChain(chain); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
-// AddAllRulesToChains Checks and adds all the rules in NPM chains
-func (iptMgr *IptablesManager) AddAllRulesToChains() error {
+// addAllRulesToChains checks and adds all the rules in NPM chains
+func (iptMgr *IptablesManager) addAllRulesToChains() error {
 
 	allDefaultRules := getAllDefaultRules()
 	for _, rule := range allDefaultRules {
@@ -230,14 +297,14 @@ func (iptMgr *IptablesManager) AddAllRulesToChains() error {
 			Chain: rule[0],
 			Specs: rule[1:],
 		}
-		exists, err := iptMgr.Exists(entry)
+		exists, err := iptMgr.exists(entry)
 		if err != nil {
 			return err
 		}
 
 		if !exists {
 			iptMgr.OperationFlag = util.IptablesAppendFlag
-			if _, err = iptMgr.Run(entry); err != nil {
+			if _, err = iptMgr.run(entry); err != nil {
 				msg := "Error: failed to add %s to parent chain %s"
 				switch {
 				case len(rule) == 3:
@@ -261,9 +328,9 @@ func (iptMgr *IptablesManager) AddAllRulesToChains() error {
 }
 
 // Exists checks if a rule exists in iptables.
-func (iptMgr *IptablesManager) Exists(entry *IptEntry) (bool, error) {
+func (iptMgr *IptablesManager) exists(entry *IptEntry) (bool, error) {
 	iptMgr.OperationFlag = util.IptablesCheckFlag
-	returnCode, err := iptMgr.Run(entry)
+	returnCode, err := iptMgr.run(entry)
 	if err == nil {
 		return true, nil
 	}
@@ -276,10 +343,10 @@ func (iptMgr *IptablesManager) Exists(entry *IptEntry) (bool, error) {
 }
 
 // AddAllChains adds all NPM chains
-func (iptMgr *IptablesManager) AddAllChains() error {
+func (iptMgr *IptablesManager) addAllChains() error {
 	// Add all secondary Chains
 	for _, chainToAdd := range IptablesAzureChainList {
-		if err := iptMgr.AddChain(chainToAdd); err != nil {
+		if err := iptMgr.addChain(chainToAdd); err != nil {
 			return err
 		}
 	}
@@ -287,12 +354,12 @@ func (iptMgr *IptablesManager) AddAllChains() error {
 }
 
 // AddChain adds a chain to iptables.
-func (iptMgr *IptablesManager) AddChain(chain string) error {
+func (iptMgr *IptablesManager) addChain(chain string) error {
 	entry := &IptEntry{
 		Chain: chain,
 	}
 	iptMgr.OperationFlag = util.IptablesChainCreationFlag
-	errCode, err := iptMgr.Run(entry)
+	errCode, err := iptMgr.run(entry)
 	if err != nil {
 		if errCode == iptablesErrDoesNotExist {
 			log.Logf("Chain already exists %s.", entry.Chain)
@@ -307,7 +374,7 @@ func (iptMgr *IptablesManager) AddChain(chain string) error {
 }
 
 // GetChainLineNumber given a Chain and its parent chain returns line number
-func (iptMgr *IptablesManager) GetChainLineNumber(chain string, parentChain string) (int, error) {
+func (iptMgr *IptablesManager) getChainLineNumber(chain string, parentChain string) (int, error) {
 
 	var (
 		output []byte
@@ -345,12 +412,12 @@ func (iptMgr *IptablesManager) GetChainLineNumber(chain string, parentChain stri
 }
 
 // DeleteChain deletes a chain from iptables.
-func (iptMgr *IptablesManager) DeleteChain(chain string) error {
+func (iptMgr *IptablesManager) deleteChain(chain string) error {
 	entry := &IptEntry{
 		Chain: chain,
 	}
 	iptMgr.OperationFlag = util.IptablesDestroyFlag
-	errCode, err := iptMgr.Run(entry)
+	errCode, err := iptMgr.run(entry)
 	if err != nil {
 		if errCode == iptablesErrDoesNotExist {
 			log.Logf("Chain doesn't exist %s.", entry.Chain)
@@ -364,56 +431,8 @@ func (iptMgr *IptablesManager) DeleteChain(chain string) error {
 	return nil
 }
 
-// Add adds a rule in iptables.
-func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
-	timer := metrics.StartNewTimer()
-
-	log.Logf("Adding iptables entry: %+v.", entry)
-
-	// Since there is a RETURN statement added to each DROP chain, we need to make sure
-	// any new DROP rule added to ingress or egress DROPS chain is added at the BOTTOM
-	if isDropsChain(entry.Chain) {
-		iptMgr.OperationFlag = util.IptablesAppendFlag
-	} else {
-		iptMgr.OperationFlag = util.IptablesInsertionFlag
-	}
-	if _, err := iptMgr.Run(entry); err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to create iptables rules.")
-		return err
-	}
-
-	metrics.NumIPTableRules.Inc()
-	timer.StopAndRecord(metrics.AddIPTableRuleExecTime)
-
-	return nil
-}
-
-// Delete removes a rule in iptables.
-func (iptMgr *IptablesManager) Delete(entry *IptEntry) error {
-	log.Logf("Deleting iptables entry: %+v", entry)
-
-	exists, err := iptMgr.Exists(entry)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		return nil
-	}
-
-	iptMgr.OperationFlag = util.IptablesDeletionFlag
-	if _, err := iptMgr.Run(entry); err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to delete iptables rules.")
-		return err
-	}
-
-	metrics.NumIPTableRules.Dec()
-
-	return nil
-}
-
 // Run execute an iptables command to update iptables.
-func (iptMgr *IptablesManager) Run(entry *IptEntry) (int, error) {
+func (iptMgr *IptablesManager) run(entry *IptEntry) (int, error) {
 	cmdName := entry.Command
 	if cmdName == "" {
 		cmdName = util.Iptables

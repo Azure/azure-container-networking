@@ -4,7 +4,9 @@ package npm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -13,11 +15,9 @@ import (
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
-	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/Azure/azure-container-networking/telemetry"
-	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
@@ -32,19 +32,26 @@ import (
 var aiMetadata string
 
 const (
-	heartbeatIntervalInMinutes  = 30
-	reconcileChainTimeInMinutes = 5
+	heartbeatIntervalInMinutes = 30
 	// TODO: consider increasing thread number later when logics are correct
-	threadness = 1
+	// threadness = 1
 )
+
+// Cache to store namespace struct in nameSpaceController.go.
+// Since this cache is shared between podController and NameSpaceController,
+// it has mutex for avoiding racing condition between them.
+type npmNamespaceCache struct {
+	sync.Mutex
+	nsMap map[string]*Namespace // Key is ns-<nsname>
+}
+
+type NetworkPolicyManagerEncoder interface {
+	Encode(writer io.Writer) error
+}
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
-	sync.Mutex
-
-	Exec      utilexec.Interface
-	clientset *kubernetes.Clientset
-
+	clientset       kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	podInformer     coreinformers.PodInformer
 	podController   *podController
@@ -55,17 +62,85 @@ type NetworkPolicyManager struct {
 	npInformer       networkinginformers.NetworkPolicyInformer
 	netPolController *networkPolicyController
 
-	NodeName       string
-	NsMap          map[string]*Namespace                  // Key is ns-<nsname>
-	PodMap         map[string]*NpmPod                     // Key is <nsname>/<podname>
-	RawNpMap       map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
-	ProcessedNpMap map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<podSelectorHash>
-
-	clusterState telemetry.ClusterState
-	version      string
-
-	serverVersion    *version.Info
+	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management
+	// and uses lock to avoid unintentional race condictions in IpsetManager.
+	ipsMgr            *ipsm.IpsetManager
+	npmNamespaceCache *npmNamespaceCache
+	// Azure-specific variables
+	clusterState     telemetry.ClusterState
+	k8sServerVersion *version.Info
+	NodeName         string
+	version          string
 	TelemetryEnabled bool
+}
+
+// NewNetworkPolicyManager creates a NetworkPolicyManager
+func NewNetworkPolicyManager(clientset kubernetes.Interface, informerFactory informers.SharedInformerFactory,
+	exec utilexec.Interface, npmVersion string, k8sServerVersion *version.Info) *NetworkPolicyManager {
+	klog.Infof("API server version: %+v ai meta data %+v", k8sServerVersion, aiMetadata)
+
+	npMgr := &NetworkPolicyManager{
+		clientset:         clientset,
+		informerFactory:   informerFactory,
+		podInformer:       informerFactory.Core().V1().Pods(),
+		nsInformer:        informerFactory.Core().V1().Namespaces(),
+		npInformer:        informerFactory.Networking().V1().NetworkPolicies(),
+		ipsMgr:            ipsm.NewIpsetManager(exec),
+		npmNamespaceCache: &npmNamespaceCache{nsMap: make(map[string]*Namespace)},
+		clusterState: telemetry.ClusterState{
+			PodCount:      0,
+			NsCount:       0,
+			NwPolicyCount: 0,
+		},
+		k8sServerVersion: k8sServerVersion,
+		NodeName:         os.Getenv("HOSTNAME"),
+		version:          npmVersion,
+		TelemetryEnabled: true,
+	}
+
+	// create pod controller
+	npMgr.podController = NewPodController(npMgr.podInformer, clientset, npMgr.ipsMgr, npMgr.npmNamespaceCache)
+	// create NameSpace controller
+	npMgr.nameSpaceController = NewNameSpaceController(npMgr.nsInformer, clientset, npMgr.ipsMgr, npMgr.npmNamespaceCache)
+	// create network policy controller
+	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, clientset, npMgr.ipsMgr)
+
+	return npMgr
+}
+
+func (npMgr *NetworkPolicyManager) encode(enc *json.Encoder) error {
+	if err := enc.Encode(npMgr.NodeName); err != nil {
+		return fmt.Errorf("failed to encode nodename %w", err)
+	}
+
+	npMgr.npmNamespaceCache.Lock()
+	defer npMgr.npmNamespaceCache.Unlock()
+	if err := enc.Encode(npMgr.npmNamespaceCache.nsMap); err != nil {
+		return fmt.Errorf("failed to encode npm namespace cache %w", err)
+	}
+
+	return nil
+}
+
+// Encode returns all information of pod, namespace, ipsm map information.
+// TODO(jungukcho): While this approach is beneficial to hold separate lock instead of global lock,
+// it has strict ordering limitation between encoding and decoding.
+// Will find flexible way by maintaining performance benefit.
+func (npMgr *NetworkPolicyManager) Encode(writer io.Writer) error {
+	enc := json.NewEncoder(writer)
+	if err := npMgr.encode(enc); err != nil {
+		return err
+	}
+
+	if err := npMgr.podController.Encode(enc); err != nil {
+		return err
+	}
+
+	if err := npMgr.ipsMgr.Encode(enc); err != nil {
+		return fmt.Errorf("failed to encode ipsm cache %w", err)
+	}
+
+	return nil
 }
 
 // GetClusterState returns current cluster state.
@@ -103,11 +178,12 @@ func GetAIMetadata() string {
 }
 
 // SendClusterMetrics :- send NPM cluster metrics using AppInsights
+// TODO(jungukcho): need to move codes into metrics packages
 func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	var (
 		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
 		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.NodeName),
-			"APIServer": npMgr.serverVersion.String()}
+			"APIServer": npMgr.k8sServerVersion.String()}
 		podCount = aitelemetry.Metric{
 			Name:             "PodCount",
 			CustomDimensions: customDimensions,
@@ -124,13 +200,16 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 
 	for {
 		<-heartbeat
-		npMgr.Lock()
-		podCount.Value = 0
-		//Reducing one to remove all-namespaces ns obj
-		nsCount.Value = float64(len(npMgr.NsMap) - 1)
-		nwPolicyCount.Value += float64(len(npMgr.RawNpMap))
-		podCount.Value += float64(len(npMgr.PodMap))
-		npMgr.Unlock()
+
+		// Reducing one to remove all-namespaces ns obj
+		lenOfNsMap := len(npMgr.npmNamespaceCache.nsMap)
+		nsCount.Value = float64(lenOfNsMap - 1)
+
+		lenOfRawNpMap := npMgr.netPolController.lengthOfRawNpMap()
+		nwPolicyCount.Value += float64(lenOfRawNpMap)
+
+		lenOfPodMap := npMgr.podController.lengthOfPodMap()
+		podCount.Value += float64(lenOfPodMap)
 
 		metrics.SendMetric(podCount)
 		metrics.SendMetric(nsCount)
@@ -140,129 +219,31 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
+	// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
+	if err := npMgr.netPolController.resetDataPlane(); err != nil {
+		return fmt.Errorf("Failed to initialized data plane")
+	}
+
 	// Starts all informers manufactured by npMgr's informerFactory.
 	npMgr.informerFactory.Start(stopCh)
 
 	// Wait for the initial sync of local cache.
 	if !cache.WaitForCacheSync(stopCh, npMgr.podInformer.Informer().HasSynced) {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Pod informer failed to sync")
 		return fmt.Errorf("Pod informer failed to sync")
 	}
 
 	if !cache.WaitForCacheSync(stopCh, npMgr.nsInformer.Informer().HasSynced) {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Namespace informer failed to sync")
 		return fmt.Errorf("Namespace informer failed to sync")
 	}
 
 	if !cache.WaitForCacheSync(stopCh, npMgr.npInformer.Informer().HasSynced) {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Network policy informer failed to sync")
 		return fmt.Errorf("Network policy informer failed to sync")
 	}
 
 	// start controllers after synced
-	go npMgr.podController.Run(threadness, stopCh)
-	go npMgr.nameSpaceController.Run(threadness, stopCh)
-	go npMgr.netPolController.Run(threadness, stopCh)
-	go npMgr.reconcileChains(stopCh)
-
+	go npMgr.podController.Run(stopCh)
+	go npMgr.nameSpaceController.Run(stopCh)
+	go npMgr.netPolController.Run(stopCh)
+	go npMgr.netPolController.runPeriodicTasks(stopCh)
 	return nil
-}
-
-// NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(clientset *kubernetes.Clientset, informerFactory informers.SharedInformerFactory, exec utilexec.Interface, npmVersion string) *NetworkPolicyManager {
-	// Clear out left over iptables states
-	klog.Info("Azure-NPM creating, cleaning iptables")
-	iptMgr := iptm.NewIptablesManager(exec, iptm.NewIptOperationShim())
-	iptMgr.UninitNpmChains()
-
-	klog.Info("Azure-NPM creating, cleaning existing Azure NPM IPSets")
-	ipsm.NewIpsetManager(exec).DestroyNpmIpsets()
-
-	var (
-		podInformer   = informerFactory.Core().V1().Pods()
-		nsInformer    = informerFactory.Core().V1().Namespaces()
-		npInformer    = informerFactory.Networking().V1().NetworkPolicies()
-		serverVersion *version.Info
-		err           error
-	)
-
-	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
-		<-ticker
-		serverVersion, err = clientset.ServerVersion()
-		if err == nil {
-			break
-		}
-	}
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
-		panic(err.Error)
-	}
-
-	// This K8s api server version information is used to support backward-compatibility in translatePolicy.go
-	klog.Infof("Run NPM (%s) on K8s version %+v", npmVersion, serverVersion)
-
-	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
-		panic(err.Error)
-	}
-
-	npMgr := &NetworkPolicyManager{
-		Exec:            exec,
-		clientset:       clientset,
-		informerFactory: informerFactory,
-		podInformer:     podInformer,
-		nsInformer:      nsInformer,
-		npInformer:      npInformer,
-		NodeName:        os.Getenv("HOSTNAME"),
-		NsMap:           make(map[string]*Namespace),
-		PodMap:          make(map[string]*NpmPod),
-		RawNpMap:        make(map[string]*networkingv1.NetworkPolicy),
-		ProcessedNpMap:  make(map[string]*networkingv1.NetworkPolicy),
-		clusterState: telemetry.ClusterState{
-			PodCount:      0,
-			NsCount:       0,
-			NwPolicyCount: 0,
-		},
-		version:          npmVersion,
-		serverVersion:    serverVersion,
-		TelemetryEnabled: true,
-	}
-
-	allNs, _ := newNs(util.KubeAllNamespacesFlag, npMgr.Exec)
-	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
-
-	// Create ipset for the namespace.
-	kubeSystemNs := util.GetNSNameWithPrefix(util.KubeSystemFlag)
-	if err := allNs.IpsMgr.CreateSet(kubeSystemNs, []string{util.IpsetNetHashFlag}); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to create ipset for namespace %s.", kubeSystemNs)
-	}
-
-	// create pod controller
-	npMgr.podController = NewPodController(podInformer, clientset, npMgr)
-
-	// create NameSpace controller
-	npMgr.nameSpaceController = NewNameSpaceController(nsInformer, clientset, npMgr)
-
-	// create network policy controller
-	npMgr.netPolController = NewNetworkPolicyController(npInformer, clientset, npMgr)
-
-	return npMgr
-}
-
-// reconcileChains checks for ordering of AZURE-NPM chain in FORWARD chain periodically.
-func (npMgr *NetworkPolicyManager) reconcileChains(stopCh <-chan struct{}) {
-	iptMgr := iptm.NewIptablesManager(npMgr.Exec, iptm.NewIptOperationShim())
-	ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-stopCh:
-			return
-		case <-ticker.C:
-			if err := iptMgr.CheckAndAddForwardChain(); err != nil {
-				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to reconcileChains Azure-NPM due to %s", err.Error())
-			}
-		}
-	}
 }

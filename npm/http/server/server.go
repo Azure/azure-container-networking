@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -9,6 +8,7 @@ import (
 
 	"k8s.io/klog"
 
+	"github.com/Azure/azure-container-networking/npm/cache"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -23,10 +23,8 @@ type NPMRestServer struct {
 	router           *mux.Router
 }
 
-func NPMRestServerListenAndServe(config npmconfig.Config, npMgr *npm.NetworkPolicyManager) {
-	rs := NPMRestServer{}
-
-	rs.router = mux.NewRouter()
+func (n *NPMRestServer) NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder npm.NetworkPolicyManagerEncoder) {
+	n.router = mux.NewRouter()
 
 	//prometheus handlers
 	if config.Toggles.EnablePrometheusMetrics {
@@ -36,7 +34,7 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npMgr *npm.NetworkPoli
 
 	if config.Toggles.EnableHTTPDebugAPI {
 		// ACN CLI debug handlerss
-		rs.router.Handle(api.NPMMgrPath, rs.GetNpmMgr(npMgr)).Methods(http.MethodGet)
+		n.router.Handle(api.NPMMgrPath, n.npmCacheHandler(npmEncoder)).Methods(http.MethodGet)
 	}
 
 	if config.Toggles.EnablePprof {
@@ -62,14 +60,12 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npMgr *npm.NetworkPoli
 	klog.Errorf("Failed to start NPM HTTP Server with error: %+v", srv.ListenAndServe())
 }
 
-func (n *NPMRestServer) GetNpmMgr(npMgr *npm.NetworkPolicyManager) http.Handler {
+func (n *NPMRestServer) npmCacheHandler(npmEncoder npm.NetworkPolicyManagerEncoder) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		npMgr.Lock()
-		err := json.NewEncoder(w).Encode(npMgr)
+		err := cache.Encode(w, npmEncoder)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		npMgr.Unlock()
 	})
 }

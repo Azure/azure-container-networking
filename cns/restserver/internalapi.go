@@ -19,7 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
 
@@ -211,8 +211,8 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) ReconcileNCState(
-	ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar nnc.Scaler,
-	spec nnc.NodeNetworkConfigSpec) types.ResponseCode {
+	ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler,
+	spec v1alpha.NodeNetworkConfigSpec) types.ResponseCode {
 	logger.Printf("Reconciling NC state with podInfo %+v", podInfoByIP)
 	// check if ncRequest is null, then return as there is no CRD state yet
 	if ncRequest == nil {

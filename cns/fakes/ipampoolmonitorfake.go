@@ -4,21 +4,21 @@ import (
 	"context"
 
 	"github.com/Azure/azure-container-networking/cns"
-	nnc "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 type IPAMPoolMonitorFake struct {
 	FakeMinimumIps       int
 	FakeMaximumIps       int
 	FakeIpsNotInUseCount int
-	FakecachedNNC        nnc.NodeNetworkConfig
+	FakecachedNNC        v1alpha.NodeNetworkConfig
 }
 
 func (ipm *IPAMPoolMonitorFake) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
 	return nil
 }
 
-func (ipm *IPAMPoolMonitorFake) Update(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) {}
+func (ipm *IPAMPoolMonitorFake) Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {}
 
 func (ipm *IPAMPoolMonitorFake) Reconcile() error {
 	return nil
