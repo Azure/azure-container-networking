@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
+	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
 	"github.com/spf13/cobra"
 )
 
