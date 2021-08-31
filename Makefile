@@ -1,3 +1,5 @@
+-include setup
+
 # Default platform commands
 SHELL=/bin/bash
 MKDIR := mkdir -p
@@ -356,7 +358,7 @@ lint-old: $(GOLANGCI_LINT) ## Fast lint including previous issues
 
 FMT_PKG ?= cni cns npm
 
-fmt format: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
+fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
 	$(GOFUMPT) -s -w $(FMT_PKG)
 
 COVER_PKG ?= .
@@ -382,6 +384,16 @@ test-cyclonus:
 .PHONY: kind
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
+
+##@ Utilities
+
+$(REPO_ROOT)/.git/hooks/pre-push:
+	@ln -s $(REPO_ROOT)/.hooks/pre-push $(REPO_ROOT)/.git/hooks/
+	@echo installed pre-push hook
+
+install-hooks: $(REPO_ROOT)/.git/hooks/pre-push ## installs git hooks
+
+setup: install-hooks ## performs common required repo setup
 
 version: ## prints the version
 	@echo $(VERSION)
