@@ -40,9 +40,6 @@ var (
 		"		</IPSubnet>" +
 		"	</Interface>" +
 		"</Interfaces>"
-)
-
-var (
 	localAsId string
 	poolId1   string
 	address1  string

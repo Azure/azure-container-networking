@@ -1,11 +1,9 @@
 package ipamclient
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"testing"
@@ -79,19 +77,6 @@ func handleReleaseIPQuery(w http.ResponseWriter, r *http.Request) {
 func handleIPUtilizationQuery(w http.ResponseWriter, r *http.Request) {
 	ipUtilizationResp := "{\"Capacity\":10, \"Available\":7, \"UnhealthyAddresses\":[\"10.0.0.5\",\"10.0.0.6\",\"10.0.0.7\"]}"
 	w.Write([]byte(ipUtilizationResp))
-}
-
-// Decodes plugin's responses to test requests.
-func decodeResponse(w *httptest.ResponseRecorder, response interface{}) error {
-	if w.Code != http.StatusOK {
-		return fmt.Errorf("Request failed with HTTP error %d", w.Code)
-	}
-
-	if w.Body == nil {
-		return fmt.Errorf("Response body is empty")
-	}
-
-	return json.NewDecoder(w.Body).Decode(&response)
 }
 
 // Tests IpamClient GetAddressSpace function to get AddressSpaceID.
