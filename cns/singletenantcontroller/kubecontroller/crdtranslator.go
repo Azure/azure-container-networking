@@ -7,17 +7,17 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 // CRDStatusToNCRequest translates a crd status to createnetworkcontainer request
-func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetworkContainerRequest, error) {
+func CRDStatusToNCRequest(crdStatus v1alpha.NodeNetworkConfigStatus) (cns.CreateNetworkContainerRequest, error) {
 	var (
 		ncRequest         cns.CreateNetworkContainerRequest
-		nc                nnc.NetworkContainer
+		nc                v1alpha.NetworkContainer
 		secondaryIPConfig cns.SecondaryIPConfig
 		ipSubnet          cns.IPSubnet
-		ipAssignment      nnc.IPAssignment
+		ipAssignment      v1alpha.IPAssignment
 		err               error
 		ip                net.IP
 		ipNet             *net.IPNet
@@ -73,6 +73,6 @@ func CRDStatusToNCRequest(crdStatus nnc.NodeNetworkConfigStatus) (cns.CreateNetw
 			ncRequest.NetworkContainerid, ncRequest.NetworkContainerType, ncRequest.Version)
 	}
 
-	//Only returning the first network container for now, later we will return a list
+	// Only returning the first network container for now, later we will return a list
 	return ncRequest, nil
 }

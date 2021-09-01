@@ -1,0 +1,21 @@
+package nodenetworkconfig
+
+import (
+	_ "embed"
+
+	// import the manifests package so that caller of this package have the manifests compiled in as a side-effect.
+	_ "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/manifests"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"sigs.k8s.io/yaml"
+)
+
+// NodeNetworkConfigsYAML embeds the CRD YAML for downstream consumers.
+//go:embed manifests/acn.azure.com_nodenetworkconfigs.yaml
+var NodeNetworkConfigsYAML []byte
+
+// GetNodeNetworkConfigsDefinition parses the raw []byte NodeNetworkConfigs in
+// to a CustomResourceDefinition and returns it or an unmarshalling error.
+func GetNodeNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
+	nodeNetworkConfigs := &apiextensionsv1.CustomResourceDefinition{}
+	return nodeNetworkConfigs, yaml.Unmarshal(NodeNetworkConfigsYAML, &nodeNetworkConfigs)
+}

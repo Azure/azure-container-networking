@@ -5,7 +5,9 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 )
 
 // Client implements APIClient interface. Used to update CNS state
@@ -25,18 +27,12 @@ func (client *Client) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerReque
 }
 
 // UpdateIPAMPoolMonitor updates IPAM pool monitor.
-func (client *Client) UpdateIPAMPoolMonitor(scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
-	returnCode := client.RestService.UpdateIPAMPoolMonitorInternal(scalar, spec)
-
-	if returnCode != 0 {
-		return fmt.Errorf("Failed to update IPAM pool monitor scalar: %+v, spec: %+v, errorCode: %d", scalar, spec, returnCode)
-	}
-
-	return nil
+func (client *Client) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
+	client.RestService.IPAMPoolMonitor.Update(scalar, spec)
 }
 
 // ReconcileNCState initializes cns state
-func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar nnc.Scaler, spec nnc.NodeNetworkConfigSpec) error {
+func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
 	returnCode := client.RestService.ReconcileNCState(ncRequest, podInfoByIP, scalar, spec)
 
 	if returnCode != 0 {
@@ -47,15 +43,15 @@ func (client *Client) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequ
 }
 
 func (client *Client) GetNC(req cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, error) {
-	response, returnCode := client.RestService.GetNetworkContainerInternal(req)
+	resp, returnCode := client.RestService.GetNetworkContainerInternal(req)
 	if returnCode != 0 {
-		if returnCode == restserver.UnknownContainerID {
-			return response, fmt.Errorf("NotFound")
+		if returnCode == types.UnknownContainerID {
+			return resp, errors.New(returnCode.String())
 		}
-		return response, fmt.Errorf("Failed to get NC, request: %+v, errorCode: %d", req, returnCode)
+		return resp, errors.Errorf("failed to get NC, request: %+v, errorCode: %d", req, returnCode)
 	}
 
-	return response, nil
+	return resp, nil
 }
 
 func (client *Client) DeleteNC(req cns.DeleteNetworkContainerRequest) error {

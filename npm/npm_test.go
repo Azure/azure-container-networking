@@ -7,7 +7,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
-	"github.com/Azure/azure-container-networking/npm/util"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/exec"
 	utilexec "k8s.io/utils/exec"
@@ -32,15 +31,10 @@ func getKey(obj interface{}, t *testing.T) string {
 
 func newNPMgr(t *testing.T, exec utilexec.Interface) *NetworkPolicyManager {
 	npMgr := &NetworkPolicyManager{
-		Exec:             exec,
-		NsMap:            make(map[string]*Namespace),
-		PodMap:           make(map[string]*NpmPod),
+		ipsMgr:           ipsm.NewIpsetManager(exec),
 		TelemetryEnabled: false,
 	}
 
-	// This initialization important as without this NPM will panic
-	allNs, _ := newNs(util.KubeAllNamespacesFlag, npMgr.Exec)
-	npMgr.NsMap[util.KubeAllNamespacesFlag] = allNs
 	return npMgr
 }
 
@@ -51,9 +45,10 @@ func TestMain(m *testing.M) {
 	iptMgr.UninitNpmChains()
 
 	ipsMgr := ipsm.NewIpsetManager(exec)
-	ipsMgr.Destroy()
+	// Do not check returned error here to proceed all UTs.
+	// TODO(jungukcho): are there any side effect?
+	ipsMgr.DestroyNpmIpsets()
 
 	exitCode := m.Run()
-
 	os.Exit(exitCode)
 }

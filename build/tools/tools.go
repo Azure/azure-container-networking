@@ -8,5 +8,6 @@ import (
 	_ "github.com/golang/mock/mockgen"
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/jstemmer/go-junit-report"
+	_ "mvdan.cc/gofumpt"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )

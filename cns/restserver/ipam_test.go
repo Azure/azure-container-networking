@@ -36,7 +36,7 @@ func getTestService() *HTTPRestService {
 	var config common.ServiceConfig
 	httpsvc, _ := NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	svc = httpsvc.(*HTTPRestService)
-	svc.IPAMPoolMonitor = fakes.NewIPAMPoolMonitorFake()
+	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{}
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
 	return svc
@@ -49,7 +49,7 @@ func newSecondaryIPConfig(ipAddress string, ncVersion int) cns.SecondaryIPConfig
 	}
 }
 
-func NewPodState(ipaddress string, prefixLength uint8, id, ncid, state string, ncVersion int) cns.IPConfigurationStatus {
+func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state cns.IPConfigState, ncVersion int) cns.IPConfigurationStatus {
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
 
 	return cns.IPConfigurationStatus{
@@ -113,7 +113,7 @@ func requestIpAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPC
 	return ipState, err
 }
 
-func NewPodStateWithOrchestratorContext(ipaddress, id, ncid, state string, prefixLength uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
+func NewPodStateWithOrchestratorContext(ipaddress, id, ncid string, state cns.IPConfigState, prefixLength uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
 	return cns.IPConfigurationStatus{
 		IPAddress: ipconfig.IPAddress,
@@ -525,7 +525,6 @@ func TestAvailableIPConfigs(t *testing.T) {
 	desiredAllocatedIpConfigs[desiredState.ID] = desiredState
 	allocatedIps = svc.GetAllocatedIPConfigs()
 	validateIpState(t, allocatedIps, desiredAllocatedIpConfigs)
-
 }
 
 func validateIpState(t *testing.T, actualIps []cns.IPConfigurationStatus, expectedList map[string]cns.IPConfigurationStatus) {
@@ -613,10 +612,9 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
-	returnCode = svc.UpdateIPAMPoolMonitorInternal(fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	if returnCode != 0 {
-		t.Fatalf("Failed to UpdateIPAMPoolMonitorInternal, req: %+v, err: %d", req, returnCode)
-	}
+	svc.IPAMPoolMonitor.Update(
+		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
+		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 
 	// Release pending programming IPs
 	ips, err := svc.MarkIPAsPendingRelease(2)

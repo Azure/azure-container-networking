@@ -6,7 +6,6 @@ package platform
 import (
 	"bytes"
 	"fmt"
-	"golang.org/x/sys/windows"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -72,40 +72,18 @@ func GetProcessSupport() error {
 	return err
 }
 
+var tickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
+
 // GetLastRebootTime returns the last time the system rebooted.
 func GetLastRebootTime() (time.Time, error) {
-	out, err := exec.Command("cmd", "/c", "wmic os get lastbootuptime").Output()
-	if err != nil {
-		log.Printf("Failed to query wmic os get lastbootuptime, err: %v", err)
+	currentTime := time.Now()
+	output, _, err := tickCount.Call()
+	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
+		log.Printf("Failed to call GetTickCount64, err: %v", err)
 		return time.Time{}.UTC(), err
 	}
-
-	lastBootupTime := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if strings.TrimSpace(lastBootupTime[0]) != "LastBootUpTime" || len(lastBootupTime) != 2 {
-		log.Printf("Failed to retrieve boot time")
-		return time.Time{}.UTC(), fmt.Errorf("Failed to retrieve boot time with 'wmic os get lastbootuptime'")
-	}
-	systemBootupTime := strings.Split(lastBootupTime[1], ".")[0]
-
-	// The systembootuptime is in the format YYYYMMDDHHMMSS
-	bootYear := systemBootupTime[0:4]
-	bootMonth := systemBootupTime[4:6]
-	bootDay := systemBootupTime[6:8]
-	bootHour := systemBootupTime[8:10]
-	bootMin := systemBootupTime[10:12]
-	bootSec := systemBootupTime[12:14]
-	systemBootTime := bootYear + "-" + bootMonth + "-" + bootDay + " " + bootHour + ":" + bootMin + ":" + bootSec
-
-	log.Printf("Formatted Boot time: %s", systemBootTime)
-
-	// Parse the boot time.
-	layout := "2006-01-02 15:04:05"
-	rebootTime, err := time.ParseInLocation(layout, systemBootTime, time.Local)
-	if err != nil {
-		log.Printf("Failed to parse boot time, err:%v", err)
-		return time.Time{}.UTC(), err
-	}
-
+	rebootTime := currentTime.Add(-time.Duration(output) * time.Millisecond).Truncate(time.Second)
+	log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
 	return rebootTime.UTC(), nil
 }
 

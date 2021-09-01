@@ -100,6 +100,7 @@ const (
 	IptablesAzureEgressMarkHex string = "0x1000"
 	IptablesAzureAcceptMarkHex string = "0x3000"
 	IptablesAzureClearMarkHex  string = "0x0"
+	IptablesTableFlag          string = "-t"
 )
 
 //ipset related constants.
@@ -143,6 +144,7 @@ const (
 	NamedPortIPSetPrefix string = "namedport:"
 
 	NamespacePrefix string = "ns-"
+	NegationPrefix  string = "not-"
 )
 
 //NPM telemetry constants.

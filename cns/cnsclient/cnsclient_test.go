@@ -13,21 +13,18 @@ import (
 	"testing"
 	"time"
 
-	nnc "github.com/Azure/azure-container-networking/nodenetworkconfig/api/v1alpha"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/google/uuid"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var (
-	svc *restserver.HTTPRestService
-)
+var svc *restserver.HTTPRestService
 
 const (
 	primaryIp           = "10.0.0.5"
@@ -40,9 +37,7 @@ const (
 	initPoolSize        = 10
 )
 
-var (
-	dnsservers = []string{"8.8.8.8", "8.8.4.4"}
-)
+var dnsservers = []string{"8.8.8.8", "8.8.4.4"}
 
 func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	var ipConfig cns.IPConfiguration
@@ -78,10 +73,9 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
 
-	returnCode = svc.UpdateIPAMPoolMonitorInternal(fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	if returnCode != 0 {
-		t.Fatalf("Failed to UpdateIPAMPoolMonitorInternal, err: %d", returnCode)
-	}
+	svc.IPAMPoolMonitor.Update(
+		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
+		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 }
 
 func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
@@ -108,7 +102,8 @@ func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 func TestMain(m *testing.M) {
 	var (
 		info = &cns.SetOrchestratorTypeRequest{
-			OrchestratorType: cns.KubernetesCRD}
+			OrchestratorType: cns.KubernetesCRD,
+		}
 		body bytes.Buffer
 		res  *http.Response
 	)
@@ -138,25 +133,25 @@ func TestMain(m *testing.M) {
 	httpRestService, err := restserver.NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	svc = httpRestService.(*restserver.HTTPRestService)
 	svc.Name = "cns-test-server"
-	fakeNNC := nnc.NodeNetworkConfig{
+	fakeNNC := v1alpha.NodeNetworkConfig{
 		TypeMeta:   metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{},
-		Spec: nnc.NodeNetworkConfigSpec{
+		Spec: v1alpha.NodeNetworkConfigSpec{
 			RequestedIPCount: 16,
 			IPsNotInUse:      []string{"abc"},
 		},
-		Status: nnc.NodeNetworkConfigStatus{
-			Scaler: nnc.Scaler{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
 				BatchSize:               10,
 				ReleaseThresholdPercent: 50,
 				RequestThresholdPercent: 40,
 			},
-			NetworkContainers: []nnc.NetworkContainer{
+			NetworkContainers: []v1alpha.NetworkContainer{
 				{
 					ID:         "nc1",
 					PrimaryIP:  "10.0.0.11",
 					SubnetName: "sub1",
-					IPAssignments: []nnc.IPAssignment{
+					IPAssignments: []v1alpha.IPAssignment{
 						{
 							Name: "ip1",
 							IP:   "10.0.0.10",
@@ -266,7 +261,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	if reflect.DeepEqual(desired, resultIPnet) != true {
 		t.Fatalf("Desired result not matching actual result, expected: %+v, actual: %+v", desired, resultIPnet)
 	}
-	//checking for allocated IP address and pod context printing before ReleaseIPAddress is called
+	// checking for allocated IP address and pod context printing before ReleaseIPAddress is called
 	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(cns.Allocated)
 	if err != nil {
 		t.Fatalf("Get allocated IP addresses failed %+v", err)
@@ -311,7 +306,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 		t.Fatalf("get IP from CNS failed with %+v", err)
 	}
 
-	//test for pod ip by orch context map
+	// test for pod ip by orch context map
 	podcontext, err := cnsClient.GetPodOrchestratorContext()
 	if err != nil {
 		t.Errorf("Get pod ip by orchestrator context failed:  %+v", err)
@@ -351,38 +346,38 @@ func TestCNSClientDebugAPI(t *testing.T) {
 		t.Fatalf("get IP from CNS failed with %+v", err1)
 	}
 
-	//test for debug api/cmd to get inmemory data from HTTPRestService
+	// test for debug api/cmd to get inmemory data from HTTPRestService
 	inmemory, err := cnsClient.GetHTTPServiceData()
 	if err != nil {
 		t.Errorf("Get in-memory http REST Struct failed %+v", err)
 	}
 
-	if len(inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
+	if len(inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
 		t.Errorf("OrchestratorContext map is expected but not returned")
 	}
 
-	//testing Pod IP Configuration Status values set for test
-	podConfig := inmemory.HttpRestServiceData.PodIPConfigState
+	// testing Pod IP Configuration Status values set for test
+	podConfig := inmemory.HTTPRestServiceData.PodIPConfigState
 	for _, v := range podConfig {
 		if v.IPAddress != "10.0.0.5" || v.State != "Allocated" || v.NCID != "testNcId1" {
 			t.Errorf("Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 		}
 	}
-	if len(inmemory.HttpRestServiceData.PodIPConfigState) < 1 {
+	if len(inmemory.HTTPRestServiceData.PodIPConfigState) < 1 {
 		t.Errorf("PodIpConfigState with atleast 1 entry expected but not returned.")
 	}
 
-	testIpamPoolMonitor := inmemory.HttpRestServiceData.IPAMPoolMonitor
+	testIpamPoolMonitor := inmemory.HTTPRestServiceData.IPAMPoolMonitor
 	if testIpamPoolMonitor.MinimumFreeIps != 10 || testIpamPoolMonitor.MaximumFreeIps != 20 || testIpamPoolMonitor.UpdatingIpsNotInUseCount != 13 {
 		t.Errorf("IPAMPoolMonitor state is not reflecting the initial set values, %+v", testIpamPoolMonitor)
 	}
 
-	//check for cached NNC Spec struct values
+	// check for cached NNC Spec struct values
 	if testIpamPoolMonitor.CachedNNC.Spec.RequestedIPCount != 16 || len(testIpamPoolMonitor.CachedNNC.Spec.IPsNotInUse) != 1 {
 		t.Errorf("IPAMPoolMonitor cached NNC Spec is not reflecting the initial set values, %+v", testIpamPoolMonitor.CachedNNC.Spec)
 	}
 
-	//check for cached NNC Status struct values
+	// check for cached NNC Status struct values
 	if testIpamPoolMonitor.CachedNNC.Status.Scaler.BatchSize != 10 || testIpamPoolMonitor.CachedNNC.Status.Scaler.ReleaseThresholdPercent != 50 || testIpamPoolMonitor.CachedNNC.Status.Scaler.RequestThresholdPercent != 40 {
 		t.Errorf("IPAMPoolMonitor cached NNC Status is not reflecting the initial set values, %+v", testIpamPoolMonitor.CachedNNC.Status.Scaler)
 	}
@@ -392,8 +387,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 
 	t.Logf("In-memory Data: ")
-	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HttpRestServiceData.PodIPIDByPodInterfaceKey)
-	t.Logf("PodIPConfigState: %+v", inmemory.HttpRestServiceData.PodIPConfigState)
-	t.Logf("IPAMPoolMonitor: %+v", inmemory.HttpRestServiceData.IPAMPoolMonitor)
-
+	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey)
+	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
+	t.Logf("IPAMPoolMonitor: %+v", inmemory.HTTPRestServiceData.IPAMPoolMonitor)
 }
