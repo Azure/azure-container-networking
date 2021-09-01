@@ -26,12 +26,10 @@ const (
 	genericData = "com.docker.network.generic"
 )
 
-var (
-	Ipv4DefaultRouteDstPrefix = net.IPNet{
-		IP:   net.IPv4zero,
-		Mask: net.IPv4Mask(0, 0, 0, 0),
-	}
-)
+var Ipv4DefaultRouteDstPrefix = net.IPNet{
+	IP:   net.IPv4zero,
+	Mask: net.IPv4Mask(0, 0, 0, 0),
+}
 
 type NetworkClient interface {
 	CreateBridge() error

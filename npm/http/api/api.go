@@ -11,5 +11,4 @@ const (
 type DescribeIPSetRequest struct {
 }
 
-type DescribeIPSetResponse struct {
-}
+type DescribeIPSetResponse struct{}

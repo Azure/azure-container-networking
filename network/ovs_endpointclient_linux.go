@@ -180,11 +180,9 @@ func (client *OVSEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo
 	}
 
 	return MoveInfraEndpointToContainerNS(client, epInfo.NetNsPath, nsID)
-
 }
 
 func (client *OVSEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-
 	if err := epcommon.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
 		return err
 	}

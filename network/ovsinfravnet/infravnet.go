@@ -1,10 +1,10 @@
 package ovsinfravnet
 
 import (
+	"net"
+
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
-
-	"net"
 
 	"github.com/Azure/azure-container-networking/network/epcommon"
 	"github.com/Azure/azure-container-networking/ovsctl"

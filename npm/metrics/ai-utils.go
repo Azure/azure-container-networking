@@ -10,13 +10,10 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
-var (
-	th aitelemetry.TelemetryHandle
-)
+var th aitelemetry.TelemetryHandle
 
 // CreateTelemetryHandle creates a handler to initialize AI telemetry
 func CreateTelemetryHandle(version, aiMetadata string) error {
-
 	aiConfig := aitelemetry.AIConfig{
 		AppName:                   util.AzureNpmFlag,
 		AppVersion:                version,

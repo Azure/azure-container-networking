@@ -190,11 +190,9 @@ func TestPodScaling(t *testing.T) {
 			}
 
 			t.Run("all pods can ping each other", func(t *testing.T) {
-
 				clusterCheckCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 				defer cancel()
 				clusterCheckFn := func() error {
-
 					pf, err := NewPortForwarder(restConfig)
 					if err != nil {
 						t.Fatal(err)
@@ -244,7 +242,6 @@ func TestPodScaling(t *testing.T) {
 			})
 		})
 	}
-
 }
 
 func updateReplicaCount(t *testing.T, ctx context.Context, deployments v1.DeploymentInterface, name string, replicas int) error {

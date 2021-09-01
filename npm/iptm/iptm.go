@@ -22,21 +22,19 @@ const (
 	reconcileChainTimeInMinutes         = 5
 )
 
-var (
-	// IptablesAzureChainList contains list of all NPM chains
-	IptablesAzureChainList = []string{
-		util.IptablesAzureChain,
-		util.IptablesAzureAcceptChain,
-		util.IptablesAzureIngressChain,
-		util.IptablesAzureEgressChain,
-		util.IptablesAzureIngressPortChain,
-		util.IptablesAzureIngressFromChain,
-		util.IptablesAzureEgressPortChain,
-		util.IptablesAzureEgressToChain,
-		util.IptablesAzureIngressDropsChain,
-		util.IptablesAzureEgressDropsChain,
-	}
-)
+// IptablesAzureChainList contains list of all NPM chains
+var IptablesAzureChainList = []string{
+	util.IptablesAzureChain,
+	util.IptablesAzureAcceptChain,
+	util.IptablesAzureIngressChain,
+	util.IptablesAzureEgressChain,
+	util.IptablesAzureIngressPortChain,
+	util.IptablesAzureIngressFromChain,
+	util.IptablesAzureEgressPortChain,
+	util.IptablesAzureEgressToChain,
+	util.IptablesAzureIngressDropsChain,
+	util.IptablesAzureEgressDropsChain,
+}
 
 // IptEntry represents an iptables rule.
 type IptEntry struct {
@@ -56,7 +54,6 @@ type IptablesManager struct {
 }
 
 func isDropsChain(chainName string) bool {
-
 	// Check if the chain name is one of the two DROP chains
 	if (chainName == util.IptablesAzureIngressDropsChain) ||
 		(chainName == util.IptablesAzureEgressDropsChain) {
@@ -193,7 +190,6 @@ func (iptMgr *IptablesManager) ReconcileIPTables(stopCh <-chan struct{}) {
 
 // checkAndAddForwardChain initializes and reconciles Azure-NPM chain in right order
 func (iptMgr *IptablesManager) checkAndAddForwardChain() error {
-
 	// TODO Adding this chain is printing error messages try to clean it up
 	if err := iptMgr.addChain(util.IptablesAzureChain); err != nil {
 		return err
@@ -289,7 +285,6 @@ func (iptMgr *IptablesManager) reconcileChains(stopCh <-chan struct{}) {
 
 // addAllRulesToChains checks and adds all the rules in NPM chains
 func (iptMgr *IptablesManager) addAllRulesToChains() error {
-
 	allDefaultRules := getAllDefaultRules()
 	for _, rule := range allDefaultRules {
 		entry := &IptEntry{
@@ -374,7 +369,6 @@ func (iptMgr *IptablesManager) addChain(chain string) error {
 
 // GetChainLineNumber given a Chain and its parent chain returns line number
 func (iptMgr *IptablesManager) getChainLineNumber(chain string, parentChain string) (int, error) {
-
 	var (
 		output []byte
 		err    error

@@ -18,8 +18,7 @@ const (
 	testFileName = "iptables-test.conf"
 )
 
-var (
-	testIPTablesData = `Chain INPUT (policy ACCEPT)
+var testIPTablesData = `Chain INPUT (policy ACCEPT)
 target     prot opt source               destination         
 
 Chain FORWARD (policy ACCEPT)
@@ -28,7 +27,6 @@ target     prot opt source               destination
 Chain OUTPUT (policy ACCEPT)
 target     prot opt source               destination 
 `
-)
 
 // TODO: we can use this method down the road for testing iptables restore
 func NewFakeIptOperationShim() *fakeIptOperationShim {

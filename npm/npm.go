@@ -182,8 +182,10 @@ func GetAIMetadata() string {
 func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 	var (
 		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
-		customDimensions = map[string]string{"ClusterID": util.GetClusterID(npMgr.NodeName),
-			"APIServer": npMgr.k8sServerVersion.String()}
+		customDimensions = map[string]string{
+			"ClusterID": util.GetClusterID(npMgr.NodeName),
+			"APIServer": npMgr.k8sServerVersion.String(),
+		}
 		podCount = aitelemetry.Metric{
 			Name:             "PodCount",
 			CustomDimensions: customDimensions,

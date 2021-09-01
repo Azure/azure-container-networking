@@ -90,7 +90,7 @@ var (
 )
 
 func TestInitNpmChains(t *testing.T) {
-	var calls = initCalls
+	calls := initCalls
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -101,7 +101,7 @@ func TestInitNpmChains(t *testing.T) {
 }
 
 func TestUninitNpmChains(t *testing.T) {
-	var calls = unInitCalls
+	calls := unInitCalls
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -113,7 +113,7 @@ func TestUninitNpmChains(t *testing.T) {
 }
 
 func TestExists(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "ACCEPT"}},
 	}
 
@@ -135,7 +135,7 @@ func TestExists(t *testing.T) {
 }
 
 func TestAddChain(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}},
 	}
 
@@ -149,7 +149,7 @@ func TestAddChain(t *testing.T) {
 }
 
 func TestDeleteChain(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}},
 		{Cmd: []string{"iptables", "-w", "60", "-X", "TEST-CHAIN"}},
 	}
@@ -168,7 +168,7 @@ func TestDeleteChain(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "REJECT"}},
 	}
 
@@ -203,7 +203,7 @@ func TestAdd(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "REJECT"}},
 		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "REJECT"}},
 		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "REJECT"}},
@@ -238,7 +238,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}},
 	}
 
@@ -253,7 +253,6 @@ func TestRun(t *testing.T) {
 	if _, err := iptMgr.run(entry); err != nil {
 		t.Errorf("TestRun failed @ iptMgr.run")
 	}
-
 }
 
 func TestGetChainLineNumber(t *testing.T) {

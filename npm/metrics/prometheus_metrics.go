@@ -57,9 +57,11 @@ const (
 	SetHashLabel       = "set_hash"
 )
 
-var nodeLevelRegistry = prometheus.NewRegistry()
-var clusterLevelRegistry = prometheus.NewRegistry()
-var haveInitialized = false
+var (
+	nodeLevelRegistry    = prometheus.NewRegistry()
+	clusterLevelRegistry = prometheus.NewRegistry()
+	haveInitialized      = false
+)
 
 func ReInitializeAllMetrics() {
 	haveInitialized = false

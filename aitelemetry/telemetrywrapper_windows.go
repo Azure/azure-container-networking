@@ -5,6 +5,4 @@ import (
 	"path/filepath"
 )
 
-var (
-	metadataFile = filepath.FromSlash(os.Getenv("TEMP")) + "\\azuremetadata.json"
-)
+var metadataFile = filepath.FromSlash(os.Getenv("TEMP")) + "\\azuremetadata.json"

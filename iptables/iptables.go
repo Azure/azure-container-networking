@@ -81,9 +81,7 @@ const (
 	AzureDNS = "168.63.129.16"
 )
 
-var (
-	DisableIPTableLock bool
-)
+var DisableIPTableLock bool
 
 type IPTableEntry struct {
 	Version string
@@ -121,6 +119,7 @@ func ChainExists(version, tableName, chainName string) bool {
 
 	return true
 }
+
 func GetCreateChainCmd(version, tableName, chainName string) IPTableEntry {
 	return IPTableEntry{
 		Version: version,

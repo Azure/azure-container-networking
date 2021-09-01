@@ -74,12 +74,9 @@ func SortMap(m *map[string]string) ([]string, []string) {
 
 // GetIPSetListFromLabels combine Labels into a single slice
 func GetIPSetListFromLabels(labels map[string]string) []string {
-	var (
-		ipsetList = []string{}
-	)
+	ipsetList := []string{}
 	for labelKey, labelVal := range labels {
 		ipsetList = append(ipsetList, labelKey, labelKey+IpsetLabelDelimter+labelVal)
-
 	}
 	return ipsetList
 }

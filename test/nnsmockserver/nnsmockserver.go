@@ -3,12 +3,13 @@ package nnsmockserver
 import (
 	"context"
 	"fmt"
+	"net"
+	"strings"
+
 	"github.com/Azure/azure-container-networking/log"
 	nns "github.com/Azure/azure-container-networking/proto/nodenetworkservice/3.302.0.744"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"net"
-	"strings"
 )
 
 type NnsMockServer struct {
@@ -16,8 +17,7 @@ type NnsMockServer struct {
 }
 
 // node network service mock server implementation
-type serverApi struct {
-}
+type serverApi struct{}
 
 func (s *serverApi) ConfigureContainerNetworking(
 	ctx context.Context,
@@ -68,7 +68,6 @@ func NewNnsMockServer() *NnsMockServer {
 }
 
 func (s *NnsMockServer) StartGrpcServer(port string) {
-
 	endpoint := fmt.Sprintf(":%s", port)
 	lis, err := net.Listen("tcp", endpoint)
 	if err != nil {
@@ -89,7 +88,6 @@ func (s *NnsMockServer) StopGrpcServer() {
 }
 
 func isValidPodName(podName string) error {
-
 	var splits []string
 	splits = strings.Split(podName, "_")
 	podNamelength := len(splits)

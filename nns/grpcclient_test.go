@@ -3,11 +3,12 @@ package nns
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-container-networking/test/nnsmockserver"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/azure-container-networking/test/nnsmockserver"
 )
 
 var mockserver *nnsmockserver.NnsMockServer
@@ -32,7 +33,6 @@ func teardown() {
 
 // CNI ADD to add container to network
 func TestAddContainerNetworking(t *testing.T) {
-
 	client := &GrpcClient{}
 	if err, _ := client.AddContainerNetworking(
 		context.Background(),
@@ -44,7 +44,6 @@ func TestAddContainerNetworking(t *testing.T) {
 
 // CNI DEL to delete container from network
 func TestDeleteContainerNetworking(t *testing.T) {
-
 	client := &GrpcClient{}
 	if err, _ := client.DeleteContainerNetworking(
 		context.Background(),
@@ -56,7 +55,6 @@ func TestDeleteContainerNetworking(t *testing.T) {
 
 // CNI ADD to add container to network - failure case
 func TestAddContainerNetworkingFailure(t *testing.T) {
-
 	client := &GrpcClient{}
 
 	var err error
@@ -71,7 +69,6 @@ func TestAddContainerNetworkingFailure(t *testing.T) {
 
 // CNI DEL to add container to network - failure case
 func TestDeleteContainerNetworkingFailure(t *testing.T) {
-
 	client := &GrpcClient{}
 
 	var err error
@@ -86,7 +83,6 @@ func TestDeleteContainerNetworkingFailure(t *testing.T) {
 
 // CNI ADD to add container to network - grpc server was down temporarily and client reconnects well
 func TestAddContainerNetworkingGrpcServerDown(t *testing.T) {
-
 	// shutdown server to simulate connection error
 	teardown()
 
@@ -101,7 +97,6 @@ func TestAddContainerNetworkingGrpcServerDown(t *testing.T) {
 	var err error
 	if err, _ = client.AddContainerNetworking(
 		context.Background(), "sf_8e9961f4-5b4f-4b3c-a9ae-c3294b0d9681", "testnwspace"); err != nil {
-
 		t.Fatalf("TestAddContainerNetworkingGrpcServerDown failed. %s", err)
 	}
 }

@@ -181,7 +181,7 @@ func (reportMgr *ReportManager) SetReportState(telemetryFile string) error {
 	}
 
 	// try to open telemetry file
-	f, err := os.OpenFile(telemetryFile, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(telemetryFile, os.O_RDWR|os.O_CREATE, 0o666)
 	if err != nil {
 		return fmt.Errorf("[Telemetry] Error opening telemetry file %v", err)
 	}

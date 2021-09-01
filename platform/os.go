@@ -10,9 +10,7 @@ import (
 
 // ReadFileByLines reads file line by line and return array of lines.
 func ReadFileByLines(filename string) ([]string, error) {
-	var (
-		lineStrArr []string
-	)
+	var lineStrArr []string
 
 	f, err := os.Open(filename)
 	if err != nil {

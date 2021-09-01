@@ -48,7 +48,7 @@ func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
 	}, err
 }
 
-//Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
+// Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
 func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, hostSubnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{

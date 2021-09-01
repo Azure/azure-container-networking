@@ -38,5 +38,5 @@ func writeObjectToFile(filename string) error {
 
 	logger.Printf("Writing {} to CNI statefile %s", filename)
 	b, _ := json.Marshal(map[string]string{})
-	return os.WriteFile(filename, b, os.FileMode(0666))
+	return os.WriteFile(filename, b, os.FileMode(0o666))
 }

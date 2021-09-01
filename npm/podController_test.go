@@ -66,7 +66,7 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 
 	// Do not start informer to avoid unnecessary event triggers
 	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
-	//f.kubeInformer.Start(stopCh)
+	// f.kubeInformer.Start(stopCh)
 }
 
 func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNewtwork bool, podPhase corev1.PodPhase) *corev1.Pod {
@@ -80,12 +80,12 @@ func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNewtw
 		Spec: corev1.PodSpec{
 			HostNetwork: isHostNewtwork,
 			Containers: []corev1.Container{
-				corev1.Container{
+				{
 					Ports: []corev1.ContainerPort{
-						corev1.ContainerPort{
+						{
 							Name:          fmt.Sprintf("app:%s", name),
 							ContainerPort: 8080,
-							//Protocol:      "TCP",
+							// Protocol:      "TCP",
 						},
 					},
 				},
@@ -198,7 +198,7 @@ func TestAddMultiplePods(t *testing.T) {
 	podObj1 := createPod("test-pod-1", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podObj2 := createPod("test-pod-2", "test-namespace", "0", "1.2.3.5", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
@@ -243,7 +243,7 @@ func TestAddPod(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
@@ -281,7 +281,7 @@ func TestAddHostNetworkPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	var calls = []testutils.TestCmd{}
+	calls := []testutils.TestCmd{}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -311,7 +311,7 @@ func TestDeletePod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -363,7 +363,7 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	var calls = []testutils.TestCmd{}
+	calls := []testutils.TestCmd{}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -392,7 +392,7 @@ func TestDeletePodWithTombstone(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{}
+	calls := []testutils.TestCmd{}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -421,7 +421,7 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -468,7 +468,7 @@ func TestLabelUpdatePod(t *testing.T) {
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -520,7 +520,7 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -584,7 +584,7 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podKey := getKey(oldPodObj, t)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},

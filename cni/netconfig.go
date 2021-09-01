@@ -28,6 +28,7 @@ type PortMapping struct {
 	Protocol      string `json:"protocol"`
 	HostIp        string `json:"hostIP,omitempty"`
 }
+
 type RuntimeConfig struct {
 	PortMappings []PortMapping    `json:"portMappings,omitempty"`
 	DNS          RuntimeDNSConfig `json:"dns,omitempty"`

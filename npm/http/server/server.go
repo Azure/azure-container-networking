@@ -26,7 +26,7 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder npm.Network
 
 	rs.router = mux.NewRouter()
 
-	//prometheus handlers
+	// prometheus handlers
 	if config.Toggles.EnablePrometheusMetrics {
 		rs.router.Handle(api.NodeMetricsPath, metrics.GetHandler(true))
 		rs.router.Handle(api.ClusterMetricsPath, metrics.GetHandler(false))

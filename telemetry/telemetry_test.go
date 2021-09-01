@@ -22,10 +22,12 @@ const (
 	telemetryConfig = "azure-vnet-telemetry.config"
 )
 
-var reportManager *ReportManager
-var tb *TelemetryBuffer
-var ipamQueryUrl = "localhost:3501"
-var hostAgentUrl = "localhost:3500"
+var (
+	reportManager *ReportManager
+	tb            *TelemetryBuffer
+	ipamQueryUrl  = "localhost:3501"
+	hostAgentUrl  = "localhost:3500"
+)
 
 var ipamQueryResponse = "" +
 	"<Interfaces>" +
@@ -130,12 +132,14 @@ func TestGetOSDetails(t *testing.T) {
 		t.Errorf("GetOSDetails failed due to %v", reportManager.Report.(*CNIReport).ErrorMessage)
 	}
 }
+
 func TestGetSystemDetails(t *testing.T) {
 	reportManager.Report.(*CNIReport).GetSystemDetails()
 	if reportManager.Report.(*CNIReport).ErrorMessage != "" {
 		t.Errorf("GetSystemDetails failed due to %v", reportManager.Report.(*CNIReport).ErrorMessage)
 	}
 }
+
 func TestGetInterfaceDetails(t *testing.T) {
 	reportManager.Report.(*CNIReport).GetSystemDetails()
 	if reportManager.Report.(*CNIReport).ErrorMessage != "" {

@@ -34,7 +34,6 @@ func (s *nullSource) stop() {
 
 // Refreshes configuration.
 func (s *nullSource) refresh() error {
-
 	// Initialize once.
 	if s.initialized {
 		return nil

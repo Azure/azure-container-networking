@@ -2,7 +2,7 @@
 // MIT License
 package util
 
-//kubernetes related constants.
+// kubernetes related constants.
 const (
 	KubeSystemFlag             string = "kube-system"
 	KubePodTemplateHashFlag    string = "pod-template-hash"
@@ -19,7 +19,7 @@ const (
 	k8sMinorVerForNewPolicyDef string = "11"
 )
 
-//iptables related constants.
+// iptables related constants.
 const (
 	Iptables                  string = "iptables"
 	Ip6tables                 string = "ip6tables"
@@ -103,7 +103,7 @@ const (
 	IptablesTableFlag          string = "-t"
 )
 
-//ipset related constants.
+// ipset related constants.
 const (
 	Ipset               string = "ipset"
 	IpsetSaveFlag       string = "save"
@@ -140,14 +140,14 @@ const (
 
 	IpsetNomatch string = "nomatch"
 
-	//Prefixes for ipsets
+	// Prefixes for ipsets
 	NamedPortIPSetPrefix string = "namedport:"
 
 	NamespacePrefix string = "ns-"
 	NegationPrefix  string = "not-"
 )
 
-//NPM telemetry constants.
+// NPM telemetry constants.
 const (
 	AddNamespaceEvent    string = "Add Namespace"
 	UpdateNamespaceEvent string = "Update Namespace"

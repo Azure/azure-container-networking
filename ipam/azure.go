@@ -68,7 +68,6 @@ func (s *azureSource) stop() {
 
 // Refreshes configuration.
 func (s *azureSource) refresh() error {
-
 	// Refresh only if enough time has passed since the last query.
 	if time.Since(s.lastRefresh) < s.queryInterval {
 		return nil

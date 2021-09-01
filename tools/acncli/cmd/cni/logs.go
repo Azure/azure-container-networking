@@ -11,7 +11,7 @@ import (
 
 // LogsCmd will write the logs of the Azure CNI logs
 func LogsCmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "logs",
 		Short: "Fetches the logs of an ACN component",
 		Long:  "The logs command is used to fetch and/or watch the logs of an ACN component",
@@ -21,7 +21,7 @@ func LogsCmd() *cobra.Command {
 }
 
 func LogsCNICmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "cni",
 		Short: fmt.Sprintf("Retrieves the logs of %s binary", c.AzureCNIBin),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -30,7 +30,6 @@ func LogsCNICmd() *cobra.Command {
 			// this loop exists for when the logfile gets rotated, and tail loses the original file
 			for {
 				t, err := tail.TailFile(viper.GetString(c.FlagLogFilePath), tail.Config{Follow: viper.GetBool(c.FlagFollow), ReOpen: true})
-
 				if err != nil {
 					return err
 				}
@@ -41,7 +40,8 @@ func LogsCNICmd() *cobra.Command {
 					return nil
 				}
 			}
-		}}
+		},
+	}
 
 	cmd.Flags().BoolP(c.FlagFollow, "f", c.DefaultToggles[c.FlagFollow], "Follow the log file, similar to 'tail -f'")
 	cmd.Flags().String(c.FlagLogFilePath, c.Defaults[c.FlagLogFilePath], "Path of the Azure CNI log file")

@@ -64,7 +64,7 @@ func (i *iptOperationShim) lockIptables() error {
 
 	// Grab 1.6.x style lock.
 	var err error
-	i.iptablesLockFile, err = os.OpenFile(util.IptablesLockFile, os.O_CREATE, 0600)
+	i.iptablesLockFile, err = os.OpenFile(util.IptablesLockFile, os.O_CREATE, 0o600)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to open iptables lock file %s.", util.IptablesLockFile)
 		return err

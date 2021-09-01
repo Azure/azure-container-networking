@@ -21,7 +21,7 @@ const (
 )
 
 func updateOVSConfig(option string) error {
-	f, err := os.OpenFile(ovsConfigFile, os.O_APPEND|os.O_RDWR, 0666)
+	f, err := os.OpenFile(ovsConfigFile, os.O_APPEND|os.O_RDWR, 0o666)
 	if err != nil {
 		log.Printf("Error while opening ovs config %v", err)
 		return err

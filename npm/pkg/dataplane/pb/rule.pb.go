@@ -7,11 +7,12 @@
 package pb
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (
@@ -398,15 +399,18 @@ func file_rule_proto_rawDescGZIP() []byte {
 	return file_rule_proto_rawDescData
 }
 
-var file_rule_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_rule_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_rule_proto_goTypes = []interface{}{
-	(SetType)(0),                 // 0: pb.SetType
-	(Direction)(0),               // 1: pb.Direction
-	(*RuleResponse)(nil),         // 2: pb.RuleResponse
-	(*RuleResponse_SetInfo)(nil), // 3: pb.RuleResponse.SetInfo
-	nil,                          // 4: pb.RuleResponse.UnsortedIpsetEntry
-}
+var (
+	file_rule_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+	file_rule_proto_msgTypes  = make([]protoimpl.MessageInfo, 3)
+	file_rule_proto_goTypes   = []interface{}{
+		(SetType)(0),                 // 0: pb.SetType
+		(Direction)(0),               // 1: pb.Direction
+		(*RuleResponse)(nil),         // 2: pb.RuleResponse
+		(*RuleResponse_SetInfo)(nil), // 3: pb.RuleResponse.SetInfo
+		nil,                          // 4: pb.RuleResponse.UnsortedIpsetEntry
+	}
+)
+
 var file_rule_proto_depIdxs = []int32{
 	3, // 0: pb.RuleResponse.SrcList:type_name -> pb.RuleResponse.SetInfo
 	3, // 1: pb.RuleResponse.DstList:type_name -> pb.RuleResponse.SetInfo
