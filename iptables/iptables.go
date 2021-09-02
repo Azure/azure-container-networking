@@ -67,7 +67,8 @@ const (
 
 // known ports
 const (
-	DNSPort = 53
+	DNSPort  = 53
+	HTTPPort = 80
 )
 
 // known protocols
@@ -78,7 +79,8 @@ const (
 
 // known IP's
 const (
-	AzureDNS = "168.63.129.16"
+	AzureDNS  = "168.63.129.16"
+	AzureIMDS = "169.254.169.254"
 )
 
 var (
