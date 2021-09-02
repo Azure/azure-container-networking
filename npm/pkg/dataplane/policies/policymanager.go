@@ -3,7 +3,7 @@ package policies
 import "sync"
 
 type PolicyMap struct {
-	sync.Mutex
+	sync.RWMutex
 	cache map[string]*NPMNetworkPolicy
 }
 
@@ -20,8 +20,8 @@ func NewPolicyManager() PolicyManager {
 }
 
 func (pMgr *PolicyManager) GetPolicy(name string) (*NPMNetworkPolicy, error) {
-	pMgr.policyMap.Lock()
-	defer pMgr.policyMap.Unlock()
+	pMgr.policyMap.RLock()
+	defer pMgr.policyMap.RUnlock()
 
 	if policy, ok := pMgr.policyMap.cache[name]; ok {
 		return policy, nil

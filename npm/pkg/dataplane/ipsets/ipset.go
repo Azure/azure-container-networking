@@ -15,7 +15,7 @@ type IPSet struct {
 	IPPodKey map[string]string
 	// This is used for listMaps to store child IP Sets
 	MemberIPSets map[string]*IPSet
-	// using a map to emulate set and using struct{} for
+	// Using a map to emulate set and value as struct{} for
 	// minimal memory consumption
 	SelectorReference map[string]struct{}
 	NetPolReference   map[string]struct{}
@@ -77,9 +77,11 @@ const (
 
 func NewIPSet(name string, setType SetType) *IPSet {
 	set := &IPSet{
-		Name:              name,
-		HashedName:        util.GetHashedName(name),
-		Type:              setType,
+		Name:       name,
+		HashedName: util.GetHashedName(name),
+		Type:       setType,
+		// Using a map to emulate set and value as struct{} for
+		// minimal memory consumption
 		SelectorReference: make(map[string]struct{}),
 		NetPolReference:   make(map[string]struct{}),
 		IpsetReferCount:   0,
@@ -96,15 +98,19 @@ func (set *IPSet) GetSetContents() ([]string, error) {
 	setType := getSetKind(set)
 	switch setType {
 	case HashSet:
+		i := 0
 		contents := make([]string, len(set.IPPodKey))
 		for podIP := range set.IPPodKey {
-			contents = append(contents, podIP)
+			contents[i] = podIP
+			i++
 		}
 		return contents, nil
 	case ListSet:
+		i := 0
 		contents := make([]string, len(set.MemberIPSets))
 		for _, memberSet := range set.MemberIPSets {
-			contents = append(contents, memberSet.HashedName)
+			contents[i] = memberSet.HashedName
+			i++
 		}
 		return contents, nil
 	default:
