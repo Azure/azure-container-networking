@@ -8,7 +8,6 @@ const (
 	NPMMgrPath         = "/npm/v1/debug/manager"
 )
 
-type DescribeIPSetRequest struct {
-}
+type DescribeIPSetRequest struct{}
 
 type DescribeIPSetResponse struct{}

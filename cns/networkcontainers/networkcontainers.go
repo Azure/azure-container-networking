@@ -33,8 +33,7 @@ const (
 )
 
 // NetworkContainers can be used to perform operations on network containers.
-type NetworkContainers struct {
-}
+type NetworkContainers struct{}
 
 // NetPluginConfiguration represent network plugin configuration that is used during CNI ADD/DELETE/UPDATE operation
 type NetPluginConfiguration struct {

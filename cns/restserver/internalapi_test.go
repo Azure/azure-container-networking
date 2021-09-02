@@ -29,9 +29,7 @@ const (
 	initPoolSize        = 10
 )
 
-var (
-	dnsservers = []string{"8.8.8.8", "8.8.4.4"}
-)
+var dnsservers = []string{"8.8.8.8", "8.8.4.4"}
 
 func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 	restartService()
