@@ -164,11 +164,14 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 	azureIMDSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), iptables.AzureIMDS, iptables.TCP, iptables.HTTPPort)
 
 	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
+	// we need to snat IMDS traffic to node IP, this sets up snat '--to'
 	snatHostIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.hostPrimaryIP)
 	options[network.IPTablesKey] = []iptables.IPTableEntry{
 		iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
 		iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
+		// add a snat rule to primary NC IP for DNS
 		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSMatch, snatPrimaryIPJump),
+		// add a snat rule to node IP for IMDS http traffic
 		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
 	}
 
