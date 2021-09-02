@@ -15,7 +15,8 @@ type IPSet struct {
 	IPPodKey map[string]string
 	// This is used for listMaps to store child IP Sets
 	MemberIPSets map[string]*IPSet
-	// Using a map here to emulate set of netpol names
+	// using a map to emulate set and using struct{} for
+	// minimal memory consumption
 	SelectorReference map[string]struct{}
 	NetPolReference   map[string]struct{}
 	IpsetReferCount   int
@@ -92,21 +93,22 @@ func NewIPSet(name string, setType SetType) *IPSet {
 }
 
 func (set *IPSet) GetSetContents() ([]string, error) {
-	contents := make([]string, 0)
 	setType := getSetKind(set)
 	switch setType {
 	case HashSet:
+		contents := make([]string, len(set.IPPodKey))
 		for podIP := range set.IPPodKey {
 			contents = append(contents, podIP)
 		}
 		return contents, nil
 	case ListSet:
+		contents := make([]string, len(set.MemberIPSets))
 		for _, memberSet := range set.MemberIPSets {
 			contents = append(contents, memberSet.HashedName)
 		}
 		return contents, nil
 	default:
-		return contents, fmt.Errorf("Unknown set type %s", setType)
+		return []string{}, fmt.Errorf("Unknown set type %s", setType)
 	}
 }
 
@@ -164,22 +166,15 @@ func (set *IPSet) DeleteNetPolReference(netPolName string) {
 }
 
 func (set *IPSet) CanBeDeleted() bool {
-	if len(set.SelectorReference) > 0 ||
-		len(set.NetPolReference) > 0 ||
-		set.IpsetReferCount > 0 ||
-		len(set.MemberIPSets) > 0 ||
-		len(set.IPPodKey) > 0 {
-		// return false if this IPSet has any references and memebrs.
-		return false
-	}
-	return true
+	return len(set.SelectorReference) == 0 &&
+		len(set.NetPolReference) == 0 &&
+		set.IpsetReferCount == 0 &&
+		len(set.MemberIPSets) == 0 &&
+		len(set.IPPodKey) == 0
 }
 
 // UsedByNetPol check if an IPSet is referred in network policies.
 func (set *IPSet) UsedByNetPol() bool {
-	if len(set.SelectorReference) == 0 &&
-		len(set.NetPolReference) == 0 {
-		return false
-	}
-	return true
+	return len(set.SelectorReference) >= 0 &&
+		len(set.NetPolReference) >= 0
 }

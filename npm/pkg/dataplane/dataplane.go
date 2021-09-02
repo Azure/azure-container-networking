@@ -15,8 +15,10 @@ type DataPlane struct {
 }
 
 type NPMEndpoint struct {
-	Name            string
-	ID              string
+	Name string
+	ID   string
+	// Using a map to emulate set and value as struct{} for
+	// minimal memory consumption
 	NetPolReference map[string]struct{}
 }
 
