@@ -52,6 +52,11 @@ stages:
             displayName: "Build Linux"
 
           - script: |
+              GOOS=linux GOARCH=arm64 make azure-cni-plugin VERSION=$(TAG)
+            name: "BuildCNIArm64"
+            displayName: "Build CNI ARM64"
+
+          - script: |
               mkdir -p ./output/bins
               cd ./output/linux_amd64
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
