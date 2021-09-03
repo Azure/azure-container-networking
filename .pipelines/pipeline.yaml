@@ -62,6 +62,10 @@ stages:
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
               sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
               sudo rm -R -- */ && cd ..
+              cd ./output/linux_arm64
+              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
+              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
+              sudo rm -R -- */ && cd ..
               cd ./windows_amd64
               sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
               sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
