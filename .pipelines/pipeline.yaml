@@ -49,8 +49,8 @@ stages:
           - script: |
               mkdir -p ./output/bins
               cd ./output
-              find . -name '*.tgz' -print -exec mv -t ./bins/ {} +;
-              find . -name '*.zip' -print -exec mv -t ./bins/ {} +;
+              find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+              find . -name '*.zip' -print -exec mv -t ./bins/ {} +
               rm -rf !("bins")
             name: "PrepareArtifacts"
             displayName: "Prepare Artifacts"
