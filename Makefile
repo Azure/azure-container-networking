@@ -1,3 +1,5 @@
+SHELL=/bin/bash
+
 # Source files common to all targets.
 COREFILES = \
 	$(wildcard common/*.go) \
@@ -269,11 +271,14 @@ all-containerized:
 	docker rm $(BUILD_CONTAINER_NAME)
 	docker rmi $(BUILD_CONTAINER_IMAGE):$(VERSION)
 
-# Make both linux and windows binaries
+# Make all platform binaries
 .PHONY: all-binaries-platforms
 all-binaries-platforms:
-	export GOOS=linux; make all-binaries
-	export GOOS=windows; make all-binaries
+	for goos in $$(echo $(GOOS) | sed "s/,/ /g"); do \
+		for goarch in $$(echo $(GOARCH) | sed "s/,/ /g"); do \
+			make all-binaries GOOS=$$goos GOARCH=$$goarch; \
+		done \
+	done
 
 
 .PHONY: tools

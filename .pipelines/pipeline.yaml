@@ -42,35 +42,16 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
-              GOOS=windows make all-binaries VERSION=$(TAG)
-            name: "BuildWindows"
-            displayName: "Build Windows"
-
-          - script: |
-              GOOS=linux make all-binaries VERSION=$(TAG)
-            name: "BuildLinux"
-            displayName: "Build Linux"
-
-          - script: |
-              GOOS=linux GOARCH=arm64 make azure-cni-plugin VERSION=$(TAG)
-            name: "BuildCNIArm64"
-            displayName: "Build CNI ARM64"
+              make all-binaries-platforms GOOS=linux,windows GOARCH=amd64,arm64 VERSION=$(TAG)
+            name: "BuildAllPlatformBinaries"
+            displayName: "Build all platform binaries"
 
           - script: |
               mkdir -p ./output/bins
-              cd ./output/linux_amd64
-              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
-              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
-              sudo rm -R -- */ && cd ..
-              cd ./output/linux_arm64
-              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
-              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
-              sudo rm -R -- */ && cd ..
-              cd ./windows_amd64
-              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
-              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
-              sudo rm -R -- */ && cd ..
-              rmdir ./linux_amd64 && rmdir ./windows_amd64
+              cd ./output
+              find . -name '*.tgz' -print -exec mv -t ./bins/ {} +;
+              find . -name '*.zip' -print -exec mv -t ./bins/ {} +;
+              rm -rf !("bins")
             name: "PrepareArtifacts"
             displayName: "Prepare Artifacts"
 
