@@ -5,6 +5,7 @@ import (
 
 	// import the manifests package so that caller of this package have the manifests compiled in as a side-effect.
 	_ "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/manifests"
+	"github.com/pkg/errors"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"sigs.k8s.io/yaml"
 )
@@ -17,5 +18,5 @@ var NodeNetworkConfigsYAML []byte
 // to a CustomResourceDefinition and returns it or an unmarshalling error.
 func GetNodeNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
 	nodeNetworkConfigs := &apiextensionsv1.CustomResourceDefinition{}
-	return nodeNetworkConfigs, yaml.Unmarshal(NodeNetworkConfigsYAML, &nodeNetworkConfigs)
+	return nodeNetworkConfigs, errors.Wrap(yaml.Unmarshal(NodeNetworkConfigsYAML, &nodeNetworkConfigs), "error unmarshalling embedded nnc")
 }
