@@ -20,15 +20,25 @@ type NPMNetworkPolicy struct {
 }
 
 type ACLPolicy struct { // Iptable rules
-	PolicyID  string
-	Comment   string
-	SrcList   []SetInfo
-	DstList   []SetInfo
-	Target    Verdict
+	// PolicyID is the rules name with a given network policy
+	PolicyID string
+	// Comment is the string attached to rule to identity its representation
+	Comment string
+	// SrcList source IPSets condition setinfos
+	SrcList []SetInfo
+	// DstList destination IPSets condition setinfos
+	DstList []SetInfo
+	// Target defines a target in iptables for linux. i,e, Mark, Accept, Drop
+	// in windows, this is either ALLOW or DENY
+	Target Verdict
+	// Direction defines the flow of traffic
 	Direction Direction
-	SrcPorts  []Ports
-	DstPorts  []Ports
-	Protocol  string
+	// SrcPorts holds the source port information
+	SrcPorts []Ports
+	// DstPorts holds the destination port information
+	DstPorts []Ports
+	// Protocol is the value of traffic protocol
+	Protocol string
 }
 
 // SetInfo helps capture additional details in a matchSet
@@ -53,10 +63,15 @@ type Verdict string
 type Direction string
 
 const (
+	// Ingress when packet is entering a container
 	Ingress Direction = "IN"
-	Egress  Direction = "OUT"
-	Both    Direction = "BOTH"
+	// Egress when packet is leaving a container
+	Egress Direction = "OUT"
+	// Both applies to both directions
+	Both Direction = "BOTH"
 
+	// Allowed is accept in linux
 	Allowed Verdict = "ALLOW"
+	// Dropped is denying a flow
 	Dropped Verdict = "DROP"
 )

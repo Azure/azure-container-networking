@@ -17,9 +17,15 @@ type IPSet struct {
 	MemberIPSets map[string]*IPSet
 	// Using a map to emulate set and value as struct{} for
 	// minimal memory consumption
+	// SelectorReference holds networkpolicy names where this IPSet
+	// is being used in PodSelector and NameSpace
 	SelectorReference map[string]struct{}
-	NetPolReference   map[string]struct{}
-	IpsetReferCount   int
+	// NetPolReference holds networkpolicy names where this IPSet
+	// is being referred as part of rules
+	NetPolReference map[string]struct{}
+	// IpsetReferCount keeps count of 2nd level Nested IPSets
+	// with member as this IPSet
+	IpsetReferCount int
 }
 
 type SetProperties struct {
@@ -32,18 +38,30 @@ type SetProperties struct {
 type SetType int32
 
 const (
-	Unknown                  SetType = 0
-	NameSpace                SetType = 1
-	KeyLabelOfNameSpace      SetType = 2
+	// Unknown SetType
+	Unknown SetType = 0
+	// NameSpace IPSet is created to hold
+	// ips of pods in a given NameSapce
+	NameSpace SetType = 1
+	// KeyLabelOfNameSpace IPSet is a list kind ipset
+	// with members as ipsets of namespace with this Label Key
+	KeyLabelOfNameSpace SetType = 2
+	// KeyValueLabelOfNameSpace IPSet is a list kind ipset
+	// with members as ipsets of namespace with this Label
 	KeyValueLabelOfNameSpace SetType = 3
-	KeyLabelOfPod            SetType = 4
-	KeyValueLabelOfPod       SetType = 5
-	NamedPorts               SetType = 6
-	NestedLabelOfPod         SetType = 7
-	CIDRBlocks               SetType = 8
+	// KeyLabelOfPod IPSet contains IPs of Pods with this Label Key
+	KeyLabelOfPod SetType = 4
+	// KeyValueLabelOfPod IPSet contains IPs of Pods with this Label
+	KeyValueLabelOfPod SetType = 5
+	// NamedPorts IPSets contains a given namedport
+	NamedPorts SetType = 6
+	// NestedLabelOfPod is derived for multivalue matchexpressions
+	NestedLabelOfPod SetType = 7
+	// CIDRBlocks holds CIDR blocks
+	CIDRBlocks SetType = 8
 )
 
-var SetTypeName = map[int32]string{
+var setTypeName = map[int32]string{
 	0: "Unknown",
 	1: "NameSpace",
 	2: "KeyLabelOfNameSpace",
@@ -55,7 +73,7 @@ var SetTypeName = map[int32]string{
 	8: "CIDRBlocks",
 }
 
-var SetTypeValue = map[string]int32{
+var setTypeValue = map[string]int32{
 	"Unknown":                  0,
 	"NameSpace":                1,
 	"KeyLabelOfNameSpace":      2,
@@ -68,17 +86,19 @@ var SetTypeValue = map[string]int32{
 }
 
 func (x SetType) String() string {
-	return SetTypeName[int32(x)]
+	return setTypeName[int32(x)]
 }
 
 func GetSetType(x string) SetType {
-	return SetType(SetTypeValue[x])
+	return SetType(setTypeValue[x])
 }
 
 type SetKind string
 
 const (
+	// ListSet is of kind list with members as other IPSets
 	ListSet SetKind = "list"
+	// HashSet is of kind hashset with members as IPs and/or port
 	HashSet SetKind = "set"
 )
 
