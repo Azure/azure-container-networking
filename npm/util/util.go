@@ -343,15 +343,5 @@ func CompareSlices(list1, list2 []string) bool {
 }
 
 func SliceToString(list []string) string {
-	returnStr := ""
-
-	for _, s := range list {
-		if returnStr != "" {
-			returnStr = returnStr + SetPolicyDelimiter + s
-		} else {
-			returnStr = s
-		}
-	}
-
-	return returnStr
+	return strings.Join(list[:], SetPolicyDelimiter)
 }
