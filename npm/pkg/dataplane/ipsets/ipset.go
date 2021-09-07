@@ -9,7 +9,7 @@ import (
 type IPSet struct {
 	Name       string
 	HashedName string
-	Type       SetType
+	Properties SetProperties
 	// IpPodKey is used for setMaps to store Ips and ports as keys
 	// and podKey as value
 	IPPodKey map[string]string
@@ -20,6 +20,13 @@ type IPSet struct {
 	SelectorReference map[string]struct{}
 	NetPolReference   map[string]struct{}
 	IpsetReferCount   int
+}
+
+type SetProperties struct {
+	// Stores type of ip grouping
+	Type SetType
+	// Stores kind of ipset in dataplane
+	Kind SetKind
 }
 
 type SetType int32
@@ -79,14 +86,17 @@ func NewIPSet(name string, setType SetType) *IPSet {
 	set := &IPSet{
 		Name:       name,
 		HashedName: util.GetHashedName(name),
-		Type:       setType,
+		Properties: SetProperties{
+			Type: setType,
+			Kind: getSetKind(setType),
+		},
 		// Using a map to emulate set and value as struct{} for
 		// minimal memory consumption
 		SelectorReference: make(map[string]struct{}),
 		NetPolReference:   make(map[string]struct{}),
 		IpsetReferCount:   0,
 	}
-	if getSetKind(set) == HashSet {
+	if set.Properties.Kind == HashSet {
 		set.IPPodKey = make(map[string]string)
 	} else {
 		set.MemberIPSets = make(map[string]*IPSet)
@@ -95,8 +105,7 @@ func NewIPSet(name string, setType SetType) *IPSet {
 }
 
 func (set *IPSet) GetSetContents() ([]string, error) {
-	setType := getSetKind(set)
-	switch setType {
+	switch set.Properties.Kind {
 	case HashSet:
 		i := 0
 		contents := make([]string, len(set.IPPodKey))
@@ -114,12 +123,12 @@ func (set *IPSet) GetSetContents() ([]string, error) {
 		}
 		return contents, nil
 	default:
-		return []string{}, fmt.Errorf("Unknown set type %s", setType)
+		return []string{}, fmt.Errorf("Unknown set type %s", set.Properties.Type.String())
 	}
 }
 
-func getSetKind(set *IPSet) SetKind {
-	switch set.Type {
+func getSetKind(setType SetType) SetKind {
+	switch setType {
 	case CIDRBlocks:
 		return HashSet
 	case NameSpace:
@@ -152,6 +161,9 @@ func (set *IPSet) IncIpsetReferCount() {
 }
 
 func (set *IPSet) DecIpsetReferCount() {
+	if set.IpsetReferCount == 0 {
+		return
+	}
 	set.IpsetReferCount--
 }
 

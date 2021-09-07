@@ -97,7 +97,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(existingSets []string) (map[st
 			return nil, err
 		}
 		setsToUpdate[setName] = setPol
-		if getSetKind(set) == ListSet {
+		if set.Properties.Kind == ListSet {
 			for _, memberSet := range set.MemberIPSets {
 				// TODO check whats the name here, hashed or normal
 				if _, ok := setsToUpdate[memberSet.Name]; ok {
@@ -120,8 +120,8 @@ func isValidIPSet(set *IPSet) error {
 		return fmt.Errorf("IPSet " + set.Name + " is missing Name")
 	}
 
-	if set.Type == Unknown {
-		return fmt.Errorf("IPSet " + set.Type.String() + " is missing Type")
+	if set.Properties.Type == Unknown {
+		return fmt.Errorf("IPSet " + set.Properties.Type.String() + " is missing Type")
 	}
 
 	if set.HashedName == "" {
@@ -132,8 +132,7 @@ func isValidIPSet(set *IPSet) error {
 }
 
 func getSetPolicyType(set *IPSet) SetPolicyType {
-	setKind := getSetKind(set)
-	switch setKind {
+	switch set.Properties.Kind {
 	case ListSet:
 		return SetPolicyTypeNestedIpSet
 	case HashSet:

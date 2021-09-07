@@ -42,7 +42,7 @@ func (iMgr *IPSetManager) updateDirtyCache(setName string) {
 	}
 
 	iMgr.dirtyCaches[set.Name] = struct{}{}
-	if getSetKind(set) == ListSet {
+	if set.Properties.Kind == ListSet {
 		// TODO check if we will need to add all the member ipsets
 		// also to the dirty cache list
 		for _, member := range set.MemberIPSets {
@@ -66,9 +66,6 @@ func (iMgr *IPSetManager) CreateIPSet(set *IPSet) error {
 		return nil
 	}
 
-	// Call the dataplane specifc function here to
-	// create the Set
-
 	// append the cache if dataplane specific function
 	// return nil as error
 	iMgr.setMap[set.Name] = set
@@ -87,14 +84,13 @@ func (iMgr *IPSetManager) AddToSet(addToSets []*IPSet, ip, podKey string) error 
 	for _, updatedSet := range addToSets {
 		set, exists := iMgr.setMap[updatedSet.Name] // check if the Set exists
 		if !exists {
-			set = NewIPSet(updatedSet.Name, updatedSet.Type)
 			err := iMgr.CreateIPSet(set)
 			if err != nil {
 				return err
 			}
 		}
 
-		if getSetKind(set) != HashSet {
+		if set.Properties.Kind != HashSet {
 			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set", set.Name))
 		}
 		cachedPodKey, ok := set.IPPodKey[ip]
@@ -107,10 +103,6 @@ func (iMgr *IPSetManager) AddToSet(addToSets []*IPSet, ip, podKey string) error 
 			}
 			return nil
 		}
-
-		// Now actually add the IP to the Set
-		// err := addToSet(setName, ip)
-		// some more error handling here
 
 		// update the IP ownership with podkey
 		set.IPPodKey[ip] = podKey
@@ -133,7 +125,7 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey stri
 			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
 		}
 
-		if getSetKind(set) != HashSet {
+		if set.Properties.Kind != HashSet {
 			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set", setName))
 		}
 
@@ -145,10 +137,6 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey stri
 
 			return nil
 		}
-
-		// Now actually delete the IP from the Set
-		// err := deleteFromSet(setName, ip)
-		// some more error handling here
 
 		// update the IP ownership with podkey
 		delete(set.IPPodKey, ip)
@@ -167,7 +155,6 @@ func (iMgr *IPSetManager) AddToList(listName string, setNames []string) error {
 	defer iMgr.Unlock()
 
 	for _, setName := range setNames {
-
 		if listName == setName {
 			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("list %s cannot be added to itself", listName))
 		}
@@ -178,7 +165,7 @@ func (iMgr *IPSetManager) AddToList(listName string, setNames []string) error {
 
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
-		if getSetKind(set) != HashSet {
+		if set.Properties.Kind != HashSet {
 			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("member ipset %s is not a Set type and nestetd ipsets are not supported", setName))
 		}
 
@@ -187,7 +174,7 @@ func (iMgr *IPSetManager) AddToList(listName string, setNames []string) error {
 			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s does not exist", listName))
 		}
 
-		if getSetKind(list) != ListSet {
+		if list.Properties.Kind != ListSet {
 			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
 		}
 
@@ -203,14 +190,9 @@ func (iMgr *IPSetManager) AddToList(listName string, setNames []string) error {
 			return nil
 		}
 
-		// Now actually add the Set to the List
-		// err := addToList(listName, setName)
-		// some more error handling here
-
 		// update the Ipset member list of list
 		list.AddMemberIPSet(set)
 		set.IncIpsetReferCount()
-
 		// Update metrics of the IpSet
 		metrics.NumIPSetEntries.Inc()
 		metrics.IncIPSetInventory(setName)
@@ -230,13 +212,13 @@ func (iMgr *IPSetManager) RemoveFromList(listName string, setNames []string) err
 			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
 		}
 
-		if getSetKind(set) != HashSet {
+		if set.Properties.Kind != HashSet {
 			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set", setName))
 		}
 
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
-		if getSetKind(set) != HashSet {
+		if set.Properties.Kind != HashSet {
 			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("member ipset %s is not a Set type and nestetd ipsets are not supported", setName))
 		}
 
@@ -245,7 +227,7 @@ func (iMgr *IPSetManager) RemoveFromList(listName string, setNames []string) err
 			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", listName))
 		}
 
-		if getSetKind(list) != ListSet {
+		if list.Properties.Kind != ListSet {
 			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
 		}
 
@@ -255,14 +237,9 @@ func (iMgr *IPSetManager) RemoveFromList(listName string, setNames []string) err
 			return nil
 		}
 
-		// Now actually delete the Set from the List
-		// err := deleteFromList(listName, setName)
-		// some more error handling here
-
 		// delete IPSet from the list
 		delete(list.MemberIPSets, setName)
 		set.DecIpsetReferCount()
-
 		// Update metrics of the IpSet
 		metrics.NumIPSetEntries.Dec()
 		metrics.DecIPSetInventory(setName)
