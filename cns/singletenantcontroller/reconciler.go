@@ -3,9 +3,9 @@ package kubecontroller
 import (
 	"context"
 
-	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -13,26 +13,29 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// CrdReconciler watches for CRD status changes
-type CrdReconciler struct {
-	KubeClient      KubeClient
-	NodeName        string
-	CNSRestService  *restserver.HTTPRestService
-	IPAMPoolMonitor cns.IPAMPoolMonitor
+// Reconciler watches for CRD status changes
+type Reconciler struct {
+	cnscli cnsclient
+	nnccli *nodenetworkconfig.Client
+}
+
+func New(nnccli *nodenetworkconfig.Client, cnscli cnsclient) *Reconciler {
+	return &Reconciler{
+		cnscli: cnscli,
+		nnccli: nnccli,
+	}
 }
 
 // Reconcile is called on CRD status changes
-func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	// Get the CRD object
-	var nnc v1alpha.NodeNetworkConfig
-	if err := r.KubeClient.Get(ctx, request.NamespacedName, &nnc); err != nil {
+func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+	nnc, err := r.nnccli.Get(ctx, request.NamespacedName)
+	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
 			return reconcile.Result{}, client.IgnoreNotFound(err)
-		} else {
-			logger.Errorf("[cns-rc] Error retrieving CRD from cache : %v", err)
-			return reconcile.Result{}, err
 		}
+		logger.Errorf("[cns-rc] Error retrieving CRD from cache : %v", err)
+		return reconcile.Result{}, err
 	}
 
 	logger.Printf("[cns-rc] CRD Spec: %v", nnc.Spec)
@@ -62,7 +65,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	responseCode := r.CNSRestService.CreateOrUpdateNetworkContainerInternal(&ncRequest)
+	responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(&ncRequest)
 	err = restserver.ResponseCodeToError(responseCode)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
@@ -70,17 +73,17 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	r.CNSRestService.IPAMPoolMonitor.Update(nnc.Status.Scaler, nnc.Spec)
+	r.cnscli.UpdateIPAMPoolMonitor(nnc.Status.Scaler, nnc.Spec)
 	// record assigned IPs metric
 	assignedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
 
 	return reconcile.Result{}, nil
 }
 
-// SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter
-func (r *CrdReconciler) SetupWithManager(mgr ctrl.Manager) error {
+// SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, nodeName string) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.NodeNetworkConfig{}).
-		WithEventFilter(NodeNetworkConfigFilter{nodeName: r.NodeName}).
+		WithEventFilter(NodeNetworkConfigFilter{nodeName: nodeName}).
 		Complete(r)
 }
