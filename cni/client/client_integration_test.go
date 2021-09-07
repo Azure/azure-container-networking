@@ -104,5 +104,4 @@ func TestGetStateWithEmptyStateFile(t *testing.T) {
 	state, err := c.GetEndpointState()
 	require.NoError(t, err)
 	require.Exactly(t, 0, len(state.ContainerInterfaces))
-
 }

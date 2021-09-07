@@ -152,7 +152,8 @@ func putRoutes(routes []Route) error {
 	for _, route := range routes {
 		exists, err := containsRoute(currentRoutes, route)
 		if err == nil && !exists {
-			args := []string{"/C", "route", "ADD",
+			args := []string{
+				"/C", "route", "ADD",
 				route.destination,
 				"MASK",
 				route.mask,
@@ -160,7 +161,8 @@ func putRoutes(routes []Route) error {
 				"METRIC",
 				route.metric,
 				"IF",
-				fmt.Sprintf("%d", route.ifaceIndex)}
+				fmt.Sprintf("%d", route.ifaceIndex),
+			}
 			logger.Printf("[Azure CNS] Adding missing route: %v", args)
 
 			c := exec.Command("cmd", args...)

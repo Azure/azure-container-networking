@@ -11,7 +11,7 @@ const (
 
 	EnvPrefix = "AZURE_CNI"
 
-	//CNI Install Flags
+	// CNI Install Flags
 	FlagMode              = "mode"
 	FlagTarget            = "target"
 	FlagIPAM              = "ipam"
@@ -22,7 +22,7 @@ const (
 	FlagConflistDirectory = "conflist-directory"
 	FlagVersion           = "version"
 
-	//CNI Log Flags
+	// CNI Log Flags
 	FlagFollow      = "follow"
 	FlagLogFilePath = "log-file"
 

@@ -287,9 +287,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 }
 
 func addIPV6EndpointPolicy(nwInfo network.NetworkInfo) (policy.Policy, error) {
-	var (
-		eppolicy policy.Policy
-	)
+	var eppolicy policy.Policy
 
 	if len(nwInfo.Subnets) < 2 {
 		return eppolicy, fmt.Errorf("network state doesn't have ipv6 subnet")

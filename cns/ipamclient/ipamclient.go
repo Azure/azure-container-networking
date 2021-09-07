@@ -110,7 +110,6 @@ func (ic *IpamClient) GetPoolID(asID, subnet string) (string, error) {
 	}
 	log.Printf("[Azure CNS] GetPoolID invalid http status code: %v err:%v", res.StatusCode, err.Error())
 	return "", err
-
 }
 
 // ReserveIPAddress request an Ip address for the reservation id.
@@ -209,7 +208,6 @@ func (ic *IpamClient) ReleaseIPAddress(poolID string, reservationID string) erro
 	}
 	log.Printf("[Azure CNS] ReleaseIP invalid http status code: %v", res.StatusCode)
 	return err
-
 }
 
 // GetIPAddressUtilization - returns number of available, reserved and unhealthy addresses list.
@@ -254,5 +252,4 @@ func (ic *IpamClient) GetIPAddressUtilization(poolID string) (int, int, []string
 	}
 	log.Printf("[Azure CNS] GetIPUtilization invalid http status code: %v err:%v", res.StatusCode, err.Error())
 	return 0, 0, nil, err
-
 }

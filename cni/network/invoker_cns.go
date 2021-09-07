@@ -48,7 +48,7 @@ func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
 	}, err
 }
 
-//Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
+// Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
 func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, hostSubnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
@@ -161,16 +161,18 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 	}
 
 	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), iptables.AzureDNS, iptables.UDP, iptables.DNSPort)
+	azureIMDSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), iptables.AzureIMDS, iptables.TCP, iptables.HTTPPort)
 
-	// TODO remove this rule once we remove adding MASQUEARDE from AgentBaker, check below PR
-	// https://github.com/Azure/AgentBaker/pull/367/files
-	podTrafficAccept := fmt.Sprintf(" -m iprange  ! --dst-range 168.63.129.16-168.63.129.16  -s %s ", ncSubnetPrefix.String())
 	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
+	// we need to snat IMDS traffic to node IP, this sets up snat '--to'
+	snatHostIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.hostPrimaryIP)
 	options[network.IPTablesKey] = []iptables.IPTableEntry{
 		iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, podTrafficAccept, iptables.Accept),
 		iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
+		// add a snat rule to primary NC IP for DNS
 		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSMatch, snatPrimaryIPJump),
+		// add a snat rule to node IP for IMDS http traffic
+		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
 	}
 
 	return nil

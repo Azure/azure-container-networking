@@ -18,6 +18,7 @@ const (
 	RT_SCOPE_HOST     = 254
 	RT_SCOPE_NOWHERE  = 255
 )
+
 const (
 	RTPROT_KERNEL = 2
 )

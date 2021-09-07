@@ -8,7 +8,7 @@ import (
 )
 
 func GetManagerCmd(npmClient *npm.NPMHttpClient) *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "npmgr",
 		Short: "Get NPM in memory Namespace map",
 		RunE: func(cmd *cobra.Command, args []string) error {

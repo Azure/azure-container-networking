@@ -203,8 +203,6 @@ func (service *HTTPRestService) getPodIPIDByOrchestratorContexthandler(w http.Re
 	}()
 
 	resp.PodContext = service.GetPodIPIDByOrchestratorContext()
-
-	return
 }
 
 func (service *HTTPRestService) GetPodIPIDByOrchestratorContext() map[string]string {
@@ -231,7 +229,6 @@ func (service *HTTPRestService) GetHTTPRestDataHandler(w http.ResponseWriter, r 
 	}()
 
 	resp.HTTPRestServiceData = service.GetHTTPStruct()
-	return
 }
 
 func (service *HTTPRestService) GetHTTPStruct() HTTPRestServiceData {
@@ -312,14 +309,14 @@ func (service *HTTPRestService) GetPendingReleaseIPConfigs() []cns.IPConfigurati
 
 // SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated.
 // Does not take a lock.
-func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
+func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) error {
 	ipconfig, err := service.updateIPConfigState(ipconfig.ID, cns.Allocated, podInfo)
 	if err != nil {
-		return cns.IPConfigurationStatus{}, err
+		return err
 	}
 
 	service.PodIPIDByPodInterfaceKey[podInfo.Key()] = ipconfig.ID
-	return ipconfig, nil
+	return nil
 }
 
 // SetIPConfigAsAllocated and sets the ipconfig in the CNS state as allocated, does not take a lock
@@ -428,8 +425,7 @@ func (service *HTTPRestService) AllocateDesiredIPConfig(podInfo cns.PodInfo, des
 			} else if ipConfig.State == cns.Available || ipConfig.State == cns.PendingProgramming {
 				// This race can happen during restart, where CNS state is lost and thus we have lost the NC programmed version
 				// As part of reconcile, we mark IPs as Allocated which are already allocated to PODs (listed from APIServer)
-				_, err := service.setIPConfigAsAllocated(ipConfig, podInfo)
-				if err != nil {
+				if err := service.setIPConfigAsAllocated(ipConfig, podInfo); err != nil {
 					return podIpInfo, err
 				}
 				found = true
@@ -447,28 +443,25 @@ func (service *HTTPRestService) AllocateDesiredIPConfig(podInfo cns.PodInfo, des
 }
 
 func (service *HTTPRestService) AllocateAnyAvailableIPConfig(podInfo cns.PodInfo) (cns.PodIpInfo, error) {
-	var podIpInfo cns.PodIpInfo
-
 	service.Lock()
 	defer service.Unlock()
 
 	for _, ipState := range service.PodIPConfigState {
 		if ipState.State == cns.Available {
-			_, err := service.setIPConfigAsAllocated(ipState, podInfo)
-			if err != nil {
-				return podIpInfo, err
+			if err := service.setIPConfigAsAllocated(ipState, podInfo); err != nil {
+				return cns.PodIpInfo{}, err
 			}
 
-			err = service.populateIpConfigInfoUntransacted(ipState, &podIpInfo)
-			if err != nil {
-				return podIpInfo, err
+			podIPInfo := cns.PodIpInfo{}
+			if err := service.populateIpConfigInfoUntransacted(ipState, &podIPInfo); err != nil {
+				return cns.PodIpInfo{}, err
 			}
 
-			return podIpInfo, err
+			return podIPInfo, nil
 		}
 	}
-
-	return podIpInfo, fmt.Errorf("No more free IP's available, waiting on Azure CNS to allocated more IP's...")
+	//nolint:goerr113
+	return cns.PodIpInfo{}, fmt.Errorf("no more free IPs available, waiting on Azure CNS to allocated more")
 }
 
 // If IPConfig is already allocated for pod, it returns that else it returns one of the available ipconfigs.

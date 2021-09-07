@@ -377,7 +377,6 @@ func TestCraftPartialIptablesCommentFromSelector(t *testing.T) {
 		t.Errorf("comment:\n%v", comment)
 		t.Errorf("expectedComment:\n%v", expectedComment)
 	}
-
 }
 
 func TestGetDefaultDropEntries(t *testing.T) {

@@ -22,8 +22,7 @@ const (
 )
 
 // Request sent by libnetwork when querying plugin capabilities.
-type getCapabilitiesRequest struct {
-}
+type getCapabilitiesRequest struct{}
 
 // Response sent by plugin when registering its capabilities with libnetwork.
 type getCapabilitiesResponse struct {

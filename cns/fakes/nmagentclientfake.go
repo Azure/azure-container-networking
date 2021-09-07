@@ -4,8 +4,7 @@
 package fakes
 
 // NMAgentClientTest can be used to query to VM Host info.
-type NMAgentClientTest struct {
-}
+type NMAgentClientTest struct{}
 
 // NewFakeNMAgentClient return a mock implemetation of NMAgentClient
 func NewFakeNMAgentClient() *NMAgentClientTest {

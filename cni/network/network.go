@@ -1201,7 +1201,7 @@ func determineSnat() (bool, bool, error) {
 					}
 
 					jsonStr, _ := json.Marshal(snatConfig)
-					fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0664))
+					fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0o664))
 					if err == nil {
 						fp.Write(jsonStr)
 						fp.Close()

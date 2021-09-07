@@ -49,15 +49,14 @@ const (
 
 // TelemetryBuffer object
 type TelemetryBuffer struct {
-	client             net.Conn
-	listener           net.Listener
-	connections        []net.Conn
-	azureHostReportURL string
-	FdExists           bool
-	Connected          bool
-	data               chan interface{}
-	cancel             chan bool
-	mutex              sync.Mutex
+	client      net.Conn
+	listener    net.Listener
+	connections []net.Conn
+	FdExists    bool
+	Connected   bool
+	data        chan interface{}
+	cancel      chan bool
+	mutex       sync.Mutex
 }
 
 // Buffer object holds the different types of reports

@@ -12,7 +12,7 @@ import (
 
 const (
 	// File name used for test store.
-	testFileName = "test.json"
+	testFileName     = "test.json"
 	testLockFileName = "locktest.json"
 	// Keys used during tests.
 	testKey1 = "key1"
@@ -27,8 +27,8 @@ type testType1 struct {
 
 // Tests that the key value pairs are reinstantiated correctly from a pre-existing JSON encoded file.
 func TestKeyValuePairsAreReinstantiatedFromJSONFile(t *testing.T) {
-	var encodedPair = `{"key1":{"Field1":"test","Field2":42}}`
-	var expectedValue = testType1{"test", 42}
+	encodedPair := `{"key1":{"Field1":"test","Field2":42}}`
+	expectedValue := testType1{"test", 42}
 	var actualValue testType1
 
 	// Create a JSON file containing the encoded pair.
@@ -66,8 +66,8 @@ func TestKeyValuePairsAreReinstantiatedFromJSONFile(t *testing.T) {
 
 // Tests that the key value pairs written to the store are persisted correctly in JSON encoded file.
 func TestKeyValuePairsArePersistedToJSONFile(t *testing.T) {
-	var writtenValue = testType1{"test", 42}
-	var expectedPair = `{"key1":{"Field1":"test","Field2":42}}`
+	writtenValue := testType1{"test", 42}
+	expectedPair := `{"key1":{"Field1":"test","Field2":42}}`
 	var actualPair string
 
 	// Create the store.
@@ -112,8 +112,8 @@ func TestKeyValuePairsArePersistedToJSONFile(t *testing.T) {
 
 // Tests that key value pairs are written and read back correctly.
 func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
-	var writtenValue = testType1{"test", 42}
-	var anotherValue = testType1{"any", 14}
+	writtenValue := testType1{"test", 42}
+	anotherValue := testType1{"any", 14}
 	var readValue testType1
 
 	// Create the store.
@@ -152,7 +152,7 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 
 // Tests that locking a store gives the caller exclusive access.
 func TestLockingStoreGivesExclusiveAccess(t *testing.T) {
-	var anyValue = testType1{"test", 42}
+	anyValue := testType1{"test", 42}
 
 	// Create the store.
 	kvs, err := NewJsonFileStore(testFileName)
@@ -231,11 +231,11 @@ func TestLockFilePath(t *testing.T) {
 	lockFileName := store.GetLockFileName()
 
 	if runtime.GOOS == "linux" {
-		if lockFileName != "/var/run/azure-vnet/" + testLockFileName + ".lock" {
+		if lockFileName != "/var/run/azure-vnet/"+testLockFileName+".lock" {
 			t.Errorf("Not expected file lock name: %v", lockFileName)
 		}
 	} else {
-		if lockFileName != testLockFileName + ".lock" {
+		if lockFileName != testLockFileName+".lock" {
 			t.Errorf("Not expected lockfilename: %v", lockFileName)
 		}
 	}

@@ -14,8 +14,7 @@ var (
 )
 
 // ImdsClient can be used to connect to VM Host agent in Azure.
-type ImdsClientTest struct {
-}
+type ImdsClientTest struct{}
 
 func NewFakeImdsClient() *ImdsClientTest {
 	return &ImdsClientTest{}
@@ -23,7 +22,6 @@ func NewFakeImdsClient() *ImdsClientTest {
 
 // GetNetworkContainerInfoFromHost - Mock implementation to return Container version info.
 func (imdsClient *ImdsClientTest) GetNetworkContainerInfoFromHost(networkContainerID string, primaryAddress string, authToken string, apiVersion string) (*imdsclient.ContainerVersion, error) {
-
 	ret := &imdsclient.ContainerVersion{}
 
 	return ret, nil

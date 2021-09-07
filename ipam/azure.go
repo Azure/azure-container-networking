@@ -64,12 +64,10 @@ func (s *azureSource) start(sink addressConfigSink) error {
 // Stops the Azure source.
 func (s *azureSource) stop() {
 	s.sink = nil
-	return
 }
 
 // Refreshes configuration.
 func (s *azureSource) refresh() error {
-
 	// Refresh only if enough time has passed since the last query.
 	if time.Since(s.lastRefresh) < s.queryInterval {
 		return nil

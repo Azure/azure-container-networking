@@ -233,7 +233,6 @@ func (nsc *nameSpaceController) processNextWorkItem() bool {
 		klog.Infof("Successfully synced '%s'", key)
 		return nil
 	}(obj)
-
 	if err != nil {
 		utilruntime.HandleError(err)
 		return true
@@ -350,7 +349,7 @@ func (nsc *nameSpaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 		return nil
 	}
 
-	//If the Namespace is not deleted, delete removed labels and create new labels
+	// If the Namespace is not deleted, delete removed labels and create new labels
 	addToIPSets, deleteFromIPSets := util.GetIPSetListCompareLabels(curNsObj.LabelsMap, newNsLabel)
 	// Delete the namespace from its label's ipset list.
 	for _, nsLabelVal := range deleteFromIPSets {

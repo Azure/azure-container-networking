@@ -34,7 +34,7 @@ const (
 	// Log file properties.
 	logPrefix        = ""
 	logFileExtension = ".log"
-	logFilePerm      = os.FileMode(0664)
+	logFilePerm      = os.FileMode(0o664)
 
 	// Log file rotation default limits, in bytes.
 	maxLogFileSize   = 5 * 1024 * 1024

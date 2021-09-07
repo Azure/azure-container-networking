@@ -7,13 +7,13 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 )
 
-//MockNetworkManager is a mock structure for Network Manager
+// MockNetworkManager is a mock structure for Network Manager
 type MockNetworkManager struct {
 	TestNetworkInfoMap  map[string]*NetworkInfo
 	TestEndpointInfoMap map[string]*EndpointInfo
 }
 
-//NewMockNetworkmanager returns a new mock
+// NewMockNetworkmanager returns a new mock
 func NewMockNetworkmanager() *MockNetworkManager {
 	return &MockNetworkManager{
 		TestNetworkInfoMap:  make(map[string]*NetworkInfo),
@@ -21,31 +21,31 @@ func NewMockNetworkmanager() *MockNetworkManager {
 	}
 }
 
-//Initialize mock
+// Initialize mock
 func (nm *MockNetworkManager) Initialize(config *common.PluginConfig, isRehydrationRequired bool) error {
 	return nil
 }
 
-//Uninitialize mock
+// Uninitialize mock
 func (nm *MockNetworkManager) Uninitialize() {}
 
-//AddExternalInterface mock
+// AddExternalInterface mock
 func (nm *MockNetworkManager) AddExternalInterface(ifName string, subnet string) error {
 	return nil
 }
 
-//CreateNetwork mock
+// CreateNetwork mock
 func (nm *MockNetworkManager) CreateNetwork(nwInfo *NetworkInfo) error {
 	nm.TestNetworkInfoMap[nwInfo.Id] = nwInfo
 	return nil
 }
 
-//DeleteNetwork mock
+// DeleteNetwork mock
 func (nm *MockNetworkManager) DeleteNetwork(networkID string) error {
 	return nil
 }
 
-//GetNetworkInfo mock
+// GetNetworkInfo mock
 func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, error) {
 	if info, exists := nm.TestNetworkInfoMap[networkID]; exists {
 		return *info, nil
@@ -53,13 +53,13 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 	return NetworkInfo{}, fmt.Errorf("Not found")
 }
 
-//CreateEndpoint mock
+// CreateEndpoint mock
 func (nm *MockNetworkManager) CreateEndpoint(networkID string, epInfo *EndpointInfo) error {
 	nm.TestEndpointInfoMap[epInfo.Id] = epInfo
 	return nil
 }
 
-//DeleteEndpoint mock
+// DeleteEndpoint mock
 func (nm *MockNetworkManager) DeleteEndpoint(networkID string, endpointID string) error {
 	return nil
 }
@@ -68,37 +68,37 @@ func (nm *MockNetworkManager) GetAllEndpoints(networkID string) (map[string]*End
 	return nm.TestEndpointInfoMap, nil
 }
 
-//GetEndpointInfo mock
+// GetEndpointInfo mock
 func (nm *MockNetworkManager) GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error) {
 	return nm.TestEndpointInfoMap[networkID], nil
 }
 
-//GetEndpointInfoBasedOnPODDetails mock
+// GetEndpointInfoBasedOnPODDetails mock
 func (nm *MockNetworkManager) GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error) {
 	return &EndpointInfo{}, nil
 }
 
-//AttachEndpoint mock
+// AttachEndpoint mock
 func (nm *MockNetworkManager) AttachEndpoint(networkID string, endpointID string, sandboxKey string) (*endpoint, error) {
 	return &endpoint{}, nil
 }
 
-//DetachEndpoint mock
+// DetachEndpoint mock
 func (nm *MockNetworkManager) DetachEndpoint(networkID string, endpointID string) error {
 	return nil
 }
 
-//UpdateEndpoint mock
+// UpdateEndpoint mock
 func (nm *MockNetworkManager) UpdateEndpoint(networkID string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error {
 	return nil
 }
 
-//GetNumberOfEndpoints mock
+// GetNumberOfEndpoints mock
 func (nm *MockNetworkManager) GetNumberOfEndpoints(ifName string, networkID string) int {
 	return 0
 }
 
-//SetupNetworkUsingState mock
+// SetupNetworkUsingState mock
 func (nm *MockNetworkManager) SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error {
 	return nil
 }

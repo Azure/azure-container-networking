@@ -40,7 +40,7 @@ func getMemInfo() (*MemInfo, error) {
 		return nil, fmt.Errorf("Sysinfo failed due to %v", err)
 	}
 
-	unit := uint64(info.Unit) * MB //MB
+	unit := uint64(info.Unit) * MB // MB
 	memInfo := &MemInfo{MemTotal: info.Totalram / unit, MemFree: info.Freeram / unit}
 
 	return memInfo, nil

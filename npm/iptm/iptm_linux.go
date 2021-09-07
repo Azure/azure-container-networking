@@ -3,8 +3,9 @@
 package iptm
 
 import (
-	"golang.org/x/sys/unix"
 	"os"
+
+	"golang.org/x/sys/unix"
 )
 
 func grabIptablesFileLock(f *os.File) error {

@@ -73,14 +73,12 @@ const (
 	// aclPolicyType indicates a ACL policy
 	aclPolicyType = "ACLPolicy"
 
-	//signals a APIPA endpoint type
+	// signals a APIPA endpoint type
 	apipaEndpointType = "APIPA"
 )
 
-var (
-	// Named Lock for network and endpoint creation/deletion
-	namedLock = common.InitNamedLock()
-)
+// Named Lock for network and endpoint creation/deletion
+var namedLock = common.InitNamedLock()
 
 // CreateHnsNetwork creates the HNS network with the provided configuration
 func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
@@ -215,7 +213,7 @@ func configureHostNCApipaNetwork(localIPConfiguration cns.IPConfiguration) (*hcn
 	network := &hcn.HostComputeNetwork{
 		Name: hostNCApipaNetworkName,
 		Ipams: []hcn.Ipam{
-			hcn.Ipam{
+			{
 				Type: hcnIpamTypeStatic,
 			},
 		},
@@ -259,7 +257,7 @@ func configureHostNCApipaNetwork(localIPConfiguration cns.IPConfiguration) (*hcn
 	subnet := hcn.Subnet{
 		IpAddressPrefix: subnetPrefixStr,
 		Routes: []hcn.Route{
-			hcn.Route{
+			{
 				NextHop:           localIPConfiguration.GatewayIPAddress,
 				DestinationPrefix: "0.0.0.0/0",
 			},
@@ -467,11 +465,11 @@ func configureAclSettingHostNCApipaEndpoint(
 				if err = json.Unmarshal(requestedPolicy.Settings, &requestedAclPolicy); err != nil {
 					return nil, fmt.Errorf("Failed to Unmarshal requested ACL policy: %+v with error: %+v", requestedPolicy.Settings, err)
 				}
-				//Using {NetworkContainerIP} as a placeholder to signal using Network Container IP
+				// Using {NetworkContainerIP} as a placeholder to signal using Network Container IP
 				if strings.EqualFold(requestedAclPolicy.LocalAddresses, "{NetworkContainerIP}") {
 					requestedAclPolicy.LocalAddresses = networkContainerApipaIP
 				}
-				//Using {HostApipaIP} as a placeholder to signal using Host Apipa IP
+				// Using {HostApipaIP} as a placeholder to signal using Host Apipa IP
 				if strings.EqualFold(requestedAclPolicy.RemoteAddresses, "{HostApipaIP}") {
 					requestedAclPolicy.RemoteAddresses = hostApipaIP
 				}
@@ -512,7 +510,6 @@ func configureHostNCApipaEndpoint(
 		allowNCToHostCommunication,
 		allowHostToNCCommunication,
 		ncPolicies)
-
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to configure ACL for HostNCApipaEndpoint. Error: %v", err)
 		return nil, err

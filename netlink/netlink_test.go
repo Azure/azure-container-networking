@@ -24,7 +24,6 @@ func addDummyInterface(name string) (*net.Interface, error) {
 			Name: name,
 		},
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,6 @@ func addDummyInterface(name string) (*net.Interface, error) {
 // TestEcho tests basic netlink messaging via echo.
 func TestEcho(t *testing.T) {
 	err := Echo("this is a test")
-
 	if err != nil {
 		t.Errorf("Echo failed: %+v", err)
 	}

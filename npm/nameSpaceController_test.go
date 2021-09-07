@@ -70,7 +70,7 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	}
 	// Do not start informer to avoid unnecessary event triggers.
 	// (TODO) Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
-	//f.kubeInformer.Start()
+	// f.kubeInformer.Start()
 }
 
 func newNameSpace(name, rv string, labels map[string]string) *corev1.Namespace {

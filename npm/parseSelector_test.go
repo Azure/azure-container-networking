@@ -200,7 +200,7 @@ func TestReqHeap(t *testing.T) {
 func TestSortSelector(t *testing.T) {
 	selector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -208,7 +208,7 @@ func TestSortSelector(t *testing.T) {
 					"backend",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "a",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -225,14 +225,14 @@ func TestSortSelector(t *testing.T) {
 	sortSelector(selector)
 	expectedSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "a",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
 					"b",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -257,7 +257,7 @@ func TestSortSelector(t *testing.T) {
 func TestHashSelector(t *testing.T) {
 	firstSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -274,7 +274,7 @@ func TestHashSelector(t *testing.T) {
 
 	secondSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -329,7 +329,7 @@ func TestParseSelector(t *testing.T) {
 
 	selector = &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -487,11 +487,9 @@ func TestFlattenNameSpaceSelectorCases(t *testing.T) {
 	if len(testSelectors) > 0 {
 		t.Errorf("TestFlattenNameSpaceSelectorCases failed @ 1st selector length check %+v", testSelectors)
 	}
-
 }
 
 func TestFlattenNameSpaceSelector(t *testing.T) {
-
 	commonMatchLabel := map[string]string{
 		"c": "d",
 		"a": "b",
@@ -499,26 +497,26 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 
 	firstSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
 					"backend",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "pod",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
 					"a",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testExists",
 				Operator: metav1.LabelSelectorOpExists,
 				Values:   []string{},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "ns",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -540,7 +538,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 
 	secondSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -548,7 +546,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					"frontend",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "pod",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -556,12 +554,12 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 					"b",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testExists",
 				Operator: metav1.LabelSelectorOpExists,
 				Values:   []string{},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "ns",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -579,28 +577,28 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 	}
 
 	expectedSelectors := []metav1.LabelSelector{
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"backend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"a",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -610,28 +608,28 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 			},
 			MatchLabels: commonMatchLabel,
 		},
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"backend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"a",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -641,28 +639,28 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 			},
 			MatchLabels: commonMatchLabel,
 		},
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"backend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"b",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -672,28 +670,28 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 			},
 			MatchLabels: commonMatchLabel,
 		},
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"backend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"b",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -703,28 +701,28 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 			},
 			MatchLabels: commonMatchLabel,
 		},
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"frontend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"a",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -734,28 +732,28 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 			},
 			MatchLabels: commonMatchLabel,
 		},
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"frontend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"a",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -765,28 +763,28 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 			},
 			MatchLabels: commonMatchLabel,
 		},
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"frontend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"b",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -796,28 +794,28 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 			},
 			MatchLabels: commonMatchLabel,
 		},
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"frontend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"b",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -837,26 +835,26 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 func TestFlattenNameSpaceSelectorWoMatchLabels(t *testing.T) {
 	firstSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
 					"backend",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "pod",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
 					"a",
 				},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testExists",
 				Operator: metav1.LabelSelectorOpExists,
 				Values:   []string{},
 			},
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "ns",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -873,28 +871,28 @@ func TestFlattenNameSpaceSelectorWoMatchLabels(t *testing.T) {
 	}
 
 	expectedSelectors := []metav1.LabelSelector{
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"backend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"a",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
@@ -903,28 +901,28 @@ func TestFlattenNameSpaceSelectorWoMatchLabels(t *testing.T) {
 				},
 			},
 		},
-		metav1.LabelSelector{
+		{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testIn",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"backend",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
 						"a",
 					},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "testExists",
 					Operator: metav1.LabelSelectorOpExists,
 					Values:   []string{},
 				},
-				metav1.LabelSelectorRequirement{
+				{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpIn,
 					Values: []string{
