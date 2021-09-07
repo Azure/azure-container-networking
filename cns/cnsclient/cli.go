@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/restserver"
 )
 
 const (
@@ -79,7 +78,7 @@ func printIPAddresses(addrSlice []cns.IPConfigurationStatus) {
 	})
 
 	for _, addr := range addrSlice {
-		cns.IPConfigurationStatus.String(addr)
+		fmt.Println(addr.String())
 	}
 }
 
@@ -88,31 +87,20 @@ func getPodCmd(client *CNSClient) error {
 	if err != nil {
 		return err
 	}
-
-	printPodContext(resp)
-	return nil
-}
-
-func printPodContext(podContext map[string]string) {
 	i := 1
-	for orchContext, podID := range podContext {
-		fmt.Println(i, " ", orchContext, " : ", podID)
+	for orchContext, podID := range resp {
+		fmt.Printf("%d %s : %s\n", i, orchContext, podID)
 		i++
 	}
+	return nil
 }
 
 func getInMemory(client *CNSClient) error {
-	inmemoryData, err := client.GetHTTPServiceData()
+	data, err := client.GetHTTPServiceData()
 	if err != nil {
 		return err
 	}
-
-	printInMemoryStruct(inmemoryData.HTTPRestServiceData)
+	fmt.Printf("PodIPIDByOrchestratorContext: %v\nPodIPConfigState: %v\nIPAMPoolMonitor: %v\n",
+		data.HTTPRestServiceData.PodIPIDByPodInterfaceKey, data.HTTPRestServiceData.PodIPConfigState, data.HTTPRestServiceData.IPAMPoolMonitor)
 	return nil
-}
-
-func printInMemoryStruct(data restserver.HTTPRestServiceData) {
-	fmt.Println("PodIPIDByOrchestratorContext: ", data.PodIPIDByPodInterfaceKey)
-	fmt.Println("PodIPConfigState: ", data.PodIPConfigState)
-	fmt.Println("IPAMPoolMonitor: ", data.IPAMPoolMonitor)
 }

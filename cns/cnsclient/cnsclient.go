@@ -315,132 +315,111 @@ func (cnsClient *CNSClient) ReleaseIPAddress(ipconfig *cns.IPConfigRequest) erro
 // GetIPAddressesWithStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states
 // usage GetIPAddressesWithStates(cns.Available, cns.Allocated)
 func (cnsClient *CNSClient) GetIPAddressesMatchingStates(stateFilter ...cns.IPConfigState) ([]cns.IPConfigurationStatus, error) {
-	var (
-		resp cns.GetIPAddressStatusResponse
-		err  error
-		res  *http.Response
-		body bytes.Buffer
-	)
-
 	if len(stateFilter) == 0 {
-		return resp.IPConfigurationStatus, nil
+		return nil, nil
 	}
 
 	url := cnsClient.connectionURL + cns.DebugIPAddresses
-	log.Printf("GetIPAddressesMatchingStates url %v", url)
+	log.Debugf("GetIPAddressesMatchingStates url %v", url)
 
-	payload := &cns.GetIPAddressesRequest{
+	payload := cns.GetIPAddressesRequest{
 		IPConfigStateFilter: stateFilter,
 	}
 
-	err = json.NewEncoder(&body).Encode(payload)
-	if err != nil {
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(payload); err != nil {
 		log.Errorf("encoding json failed with %v", err)
-		return resp.IPConfigurationStatus, err
+		return nil, err
 	}
 
-	res, err = http.Post(url, contentTypeJSON, &body)
+	res, err := http.Post(url, contentTypeJSON, &body)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
-		return resp.IPConfigurationStatus, err
+		return nil, err
 	}
-
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("[Azure CNSClient] GetIPAddressesMatchingStates invalid http status code: %v", res.StatusCode)
 		log.Errorf(errMsg)
-		return resp.IPConfigurationStatus, fmt.Errorf(errMsg)
+		return nil, fmt.Errorf(errMsg)
 	}
 
+	var resp cns.GetIPAddressStatusResponse
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] Error received while parsing GetIPAddressesMatchingStates response resp:%v err:%v", res.Body, err.Error())
-		return resp.IPConfigurationStatus, err
+		return nil, err
 	}
 
 	if resp.Response.ReturnCode != 0 {
 		log.Errorf("[Azure CNSClient] GetIPAddressesMatchingStates received error response :%v", resp.Response.Message)
-		return resp.IPConfigurationStatus, fmt.Errorf(resp.Response.Message)
+		return nil, fmt.Errorf(resp.Response.Message)
 	}
 
-	return resp.IPConfigurationStatus, err
+	return resp.IPConfigurationStatus, nil
 }
 
 // GetPodOrchestratorContext calls GetPodIpOrchestratorContext API on CNS
 func (cnsClient *CNSClient) GetPodOrchestratorContext() (map[string]string, error) {
-	var (
-		resp cns.GetPodContextResponse
-		err  error
-		res  *http.Response
-	)
-
 	url := cnsClient.connectionURL + cns.DebugPodContext
 	log.Printf("GetPodIPOrchestratorContext url %v", url)
 
-	res, err = http.Get(url)
+	res, err := http.Get(url)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] GetPodIPOrchestratorContext HTTP Get returned error %v", err.Error())
-		return resp.PodContext, err
+		return nil, err
 	}
-
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("[Azure CNSClient] GetPodIPOrchestratorContext invalid http status code: %v", res.StatusCode)
 		log.Errorf(errMsg)
-		return resp.PodContext, fmt.Errorf(errMsg)
+		return nil, fmt.Errorf(errMsg)
 	}
 
-	err = json.NewDecoder(res.Body).Decode(&resp)
-	if err != nil {
+	var resp cns.GetPodContextResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
 		log.Errorf("[Azure CNSClient] Error received while parsing GetPodContext response resp:%v err:%v", res.Body, err.Error())
-		return resp.PodContext, err
+		return nil, err
 	}
 
 	if resp.Response.ReturnCode != 0 {
 		log.Errorf("[Azure CNSClient] GetPodContext received error response :%v", resp.Response.Message)
-		return resp.PodContext, fmt.Errorf(resp.Response.Message)
+		return nil, fmt.Errorf(resp.Response.Message)
 	}
 
-	return resp.PodContext, err
+	return resp.PodContext, nil
 }
 
 // GetHTTPServiceData gets all public in-memory struct details for debugging purpose
-func (cnsClient *CNSClient) GetHTTPServiceData() (restserver.GetHTTPServiceDataResponse, error) {
-	var (
-		resp restserver.GetHTTPServiceDataResponse
-		err  error
-		res  *http.Response
-	)
-
+func (cnsClient *CNSClient) GetHTTPServiceData() (*restserver.GetHTTPServiceDataResponse, error) {
 	url := cnsClient.connectionURL + cns.DebugRestData
 	log.Printf("GetHTTPServiceStruct url %v", url)
 
-	res, err = http.Get(url)
+	res, err := http.Get(url)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] HTTP Get returned error %v", err.Error())
-		return resp, err
+		return nil, err
 	}
-
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("[Azure CNSClient] GetHTTPServiceStruct invalid http status code: %v", res.StatusCode)
 		log.Errorf(errMsg)
-		return resp, fmt.Errorf(errMsg)
+		return nil, fmt.Errorf(errMsg)
 	}
-
+	var resp restserver.GetHTTPServiceDataResponse
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
 		log.Errorf("[Azure CNSClient] Error received while parsing GetHTTPServiceStruct response resp:%v err:%v", res.Body, err.Error())
-		return resp, err
+		return nil, err
 	}
 
 	if resp.Response.ReturnCode != 0 {
 		log.Errorf("[Azure CNSClient] GetTTPServiceStruct received error response :%v", resp.Response.Message)
-		return resp, fmt.Errorf(resp.Response.Message)
+		return nil, fmt.Errorf(resp.Response.Message)
 	}
 
-	return resp, err
+	return &resp, nil
 }
