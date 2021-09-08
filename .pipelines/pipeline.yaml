@@ -51,6 +51,7 @@ stages:
               cd ./output
               find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
               find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+              shopt -s extglob
               rm -rf !("bins")
             name: "PrepareArtifacts"
             displayName: "Prepare Artifacts"
