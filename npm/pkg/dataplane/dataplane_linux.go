@@ -1,8 +1,6 @@
 package dataplane
 
 import (
-	"fmt"
-
 	"github.com/Azure/azure-container-networking/npm"
 	"k8s.io/klog"
 )

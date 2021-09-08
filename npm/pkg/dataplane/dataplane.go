@@ -95,18 +95,18 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	return dp.ipsetMgr.ApplyIPSets(dp.networkID)
 }
 
-// AddPolicies takes in a translated NPMNetworkPolicy object and applies on dataplane
-func (dp *DataPlane) AddPolicies(policies *policies.NPMNetworkPolicy) error {
-	return dp.policyMgr.AddPolicies(policies)
+// AddPolicy takes in a translated NPMNetworkPolicy object and applies on dataplane
+func (dp *DataPlane) AddPolicy(policies *policies.NPMNetworkPolicy) error {
+	return dp.policyMgr.AddPolicy(policies)
 }
 
 // RemovePolicies takes in network policy name and removes it from dataplane and cache
-func (dp *DataPlane) RemovePolicies(policyName string) error {
-	return dp.policyMgr.RemovePolicies(policyName)
+func (dp *DataPlane) RemovePolicy(policyName string) error {
+	return dp.policyMgr.RemovePolicy(policyName)
 }
 
 // UpdatePolicies takes in updated policy object, calculates the delta and applies changes
 // onto dataplane accordingly
-func (dp *DataPlane) UpdatePolicies(policies *policies.NPMNetworkPolicy) error {
-	return dp.policyMgr.UpdatePolicies(policies)
+func (dp *DataPlane) UpdatePolicy(policies *policies.NPMNetworkPolicy) error {
+	return dp.policyMgr.UpdatePolicy(policies)
 }

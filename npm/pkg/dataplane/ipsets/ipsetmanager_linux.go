@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/npm/util/errors"
+	"k8s.io/klog"
 )
 
 func (iMgr *IPSetManager) applyIPSets(networkID string) error {
@@ -13,7 +14,7 @@ func (iMgr *IPSetManager) applyIPSets(networkID string) error {
 			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", setName))
 		}
 
-		fmt.Printf(set.Name)
+		klog.Infof(set.Name)
 
 	}
 	return nil

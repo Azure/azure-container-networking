@@ -30,12 +30,12 @@ func (pMgr *PolicyManager) GetPolicy(name string) (*NPMNetworkPolicy, error) {
 	return nil, nil
 }
 
-func (pMgr *PolicyManager) AddPolicies(policy *NPMNetworkPolicy) error {
+func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy) error {
 	pMgr.policyMap.Lock()
 	defer pMgr.policyMap.Unlock()
 
 	// Call actual dataplane function to apply changes
-	err := pMgr.addPolicies(policy)
+	err := pMgr.addPolicy(policy)
 	if err != nil {
 		return err
 	}
@@ -44,12 +44,12 @@ func (pMgr *PolicyManager) AddPolicies(policy *NPMNetworkPolicy) error {
 	return nil
 }
 
-func (pMgr *PolicyManager) RemovePolicies(name string) error {
+func (pMgr *PolicyManager) RemovePolicy(name string) error {
 	pMgr.policyMap.Lock()
 	defer pMgr.policyMap.Unlock()
 
 	// Call actual dataplane function to apply changes
-	err := pMgr.removePolicies(name)
+	err := pMgr.removePolicy(name)
 	if err != nil {
 		return err
 	}
@@ -59,13 +59,13 @@ func (pMgr *PolicyManager) RemovePolicies(name string) error {
 	return nil
 }
 
-func (pMgr *PolicyManager) UpdatePolicies(policy *NPMNetworkPolicy) error {
+func (pMgr *PolicyManager) UpdatePolicy(policy *NPMNetworkPolicy) error {
 	pMgr.policyMap.Lock()
 	defer pMgr.policyMap.Unlock()
 
 	// check and update
 	// Call actual dataplane function to apply changes
-	err := pMgr.updatePolicies(policy)
+	err := pMgr.updatePolicy(policy)
 	if err != nil {
 		return err
 	}

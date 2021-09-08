@@ -7,33 +7,33 @@ func TestAddPolicy(t *testing.T) {
 
 	netpol := NPMNetworkPolicy{}
 
-	err := pMgr.AddPolicies(&netpol)
+	err := pMgr.AddPolicy(&netpol)
 	if err != nil {
-		t.Errorf("AddPolicies() returned error %s", err.Error())
+		t.Errorf("AddPolicy() returned error %s", err.Error())
 	}
 }
 
-func TestRemovePolicies(t *testing.T) {
+func TestRemovePolicy(t *testing.T) {
 	pMgr := NewPolicyManager()
 
-	err := pMgr.RemovePolicies("test")
+	err := pMgr.RemovePolicy("test")
 	if err != nil {
-		t.Errorf("RemovePolicies() returned error %s", err.Error())
+		t.Errorf("RemovePolicy() returned error %s", err.Error())
 	}
 }
 
-func TestUpdatePolicies(t *testing.T) {
+func TestUpdatePolicy(t *testing.T) {
 	pMgr := NewPolicyManager()
 
 	netpol := NPMNetworkPolicy{}
 
-	err := pMgr.AddPolicies(&netpol)
+	err := pMgr.AddPolicy(&netpol)
 	if err != nil {
-		t.Errorf("UpdatePolicies() returned error %s", err.Error())
+		t.Errorf("UpdatePolicy() returned error %s", err.Error())
 	}
 
-	err = pMgr.UpdatePolicies(&netpol)
+	err = pMgr.UpdatePolicy(&netpol)
 	if err != nil {
-		t.Errorf("UpdatePolicies() returned error %s", err.Error())
+		t.Errorf("UpdatePolicy() returned error %s", err.Error())
 	}
 }
