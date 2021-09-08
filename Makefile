@@ -76,8 +76,8 @@ NPMFILES = \
 # Build defaults.
 GOOS ?= linux
 GOARCH ?= amd64
-GOOSES ?= "linux windows"
-GOARCHES ?= "amd64 arm64"
+GOOSES ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
+GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
 
 # Build directories.
 ROOT_DIR = $(shell pwd)

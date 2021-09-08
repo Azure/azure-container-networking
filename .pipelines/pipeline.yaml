@@ -42,7 +42,7 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
-              make all-binaries-platforms GOOS=linux,windows GOARCH=amd64,arm64 VERSION=$(TAG)
+              make all-binaries-platforms VERSION=$(TAG)
             name: "BuildAllPlatformBinaries"
             displayName: "Build all platform binaries"
 
