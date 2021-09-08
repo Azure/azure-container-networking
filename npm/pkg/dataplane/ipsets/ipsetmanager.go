@@ -59,6 +59,10 @@ func (iMgr *IPSetManager) clearDirtyCache() {
 func (iMgr *IPSetManager) CreateIPSet(set *IPSet) error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
+	return iMgr.createIPSet(set)
+}
+
+func (iMgr *IPSetManager) createIPSet(set *IPSet) error {
 	// Check if the Set already exists
 	if iMgr.exists(set.Name) {
 		// ipset already exists
@@ -84,10 +88,11 @@ func (iMgr *IPSetManager) AddToSet(addToSets []*IPSet, ip, podKey string) error 
 	for _, updatedSet := range addToSets {
 		set, exists := iMgr.setMap[updatedSet.Name] // check if the Set exists
 		if !exists {
-			err := iMgr.CreateIPSet(set)
+			err := iMgr.createIPSet(updatedSet)
 			if err != nil {
 				return err
 			}
+			set = iMgr.setMap[updatedSet.Name]
 		}
 
 		if set.Properties.Kind != HashSet {

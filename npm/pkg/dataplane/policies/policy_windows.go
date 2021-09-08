@@ -37,8 +37,13 @@ func getHCNProtocol(protocol string) string {
 		return "6"
 	case "udp":
 		return "17"
+	case "icmp":
+		return "1"
+	case "sctp":
+		return "132"
 	default:
-		return ""
+		// HNS thinks 256 as ANY
+		return "256"
 	}
 }
 
