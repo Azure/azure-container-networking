@@ -9,7 +9,8 @@ import (
 type IPSet struct {
 	Name       string
 	HashedName string
-	Properties SetProperties
+	// SetProperties embedding set properties
+	SetProperties
 	// IpPodKey is used for setMaps to store Ips and ports as keys
 	// and podKey as value
 	IPPodKey map[string]string
@@ -61,36 +62,20 @@ const (
 	CIDRBlocks SetType = 8
 )
 
-var setTypeName = map[int32]string{
-	0: "Unknown",
-	1: "NameSpace",
-	2: "KeyLabelOfNameSpace",
-	3: "KeyValueLabelOfNameSpace",
-	4: "KeyLabelOfPod",
-	5: "KeyValueLabelOfPod",
-	6: "NamedPorts",
-	7: "NestedLabelOfPod",
-	8: "CIDRBlocks",
-}
-
-var setTypeValue = map[string]int32{
-	"Unknown":                  0,
-	"NameSpace":                1,
-	"KeyLabelOfNameSpace":      2,
-	"KeyValueLabelOfNameSpace": 3,
-	"KeyLabelOfPod":            4,
-	"KeyValueLabelOfPod":       5,
-	"NamedPorts":               6,
-	"NestedLabelOfPod":         7,
-	"CIDRBlocks":               8,
+var setTypeName = map[SetType]string{
+	Unknown:                  "Unknown",
+	NameSpace:                "NameSpace",
+	KeyLabelOfNameSpace:      "KeyLabelOfNameSpace",
+	KeyValueLabelOfNameSpace: "KeyValueLabelOfNameSpace",
+	KeyLabelOfPod:            "KeyLabelOfPod",
+	KeyValueLabelOfPod:       "KeyValueLabelOfPod",
+	NamedPorts:               "NamedPorts",
+	NestedLabelOfPod:         "NestedLabelOfPod",
+	CIDRBlocks:               "CIDRBlocks",
 }
 
 func (x SetType) String() string {
-	return setTypeName[int32(x)]
-}
-
-func GetSetType(x string) SetType {
-	return SetType(setTypeValue[x])
+	return setTypeName[x]
 }
 
 type SetKind string
@@ -106,7 +91,7 @@ func NewIPSet(name string, setType SetType) *IPSet {
 	set := &IPSet{
 		Name:       name,
 		HashedName: util.GetHashedName(name),
-		Properties: SetProperties{
+		SetProperties: SetProperties{
 			Type: setType,
 			Kind: getSetKind(setType),
 		},
@@ -116,7 +101,7 @@ func NewIPSet(name string, setType SetType) *IPSet {
 		NetPolReference:   make(map[string]struct{}),
 		IpsetReferCount:   0,
 	}
-	if set.Properties.Kind == HashSet {
+	if set.Kind == HashSet {
 		set.IPPodKey = make(map[string]string)
 	} else {
 		set.MemberIPSets = make(map[string]*IPSet)
@@ -125,7 +110,7 @@ func NewIPSet(name string, setType SetType) *IPSet {
 }
 
 func (set *IPSet) GetSetContents() ([]string, error) {
-	switch set.Properties.Kind {
+	switch set.Kind {
 	case HashSet:
 		i := 0
 		contents := make([]string, len(set.IPPodKey))
@@ -143,7 +128,7 @@ func (set *IPSet) GetSetContents() ([]string, error) {
 		}
 		return contents, nil
 	default:
-		return []string{}, fmt.Errorf("Unknown set type %s", set.Properties.Type.String())
+		return []string{}, fmt.Errorf("Unknown set type %s", set.Type.String())
 	}
 }
 

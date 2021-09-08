@@ -19,7 +19,9 @@ type NPMNetworkPolicy struct {
 	RawNP *networkingv1.NetworkPolicy
 }
 
-type ACLPolicy struct { // Iptable rules
+// ACLPolicy equivalent to a single iptable rule in linux
+// or a single HNS rule in windows
+type ACLPolicy struct {
 	// PolicyID is the rules name with a given network policy
 	PolicyID string
 	// Comment is the string attached to rule to identity its representation
@@ -38,7 +40,7 @@ type ACLPolicy struct { // Iptable rules
 	// DstPorts holds the destination port information
 	DstPorts []Ports
 	// Protocol is the value of traffic protocol
-	Protocol string
+	Protocol Protocol
 }
 
 // SetInfo helps capture additional details in a matchSet
@@ -62,6 +64,8 @@ type Verdict string
 
 type Direction string
 
+type Protocol string
+
 const (
 	// Ingress when packet is entering a container
 	Ingress Direction = "IN"
@@ -74,4 +78,10 @@ const (
 	Allowed Verdict = "ALLOW"
 	// Dropped is denying a flow
 	Dropped Verdict = "DROP"
+
+	TCP         Protocol = "tcp"
+	UDP         Protocol = "udp"
+	SCTP        Protocol = "sctp"
+	ICMP        Protocol = "icmp"
+	AnyProtocol Protocol = "any"
 )

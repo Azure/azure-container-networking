@@ -47,6 +47,8 @@ func (iMgr *IPSetManager) applyIPSets(networkID string) error {
 	}
 
 	for _, policy := range network.Policies {
+		// TODO (vamsi) use NetPolicyType constant setpolicy for below check
+		// after updating HCSShim
 		if policy.Type != "SetPolicy" {
 			policyNetworkRequest.Policies = append(policyNetworkRequest.Policies, policy)
 		}
@@ -97,7 +99,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(existingSets []string) (map[st
 			return nil, err
 		}
 		setsToUpdate[setName] = setPol
-		if set.Properties.Kind == ListSet {
+		if set.Kind == ListSet {
 			for _, memberSet := range set.MemberIPSets {
 				// TODO check whats the name here, hashed or normal
 				if _, ok := setsToUpdate[memberSet.Name]; ok {
@@ -120,8 +122,8 @@ func isValidIPSet(set *IPSet) error {
 		return fmt.Errorf("IPSet " + set.Name + " is missing Name")
 	}
 
-	if set.Properties.Type == Unknown {
-		return fmt.Errorf("IPSet " + set.Properties.Type.String() + " is missing Type")
+	if set.Type == Unknown {
+		return fmt.Errorf("IPSet " + set.Type.String() + " is missing Type")
 	}
 
 	if set.HashedName == "" {
@@ -132,7 +134,7 @@ func isValidIPSet(set *IPSet) error {
 }
 
 func getSetPolicyType(set *IPSet) SetPolicyType {
-	switch set.Properties.Kind {
+	switch set.Kind {
 	case ListSet:
 		return SetPolicyTypeNestedIpSet
 	case HashSet:

@@ -2,10 +2,18 @@ package policies
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Microsoft/hcsshim/hcn"
 )
+
+var protocolNumMap = map[Protocol]string{
+	TCP:  "6",
+	UDP:  "17",
+	ICMP: "1",
+	SCTP: "132",
+	// HNS thinks 256 as ANY protocol
+	AnyProtocol: "256",
+}
 
 func convertToAclSettings(acl ACLPolicy) (hcn.AclPolicySetting, error) {
 	policySettings := hcn.AclPolicySetting{}
@@ -28,23 +36,6 @@ func getHCNDirection(direction Direction) hcn.DirectionType {
 		return ""
 	}
 	return ""
-}
-
-func getHCNProtocol(protocol string) string {
-	// TODO need to check the protocol number of SCTP
-	switch strings.ToLower(protocol) {
-	case "tcp":
-		return "6"
-	case "udp":
-		return "17"
-	case "icmp":
-		return "1"
-	case "sctp":
-		return "132"
-	default:
-		// HNS thinks 256 as ANY
-		return "256"
-	}
 }
 
 func getHCNAction(verdict Verdict) hcn.ActionType {

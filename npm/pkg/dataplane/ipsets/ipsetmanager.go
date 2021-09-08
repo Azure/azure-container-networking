@@ -7,7 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
-	"github.com/Azure/azure-container-networking/npm/util/errors"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 )
 
 type IPSetManager struct {
@@ -42,7 +42,7 @@ func (iMgr *IPSetManager) updateDirtyCache(setName string) {
 	}
 
 	iMgr.dirtyCaches[set.Name] = struct{}{}
-	if set.Properties.Kind == ListSet {
+	if set.Kind == ListSet {
 		// TODO check if we will need to add all the member ipsets
 		// also to the dirty cache list
 		for _, member := range set.MemberIPSets {
@@ -78,9 +78,9 @@ func (iMgr *IPSetManager) createIPSet(set *IPSet) error {
 }
 
 func (iMgr *IPSetManager) AddToSet(addToSets []*IPSet, ip, podKey string) error {
-	// check if the IP is IPV$ family
+	// check if the IP is IPV4 family
 	if net.ParseIP(ip).To4() == nil {
-		return errors.Errorf(errors.AppendIPSet, false, "IPV6 not supported")
+		return npmerrors.Errorf(npmerrors.AppendIPSet, false, "IPV6 not supported")
 	}
 	iMgr.Lock()
 	defer iMgr.Unlock()
@@ -95,8 +95,8 @@ func (iMgr *IPSetManager) AddToSet(addToSets []*IPSet, ip, podKey string) error 
 			set = iMgr.setMap[updatedSet.Name]
 		}
 
-		if set.Properties.Kind != HashSet {
-			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set", set.Name))
+		if set.Kind != HashSet {
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set", set.Name))
 		}
 		cachedPodKey, ok := set.IPPodKey[ip]
 		if ok {
@@ -127,11 +127,11 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey stri
 	for _, setName := range removeFromSets {
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
-			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
 		}
 
-		if set.Properties.Kind != HashSet {
-			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set", setName))
+		if set.Kind != HashSet {
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set", setName))
 		}
 
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
@@ -161,26 +161,26 @@ func (iMgr *IPSetManager) AddToList(listName string, setNames []string) error {
 
 	for _, setName := range setNames {
 		if listName == setName {
-			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("list %s cannot be added to itself", listName))
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("list %s cannot be added to itself", listName))
 		}
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
-			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", setName))
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", setName))
 		}
 
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
-		if set.Properties.Kind != HashSet {
-			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("member ipset %s is not a Set type and nestetd ipsets are not supported", setName))
+		if set.Kind != HashSet {
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("member ipset %s is not a Set type and nestetd ipsets are not supported", setName))
 		}
 
 		list, exists := iMgr.setMap[listName] // check if the Set exists
 		if !exists {
-			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s does not exist", listName))
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s does not exist", listName))
 		}
 
-		if list.Properties.Kind != ListSet {
-			return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
+		if list.Kind != ListSet {
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
 		}
 
 		// check if Set is a member of List
@@ -214,26 +214,26 @@ func (iMgr *IPSetManager) RemoveFromList(listName string, setNames []string) err
 	for _, setName := range setNames {
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
-			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
 		}
 
-		if set.Properties.Kind != HashSet {
-			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set", setName))
+		if set.Kind != HashSet {
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set", setName))
 		}
 
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
-		if set.Properties.Kind != HashSet {
-			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("member ipset %s is not a Set type and nestetd ipsets are not supported", setName))
+		if set.Kind != HashSet {
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("member ipset %s is not a Set type and nestetd ipsets are not supported", setName))
 		}
 
 		list, exists := iMgr.setMap[listName] // check if the Set exists
 		if !exists {
-			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", listName))
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s does not exist", listName))
 		}
 
-		if list.Properties.Kind != ListSet {
-			return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
+		if list.Kind != ListSet {
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
 		}
 
 		// check if Set is a member of List
@@ -259,11 +259,11 @@ func (iMgr *IPSetManager) DeleteList(name string) error {
 	defer iMgr.Unlock()
 	set, exists := iMgr.setMap[name] // check if the Set exists
 	if !exists {
-		return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", set.Name))
+		return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", set.Name))
 	}
 
 	if !set.CanBeDeleted() {
-		return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s cannot be deleted", set.Name))
+		return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s cannot be deleted", set.Name))
 	}
 
 	delete(iMgr.setMap, name)
@@ -275,11 +275,11 @@ func (iMgr *IPSetManager) DeleteSet(name string) error {
 	defer iMgr.Unlock()
 	set, exists := iMgr.setMap[name] // check if the Set exists
 	if !exists {
-		return errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", set.Name))
+		return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", set.Name))
 	}
 
 	if !set.CanBeDeleted() {
-		return errors.Errorf(errors.DeleteIPSet, false, fmt.Sprintf("ipset %s cannot be deleted", set.Name))
+		return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s cannot be deleted", set.Name))
 	}
 	delete(iMgr.setMap, name)
 	return nil
