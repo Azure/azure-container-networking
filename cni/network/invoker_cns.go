@@ -24,7 +24,7 @@ const (
 type CNSIPAMInvoker struct {
 	podName      string
 	podNamespace string
-	cnsClient    *cnsclient.CNSClient
+	cnsClient    *cnsclient.Client
 }
 
 type IPv4ResultInfo struct {
@@ -39,7 +39,7 @@ type IPv4ResultInfo struct {
 
 func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
 	cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-	cnsClient, err := cnsclient.InitCnsClient(cnsURL, defaultRequestTimeout)
+	cnsClient, err := cnsclient.New(cnsURL, defaultRequestTimeout)
 
 	return &CNSIPAMInvoker{
 		podName:      podName,

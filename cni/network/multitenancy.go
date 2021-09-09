@@ -47,11 +47,7 @@ func SetupRoutingForMultitenancy(
 	}
 }
 
-func getContainerNetworkConfiguration(
-	nwCfg *cni.NetworkConfig,
-	podName string,
-	podNamespace string,
-	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+func getContainerNetworkConfiguration(nwCfg *cni.NetworkConfig, podName string, podNamespace string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
@@ -64,8 +60,8 @@ func getContainerNetworkConfiguration(
 	return getContainerNetworkConfigurationInternal(nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
 }
 
-func getContainerNetworkConfigurationInternal(address string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
-	cnsClient, err := cnsclient.GetCnsClient()
+func getContainerNetworkConfigurationInternal(cnsURL string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+	client, err := cnsclient.New(cnsURL, cnsclient.DefaultTimeout)
 	if err != nil {
 		log.Printf("Failed to get CNS client. Error: %v", err)
 		return nil, nil, net.IPNet{}, err
@@ -81,7 +77,7 @@ func getContainerNetworkConfigurationInternal(address string, namespace string, 
 		return nil, nil, net.IPNet{}, err
 	}
 
-	networkConfig, err := cnsClient.GetNetworkConfiguration(orchestratorContext)
+	networkConfig, err := client.GetNetworkConfiguration(orchestratorContext)
 	if err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return nil, nil, net.IPNet{}, err

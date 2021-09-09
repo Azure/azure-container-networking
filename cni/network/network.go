@@ -423,11 +423,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	if nwCfg.MultiTenancy {
-		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
-	}
-
 	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
 		if k8sNamespace == ns {
 			log.Printf("Enable infravnet for this pod %v in namespace %v", k8sPodName, k8sNamespace)
@@ -778,11 +773,6 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	if nwCfg.MultiTenancy {
-		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
-	}
-
 	// Initialize values from network config.
 	if networkId, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
@@ -886,11 +876,6 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		defer sendMetricFunc()
 		err, _ = plugin.nnsClient.DeleteContainerNetworking(context.Background(), k8sPodName, args.Netns)
 		return err
-	}
-
-	if nwCfg.MultiTenancy {
-		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
 	}
 
 	switch nwCfg.Ipam.Type {
@@ -998,7 +983,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		nwCfg               *cni.NetworkConfig
 		existingEpInfo      *network.EndpointInfo
 		podCfg              *cni.K8SPodEnvArgs
-		cnsClient           *cnsclient.CNSClient
+		cnsClient           *cnsclient.Client
 		orchestratorContext []byte
 		targetNetworkConfig *cns.GetNetworkContainerResponse
 		cniMetric           telemetry.AIMetric
@@ -1091,7 +1076,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 
 	// now query CNS to get the target routes that should be there in the networknamespace (as a result of update)
 	log.Printf("Going to collect target routes for [name=%v, namespace=%v] from CNS.", k8sPodName, k8sNamespace)
-	if cnsClient, err = cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout); err != nil {
+	if cnsClient, err = cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout); err != nil {
 		log.Printf("Initializing CNS client error in CNI Update%v", err)
 		log.Printf(err.Error())
 		return plugin.Errorf(err.Error())

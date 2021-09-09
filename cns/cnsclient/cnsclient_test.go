@@ -191,7 +191,7 @@ func TestMain(m *testing.M) {
 	}
 
 	httpc := &http.Client{}
-	url := defaultCnsURL + cns.SetOrchestratorType
+	url := defaultBaseURL + cns.SetOrchestratorType
 
 	res, err = httpc.Post(url, "application/json", &body)
 	if err != nil {
@@ -216,7 +216,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	secondaryIps := make([]string, 0)
 	secondaryIps = append(secondaryIps, desiredIpAddress)
-	cnsClient, _ := InitCnsClient("", 2*time.Second)
+	cnsClient, _ := New("", 2*time.Second)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -290,7 +290,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	desiredIpAddress := "10.0.0.5"
 
 	secondaryIps := []string{desiredIpAddress}
-	cnsClient, _ := InitCnsClient("", 2*time.Second)
+	cnsClient, _ := New("", 2*time.Second)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -330,7 +330,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	desiredIpAddress := "10.0.0.5"
 
 	secondaryIps := []string{desiredIpAddress}
-	cnsClient, _ := InitCnsClient("", 2*time.Second)
+	cnsClient, _ := New("", 2*time.Second)
 
 	addTestStateToRestServer(t, secondaryIps)
 
