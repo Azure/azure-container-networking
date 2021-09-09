@@ -9,10 +9,10 @@ type NPMNetworkPolicy struct {
 	Name string
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.IPSet
-	// OtherIPSets holds all IPSets generated from policy
-	// except for pod selector IPSets
-	OtherIPSets []*ipsets.IPSet
-	ACLs        []*ACLPolicy
+	// RuleIPSets holds all IPSets generated from policy's rules
+	// and not from pod selector IPSets
+	RuleIPSets []*ipsets.IPSet
+	ACLs       []*ACLPolicy
 	// Making this a podKey instead should be
 	// use NPMPod obj
 	Pods  []string

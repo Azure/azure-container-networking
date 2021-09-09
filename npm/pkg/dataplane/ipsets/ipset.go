@@ -36,7 +36,7 @@ type SetProperties struct {
 	Kind SetKind
 }
 
-type SetType int32
+type SetType int8
 
 const (
 	// Unknown SetType
