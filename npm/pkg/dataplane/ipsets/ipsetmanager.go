@@ -12,8 +12,8 @@ import (
 
 type IPSetManager struct {
 	setMap map[string]*IPSet
-	// Using a map to emulate set and value as struct{} for
-	// minimal memory consumption
+	// Map with Key as IPSet name to to emulate set
+	// and value as struct{} for minimal memory consumption
 	dirtyCaches map[string]struct{}
 	sync.Mutex
 }

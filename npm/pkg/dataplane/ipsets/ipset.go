@@ -95,11 +95,13 @@ func NewIPSet(name string, setType SetType) *IPSet {
 			Type: setType,
 			Kind: getSetKind(setType),
 		},
-		// Using a map to emulate set and value as struct{} for
-		// minimal memory consumption
+		// Map with Key as Network Policy name to to emulate set
+		// and value as struct{} for minimal memory consumption
 		SelectorReference: make(map[string]struct{}),
-		NetPolReference:   make(map[string]struct{}),
-		IpsetReferCount:   0,
+		// Map with Key as Network Policy name to to emulate set
+		// and value as struct{} for minimal memory consumption
+		NetPolReference: make(map[string]struct{}),
+		IpsetReferCount: 0,
 	}
 	if set.Kind == HashSet {
 		set.IPPodKey = make(map[string]string)
