@@ -2,6 +2,7 @@ package cnsclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -262,7 +263,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 		t.Fatalf("Desired result not matching actual result, expected: %+v, actual: %+v", desired, resultIPnet)
 	}
 	// checking for allocated IP address and pod context printing before ReleaseIPAddress is called
-	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(cns.Allocated)
+	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(context.TODO(), cns.Allocated)
 	if err != nil {
 		t.Fatalf("Get allocated IP addresses failed %+v", err)
 	}
@@ -307,7 +308,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	}
 
 	// test for pod ip by orch context map
-	podcontext, err := cnsClient.GetPodOrchestratorContext()
+	podcontext, err := cnsClient.GetPodOrchestratorContext(context.TODO())
 	if err != nil {
 		t.Errorf("Get pod ip by orchestrator context failed:  %+v", err)
 	}
@@ -347,7 +348,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 
 	// test for debug api/cmd to get inmemory data from HTTPRestService
-	inmemory, err := cnsClient.GetHTTPServiceData()
+	inmemory, err := cnsClient.GetHTTPServiceData(context.TODO())
 	if err != nil {
 		t.Errorf("Get in-memory http REST Struct failed %+v", err)
 	}

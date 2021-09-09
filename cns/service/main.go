@@ -404,7 +404,7 @@ func main() {
 	logger.InitLogger(name, logLevel, logTarget, logDirectory)
 
 	if clientDebugCmd != "" {
-		err := cnsclient.HandleCNSClientCommands(clientDebugCmd, clientDebugArg)
+		err := cnsclient.HandleCNSClientCommands(rootCtx, clientDebugCmd, clientDebugArg)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

@@ -314,7 +314,7 @@ func (c *Client) ReleaseIPAddress(ipconfig *cns.IPConfigRequest) error {
 
 // GetIPAddressesWithStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states
 // usage GetIPAddressesWithStates(cns.Available, cns.Allocated)
-func (c *Client) GetIPAddressesMatchingStates(stateFilter ...cns.IPConfigState) ([]cns.IPConfigurationStatus, error) {
+func (c *Client) GetIPAddressesMatchingStates(ctx context.Context, stateFilter ...cns.IPConfigState) ([]cns.IPConfigurationStatus, error) {
 	if len(stateFilter) == 0 {
 		return nil, nil
 	}
@@ -336,7 +336,7 @@ func (c *Client) GetIPAddressesMatchingStates(stateFilter ...cns.IPConfigState) 
 		return nil, errors.Wrap(err, "failed to encode GetIPAddressesRequest")
 	}
 
-	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, u.String(), &body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
 	}
@@ -366,7 +366,7 @@ func (c *Client) GetIPAddressesMatchingStates(stateFilter ...cns.IPConfigState) 
 }
 
 // GetPodOrchestratorContext calls GetPodIpOrchestratorContext API on CNS
-func (c *Client) GetPodOrchestratorContext() (map[string]string, error) {
+func (c *Client) GetPodOrchestratorContext(ctx context.Context) (map[string]string, error) {
 	u := c.baseURL
 	pathURI, err := url.Parse(cns.PathDebugPodContext)
 	if err != nil {
@@ -375,7 +375,7 @@ func (c *Client) GetPodOrchestratorContext() (map[string]string, error) {
 	u.Path = pathURI.Path
 	log.Printf("GetPodIPOrchestratorContext url %v", u)
 
-	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
 	}
@@ -402,7 +402,7 @@ func (c *Client) GetPodOrchestratorContext() (map[string]string, error) {
 }
 
 // GetHTTPServiceData gets all public in-memory struct details for debugging purpose
-func (c *Client) GetHTTPServiceData() (*restserver.GetHTTPServiceDataResponse, error) {
+func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPServiceDataResponse, error) {
 	u := c.baseURL
 	pathURI, err := url.Parse(cns.PathDebugRestData)
 	if err != nil {
@@ -411,7 +411,7 @@ func (c *Client) GetHTTPServiceData() (*restserver.GetHTTPServiceDataResponse, e
 	u.Path = pathURI.Path
 	log.Printf("GetHTTPServiceStruct url %v", u.String())
 
-	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
 	}

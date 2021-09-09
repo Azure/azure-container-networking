@@ -1,6 +1,7 @@
 package cnsclient
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -17,7 +18,7 @@ const (
 	getPodCmdArg    = "getPodContexts"
 )
 
-func HandleCNSClientCommands(cmd, arg string) error {
+func HandleCNSClientCommands(ctx context.Context, cmd string, arg string) error {
 	cnsIPAddress := os.Getenv(envCNSIPAddress)
 	cnsPort := os.Getenv(envCNSPort)
 
@@ -28,17 +29,17 @@ func HandleCNSClientCommands(cmd, arg string) error {
 
 	switch {
 	case strings.EqualFold(getCmdArg, cmd):
-		return getCmd(cnsClient, arg)
+		return getCmd(ctx, cnsClient, arg)
 	case strings.EqualFold(getPodCmdArg, cmd):
-		return getPodCmd(cnsClient)
+		return getPodCmd(ctx, cnsClient)
 	case strings.EqualFold(getInMemoryData, cmd):
-		return getInMemory(cnsClient)
+		return getInMemory(ctx, cnsClient)
 	default:
 		return fmt.Errorf("No debug cmd supplied, options are: %v", getCmdArg)
 	}
 }
 
-func getCmd(client *Client, arg string) error {
+func getCmd(ctx context.Context, client *Client, arg string) error {
 	var states []cns.IPConfigState
 
 	switch cns.IPConfigState(arg) {
@@ -61,7 +62,7 @@ func getCmd(client *Client, arg string) error {
 		states = append(states, cns.PendingProgramming)
 	}
 
-	addr, err := client.GetIPAddressesMatchingStates(states...)
+	addr, err := client.GetIPAddressesMatchingStates(ctx, states...)
 	if err != nil {
 		return err
 	}
@@ -81,8 +82,8 @@ func printIPAddresses(addrSlice []cns.IPConfigurationStatus) {
 	}
 }
 
-func getPodCmd(client *Client) error {
-	resp, err := client.GetPodOrchestratorContext()
+func getPodCmd(ctx context.Context, client *Client) error {
+	resp, err := client.GetPodOrchestratorContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -94,8 +95,8 @@ func getPodCmd(client *Client) error {
 	return nil
 }
 
-func getInMemory(client *Client) error {
-	data, err := client.GetHTTPServiceData()
+func getInMemory(ctx context.Context, client *Client) error {
+	data, err := client.GetHTTPServiceData(ctx)
 	if err != nil {
 		return err
 	}
