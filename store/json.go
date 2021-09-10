@@ -33,11 +33,11 @@ const (
 
 // jsonFileStore is an implementation of KeyValueStore using a local JSON file.
 type jsonFileStore struct {
-	fileName string
+	fileName     string
 	lockFileName string
-	data     map[string]*json.RawMessage
-	inSync   bool
-	locked   bool
+	data         map[string]*json.RawMessage
+	inSync       bool
+	locked       bool
 	sync.Mutex
 }
 
@@ -48,16 +48,16 @@ func NewJsonFileStore(fileName string) (KeyValueStore, error) {
 	}
 
 	if platform.CNILockPath != "" {
-		err := os.MkdirAll(platform.CNILockPath, os.FileMode(0664))
+		err := os.MkdirAll(platform.CNILockPath, os.FileMode(0o664))
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	kvs := &jsonFileStore{
-		fileName: fileName,
+		fileName:     fileName,
 		lockFileName: platform.CNILockPath + filepath.Base(fileName) + lockExtension,
-		data:     make(map[string]*json.RawMessage),
+		data:         make(map[string]*json.RawMessage),
 	}
 
 	return kvs, nil
@@ -185,7 +185,7 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 
 	var lockFile *os.File
 	var err error
-	lockPerm := os.FileMode(0664) + os.FileMode(os.ModeExclusive)
+	lockPerm := os.FileMode(0o664) + os.FileMode(os.ModeExclusive)
 
 	// Try to acquire the lock file.
 	var lockRetryCount uint

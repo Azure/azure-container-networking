@@ -30,8 +30,7 @@ type NetApi interface {
 }
 
 // IPAM internal interface.
-type IpamApi interface {
-}
+type IpamApi interface{}
 
 // Plugin common configuration.
 type PluginConfig struct {

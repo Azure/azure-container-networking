@@ -14,7 +14,7 @@ import (
 
 // NewRootCmd returns a root
 func NewRootCmd(version string) *cobra.Command {
-	var rootCmd = &cobra.Command{
+	rootCmd := &cobra.Command{
 		SilenceUsage: true,
 		Version:      version,
 	}
@@ -23,7 +23,7 @@ func NewRootCmd(version string) *cobra.Command {
 	viper.SetEnvPrefix(c.EnvPrefix)
 	viper.AutomaticEnv()
 
-	var versionCmd = &cobra.Command{
+	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version for ACN CLI",
 		Run: func(cmd *cobra.Command, args []string) {

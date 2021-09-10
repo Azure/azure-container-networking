@@ -8,7 +8,7 @@ import (
 
 // NewRootCmd returns a root
 func CNICmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "cni",
 		Short: "Collection of functions related to Azure CNI",
 	}

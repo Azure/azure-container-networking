@@ -23,14 +23,9 @@ type CrdReconciler struct {
 
 // Reconcile is called on CRD status changes
 func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	var (
-		nodeNetConfig v1alpha.NodeNetworkConfig
-		ncRequest     cns.CreateNetworkContainerRequest
-		err           error
-	)
-
 	// Get the CRD object
-	if err = r.KubeClient.Get(ctx, request.NamespacedName, &nodeNetConfig); err != nil {
+	var nnc v1alpha.NodeNetworkConfig
+	if err := r.KubeClient.Get(ctx, request.NamespacedName, &nnc); err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
 			return reconcile.Result{}, client.IgnoreNotFound(err)
@@ -40,15 +35,15 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		}
 	}
 
-	logger.Printf("[cns-rc] CRD Spec: %v", nodeNetConfig.Spec)
+	logger.Printf("[cns-rc] CRD Spec: %v", nnc.Spec)
 
 	// If there are no network containers, don't hand it off to CNS
-	if len(nodeNetConfig.Status.NetworkContainers) == 0 {
+	if len(nnc.Status.NetworkContainers) == 0 {
 		logger.Errorf("[cns-rc] Empty NetworkContainers")
 		return reconcile.Result{}, nil
 	}
 
-	networkContainer := nodeNetConfig.Status.NetworkContainers[0]
+	networkContainer := nnc.Status.NetworkContainers[0]
 	logger.Printf("[cns-rc] CRD Status: NcId: [%s], Version: [%d],  podSubnet: [%s], Subnet CIDR: [%s], "+
 		"Gateway Addr: [%s], Primary IP: [%s], SecondaryIpsCount: [%d]",
 		networkContainer.ID,
@@ -60,7 +55,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		len(networkContainer.IPAssignments))
 
 	// Otherwise, create NC request and hand it off to CNS
-	ncRequest, err = CRDStatusToNCRequest(nodeNetConfig.Status)
+	ncRequest, err := CRDStatusToNCRequest(nnc.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
 		// requeue
@@ -73,8 +68,11 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	r.CNSClient.UpdateIPAMPoolMonitor(nodeNetConfig.Status.Scaler, nodeNetConfig.Spec)
-	return reconcile.Result{}, err
+	r.CNSClient.UpdateIPAMPoolMonitor(nnc.Status.Scaler, nnc.Spec)
+	// record assigned IPs metric
+	assignedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
+
+	return reconcile.Result{}, nil
 }
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter

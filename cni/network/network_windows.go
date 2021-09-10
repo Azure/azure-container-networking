@@ -29,8 +29,6 @@ var (
 	win1903Version = 18362
 )
 
-
-
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
  * This is a temporary work around for issue #57253 of Kubernetes.
  * We can delete this if statement once they fix it.
@@ -289,9 +287,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 }
 
 func addIPV6EndpointPolicy(nwInfo network.NetworkInfo) (policy.Policy, error) {
-	var (
-		eppolicy policy.Policy
-	)
+	var eppolicy policy.Policy
 
 	if len(nwInfo.Subnets) < 2 {
 		return eppolicy, fmt.Errorf("network state doesn't have ipv6 subnet")

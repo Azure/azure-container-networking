@@ -6,10 +6,11 @@
 package routes
 
 import (
-	"github.com/Azure/azure-container-networking/log"
 	"os"
 	"os/exec"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/log"
 )
 
 const (
@@ -27,8 +28,10 @@ func TestMain(m *testing.M) {
 }
 
 func addTestRoute() error {
-	arg := []string{"/C", "route", "ADD", testDest,
-		"MASK", testMask, testGateway, "METRIC", testMetric}
+	arg := []string{
+		"/C", "route", "ADD", testDest,
+		"MASK", testMask, testGateway, "METRIC", testMetric,
+	}
 	log.Printf("[Azure CNS] Adding missing route: %v", arg)
 
 	c := exec.Command("cmd", arg...)
@@ -46,8 +49,10 @@ func addTestRoute() error {
 }
 
 func deleteTestRoute() error {
-	args := []string{"/C", "route", "DELETE", testDest, "MASK", testMask,
-		testGateway, "METRIC", testMetric}
+	args := []string{
+		"/C", "route", "DELETE", testDest, "MASK", testMask,
+		testGateway, "METRIC", testMetric,
+	}
 	log.Printf("[Azure CNS] Deleting route: %v", args)
 
 	c := exec.Command("cmd", args...)

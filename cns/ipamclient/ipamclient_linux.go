@@ -18,7 +18,7 @@ const (
 	pluginSockPath       = "/run/docker/plugins/azure-vnet.sock"
 )
 
-//getClient - returns unix http client
+// getClient - returns unix http client
 func getClient(url string) (*http.Client, error) {
 	var httpc *http.Client
 	if url == defaultIpamPluginURL {

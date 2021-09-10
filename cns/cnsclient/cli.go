@@ -12,35 +12,11 @@ import (
 )
 
 const (
-	getCmdArg            = "get"
-	getAvailableArg      = "Available"
-	getAllocatedArg      = "Allocated"
-	getAllArg            = "All"
-	getPendingReleaseArg = "PendingRelease"
-	getPodCmdArg         = "getPodContexts"
-	getInMemoryData      = "getInMemory"
-
-	releaseArg = "release"
-
-	eth0InterfaceName   = "eth0"
-	azure0InterfaceName = "azure0"
-
+	getCmdArg       = "get"
+	getPodCmdArg    = "getPodContexts"
+	getInMemoryData = "getInMemory"
 	envCNSIPAddress = "CNSIpAddress"
 	envCNSPort      = "CNSPort"
-)
-
-var (
-	availableCmds = []string{
-		getCmdArg,
-		getPodCmdArg,
-		getInMemoryData,
-	}
-
-	getFlags = []string{
-		getAvailableArg,
-		getAllocatedArg,
-		getAllocatedArg,
-	}
 )
 
 func HandleCNSClientCommands(cmd, arg string) error {
@@ -108,7 +84,6 @@ func printIPAddresses(addrSlice []cns.IPConfigurationStatus) {
 }
 
 func getPodCmd(client *CNSClient) error {
-
 	resp, err := client.GetPodOrchestratorContext()
 	if err != nil {
 		return err
@@ -119,7 +94,7 @@ func getPodCmd(client *CNSClient) error {
 }
 
 func printPodContext(podContext map[string]string) {
-	var i = 1
+	i := 1
 	for orchContext, podID := range podContext {
 		fmt.Println(i, " ", orchContext, " : ", podID)
 		i++
@@ -127,17 +102,16 @@ func printPodContext(podContext map[string]string) {
 }
 
 func getInMemory(client *CNSClient) error {
-
 	inmemoryData, err := client.GetHTTPServiceData()
 	if err != nil {
 		return err
 	}
 
-	printInMemoryStruct(inmemoryData.HttpRestServiceData)
+	printInMemoryStruct(inmemoryData.HTTPRestServiceData)
 	return nil
 }
 
-func printInMemoryStruct(data restserver.HttpRestServiceData) {
+func printInMemoryStruct(data restserver.HTTPRestServiceData) {
 	fmt.Println("PodIPIDByOrchestratorContext: ", data.PodIPIDByPodInterfaceKey)
 	fmt.Println("PodIPConfigState: ", data.PodIPConfigState)
 	fmt.Println("IPAMPoolMonitor: ", data.IPAMPoolMonitor)

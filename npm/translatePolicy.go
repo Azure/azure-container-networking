@@ -14,11 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type portsInfo struct {
-	protocol string
-	port     string
-}
-
 func craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort, sPortOrDPortFlag string) []string {
 	partialSpec := []string{}
 	if portRule.Protocol != nil {

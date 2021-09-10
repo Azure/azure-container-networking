@@ -20,27 +20,30 @@ import (
 	"github.com/Azure/azure-container-networking/ipam"
 )
 
-var plugin IpamPlugin
-var mux *http.ServeMux
+var (
+	plugin IpamPlugin
+	mux    *http.ServeMux
+)
 
-var ipamQueryUrl = "localhost:42424"
-var ipamQueryResponse = "" +
-	"<Interfaces>" +
-	"	<Interface MacAddress=\"*\" IsPrimary=\"true\">" +
-	"		<IPSubnet Prefix=\"10.0.0.0/16\">" +
-	"			<IPAddress Address=\"10.0.0.4\" IsPrimary=\"true\"/>" +
-	"			<IPAddress Address=\"10.0.0.5\" IsPrimary=\"false\"/>" +
-	"			<IPAddress Address=\"10.0.0.6\" IsPrimary=\"false\"/>" +
-	"			<IPAddress Address=\"10.0.0.7\" IsPrimary=\"false\"/>" +
-	"			<IPAddress Address=\"10.0.0.8\" IsPrimary=\"false\"/>" +
-	"			<IPAddress Address=\"10.0.0.9\" IsPrimary=\"false\"/>" +
-	"		</IPSubnet>" +
-	"	</Interface>" +
-	"</Interfaces>"
-
-var localAsId string
-var poolId1 string
-var address1 string
+var (
+	ipamQueryUrl      = "localhost:42424"
+	ipamQueryResponse = "" +
+		"<Interfaces>" +
+		"	<Interface MacAddress=\"*\" IsPrimary=\"true\">" +
+		"		<IPSubnet Prefix=\"10.0.0.0/16\">" +
+		"			<IPAddress Address=\"10.0.0.4\" IsPrimary=\"true\"/>" +
+		"			<IPAddress Address=\"10.0.0.5\" IsPrimary=\"false\"/>" +
+		"			<IPAddress Address=\"10.0.0.6\" IsPrimary=\"false\"/>" +
+		"			<IPAddress Address=\"10.0.0.7\" IsPrimary=\"false\"/>" +
+		"			<IPAddress Address=\"10.0.0.8\" IsPrimary=\"false\"/>" +
+		"			<IPAddress Address=\"10.0.0.9\" IsPrimary=\"false\"/>" +
+		"		</IPSubnet>" +
+		"	</Interface>" +
+		"</Interfaces>"
+	localAsId string
+	poolId1   string
+	address1  string
+)
 
 // Wraps the test run with plugin setup and teardown.
 func TestMain(m *testing.M) {

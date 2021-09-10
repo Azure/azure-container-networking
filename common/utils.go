@@ -77,12 +77,10 @@ type metadataWrapper struct {
 	Metadata Metadata `json:"compute"`
 }
 
-var (
-	// Creating http client object to be reused instead of creating one every time.
-	// This helps make use of the cached tcp connections.
-	// Clients are safe for concurrent use by multiple goroutines.
-	httpClient *http.Client
-)
+// Creating http client object to be reused instead of creating one every time.
+// This helps make use of the cached tcp connections.
+// Clients are safe for concurrent use by multiple goroutines.
+var httpClient *http.Client
 
 // InitHttpClient initializes the httpClient object
 func InitHttpClient(
@@ -150,7 +148,7 @@ func GetInterfaceSubnetWithSpecificIp(ipAddr string) *net.IPNet {
 }
 
 func StartProcess(path string, args []string) error {
-	var attr = os.ProcAttr{
+	attr := os.ProcAttr{
 		Env: os.Environ(),
 		Files: []*os.File{
 			os.Stdin,
@@ -227,7 +225,7 @@ func SaveHostMetadata(metadata Metadata, fileName string) error {
 		return fmt.Errorf("[Telemetry] marshal data failed with err %+v", err)
 	}
 
-	if err = ioutil.WriteFile(fileName, dataBytes, 0644); err != nil {
+	if err = ioutil.WriteFile(fileName, dataBytes, 0o644); err != nil {
 		log.Printf("[Telemetry] Writing metadata to file failed: %v", err)
 	}
 

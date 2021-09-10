@@ -70,8 +70,8 @@ func (h *ReqHeap) Pop() interface{} {
 // ParseLabel takes a Azure-NPM processed label then returns if it's referring to complement set,
 // and if so, returns the original set as well.
 func ParseLabel(label string) (string, bool) {
-	//The input label is guaranteed to have a non-zero length validated by k8s.
-	//For label definition, see below parseSelector() function.
+	// The input label is guaranteed to have a non-zero length validated by k8s.
+	// For label definition, see below parseSelector() function.
 	if label[0:1] == util.IptablesNotFlag {
 		return label[1:], true
 	}
@@ -116,7 +116,6 @@ func sortSelector(selector *metav1.LabelSelector) {
 	var sortedReqs []metav1.LabelSelectorRequirement
 	for reqHeap.Len() > 0 {
 		sortedReqs = append(sortedReqs, heap.Pop(reqHeap).(metav1.LabelSelectorRequirement))
-
 	}
 	selector.MatchExpressions = sortedReqs
 }
@@ -193,7 +192,6 @@ func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSe
 	multiValuePresent := false
 	multiValueMatchExprs := []metav1.LabelSelectorRequirement{}
 	for _, req := range nsSelector.MatchExpressions {
-
 		// Only In and NotIn operators of matchExprs have multiple values
 		// NPM will ignore single value matchExprs of these operators.
 		// for multiple values, it will create a slice of them to be used for Zipping with baseSelector

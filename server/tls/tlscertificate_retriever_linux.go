@@ -91,7 +91,6 @@ func NewTlsCertificateRetriever(settings TlsSettings) (TlsCertificateRetriever, 
 		settings: settings,
 	}
 	content, err := linuxCertStoreRetriever.readFile()
-
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read file with error %+v", err)
 	}

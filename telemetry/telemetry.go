@@ -27,7 +27,6 @@ const (
 	CNITelemetryFile = platform.CNIRuntimePath + "AzureCNITelemetry.json"
 	// ContentType of JSON
 	ContentType = "application/json"
-	metadataURL = "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json"
 )
 
 // OS Details structure.
@@ -182,7 +181,7 @@ func (reportMgr *ReportManager) SetReportState(telemetryFile string) error {
 	}
 
 	// try to open telemetry file
-	f, err := os.OpenFile(telemetryFile, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(telemetryFile, os.O_RDWR|os.O_CREATE, 0o666)
 	if err != nil {
 		return fmt.Errorf("[Telemetry] Error opening telemetry file %v", err)
 	}

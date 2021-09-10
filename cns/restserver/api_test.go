@@ -27,8 +27,6 @@ import (
 )
 
 const (
-	defaultCnsURL   = "http://localhost:10090"
-	contentTypeJSON = "application/json"
 	cnsJsonFileName = "azure-cns.json"
 )
 
@@ -388,8 +386,7 @@ func TestGetNumOfCPUCores(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var w *httptest.ResponseRecorder
-	w = httptest.NewRecorder()
+	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	var numOfCoresResponse cns.NumOfCPUCoresResponse
 
@@ -626,8 +623,7 @@ func TestNmAgentSupportedApisHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var w *httptest.ResponseRecorder
-	w = httptest.NewRecorder()
+	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	var nmAgentSupportedApisResponse cns.NmAgentSupportedApisResponse
 
@@ -657,8 +653,7 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var w *httptest.ResponseRecorder
-	w = httptest.NewRecorder()
+	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	var createHostNCApipaEndpointResponse cns.CreateHostNCApipaEndpointResponse
 

@@ -237,7 +237,6 @@ func TestCompareResourceVersions(t *testing.T) {
 	if !check {
 		t.Errorf("TestCompareResourceVersions failed @ compare RVs with error returned wrong result ")
 	}
-
 }
 
 func TestInValidOldResourceVersions(t *testing.T) {
@@ -248,7 +247,6 @@ func TestInValidOldResourceVersions(t *testing.T) {
 	if !check {
 		t.Errorf("TestInValidOldResourceVersions failed @ compare RVs with error returned wrong result ")
 	}
-
 }
 
 func TestInValidNewResourceVersions(t *testing.T) {
@@ -259,7 +257,6 @@ func TestInValidNewResourceVersions(t *testing.T) {
 	if check {
 		t.Errorf("TestInValidNewResourceVersions failed @ compare RVs with error returned wrong result ")
 	}
-
 }
 
 func TestParseResourceVersion(t *testing.T) {

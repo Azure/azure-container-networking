@@ -326,7 +326,7 @@ func (cnsClient *CNSClient) GetIPAddressesMatchingStates(stateFilter ...cns.IPCo
 		return resp.IPConfigurationStatus, nil
 	}
 
-	url := cnsClient.connectionURL + cns.GetIPAddresses
+	url := cnsClient.connectionURL + cns.DebugIPAddresses
 	log.Printf("GetIPAddressesMatchingStates url %v", url)
 
 	payload := &cns.GetIPAddressesRequest{
@@ -375,7 +375,7 @@ func (cnsClient *CNSClient) GetPodOrchestratorContext() (map[string]string, erro
 		res  *http.Response
 	)
 
-	url := cnsClient.connectionURL + cns.GetPodIPOrchestratorContext
+	url := cnsClient.connectionURL + cns.DebugPodContext
 	log.Printf("GetPodIPOrchestratorContext url %v", url)
 
 	res, err = http.Get(url)
@@ -414,7 +414,7 @@ func (cnsClient *CNSClient) GetHTTPServiceData() (restserver.GetHTTPServiceDataR
 		res  *http.Response
 	)
 
-	url := cnsClient.connectionURL + cns.GetHTTPRestData
+	url := cnsClient.connectionURL + cns.DebugRestData
 	log.Printf("GetHTTPServiceStruct url %v", url)
 
 	res, err = http.Get(url)

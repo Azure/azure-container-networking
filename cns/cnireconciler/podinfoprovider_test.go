@@ -46,15 +46,16 @@ func TestNewCNIPodInfoProvider(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := newCNIPodInfoProvider(tt.exec)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
-			} else {
-				assert.NoError(t, err)
 			}
-			assert.Equal(t, tt.want, got.PodInfoByIP())
+			assert.NoError(t, err)
+			podInfoByIP, _ := got.PodInfoByIP()
+			assert.Equal(t, tt.want, podInfoByIP)
 		})
 	}
 }

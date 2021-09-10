@@ -1,11 +1,9 @@
 package ipamclient
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"testing"
@@ -14,13 +12,13 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 )
 
-var mux *http.ServeMux
-var ipamQueryUrl = "localhost:42424"
-var ic *IpamClient
+var (
+	ipamQueryUrl = "localhost:42424"
+	ic           *IpamClient
+)
 
 // Wraps the test run with service setup and teardown.
 func TestMain(m *testing.M) {
-
 	// Create a fake IPAM plugin to handle requests from CNS plugin.
 	u, _ := url.Parse("tcp://" + ipamQueryUrl)
 	ipamAgent, err := common.NewListener(u)
@@ -50,24 +48,23 @@ func TestMain(m *testing.M) {
 	ipamAgent.Stop()
 
 	os.Exit(exitCode)
-
 }
 
 // Handles queries from GetAddressSpace.
 func handleIpamAsIDQuery(w http.ResponseWriter, r *http.Request) {
-	var addressSpaceResp = "{\"LocalDefaultAddressSpace\": \"local\", \"GlobalDefaultAddressSpace\": \"global\"}"
+	addressSpaceResp := "{\"LocalDefaultAddressSpace\": \"local\", \"GlobalDefaultAddressSpace\": \"global\"}"
 	w.Write([]byte(addressSpaceResp))
 }
 
 // Handles queries from GetPoolID
 func handlePoolIDQuery(w http.ResponseWriter, r *http.Request) {
-	var requestPoolResp = "{\"PoolID\":\"10.0.0.0/16\", \"Pool\": \"\"}"
+	requestPoolResp := "{\"PoolID\":\"10.0.0.0/16\", \"Pool\": \"\"}"
 	w.Write([]byte(requestPoolResp))
 }
 
 // Handles queries from ReserveIPAddress.
 func handleReserveIPQuery(w http.ResponseWriter, r *http.Request) {
-	var reserveIPResp = "{\"Address\":\"10.0.0.2/16\"}"
+	reserveIPResp := "{\"Address\":\"10.0.0.2/16\"}"
 	w.Write([]byte(reserveIPResp))
 }
 
@@ -78,21 +75,8 @@ func handleReleaseIPQuery(w http.ResponseWriter, r *http.Request) {
 
 // Handles queries from GetIPAddressUtiltization.
 func handleIPUtilizationQuery(w http.ResponseWriter, r *http.Request) {
-	var ipUtilizationResp = "{\"Capacity\":10, \"Available\":7, \"UnhealthyAddresses\":[\"10.0.0.5\",\"10.0.0.6\",\"10.0.0.7\"]}"
+	ipUtilizationResp := "{\"Capacity\":10, \"Available\":7, \"UnhealthyAddresses\":[\"10.0.0.5\",\"10.0.0.6\",\"10.0.0.7\"]}"
 	w.Write([]byte(ipUtilizationResp))
-}
-
-// Decodes plugin's responses to test requests.
-func decodeResponse(w *httptest.ResponseRecorder, response interface{}) error {
-	if w.Code != http.StatusOK {
-		return fmt.Errorf("Request failed with HTTP error %d", w.Code)
-	}
-
-	if w.Body == nil {
-		return fmt.Errorf("Response body is empty")
-	}
-
-	return json.NewDecoder(w.Body).Decode(&response)
 }
 
 // Tests IpamClient GetAddressSpace function to get AddressSpaceID.
@@ -163,7 +147,6 @@ func TestReserveIP(t *testing.T) {
 		t.Errorf("GetReserveIP with id returned ivnvalid IP1 %s IP2 %s\n", addr1, addr2)
 		return
 	}
-
 }
 
 // Tests IpamClient ReleaseIPAddress function to release IP associated with ID.

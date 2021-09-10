@@ -90,7 +90,7 @@ var (
 )
 
 func TestInitNpmChains(t *testing.T) {
-	var calls = initCalls
+	calls := initCalls
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -101,7 +101,7 @@ func TestInitNpmChains(t *testing.T) {
 }
 
 func TestUninitNpmChains(t *testing.T) {
-	var calls = unInitCalls
+	calls := unInitCalls
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -113,7 +113,7 @@ func TestUninitNpmChains(t *testing.T) {
 }
 
 func TestExists(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "ACCEPT"}},
 	}
 
@@ -129,14 +129,13 @@ func TestExists(t *testing.T) {
 			util.IptablesAccept,
 		},
 	}
-
-	if _, err := iptMgr.Exists(entry); err != nil {
-		t.Errorf("TestExists failed @ iptMgr.Exists")
+	if _, err := iptMgr.exists(entry); err != nil {
+		t.Errorf("TestExists failed @ iptMgr.exists")
 	}
 }
 
 func TestAddChain(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}},
 	}
 
@@ -144,13 +143,13 @@ func TestAddChain(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
-	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestAddChain failed @ iptMgr.AddChain")
+	if err := iptMgr.addChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestAddChain failed @ iptMgr.addChain")
 	}
 }
 
 func TestDeleteChain(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}},
 		{Cmd: []string{"iptables", "-w", "60", "-X", "TEST-CHAIN"}},
 	}
@@ -159,17 +158,17 @@ func TestDeleteChain(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
-	if err := iptMgr.AddChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestDeleteChain failed @ iptMgr.AddChain")
+	if err := iptMgr.addChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestDeleteChain failed @ iptMgr.addChain")
 	}
 
-	if err := iptMgr.DeleteChain("TEST-CHAIN"); err != nil {
-		t.Errorf("TestDeleteChain failed @ iptMgr.DeleteChain")
+	if err := iptMgr.deleteChain("TEST-CHAIN"); err != nil {
+		t.Errorf("TestDeleteChain failed @ iptMgr.deleteChain")
 	}
 }
 
 func TestAdd(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "REJECT"}},
 	}
 
@@ -204,7 +203,7 @@ func TestAdd(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "REJECT"}},
 		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "REJECT"}},
 		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "REJECT"}},
@@ -239,7 +238,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-N", "TEST-CHAIN"}},
 	}
 
@@ -251,10 +250,9 @@ func TestRun(t *testing.T) {
 	entry := &IptEntry{
 		Chain: "TEST-CHAIN",
 	}
-	if _, err := iptMgr.Run(entry); err != nil {
-		t.Errorf("TestRun failed @ iptMgr.Run")
+	if _, err := iptMgr.run(entry); err != nil {
+		t.Errorf("TestRun failed @ iptMgr.run")
 	}
-
 }
 
 func TestGetChainLineNumber(t *testing.T) {
@@ -267,7 +265,7 @@ func TestGetChainLineNumber(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
-	lineNum, err := iptMgr.GetChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+	lineNum, err := iptMgr.getChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
 	require.NoError(t, err)
 	require.Equal(t, lineNum, 3)
 }

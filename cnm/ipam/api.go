@@ -22,8 +22,7 @@ const (
 )
 
 // Request sent by libnetwork when querying plugin capabilities.
-type GetCapabilitiesRequest struct {
-}
+type GetCapabilitiesRequest struct{}
 
 // Response sent by plugin when registering its capabilities with libnetwork.
 type GetCapabilitiesResponse struct {
@@ -33,8 +32,7 @@ type GetCapabilitiesResponse struct {
 }
 
 // Request sent by libnetwork when querying the default address space names.
-type GetDefaultAddressSpacesRequest struct {
-}
+type GetDefaultAddressSpacesRequest struct{}
 
 // Response sent by plugin when returning the default address space names.
 type GetDefaultAddressSpacesResponse struct {
