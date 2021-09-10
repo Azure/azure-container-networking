@@ -1,7 +1,7 @@
 package ipsets
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/Azure/azure-container-networking/npm/util"
 )
@@ -62,17 +62,21 @@ const (
 	CIDRBlocks SetType = 8
 )
 
-var setTypeName = map[SetType]string{
-	Unknown:                  "Unknown",
-	NameSpace:                "NameSpace",
-	KeyLabelOfNameSpace:      "KeyLabelOfNameSpace",
-	KeyValueLabelOfNameSpace: "KeyValueLabelOfNameSpace",
-	KeyLabelOfPod:            "KeyLabelOfPod",
-	KeyValueLabelOfPod:       "KeyValueLabelOfPod",
-	NamedPorts:               "NamedPorts",
-	NestedLabelOfPod:         "NestedLabelOfPod",
-	CIDRBlocks:               "CIDRBlocks",
-}
+var (
+	setTypeName = map[SetType]string{
+		Unknown:                  "Unknown",
+		NameSpace:                "NameSpace",
+		KeyLabelOfNameSpace:      "KeyLabelOfNameSpace",
+		KeyValueLabelOfNameSpace: "KeyValueLabelOfNameSpace",
+		KeyLabelOfPod:            "KeyLabelOfPod",
+		KeyValueLabelOfPod:       "KeyValueLabelOfPod",
+		NamedPorts:               "NamedPorts",
+		NestedLabelOfPod:         "NestedLabelOfPod",
+		CIDRBlocks:               "CIDRBlocks",
+	}
+	// ErrIPSetInvalidKind is returned when IPSet kind is invalid
+	ErrIPSetInvalidKind = errors.New("Invalid IPSet Kind")
+)
 
 func (x SetType) String() string {
 	return setTypeName[x]
@@ -130,7 +134,7 @@ func (set *IPSet) GetSetContents() ([]string, error) {
 		}
 		return contents, nil
 	default:
-		return []string{}, fmt.Errorf("Unknown set type %s", set.Type.String())
+		return []string{}, ErrIPSetInvalidKind
 	}
 }
 

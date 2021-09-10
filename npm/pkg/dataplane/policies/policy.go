@@ -79,9 +79,14 @@ const (
 	// Dropped is denying a flow
 	Dropped Verdict = "DROP"
 
-	TCP         Protocol = "tcp"
-	UDP         Protocol = "udp"
-	SCTP        Protocol = "sctp"
-	ICMP        Protocol = "icmp"
+	// TCP Protocol
+	TCP Protocol = "tcp"
+	// UDP Protocol
+	UDP Protocol = "udp"
+	// SCTP Protocol
+	SCTP Protocol = "sctp"
+	// ICMP Protocol
+	ICMP Protocol = "icmp"
+	// AnyProtocol can be used for all other protocols
 	AnyProtocol Protocol = "any"
 )
