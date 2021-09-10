@@ -22,7 +22,6 @@ func TestAddToSet(t *testing.T) {
 	iMgr := NewIPSetManager()
 	set := NewIPSet("Test", NameSpace)
 
-	metrics.NumIPSetEntries.Set(0)
 	fmt.Println(set.Name)
 	err := iMgr.AddToSet([]*IPSet{set}, "10.0.0.0", "test")
 	if err != nil {

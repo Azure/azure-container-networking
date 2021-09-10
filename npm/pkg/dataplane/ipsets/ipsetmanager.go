@@ -72,7 +72,7 @@ func (iMgr *IPSetManager) createIPSet(set *IPSet) error {
 	// append the cache if dataplane specific function
 	// return nil as error
 	iMgr.setMap[set.Name] = set
-
+	metrics.IncNumIPSets()
 	return nil
 }
 
@@ -113,8 +113,7 @@ func (iMgr *IPSetManager) AddToSet(addToSets []*IPSet, ip, podKey string) error 
 		iMgr.updateDirtyCache(set.Name)
 
 		// Update metrics of the IpSet
-		metrics.NumIPSetEntries.Inc()
-		metrics.IncIPSetInventory(set.Name)
+		metrics.AddEntryToIPSet(set.Name)
 	}
 
 	return nil
@@ -147,8 +146,7 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey stri
 		iMgr.updateDirtyCache(set.Name)
 
 		// Update metrics of the IpSet
-		metrics.NumIPSetEntries.Dec()
-		metrics.DecIPSetInventory(setName)
+		metrics.RemoveEntryFromIPSet(setName)
 	}
 
 	return nil
@@ -198,8 +196,7 @@ func (iMgr *IPSetManager) AddToList(listName string, setNames []string) error {
 		list.AddMemberIPSet(set)
 		set.IncIpsetReferCount()
 		// Update metrics of the IpSet
-		metrics.NumIPSetEntries.Inc()
-		metrics.IncIPSetInventory(setName)
+		metrics.AddEntryToIPSet(listName)
 	}
 
 	iMgr.updateDirtyCache(listName)
@@ -245,8 +242,7 @@ func (iMgr *IPSetManager) RemoveFromList(listName string, setNames []string) err
 		delete(list.MemberIPSets, setName)
 		set.DecIpsetReferCount()
 		// Update metrics of the IpSet
-		metrics.NumIPSetEntries.Dec()
-		metrics.DecIPSetInventory(setName)
+		metrics.RemoveEntryFromIPSet(listName)
 	}
 	iMgr.updateDirtyCache(listName)
 
