@@ -1,4 +1,4 @@
-package cnsclient
+package cli
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/client"
 )
 
 const (
@@ -22,7 +23,7 @@ func HandleCNSClientCommands(ctx context.Context, cmd string, arg string) error 
 	cnsIPAddress := os.Getenv(envCNSIPAddress)
 	cnsPort := os.Getenv(envCNSPort)
 
-	cnsClient, err := New("http://"+cnsIPAddress+":"+cnsPort, DefaultTimeout)
+	cnsClient, err := client.New("http://"+cnsIPAddress+":"+cnsPort, client.DefaultTimeout)
 	if err != nil {
 		return err
 	}
@@ -39,7 +40,7 @@ func HandleCNSClientCommands(ctx context.Context, cmd string, arg string) error 
 	}
 }
 
-func getCmd(ctx context.Context, client *Client, arg string) error {
+func getCmd(ctx context.Context, client *client.Client, arg string) error {
 	var states []cns.IPConfigState
 
 	switch cns.IPConfigState(arg) {
@@ -82,7 +83,7 @@ func printIPAddresses(addrSlice []cns.IPConfigurationStatus) {
 	}
 }
 
-func getPodCmd(ctx context.Context, client *Client) error {
+func getPodCmd(ctx context.Context, client *client.Client) error {
 	resp, err := client.GetPodOrchestratorContext(ctx)
 	if err != nil {
 		return err
@@ -95,7 +96,7 @@ func getPodCmd(ctx context.Context, client *Client) error {
 	return nil
 }
 
-func getInMemory(ctx context.Context, client *Client) error {
+func getInMemory(ctx context.Context, client *client.Client) error {
 	data, err := client.GetHTTPServiceData(ctx)
 	if err != nil {
 		return err

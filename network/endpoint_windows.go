@@ -9,7 +9,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"

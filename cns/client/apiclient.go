@@ -1,4 +1,4 @@
-package cnsclient
+package client
 
 import (
 	"github.com/Azure/azure-container-networking/cns"
