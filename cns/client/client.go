@@ -86,7 +86,10 @@ func (c *Client) GetNetworkConfiguration(ctx context.Context, orchestratorContex
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(payload); err != nil {
-		return nil, &CNSClientError{types.UnexpectedError, err}
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  err,
+		}
 	}
 
 	u := c.routes[cns.GetNetworkContainerByOrchestratorContext]
@@ -102,17 +105,26 @@ func (c *Client) GetNetworkConfiguration(ctx context.Context, orchestratorContex
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, &CNSClientError{types.UnexpectedError, errors.Errorf("http response %d", res.StatusCode)}
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  errors.Errorf("http response %d", res.StatusCode),
+		}
 	}
 
 	var resp cns.GetNetworkContainerResponse
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
-		return nil, &CNSClientError{types.UnexpectedError, err}
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  err,
+		}
 	}
 
 	if resp.Response.ReturnCode != 0 {
-		return nil, &CNSClientError{resp.Response.ReturnCode, errors.New(resp.Response.Message)}
+		return nil, &CNSClientError{
+			Code: resp.Response.ReturnCode,
+			Err:  errors.New(resp.Response.Message),
+		}
 	}
 
 	return &resp, nil
