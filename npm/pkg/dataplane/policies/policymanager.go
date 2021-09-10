@@ -1,9 +1,6 @@
 package policies
 
-import "sync"
-
 type PolicyMap struct {
-	sync.RWMutex
 	cache map[string]*NPMNetworkPolicy
 }
 
@@ -20,9 +17,6 @@ func NewPolicyManager() PolicyManager {
 }
 
 func (pMgr *PolicyManager) GetPolicy(name string) (*NPMNetworkPolicy, error) {
-	pMgr.policyMap.RLock()
-	defer pMgr.policyMap.RUnlock()
-
 	if policy, ok := pMgr.policyMap.cache[name]; ok {
 		return policy, nil
 	}
@@ -31,9 +25,6 @@ func (pMgr *PolicyManager) GetPolicy(name string) (*NPMNetworkPolicy, error) {
 }
 
 func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy) error {
-	pMgr.policyMap.Lock()
-	defer pMgr.policyMap.Unlock()
-
 	// Call actual dataplane function to apply changes
 	err := pMgr.addPolicy(policy)
 	if err != nil {
@@ -45,9 +36,6 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy) error {
 }
 
 func (pMgr *PolicyManager) RemovePolicy(name string) error {
-	pMgr.policyMap.Lock()
-	defer pMgr.policyMap.Unlock()
-
 	// Call actual dataplane function to apply changes
 	err := pMgr.removePolicy(name)
 	if err != nil {
@@ -60,9 +48,6 @@ func (pMgr *PolicyManager) RemovePolicy(name string) error {
 }
 
 func (pMgr *PolicyManager) UpdatePolicy(policy *NPMNetworkPolicy) error {
-	pMgr.policyMap.Lock()
-	defer pMgr.policyMap.Unlock()
-
 	// check and update
 	// Call actual dataplane function to apply changes
 	err := pMgr.updatePolicy(policy)
