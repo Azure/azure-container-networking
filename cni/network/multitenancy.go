@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,7 +48,8 @@ func SetupRoutingForMultitenancy(
 	}
 }
 
-func getContainerNetworkConfiguration(nwCfg *cni.NetworkConfig, podName string, podNamespace string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+func getContainerNetworkConfiguration(
+	ctx context.Context, nwCfg *cni.NetworkConfig, podName string, podNamespace string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
@@ -57,10 +59,11 @@ func getContainerNetworkConfiguration(nwCfg *cni.NetworkConfig, podName string, 
 	}
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
-	return getContainerNetworkConfigurationInternal(nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
+	return getContainerNetworkConfigurationInternal(ctx, nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
 }
 
-func getContainerNetworkConfigurationInternal(cnsURL string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+func getContainerNetworkConfigurationInternal(
+	ctx context.Context, cnsURL string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
 	client, err := cnsclient.New(cnsURL, cnsclient.DefaultTimeout)
 	if err != nil {
 		log.Printf("Failed to get CNS client. Error: %v", err)
@@ -77,7 +80,7 @@ func getContainerNetworkConfigurationInternal(cnsURL string, namespace string, p
 		return nil, nil, net.IPNet{}, err
 	}
 
-	networkConfig, err := client.GetNetworkConfiguration(orchestratorContext)
+	networkConfig, err := client.GetNetworkConfiguration(ctx, orchestratorContext)
 	if err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return nil, nil, net.IPNet{}, err
@@ -198,6 +201,7 @@ func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNe
 
 // GetMultiTenancyCNIResult retrieves network goal state of a container from CNS
 func GetMultiTenancyCNIResult(
+	ctx context.Context,
 	enableInfraVnet bool,
 	nwCfg *cni.NetworkConfig,
 	plugin *netPlugin,
@@ -206,7 +210,7 @@ func GetMultiTenancyCNIResult(
 	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error) {
 
 	if nwCfg.MultiTenancy {
-		result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
+		result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
 		if err != nil {
 			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
 			return nil, nil, net.IPNet{}, nil, err

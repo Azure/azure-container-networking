@@ -431,7 +431,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = GetMultiTenancyCNIResult(enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
+	result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = GetMultiTenancyCNIResult(context.TODO(), enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
 	if err != nil {
 		log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
 		return err
@@ -1092,7 +1092,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, err = cnsClient.GetNetworkConfiguration(orchestratorContext); err != nil {
+	if targetNetworkConfig, err = cnsClient.GetNetworkConfiguration(context.TODO(), orchestratorContext); err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return plugin.Errorf(err.Error())
 	}

@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -67,7 +68,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 	}
 
 	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
-	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
+	response, err := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfig)
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
 		return nil, nil, err
@@ -203,5 +204,6 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	return invoker.cnsClient.ReleaseIPAddress(&req)
+	//nolint:wrapcheck
+	return invoker.cnsClient.ReleaseIPAddress(context.TODO(), req)
 }
