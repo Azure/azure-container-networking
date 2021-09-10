@@ -16,7 +16,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
-	"k8s.io/client-go/kubernetes"
 	netpollister "k8s.io/client-go/listers/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -33,7 +32,6 @@ const (
 )
 
 type networkPolicyController struct {
-	clientset    kubernetes.Interface
 	netPolLister netpollister.NetworkPolicyLister
 	workqueue    workqueue.RateLimitingInterface
 	rawNpMap     map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
@@ -45,10 +43,8 @@ type networkPolicyController struct {
 	iptMgr                 *iptm.IptablesManager
 }
 
-func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer,
-	clientset kubernetes.Interface, ipsMgr *ipsm.IpsetManager) *networkPolicyController {
+func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, ipsMgr *ipsm.IpsetManager) *networkPolicyController {
 	netPolController := &networkPolicyController{
-		clientset:    clientset,
 		netPolLister: npInformer.Lister(),
 		workqueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
 		rawNpMap:     make(map[string]*networkingv1.NetworkPolicy),
@@ -308,9 +304,8 @@ func (c *networkPolicyController) initializeDefaultAzureNpmChain() error {
 
 // syncAddAndUpdateNetPol handles a new network policy or an updated network policy object triggered by add and update events
 func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1.NetworkPolicy) error {
-	// This timer measures execution time to run this function regardless of success or failure cases
-	timer := metrics.StartNewTimer()
-	defer timer.StopAndRecord(metrics.AddPolicyExecTime)
+	prometheusTimer := metrics.StartNewTimer()
+	defer metrics.RecordPolicyExecTime(prometheusTimer) // record execution time regardless of failure
 
 	var err error
 	netpolKey, err := cache.MetaNamespaceKeyFunc(netPolObj)
@@ -347,7 +342,7 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// If error happens while applying ipsets and iptables,
 	// the key is re-queued in workqueue and process this function again, which eventually meets desired states of network policy
 	c.rawNpMap[netpolKey] = netPolObj
-	metrics.NumPolicies.Inc()
+	metrics.IncNumPolicies()
 
 	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(netPolObj)
 	for _, set := range sets {
@@ -425,7 +420,7 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 		// 2. if the refer count is more than one we should not remove members
 		// 3. for reduced datapath operations
 		if err = c.ipsMgr.DeleteList(listKey); err != nil {
-			return fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset list %s with err: %v", listKey, err)
+			return fmt.Errorf("[cleanUpNetworkPolicy] Error: failed to delete ipset list %s with err: %w", listKey, err)
 		}
 	}
 
@@ -441,7 +436,7 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 
 	// Sucess to clean up ipset and iptables operations in kernel and delete the cached network policy from RawNpMap
 	delete(c.rawNpMap, netPolKey)
-	metrics.NumPolicies.Dec()
+	metrics.DecNumPolicies()
 
 	// If there is no cached network policy in RawNPMap anymore and no immediate network policy to process, start cleaning up default azure npm chains
 	// However, UninitNpmChains function is failed which left failed states and will not retry, but functionally it is ok.

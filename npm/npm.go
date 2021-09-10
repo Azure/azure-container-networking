@@ -3,7 +3,6 @@
 package npm
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,12 +17,10 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/Azure/azure-container-networking/telemetry"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
@@ -51,7 +48,6 @@ type NetworkPolicyManagerEncoder interface {
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
-	clientset       kubernetes.Interface
 	informerFactory informers.SharedInformerFactory
 	podInformer     coreinformers.PodInformer
 	podController   *podController
@@ -75,12 +71,12 @@ type NetworkPolicyManager struct {
 }
 
 // NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(clientset kubernetes.Interface, informerFactory informers.SharedInformerFactory,
-	exec utilexec.Interface, npmVersion string, k8sServerVersion *version.Info) *NetworkPolicyManager {
+func NewNetworkPolicyManager(informerFactory informers.SharedInformerFactory, exec utilexec.Interface,
+	npmVersion string, k8sServerVersion *version.Info) *NetworkPolicyManager {
 	klog.Infof("API server version: %+v ai meta data %+v", k8sServerVersion, aiMetadata)
 
 	npMgr := &NetworkPolicyManager{
-		clientset:         clientset,
+
 		informerFactory:   informerFactory,
 		podInformer:       informerFactory.Core().V1().Pods(),
 		nsInformer:        informerFactory.Core().V1().Namespaces(),
@@ -99,11 +95,11 @@ func NewNetworkPolicyManager(clientset kubernetes.Interface, informerFactory inf
 	}
 
 	// create pod controller
-	npMgr.podController = NewPodController(npMgr.podInformer, clientset, npMgr.ipsMgr, npMgr.npmNamespaceCache)
+	npMgr.podController = NewPodController(npMgr.podInformer, npMgr.ipsMgr, npMgr.npmNamespaceCache)
 	// create NameSpace controller
-	npMgr.nameSpaceController = NewNameSpaceController(npMgr.nsInformer, clientset, npMgr.ipsMgr, npMgr.npmNamespaceCache)
+	npMgr.nameSpaceController = NewNameSpaceController(npMgr.nsInformer, npMgr.ipsMgr, npMgr.npmNamespaceCache)
 	// create network policy controller
-	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, clientset, npMgr.ipsMgr)
+	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, npMgr.ipsMgr)
 
 	return npMgr
 }
@@ -141,30 +137,6 @@ func (npMgr *NetworkPolicyManager) Encode(writer io.Writer) error {
 	}
 
 	return nil
-}
-
-// GetClusterState returns current cluster state.
-func (npMgr *NetworkPolicyManager) GetClusterState() telemetry.ClusterState {
-	pods, err := npMgr.clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		klog.Info("Error: Failed to list pods in GetClusterState")
-	}
-
-	namespaces, err := npMgr.clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		klog.Info("Error: Failed to list namespaces in GetClusterState")
-	}
-
-	networkpolicies, err := npMgr.clientset.NetworkingV1().NetworkPolicies("").List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		klog.Info("Error: Failed to list networkpolicies in GetClusterState")
-	}
-
-	npMgr.clusterState.PodCount = len(pods.Items)
-	npMgr.clusterState.NsCount = len(namespaces.Items)
-	npMgr.clusterState.NwPolicyCount = len(networkpolicies.Items)
-
-	return npMgr.clusterState
 }
 
 // GetAppVersion returns network policy manager app version

@@ -25,7 +25,7 @@ func NPMEncoder(nodeName string) npm.NetworkPolicyManagerEncoder {
 	exec := &fakeexec.FakeExec{}
 	npmVersion := "npm-ut-test"
 
-	npMgr := npm.NewNetworkPolicyManager(kubeclient, kubeInformer, exec, npmVersion, fakeK8sVersion)
+	npMgr := npm.NewNetworkPolicyManager(kubeInformer, exec, npmVersion, fakeK8sVersion)
 	npMgr.NodeName = nodeName
 	return npMgr
 }

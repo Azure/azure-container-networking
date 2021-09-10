@@ -176,6 +176,9 @@ func TestAdd(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
+	execCount := resetPrometheusAndGetExecCount(t)
+	defer testPrometheusMetrics(t, 1, execCount+1)
+
 	entry := &IptEntry{
 		Chain: util.IptablesForwardChain,
 		Specs: []string{
@@ -184,21 +187,29 @@ func TestAdd(t *testing.T) {
 		},
 	}
 
-	gaugeVal, err1 := promutil.GetValue(metrics.NumIPTableRules)
-	countVal, err2 := promutil.GetCountValue(metrics.AddIPTableRuleExecTime)
-
 	if err := iptMgr.Add(entry); err != nil {
 		t.Errorf("TestAdd failed @ iptMgr.Add")
 	}
+}
 
-	newGaugeVal, err3 := promutil.GetValue(metrics.NumIPTableRules)
-	newCountVal, err4 := promutil.GetCountValue(metrics.AddIPTableRuleExecTime)
-	promutil.NotifyIfErrors(t, err1, err2, err3, err4)
-	if newGaugeVal != gaugeVal+1 {
-		t.Errorf("Change in iptable rule number didn't register in prometheus")
+func resetPrometheusAndGetExecCount(t *testing.T) int {
+	metrics.ResetNumACLRules()
+	execCount, err := metrics.GetACLRuleExecCount()
+	promutil.NotifyIfErrors(t, err)
+	return execCount
+}
+
+func testPrometheusMetrics(t *testing.T, expectedNumACLRules, expectedExecCount int) {
+	numACLRules, err := metrics.GetNumACLRules()
+	promutil.NotifyIfErrors(t, err)
+	if numACLRules != expectedNumACLRules {
+		require.FailNowf(t, "", "Number of ACL Rules didn't register correctly in Prometheus. Expected %d. Got %d.", expectedNumACLRules, numACLRules)
 	}
-	if newCountVal != countVal+1 {
-		t.Errorf("Execution time didn't register in prometheus")
+
+	execCount, err := metrics.GetACLRuleExecCount()
+	promutil.NotifyIfErrors(t, err)
+	if execCount != expectedExecCount {
+		require.FailNowf(t, "", "Count for execution time didn't register correctly in Prometheus. Expected %d. Got %d.", expectedExecCount, execCount)
 	}
 }
 
@@ -213,6 +224,9 @@ func TestDelete(t *testing.T) {
 	defer testutils.VerifyCalls(t, fexec, calls)
 	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim())
 
+	execCount := resetPrometheusAndGetExecCount(t)
+	defer testPrometheusMetrics(t, 0, execCount+1)
+
 	entry := &IptEntry{
 		Chain: util.IptablesForwardChain,
 		Specs: []string{
@@ -224,16 +238,8 @@ func TestDelete(t *testing.T) {
 		t.Errorf("TestDelete failed @ iptMgr.Add")
 	}
 
-	gaugeVal, err1 := promutil.GetValue(metrics.NumIPTableRules)
-
 	if err := iptMgr.Delete(entry); err != nil {
 		t.Errorf("TestDelete failed @ iptMgr.Delete")
-	}
-
-	newGaugeVal, err2 := promutil.GetValue(metrics.NumIPTableRules)
-	promutil.NotifyIfErrors(t, err1, err2)
-	if newGaugeVal != gaugeVal-1 {
-		t.Errorf("Change in iptable rule number didn't register in prometheus")
 	}
 }
 

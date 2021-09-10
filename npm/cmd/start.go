@@ -106,7 +106,7 @@ func start(config npmconfig.Config) error {
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
 	k8sServerVersion := k8sServerVersion(clientset)
-	npMgr := npm.NewNetworkPolicyManager(clientset, factory, exec.New(), version, k8sServerVersion)
+	npMgr := npm.NewNetworkPolicyManager(factory, exec.New(), version, k8sServerVersion)
 	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
