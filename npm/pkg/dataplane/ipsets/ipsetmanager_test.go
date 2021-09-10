@@ -103,7 +103,6 @@ func TestRemoveFromList(t *testing.T) {
 	if err != nil {
 		t.Errorf("RemoveFromList() returned error %s", err.Error())
 	}
-
 }
 
 func TestRemoveFromListMissing(t *testing.T) {
@@ -112,7 +111,6 @@ func TestRemoveFromListMissing(t *testing.T) {
 	if err == nil {
 		t.Errorf("RemoveFromList() did not return error")
 	}
-
 }
 
 func TestDeleteList(t *testing.T) {
@@ -128,7 +126,6 @@ func TestDeleteList(t *testing.T) {
 	if err != nil {
 		t.Errorf("DeleteList() returned error %s", err.Error())
 	}
-
 }
 
 func TestDeleteSet(t *testing.T) {

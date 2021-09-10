@@ -32,8 +32,6 @@ func getHCNDirection(direction Direction) hcn.DirectionType {
 		return hcn.DirectionTypeIn
 	case Egress:
 		return hcn.DirectionTypeOut
-	case Both:
-		return ""
 	}
 	return ""
 }

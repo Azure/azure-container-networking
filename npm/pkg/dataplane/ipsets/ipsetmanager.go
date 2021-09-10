@@ -49,7 +49,6 @@ func (iMgr *IPSetManager) updateDirtyCache(setName string) {
 			iMgr.dirtyCaches[member.Name] = struct{}{}
 		}
 	}
-	return
 }
 
 func (iMgr *IPSetManager) clearDirtyCache() {

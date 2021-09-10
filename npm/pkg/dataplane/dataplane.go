@@ -100,12 +100,12 @@ func (dp *DataPlane) AddPolicy(policies *policies.NPMNetworkPolicy) error {
 	return dp.policyMgr.AddPolicy(policies)
 }
 
-// RemovePolicies takes in network policy name and removes it from dataplane and cache
+// RemovePolicy takes in network policy name and removes it from dataplane and cache
 func (dp *DataPlane) RemovePolicy(policyName string) error {
 	return dp.policyMgr.RemovePolicy(policyName)
 }
 
-// UpdatePolicies takes in updated policy object, calculates the delta and applies changes
+// UpdatePolicy takes in updated policy object, calculates the delta and applies changes
 // onto dataplane accordingly
 func (dp *DataPlane) UpdatePolicy(policies *policies.NPMNetworkPolicy) error {
 	return dp.policyMgr.UpdatePolicy(policies)
