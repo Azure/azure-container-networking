@@ -213,7 +213,7 @@ func (nw *network) newEndpointImpl(_ apipaClient, epInfo *EndpointInfo) (*endpoi
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(_ apipaClient, ep *endpoint) error {
 	var epClient EndpointClient
 
 	// Delete the veth pair by deleting one of the peer interfaces.

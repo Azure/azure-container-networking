@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"context"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -167,7 +168,7 @@ func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (st
 			return networkName, err
 		}
 
-		_, cnsNetworkConfig, _, err = getContainerNetworkConfiguration(nwCfg, podName, podNs, ifName)
+		_, cnsNetworkConfig, _, err = getContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
 		if err != nil {
 			log.Printf(
 				"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v",

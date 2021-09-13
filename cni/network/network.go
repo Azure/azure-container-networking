@@ -946,10 +946,16 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
+	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
+		return plugin.Errorf(err.Error())
+	}
+
 	// schedule send metric before attempting delete
 	defer sendMetricFunc()
 	// Delete the endpoint.
-	if err = plugin.nm.DeleteEndpoint(networkId, endpointId); err != nil {
+	if err = plugin.nm.DeleteEndpoint(cnscli, networkId, endpointId); err != nil {
 		err = plugin.Errorf("Failed to delete endpoint: %v", err)
 		return err
 	}

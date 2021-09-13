@@ -119,31 +119,31 @@ func (nw *network) newEndpoint(cli apipaClient, epInfo *EndpointInfo) (*endpoint
 }
 
 // DeleteEndpoint deletes an existing endpoint from the network.
-func (nw *network) deleteEndpoint(endpointId string) error {
+func (nw *network) deleteEndpoint(cli apipaClient, endpointID string) error {
 	var err error
 
-	log.Printf("[net] Deleting endpoint %v from network %v.", endpointId, nw.Id)
+	log.Printf("[net] Deleting endpoint %v from network %v.", endpointID, nw.Id)
 	defer func() {
 		if err != nil {
-			log.Printf("[net] Failed to delete endpoint %v, err:%v.", endpointId, err)
+			log.Printf("[net] Failed to delete endpoint %v, err:%v.", endpointID, err)
 		}
 	}()
 
 	// Look up the endpoint.
-	ep, err := nw.getEndpoint(endpointId)
+	ep, err := nw.getEndpoint(endpointID)
 	if err != nil {
-		log.Printf("[net] Endpoint %v not found. Not Returning error", endpointId)
+		log.Printf("[net] Endpoint %v not found. Not Returning error", endpointID)
 		return nil
 	}
 
 	// Call the platform implementation.
-	err = nw.deleteEndpointImpl(ep)
+	err = nw.deleteEndpointImpl(cli, ep)
 	if err != nil {
 		return err
 	}
 
 	// Remove the endpoint object.
-	delete(nw.Endpoints, endpointId)
+	delete(nw.Endpoints, endpointID)
 
 	log.Printf("[net] Deleted endpoint %+v.", ep)
 
