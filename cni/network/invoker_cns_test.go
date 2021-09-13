@@ -1,9 +1,11 @@
 package network
 
 import (
+	"encoding/json"
 	"net"
-	"reflect"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/iptables"
 
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -18,24 +20,46 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
+// Handler structs
+type requestIPAddressHandler struct {
+	// arguments
+	ipconfigArgument *cns.IPConfigRequest
+
+	// results
+	result *cns.IPConfigResponse
+	err    error
+}
+
+type releaseIPAddressHandler struct {
+	ipconfigArgument *cns.IPConfigRequest
+	err              error
+}
+
 type MockCNSClient struct {
-	requestResponse    *cns.IPConfigResponse
-	requestResponseErr error
-	releaseResponseErr error
+	require *require.Assertions
+	request requestIPAddressHandler
+	release releaseIPAddressHandler
 }
 
-func (c *MockCNSClient) RequestIPAddress(_ *cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
-	return c.requestResponse, c.requestResponseErr
+func (c *MockCNSClient) RequestIPAddress(ipconfig *cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
+	c.require.Exactly(c.request.ipconfigArgument, ipconfig)
+	return c.request.result, c.request.err
 }
-func (c *MockCNSClient) ReleaseIPAddress(_ *cns.IPConfigRequest) error {
-	return c.releaseResponseErr
+func (c *MockCNSClient) ReleaseIPAddress(ipconfig *cns.IPConfigRequest) error {
+	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
+	return c.release.err
 }
 
-func GetCIDRNotationForAddress(t *testing.T, ipaddresswithcidr string) *net.IPNet {
+func getCIDRNotationForAddress(t *testing.T, ipaddresswithcidr string) *net.IPNet {
 	ip, ipnet, err := net.ParseCIDR(ipaddresswithcidr)
 	require.NoError(t, err)
 	ipnet.IP = ip
 	return ipnet
+}
+
+func marshallPodInfo(podInfo cns.KubernetesPodInfo) []byte {
+	orchestratorContext, _ := json.Marshal(podInfo)
+	return orchestratorContext
 }
 
 func TestCNSIPAMInvoker_Add(t *testing.T) {
@@ -65,33 +89,44 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				podName:      "testpod",
 				podNamespace: "testnamespace",
 				cnsClient: &MockCNSClient{
-					requestResponse: &cns.IPConfigResponse{
-						PodIpInfo: cns.PodIpInfo{
-							PodIPConfig: cns.IPSubnet{
-								IPAddress:    "10.0.1.10",
-								PrefixLength: 24,
-							},
-							NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-								IPSubnet: cns.IPSubnet{
-									IPAddress:    "10.0.1.0",
+					require: require,
+					request: requestIPAddressHandler{
+						ipconfigArgument: &cns.IPConfigRequest{
+							DesiredIPAddress: "",
+							PodInterfaceID:   "testcont-testifname",
+							InfraContainerID: "testcontainerid",
+							OrchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
+								PodName:      "testpod",
+								PodNamespace: "testnamespace",
+							}),
+						},
+						result: &cns.IPConfigResponse{
+							PodIpInfo: cns.PodIpInfo{
+								PodIPConfig: cns.IPSubnet{
+									IPAddress:    "10.0.1.10",
 									PrefixLength: 24,
 								},
-								DNSServers:       nil,
-								GatewayIPAddress: "10.0.0.1",
+								NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+									IPSubnet: cns.IPSubnet{
+										IPAddress:    "10.0.1.0",
+										PrefixLength: 24,
+									},
+									DNSServers:       nil,
+									GatewayIPAddress: "10.0.0.1",
+								},
+								HostPrimaryIPInfo: cns.HostIPInfo{
+									Gateway:   "10.0.0.1",
+									PrimaryIP: "10.0.0.1",
+									Subnet:    "10.0.0.0/24",
+								},
 							},
-							HostPrimaryIPInfo: cns.HostIPInfo{
-								Gateway:   "10.0.0.1",
-								PrimaryIP: "10.0.0.1",
-								Subnet:    "10.0.0.0/24",
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
 							},
 						},
-						Response: cns.Response{
-							ReturnCode: 0,
-							Message:    "",
-						},
+						err: nil,
 					},
-					requestResponseErr: nil,
-					releaseResponseErr: nil,
 				},
 			},
 			args: args{
@@ -104,14 +139,14 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					Path:        "",
 					StdinData:   nil,
 				},
-				hostSubnetPrefix: GetCIDRNotationForAddress(t, "10.0.0.1/24"),
+				hostSubnetPrefix: getCIDRNotationForAddress(t, "10.0.0.1/24"),
 				options:          map[string]interface{}{},
 			},
 			want: &cniTypesCurr.Result{
 				IPs: []*cniTypesCurr.IPConfig{
 					{
 						Version: "4",
-						Address: *GetCIDRNotationForAddress(t, "10.0.1.10/24"),
+						Address: *getCIDRNotationForAddress(t, "10.0.1.10/24"),
 						Gateway: net.ParseIP("10.0.0.1"),
 					},
 				},
@@ -147,6 +182,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 }
 
 func TestCNSIPAMInvoker_Delete(t *testing.T) {
+	require := require.New(t)
 	type fields struct {
 		podName      string
 		podNamespace string
@@ -164,7 +200,40 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "test delete happy path",
+			fields: fields{
+				podName:      "testpod",
+				podNamespace: "testpodnamespace",
+				cnsClient: &MockCNSClient{
+					require: require,
+					release: releaseIPAddressHandler{
+						ipconfigArgument: &cns.IPConfigRequest{
+							DesiredIPAddress: "",
+							PodInterfaceID:   "testcont-testifname",
+							InfraContainerID: "testcontainerid",
+							OrchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
+								PodName:      "testpod",
+								PodNamespace: "testpodnamespace",
+							}),
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: nil,
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+					Args:        "",
+					Path:        "",
+					StdinData:   nil,
+				},
+				options: map[string]interface{}{},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -173,38 +242,18 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				podNamespace: tt.fields.podNamespace,
 				cnsClient:    tt.fields.cnsClient,
 			}
-			if err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.args, tt.args.options); (err != nil) != tt.wantErr {
-				t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestNewCNSInvoker(t *testing.T) {
-	type args struct {
-		podName   string
-		namespace string
-		cnsClient cnsclient.CNSClientInterface
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *CNSIPAMInvoker
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := NewCNSInvoker(tt.args.podName, tt.args.namespace, tt.args.cnsClient)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewCNSInvoker() got = %v, want %v", got, tt.want)
+			err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.args, tt.args.options)
+			if tt.wantErr {
+				require.Error(err)
+			} else {
+				require.NoError(err)
 			}
 		})
 	}
 }
 
 func Test_setHostOptions(t *testing.T) {
+	require := require.New(t)
 	type args struct {
 		hostSubnetPrefix *net.IPNet
 		ncSubnetPrefix   *net.IPNet
@@ -212,17 +261,66 @@ func Test_setHostOptions(t *testing.T) {
 		info             IPv4ResultInfo
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name        string
+		args        args
+		wantOptions map[string]interface{}
+		wantErr     bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "test happy path",
+			args: args{
+				hostSubnetPrefix: getCIDRNotationForAddress(t, "10.0.1.0/24"),
+				ncSubnetPrefix:   getCIDRNotationForAddress(t, "10.0.1.0/24"),
+				options:          map[string]interface{}{},
+				info: IPv4ResultInfo{
+					podIPAddress:       "10.0.1.10",
+					ncSubnetPrefix:     24,
+					ncPrimaryIP:        "10.0.1.20",
+					ncGatewayIPAddress: "10.0.1.1",
+					hostSubnet:         "10.0.0.0/24",
+					hostPrimaryIP:      "10.0.0.3",
+					hostGateway:        "10.0.0.1",
+				},
+			},
+			wantOptions: map[string]interface{}{
+				network.IPTablesKey: []iptables.IPTableEntry{
+					{
+						Version: "4",
+						Params:  "-t nat -N SWIFT",
+					},
+					{
+						Version: "4",
+						Params:  "-t nat -A POSTROUTING  -j SWIFT",
+					},
+					{
+						Version: "4",
+						Params:  "-t nat -I SWIFT 1  -m addrtype ! --dst-type local -s 10.0.1.0/24 -d 168.63.129.16 -p udp --dport 53 -j SNAT --to 10.0.1.20",
+					},
+					{
+						Version: "4",
+						Params:  "-t nat -I SWIFT 1  -m addrtype ! --dst-type local -s 10.0.1.0/24 -d 169.254.169.254 -p tcp --dport 80 -j SNAT --to 10.0.0.3",
+					},
+				},
+				network.RoutesKey: []network.RouteInfo{
+					{
+						Dst: *getCIDRNotationForAddress(t, "10.0.1.0/24"),
+						Gw:  net.ParseIP("10.0.0.1"),
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := setHostOptions(tt.args.hostSubnetPrefix, tt.args.ncSubnetPrefix, tt.args.options, tt.args.info); (err != nil) != tt.wantErr {
-				t.Errorf("setHostOptions() error = %v, wantErr %v", err, tt.wantErr)
+			err := setHostOptions(tt.args.hostSubnetPrefix, tt.args.ncSubnetPrefix, tt.args.options, tt.args.info)
+			if tt.wantErr {
+				require.Error(err)
+				return
 			}
+			require.NoError(err)
+
+			require.Exactly(tt.wantOptions, tt.args.options)
 		})
 	}
 }

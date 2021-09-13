@@ -62,7 +62,7 @@ func (invoker *CNSIPAMInvoker) Add(_ *cni.NetworkConfig, args *cniSkel.CmdArgs, 
 		InfraContainerID:    args.ContainerID,
 	}
 
-	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
+	log.Printf("Requesting IP for pod %+v using ipconfigArgument %+v", podInfo, ipconfig)
 	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
 
 	if err != nil {
@@ -90,7 +90,7 @@ func (invoker *CNSIPAMInvoker) Add(_ *cni.NetworkConfig, args *cniSkel.CmdArgs, 
 		return nil, nil, fmt.Errorf("Gateway address %v from response is invalid", info.ncGatewayIPAddress)
 	}
 
-	// set result ipconfig from CNS Response Body
+	// set result ipconfigArgument from CNS Response Body
 	ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
 	if ip == nil {
 		return nil, nil, fmt.Errorf("Unable to parse IP from response: %v with err %v", info.podIPAddress, err)
@@ -176,7 +176,7 @@ func setHostOptions(hostSubnetPrefix *net.IPNet, ncSubnetPrefix *net.IPNet, opti
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, options map[string]interface{}) error {
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, _ *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
