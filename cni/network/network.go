@@ -79,6 +79,7 @@ type netPlugin struct {
 	report      *telemetry.CNIReport
 	tb          *telemetry.TelemetryBuffer
 	nnsClient   NnsClient
+	NetConfig   *cni.NetworkConfig
 }
 
 // client for node network service
@@ -313,7 +314,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		azIpamResult     *cniTypesCurr.Result
 		err              error
 		vethName         string
-		nwCfg            *cni.NetworkConfig
 		epInfo           *network.EndpointInfo
 		iface            *cniTypesCurr.Interface
 		subnetPrefix     net.IPNet
@@ -329,14 +329,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	log.Printf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData)
 
-	// Parse network configuration from stdin.
-	nwCfg, err = cni.ParseNetworkConfig(args.StdinData)
-	if err != nil {
-		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
-		return err
-	}
-
-	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
+	nwCfg := plugin.NetConfig
 
 	// Temporary if block to determing whether we disable SNAT on host (for multi-tenant scenario only)
 	if nwCfg.MultiTenancy {
@@ -730,7 +723,6 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 	var (
 		result       cniTypesCurr.Result
 		err          error
-		nwCfg        *cni.NetworkConfig
 		epInfo       *network.EndpointInfo
 		iface        *cniTypesCurr.Interface
 		k8sPodName   string
@@ -740,6 +732,8 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	log.Printf("[cni-net] Processing GET command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path)
+
+	nwCfg := plugin.NetConfig
 
 	defer func() {
 		// Add Interfaces to result.
@@ -762,14 +756,6 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 
 		log.Printf("[cni-net] GET command completed with result:%+v err:%v.", result, err)
 	}()
-
-	// Parse network configuration from stdin.
-	if nwCfg, err = cni.ParseNetworkConfig(args.StdinData); err != nil {
-		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
-		return err
-	}
-
-	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
@@ -831,7 +817,6 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var (
 		err          error
-		nwCfg        *cni.NetworkConfig
 		k8sPodName   string
 		k8sNamespace string
 		networkId    string
@@ -850,13 +835,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		log.Printf("[cni-net] DEL command completed with err:%v.", err)
 	}()
 
-	// Parse network configuration from stdin.
-	if nwCfg, err = cni.ParseNetworkConfig(args.StdinData); err != nil {
-		err = plugin.Errorf("[cni-net] Failed to parse network configuration: %v", err)
-		return err
-	}
-
-	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
+	nwCfg := plugin.NetConfig
 
 	// Parse Pod arguments.
 	if k8sPodName, k8sNamespace, err = plugin.getPodInfo(args.Args); err != nil {
@@ -995,7 +974,6 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 	var (
 		result              *cniTypesCurr.Result
 		err                 error
-		nwCfg               *cni.NetworkConfig
 		existingEpInfo      *network.EndpointInfo
 		podCfg              *cni.K8SPodEnvArgs
 		cnsClient           *cnsclient.CNSClient
@@ -1009,13 +987,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 	log.Printf("[cni-net] Processing UPDATE command with args {Netns:%v Args:%v Path:%v}.",
 		args.Netns, args.Args, args.Path)
 
-	// Parse network configuration from stdin.
-	if nwCfg, err = cni.ParseNetworkConfig(args.StdinData); err != nil {
-		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
-		return err
-	}
-
-	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
+	nwCfg := plugin.NetConfig
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 	plugin.setCNIReportDetails(nwCfg, CNI_UPDATE, "")

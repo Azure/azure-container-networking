@@ -179,6 +179,21 @@ func main() {
 	if cniCmd != cni.CmdVersion {
 		log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
 
+		_, cmdArgs, err := getCmdArgsFromEnv()
+		if err != nil {
+			log.Errorf("Received error while retrieving cmds from environment: %+v", err)
+			return
+		}
+
+		// Parse network configuration from stdin.
+		netPlugin.NetConfig, err = cni.ParseNetworkConfig(cmdArgs.StdinData)
+		if err != nil {
+			log.Errorf("Failed to parse network configuration: %v.", err)
+			return
+		}
+
+		log.Printf("[cni-net] Read network configuration %+v.", netPlugin.NetConfig)
+
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
 
 		upTime, err := platform.GetLastRebootTime()
