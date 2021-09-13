@@ -42,7 +42,7 @@ func ConstructEndpointID(containerID string, _ string, ifName string) (string, s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(_ apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
 	var containerIf *net.Interface
 	var ns *Namespace
 	var ep *endpoint

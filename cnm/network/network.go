@@ -6,8 +6,10 @@ package network
 import (
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cnm"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -236,7 +238,11 @@ func (plugin *netPlugin) createEndpoint(w http.ResponseWriter, r *http.Request) 
 
 	epInfo.Data = make(map[string]interface{})
 
-	err = plugin.nm.CreateEndpoint(req.NetworkID, &epInfo)
+	cnscli, err := cnsclient.New("", 15*time.Second)
+	if err != nil {
+		log.Errorf("failed to init CNS client", err)
+	}
+	err = plugin.nm.CreateEndpoint(cnscli, req.NetworkID, &epInfo)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
 		return

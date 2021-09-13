@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
-	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
@@ -35,10 +34,10 @@ const (
 var version string
 
 // Command line arguments for CNI plugin.
-var args = acn.ArgumentList{
+var args = common.ArgumentList{
 	{
-		Name:         acn.OptVersion,
-		Shorthand:    acn.OptVersionAlias,
+		Name:         common.OptVersion,
+		Shorthand:    common.OptVersionAlias,
 		Description:  "Print version information",
 		Type:         "bool",
 		DefaultValue: false,
@@ -129,8 +128,8 @@ func main() {
 	startTime := time.Now()
 
 	// Initialize and parse command line arguments.
-	acn.ParseArgs(&args, printVersion)
-	vers := acn.GetArg(acn.OptVersion).(bool)
+	common.ParseArgs(&args, printVersion)
+	vers := common.GetArg(common.OptVersion).(bool)
 
 	if vers {
 		printVersion()

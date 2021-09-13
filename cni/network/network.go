@@ -705,9 +705,15 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
+	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
+		return plugin.Errorf(err.Error())
+	}
+
 	// Create the endpoint.
 	log.Printf("[cni-net] Creating endpoint %v.", epInfo.Id)
-	err = plugin.nm.CreateEndpoint(networkId, epInfo)
+	err = plugin.nm.CreateEndpoint(cnscli, networkId, epInfo)
 	if err != nil {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
 		return err
@@ -983,7 +989,6 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		nwCfg               *cni.NetworkConfig
 		existingEpInfo      *network.EndpointInfo
 		podCfg              *cni.K8SPodEnvArgs
-		cnsClient           *cnsclient.Client
 		orchestratorContext []byte
 		targetNetworkConfig *cns.GetNetworkContainerResponse
 		cniMetric           telemetry.AIMetric
@@ -1076,11 +1081,6 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 
 	// now query CNS to get the target routes that should be there in the networknamespace (as a result of update)
 	log.Printf("Going to collect target routes for [name=%v, namespace=%v] from CNS.", k8sPodName, k8sNamespace)
-	if cnsClient, err = cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout); err != nil {
-		log.Printf("Initializing CNS client error in CNI Update%v", err)
-		log.Printf(err.Error())
-		return plugin.Errorf(err.Error())
-	}
 
 	// create struct with info for target POD
 	podInfo := cns.KubernetesPodInfo{
@@ -1092,7 +1092,13 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, err = cnsClient.GetNetworkConfiguration(context.TODO(), orchestratorContext); err != nil {
+	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
+		return plugin.Errorf(err.Error())
+	}
+
+	if targetNetworkConfig, err = cnscli.GetNetworkConfiguration(context.TODO(), orchestratorContext); err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return plugin.Errorf(err.Error())
 	}

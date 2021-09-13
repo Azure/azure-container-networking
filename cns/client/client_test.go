@@ -392,3 +392,39 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
 	t.Logf("IPAMPoolMonitor: %+v", inmemory.HTTPRestServiceData.IPAMPoolMonitor)
 }
+
+func TestNew(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name    string
+		url     string
+		timeout time.Duration
+		want    *Client
+		wantErr bool
+	}{
+		{
+			name: "empty url",
+			url:  "",
+			want: &Client{
+				routes: emptyRoutes,
+				client: http.Client{
+					Timeout: 0,
+				},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := New(tt.url, tt.timeout)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("New() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}

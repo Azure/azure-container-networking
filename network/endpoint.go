@@ -4,6 +4,7 @@
 package network
 
 import (
+	"context"
 	"net"
 	"strings"
 
@@ -88,8 +89,13 @@ type RouteInfo struct {
 	Priority int
 }
 
+type apipaClient interface {
+	DeleteHostNCApipaEndpoint(ctx context.Context, networkContainerID string) error
+	CreateHostNCApipaEndpoint(ctx context.Context, networkContainerID string) (string, error)
+}
+
 // NewEndpoint creates a new endpoint in the network.
-func (nw *network) newEndpoint(epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpoint(cli apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
@@ -101,7 +107,7 @@ func (nw *network) newEndpoint(epInfo *EndpointInfo) (*endpoint, error) {
 	}()
 
 	// Call the platform implementation.
-	ep, err = nw.newEndpointImpl(epInfo)
+	ep, err = nw.newEndpointImpl(cli, epInfo)
 	if err != nil {
 		return nil, err
 	}

@@ -45,7 +45,7 @@ func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 		baseURL = defaultBaseURL
 	}
 
-	routes, err := buildRoutes(baseURL)
+	routes, err := buildRoutes(baseURL, clientPaths)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 	}, nil
 }
 
-func buildRoutes(baseURL string) (map[string]url.URL, error) {
+func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse base URL %s", baseURL)
