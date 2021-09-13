@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"strconv"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -24,7 +23,7 @@ const (
 type CNSIPAMInvoker struct {
 	podName      string
 	podNamespace string
-	cnsClient    *cnsclient.CNSClient
+	cnsClient    cnsclient.CNSClientInterface
 }
 
 type IPv4ResultInfo struct {
@@ -37,19 +36,16 @@ type IPv4ResultInfo struct {
 	hostGateway        string
 }
 
-func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
-	cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-	cnsClient, err := cnsclient.InitCnsClient(cnsURL, defaultRequestTimeout)
-
+func NewCNSInvoker(podName, namespace string, cnsClient cnsclient.CNSClientInterface) *CNSIPAMInvoker {
 	return &CNSIPAMInvoker{
 		podName:      podName,
 		podNamespace: namespace,
 		cnsClient:    cnsClient,
-	}, err
+	}
 }
 
 // Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
-func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, hostSubnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
+func (invoker *CNSIPAMInvoker) Add(_ *cni.NetworkConfig, args *cniSkel.CmdArgs, hostSubnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
@@ -68,6 +64,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 
 	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
 	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
+
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
 		return nil, nil, err
@@ -122,7 +119,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 	}
 
 	// set subnet prefix for host vm
-	err = setHostOptions(nwCfg, hostSubnetPrefix, ncipnet, options, info)
+	err = setHostOptions(hostSubnetPrefix, ncipnet, options, info)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -131,7 +128,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 	return result, nil, nil
 }
 
-func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSubnetPrefix *net.IPNet, options map[string]interface{}, info IPv4ResultInfo) error {
+func setHostOptions(hostSubnetPrefix *net.IPNet, ncSubnetPrefix *net.IPNet, options map[string]interface{}, info IPv4ResultInfo) error {
 	// get the name of the primary IP address
 	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
 	if err != nil {

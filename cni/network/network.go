@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -487,11 +488,14 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	switch nwCfg.Ipam.Type {
 	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+		cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
+		cnsClient, err := cnsclient.InitCnsClient(cnsURL, defaultRequestTimeout)
 		if err != nil {
-			log.Printf("[cni-net] Creating network %v, failed with err %v", networkId, err)
+			log.Printf("[cni-net] failed to create cns client", networkId, err)
 			return err
 		}
+		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
+
 	default:
 		plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 	}
@@ -895,11 +899,14 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	switch nwCfg.Ipam.Type {
 	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+		cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
+		cnsClient, err := cnsclient.InitCnsClient(cnsURL, defaultRequestTimeout)
 		if err != nil {
-			log.Printf("[cni-net] Creating network %v failed with err %v.", networkId, err)
+			log.Printf("[cni-net] failed to create cns client", networkId, err)
 			return err
 		}
+		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
+
 	default:
 		plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 	}
