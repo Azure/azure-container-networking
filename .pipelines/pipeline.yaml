@@ -197,7 +197,7 @@ stages:
               build/tools/bin/gocov-xml < coverage.json > coverage.xml
               curl -Os $CODECOV_UPLOADER_URL
               chmod +x codecov
-              ./codecov -t $CODECOV_TOKEN -f ./coverage.out
+              ./codecov -t $CODECOV_TOKEN -f ./coverage.xml
             name: "Coverage"
             displayName: "Generate Coverage Reports"
             condition: always()
