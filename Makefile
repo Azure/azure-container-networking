@@ -491,9 +491,12 @@ fmt format: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
 	$(GOFUMPT) -s -w $(FMT_PKG)
 
 # run all tests
+# go list ./... doesn't include files tagged with 'test' or 'unit'
 .PHONY: test-all
 test-all:
-	go test -tags "unit" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
+	@$(eval COVER_PKG=`go list ./... | tr '\n' ','`)
+	@echo Test coverpkg: $(COVER_PKG)
+	go test -tags "test,unit" -coverpkg=$(COVER_PKG) -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
 
 
 # run all tests
