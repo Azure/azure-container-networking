@@ -2,22 +2,19 @@ package network
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/iptables"
-
-	"github.com/Azure/azure-container-networking/network"
-	cniTypes "github.com/containernetworking/cni/pkg/types"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-container-networking/cns"
-
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/cnsclient"
+	"github.com/Azure/azure-container-networking/iptables"
+	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/stretchr/testify/require"
 )
 
 // Handler structs
@@ -45,6 +42,7 @@ func (c *MockCNSClient) RequestIPAddress(ipconfig *cns.IPConfigRequest) (*cns.IP
 	c.require.Exactly(c.request.ipconfigArgument, ipconfig)
 	return c.request.result, c.request.err
 }
+
 func (c *MockCNSClient) ReleaseIPAddress(ipconfig *cns.IPConfigRequest) error {
 	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
 	return c.release.err
@@ -60,6 +58,16 @@ func getCIDRNotationForAddress(t *testing.T, ipaddresswithcidr string) *net.IPNe
 func marshallPodInfo(podInfo cns.KubernetesPodInfo) []byte {
 	orchestratorContext, _ := json.Marshal(podInfo)
 	return orchestratorContext
+}
+
+var testPodInfo cns.KubernetesPodInfo
+
+func getTestIPConfigRequest() *cns.IPConfigRequest {
+	return &cns.IPConfigRequest{
+		PodInterfaceID:      "testcont-testifname",
+		InfraContainerID:    "testcontainerid",
+		OrchestratorContext: marshallPodInfo(testPodInfo),
+	}
 }
 
 func TestCNSIPAMInvoker_Add(t *testing.T) {
@@ -86,20 +94,12 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		{
 			name: "Test happy CNI add",
 			fields: fields{
-				podName:      "testpod",
-				podNamespace: "testnamespace",
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
 					require: require,
 					request: requestIPAddressHandler{
-						ipconfigArgument: &cns.IPConfigRequest{
-							DesiredIPAddress: "",
-							PodInterfaceID:   "testcont-testifname",
-							InfraContainerID: "testcontainerid",
-							OrchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
-								PodName:      "testpod",
-								PodNamespace: "testnamespace",
-							}),
-						},
+						ipconfigArgument: getTestIPConfigRequest(),
 						result: &cns.IPConfigResponse{
 							PodIpInfo: cns.PodIpInfo{
 								PodIPConfig: cns.IPSubnet{
@@ -135,9 +135,6 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					ContainerID: "testcontainerid",
 					Netns:       "testnetns",
 					IfName:      "testifname",
-					Args:        "",
-					Path:        "",
-					StdinData:   nil,
 				},
 				hostSubnetPrefix: getCIDRNotationForAddress(t, "10.0.0.1/24"),
 				options:          map[string]interface{}{},
@@ -160,8 +157,25 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			want1:   nil,
 			wantErr: false,
 		},
+		{
+			name: "fail to request IP address from cns",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					request: requestIPAddressHandler{
+						ipconfigArgument: getTestIPConfigRequest(),
+						result:           nil,
+						err:              errors.New("failed error from CNS"), //nolint:goerr113
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			invoker := &CNSIPAMInvoker{
 				podName:      tt.fields.podName,
@@ -203,21 +217,12 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 		{
 			name: "test delete happy path",
 			fields: fields{
-				podName:      "testpod",
-				podNamespace: "testpodnamespace",
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
 					require: require,
 					release: releaseIPAddressHandler{
-						ipconfigArgument: &cns.IPConfigRequest{
-							DesiredIPAddress: "",
-							PodInterfaceID:   "testcont-testifname",
-							InfraContainerID: "testcontainerid",
-							OrchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
-								PodName:      "testpod",
-								PodNamespace: "testpodnamespace",
-							}),
-						},
-						err: nil,
+						ipconfigArgument: getTestIPConfigRequest(),
 					},
 				},
 			},
@@ -227,15 +232,27 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 					ContainerID: "testcontainerid",
 					Netns:       "testnetns",
 					IfName:      "testifname",
-					Args:        "",
-					Path:        "",
-					StdinData:   nil,
 				},
 				options: map[string]interface{}{},
 			},
 		},
+		{
+			name: "test delete not happy path",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					release: releaseIPAddressHandler{
+						ipconfigArgument: getTestIPConfigRequest(),
+						err:              errors.New("handle CNS delete error"), //nolint:goerr113
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			invoker := &CNSIPAMInvoker{
 				podName:      tt.fields.podName,
@@ -308,10 +325,30 @@ func Test_setHostOptions(t *testing.T) {
 					},
 				},
 			},
+
 			wantErr: false,
+		},
+		{
+			name: "test error on bad host subnet",
+			args: args{
+				info: IPv4ResultInfo{
+					hostSubnet: "",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "test error on nil hostsubnetprefix",
+			args: args{
+				info: IPv4ResultInfo{
+					hostSubnet: "10.0.0.0/24",
+				},
+			},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := setHostOptions(tt.args.hostSubnetPrefix, tt.args.ncSubnetPrefix, tt.args.options, tt.args.info)
 			if tt.wantErr {

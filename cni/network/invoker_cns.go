@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 
@@ -14,6 +15,11 @@ import (
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+)
+
+var (
+	errEmtpyHostSubnetPrefix = errors.New("empty host subnet prefix not allowed")
+	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
 )
 
 const (
@@ -51,9 +57,15 @@ func (invoker *CNSIPAMInvoker) Add(_ *cni.NetworkConfig, args *cniSkel.CmdArgs, 
 		PodName:      invoker.podName,
 		PodNamespace: invoker.podNamespace,
 	}
+
+	log.Printf(podInfo.PodName)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("Failed to unmarshal orchestrator context during add: %w", err)
+	}
+
+	if args == nil {
+		return nil, nil, errEmptyCNIArgs
 	}
 
 	ipconfig := cns.IPConfigRequest{
@@ -64,7 +76,6 @@ func (invoker *CNSIPAMInvoker) Add(_ *cni.NetworkConfig, args *cniSkel.CmdArgs, 
 
 	log.Printf("Requesting IP for pod %+v using ipconfigArgument %+v", podInfo, ipconfig)
 	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
-
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
 		return nil, nil, err
@@ -135,6 +146,10 @@ func setHostOptions(hostSubnetPrefix *net.IPNet, ncSubnetPrefix *net.IPNet, opti
 		return err
 	}
 
+	if hostSubnetPrefix == nil {
+		return errEmtpyHostSubnetPrefix
+	}
+
 	*hostSubnetPrefix = *hostIPNet
 
 	// get the host ip
@@ -188,6 +203,10 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, _ *cni.NetworkConfig, 
 		return err
 	}
 
+	if args == nil {
+		return errEmptyCNIArgs
+	}
+
 	req := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(args),
@@ -200,5 +219,9 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, _ *cni.NetworkConfig, 
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	return invoker.cnsClient.ReleaseIPAddress(&req)
+	if err := invoker.cnsClient.ReleaseIPAddress(&req); err != nil {
+		return fmt.Errorf("failed to release IP %v with err %w", address, err)
+	}
+
+	return nil
 }

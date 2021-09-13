@@ -14,9 +14,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-// CNSClientInterface is what's used to access CNS, TODO get a better name to avoid stutter
-// subject to better implementation here https://github.com/Azure/azure-container-networking/pull/992/files
-type CNSClientInterface interface {
+// CNSClientInterface is what's used to access CNS, temporary until
+// better implementation here https://github.com/Azure/azure-container-networking/pull/992/files
+type CNSClientInterface interface { //nolint:revive
 	RequestIPAddress(ipconfig *cns.IPConfigRequest) (*cns.IPConfigResponse, error)
 	ReleaseIPAddress(ipconfig *cns.IPConfigRequest) error
 }
