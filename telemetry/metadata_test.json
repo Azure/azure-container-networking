@@ -1,1 +1,18 @@
-{"location":"eastus","name":"k8s-agentpool1-42685608-0","offer":"aks","osType":"Linux","placementGroupId":"","platformFaultDomain":"0","platformUpdateDomain":"0","publisher":"microsoft-aks","resourceGroupName":"rgcnideftesttamil","sku":"aks-ubuntu-1604-201902","subscriptionId":"ea821859-912a-4d20-a4dd-e18a3ce5ba2c","tags":"aksEngineVersion:canary;creationSource:aksengine-k8s-agentpool1-42685608-0;orchestrator:Kubernetes:1.10.13;poolName:agentpool1;resourceNameSuffix:42685608","version":"2019.02.12","vmId":"6baf785b-397c-4967-9f75-cdb3d0df66c4","vmSize":"Standard_DS2_v2","KernelVersion":""}
+{
+    "location": "eastus",
+    "name": "k8s-agentpool1-42685608-0",
+    "offer": "aks",
+    "osType": "Linux",
+    "placementGroupId": "",
+    "platformFaultDomain": "0",
+    "platformUpdateDomain": "0",
+    "publisher": "microsoft-aks",
+    "resourceGroupName": "rgcnideftesttamil",
+    "sku": "aks-ubuntu-1604-201902",
+    "subscriptionId": "ea821859-912a-4d20-a4dd-e18a3ce5ba2c",
+    "tags": "aksEngineVersion:canary;creationSource:aksengine-k8s-agentpool1-42685608-0;orchestrator:Kubernetes:1.10.13;poolName:agentpool1;resourceNameSuffix:42685608",
+    "version": "2019.02.12",
+    "vmId": "6baf785b-397c-4967-9f75-cdb3d0df66c4",
+    "vmSize": "Standard_DS2_v2",
+    "KernelVersion": ""
+}

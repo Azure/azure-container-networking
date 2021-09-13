@@ -147,13 +147,6 @@ func TestGetInterfaceDetails(t *testing.T) {
 	}
 }
 
-func TestGetReportState(t *testing.T) {
-	state := reportManager.GetReportState(CNITelemetryFile)
-	if state != false {
-		t.Errorf("Wrong state in getreport state")
-	}
-}
-
 func TestSendTelemetry(t *testing.T) {
 	err := reportManager.SendReport(tb)
 	if err != nil {
@@ -275,16 +268,4 @@ func TestStartTelemetryService(t *testing.T) {
 
 func TestWaitForTelemetrySocket(t *testing.T) {
 	WaitForTelemetrySocket(1, 10)
-}
-
-func TestSetReportState(t *testing.T) {
-	err := reportManager.SetReportState("a.json")
-	if err != nil {
-		t.Errorf("SetReportState failed due to %v", err)
-	}
-
-	err = os.Remove("a.json")
-	if err != nil {
-		t.Errorf("Error removing telemetry file due to %v", err)
-	}
 }

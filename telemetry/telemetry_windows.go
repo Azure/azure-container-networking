@@ -44,8 +44,3 @@ func (report *CNIReport) GetOSDetails() {
 		report.OSDetails.OSVersion = strings.Replace(out, delimiter, "", -1)
 	}
 }
-
-// Get kernel version
-func (reportMgr *ReportManager) GetKernelVersion() {
-	// stub
-}
