@@ -314,11 +314,11 @@ func (nm *networkManager) GetNetworkInfo(networkId string) (NetworkInfo, error) 
 }
 
 // CreateEndpoint creates a new container endpoint.
-func (nm *networkManager) CreateEndpoint(cli apipaClient, networkId string, epInfo *EndpointInfo) error {
+func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epInfo *EndpointInfo) error {
 	nm.Lock()
 	defer nm.Unlock()
 
-	nw, err := nm.getNetwork(networkId)
+	nw, err := nm.getNetwork(networkID)
 	if err != nil {
 		return err
 	}

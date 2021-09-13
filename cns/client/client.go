@@ -65,7 +65,7 @@ func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 	}
 
 	routes := map[string]url.URL{}
-	for _, path := range clientPaths {
+	for _, path := range paths {
 		u := *base
 		pathURI, err := url.Parse(path)
 		if err != nil {

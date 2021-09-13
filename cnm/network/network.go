@@ -27,6 +27,7 @@ const (
 	containerInterfacePrefix = "eth"
 	returnCode               = 0
 	returnStr                = "Success"
+	defaultCNSTimeout        = 15 * time.Second
 )
 
 // NetPlugin represents a CNM (libnetwork) network plugin.
@@ -238,7 +239,7 @@ func (plugin *netPlugin) createEndpoint(w http.ResponseWriter, r *http.Request) 
 
 	epInfo.Data = make(map[string]interface{})
 
-	cnscli, err := cnsclient.New("", 15*time.Second)
+	cnscli, err := cnsclient.New("", defaultCNSTimeout)
 	if err != nil {
 		log.Errorf("failed to init CNS client", err)
 	}
