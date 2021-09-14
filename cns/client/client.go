@@ -33,9 +33,13 @@ var clientPaths = []string{
 	cns.PathDebugRestData,
 }
 
+type do interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 // Client specifies a client to connect to Ipam Plugin.
 type Client struct {
-	client http.Client
+	client do
 	routes map[string]url.URL
 }
 
@@ -51,7 +55,7 @@ func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 	}
 
 	return &Client{
-		client: http.Client{
+		client: &http.Client{
 			Timeout: requestTimeout,
 		},
 		routes: routes,

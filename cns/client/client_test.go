@@ -407,7 +407,7 @@ func TestNew(t *testing.T) {
 			url:  "",
 			want: &Client{
 				routes: emptyRoutes,
-				client: http.Client{
+				client: &http.Client{
 					Timeout: 0,
 				},
 			},
