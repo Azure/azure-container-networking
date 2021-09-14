@@ -24,7 +24,7 @@ func TestAllowInboundFromHostToNC(t *testing.T) {
 		containerSnatVethName: anyInterface,
 	}
 
-	nl := netlink.NewNetlink()
+	nl := netlink.NewMockNetlink(false, "")
 
 	if err := nl.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{
