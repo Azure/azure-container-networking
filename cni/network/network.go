@@ -485,15 +485,17 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	switch nwCfg.Ipam.Type {
-	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
-		if err != nil {
-			log.Printf("[cni-net] Creating network %v, failed with err %v", networkId, err)
-			return err
+	if plugin.ipamInvoker == nil {
+		switch nwCfg.Ipam.Type {
+		case network.AzureCNS:
+			plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+			if err != nil {
+				log.Printf("[cni-net] Creating network %v, failed with err %v", networkId, err)
+				return err
+			}
+		default:
+			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 		}
-	default:
-		plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 	}
 
 	options := make(map[string]interface{})
