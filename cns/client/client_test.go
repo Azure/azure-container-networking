@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -225,66 +224,41 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
 	orchestratorContext, err := json.Marshal(podInfo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	// no IP reservation found with that context, expect no failure.
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	if err != nil {
-		t.Fatalf("Release ip idempotent call failed: %+v", err)
-	}
+	assert.NoError(t, err, "Release ip idempotent call failed")
 
 	// request IP address
 	resp, err := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	if err != nil {
-		t.Fatalf("get IP from CNS failed with %+v", err)
-	}
+	assert.NoError(t, err, "get IP from CNS failed")
 
 	podIPInfo := resp.PodIpInfo
-	if reflect.DeepEqual(podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, primaryIp) != true {
-		t.Fatalf("PrimarIP is not added as expected ipConfig %+v, expected primaryIP: %+v", podIPInfo.NetworkContainerPrimaryIPConfig, primaryIp)
-	}
-
-	if podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength != subnetPrfixLength {
-		t.Fatalf("Primary IP Prefix length is not added as expected ipConfig %+v, expected: %+v", podIPInfo.NetworkContainerPrimaryIPConfig, subnetPrfixLength)
-	}
+	assert.Equal(t, primaryIp, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, "PrimaryIP is not added as epected ipConfig")
+	assert.EqualValues(t, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength, subnetPrfixLength, "Primary IP Prefix length is not added as expected ipConfig")
 
 	// validate DnsServer and Gateway Ip as the same configured for Primary IP
-	if reflect.DeepEqual(podIPInfo.NetworkContainerPrimaryIPConfig.DNSServers, dnsservers) != true {
-		t.Fatalf("DnsServer is not added as expected ipConfig %+v, expected dnsServers: %+v", podIPInfo.NetworkContainerPrimaryIPConfig, dnsservers)
-	}
-
-	if reflect.DeepEqual(podIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, gatewayIp) != true {
-		t.Fatalf("Gateway is not added as expected ipConfig %+v, expected GatewayIp: %+v", podIPInfo.NetworkContainerPrimaryIPConfig, gatewayIp)
-	}
+	assert.Equal(t, dnsservers, podIPInfo.NetworkContainerPrimaryIPConfig.DNSServers, "DnsServer is not added as expected ipConfig")
+	assert.Equal(t, gatewayIp, podIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, "Gateway is not added as expected ipConfig")
 
 	resultIPnet, err := getIPNetFromResponse(resp)
 
-	if reflect.DeepEqual(desired, resultIPnet) != true {
-		t.Fatalf("Desired result not matching actual result, expected: %+v, actual: %+v", desired, resultIPnet)
-	}
+	assert.Equal(t, desired, resultIPnet, "Desired result not matching actual result")
+
 	// checking for allocated IP address and pod context printing before ReleaseIPAddress is called
 	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(context.TODO(), cns.Allocated)
-	if err != nil {
-		t.Fatalf("Get allocated IP addresses failed %+v", err)
-	}
+	assert.NoError(t, err, "Get allocated IP addresses failed")
 
-	if len(ipaddresses) != 1 {
-		t.Fatalf("Number of available IP addresses expected to be 1, actual %+v", ipaddresses)
-	}
-
-	if ipaddresses[0].IPAddress != desiredIpAddress && ipaddresses[0].State != cns.Allocated {
-		t.Fatalf("Available IP address does not match expected, address state: %+v", ipaddresses)
-	}
+	assert.Len(t, ipaddresses, 1, "Number of available IP addresses expected to be 1")
+	assert.Equal(t, desiredIpAddress, ipaddresses[0].IPAddress, "Available IP address does not match expected, address state")
+	assert.Equal(t, cns.Allocated, ipaddresses[0].State, "Available IP address does not match expected, address state")
 
 	t.Log(ipaddresses)
 
 	// release requested IP address, expect success
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
-	if err != nil {
-		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
-	}
+	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
 func TestCNSClientPodContextApi(t *testing.T) {
@@ -299,32 +273,22 @@ func TestCNSClientPodContextApi(t *testing.T) {
 
 	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	// request IP address
 	_, err = cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	if err != nil {
-		t.Fatalf("get IP from CNS failed with %+v", err)
-	}
+	assert.NoError(t, err, "get IP from CNS failed")
 
 	// test for pod ip by orch context map
 	podcontext, err := cnsClient.GetPodOrchestratorContext(context.TODO())
-	if err != nil {
-		t.Errorf("Get pod ip by orchestrator context failed:  %+v", err)
-	}
-	if len(podcontext) < 1 {
-		t.Errorf("Expected atleast 1 entry in map for podcontext:  %+v", podcontext)
-	}
+	assert.NoError(t, err, "Get pod ip by orchestrator context failed")
+	assert.GreaterOrEqual(t, len(podcontext), 1, "Expected at least 1 entry in map for podcontext")
 
 	t.Log(podcontext)
 
 	// release requested IP address, expect success
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	if err != nil {
-		t.Fatalf("Expected to not fail when releasing IP reservation found with context: %+v", err)
-	}
+	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
 func TestCNSClientDebugAPI(t *testing.T) {
@@ -339,55 +303,41 @@ func TestCNSClientDebugAPI(t *testing.T) {
 
 	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	// request IP address
 	_, err1 := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	if err1 != nil {
-		t.Fatalf("get IP from CNS failed with %+v", err1)
-	}
+	assert.NoError(t, err1, "get IP from CNS failed")
 
 	// test for debug api/cmd to get inmemory data from HTTPRestService
 	inmemory, err := cnsClient.GetHTTPServiceData(context.TODO())
-	if err != nil {
-		t.Errorf("Get in-memory http REST Struct failed %+v", err)
-	}
+	assert.NoError(t, err, "Get in-memory http REST Struct failed")
 
-	if len(inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey) < 1 {
-		t.Errorf("OrchestratorContext map is expected but not returned")
-	}
+	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey), 1, "OrchestratorContext map is expected but not returned")
 
 	// testing Pod IP Configuration Status values set for test
 	podConfig := inmemory.HTTPRestServiceData.PodIPConfigState
 	for _, v := range podConfig {
-		if v.IPAddress != "10.0.0.5" || v.State != "Allocated" || v.NCID != "testNcId1" {
-			t.Errorf("Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
-		}
+		assert.Equal(t, "10.0.0.5", v.IPAddress, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
+		assert.Equal(t, cns.Allocated, v.State, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
+		assert.Equal(t, "testNcId1", v.NCID, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 	}
-	if len(inmemory.HTTPRestServiceData.PodIPConfigState) < 1 {
-		t.Errorf("PodIpConfigState with atleast 1 entry expected but not returned.")
-	}
+	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPConfigState), 1, "PodIpConfigState with at least 1 entry expected")
 
 	testIpamPoolMonitor := inmemory.HTTPRestServiceData.IPAMPoolMonitor
-	if testIpamPoolMonitor.MinimumFreeIps != 10 || testIpamPoolMonitor.MaximumFreeIps != 20 || testIpamPoolMonitor.UpdatingIpsNotInUseCount != 13 {
-		t.Errorf("IPAMPoolMonitor state is not reflecting the initial set values, %+v", testIpamPoolMonitor)
-	}
+	assert.EqualValues(t, 10, testIpamPoolMonitor.MinimumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
+	assert.EqualValues(t, 20, testIpamPoolMonitor.MaximumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
+	assert.Equal(t, 13, testIpamPoolMonitor.UpdatingIpsNotInUseCount, "IPAMPoolMonitor state is not reflecting the initial set values")
 
 	// check for cached NNC Spec struct values
-	if testIpamPoolMonitor.CachedNNC.Spec.RequestedIPCount != 16 || len(testIpamPoolMonitor.CachedNNC.Spec.IPsNotInUse) != 1 {
-		t.Errorf("IPAMPoolMonitor cached NNC Spec is not reflecting the initial set values, %+v", testIpamPoolMonitor.CachedNNC.Spec)
-	}
+	assert.EqualValues(t, 16, testIpamPoolMonitor.CachedNNC.Spec.RequestedIPCount, "IPAMPoolMonitor cached NNC Spec is not reflecting the initial set values")
+	assert.Len(t, testIpamPoolMonitor.CachedNNC.Spec.IPsNotInUse, 1, "IPAMPoolMonitor cached NNC Spec is not reflecting the initial set values")
 
 	// check for cached NNC Status struct values
-	if testIpamPoolMonitor.CachedNNC.Status.Scaler.BatchSize != 10 || testIpamPoolMonitor.CachedNNC.Status.Scaler.ReleaseThresholdPercent != 50 || testIpamPoolMonitor.CachedNNC.Status.Scaler.RequestThresholdPercent != 40 {
-		t.Errorf("IPAMPoolMonitor cached NNC Status is not reflecting the initial set values, %+v", testIpamPoolMonitor.CachedNNC.Status.Scaler)
-	}
-
-	if len(testIpamPoolMonitor.CachedNNC.Status.NetworkContainers) != 1 {
-		t.Errorf("Expected only one Network Container in the list, %+v", testIpamPoolMonitor.CachedNNC.Status.NetworkContainers)
-	}
+	assert.EqualValues(t, 10, testIpamPoolMonitor.CachedNNC.Status.Scaler.BatchSize, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
+	assert.EqualValues(t, 50, testIpamPoolMonitor.CachedNNC.Status.Scaler.ReleaseThresholdPercent, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
+	assert.EqualValues(t, 40, testIpamPoolMonitor.CachedNNC.Status.Scaler.RequestThresholdPercent, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
+	assert.Len(t, testIpamPoolMonitor.CachedNNC.Status.NetworkContainers, 1, "Expected only one Network Container in the list")
 
 	t.Logf("In-memory Data: ")
 	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey)
