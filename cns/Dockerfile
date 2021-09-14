@@ -15,7 +15,7 @@ WORKDIR /usr/local/src/cns
 COPY . .
 
 # Build cns
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build --tags crd -a -o /usr/local/bin/azure-cns -ldflags "-X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID" -s -w " cns/service/*.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /usr/local/bin/azure-cns -ldflags "-X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID" -s -w " cns/service/*.go
 
 # Build aitelemetry
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /usr/local/bin/azure-vnet-telemetry -ldflags "-X main.version="$VERSION" -s -w" cni/telemetry/service/*.go

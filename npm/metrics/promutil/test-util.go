@@ -1,7 +1,6 @@
-//go:build test
-// +build test
+//go:build !ignore_test
+// +build !ignore_test
 
-// TODO move under npm/testutils/
 package promutil
 
 import "testing"

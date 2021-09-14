@@ -1,5 +1,5 @@
-//go:build cli
-// +build cli
+//go:build !ignore_cli
+// +build !ignore_cli
 
 package installer
 

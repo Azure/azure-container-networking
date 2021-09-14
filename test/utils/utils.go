@@ -1,5 +1,5 @@
-//go:build test
-// +build test
+//go:build !ignore_test
+// +build !ignore_test
 
 package testingutils
 
