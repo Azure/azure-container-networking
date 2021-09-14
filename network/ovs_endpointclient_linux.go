@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/network/ovsinfravnet"
 	"github.com/Azure/azure-container-networking/network/ovssnat"
 	"github.com/Azure/azure-container-networking/ovsctl"
@@ -26,7 +27,7 @@ type OVSEndpointClient struct {
 	allowInboundFromHostToNC bool
 	allowInboundFromNCToHost bool
 	enableSnatForDns         bool
-	netlink                  netlink.Netlink
+	netlink                  netlinkinterface.NetlinkInterface
 }
 
 const (

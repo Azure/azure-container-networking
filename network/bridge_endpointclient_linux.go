@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 )
 
 const (
@@ -25,7 +26,7 @@ type LinuxBridgeEndpointClient struct {
 	containerMac      net.HardwareAddr
 	hostIPAddresses   []*net.IPNet
 	mode              string
-	netlink           netlink.Netlink
+	netlink           netlinkinterface.NetlinkInterface
 }
 
 func NewLinuxBridgeEndpointClient(

@@ -616,7 +616,7 @@ func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
 }
 
 // TODO do we need this function ?
-func AddStaticRoute(netlink netlink.Netlink, ip string, interfaceName string) error {
+func AddStaticRoute(netlink netlinkinterface.NetlinkInterface, ip string, interfaceName string) error {
 	log.Printf("[ovs] Adding %v static route", ip)
 	var routes []RouteInfo
 	_, ipNet, _ := net.ParseCIDR(ip)

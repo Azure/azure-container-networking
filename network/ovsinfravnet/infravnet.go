@@ -4,9 +4,9 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/netlink"
 
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
@@ -18,10 +18,10 @@ type OVSInfraVnetClient struct {
 	hostInfraVethName      string
 	ContainerInfraVethName string
 	containerInfraMac      string
-	netlink                netlink.Netlink
+	netlink                netlinkinterface.NetlinkInterface
 }
 
-func NewInfraVnetClient(hostIfName string, contIfName string, netlink netlink.Netlink) OVSInfraVnetClient {
+func NewInfraVnetClient(hostIfName string, contIfName string, netlink netlinkinterface.NetlinkInterface) OVSInfraVnetClient {
 	infraVnetClient := OVSInfraVnetClient{
 		hostInfraVethName:      hostIfName,
 		ContainerInfraVethName: contIfName,
