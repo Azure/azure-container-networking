@@ -22,6 +22,8 @@ const (
 	hostVEthInterfacePrefix = commonInterfacePrefix + "v"
 )
 
+type AzureHNSEndpointClient interface{}
+
 func generateVethName(key string) string {
 	h := sha1.New()
 	h.Write([]byte(key))

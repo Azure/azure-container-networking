@@ -7,11 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
-	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -74,11 +70,13 @@ const (
 // NetPlugin represents the CNI network plugin.
 type netPlugin struct {
 	*cni.Plugin
-	nm          network.NetworkManager
-	ipamInvoker IPAMInvoker
-	report      *telemetry.CNIReport
-	tb          *telemetry.TelemetryBuffer
-	nnsClient   NnsClient
+	nm                 network.NetworkManager
+	ipamInvoker        IPAMInvoker
+	report             *telemetry.CNIReport
+	tb                 *telemetry.TelemetryBuffer
+	nnsClient          NnsClient
+	hnsEndpointClient  network.AzureHNSEndpointClient
+	multitenancyClient MultitenancyClient
 }
 
 // client for node network service
@@ -86,12 +84,12 @@ type NnsClient interface {
 	// Do network port programming for the pod via node network service.
 	// podName - name of the pod as received from containerD
 	// nwNamesapce - network namespace name as received from containerD
-	AddContainerNetworking(ctx context.Context, podName, nwNamespace string) (error, *nnscontracts.ConfigureContainerNetworkingResponse)
+	AddContainerNetworking(ctx context.Context, podName, nwNamespace string) (*nnscontracts.ConfigureContainerNetworkingResponse, error)
 
 	// Undo or delete network port programming for the pod via node network service.
 	// podName - name of the pod as received from containerD
 	// nwNamesapce - network namespace name as received from containerD
-	DeleteContainerNetworking(ctx context.Context, podName, nwNamespace string) (error, *nnscontracts.ConfigureContainerNetworkingResponse)
+	DeleteContainerNetworking(ctx context.Context, podName, nwNamespace string) (*nnscontracts.ConfigureContainerNetworkingResponse, error)
 }
 
 // snatConfiguration contains a bool that determines whether CNI enables snat on host and snat for dns
@@ -340,7 +338,8 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// Temporary if block to determing whether we disable SNAT on host (for multi-tenant scenario only)
 	if nwCfg.MultiTenancy {
-		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = determineSnat(); err != nil {
+		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(
+			snatConfigFileName, nmAgentSnatAndDnsSupportAPI); err != nil {
 			return err
 		}
 	}
@@ -414,18 +413,13 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	if nwCfg.ExecutionMode == string(Baremetal) {
 		var res *nnscontracts.ConfigureContainerNetworkingResponse
 		log.Printf("Baremetal mode. Calling vnet agent for ADD")
-		err, res = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
+		res, err = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
 
 		if err == nil {
 			result = convertNnsToCniResult(res, args.IfName, k8sPodName, "AddContainerNetworking")
 		}
 
 		return err
-	}
-
-	if nwCfg.MultiTenancy {
-		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
 	}
 
 	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
@@ -436,19 +430,31 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = GetMultiTenancyCNIResult(enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
-	if err != nil {
-		log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
-		return err
-	}
-
-	defer func() {
+	if nwCfg.MultiTenancy {
+		// Initialize CNSClient
+		_, err := cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
 		if err != nil {
-			CleanupMultitenancyResources(enableInfraVnet, nwCfg, azIpamResult, plugin)
+			log.Errorf("Initialise cnsclient failed")
 		}
-	}()
 
-	log.Printf("Result from multitenancy %+v", result)
+		if plugin.multitenancyClient == nil {
+			plugin.multitenancyClient = &Multitenancy{}
+		}
+
+		result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = plugin.multitenancyClient.GetMultiTenancyCNIResult(
+			enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
+		if err != nil {
+			log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
+			return fmt.Errorf("GetMultiTenancyCNIResult failed:%w", err)
+		}
+		defer func() {
+			if err != nil {
+				plugin.multitenancyClient.CleanupMultitenancyResources(enableInfraVnet, nwCfg, azIpamResult, plugin)
+			}
+		}()
+
+		log.Printf("Result from multitenancy %+v", result)
+	}
 
 	// Initialize values from network config.
 	networkId, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
@@ -470,7 +476,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		 */
 		epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
 		if epInfo != nil {
-			resultConsAdd, errConsAdd := handleConsecutiveAdd(args, endpointId, nwInfo, epInfo, nwCfg)
+			if plugin.hnsEndpointClient == nil {
+				plugin.hnsEndpointClient = network.AzureHNSEndpoint{}
+			}
+			resultConsAdd, errConsAdd := plugin.handleConsecutiveAdd(args, endpointId, nwInfo, epInfo, nwCfg)
 			if errConsAdd != nil {
 				log.Printf("handleConsecutiveAdd failed with error %v", errConsAdd)
 				result = resultConsAdd
@@ -698,7 +707,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		epInfo.InfraVnetIP = azIpamResult.IPs[0].Address
 	}
 
-	SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, epInfo, result)
+	if nwCfg.MultiTenancy {
+		plugin.multitenancyClient.SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, epInfo, result)
+	}
 
 	if nwCfg.Mode == opModeTransparent {
 		// this mechanism of using only namespace and name is not unique for different incarnations of POD/container.
@@ -782,7 +793,10 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	if nwCfg.MultiTenancy {
 		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
+		_, err := cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
+		if err != nil {
+			log.Errorf("Initialise cnsclient failed")
+		}
 	}
 
 	// Initialize values from network config.
@@ -886,24 +900,29 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		// schedule send metric before attempting delete
 		defer sendMetricFunc()
-		err, _ = plugin.nnsClient.DeleteContainerNetworking(context.Background(), k8sPodName, args.Netns)
+		_, err = plugin.nnsClient.DeleteContainerNetworking(context.Background(), k8sPodName, args.Netns)
 		return err
 	}
 
 	if nwCfg.MultiTenancy {
 		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
+		_, err := cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
+		if err != nil {
+			log.Errorf("Initialise cnsclient failed")
+		}
 	}
 
-	switch nwCfg.Ipam.Type {
-	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
-		if err != nil {
-			log.Printf("[cni-net] Creating network %v failed with err %v.", networkId, err)
-			return err
+	if plugin.ipamInvoker == nil {
+		switch nwCfg.Ipam.Type {
+		case network.AzureCNS:
+			plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+			if err != nil {
+				log.Printf("[cni-net] Creating network %v failed with err %v.", networkId, err)
+				return err
+			}
+		default:
+			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 		}
-	default:
-		plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 	}
 
 	// Initialize values from network config.
@@ -966,6 +985,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	if !nwCfg.MultiTenancy {
+		log.Printf("epinfo:%+v", epInfo)
 		// Call into IPAM plugin to release the endpoint's addresses.
 		for _, address := range epInfo.IPAddresses {
 			log.Printf("release ip:%s", address.IP.String())
@@ -1163,77 +1183,6 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 	plugin.setCNIReportDetails(nwCfg, CNI_UPDATE, msg)
 
 	return nil
-}
-
-// Temporary function to determine whether we need to disable SNAT due to NMAgent support
-func determineSnat() (bool, bool, error) {
-	var (
-		snatConfig            snatConfiguration
-		retrieveSnatConfigErr error
-		jsonFile              *os.File
-		httpClient            = &http.Client{Timeout: time.Second * 5}
-		snatConfigFile        = snatConfigFileName + jsonFileExtension
-	)
-
-	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
-	if jsonFile, retrieveSnatConfigErr = os.Open(snatConfigFile); retrieveSnatConfigErr == nil {
-		bytes, _ := ioutil.ReadAll(jsonFile)
-		jsonFile.Close()
-		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
-			log.Errorf("[cni-net] failed to unmarshal to snatConfig with error %v",
-				retrieveSnatConfigErr)
-		}
-	}
-
-	// If we weren't able to retrieve snatConfiguration, query NMAgent
-	if retrieveSnatConfigErr != nil {
-		var resp *http.Response
-		resp, retrieveSnatConfigErr = httpClient.Get(nmAgentSupportedApisURL)
-		if retrieveSnatConfigErr == nil {
-			defer resp.Body.Close()
-
-			if resp.StatusCode == http.StatusOK {
-				var bodyBytes []byte
-				// if the list of APIs (strings) contains the nmAgentSnatSupportAPI we will disable snat on host
-				if bodyBytes, retrieveSnatConfigErr = ioutil.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
-					bodyStr := string(bodyBytes)
-					if !strings.Contains(bodyStr, nmAgentSnatAndDnsSupportAPI) {
-						snatConfig.EnableSnatForDns = true
-						snatConfig.EnableSnatOnHost = !strings.Contains(bodyStr, nmAgentSnatSupportAPI)
-					}
-
-					jsonStr, _ := json.Marshal(snatConfig)
-					fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0o664))
-					if err == nil {
-						fp.Write(jsonStr)
-						fp.Close()
-					} else {
-						log.Errorf("[cni-net] failed to save snat settings to %s with error: %+v", snatConfigFile, err)
-					}
-				}
-			} else {
-				retrieveSnatConfigErr = fmt.Errorf("nmagent request status code %d", resp.StatusCode)
-			}
-		}
-	}
-
-	// Log and return the error when we fail acquire snat configuration for host and dns
-	if retrieveSnatConfigErr != nil {
-		log.Errorf("[cni-net] failed to acquire SNAT configuration with error %v",
-			retrieveSnatConfigErr)
-		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
-	}
-
-	log.Printf("[cni-net] saved snat settings %+v to %s", snatConfig, snatConfigFile)
-	if snatConfig.EnableSnatOnHost {
-		log.Printf("[cni-net] enabling SNAT on container host for outbound connectivity")
-	} else if snatConfig.EnableSnatForDns {
-		log.Printf("[cni-net] enabling SNAT on container host for DNS traffic")
-	} else {
-		log.Printf("[cni-net] disabling SNAT on container host")
-	}
-
-	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
 }
 
 func convertNnsToCniResult(

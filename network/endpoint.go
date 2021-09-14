@@ -15,6 +15,8 @@ const (
 	InfraVnet = 0
 )
 
+type AzureHNSEndpoint struct{}
+
 // Endpoint represents a container network interface.
 type endpoint struct {
 	Id                       string

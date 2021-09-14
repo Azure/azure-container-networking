@@ -34,21 +34,23 @@ var (
  * We can delete this if statement once they fix it.
  * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
  */
-func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo network.NetworkInfo, epInfo *network.EndpointInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
+func (plugin *netPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string,
+	nwInfo network.NetworkInfo, epInfo *network.EndpointInfo,
+	nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
 	// Return in case of HNSv2 as consecutive add call doesn't need to be handled
 	if useHnsV2, err := network.UseHnsV2(args.Netns); useHnsV2 {
 		return nil, err
 	}
 
-	hnsEndpoint, err := hcsshim.GetHNSEndpointByName(endpointId)
+	hnsEndpoint, err := plugin.hnsEndpointClient.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)
-		endpoint, _ := hcsshim.GetHNSEndpointByID(hnsEndpoint.Id)
-		isAttached, _ := endpoint.IsAttached(args.ContainerID)
+		endpoint, _ := plugin.hnsEndpointClient.GetHNSEndpointByID(hnsEndpoint.Id)
+		isAttached, _ := plugin.hnsEndpointClient.IsAttached(endpoint, args.ContainerID)
 		// Attach endpoint if it's not attached yet.
 		if !isAttached {
 			log.Printf("[net] Attaching ep %v to container %v", hnsEndpoint.Id, args.ContainerID)
-			err := hcsshim.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
+			err := plugin.hnsEndpointClient.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
 			if err != nil {
 				log.Printf("[cni-net] Failed to hot attach shared endpoint[%v] to container [%v], err:%v.", hnsEndpoint.Id, args.ContainerID, err)
 				return nil, err

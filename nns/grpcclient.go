@@ -22,17 +22,19 @@ type GrpcClient struct{}
 // Add container to the network. Container Id is appended to the podName
 func (c *GrpcClient) AddContainerNetworking(
 	ctx context.Context,
-	podName, nwNamespace string) (error, *contracts.ConfigureContainerNetworkingResponse) {
+	podName, nwNamespace string) (*contracts.ConfigureContainerNetworkingResponse, error) {
 
-	return configureContainerNetworking(ctx, contracts.RequestType_Setup, podName, nwNamespace)
+	err, resp := configureContainerNetworking(ctx, contracts.RequestType_Setup, podName, nwNamespace)
+	return resp, err
 }
 
 // Add container to the network. Container Id is appended to the podName
 func (c *GrpcClient) DeleteContainerNetworking(
 	ctx context.Context,
-	podName, nwNamespace string) (error, *contracts.ConfigureContainerNetworkingResponse) {
+	podName, nwNamespace string) (*contracts.ConfigureContainerNetworkingResponse, error) {
 
-	return configureContainerNetworking(ctx, contracts.RequestType_Teardown, podName, nwNamespace)
+	err, resp := configureContainerNetworking(ctx, contracts.RequestType_Teardown, podName, nwNamespace)
+	return resp, err
 }
 
 // create a grpc connection to the node network service (nns) and call the appropriate

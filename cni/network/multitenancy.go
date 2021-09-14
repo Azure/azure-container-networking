@@ -1,12 +1,17 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -18,33 +23,147 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
-func SetupRoutingForMultitenancy(
+const (
+	filePerm    = 0664
+	httpTimeout = 5
+)
+
+// MultitenancyClient interface
+type MultitenancyClient interface {
+	GetMultiTenancyCNIResult(enableInfraVnet bool,
+		nwCfg *cni.NetworkConfig,
+		plugin *netPlugin,
+		k8sPodName string,
+		k8sNamespace string,
+		ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error)
+
+	CleanupMultitenancyResources(
+		enableInfraVnet bool,
+		nwCfg *cni.NetworkConfig,
+		azIpamResult *cniTypesCurr.Result,
+		plugin *netPlugin)
+
+	SetupRoutingForMultitenancy(
+		nwCfg *cni.NetworkConfig,
+		cnsNetworkConfig *cns.GetNetworkContainerResponse,
+		azIpamResult *cniTypesCurr.Result,
+		epInfo *network.EndpointInfo,
+		result *cniTypesCurr.Result)
+	DetermineSnatFeatureOnHost(
+		snatFile string,
+		nmAgentSupportedApisURL string) (bool, bool, error)
+}
+
+type Multitenancy struct{}
+
+var errNmaResponse = errors.New("nmagent request status code")
+
+// DetermineSnatFeatureOnHost - Temporary function to determine whether we need to disable SNAT due to NMAgent support
+func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (bool, bool, error) {
+	var (
+		snatConfig            snatConfiguration
+		retrieveSnatConfigErr error
+		jsonFile              *os.File
+		httpClient            = &http.Client{Timeout: time.Second * httpTimeout}
+		snatConfigFile        = snatConfigFileName + jsonFileExtension
+	)
+
+	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
+	if jsonFile, retrieveSnatConfigErr = os.Open(snatFile); retrieveSnatConfigErr == nil {
+		bytes, _ := ioutil.ReadAll(jsonFile)
+		jsonFile.Close()
+		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
+			log.Errorf("[cni-net] failed to unmarshal to snatConfig with error %v",
+				retrieveSnatConfigErr)
+		}
+	}
+
+	// If we weren't able to retrieve snatConfiguration, query NMAgent
+	if retrieveSnatConfigErr != nil {
+		var resp *http.Response
+		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, nmAgentSnatAndDnsSupportAPI, nil)
+		if err != nil {
+			log.Errorf("failed creating http request:%+v", err)
+			return false, false, fmt.Errorf("%w", err)
+		}
+		resp, retrieveSnatConfigErr = httpClient.Do(req)
+		if retrieveSnatConfigErr == nil {
+			defer resp.Body.Close()
+
+			if resp.StatusCode == http.StatusOK {
+				var bodyBytes []byte
+				// if the list of APIs (strings) contains the nmAgentSnatSupportAPI we will disable snat on host
+				if bodyBytes, retrieveSnatConfigErr = ioutil.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
+					bodyStr := string(bodyBytes)
+					if !strings.Contains(bodyStr, nmAgentSnatAndDnsSupportAPI) {
+						snatConfig.EnableSnatForDns = true
+						snatConfig.EnableSnatOnHost = !strings.Contains(bodyStr, nmAgentSnatSupportAPI)
+					}
+
+					jsonStr, _ := json.Marshal(snatConfig)
+					fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(filePerm))
+					if err == nil {
+						_, err := fp.Write(jsonStr)
+						if err != nil {
+							log.Errorf("DetermineSnatFeatureOnHost: Write to json failed:%+v", err)
+						}
+						fp.Close()
+					} else {
+						log.Errorf("[cni-net] failed to save snat settings to %s with error: %+v", snatConfigFile, err)
+					}
+				}
+			} else {
+				retrieveSnatConfigErr = fmt.Errorf("%w:%d", errNmaResponse, resp.StatusCode)
+			}
+		}
+	}
+
+	// Log and return the error when we fail acquire snat configuration for host and dns
+	if retrieveSnatConfigErr != nil {
+		log.Errorf("[cni-net] failed to acquire SNAT configuration with error %v",
+			retrieveSnatConfigErr)
+		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
+	}
+
+	log.Printf("[cni-net] saved snat settings %+v to %s", snatConfig, snatConfigFile)
+	if snatConfig.EnableSnatOnHost {
+		log.Printf("[cni-net] enabling SNAT on container host for outbound connectivity")
+	}
+	if snatConfig.EnableSnatForDns {
+		log.Printf("[cni-net] enabling SNAT on container host for DNS traffic")
+	}
+	if !snatConfig.EnableSnatForDns && !snatConfig.EnableSnatOnHost {
+		log.Printf("[cni-net] disabling SNAT on container host")
+	}
+
+	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
+}
+
+func (m *Multitenancy) SetupRoutingForMultitenancy(
 	nwCfg *cni.NetworkConfig,
 	cnsNetworkConfig *cns.GetNetworkContainerResponse,
 	azIpamResult *cniTypesCurr.Result,
 	epInfo *network.EndpointInfo,
 	result *cniTypesCurr.Result) {
 	// Adding default gateway
-	if nwCfg.MultiTenancy {
-		// if snat enabled, add 169.254.128.1 as default gateway
-		if nwCfg.EnableSnatOnHost {
-			log.Printf("add default route for multitenancy.snat on host enabled")
-			addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
-		} else {
-			_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
-			dstIP := net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet.Mask}
-			gwIP := net.ParseIP(cnsNetworkConfig.IPConfiguration.GatewayIPAddress)
-			epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
-			result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
+	// if snat enabled, add 169.254.128.1 as default gateway
+	if nwCfg.EnableSnatOnHost {
+		log.Printf("add default route for multitenancy.snat on host enabled")
+		addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
+	} else {
+		_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
+		dstIP := net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet.Mask}
+		gwIP := net.ParseIP(cnsNetworkConfig.IPConfiguration.GatewayIPAddress)
+		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
+		result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
 
-			if epInfo.EnableSnatForDns {
-				log.Printf("add SNAT for DNS enabled")
-				addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
-			}
+		if epInfo.EnableSnatForDns {
+			log.Printf("add SNAT for DNS enabled")
+			addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
 		}
-
-		setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo, result)
 	}
+
+	setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo, result)
 }
 
 func getContainerNetworkConfiguration(
@@ -200,8 +319,14 @@ func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNe
 	return false
 }
 
+var (
+	errSnatIP        = errors.New("Snat IP not populated")
+	errInfraVnet     = errors.New("infravnet not populated")
+	errSubnetOverlap = errors.New("subnet overlap error")
+)
+
 // GetMultiTenancyCNIResult retrieves network goal state of a container from CNS
-func GetMultiTenancyCNIResult(
+func (m *Multitenancy) GetMultiTenancyCNIResult(
 	enableInfraVnet bool,
 	nwCfg *cni.NetworkConfig,
 	plugin *netPlugin,
@@ -209,50 +334,45 @@ func GetMultiTenancyCNIResult(
 	k8sNamespace string,
 	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error) {
 
-	if nwCfg.MultiTenancy {
-		result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
-		if err != nil {
-			log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
-			return nil, nil, net.IPNet{}, nil, err
-		}
-
-		log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
-
-		if checkIfSubnetOverlaps(enableInfraVnet, nwCfg, cnsNetworkConfig) {
-			buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", nwCfg.InfraVnetAddressSpace, cnsNetworkConfig.CnetAddressSpace)
-			log.Printf(buf)
-			err = errors.New(buf)
-			return nil, nil, net.IPNet{}, nil, err
-		}
-
-		if nwCfg.EnableSnatOnHost {
-			if cnsNetworkConfig.LocalIPConfiguration.IPSubnet.IPAddress == "" {
-				log.Printf("Snat IP is not populated. Got empty string")
-				return nil, nil, net.IPNet{}, nil, fmt.Errorf("Snat IP is not populated. Got empty string")
-			}
-		}
-
-		if enableInfraVnet {
-			if nwCfg.InfraVnetAddressSpace == "" {
-				log.Printf("InfraVnetAddressSpace is not populated. Got empty string")
-				return nil, nil, net.IPNet{}, nil, fmt.Errorf("InfraVnetAddressSpace is not populated. Got empty string")
-			}
-		}
-
-		azIpamResult, err := getInfraVnetIP(enableInfraVnet, subnetPrefix.String(), nwCfg, plugin)
-		if err != nil {
-			log.Printf("GetInfraVnetIP failed with error %v", err)
-			return nil, nil, net.IPNet{}, nil, err
-		}
-
-		return result, cnsNetworkConfig, subnetPrefix, azIpamResult, nil
+	result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(nwCfg, k8sPodName, k8sNamespace, ifName)
+	if err != nil {
+		log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
+		return nil, nil, net.IPNet{}, nil, err
 	}
 
-	return nil, nil, net.IPNet{}, nil, nil
+	log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
+
+	if checkIfSubnetOverlaps(enableInfraVnet, nwCfg, cnsNetworkConfig) {
+		buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", nwCfg.InfraVnetAddressSpace, cnsNetworkConfig.CnetAddressSpace)
+		log.Printf(buf)
+		return nil, nil, net.IPNet{}, nil, errSubnetOverlap
+	}
+
+	if nwCfg.EnableSnatOnHost {
+		if cnsNetworkConfig.LocalIPConfiguration.IPSubnet.IPAddress == "" {
+			log.Printf("Snat IP is not populated. Got empty string")
+			return nil, nil, net.IPNet{}, nil, errSnatIP
+		}
+	}
+
+	if enableInfraVnet {
+		if nwCfg.InfraVnetAddressSpace == "" {
+			log.Printf("InfraVnetAddressSpace is not populated. Got empty string")
+			return nil, nil, net.IPNet{}, nil, errInfraVnet
+		}
+	}
+
+	azIpamResult, err := getInfraVnetIP(enableInfraVnet, subnetPrefix.String(), nwCfg, plugin)
+	if err != nil {
+		log.Printf("GetInfraVnetIP failed with error %v", err)
+		return nil, nil, net.IPNet{}, nil, err
+	}
+
+	return result, cnsNetworkConfig, subnetPrefix, azIpamResult, nil
 }
 
-func CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig, azIpamResult *cniTypesCurr.Result, plugin *netPlugin) {
-	if nwCfg.MultiTenancy && azIpamResult != nil && azIpamResult.IPs != nil {
+func (m *Multitenancy) CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig, azIpamResult *cniTypesCurr.Result, plugin *netPlugin) {
+	if azIpamResult != nil && azIpamResult.IPs != nil {
 		cleanupInfraVnetIP(enableInfraVnet, &azIpamResult.IPs[0].Address, nwCfg, plugin)
 	}
 }

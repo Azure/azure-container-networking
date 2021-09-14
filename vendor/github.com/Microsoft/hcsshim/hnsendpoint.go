@@ -20,6 +20,7 @@ const (
 	HostType           SystemType = "Host"
 )
 
+
 // EndpointAttachDetachRequest is the structure used to send request to the container to modify the system
 // Supported resource types are Network and Request Types are Add/Remove
 type EndpointAttachDetachRequest = hns.EndpointAttachDetachRequest
