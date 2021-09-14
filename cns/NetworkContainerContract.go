@@ -23,9 +23,9 @@ const (
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
-	DebugIPAddresses                         = "/debug/ipaddresses"
-	DebugPodContext                          = "/debug/podcontext"
-	DebugRestData                            = "/debug/restdata"
+	PathDebugIPAddresses                     = "/debug/ipaddresses"
+	PathDebugPodContext                      = "/debug/podcontext"
+	PathDebugRestData                        = "/debug/restdata"
 )
 
 // NetworkContainer Prefixes

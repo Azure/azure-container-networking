@@ -67,7 +67,7 @@ func TestPlugin(t *testing.T) {
 	epInfo := &network.EndpointInfo{
 		IPAddresses: []net.IPNet{*addr},
 	}
-	plugin.nm.CreateEndpoint(nwCfg.Name, epInfo)
+	_ = plugin.nm.CreateEndpoint(nil, nwCfg.Name, epInfo)
 
 	nwInfo := &network.NetworkInfo{
 		Id:      "test-nwcfg",
@@ -100,10 +100,10 @@ func TestGetAllEndpointState(t *testing.T) {
 	ep1 := getTestEndpoint("podname1", "podnamespace1", "10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
 	ep2 := getTestEndpoint("podname2", "podnamespace2", "10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
 
-	err := mockNetworkManager.CreateEndpoint(networkid, ep1)
+	err := mockNetworkManager.CreateEndpoint(nil, networkid, ep1)
 	require.NoError(t, err)
 
-	err = mockNetworkManager.CreateEndpoint(networkid, ep2)
+	err = mockNetworkManager.CreateEndpoint(nil, networkid, ep2)
 	require.NoError(t, err)
 
 	state, err := plugin.GetAllEndpointState(networkid)

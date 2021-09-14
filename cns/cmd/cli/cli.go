@@ -1,46 +1,46 @@
-package cnsclient
+package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/client"
 )
 
 const (
-	getCmdArg       = "get"
-	getPodCmdArg    = "getPodContexts"
-	getInMemoryData = "getInMemory"
 	envCNSIPAddress = "CNSIpAddress"
 	envCNSPort      = "CNSPort"
+	getCmdArg       = "get"
+	getInMemoryData = "getInMemory"
+	getPodCmdArg    = "getPodContexts"
 )
 
-func HandleCNSClientCommands(cmd, arg string) error {
+func HandleCNSClientCommands(ctx context.Context, cmd string, arg string) error {
 	cnsIPAddress := os.Getenv(envCNSIPAddress)
 	cnsPort := os.Getenv(envCNSPort)
 
-	cnsClient, err := InitCnsClient("http://"+cnsIPAddress+":"+cnsPort, 5*time.Second)
+	cnsClient, err := client.New("http://"+cnsIPAddress+":"+cnsPort, client.DefaultTimeout)
 	if err != nil {
 		return err
 	}
 
 	switch {
 	case strings.EqualFold(getCmdArg, cmd):
-		return getCmd(cnsClient, arg)
+		return getCmd(ctx, cnsClient, arg)
 	case strings.EqualFold(getPodCmdArg, cmd):
-		return getPodCmd(cnsClient)
+		return getPodCmd(ctx, cnsClient)
 	case strings.EqualFold(getInMemoryData, cmd):
-		return getInMemory(cnsClient)
+		return getInMemory(ctx, cnsClient)
 	default:
 		return fmt.Errorf("No debug cmd supplied, options are: %v", getCmdArg)
 	}
 }
 
-func getCmd(client *CNSClient, arg string) error {
+func getCmd(ctx context.Context, client *client.Client, arg string) error {
 	var states []cns.IPConfigState
 
 	switch cns.IPConfigState(arg) {
@@ -63,7 +63,7 @@ func getCmd(client *CNSClient, arg string) error {
 		states = append(states, cns.PendingProgramming)
 	}
 
-	addr, err := client.GetIPAddressesMatchingStates(states...)
+	addr, err := client.GetIPAddressesMatchingStates(ctx, states...)
 	if err != nil {
 		return err
 	}
@@ -79,40 +79,29 @@ func printIPAddresses(addrSlice []cns.IPConfigurationStatus) {
 	})
 
 	for _, addr := range addrSlice {
-		cns.IPConfigurationStatus.String(addr)
+		fmt.Println(addr.String())
 	}
 }
 
-func getPodCmd(client *CNSClient) error {
-	resp, err := client.GetPodOrchestratorContext()
+func getPodCmd(ctx context.Context, client *client.Client) error {
+	resp, err := client.GetPodOrchestratorContext(ctx)
 	if err != nil {
 		return err
 	}
-
-	printPodContext(resp)
-	return nil
-}
-
-func printPodContext(podContext map[string]string) {
 	i := 1
-	for orchContext, podID := range podContext {
-		fmt.Println(i, " ", orchContext, " : ", podID)
+	for orchContext, podID := range resp {
+		fmt.Printf("%d %s : %s\n", i, orchContext, podID)
 		i++
 	}
-}
-
-func getInMemory(client *CNSClient) error {
-	inmemoryData, err := client.GetHTTPServiceData()
-	if err != nil {
-		return err
-	}
-
-	printInMemoryStruct(inmemoryData.HTTPRestServiceData)
 	return nil
 }
 
-func printInMemoryStruct(data restserver.HTTPRestServiceData) {
-	fmt.Println("PodIPIDByOrchestratorContext: ", data.PodIPIDByPodInterfaceKey)
-	fmt.Println("PodIPConfigState: ", data.PodIPConfigState)
-	fmt.Println("IPAMPoolMonitor: ", data.IPAMPoolMonitor)
+func getInMemory(ctx context.Context, client *client.Client) error {
+	data, err := client.GetHTTPServiceData(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("PodIPIDByOrchestratorContext: %v\nPodIPConfigState: %v\nIPAMPoolMonitor: %v\n",
+		data.HTTPRestServiceData.PodIPIDByPodInterfaceKey, data.HTTPRestServiceData.PodIPConfigState, data.HTTPRestServiceData.IPAMPoolMonitor)
+	return nil
 }

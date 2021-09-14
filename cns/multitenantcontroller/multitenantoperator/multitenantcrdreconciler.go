@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	ncapi "github.com/Azure/azure-container-networking/crd/multitenantnetworkcontainer/api/v1alpha1"
@@ -34,7 +33,7 @@ const (
 type multiTenantCrdReconciler struct {
 	KubeClient client.Client
 	NodeName   string
-	CNSClient  cnsclient.APIClient
+	CNSClient  cnsclient
 }
 
 // Reconcile is called on multi-tenant CRD status changes.

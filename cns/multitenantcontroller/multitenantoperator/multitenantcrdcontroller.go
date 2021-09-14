@@ -6,8 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
-	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
+	"github.com/Azure/azure-container-networking/cns/client/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
@@ -32,7 +31,7 @@ var _ (multitenantcontroller.RequestController) = (*requestController)(nil)
 type requestController struct {
 	mgr        manager.Manager // Manager starts the reconcile loop which watches for crd status changes
 	KubeClient client.Client   // KubeClient is a cached client which interacts with API server
-	CNSClient  cnsclient.APIClient
+	CNSClient  cnsclient
 	nodeName   string // name of node running this program
 	Reconciler *multiTenantCrdReconciler
 	Started    bool

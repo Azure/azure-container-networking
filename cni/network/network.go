@@ -18,7 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
@@ -423,11 +423,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	if nwCfg.MultiTenancy {
-		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
-	}
-
 	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
 		if k8sNamespace == ns {
 			log.Printf("Enable infravnet for this pod %v in namespace %v", k8sPodName, k8sNamespace)
@@ -436,7 +431,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = GetMultiTenancyCNIResult(enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
+	result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = GetMultiTenancyCNIResult(context.TODO(), enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
 	if err != nil {
 		log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
 		return err
@@ -710,9 +705,15 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
+	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
+		return plugin.Errorf(err.Error())
+	}
+
 	// Create the endpoint.
 	log.Printf("[cni-net] Creating endpoint %v.", epInfo.Id)
-	err = plugin.nm.CreateEndpoint(networkId, epInfo)
+	err = plugin.nm.CreateEndpoint(cnscli, networkId, epInfo)
 	if err != nil {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
 		return err
@@ -776,11 +777,6 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 	// Parse Pod arguments.
 	if k8sPodName, k8sNamespace, err = plugin.getPodInfo(args.Args); err != nil {
 		return err
-	}
-
-	if nwCfg.MultiTenancy {
-		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
 	}
 
 	// Initialize values from network config.
@@ -888,11 +884,6 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	if nwCfg.MultiTenancy {
-		// Initialize CNSClient
-		cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout)
-	}
-
 	switch nwCfg.Ipam.Type {
 	case network.AzureCNS:
 		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
@@ -955,10 +946,16 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
+	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
+		return plugin.Errorf(err.Error())
+	}
+
 	// schedule send metric before attempting delete
 	defer sendMetricFunc()
 	// Delete the endpoint.
-	if err = plugin.nm.DeleteEndpoint(networkId, endpointId); err != nil {
+	if err = plugin.nm.DeleteEndpoint(cnscli, networkId, endpointId); err != nil {
 		err = plugin.Errorf("Failed to delete endpoint: %v", err)
 		return err
 	}
@@ -998,7 +995,6 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		nwCfg               *cni.NetworkConfig
 		existingEpInfo      *network.EndpointInfo
 		podCfg              *cni.K8SPodEnvArgs
-		cnsClient           *cnsclient.CNSClient
 		orchestratorContext []byte
 		targetNetworkConfig *cns.GetNetworkContainerResponse
 		cniMetric           telemetry.AIMetric
@@ -1091,11 +1087,6 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 
 	// now query CNS to get the target routes that should be there in the networknamespace (as a result of update)
 	log.Printf("Going to collect target routes for [name=%v, namespace=%v] from CNS.", k8sPodName, k8sNamespace)
-	if cnsClient, err = cnsclient.InitCnsClient(nwCfg.CNSUrl, defaultRequestTimeout); err != nil {
-		log.Printf("Initializing CNS client error in CNI Update%v", err)
-		log.Printf(err.Error())
-		return plugin.Errorf(err.Error())
-	}
 
 	// create struct with info for target POD
 	podInfo := cns.KubernetesPodInfo{
@@ -1107,7 +1098,13 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, err = cnsClient.GetNetworkConfiguration(orchestratorContext); err != nil {
+	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
+		return plugin.Errorf(err.Error())
+	}
+
+	if targetNetworkConfig, err = cnscli.GetNetworkConfiguration(context.TODO(), orchestratorContext); err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return plugin.Errorf(err.Error())
 	}
