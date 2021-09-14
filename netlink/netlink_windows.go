@@ -3,6 +3,8 @@
 
 package netlink
 
+import "net"
+
 // Link represents a network interface.
 type Link interface {
 	Info() *LinkInfo
@@ -18,4 +20,51 @@ type LinkInfo struct {
 
 func (linkInfo *LinkInfo) Info() *LinkInfo {
 	return linkInfo
+}
+
+func (Netlink) AddLink(link Link) error {
+
+	return nil
+}
+func (Netlink) DeleteLink(name string) error {
+	return nil
+}
+func (Netlink) SetLinkName(name string, newName string) error {
+	return nil
+}
+func (Netlink) SetLinkState(name string, up bool) error {
+	return nil
+}
+func (Netlink) SetLinkMaster(name string, master string) error {
+	return nil
+}
+func (Netlink) SetLinkNetNs(name string, fd uintptr) error {
+	return nil
+}
+func (Netlink) SetLinkAddress(ifName string, hwAddress net.HardwareAddr) error {
+	return nil
+}
+func (Netlink) SetLinkPromisc(ifName string, on bool) error {
+	return nil
+}
+func (Netlink) SetLinkHairpin(bridgeName string, on bool) error {
+	return nil
+}
+func (Netlink) AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac net.HardwareAddr, isProxy bool) error {
+	return nil
+}
+func (Netlink) AddIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
+	return nil
+}
+func (Netlink) DeleteIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
+	return nil
+}
+func (Netlink) GetIpRoute(filter *Route) ([]*Route, error) {
+	return nil, nil
+}
+func (Netlink) AddIpRoute(route *Route) error {
+	return nil
+}
+func (Netlink) DeleteIpRoute(route *Route) error {
+	return nil
 }
