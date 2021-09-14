@@ -16,10 +16,10 @@ const (
 	multicastSolicitPrefix = "ff02::1:ff00:0/104"
 )
 
-var ErrorLinuxBridgeClient = errors.New("LinuxBridgeClient Error")
+var errorLinuxBridgeClient = errors.New("LinuxBridgeClient Error")
 
-func NewErroLinuxBridgeClient(errStr string) error {
-	return fmt.Errorf("ErrorLinuxBridgeClient %w : %s", ErrorLinuxBridgeClient, errStr)
+func newErrorLinuxBridgeClient(errStr string) error {
+	return fmt.Errorf("ErrorLinuxBridgeClient %w : %s", errorLinuxBridgeClient, errStr)
 }
 
 type LinuxBridgeClient struct {
@@ -155,7 +155,7 @@ func (client *LinuxBridgeClient) DeleteL2Rules(extIf *externalInterface) {
 func (client *LinuxBridgeClient) SetBridgeMasterToHostInterface() error {
 	err := client.netlink.SetLinkMaster(client.hostInterfaceName, client.bridgeName)
 	if err != nil {
-		return NewErroLinuxBridgeClient(err.Error())
+		return newErrorLinuxBridgeClient(err.Error())
 	}
 	return nil
 }
@@ -163,7 +163,7 @@ func (client *LinuxBridgeClient) SetBridgeMasterToHostInterface() error {
 func (client *LinuxBridgeClient) SetHairpinOnHostInterface(enable bool) error {
 	err := client.netlink.SetLinkHairpin(client.hostInterfaceName, enable)
 	if err != nil {
-		return NewErroLinuxBridgeClient(err.Error())
+		return newErrorLinuxBridgeClient(err.Error())
 	}
 	return nil
 }

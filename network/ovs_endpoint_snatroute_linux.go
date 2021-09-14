@@ -36,12 +36,12 @@ func AddSnatEndpoint(client *OVSEndpointClient) error {
 func AddSnatEndpointRules(client *OVSEndpointClient) error {
 	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
 		// Allow specific Private IPs via Snat Bridge
-		if err := client.snatClient.AllowIPAddressesOnSnatBrdige(); err != nil {
+		if err := client.snatClient.AllowIPAddressesOnSnatBridge(); err != nil {
 			return err
 		}
 
 		// Block Private IPs via Snat Bridge
-		if err := client.snatClient.BlockIPAddressesOnSnatBrdige(); err != nil {
+		if err := client.snatClient.BlockIPAddressesOnSnatBridge(); err != nil {
 			return err
 		}
 

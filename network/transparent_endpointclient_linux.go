@@ -18,10 +18,10 @@ const (
 	defaultGw         = "0.0.0.0"
 )
 
-var ErrorTransparentEndpointClient = errors.New("TransparentEndpointClient Error")
+var errorTransparentEndpointClient = errors.New("TransparentEndpointClient Error")
 
-func NewErrorTransparentEndpointClient(errStr string) error {
-	return fmt.Errorf("ErrorTransparentEndpointClient %w : %s", ErrorTransparentEndpointClient, errStr)
+func newErrorTransparentEndpointClient(errStr string) error {
+	return fmt.Errorf("ErrorTransparentEndpointClient %w : %s", errorTransparentEndpointClient, errStr)
 }
 
 type TransparentEndpointClient struct {
@@ -68,13 +68,13 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 		log.Printf("Deleting old host veth %v", client.hostVethName)
 		if err = client.netlink.DeleteLink(client.hostVethName); err != nil {
 			log.Printf("[net] Failed to delete old hostveth %v: %v.", client.hostVethName, err)
-			return NewErrorTransparentEndpointClient(err.Error())
+			return newErrorTransparentEndpointClient(err.Error())
 		}
 	}
 
 	epc := epcommon.NewEPCommon(client.netlink)
 	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
-		return NewErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err.Error())
 	}
 
 	containerIf, err := net.InterfaceByName(client.containerVethName)
@@ -106,7 +106,7 @@ func (client *TransparentEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 		routeInfo.Dst = ipNet
 		routeInfoList = append(routeInfoList, routeInfo)
 		if err := addRoutes(client.netlink, client.hostVethName, routeInfoList); err != nil {
-			return NewErrorTransparentEndpointClient(err.Error())
+			return newErrorTransparentEndpointClient(err.Error())
 		}
 	}
 
@@ -141,7 +141,7 @@ func (client *TransparentEndpointClient) MoveEndpointsToContainerNS(epInfo *Endp
 	// Move the container interface to container's network namespace.
 	log.Printf("[net] Setting link %v netns %v.", client.containerVethName, epInfo.NetNsPath)
 	if err := client.netlink.SetLinkNetNs(client.containerVethName, nsID); err != nil {
-		return NewErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err.Error())
 	}
 
 	return nil
@@ -161,7 +161,7 @@ func (client *TransparentEndpointClient) SetupContainerInterfaces(epInfo *Endpoi
 func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
 	epc := epcommon.NewEPCommon(client.netlink)
 	if err := epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
-		return NewErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err.Error())
 	}
 
 	// ip route del 10.240.0.0/12 dev eth0 (removing kernel subnet route added by above call)
@@ -173,7 +173,7 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 			Protocol: netlink.RTPROT_KERNEL,
 		}
 		if err := deleteRoutes(client.netlink, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
-			return NewErrorTransparentEndpointClient(err.Error())
+			return newErrorTransparentEndpointClient(err.Error())
 		}
 	}
 
@@ -185,7 +185,7 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		Scope: netlink.RT_SCOPE_LINK,
 	}
 	if err := addRoutes(client.netlink, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
-		return NewErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err.Error())
 	}
 
 	// ip route add default via 169.254.1.1 dev eth0
@@ -203,7 +203,7 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 	log.Printf("[net] Adding static arp for IP address %v and MAC %v in Container namespace", virtualGwNet.String(), client.hostVethMac)
 	err := client.netlink.AddOrRemoveStaticArp(netlink.ADD, client.containerVethName, virtualGwNet.IP, client.hostVethMac, false)
 	if err != nil {
-		return NewErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err.Error())
 	}
 	return nil
 }

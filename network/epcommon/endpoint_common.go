@@ -38,10 +38,10 @@ const (
 	acceptRAV6File       = "/proc/sys/net/ipv6/conf/%s/accept_ra"
 )
 
-var ErrorEPCommon = errors.New("ErrorEPCommon Error")
+var errorEPCommon = errors.New("ErrorEPCommon Error")
 
-func NewErrorEPCommon(errStr string) error {
-	return fmt.Errorf("ErrorEPCommon %w : %s", ErrorEPCommon, errStr)
+func newErrorEPCommon(errStr string) error {
+	return fmt.Errorf("ErrorEPCommon %w : %s", errorEPCommon, errStr)
 }
 
 type EPCommon struct {
@@ -68,17 +68,17 @@ func (epc EPCommon) CreateEndpoint(hostVethName string, containerVethName string
 	err := epc.netlink.AddLink(&link)
 	if err != nil {
 		log.Printf("[net] Failed to create veth pair, err:%v.", err)
-		return NewErrorEPCommon(err.Error())
+		return newErrorEPCommon(err.Error())
 	}
 
 	log.Printf("[net] Setting link %v state up.", hostVethName)
 	err = epc.netlink.SetLinkState(hostVethName, true)
 	if err != nil {
-		return NewErrorEPCommon(err.Error())
+		return newErrorEPCommon(err.Error())
 	}
 
 	if err := DisableRAForInterface(hostVethName); err != nil {
-		return NewErrorEPCommon(err.Error())
+		return newErrorEPCommon(err.Error())
 	}
 
 	return nil
@@ -88,24 +88,24 @@ func (epc EPCommon) SetupContainerInterface(containerVethName string, targetIfNa
 	// Interface needs to be down before renaming.
 	log.Printf("[net] Setting link %v state down.", containerVethName)
 	if err := epc.netlink.SetLinkState(containerVethName, false); err != nil {
-		return NewErrorEPCommon(err.Error())
+		return newErrorEPCommon(err.Error())
 	}
 
 	// Rename the container interface.
 	log.Printf("[net] Setting link %v name %v.", containerVethName, targetIfName)
 	if err := epc.netlink.SetLinkName(containerVethName, targetIfName); err != nil {
-		return NewErrorEPCommon(err.Error())
+		return newErrorEPCommon(err.Error())
 	}
 
 	if err := DisableRAForInterface(targetIfName); err != nil {
-		return NewErrorEPCommon(err.Error())
+		return newErrorEPCommon(err.Error())
 	}
 
 	// Bring the interface back up.
 	log.Printf("[net] Setting link %v state up.", targetIfName)
 	err := epc.netlink.SetLinkState(targetIfName, true)
 	if err != nil {
-		return NewErrorEPCommon(err.Error())
+		return newErrorEPCommon(err.Error())
 	}
 	return nil
 }
@@ -113,11 +113,11 @@ func (epc EPCommon) SetupContainerInterface(containerVethName string, targetIfNa
 func (epc EPCommon) AssignIPToInterface(interfaceName string, ipAddresses []net.IPNet) error {
 	var err error
 	// Assign IP address to container network interface.
-	for _, ipAddr := range ipAddresses {
+	for i, ipAddr := range ipAddresses {
 		log.Printf("[net] Adding IP address %v to link %v.", ipAddr.String(), interfaceName)
-		err = epc.netlink.AddIPAddress(interfaceName, ipAddr.IP, &ipAddr)
+		err = epc.netlink.AddIPAddress(interfaceName, ipAddr.IP, &ipAddresses[i])
 		if err != nil {
-			return NewErrorEPCommon(err.Error())
+			return newErrorEPCommon(err.Error())
 		}
 	}
 

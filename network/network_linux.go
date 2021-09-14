@@ -4,6 +4,7 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -44,6 +45,12 @@ const (
 	colonDelimiter = ":"
 	dotDelimiter   = "."
 )
+
+var errorNetworkManager = errors.New("Network_linux pkg error")
+
+func newErrorNetworkManager(errStr string) error {
+	return fmt.Errorf("errorNetworkManager %w : %s", errorNetworkManager, errStr)
+}
 
 // Linux implementation of route.
 type route netlink.Route
@@ -595,7 +602,10 @@ func addIpv6NatGateway(netlink netlinkinterface.NetlinkInterface, nwInfo *Networ
 				Mask: subnetInfo.Prefix.Mask,
 			}}
 			epc := epcommon.NewEPCommon(netlink)
-			return epc.AssignIPToInterface(nwInfo.BridgeName, ipAddr)
+			err := epc.AssignIPToInterface(nwInfo.BridgeName, ipAddr)
+			if err != nil {
+				return newErrorNetworkManager(err.Error())
+			}
 		}
 	}
 
@@ -624,7 +634,7 @@ func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
 	}
 }
 
-// TODO do we need this function ?
+// AddStaticRoute adds a static route to the interface.
 func AddStaticRoute(netlink netlinkinterface.NetlinkInterface, ip string, interfaceName string) error {
 	log.Printf("[ovs] Adding %v static route", ip)
 	var routes []RouteInfo

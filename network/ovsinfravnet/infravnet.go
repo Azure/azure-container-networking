@@ -16,10 +16,10 @@ const (
 	azureInfraIfName = "eth2"
 )
 
-var ErrorOVSInfraVnetClient = errors.New("OVSInfraVnetClient Error")
+var errorOVSInfraVnetClient = errors.New("OVSInfraVnetClient Error")
 
-func NewErrorOVSInfraVnetClient(errStr string) error {
-	return fmt.Errorf("OVSInfraVnetClient %w : %s", ErrorOVSInfraVnetClient, errStr)
+func newErrorOVSInfraVnetClient(errStr string) error {
+	return fmt.Errorf("OVSInfraVnetClient %w : %s", errorOVSInfraVnetClient, errStr)
 }
 
 type OVSInfraVnetClient struct {
@@ -96,7 +96,7 @@ func (client *OVSInfraVnetClient) MoveInfraEndpointToContainerNS(netnsPath strin
 	log.Printf("[ovs] Setting link %v netns %v.", client.ContainerInfraVethName, netnsPath)
 	err := client.netlink.SetLinkNetNs(client.ContainerInfraVethName, nsID)
 	if err != nil {
-		return NewErrorOVSInfraVnetClient(err.Error())
+		return newErrorOVSInfraVnetClient(err.Error())
 	}
 	return nil
 }
@@ -104,7 +104,7 @@ func (client *OVSInfraVnetClient) MoveInfraEndpointToContainerNS(netnsPath strin
 func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
 	epc := epcommon.NewEPCommon(client.netlink)
 	if err := epc.SetupContainerInterface(client.ContainerInfraVethName, azureInfraIfName); err != nil {
-		return NewErrorOVSInfraVnetClient(err.Error())
+		return newErrorOVSInfraVnetClient(err.Error())
 	}
 
 	client.ContainerInfraVethName = azureInfraIfName
@@ -116,7 +116,7 @@ func (client *OVSInfraVnetClient) ConfigureInfraVnetContainerInterface(infraIP n
 	log.Printf("[ovs] Adding IP address %v to link %v.", infraIP.String(), client.ContainerInfraVethName)
 	err := client.netlink.AddIPAddress(client.ContainerInfraVethName, infraIP.IP, &infraIP)
 	if err != nil {
-		return NewErrorOVSInfraVnetClient(err.Error())
+		return newErrorOVSInfraVnetClient(err.Error())
 	}
 	return nil
 }
@@ -147,7 +147,7 @@ func (client *OVSInfraVnetClient) DeleteInfraVnetEndpoint() error {
 	err := client.netlink.DeleteLink(client.hostInfraVethName)
 	if err != nil {
 		log.Printf("[ovs] Failed to delete veth pair %v: %v.", client.hostInfraVethName, err)
-		return NewErrorOVSInfraVnetClient(err.Error())
+		return newErrorOVSInfraVnetClient(err.Error())
 	}
 
 	return nil

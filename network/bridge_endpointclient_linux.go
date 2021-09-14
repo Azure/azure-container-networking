@@ -157,7 +157,7 @@ func (client *LinuxBridgeEndpointClient) MoveEndpointsToContainerNS(epInfo *Endp
 	// Move the container interface to container's network namespace.
 	log.Printf("[net] Setting link %v netns %v.", client.containerVethName, epInfo.NetNsPath)
 	if err := client.netlink.SetLinkNetNs(client.containerVethName, nsID); err != nil {
-		return err
+		return newErrorLinuxBridgeClient(err.Error())
 	}
 
 	return nil

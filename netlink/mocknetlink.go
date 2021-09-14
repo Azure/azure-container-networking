@@ -6,10 +6,10 @@ import (
 	"net"
 )
 
-var ErrorMockNetlink = errors.New("Mock Netlink Error")
+var errorMockNetlink = errors.New("Mock Netlink Error")
 
-func NewErrorMockNetlink(errStr string) error {
-	return fmt.Errorf("ErrorMockNetlink %w : %s", ErrorMockNetlink, errStr)
+func newErrorMockNetlink(errStr string) error {
+	return fmt.Errorf("ErrorMockNetlink %w : %s", errorMockNetlink, errStr)
 }
 
 type MockNetlink struct {
@@ -26,7 +26,7 @@ func NewMockNetlink(returnError bool, errorString string) MockNetlink {
 
 func (f *MockNetlink) error() error {
 	if f.returnError {
-		return NewErrorMockNetlink(f.errorString)
+		return newErrorMockNetlink(f.errorString)
 	}
 	return nil
 }
