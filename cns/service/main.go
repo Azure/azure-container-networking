@@ -21,9 +21,9 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	cni "github.com/Azure/azure-container-networking/cns/cnireconciler"
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
@@ -404,7 +404,7 @@ func main() {
 	logger.InitLogger(name, logLevel, logTarget, logDirectory)
 
 	if clientDebugCmd != "" {
-		err := cnsclient.HandleCNSClientCommands(clientDebugCmd, clientDebugArg)
+		err := cnscli.HandleCNSClientCommands(rootCtx, clientDebugCmd, clientDebugArg)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

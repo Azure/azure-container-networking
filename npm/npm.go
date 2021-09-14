@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/Azure/azure-container-networking/telemetry"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -63,7 +62,6 @@ type NetworkPolicyManager struct {
 	ipsMgr            *ipsm.IpsetManager
 	npmNamespaceCache *npmNamespaceCache
 	// Azure-specific variables
-	clusterState     telemetry.ClusterState
 	k8sServerVersion *version.Info
 	NodeName         string
 	version          string
@@ -83,15 +81,10 @@ func NewNetworkPolicyManager(informerFactory informers.SharedInformerFactory, ex
 		npInformer:        informerFactory.Networking().V1().NetworkPolicies(),
 		ipsMgr:            ipsm.NewIpsetManager(exec),
 		npmNamespaceCache: &npmNamespaceCache{nsMap: make(map[string]*Namespace)},
-		clusterState: telemetry.ClusterState{
-			PodCount:      0,
-			NsCount:       0,
-			NwPolicyCount: 0,
-		},
-		k8sServerVersion: k8sServerVersion,
-		NodeName:         os.Getenv("HOSTNAME"),
-		version:          npmVersion,
-		TelemetryEnabled: true,
+		k8sServerVersion:  k8sServerVersion,
+		NodeName:          os.Getenv("HOSTNAME"),
+		version:           npmVersion,
+		TelemetryEnabled:  true,
 	}
 
 	// create pod controller

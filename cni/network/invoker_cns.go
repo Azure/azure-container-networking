@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,7 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -29,7 +30,7 @@ const (
 type CNSIPAMInvoker struct {
 	podName      string
 	podNamespace string
-	cnsClient    cnsclient.CNSClientInterface
+	cnsClient    *cnsclient.Client
 }
 
 type IPv4ResultInfo struct {
@@ -42,11 +43,11 @@ type IPv4ResultInfo struct {
 	hostGateway        string
 }
 
-func NewCNSInvoker(podName, namespace string, cnsClient cnsclient.CNSClientInterface) *CNSIPAMInvoker {
+func NewCNSInvoker(podName, namespace string, cnsClient cnsclient.Client) *CNSIPAMInvoker {
 	return &CNSIPAMInvoker{
 		podName:      podName,
 		podNamespace: namespace,
-		cnsClient:    cnsClient,
+		cnsClient:    &cnsClient,
 	}
 }
 
@@ -74,8 +75,8 @@ func (invoker *CNSIPAMInvoker) Add(_ *cni.NetworkConfig, args *cniSkel.CmdArgs, 
 		InfraContainerID:    args.ContainerID,
 	}
 
-	log.Printf("Requesting IP for pod %+v using ipconfigArgument %+v", podInfo, ipconfig)
-	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
+	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
+	response, err := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfig)
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
 		return nil, nil, err
@@ -219,7 +220,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, _ *cni.NetworkConfig, 
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	if err := invoker.cnsClient.ReleaseIPAddress(&req); err != nil {
+	if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
 		return fmt.Errorf("failed to release IP %v with err %w", address, err)
 	}
 

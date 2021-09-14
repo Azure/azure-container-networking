@@ -104,29 +104,6 @@ type AIMetric struct {
 	Metric aitelemetry.Metric
 }
 
-// ClusterState contains the current kubernetes cluster state.
-type ClusterState struct {
-	PodCount      int
-	NsCount       int
-	NwPolicyCount int
-}
-
-// NPMReport structure.
-type NPMReport struct {
-	IsNewInstance     bool
-	ClusterID         string
-	NodeName          string
-	InstanceName      string
-	NpmVersion        string
-	KubernetesVersion string
-	ErrorMessage      string
-	EventMessage      string
-	UpTime            string
-	Timestamp         string
-	ClusterState      ClusterState
-	Metadata          common.Metadata `json:"compute"`
-}
-
 // ReportManager structure.
 type ReportManager struct {
 	HostNetAgentURL string
@@ -141,15 +118,6 @@ func (report *CNIReport) GetReport(name string, version string, ipamQueryURL str
 
 	report.GetSystemDetails()
 	report.GetOSDetails()
-}
-
-// GetReport retrives npm and kubernetes cluster related info and create a report structure.
-func (report *NPMReport) GetReport(clusterID, nodeName, npmVersion, kubernetesVersion string, clusterState ClusterState) {
-	report.ClusterID = clusterID
-	report.NodeName = nodeName
-	report.NpmVersion = npmVersion
-	report.KubernetesVersion = kubernetesVersion
-	report.ClusterState = clusterState
 }
 
 // SendReport will send telemetry report to HostNetAgent.
