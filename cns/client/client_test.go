@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"testing"
@@ -402,6 +403,75 @@ func TestNew(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := New(tt.url, tt.timeout)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBuildRoutes(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		paths   []string
+		want    map[string]url.URL
+		wantErr bool
+	}{
+		{
+			name:    "default base url",
+			baseURL: "http://localhost:10090",
+			paths: []string{
+				"/test/path",
+			},
+			want: map[string]url.URL{
+				"/test/path": {
+					Scheme: "http",
+					Host:   "localhost:10090",
+					Path:   "/test/path",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "empty base url",
+			baseURL: "",
+			paths: []string{
+				"/test/path",
+			},
+			want: map[string]url.URL{
+				"/test/path": {
+					Path: "/test/path",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "bad base url",
+			baseURL: "postgres://user:abc{DEf1=ghi@example.com:5432/db?sslmode=require",
+			paths: []string{
+				"/test/path",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "bad path",
+			baseURL: "http://localhost:10090",
+			paths: []string{
+				"postgres://user:abc{DEf1=ghi@example.com:5432/db?sslmode=require",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildRoutes(tt.baseURL, tt.paths)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
