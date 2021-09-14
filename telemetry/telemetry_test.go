@@ -140,13 +140,6 @@ func TestGetSystemDetails(t *testing.T) {
 	}
 }
 
-func TestGetInterfaceDetails(t *testing.T) {
-	reportManager.Report.(*CNIReport).GetSystemDetails()
-	if reportManager.Report.(*CNIReport).ErrorMessage != "" {
-		t.Errorf("GetInterfaceDetails failed due to %v", reportManager.Report.(*CNIReport).ErrorMessage)
-	}
-}
-
 func TestSendTelemetry(t *testing.T) {
 	err := reportManager.SendReport(tb)
 	if err != nil {
