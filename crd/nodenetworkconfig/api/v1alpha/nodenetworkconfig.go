@@ -1,3 +1,6 @@
+//go:build !ignore_crd
+// +build !ignore_crd
+
 package v1alpha
 
 import (
