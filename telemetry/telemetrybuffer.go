@@ -327,17 +327,6 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 	}
 }
 
-// TryToConnectToTelemetryService - Attempt to connect telemetry process without spawning it if it's not already running.
-func (tb *TelemetryBuffer) TryToConnectToTelemetryService() {
-	if err := tb.Connect(); err != nil {
-		log.Logf("Connection to telemetry socket failed: %v", err)
-		return
-	}
-
-	tb.Connected = true
-	log.Logf("Connected to telemetry service")
-}
-
 func getTelemetryServiceDirectory() (path string, dir string) {
 	path = fmt.Sprintf("%v/%v", CniInstallDir, TelemetryServiceProcessName)
 	if exists, _ := platform.CheckIfFileExists(path); !exists {
