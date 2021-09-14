@@ -322,7 +322,7 @@ func (client *OVSSnatClient) DeleteInboundFromNCToHost() error {
 func (client *OVSSnatClient) ConfigureSnatContainerInterface() error {
 	log.Printf("[ovs] Adding IP address %v to link %v.", client.localIP, client.containerSnatVethName)
 	ip, intIpAddr, _ := net.ParseCIDR(client.localIP)
-	err := client.netlink.AddIpAddress(client.containerSnatVethName, ip, intIpAddr)
+	err := client.netlink.AddIPAddress(client.containerSnatVethName, ip, intIpAddr)
 	if err != nil {
 		return NewErrorOVSSnatClient(err.Error())
 	}
@@ -432,7 +432,7 @@ func (client *OVSSnatClient) createSnatBridge(snatBridgeIP string, hostPrimaryMa
 	log.Printf("Assigning %v on snat bridge", snatBridgeIP)
 
 	ip, addr, _ := net.ParseCIDR(snatBridgeIP)
-	err = client.netlink.AddIpAddress(SnatBridgeName, ip, addr)
+	err = client.netlink.AddIPAddress(SnatBridgeName, ip, addr)
 	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 		log.Printf("[net] Failed to add IP address %v: %v.", addr, err)
 		return NewErrorOVSSnatClient(err.Error())

@@ -20,9 +20,9 @@ type NetlinkInterface interface {
 	SetLinkPromisc(ifName string, on bool) error
 	SetLinkHairpin(bridgeName string, on bool) error
 	AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac net.HardwareAddr, isProxy bool) error
-	AddIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error
-	DeleteIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error
-	GetIpRoute(filter *netlink.Route) ([]*netlink.Route, error)
-	AddIpRoute(route *netlink.Route) error
-	DeleteIpRoute(route *netlink.Route) error
+	AddIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error
+	DeleteIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error
+	GetIPRoute(filter *netlink.Route) ([]*netlink.Route, error)
+	AddIPRoute(route *netlink.Route) error
+	DeleteIPRoute(route *netlink.Route) error
 }

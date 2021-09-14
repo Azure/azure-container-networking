@@ -80,7 +80,7 @@ func TestMain(m *testing.M) {
 		os.Exit(4)
 	}
 
-	err = nl.AddIpAddress(anyInterface, net.ParseIP("192.168.1.4"), &ipnet)
+	err = nl.AddIPAddress(anyInterface, net.ParseIP("192.168.1.4"), &ipnet)
 	if err != nil {
 		fmt.Printf("Failed to add test IP address, err:%v.\n", err)
 		os.Exit(5)
@@ -93,7 +93,10 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 
 	// Cleanup.
-	nl.DeleteLink(anyInterface)
+	err = nl.DeleteLink(anyInterface)
+	if err != nil {
+		fmt.Printf("Failed to delete link, err:%v.\n", err)
+	}
 	plugin.Stop()
 
 	os.Exit(exitCode)

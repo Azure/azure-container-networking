@@ -253,9 +253,9 @@ func addRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, route
 			ifIndex = interfaceIf.Index
 		}
 
-		family := netlink.GetIpAddressFamily(route.Gw)
+		family := netlink.GetIPAddressFamily(route.Gw)
 		if route.Gw == nil {
-			family = netlink.GetIpAddressFamily(route.Dst.IP)
+			family = netlink.GetIPAddressFamily(route.Dst.IP)
 		}
 
 		nlRoute := &netlink.Route{
@@ -268,7 +268,7 @@ func addRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, route
 			Scope:     route.Scope,
 		}
 
-		if err := nl.AddIpRoute(nlRoute); err != nil {
+		if err := nl.AddIPRoute(nlRoute); err != nil {
 			if !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 				return err
 			} else {
@@ -305,7 +305,7 @@ func deleteRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, ro
 		}
 
 		nlRoute := &netlink.Route{
-			Family:    netlink.GetIpAddressFamily(route.Gw),
+			Family:    netlink.GetIPAddressFamily(route.Gw),
 			Dst:       &route.Dst,
 			Gw:        route.Gw,
 			LinkIndex: ifIndex,
@@ -313,7 +313,7 @@ func deleteRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, ro
 			Scope:     route.Scope,
 		}
 
-		if err := nl.DeleteIpRoute(nlRoute); err != nil {
+		if err := nl.DeleteIPRoute(nlRoute); err != nil {
 			return err
 		}
 	}

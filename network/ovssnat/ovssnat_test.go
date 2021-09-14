@@ -18,13 +18,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestAllowInboundFromHostToNC(t *testing.T) {
+	nl := netlink.NewNetlink()
 	client := &OVSSnatClient{
 		snatBridgeIP:          "169.254.0.1/16",
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
+		netlink:               nl,
 	}
-
-	nl := netlink.NewNetlink()
 
 	if err := nl.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{
@@ -61,13 +61,13 @@ func TestAllowInboundFromHostToNC(t *testing.T) {
 }
 
 func TestAllowInboundFromNCToHost(t *testing.T) {
+	nl := netlink.NewNetlink()
 	client := &OVSSnatClient{
 		snatBridgeIP:          "169.254.0.1/16",
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
+		netlink:               nl,
 	}
-
-	nl := netlink.NewNetlink()
 
 	if err := nl.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{

@@ -71,22 +71,22 @@ func (f *MockNetlink) AddOrRemoveStaticArp(int, string, net.IP, net.HardwareAddr
 	return f.error()
 }
 
-func (f *MockNetlink) AddIpAddress(string, net.IP, *net.IPNet) error {
+func (f *MockNetlink) AddIPAddress(string, net.IP, *net.IPNet) error {
 	return f.error()
 }
 
-func (f *MockNetlink) DeleteIpAddress(string, net.IP, *net.IPNet) error {
+func (f *MockNetlink) DeleteIPAddress(string, net.IP, *net.IPNet) error {
 	return f.error()
 }
 
-func (f *MockNetlink) GetIpRoute(*Route) ([]*Route, error) {
+func (f *MockNetlink) GetIPRoute(*Route) ([]*Route, error) {
 	return nil, f.error()
 }
 
-func (f *MockNetlink) AddIpRoute(*Route) error {
+func (f *MockNetlink) AddIPRoute(*Route) error {
 	return f.error()
 }
 
-func (f *MockNetlink) DeleteIpRoute(*Route) error {
+func (f *MockNetlink) DeleteIPRoute(*Route) error {
 	return f.error()
 }

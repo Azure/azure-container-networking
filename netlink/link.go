@@ -414,7 +414,7 @@ func (Netlink) AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac ne
 	}
 
 	msg := neighMsg{
-		Family: uint8(GetIpAddressFamily(ipaddr)),
+		Family: uint8(GetIPAddressFamily(ipaddr)),
 		Index:  uint32(iface.Index),
 		State:  uint16(state),
 	}

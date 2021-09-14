@@ -261,7 +261,7 @@ func (ep *endpoint) detach() error {
 }
 
 // updateEndpoint updates an existing endpoint in the network.
-func (nm *networkManager) updateEndpoint(nw *network, exsitingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
+func (nm *networkManager) updateEndpoint(nw *network, exsitingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error {
 	var err error
 
 	log.Printf("[net] Updating existing endpoint [%+v] in network %v to target [%+v].", exsitingEpInfo, nw.Id, targetEpInfo)
@@ -275,7 +275,7 @@ func (nm *networkManager) updateEndpoint(nw *network, exsitingEpInfo *EndpointIn
 
 	ep := nw.Endpoints[exsitingEpInfo.Id]
 	if ep == nil {
-		return nil, errEndpointNotFound
+		return errEndpointNotFound
 	}
 
 	log.Printf("[net] Retrieved endpoint to update %+v.", ep)
@@ -283,13 +283,13 @@ func (nm *networkManager) updateEndpoint(nw *network, exsitingEpInfo *EndpointIn
 	// Call the platform implementation.
 	ep, err = nm.updateEndpointImpl(nw, exsitingEpInfo, targetEpInfo)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Update routes for existing endpoint
 	nw.Endpoints[exsitingEpInfo.Id].Routes = ep.Routes
 
-	return ep, nil
+	return nil
 }
 
 func GetPodNameWithoutSuffix(podName string) string {

@@ -172,7 +172,7 @@ var _ = Describe("Test Endpoint", func() {
 					Id: "test",
 				}
 				targetEpInfo := &EndpointInfo{}
-				_, err := nm.updateEndpoint(nw, existingEpInfo, targetEpInfo)
+				err := nm.updateEndpoint(nw, existingEpInfo, targetEpInfo)
 				Expect(err).To(Equal(errEndpointNotFound))
 			})
 		})

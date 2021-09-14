@@ -1,6 +1,8 @@
 package ovsinfravnet
 
 import (
+	"errors"
+	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
@@ -13,6 +15,12 @@ import (
 const (
 	azureInfraIfName = "eth2"
 )
+
+var ErrorOVSInfraVnetClient = errors.New("OVSInfraVnetClient Error")
+
+func NewErrorOVSInfraVnetClient(errStr string) error {
+	return fmt.Errorf("OVSInfraVnetClient %w : %s", ErrorOVSInfraVnetClient, errStr)
+}
 
 type OVSInfraVnetClient struct {
 	hostInfraVethName      string
@@ -86,13 +94,17 @@ func (client *OVSInfraVnetClient) CreateInfraVnetRules(
 
 func (client *OVSInfraVnetClient) MoveInfraEndpointToContainerNS(netnsPath string, nsID uintptr) error {
 	log.Printf("[ovs] Setting link %v netns %v.", client.ContainerInfraVethName, netnsPath)
-	return client.netlink.SetLinkNetNs(client.ContainerInfraVethName, nsID)
+	err := client.netlink.SetLinkNetNs(client.ContainerInfraVethName, nsID)
+	if err != nil {
+		return NewErrorOVSInfraVnetClient(err.Error())
+	}
+	return nil
 }
 
 func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
 	epc := epcommon.NewEPCommon(client.netlink)
 	if err := epc.SetupContainerInterface(client.ContainerInfraVethName, azureInfraIfName); err != nil {
-		return err
+		return NewErrorOVSInfraVnetClient(err.Error())
 	}
 
 	client.ContainerInfraVethName = azureInfraIfName
@@ -102,7 +114,11 @@ func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
 
 func (client *OVSInfraVnetClient) ConfigureInfraVnetContainerInterface(infraIP net.IPNet) error {
 	log.Printf("[ovs] Adding IP address %v to link %v.", infraIP.String(), client.ContainerInfraVethName)
-	return client.netlink.AddIpAddress(client.ContainerInfraVethName, infraIP.IP, &infraIP)
+	err := client.netlink.AddIPAddress(client.ContainerInfraVethName, infraIP.IP, &infraIP)
+	if err != nil {
+		return NewErrorOVSInfraVnetClient(err.Error())
+	}
+	return nil
 }
 
 func (client *OVSInfraVnetClient) DeleteInfraVnetRules(
@@ -131,7 +147,7 @@ func (client *OVSInfraVnetClient) DeleteInfraVnetEndpoint() error {
 	err := client.netlink.DeleteLink(client.hostInfraVethName)
 	if err != nil {
 		log.Printf("[ovs] Failed to delete veth pair %v: %v.", client.hostInfraVethName, err)
-		return err
+		return NewErrorOVSInfraVnetClient(err.Error())
 	}
 
 	return nil

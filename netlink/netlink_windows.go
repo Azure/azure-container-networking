@@ -62,22 +62,22 @@ func (Netlink) AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac ne
 	return nil
 }
 
-func (Netlink) AddIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
+func (Netlink) AddIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
 	return nil
 }
 
-func (Netlink) DeleteIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
+func (Netlink) DeleteIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
 	return nil
 }
 
-func (Netlink) GetIpRoute(filter *Route) ([]*Route, error) {
+func (Netlink) GetIPRoute(filter *Route) ([]*Route, error) {
 	return nil, nil
 }
 
-func (Netlink) AddIpRoute(route *Route) error {
+func (Netlink) AddIPRoute(route *Route) error {
 	return nil
 }
 
-func (Netlink) DeleteIpRoute(route *Route) error {
+func (Netlink) DeleteIPRoute(route *Route) error {
 	return nil
 }

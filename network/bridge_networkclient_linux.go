@@ -1,6 +1,8 @@
 package network
 
 import (
+	"errors"
+	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/ebtables"
@@ -13,6 +15,12 @@ import (
 const (
 	multicastSolicitPrefix = "ff02::1:ff00:0/104"
 )
+
+var ErrorLinuxBridgeClient = errors.New("LinuxBridgeClient Error")
+
+func NewErroLinuxBridgeClient(errStr string) error {
+	return fmt.Errorf("ErrorLinuxBridgeClient %w : %s", ErrorLinuxBridgeClient, errStr)
+}
 
 type LinuxBridgeClient struct {
 	bridgeName        string
@@ -145,11 +153,19 @@ func (client *LinuxBridgeClient) DeleteL2Rules(extIf *externalInterface) {
 }
 
 func (client *LinuxBridgeClient) SetBridgeMasterToHostInterface() error {
-	return client.netlink.SetLinkMaster(client.hostInterfaceName, client.bridgeName)
+	err := client.netlink.SetLinkMaster(client.hostInterfaceName, client.bridgeName)
+	if err != nil {
+		return NewErroLinuxBridgeClient(err.Error())
+	}
+	return nil
 }
 
 func (client *LinuxBridgeClient) SetHairpinOnHostInterface(enable bool) error {
-	return client.netlink.SetLinkHairpin(client.hostInterfaceName, enable)
+	err := client.netlink.SetLinkHairpin(client.hostInterfaceName, enable)
+	if err != nil {
+		return NewErroLinuxBridgeClient(err.Error())
+	}
+	return nil
 }
 
 func (client *LinuxBridgeClient) setBrouteRedirect(action string) error {
