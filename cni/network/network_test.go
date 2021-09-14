@@ -67,7 +67,7 @@ func TestPlugin(t *testing.T) {
 	epInfo := &network.EndpointInfo{
 		IPAddresses: []net.IPNet{*addr},
 	}
-	plugin.nm.CreateEndpoint(nil, nwCfg.Name, epInfo)
+	_ = plugin.nm.CreateEndpoint(nil, nwCfg.Name, epInfo)
 
 	nwInfo := &network.NetworkInfo{
 		Id:      "test-nwcfg",
