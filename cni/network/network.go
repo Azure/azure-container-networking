@@ -19,7 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cns"
-	cnsclient "github.com/Azure/azure-container-networking/cns/client"
+	cnsc "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
@@ -484,7 +484,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	switch nwCfg.Ipam.Type {
 	case network.AzureCNS:
 		cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-		cnsClient, err := cnsclient.InitCnsClient(cnsURL, defaultRequestTimeout)
+		cnsClient, err := cnsc.New(cnsURL, defaultRequestTimeout)
 		if err != nil {
 			log.Printf("[cni-net] failed to create cns client", networkId, err)
 			return err
@@ -709,7 +709,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
-	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnscli, err := cnsc.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return plugin.Errorf(err.Error())
@@ -891,7 +891,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	switch nwCfg.Ipam.Type {
 	case network.AzureCNS:
 		cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-		cnsClient, err := cnsclient.InitCnsClient(cnsURL, defaultRequestTimeout)
+		cnsClient, err := cnsc.New(cnsURL, defaultRequestTimeout)
 		if err != nil {
 			log.Printf("[cni-net] failed to create cns client", networkId, err)
 			return err
@@ -909,7 +909,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 
-		if !cnsclient.IsNotFound(err) {
+		if !cnsc.IsNotFound(err) {
 			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
 			return err
 		}
@@ -953,7 +953,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnscli, err := cnsc.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return plugin.Errorf(err.Error())
@@ -1105,7 +1105,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnscli, err := cnsc.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return plugin.Errorf(err.Error())

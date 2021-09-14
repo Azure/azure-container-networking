@@ -9,7 +9,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -30,7 +29,7 @@ const (
 type CNSIPAMInvoker struct {
 	podName      string
 	podNamespace string
-	cnsClient    *cnsclient.Client
+	cnsClient    cnsclient
 }
 
 type IPv4ResultInfo struct {
@@ -43,11 +42,11 @@ type IPv4ResultInfo struct {
 	hostGateway        string
 }
 
-func NewCNSInvoker(podName, namespace string, cnsClient cnsclient.Client) *CNSIPAMInvoker {
+func NewCNSInvoker(podName, namespace string, cnsClient cnsclient) *CNSIPAMInvoker {
 	return &CNSIPAMInvoker{
 		podName:      podName,
 		podNamespace: namespace,
-		cnsClient:    &cnsClient,
+		cnsClient:    cnsClient,
 	}
 }
 

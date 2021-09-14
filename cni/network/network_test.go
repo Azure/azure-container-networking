@@ -74,7 +74,7 @@ func TestPlugin(t *testing.T) {
 		Options: make(map[string]interface{}),
 	}
 	plugin.nm.CreateNetwork(nwInfo)
-	//	plugin.Delete(args)
+	// plugin.Delete(args)
 }
 
 func getTestEndpoint(podname, podnamespace, ipwithcidr, podinterfaceid, infracontainerid string) *acnnetwork.EndpointInfo {

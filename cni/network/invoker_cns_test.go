@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -8,7 +9,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -20,7 +20,7 @@ import (
 // Handler structs
 type requestIPAddressHandler struct {
 	// arguments
-	ipconfigArgument *cns.IPConfigRequest
+	ipconfigArgument cns.IPConfigRequest
 
 	// results
 	result *cns.IPConfigResponse
@@ -28,7 +28,7 @@ type requestIPAddressHandler struct {
 }
 
 type releaseIPAddressHandler struct {
-	ipconfigArgument *cns.IPConfigRequest
+	ipconfigArgument cns.IPConfigRequest
 	err              error
 }
 
@@ -38,12 +38,12 @@ type MockCNSClient struct {
 	release releaseIPAddressHandler
 }
 
-func (c *MockCNSClient) RequestIPAddress(ipconfig *cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
+func (c *MockCNSClient) RequestIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
 	c.require.Exactly(c.request.ipconfigArgument, ipconfig)
 	return c.request.result, c.request.err
 }
 
-func (c *MockCNSClient) ReleaseIPAddress(ipconfig *cns.IPConfigRequest) error {
+func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) error {
 	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
 	return c.release.err
 }
@@ -62,8 +62,8 @@ func marshallPodInfo(podInfo cns.KubernetesPodInfo) []byte {
 
 var testPodInfo cns.KubernetesPodInfo
 
-func getTestIPConfigRequest() *cns.IPConfigRequest {
-	return &cns.IPConfigRequest{
+func getTestIPConfigRequest() cns.IPConfigRequest {
+	return cns.IPConfigRequest{
 		PodInterfaceID:      "testcont-testifname",
 		InfraContainerID:    "testcontainerid",
 		OrchestratorContext: marshallPodInfo(testPodInfo),
@@ -75,7 +75,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 	type fields struct {
 		podName      string
 		podNamespace string
-		cnsClient    cnsclient.CNSClientInterface
+		cnsClient    cnsclient
 	}
 	type args struct {
 		nwCfg            *cni.NetworkConfig
@@ -200,7 +200,7 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 	type fields struct {
 		podName      string
 		podNamespace string
-		cnsClient    cnsclient.CNSClientInterface
+		cnsClient    cnsclient
 	}
 	type args struct {
 		address *net.IPNet
