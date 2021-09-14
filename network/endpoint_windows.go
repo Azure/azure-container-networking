@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim"
@@ -64,7 +65,7 @@ func ConstructEndpointID(containerID string, netNsPath string, ifName string) (s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(cli apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(cli apipaClient, _ netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
 	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
@@ -386,7 +387,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(cli apipaClient, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(cli apipaClient, _ netlinkinterface.NetlinkInterface, ep *endpoint) error {
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
 		if err != nil {
 			return err
