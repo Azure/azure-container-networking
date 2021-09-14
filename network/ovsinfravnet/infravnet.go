@@ -19,15 +19,13 @@ type OVSInfraVnetClient struct {
 	ContainerInfraVethName string
 	containerInfraMac      string
 	netlink                netlink.Netlink
-	epc                    epcommon.NetlinkRedirection
 }
 
-func NewInfraVnetClient(hostIfName string, contIfName string, netlink netlink.Netlink, epc epcommon.NetlinkRedirection) OVSInfraVnetClient {
+func NewInfraVnetClient(hostIfName string, contIfName string, netlink netlink.Netlink) OVSInfraVnetClient {
 	infraVnetClient := OVSInfraVnetClient{
 		hostInfraVethName:      hostIfName,
 		ContainerInfraVethName: contIfName,
 		netlink:                netlink,
-		epc:                    epc,
 	}
 
 	log.Printf("Initialize new infravnet client %+v", infraVnetClient)
@@ -36,7 +34,8 @@ func NewInfraVnetClient(hostIfName string, contIfName string, netlink netlink.Ne
 }
 
 func (client *OVSInfraVnetClient) CreateInfraVnetEndpoint(bridgeName string) error {
-	if err := client.epc.CreateEndpoint(client.hostInfraVethName, client.ContainerInfraVethName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.CreateEndpoint(client.hostInfraVethName, client.ContainerInfraVethName); err != nil {
 		log.Printf("Creating infraep failed with error %v", err)
 		return err
 	}
@@ -91,7 +90,8 @@ func (client *OVSInfraVnetClient) MoveInfraEndpointToContainerNS(netnsPath strin
 }
 
 func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
-	if err := client.epc.SetupContainerInterface(client.ContainerInfraVethName, azureInfraIfName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.SetupContainerInterface(client.ContainerInfraVethName, azureInfraIfName); err != nil {
 		return err
 	}
 

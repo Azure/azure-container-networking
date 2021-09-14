@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/platform"
 )
 
@@ -25,8 +26,7 @@ type TransparentEndpointClient struct {
 	containerMac      net.HardwareAddr
 	hostVethMac       net.HardwareAddr
 	mode              string
-	netlink           netlink.Netlink
-	epc               epcommon.NetlinkRedirection
+	netlink           netlinkinterface.NetlinkInterface
 }
 
 func NewTransparentEndpointClient(
@@ -45,7 +45,6 @@ func NewTransparentEndpointClient(
 		mode:              mode,
 		// TODO now take netlink as input for this new func
 		netlink: netlink.NewNetlink(),
-		epc:     epcommon.NewNetlinkRedirection(netlink.NewNetlink()),
 	}
 
 	return client
@@ -66,7 +65,8 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 		}
 	}
 
-	if err := client.epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return err
 	}
 
@@ -138,7 +138,8 @@ func (client *TransparentEndpointClient) MoveEndpointsToContainerNS(epInfo *Endp
 }
 
 func (client *TransparentEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-	if err := client.epc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
 		return err
 	}
 
@@ -148,7 +149,8 @@ func (client *TransparentEndpointClient) SetupContainerInterfaces(epInfo *Endpoi
 }
 
 func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
-	if err := client.epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
 		return err
 	}
 

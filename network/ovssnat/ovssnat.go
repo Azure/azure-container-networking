@@ -34,7 +34,6 @@ type OVSSnatClient struct {
 	snatBridgeIP           string
 	SkipAddressesFromBlock []string
 	netlink                netlink.Netlink
-	epc                    epcommon.NetlinkRedirection
 }
 
 func NewSnatClient(hostIfName string,
@@ -44,7 +43,6 @@ func NewSnatClient(hostIfName string,
 	hostPrimaryMac string,
 	skipAddressesFromBlock []string,
 	netlink netlink.Netlink,
-	epc epcommon.NetlinkRedirection,
 ) OVSSnatClient {
 	log.Printf("Initialize new snat client")
 	snatClient := OVSSnatClient{
@@ -54,7 +52,6 @@ func NewSnatClient(hostIfName string,
 		snatBridgeIP:          snatBridgeIP,
 		hostPrimaryMac:        hostPrimaryMac,
 		netlink:               netlink,
-		epc:                   epc,
 	}
 
 	snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, skipAddressesFromBlock...)
@@ -83,8 +80,9 @@ func (client *OVSSnatClient) CreateSnatEndpoint(bridgeName string) error {
 		return err
 	}
 
+	epc := epcommon.NewEPCommon(client.netlink)
 	// Create veth pair to tie one end to container and other end to linux bridge
-	if err := client.epc.CreateEndpoint(client.hostSnatVethName, client.containerSnatVethName); err != nil {
+	if err := epc.CreateEndpoint(client.hostSnatVethName, client.containerSnatVethName); err != nil {
 		log.Printf("Creating Snat Endpoint failed with error %v", err)
 		return err
 	}
@@ -128,7 +126,8 @@ func (client *OVSSnatClient) MoveSnatEndpointToContainerNS(netnsPath string, nsI
 	Configure Routes and setup name for container veth
 **/
 func (client *OVSSnatClient) SetupSnatContainerInterface() error {
-	if err := client.epc.SetupContainerInterface(client.containerSnatVethName, azureSnatIfName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.SetupContainerInterface(client.containerSnatVethName, azureSnatIfName); err != nil {
 		return err
 	}
 

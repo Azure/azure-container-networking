@@ -12,6 +12,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 )
 
 const (
@@ -238,7 +239,7 @@ func (nw *network) deleteEndpointImpl(ep *endpoint) error {
 func (ep *endpoint) getInfoImpl(epInfo *EndpointInfo) {
 }
 
-func addRoutes(nl netlink.Netlink, interfaceName string, routes []RouteInfo) error {
+func addRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
@@ -279,7 +280,7 @@ func addRoutes(nl netlink.Netlink, interfaceName string, routes []RouteInfo) err
 	return nil
 }
 
-func deleteRoutes(nl netlink.Netlink, interfaceName string, routes []RouteInfo) error {
+func deleteRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
@@ -380,7 +381,7 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 	return ep, nil
 }
 
-func updateRoutes(nl netlink.Netlink, existingEp *EndpointInfo, targetEp *EndpointInfo) error {
+func updateRoutes(nl netlinkinterface.NetlinkInterface, existingEp *EndpointInfo, targetEp *EndpointInfo) error {
 	log.Printf("Updating routes for the endpoint %+v.", existingEp)
 	log.Printf("Target endpoint is %+v", targetEp)
 

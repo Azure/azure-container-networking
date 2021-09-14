@@ -79,7 +79,7 @@ type DummyLink struct {
 }
 
 // AddLink adds a new network interface of a specified type.
-func (_ Netlink) AddLink(link Link) error {
+func (Netlink) AddLink(link Link) error {
 	info := link.Info()
 
 	if info.Name == "" || info.Type == "" {
@@ -152,7 +152,7 @@ func (_ Netlink) AddLink(link Link) error {
 }
 
 // DeleteLink deletes a network interface.
-func (_ Netlink) DeleteLink(name string) error {
+func (Netlink) DeleteLink(name string) error {
 	if name == "" {
 		log.Printf("[net] Invalid link name. Not returning error")
 		return nil
@@ -179,7 +179,7 @@ func (_ Netlink) DeleteLink(name string) error {
 }
 
 // SetLinkName sets the name of a network interface.
-func (_ Netlink) SetLinkName(name string, newName string) error {
+func (Netlink) SetLinkName(name string, newName string) error {
 	s, err := getSocket()
 	if err != nil {
 		return err
@@ -206,7 +206,7 @@ func (_ Netlink) SetLinkName(name string, newName string) error {
 }
 
 // SetLinkState sets the operational state of a network interface.
-func (_ Netlink) SetLinkState(name string, up bool) error {
+func (Netlink) SetLinkState(name string, up bool) error {
 	s, err := getSocket()
 	if err != nil {
 		return err
@@ -237,7 +237,7 @@ func (_ Netlink) SetLinkState(name string, up bool) error {
 }
 
 // SetLinkMaster sets the master (upper) device of a network interface.
-func (_ Netlink) SetLinkMaster(name string, master string) error {
+func (Netlink) SetLinkMaster(name string, master string) error {
 	s, err := getSocket()
 	if err != nil {
 		return err
@@ -273,7 +273,7 @@ func (_ Netlink) SetLinkMaster(name string, master string) error {
 }
 
 // SetLinkNetNs sets the network namespace of a network interface.
-func (_ Netlink) SetLinkNetNs(name string, fd uintptr) error {
+func (Netlink) SetLinkNetNs(name string, fd uintptr) error {
 	s, err := getSocket()
 	if err != nil {
 		return err
@@ -300,7 +300,7 @@ func (_ Netlink) SetLinkNetNs(name string, fd uintptr) error {
 }
 
 // SetLinkAddress sets the link layer hardware address of a network interface.
-func (_ Netlink) SetLinkAddress(ifName string, hwAddress net.HardwareAddr) error {
+func (Netlink) SetLinkAddress(ifName string, hwAddress net.HardwareAddr) error {
 	s, err := getSocket()
 	if err != nil {
 		return err
@@ -327,7 +327,7 @@ func (_ Netlink) SetLinkAddress(ifName string, hwAddress net.HardwareAddr) error
 
 // SetLinkPromisc sets the promiscuous mode of a network interface.
 // TODO do we need this function, not used anywhere currently
-func (_ Netlink) SetLinkPromisc(ifName string, on bool) error {
+func (Netlink) SetLinkPromisc(ifName string, on bool) error {
 	s, err := getSocket()
 	if err != nil {
 		return err
@@ -358,7 +358,7 @@ func (_ Netlink) SetLinkPromisc(ifName string, on bool) error {
 }
 
 // SetLinkHairpin sets the hairpin (reflective relay) mode of a bridged interface.
-func (_ Netlink) SetLinkHairpin(bridgeName string, on bool) error {
+func (Netlink) SetLinkHairpin(bridgeName string, on bool) error {
 	s, err := getSocket()
 	if err != nil {
 		return err
@@ -392,7 +392,7 @@ func (_ Netlink) SetLinkHairpin(bridgeName string, on bool) error {
 }
 
 // AddOrRemoveStaticArp sets/removes static arp entry based on mode
-func (_ Netlink) AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac net.HardwareAddr, isProxy bool) error {
+func (Netlink) AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac net.HardwareAddr, isProxy bool) error {
 	s, err := getSocket()
 	if err != nil {
 		return err

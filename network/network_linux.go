@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/platform"
 	"golang.org/x/sys/unix"
 )
@@ -576,7 +577,7 @@ func (nm *networkManager) addBridgeRoutes(bridgeName string, routes []RouteInfo)
 }
 
 // Add ipv6 nat gateway IP on bridge
-func addIpv6NatGateway(netlink netlink.Netlink, nwInfo *NetworkInfo) error {
+func addIpv6NatGateway(netlink netlinkinterface.NetlinkInterface, nwInfo *NetworkInfo) error {
 	log.Printf("[net] Adding ipv6 nat gateway on azure bridge")
 	for _, subnetInfo := range nwInfo.Subnets {
 		if subnetInfo.Family == platform.AfINET6 {
@@ -584,7 +585,7 @@ func addIpv6NatGateway(netlink netlink.Netlink, nwInfo *NetworkInfo) error {
 				IP:   subnetInfo.Gateway,
 				Mask: subnetInfo.Prefix.Mask,
 			}}
-			epc := epcommon.NewNetlinkRedirection(netlink)
+			epc := epcommon.NewEPCommon(netlink)
 			return epc.AssignIPToInterface(nwInfo.BridgeName, ipAddr)
 		}
 	}

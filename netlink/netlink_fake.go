@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-
-	"golang.org/x/sys/unix"
 )
 
 type FakeNetlink struct {
@@ -105,16 +103,6 @@ func (f *FakeNetlink) AddOrRemoveStaticArp(_ int, name string, _ net.IP, _ net.H
 	return nil
 }
 
-func (f *FakeNetlink) GetIpAddressFamily(ip net.IP) int {
-	if len(ip) <= net.IPv4len {
-		return unix.AF_INET
-	}
-	if ip.To4() != nil {
-		return unix.AF_INET
-	}
-	return unix.AF_INET6
-}
-
 func (f *FakeNetlink) AddIpAddress(ifName string, _ net.IP, _ *net.IPNet) error {
 	if f.returnError {
 		errString := fmt.Sprintf("[netlink] failed to AddIpAddress %s with %s", ifName, f.errorString)
@@ -149,7 +137,4 @@ func (f *FakeNetlink) DeleteIpRoute(_ *Route) error {
 		return errors.New(f.errorString)
 	}
 	return nil
-}
-
-func (f *FakeNetlink) ResetSocket() {
 }

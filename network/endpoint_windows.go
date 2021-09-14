@@ -470,6 +470,6 @@ func (ep *endpoint) getInfoImpl(epInfo *EndpointInfo) {
 }
 
 // updateEndpointImpl in windows does nothing for now
-func (nw *network) updateEndpointImpl(existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
+func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
 	return nil, nil
 }

@@ -52,7 +52,7 @@ func NewLinuxBridgeEndpointClient(
 }
 
 func (client *LinuxBridgeEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
-	epc := epcommon.NewNetlinkRedirection(client.netlink)
+	epc := epcommon.NewEPCommon(client.netlink)
 	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func (client *LinuxBridgeEndpointClient) MoveEndpointsToContainerNS(epInfo *Endp
 }
 
 func (client *LinuxBridgeEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-	epc := epcommon.NewNetlinkRedirection(client.netlink)
+	epc := epcommon.NewEPCommon(client.netlink)
 	if err := epc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (client *LinuxBridgeEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		}
 	}
 
-	epc := epcommon.NewNetlinkRedirection(client.netlink)
+	epc := epcommon.NewEPCommon(client.netlink)
 	if err := epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
 		return err
 	}

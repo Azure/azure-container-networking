@@ -27,7 +27,6 @@ type OVSEndpointClient struct {
 	allowInboundFromNCToHost bool
 	enableSnatForDns         bool
 	netlink                  netlink.Netlink
-	epc                      epcommon.NetlinkRedirection
 }
 
 const (
@@ -57,7 +56,6 @@ func NewOVSEndpointClient(
 		enableSnatForDns:         epInfo.EnableSnatForDns,
 		// TODO now take netlink as input for this new func
 		netlink: netlink.NewNetlink(),
-		epc:     epcommon.NewNetlinkRedirection(netlink.NewNetlink()),
 	}
 
 	NewInfraVnetClient(client, epInfo.Id[:7])
@@ -67,7 +65,8 @@ func NewOVSEndpointClient(
 }
 
 func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
-	if err := client.epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return err
 	}
 
@@ -188,7 +187,8 @@ func (client *OVSEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo
 }
 
 func (client *OVSEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-	if err := client.epc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
 		return err
 	}
 
@@ -202,7 +202,8 @@ func (client *OVSEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) 
 }
 
 func (client *OVSEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
-	if err := client.epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
 		return err
 	}
 
