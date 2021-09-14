@@ -490,10 +490,12 @@ FMT_PKG ?= cni cns npm
 fmt format: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
 	$(GOFUMPT) -s -w $(FMT_PKG)
 
+COVER_PKG ?= .
+
 # run all tests
 .PHONY: test-all
 test-all:
-	go test -tags "unit" -coverpkg=./... -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
+	go test -tags "unit" -coverpkg=$(COVER_PKG)/... -v -race -covermode atomic -coverprofile coverage.out $(COVER_PKG)/...
 
 
 # run all tests
