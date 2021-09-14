@@ -1,3 +1,6 @@
+//go:build cli
+// +build cli
+
 package cmd
 
 import (

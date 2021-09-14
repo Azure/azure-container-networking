@@ -246,7 +246,7 @@ $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT): $(CNIFILES)
 
 # Build the Azure CLI network plugin.
 $(ACNCLI_BUILD_DIR)/acncli$(EXE_EXT): $(CNIFILES)
-	CGO_ENABLED=0 CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(ACNCLI_DIR)/*.go
+	CGO_ENABLED=0 CGO_ENABLED=0 go build --tags cli -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true" $(ACNCLI_DIR)/*.go
 
 # Build the Azure CNS Service.
 $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT): $(CNSFILES)
@@ -491,12 +491,12 @@ fmt format: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
 	$(GOFUMPT) -s -w $(FMT_PKG)
 
 # run all tests
-# go list ./... doesn't include files tagged with 'test' or 'unit'
+# go list ./... doesn't include files tagged with 'test', 'cli', or 'unit'
 .PHONY: test-all
 test-all:
 	@$(eval COVER_PKG=`go list ./... | tr '\n' ','`)
 	@echo Test coverpkg: $(COVER_PKG)
-	go test -tags "test,unit" -coverpkg=$(COVER_PKG) -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
+	go test -tags "test,cli,unit" -coverpkg=$(COVER_PKG) -v -race -covermode atomic -failfast -coverprofile=coverage.out ./...
 
 
 # run all tests
