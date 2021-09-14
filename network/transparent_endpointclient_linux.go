@@ -41,6 +41,7 @@ func NewTransparentEndpointClient(
 	hostVethName string,
 	containerVethName string,
 	mode string,
+	netlink netlinkinterface.NetlinkInterface,
 ) *TransparentEndpointClient {
 
 	client := &TransparentEndpointClient{
@@ -50,8 +51,7 @@ func NewTransparentEndpointClient(
 		containerVethName: containerVethName,
 		hostPrimaryMac:    extIf.MacAddress,
 		mode:              mode,
-		// TODO now take netlink as input for this new func
-		netlink: netlink.NewNetlink(),
+		netlink:           netlink,
 	}
 
 	return client

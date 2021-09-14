@@ -29,13 +29,17 @@ type LinuxBridgeClient struct {
 	netlink           netlinkinterface.NetlinkInterface
 }
 
-func NewLinuxBridgeClient(bridgeName string, hostInterfaceName string, nwInfo NetworkInfo) *LinuxBridgeClient {
+func NewLinuxBridgeClient(
+	bridgeName string,
+	hostInterfaceName string,
+	nwInfo NetworkInfo,
+	netlink netlinkinterface.NetlinkInterface,
+) *LinuxBridgeClient {
 	client := &LinuxBridgeClient{
 		bridgeName:        bridgeName,
 		nwInfo:            nwInfo,
 		hostInterfaceName: hostInterfaceName,
-		// TODO take in netlink as input
-		netlink: netlink.NewNetlink(),
+		netlink:           netlink,
 	}
 
 	return client

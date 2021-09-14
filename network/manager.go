@@ -11,7 +11,6 @@ import (
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -86,10 +85,10 @@ type NetworkManager interface {
 }
 
 // Creates a new network manager.
-func NewNetworkManager() (NetworkManager, error) {
+func NewNetworkManager(netlink netlinkinterface.NetlinkInterface) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
-		netlink:            netlink.NewNetlink(),
+		netlink:            netlink,
 	}
 
 	return nm, nil
@@ -334,7 +333,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 		}
 	}
 
-	_, err = nw.newEndpoint(cli, epInfo)
+	_, err = nw.newEndpoint(cli, nm.netlink, epInfo)
 	if err != nil {
 		return err
 	}
@@ -357,7 +356,7 @@ func (nm *networkManager) DeleteEndpoint(cli apipaClient, networkID string, endp
 		return err
 	}
 
-	err = nw.deleteEndpoint(cli, endpointID)
+	err = nw.deleteEndpoint(cli, nm.netlink, endpointID)
 	if err != nil {
 		return err
 	}

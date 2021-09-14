@@ -4,7 +4,6 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
 	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/network/ovsinfravnet"
@@ -41,7 +40,8 @@ func NewOVSEndpointClient(
 	hostVethName string,
 	containerVethName string,
 	vlanid int,
-	localIP string) *OVSEndpointClient {
+	localIP string,
+	netlink netlinkinterface.NetlinkInterface) *OVSEndpointClient {
 
 	client := &OVSEndpointClient{
 		bridgeName:               nw.extIf.BridgeName,
@@ -55,8 +55,7 @@ func NewOVSEndpointClient(
 		allowInboundFromHostToNC: epInfo.AllowInboundFromHostToNC,
 		allowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
 		enableSnatForDns:         epInfo.EnableSnatForDns,
-		// TODO now take netlink as input for this new func
-		netlink: netlink.NewNetlink(),
+		netlink:                  netlink,
 	}
 
 	NewInfraVnetClient(client, epInfo.Id[:7])
