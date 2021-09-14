@@ -366,7 +366,7 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 	}
 
 	log.Printf("[updateEndpointImpl] Going to update routes in netns %v.", netns)
-	if err = updateRoutes(nm.netlink, existingEpInfo, targetEpInfo); err != nil {
+	if err = nm.updateRoutes(existingEpInfo, targetEpInfo); err != nil {
 		return nil, err
 	}
 
@@ -381,7 +381,7 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 	return ep, nil
 }
 
-func updateRoutes(nl netlinkinterface.NetlinkInterface, existingEp *EndpointInfo, targetEp *EndpointInfo) error {
+func (nm *networkManager) updateRoutes(existingEp *EndpointInfo, targetEp *EndpointInfo) error {
 	log.Printf("Updating routes for the endpoint %+v.", existingEp)
 	log.Printf("Target endpoint is %+v", targetEp)
 
@@ -438,12 +438,12 @@ func updateRoutes(nl netlinkinterface.NetlinkInterface, existingEp *EndpointInfo
 
 	}
 
-	err := deleteRoutes(nl, existingEp.IfName, tobeDeletedRoutes)
+	err := deleteRoutes(nm.netlink, existingEp.IfName, tobeDeletedRoutes)
 	if err != nil {
 		return err
 	}
 
-	err = addRoutes(nl, existingEp.IfName, tobeAddedRoutes)
+	err = addRoutes(nm.netlink, existingEp.IfName, tobeAddedRoutes)
 	if err != nil {
 		return err
 	}

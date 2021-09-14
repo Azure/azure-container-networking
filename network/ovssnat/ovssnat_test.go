@@ -99,6 +99,10 @@ func TestAllowInboundFromNCToHost(t *testing.T) {
 		t.Errorf("Error removing inbound rule: %v", err)
 	}
 
-	nl.DeleteLink(anyInterface)
-	nl.DeleteLink(SnatBridgeName)
+	if err := nl.DeleteLink(anyInterface); err != nil {
+		t.Errorf("Error removing any interface link: %v", err)
+	}
+	if err := nl.DeleteLink(SnatBridgeName); err != nil {
+		t.Errorf("Error removing snat bridge: %v", err)
+	}
 }

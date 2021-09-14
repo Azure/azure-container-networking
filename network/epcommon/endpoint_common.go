@@ -100,10 +100,11 @@ func (epc EPCommon) SetupContainerInterface(containerVethName string, targetIfNa
 }
 
 func (epc EPCommon) AssignIPToInterface(interfaceName string, ipAddresses []net.IPNet) error {
+	var err error
 	// Assign IP address to container network interface.
 	for _, ipAddr := range ipAddresses {
 		log.Printf("[net] Adding IP address %v to link %v.", ipAddr.String(), interfaceName)
-		err := epc.netlink.AddIpAddress(interfaceName, ipAddr.IP, &ipAddr)
+		err = epc.netlink.AddIpAddress(interfaceName, ipAddr.IP, &ipAddr)
 		if err != nil {
 			return err
 		}

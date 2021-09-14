@@ -121,7 +121,7 @@ func (client *TransparentEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 
 func (client *TransparentEndpointClient) DeleteEndpointRules(ep *endpoint) {
 	var routeInfoList []RouteInfo
-
+	var err error
 	// ip route del <podip> dev <hostveth>
 	// Deleting the route set up for routing the incoming packets to pod
 	for _, ipAddr := range ep.IPAddresses {
@@ -130,7 +130,10 @@ func (client *TransparentEndpointClient) DeleteEndpointRules(ep *endpoint) {
 		log.Printf("[net] Deleting route for the ip %v", ipNet.String())
 		routeInfo.Dst = ipNet
 		routeInfoList = append(routeInfoList, routeInfo)
-		deleteRoutes(client.netlink, client.hostVethName, routeInfoList)
+		err = deleteRoutes(client.netlink, client.hostVethName, routeInfoList)
+		if err != nil {
+			log.Printf("[net] Failed to delete route for the ip %v: %v", ipNet.String(), err)
+		}
 	}
 }
 
