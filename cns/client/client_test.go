@@ -346,7 +346,11 @@ func TestCNSClientDebugAPI(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
+	fqdnBaseURL := "http://testinstance.centraluseuap.cloudapp.azure.com"
+	fqdnWithPortBaseURL := fqdnBaseURL + ":10090"
 	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	fqdnRoutes, _ := buildRoutes(fqdnBaseURL, clientPaths)
+	fqdnWithPortRoutes, _ := buildRoutes(fqdnWithPortBaseURL, clientPaths)
 	tests := []struct {
 		name    string
 		url     string
@@ -364,6 +368,34 @@ func TestNew(t *testing.T) {
 				},
 			},
 			wantErr: false,
+		},
+		{
+			name: "FQDN",
+			url:  fqdnBaseURL,
+			want: &Client{
+				routes: fqdnRoutes,
+				client: &http.Client{
+					Timeout: 0,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "FQDN with port",
+			url:  fqdnWithPortBaseURL,
+			want: &Client{
+				routes: fqdnWithPortRoutes,
+				client: &http.Client{
+					Timeout: 0,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "bad path",
+			url:     "postgres://user:abc{DEf1=ghi@example.com:5432/db?sslmode=require",
+			want:    nil,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
