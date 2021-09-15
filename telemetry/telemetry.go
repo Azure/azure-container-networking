@@ -5,11 +5,11 @@ package telemetry
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -122,21 +122,15 @@ func (reportMgr *ReportManager) SendReport(tb *TelemetryBuffer) error {
 
 // ReportToBytes - returns the report bytes
 func (reportMgr *ReportManager) ReportToBytes() ([]byte, error) {
-	var err error
-	var report []byte
 
 	switch reportMgr.Report.(type) {
 	case *CNIReport:
 	case *AIMetric:
 	default:
-		err = fmt.Errorf("[Telemetry] Invalid report type %T", reportMgr.Report)
+		return []byte{}, errors.Errorf("Invalid report type: %T", reportMgr.Report)
 	}
 
-	if err != nil {
-		return []byte{}, err
-	}
-
-	report, err = json.Marshal(reportMgr.Report)
+	report, err := json.Marshal(reportMgr.Report)
 	return report, err
 }
 

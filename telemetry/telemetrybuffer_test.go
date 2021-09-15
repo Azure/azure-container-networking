@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,16 +96,16 @@ func TestWrite(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		tt := test
+	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tbClient.Write(tt.data)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -137,21 +136,21 @@ func TestReadConfigFile(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		tt := test
+	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ReadConfigFile(tt.fileName)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestStartTelemetryService(t *testing.T) {
 	err := StartTelemetryService("", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 }

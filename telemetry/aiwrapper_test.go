@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateAITelemetryHandle(t *testing.T) {
@@ -35,15 +35,15 @@ func TestCreateAITelemetryHandle(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		tt := test
+	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := CreateAITelemetryHandle(tt.aiConfig, tt.disableAll, tt.disableMetric, tt.disableTrace)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }

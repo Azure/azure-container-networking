@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +17,7 @@ var telemetryTests = []struct {
 	wantErr bool
 }{
 	{
-		name: "aimetric",
+		name: "aimetric type",
 		Data: &AIMetric{
 			Metric: aitelemetry.Metric{
 				Name:             "test",
@@ -29,7 +28,7 @@ var telemetryTests = []struct {
 		wantErr: false,
 	},
 	{
-		name: "cnireport",
+		name: "cnireport type",
 		Data: &CNIReport{
 			Name:              "test-cnireport",
 			Version:           "11",
@@ -40,12 +39,12 @@ var telemetryTests = []struct {
 		wantErr: false,
 	},
 	{
-		name:    "nil report",
+		name:    "nil type",
 		Data:    nil,
 		wantErr: true,
 	},
 	{
-		name:    "unexpected type report",
+		name:    "unexpected type",
 		Data:    1,
 		wantErr: true,
 	},
@@ -60,16 +59,16 @@ func TestMain(m *testing.M) {
 
 func TestReportToBytes(t *testing.T) {
 	reportManager := &ReportManager{}
-	for _, test := range telemetryTests {
-		tt := test
+	for _, tt := range telemetryTests {
+		tt := tt
 		reportManager.Report = tt.Data
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := reportManager.ReportToBytes()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -82,16 +81,16 @@ func TestSendReport(t *testing.T) {
 	require.NoError(t, err)
 
 	reportManager := &ReportManager{}
-	for _, test := range telemetryTests {
-		tt := test
+	for _, tt := range telemetryTests {
+		tt := tt
 		reportManager.Report = tt.Data
 		t.Run(tt.name, func(t *testing.T) {
 			err := reportManager.SendReport(tb)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -126,15 +125,15 @@ func TestSendCNIMetric(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		tt := test
+	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := SendCNIMetric(tt.metric, tb)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -143,12 +142,12 @@ func TestGetOSDetails(t *testing.T) {
 	expectedErrMsg := ""
 	cniReport := &CNIReport{}
 	cniReport.GetSystemDetails()
-	assert.Equal(t, expectedErrMsg, cniReport.ErrorMessage)
+	require.Equal(t, expectedErrMsg, cniReport.ErrorMessage)
 }
 
 func TestGetSystemDetails(t *testing.T) {
 	expectedErrMsg := ""
 	cniReport := &CNIReport{}
 	cniReport.GetSystemDetails()
-	assert.Equal(t, expectedErrMsg, cniReport.ErrorMessage)
+	require.Equal(t, expectedErrMsg, cniReport.ErrorMessage)
 }
