@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -45,44 +46,84 @@ const (
 var dnsservers = []string{"8.8.8.8", "8.8.4.4"}
 
 type mockdo struct {
-	podInfoToNCResponse map[string]*cns.GetNetworkContainerResponse
+	podInfoToNCResponse                     map[string]*cns.GetNetworkContainerResponse
+	ncIDtoCreateHostNCApipaEndpointResponse map[string]*cns.CreateHostNCApipaEndpointResponse
+}
+
+func packToHTTPBody(obj interface{}) (io.ReadCloser, error) {
+	byteArray, err := json.Marshal(obj)
+	if err != nil {
+		return nil, errors.Wrap(err, "Marshal object failed")
+	}
+	return ioutil.NopCloser(bytes.NewReader(byteArray)), nil
 }
 
 func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
-	payload := cns.GetNetworkContainerRequest{}
-	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-		return nil, errors.Wrap(err, "Decoding the request failed")
-	}
+	switch req.URL.Path {
+	case cns.GetNetworkContainerByOrchestratorContext:
+		payload := cns.GetNetworkContainerRequest{}
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			return nil, errors.Wrap(err, "Decoding the request failed")
+		}
 
-	podInfo := cns.KubernetesPodInfo{}
-	if err := json.Unmarshal(payload.OrchestratorContext, &podInfo); err != nil {
-		return nil, errors.Wrap(err, "Unmarshaling orchestator context failed")
-	}
+		podInfo := cns.KubernetesPodInfo{}
+		if err := json.Unmarshal(payload.OrchestratorContext, &podInfo); err != nil {
+			return nil, errors.Wrap(err, "Unmarshaling orchestator context failed")
+		}
 
-	if podInfo.PodName == "INTERNAL_SERVER_ERROR" {
+		if podInfo.PodName == "INTERNAL_SERVER_ERROR" {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			}, nil
+		}
+
+		getNCResponse, exists := m.podInfoToNCResponse[podInfo.PodName+podInfo.PodNamespace]
+		if !exists {
+			return nil, errors.New("Pod not found in mockdo")
+		}
+
+		body, err := packToHTTPBody(getNCResponse)
+		if err != nil {
+			return nil, errors.Wrap(err, "Packing interface to http body failed")
+		}
+
 		return &http.Response{
-			StatusCode: http.StatusInternalServerError,
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			StatusCode: 200,
+			Body:       body,
 		}, nil
-	}
 
-	getNCResponse, exists := m.podInfoToNCResponse[podInfo.PodName+podInfo.PodNamespace]
-	if !exists {
-		return nil, errors.New("Pod not found in mockdo")
-	}
+	case cns.CreateHostNCApipaEndpointPath:
+		payload := cns.CreateHostNCApipaEndpointRequest{}
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			return nil, errors.Wrap(err, "Decoding the request failed")
+		}
 
-	byteArray, err := json.Marshal(getNCResponse)
-	if err != nil {
-		return nil, errors.Wrap(err, "Marshal getNCResponse failed")
-	}
+		if payload.NetworkContainerID == "INTERNAL_SERVER_ERROR" {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			}, nil
+		}
 
-	body := ioutil.NopCloser(bytes.NewReader(byteArray))
-	resp := &http.Response{
-		StatusCode: 200,
-		Body:       body,
-	}
+		createHostNCApipaEndpointResponse, exists := m.ncIDtoCreateHostNCApipaEndpointResponse[payload.NetworkContainerID]
+		if !exists {
+			return nil, errors.New("Host NC Apipia endpoint not found in mockdo")
+		}
 
-	return resp, nil
+		body, err := packToHTTPBody(createHostNCApipaEndpointResponse)
+		if err != nil {
+			return nil, errors.Wrap(err, "Packing interface to http body failed")
+		}
+
+		return &http.Response{
+			StatusCode: 200,
+			Body:       body,
+		}, nil
+
+	default:
+		return nil, errors.New("Case not supported in mockdo")
+	}
 }
 
 func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
@@ -526,11 +567,13 @@ func TestBuildRoutes(t *testing.T) {
 }
 
 func TestGetNetworkConfiguration(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
 	tests := []struct {
 		name    string
 		ctx     context.Context
 		podInfo cns.KubernetesPodInfo
 		mockdo  *mockdo
+		routes  map[string]url.URL
 		want    *cns.GetNetworkContainerResponse
 		wantErr bool
 	}{
@@ -546,6 +589,7 @@ func TestGetNetworkConfiguration(t *testing.T) {
 					"testpodname" + "podNamespace": {},
 				},
 			},
+			routes:  emptyRoutes,
 			want:    &cns.GetNetworkContainerResponse{},
 			wantErr: false,
 		},
@@ -557,6 +601,7 @@ func TestGetNetworkConfiguration(t *testing.T) {
 				PodNamespace: "podNamespace",
 			},
 			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
 			want:    nil,
 			wantErr: true,
 		},
@@ -566,6 +611,8 @@ func TestGetNetworkConfiguration(t *testing.T) {
 			podInfo: cns.KubernetesPodInfo{
 				PodName: "INTERNAL_SERVER_ERROR",
 			},
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
 			want:    nil,
 			wantErr: true,
 		},
@@ -585,12 +632,15 @@ func TestGetNetworkConfiguration(t *testing.T) {
 					},
 				},
 			},
+			routes:  emptyRoutes,
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name:    "nil context",
 			ctx:     nil,
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
 			want:    nil,
 			wantErr: true,
 		},
@@ -601,12 +651,99 @@ func TestGetNetworkConfiguration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			client := Client{
 				client: tt.mockdo,
+				routes: tt.routes,
 			}
 
 			orchestratorContext, err := json.Marshal(tt.podInfo)
 			assert.NoError(t, err, "marshaling orchestrator context failed")
 
 			got, err := client.GetNetworkConfiguration(tt.ctx, orchestratorContext)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCreateHostNCApipaEndpoint(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name               string
+		ctx                context.Context
+		networkContainerID string
+		mockdo             *mockdo
+		routes             map[string]url.URL
+		want               string
+		wantErr            bool
+	}{
+		{
+			name:               "existing network container ID",
+			ctx:                context.TODO(),
+			networkContainerID: "testncid",
+			mockdo: &mockdo{
+				ncIDtoCreateHostNCApipaEndpointResponse: map[string]*cns.CreateHostNCApipaEndpointResponse{
+					"testncid": {},
+				},
+			},
+			routes:  emptyRoutes,
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name:               "non existing network container ID",
+			ctx:                context.TODO(),
+			networkContainerID: "testncid",
+			mockdo:             &mockdo{},
+			routes:             emptyRoutes,
+			want:               "",
+			wantErr:            true,
+		},
+		{
+			name:               "status not ok",
+			ctx:                context.TODO(),
+			networkContainerID: "INTERNAL_SERVER_ERROR",
+			mockdo:             &mockdo{},
+			routes:             emptyRoutes,
+			want:               "",
+			wantErr:            true,
+		},
+		{
+			name:               "return code not zero",
+			ctx:                context.TODO(),
+			networkContainerID: "testncid",
+			mockdo: &mockdo{
+				ncIDtoCreateHostNCApipaEndpointResponse: map[string]*cns.CreateHostNCApipaEndpointResponse{
+					"testncid": {
+						Response: cns.Response{
+							ReturnCode: types.UnsupportedNetworkType,
+						},
+					},
+				},
+			},
+			routes:  emptyRoutes,
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "nil context",
+			ctx:     nil,
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			got, err := client.CreateHostNCApipaEndpoint(tt.ctx, tt.networkContainerID)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
