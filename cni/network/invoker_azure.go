@@ -5,6 +5,8 @@ import (
 	"net"
 	"runtime/debug"
 
+	cniTypes "github.com/containernetworking/cni/pkg/types"
+
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -14,8 +16,14 @@ import (
 )
 
 type AzureIPAMInvoker struct {
-	plugin *netPlugin
+	plugin delegatePlugin
 	nwInfo *network.NetworkInfo
+}
+
+type delegatePlugin interface {
+	DelegateAdd(pluginName string, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error)
+	DelegateDel(pluginName string, nwCfg *cni.NetworkConfig) error
+	Errorf(format string, args ...interface{}) *cniTypes.Error
 }
 
 func NewAzureIpamInvoker(plugin *netPlugin, nwInfo *network.NetworkInfo) *AzureIPAMInvoker {
@@ -51,7 +59,7 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArg
 	defer func() {
 		if err != nil {
 			if len(result.IPs) > 0 {
-				if er := invoker.plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, nil, options); er != nil {
+				if er := invoker.Delete(&result.IPs[0].Address, nwCfg, nil, options); er != nil {
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
