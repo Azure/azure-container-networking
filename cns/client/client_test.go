@@ -49,6 +49,7 @@ type mockdo struct {
 	podInfoToNCResponse                     map[string]*cns.GetNetworkContainerResponse
 	ncIDtoCreateHostNCApipaEndpointResponse map[string]*cns.CreateHostNCApipaEndpointResponse
 	ncIDtoDeleteHostNCApipaEndpointResponse map[string]*cns.DeleteHostNCApipaEndpointResponse
+	ipConfigRequestsToIPConfigResponse      map[string]*cns.IPConfigResponse
 }
 
 func packToHTTPBody(obj interface{}) (io.ReadCloser, error) {
@@ -141,6 +142,34 @@ func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 		}
 
 		body, err := packToHTTPBody(deleteHostNCApipaEndpointResponse)
+		if err != nil {
+			return nil, errors.Wrap(err, "Packing interface to http body failed")
+		}
+
+		return &http.Response{
+			StatusCode: 200,
+			Body:       body,
+		}, nil
+
+	case cns.RequestIPConfig:
+		payload := cns.IPConfigRequest{}
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			return nil, errors.Wrap(err, "Decoding the request failed")
+		}
+
+		if payload.DesiredIPAddress == "INTERNAL_SERVER_ERROR" {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			}, nil
+		}
+
+		ipConfigResponse, exists := m.ipConfigRequestsToIPConfigResponse[payload.DesiredIPAddress+payload.PodInterfaceID+payload.InfraContainerID]
+		if !exists {
+			return nil, errors.New("Host NC Apipa endpoint not found in mockdo")
+		}
+
+		body, err := packToHTTPBody(ipConfigResponse)
 		if err != nil {
 			return nil, errors.Wrap(err, "Packing interface to http body failed")
 		}
@@ -858,6 +887,106 @@ func TestDeleteHostNCApipaEndpoint(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestRequestIPAddress(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		ipconfig cns.IPConfigRequest
+		mockdo   *mockdo
+		routes   map[string]url.URL
+		want     *cns.IPConfigResponse
+		wantErr  bool
+	}{
+		{
+			name: "existing ipconfig",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigRequest{
+				DesiredIPAddress: "testipaddress",
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				ipConfigRequestsToIPConfigResponse: map[string]*cns.IPConfigResponse{
+					"testipaddress" + "testpodinterfaceid" + "testcontainerid": {},
+				},
+			},
+			routes:  emptyRoutes,
+			want:    &cns.IPConfigResponse{},
+			wantErr: false,
+		},
+		{
+			name: "non-existing ipconfig",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigRequest{
+				DesiredIPAddress: "testipaddress",
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "status not ok",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigRequest{
+				DesiredIPAddress: "INTERNAL_SERVER_ERROR",
+			},
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "return code not zero",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigRequest{
+				DesiredIPAddress: "testipaddress",
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				ipConfigRequestsToIPConfigResponse: map[string]*cns.IPConfigResponse{
+					"testipaddress" + "testpodinterfaceid" + "testcontainerid": {
+						Response: cns.Response{
+							ReturnCode: types.UnsupportedNetworkType,
+						},
+					},
+				},
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "nil context",
+			ctx:     nil,
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			got, err := client.RequestIPAddress(tt.ctx, tt.ipconfig)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
