@@ -6,14 +6,12 @@ import (
 	"net"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	cniTypes "github.com/containernetworking/cni/pkg/types"
-
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/stretchr/testify/require"
 )
 
 type mockDelegatePlugin struct {
