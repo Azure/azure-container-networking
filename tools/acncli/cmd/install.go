@@ -1,5 +1,5 @@
-//go:build !ignore_cli
-// +build !ignore_cli
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
 
 package cmd
 

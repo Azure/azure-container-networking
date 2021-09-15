@@ -1,5 +1,5 @@
-//go:build !ignore_test
-// +build !ignore_test
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
 
 package nnsmockserver
 
