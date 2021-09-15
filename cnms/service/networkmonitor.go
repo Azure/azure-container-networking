@@ -11,6 +11,7 @@ import (
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -146,7 +147,8 @@ func main() {
 			return
 		}
 
-		nm, err := network.NewNetworkManager()
+		nl := netlink.NewNetlink()
+		nm, err := network.NewNetworkManager(nl)
 		if err != nil {
 			log.Printf("[monitor] Failed while creating network manager")
 			return

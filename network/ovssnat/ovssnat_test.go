@@ -18,13 +18,15 @@ func TestMain(m *testing.M) {
 }
 
 func TestAllowInboundFromHostToNC(t *testing.T) {
+	nl := netlink.NewNetlink()
 	client := &OVSSnatClient{
 		snatBridgeIP:          "169.254.0.1/16",
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
+		netlink:               nl,
 	}
 
-	if err := netlink.AddLink(&netlink.DummyLink{
+	if err := nl.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{
 			Type: netlink.LINK_TYPE_DUMMY,
 			Name: anyInterface,
@@ -33,7 +35,7 @@ func TestAllowInboundFromHostToNC(t *testing.T) {
 		t.Errorf("Error adding dummy interface %v", err)
 	}
 
-	if err := netlink.AddLink(&netlink.DummyLink{
+	if err := nl.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{
 			Type: netlink.LINK_TYPE_DUMMY,
 			Name: SnatBridgeName,
@@ -54,18 +56,24 @@ func TestAllowInboundFromHostToNC(t *testing.T) {
 		t.Errorf("Error removing inbound rule: %v", err)
 	}
 
-	netlink.DeleteLink(anyInterface)
-	netlink.DeleteLink(SnatBridgeName)
+	if err := nl.DeleteLink(anyInterface); err != nil {
+		t.Errorf("Error removing any interface link: %v", err)
+	}
+	if err := nl.DeleteLink(SnatBridgeName); err != nil {
+		t.Errorf("Error removing snat bridge: %v", err)
+	}
 }
 
 func TestAllowInboundFromNCToHost(t *testing.T) {
+	nl := netlink.NewNetlink()
 	client := &OVSSnatClient{
 		snatBridgeIP:          "169.254.0.1/16",
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
+		netlink:               nl,
 	}
 
-	if err := netlink.AddLink(&netlink.DummyLink{
+	if err := nl.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{
 			Type: netlink.LINK_TYPE_DUMMY,
 			Name: anyInterface,
@@ -74,7 +82,7 @@ func TestAllowInboundFromNCToHost(t *testing.T) {
 		t.Errorf("Error adding dummy interface %v", err)
 	}
 
-	if err := netlink.AddLink(&netlink.DummyLink{
+	if err := nl.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{
 			Type: netlink.LINK_TYPE_DUMMY,
 			Name: SnatBridgeName,
@@ -95,6 +103,10 @@ func TestAllowInboundFromNCToHost(t *testing.T) {
 		t.Errorf("Error removing inbound rule: %v", err)
 	}
 
-	netlink.DeleteLink(anyInterface)
-	netlink.DeleteLink(SnatBridgeName)
+	if err := nl.DeleteLink(anyInterface); err != nil {
+		t.Errorf("Error removing any interface link: %v", err)
+	}
+	if err := nl.DeleteLink(SnatBridgeName); err != nil {
+		t.Errorf("Error removing snat bridge: %v", err)
+	}
 }

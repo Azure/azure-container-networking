@@ -12,7 +12,7 @@ func NewInfraVnetClient(client *OVSEndpointClient, epID string) {
 		hostIfName := fmt.Sprintf("%s%s", infraVethInterfacePrefix, epID)
 		contIfName := fmt.Sprintf("%s%s-2", infraVethInterfacePrefix, epID)
 
-		client.infraVnetClient = ovsinfravnet.NewInfraVnetClient(hostIfName, contIfName)
+		client.infraVnetClient = ovsinfravnet.NewInfraVnetClient(hostIfName, contIfName, client.netlink)
 	}
 }
 

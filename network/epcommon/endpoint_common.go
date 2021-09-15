@@ -1,14 +1,17 @@
+//go:build linux
 // +build linux
 
 package epcommon
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/platform"
 )
 
@@ -35,22 +38,23 @@ const (
 	acceptRAV6File       = "/proc/sys/net/ipv6/conf/%s/accept_ra"
 )
 
-func getPrivateIPSpace() []string {
-	privateIPAddresses := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"}
-	return privateIPAddresses
+var errorEPCommon = errors.New("ErrorEPCommon Error")
+
+func newErrorEPCommon(errStr string) error {
+	return fmt.Errorf("%w : %s", errorEPCommon, errStr)
 }
 
-func getFilterChains() []string {
-	chains := []string{"FORWARD", "INPUT", "OUTPUT"}
-	return chains
+type EPCommon struct {
+	netlink netlinkinterface.NetlinkInterface
 }
 
-func getFilterchainTarget() []string {
-	actions := []string{"ACCEPT", "DROP"}
-	return actions
+func NewEPCommon(nl netlinkinterface.NetlinkInterface) EPCommon {
+	return EPCommon{
+		netlink: nl,
+	}
 }
 
-func CreateEndpoint(hostVethName string, containerVethName string) error {
+func (epc EPCommon) CreateEndpoint(hostVethName string, containerVethName string) error {
 	log.Printf("[net] Creating veth pair %v %v.", hostVethName, containerVethName)
 
 	link := netlink.VEthLink{
@@ -61,54 +65,59 @@ func CreateEndpoint(hostVethName string, containerVethName string) error {
 		PeerName: containerVethName,
 	}
 
-	err := netlink.AddLink(&link)
+	err := epc.netlink.AddLink(&link)
 	if err != nil {
 		log.Printf("[net] Failed to create veth pair, err:%v.", err)
-		return err
+		return newErrorEPCommon(err.Error())
 	}
 
 	log.Printf("[net] Setting link %v state up.", hostVethName)
-	err = netlink.SetLinkState(hostVethName, true)
+	err = epc.netlink.SetLinkState(hostVethName, true)
 	if err != nil {
-		return err
+		return newErrorEPCommon(err.Error())
 	}
 
 	if err := DisableRAForInterface(hostVethName); err != nil {
-		return err
+		return newErrorEPCommon(err.Error())
 	}
 
 	return nil
 }
 
-func SetupContainerInterface(containerVethName string, targetIfName string) error {
+func (epc EPCommon) SetupContainerInterface(containerVethName string, targetIfName string) error {
 	// Interface needs to be down before renaming.
 	log.Printf("[net] Setting link %v state down.", containerVethName)
-	if err := netlink.SetLinkState(containerVethName, false); err != nil {
-		return err
+	if err := epc.netlink.SetLinkState(containerVethName, false); err != nil {
+		return newErrorEPCommon(err.Error())
 	}
 
 	// Rename the container interface.
 	log.Printf("[net] Setting link %v name %v.", containerVethName, targetIfName)
-	if err := netlink.SetLinkName(containerVethName, targetIfName); err != nil {
-		return err
+	if err := epc.netlink.SetLinkName(containerVethName, targetIfName); err != nil {
+		return newErrorEPCommon(err.Error())
 	}
 
 	if err := DisableRAForInterface(targetIfName); err != nil {
-		return err
+		return newErrorEPCommon(err.Error())
 	}
 
 	// Bring the interface back up.
 	log.Printf("[net] Setting link %v state up.", targetIfName)
-	return netlink.SetLinkState(targetIfName, true)
+	err := epc.netlink.SetLinkState(targetIfName, true)
+	if err != nil {
+		return newErrorEPCommon(err.Error())
+	}
+	return nil
 }
 
-func AssignIPToInterface(interfaceName string, ipAddresses []net.IPNet) error {
+func (epc EPCommon) AssignIPToInterface(interfaceName string, ipAddresses []net.IPNet) error {
+	var err error
 	// Assign IP address to container network interface.
-	for _, ipAddr := range ipAddresses {
+	for i, ipAddr := range ipAddresses {
 		log.Printf("[net] Adding IP address %v to link %v.", ipAddr.String(), interfaceName)
-		err := netlink.AddIpAddress(interfaceName, ipAddr.IP, &ipAddr)
+		err = epc.netlink.AddIPAddress(interfaceName, ipAddr.IP, &ipAddresses[i])
 		if err != nil {
-			return err
+			return newErrorEPCommon(err.Error())
 		}
 	}
 
@@ -254,4 +263,19 @@ func DisableRAForInterface(ifName string) error {
 	}
 
 	return err
+}
+
+func getPrivateIPSpace() []string {
+	privateIPAddresses := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"}
+	return privateIPAddresses
+}
+
+func getFilterChains() []string {
+	chains := []string{"FORWARD", "INPUT", "OUTPUT"}
+	return chains
+}
+
+func getFilterchainTarget() []string {
+	actions := []string{"ACCEPT", "DROP"}
+	return actions
 }

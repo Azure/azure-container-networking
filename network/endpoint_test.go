@@ -165,12 +165,14 @@ var _ = Describe("Test Endpoint", func() {
 	Describe("Test updateEndpoint", func() {
 		Context("When endpoint not found", func() {
 			It("Should raise errEndpointNotFound", func() {
+				nm := &networkManager{}
+
 				nw := &network{}
 				existingEpInfo := &EndpointInfo{
 					Id: "test",
 				}
 				targetEpInfo := &EndpointInfo{}
-				_, err := nw.updateEndpoint(existingEpInfo, targetEpInfo)
+				err := nm.updateEndpoint(nw, existingEpInfo, targetEpInfo)
 				Expect(err).To(Equal(errEndpointNotFound))
 			})
 		})

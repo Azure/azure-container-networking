@@ -11,6 +11,7 @@ import (
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 )
@@ -56,6 +57,7 @@ type networkManager struct {
 	TimeStamp          time.Time
 	ExternalInterfaces map[string]*externalInterface
 	store              store.KeyValueStore
+	netlink            netlinkinterface.NetlinkInterface
 	sync.Mutex
 }
 
@@ -83,9 +85,10 @@ type NetworkManager interface {
 }
 
 // Creates a new network manager.
-func NewNetworkManager() (NetworkManager, error) {
+func NewNetworkManager(nl netlinkinterface.NetlinkInterface) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
+		netlink:            nl,
 	}
 
 	return nm, nil
@@ -330,7 +333,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 		}
 	}
 
-	_, err = nw.newEndpoint(cli, epInfo)
+	_, err = nw.newEndpoint(cli, nm.netlink, epInfo)
 	if err != nil {
 		return err
 	}
@@ -353,7 +356,7 @@ func (nm *networkManager) DeleteEndpoint(cli apipaClient, networkID string, endp
 		return err
 	}
 
-	err = nw.deleteEndpoint(cli, endpointID)
+	err = nw.deleteEndpoint(cli, nm.netlink, endpointID)
 	if err != nil {
 		return err
 	}
@@ -493,7 +496,7 @@ func (nm *networkManager) UpdateEndpoint(networkID string, existingEpInfo *Endpo
 		return err
 	}
 
-	_, err = nw.updateEndpoint(existingEpInfo, targetEpInfo)
+	err = nm.updateEndpoint(nw, existingEpInfo, targetEpInfo)
 	if err != nil {
 		return err
 	}
