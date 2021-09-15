@@ -3,23 +3,37 @@ package kubecontroller
 import (
 	"context"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+type cnsclient interface {
+	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error
+	CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest) error
+	UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec)
+}
+
+type nncgetter interface {
+	Get(ctx context.Context, key types.NamespacedName) (*v1alpha.NodeNetworkConfig, error)
+}
 
 // Reconciler watches for CRD status changes
 type Reconciler struct {
 	cnscli cnsclient
-	nnccli *nodenetworkconfig.Client
+	nnccli nncgetter
 }
 
-func New(nnccli *nodenetworkconfig.Client, cnscli cnsclient) *Reconciler {
+func New(nnccli nncgetter, cnscli cnsclient) *Reconciler {
 	return &Reconciler{
 		cnscli: cnscli,
 		nnccli: nnccli,
@@ -84,6 +98,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, nodeName string) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.NodeNetworkConfig{}).
-		WithEventFilter(NodeNetworkConfigFilter{nodeName: nodeName}).
+		WithEventFilter(predicate.Funcs{
+			// ignore delete events.
+			DeleteFunc: func(event.DeleteEvent) bool {
+				return false
+			},
+		}).
+		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
+			// match on node name for all other events.
+			return nodeName == object.GetName()
+		})).
+		WithEventFilter(predicate.Funcs{
+			// check that the generation is the same - status changes don't update generation.
+			UpdateFunc: func(ue event.UpdateEvent) bool {
+				return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
+			},
+		}).
 		Complete(r)
 }

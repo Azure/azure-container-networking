@@ -844,7 +844,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 	return errors.Wrap(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc.Status.Scaler, nnc.Spec), "err in CNS reconciliation")
 }
 
-// initializeCRD state
+// InitializeCRDState builds and starts the CRD controllers.
 func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
 	logger.Printf("[Azure CNS] Starting request controller")
 
