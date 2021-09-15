@@ -13,11 +13,7 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	exitCode := m.Run()
-
-	// Create a dummy test network interface.
-
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func TestAddRoutes(t *testing.T) {
