@@ -43,7 +43,7 @@ func ConstructEndpointID(containerID string, _ string, ifName string) (string, s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(_ apipaClient, netlink netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(_ apipaClient, nl netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
 	var containerIf *net.Interface
 	var ns *Namespace
 	var ep *endpoint
@@ -96,13 +96,13 @@ func (nw *network) newEndpointImpl(_ apipaClient, netlink netlinkinterface.Netli
 			contIfName,
 			vlanid,
 			localIP,
-			netlink)
+			nl)
 	} else if nw.Mode != opModeTransparent {
 		log.Printf("Bridge client")
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, netlink)
+		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl)
 	} else {
 		log.Printf("Transparent client")
-		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, netlink)
+		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl)
 	}
 
 	// Cleanup on failure.
@@ -215,7 +215,7 @@ func (nw *network) newEndpointImpl(_ apipaClient, netlink netlinkinterface.Netli
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(_ apipaClient, netlink netlinkinterface.NetlinkInterface, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlinkinterface.NetlinkInterface, ep *endpoint) error {
 	var epClient EndpointClient
 
 	// Delete the veth pair by deleting one of the peer interfaces.
@@ -223,11 +223,11 @@ func (nw *network) deleteEndpointImpl(_ apipaClient, netlink netlinkinterface.Ne
 	// entering the container netns and hence works both for CNI and CNM.
 	if ep.VlanID != 0 {
 		epInfo := ep.getInfo()
-		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, netlink)
+		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl)
 	} else if nw.Mode != opModeTransparent {
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, netlink)
+		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl)
 	} else {
-		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, netlink)
+		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl)
 	}
 
 	epClient.DeleteEndpointRules(ep)

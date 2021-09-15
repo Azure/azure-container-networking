@@ -49,7 +49,7 @@ const (
 var errorNetworkManager = errors.New("Network_linux pkg error")
 
 func newErrorNetworkManager(errStr string) error {
-	return fmt.Errorf("errorNetworkManager %w : %s", errorNetworkManager, errStr)
+	return fmt.Errorf("%w : %s", errorNetworkManager, errStr)
 }
 
 // Linux implementation of route.
@@ -593,7 +593,7 @@ func (nm *networkManager) addBridgeRoutes(bridgeName string, routes []RouteInfo)
 }
 
 // Add ipv6 nat gateway IP on bridge
-func addIpv6NatGateway(netlink netlinkinterface.NetlinkInterface, nwInfo *NetworkInfo) error {
+func addIpv6NatGateway(nl netlinkinterface.NetlinkInterface, nwInfo *NetworkInfo) error {
 	log.Printf("[net] Adding ipv6 nat gateway on azure bridge")
 	for _, subnetInfo := range nwInfo.Subnets {
 		if subnetInfo.Family == platform.AfINET6 {
@@ -601,7 +601,7 @@ func addIpv6NatGateway(netlink netlinkinterface.NetlinkInterface, nwInfo *Networ
 				IP:   subnetInfo.Gateway,
 				Mask: subnetInfo.Prefix.Mask,
 			}}
-			epc := epcommon.NewEPCommon(netlink)
+			epc := epcommon.NewEPCommon(nl)
 			err := epc.AssignIPToInterface(nwInfo.BridgeName, ipAddr)
 			if err != nil {
 				return newErrorNetworkManager(err.Error())
@@ -635,14 +635,14 @@ func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
 }
 
 // AddStaticRoute adds a static route to the interface.
-func AddStaticRoute(netlink netlinkinterface.NetlinkInterface, ip string, interfaceName string) error {
+func AddStaticRoute(nl netlinkinterface.NetlinkInterface, ip string, interfaceName string) error {
 	log.Printf("[ovs] Adding %v static route", ip)
 	var routes []RouteInfo
 	_, ipNet, _ := net.ParseCIDR(ip)
 	gwIP := net.ParseIP("0.0.0.0")
 	route := RouteInfo{Dst: *ipNet, Gw: gwIP}
 	routes = append(routes, route)
-	if err := addRoutes(netlink, interfaceName, routes); err != nil {
+	if err := addRoutes(nl, interfaceName, routes); err != nil {
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 			log.Printf("addroutes failed with error %v", err)
 			return err

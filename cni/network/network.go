@@ -109,9 +109,9 @@ func NewPlugin(name string, config *common.PluginConfig, client NnsClient) (*net
 		return nil, err
 	}
 
-	netlink := netlink.NewNetlink()
+	nl := netlink.NewNetlink()
 	// Setup network manager.
-	nm, err := network.NewNetworkManager(netlink)
+	nm, err := network.NewNetworkManager(nl)
 	if err != nil {
 		return nil, err
 	}

@@ -96,7 +96,7 @@ type apipaClient interface {
 }
 
 // NewEndpoint creates a new endpoint in the network.
-func (nw *network) newEndpoint(cli apipaClient, netlink netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpoint(cli apipaClient, nl netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
@@ -108,7 +108,7 @@ func (nw *network) newEndpoint(cli apipaClient, netlink netlinkinterface.Netlink
 	}()
 
 	// Call the platform implementation.
-	ep, err = nw.newEndpointImpl(cli, netlink, epInfo)
+	ep, err = nw.newEndpointImpl(cli, nl, epInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (nw *network) newEndpoint(cli apipaClient, netlink netlinkinterface.Netlink
 }
 
 // DeleteEndpoint deletes an existing endpoint from the network.
-func (nw *network) deleteEndpoint(cli apipaClient, netlink netlinkinterface.NetlinkInterface, endpointID string) error {
+func (nw *network) deleteEndpoint(cli apipaClient, nl netlinkinterface.NetlinkInterface, endpointID string) error {
 	var err error
 
 	log.Printf("[net] Deleting endpoint %v from network %v.", endpointID, nw.Id)
@@ -138,7 +138,7 @@ func (nw *network) deleteEndpoint(cli apipaClient, netlink netlinkinterface.Netl
 	}
 
 	// Call the platform implementation.
-	err = nw.deleteEndpointImpl(cli, netlink, ep)
+	err = nw.deleteEndpointImpl(cli, nl, ep)
 	if err != nil {
 		return err
 	}

@@ -31,7 +31,7 @@ const (
 var errorOVSSnatClient = errors.New("OVSSnatClient Error")
 
 func newErrorOVSSnatClient(errStr string) error {
-	return fmt.Errorf("ErrorOVSSnatClient %w : %s", errorOVSSnatClient, errStr)
+	return fmt.Errorf("%w : %s", errorOVSSnatClient, errStr)
 }
 
 type OVSSnatClient struct {
@@ -50,7 +50,7 @@ func NewSnatClient(hostIfName string,
 	snatBridgeIP string,
 	hostPrimaryMac string,
 	skipAddressesFromBlock []string,
-	netlink netlinkinterface.NetlinkInterface,
+	nl netlinkinterface.NetlinkInterface,
 ) OVSSnatClient {
 	log.Printf("Initialize new snat client")
 	snatClient := OVSSnatClient{
@@ -59,7 +59,7 @@ func NewSnatClient(hostIfName string,
 		localIP:               localIP,
 		snatBridgeIP:          snatBridgeIP,
 		hostPrimaryMac:        hostPrimaryMac,
-		netlink:               netlink,
+		netlink:               nl,
 	}
 
 	snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, skipAddressesFromBlock...)

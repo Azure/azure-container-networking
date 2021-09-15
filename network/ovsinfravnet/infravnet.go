@@ -19,7 +19,7 @@ const (
 var errorOVSInfraVnetClient = errors.New("OVSInfraVnetClient Error")
 
 func newErrorOVSInfraVnetClient(errStr string) error {
-	return fmt.Errorf("OVSInfraVnetClient %w : %s", errorOVSInfraVnetClient, errStr)
+	return fmt.Errorf("%w : %s", errorOVSInfraVnetClient, errStr)
 }
 
 type OVSInfraVnetClient struct {
@@ -29,11 +29,11 @@ type OVSInfraVnetClient struct {
 	netlink                netlinkinterface.NetlinkInterface
 }
 
-func NewInfraVnetClient(hostIfName string, contIfName string, netlink netlinkinterface.NetlinkInterface) OVSInfraVnetClient {
+func NewInfraVnetClient(hostIfName string, contIfName string, nl netlinkinterface.NetlinkInterface) OVSInfraVnetClient {
 	infraVnetClient := OVSInfraVnetClient{
 		hostInfraVethName:      hostIfName,
 		ContainerInfraVethName: contIfName,
-		netlink:                netlink,
+		netlink:                nl,
 	}
 
 	log.Printf("Initialize new infravnet client %+v", infraVnetClient)

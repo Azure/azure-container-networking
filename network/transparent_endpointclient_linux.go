@@ -21,7 +21,7 @@ const (
 var errorTransparentEndpointClient = errors.New("TransparentEndpointClient Error")
 
 func newErrorTransparentEndpointClient(errStr string) error {
-	return fmt.Errorf("ErrorTransparentEndpointClient %w : %s", errorTransparentEndpointClient, errStr)
+	return fmt.Errorf("%w : %s", errorTransparentEndpointClient, errStr)
 }
 
 type TransparentEndpointClient struct {
@@ -41,7 +41,7 @@ func NewTransparentEndpointClient(
 	hostVethName string,
 	containerVethName string,
 	mode string,
-	netlink netlinkinterface.NetlinkInterface,
+	nl netlinkinterface.NetlinkInterface,
 ) *TransparentEndpointClient {
 
 	client := &TransparentEndpointClient{
@@ -51,7 +51,7 @@ func NewTransparentEndpointClient(
 		containerVethName: containerVethName,
 		hostPrimaryMac:    extIf.MacAddress,
 		mode:              mode,
-		netlink:           netlink,
+		netlink:           nl,
 	}
 
 	return client

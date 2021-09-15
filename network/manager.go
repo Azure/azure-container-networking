@@ -85,10 +85,10 @@ type NetworkManager interface {
 }
 
 // Creates a new network manager.
-func NewNetworkManager(netlink netlinkinterface.NetlinkInterface) (NetworkManager, error) {
+func NewNetworkManager(nl netlinkinterface.NetlinkInterface) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
-		netlink:            netlink,
+		netlink:            nl,
 	}
 
 	return nm, nil

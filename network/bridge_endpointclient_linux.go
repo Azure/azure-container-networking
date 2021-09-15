@@ -34,7 +34,7 @@ func NewLinuxBridgeEndpointClient(
 	hostVethName string,
 	containerVethName string,
 	mode string,
-	netlink netlinkinterface.NetlinkInterface,
+	nl netlinkinterface.NetlinkInterface,
 ) *LinuxBridgeEndpointClient {
 
 	client := &LinuxBridgeEndpointClient{
@@ -45,7 +45,7 @@ func NewLinuxBridgeEndpointClient(
 		hostPrimaryMac:    extIf.MacAddress,
 		hostIPAddresses:   []*net.IPNet{},
 		mode:              mode,
-		netlink:           netlink,
+		netlink:           nl,
 	}
 
 	client.hostIPAddresses = append(client.hostIPAddresses, extIf.IPAddresses...)

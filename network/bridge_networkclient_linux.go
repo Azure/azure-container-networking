@@ -19,7 +19,7 @@ const (
 var errorLinuxBridgeClient = errors.New("LinuxBridgeClient Error")
 
 func newErrorLinuxBridgeClient(errStr string) error {
-	return fmt.Errorf("ErrorLinuxBridgeClient %w : %s", errorLinuxBridgeClient, errStr)
+	return fmt.Errorf("%w : %s", errorLinuxBridgeClient, errStr)
 }
 
 type LinuxBridgeClient struct {
@@ -33,13 +33,13 @@ func NewLinuxBridgeClient(
 	bridgeName string,
 	hostInterfaceName string,
 	nwInfo NetworkInfo,
-	netlink netlinkinterface.NetlinkInterface,
+	nl netlinkinterface.NetlinkInterface,
 ) *LinuxBridgeClient {
 	client := &LinuxBridgeClient{
 		bridgeName:        bridgeName,
 		nwInfo:            nwInfo,
 		hostInterfaceName: hostInterfaceName,
-		netlink:           netlink,
+		netlink:           nl,
 	}
 
 	return client

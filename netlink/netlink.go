@@ -2,6 +2,6 @@ package netlink
 
 type Netlink struct{}
 
-func NewNetlink() Netlink {
-	return Netlink{}
+func NewNetlink() *Netlink {
+	return &Netlink{}
 }

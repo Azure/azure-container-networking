@@ -41,7 +41,7 @@ func NewOVSEndpointClient(
 	containerVethName string,
 	vlanid int,
 	localIP string,
-	netlink netlinkinterface.NetlinkInterface) *OVSEndpointClient {
+	nl netlinkinterface.NetlinkInterface) *OVSEndpointClient {
 
 	client := &OVSEndpointClient{
 		bridgeName:               nw.extIf.BridgeName,
@@ -55,7 +55,7 @@ func NewOVSEndpointClient(
 		allowInboundFromHostToNC: epInfo.AllowInboundFromHostToNC,
 		allowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
 		enableSnatForDns:         epInfo.EnableSnatForDns,
-		netlink:                  netlink,
+		netlink:                  nl,
 	}
 
 	NewInfraVnetClient(client, epInfo.Id[:7])

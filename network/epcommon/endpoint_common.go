@@ -41,16 +41,16 @@ const (
 var errorEPCommon = errors.New("ErrorEPCommon Error")
 
 func newErrorEPCommon(errStr string) error {
-	return fmt.Errorf("ErrorEPCommon %w : %s", errorEPCommon, errStr)
+	return fmt.Errorf("%w : %s", errorEPCommon, errStr)
 }
 
 type EPCommon struct {
 	netlink netlinkinterface.NetlinkInterface
 }
 
-func NewEPCommon(netlink netlinkinterface.NetlinkInterface) EPCommon {
+func NewEPCommon(nl netlinkinterface.NetlinkInterface) EPCommon {
 	return EPCommon{
-		netlink: netlink,
+		netlink: nl,
 	}
 }
 
