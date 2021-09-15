@@ -61,8 +61,7 @@ func NewOVSEndpointClient(
 		allowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
 		enableSnatForDns:         epInfo.EnableSnatForDns,
 		netlink:                  nl,
-		ovsctlClient:             ovs
-	}
+		ovsctlClient:             ovs}
 
 	NewInfraVnetClient(client, epInfo.Id[:7])
 	NewSnatClient(client, nw.SnatBridgeIP, localIP, epInfo)
