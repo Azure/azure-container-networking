@@ -19,9 +19,11 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +43,47 @@ const (
 )
 
 var dnsservers = []string{"8.8.8.8", "8.8.4.4"}
+
+type mockdo struct {
+	podInfoToNCResponse map[string]*cns.GetNetworkContainerResponse
+}
+
+func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
+	payload := cns.GetNetworkContainerRequest{}
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		return nil, errors.Wrap(err, "Decoding the request failed")
+	}
+
+	podInfo := cns.KubernetesPodInfo{}
+	if err := json.Unmarshal(payload.OrchestratorContext, &podInfo); err != nil {
+		return nil, errors.Wrap(err, "Unmarshaling orchestator context failed")
+	}
+
+	if podInfo.PodName == "INTERNAL_SERVER_ERROR" {
+		return &http.Response{
+			StatusCode: http.StatusInternalServerError,
+			Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+		}, nil
+	}
+
+	getNCResponse, exists := m.podInfoToNCResponse[podInfo.PodName+podInfo.PodNamespace]
+	if !exists {
+		return nil, errors.New("Pod not found in mockdo")
+	}
+
+	byteArray, err := json.Marshal(getNCResponse)
+	if err != nil {
+		return nil, errors.Wrap(err, "Marshal getNCResponse failed")
+	}
+
+	body := ioutil.NopCloser(bytes.NewReader(byteArray))
+	resp := &http.Response{
+		StatusCode: 200,
+		Body:       body,
+	}
+
+	return resp, nil
+}
 
 func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	var ipConfig cns.IPConfiguration
@@ -476,6 +519,98 @@ func TestBuildRoutes(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetNetworkConfiguration(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		podInfo cns.KubernetesPodInfo
+		mockdo  *mockdo
+		want    *cns.GetNetworkContainerResponse
+		wantErr bool
+	}{
+		{
+			name: "existing pod info",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo: &mockdo{
+				podInfoToNCResponse: map[string]*cns.GetNetworkContainerResponse{
+					"testpodname" + "podNamespace": {},
+				},
+			},
+			want:    &cns.GetNetworkContainerResponse{},
+			wantErr: false,
+		},
+		{
+			name: "non-existing pod info",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo:  &mockdo{},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "status not ok",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName: "INTERNAL_SERVER_ERROR",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "return code not zero",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo: &mockdo{
+				podInfoToNCResponse: map[string]*cns.GetNetworkContainerResponse{
+					"testpodname" + "podNamespace": {
+						Response: cns.Response{
+							ReturnCode: types.UnsupportedNetworkType,
+						},
+					},
+				},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "nil context",
+			ctx:     nil,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := Client{
+				client: tt.mockdo,
+			}
+
+			orchestratorContext, err := json.Marshal(tt.podInfo)
+			assert.NoError(t, err, "marshaling orchestrator context failed")
+
+			got, err := client.GetNetworkConfiguration(tt.ctx, orchestratorContext)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
