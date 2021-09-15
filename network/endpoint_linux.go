@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/netlinkinterface"
+	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
 const (
@@ -96,7 +97,8 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlinkinterface.NetlinkInt
 			contIfName,
 			vlanid,
 			localIP,
-			nl)
+			nl,
+			ovsctl.NewOvsctl())
 	} else if nw.Mode != opModeTransparent {
 		log.Printf("Bridge client")
 		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl)
@@ -223,7 +225,7 @@ func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlinkinterface.Netlink
 	// entering the container netns and hence works both for CNI and CNM.
 	if ep.VlanID != 0 {
 		epInfo := ep.getInfo()
-		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl)
+		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl())
 	} else if nw.Mode != opModeTransparent {
 		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl)
 	} else {

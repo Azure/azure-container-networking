@@ -3,6 +3,7 @@ package network
 import (
 	"fmt"
 
+	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network/epcommon"
 	"github.com/Azure/azure-container-networking/network/ovssnat"
 )
@@ -19,6 +20,8 @@ func NewSnatClient(client *OVSEndpointClient, snatBridgeIP string, localIP strin
 			client.hostPrimaryMac,
 			epInfo.DNS.Servers,
 			client.netlink,
+			client.ovsctlClient,
+			iptables.NewIPTableCommand(),
 		)
 	}
 }

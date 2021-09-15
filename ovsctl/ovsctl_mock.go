@@ -79,6 +79,13 @@ func (m MockOvsctl) AddFakeArpReply(bridgeName string, ip net.IP) error {
 	return nil
 }
 
+func (m MockOvsctl) AddArpReplyRule(bridgeName string, port string, ip net.IP, mac string, vlanid int, mode string) error {
+	if m.returnError {
+		return errors.New(m.errorStr)
+	}
+	return nil
+}
+
 func (m MockOvsctl) AddMacDnatRule(bridgeName string, port string, ip net.IP, mac string, vlanid int, containerPort string) error {
 	if m.returnError {
 		return errors.New(m.errorStr)

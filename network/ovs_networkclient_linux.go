@@ -63,7 +63,7 @@ func NewOVSClient(bridgeName, hostInterfaceName string, ovsctlClient ovsctl.Ovsc
 	ovsClient := &OVSNetworkClient{
 		bridgeName:        bridgeName,
 		hostInterfaceName: hostInterfaceName,
-		ovsctlClient:      ovsctlClient
+		ovsctlClient:      ovsctlClient,
 	}
 
 	return ovsClient
@@ -72,7 +72,7 @@ func NewOVSClient(bridgeName, hostInterfaceName string, ovsctlClient ovsctl.Ovsc
 func (client *OVSNetworkClient) CreateBridge() error {
 	var err error
 
-	if err = ovsctlClient.CreateOVSBridge(client.bridgeName); err != nil {
+	if err = client.ovsctlClient.CreateOVSBridge(client.bridgeName); err != nil {
 		return err
 	}
 
@@ -90,7 +90,7 @@ func (client *OVSNetworkClient) CreateBridge() error {
 }
 
 func (client *OVSNetworkClient) DeleteBridge() error {
-	if err := ovsctlClient.DeleteOVSBridge(client.bridgeName); err != nil {
+	if err := client.ovsctlClient.DeleteOVSBridge(client.bridgeName); err != nil {
 		log.Printf("Deleting ovs bridge failed with error %v", err)
 	}
 
@@ -101,19 +101,19 @@ func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
 	mac := extIf.MacAddress.String()
 	macHex := strings.Replace(mac, ":", "", -1)
 
-	ofport, err := ovsctlClient.GetOVSPortNumber(client.hostInterfaceName)
+	ofport, err := client.ovsctlClient.GetOVSPortNumber(client.hostInterfaceName)
 	if err != nil {
 		return err
 	}
 
 	// Arp SNAT Rule
 	log.Printf("[ovs] Adding ARP SNAT rule for egress traffic on interface %v", client.hostInterfaceName)
-	if err := ovsctlClient.AddArpSnatRule(client.bridgeName, mac, macHex, ofport); err != nil {
+	if err := client.ovsctlClient.AddArpSnatRule(client.bridgeName, mac, macHex, ofport); err != nil {
 		return err
 	}
 
 	log.Printf("[ovs] Adding DNAT rule for ingress ARP traffic on interface %v.", client.hostInterfaceName)
-	if err := ovsctlClient.AddArpDnatRule(client.bridgeName, ofport, macHex); err != nil {
+	if err := client.ovsctlClient.AddArpDnatRule(client.bridgeName, ofport, macHex); err != nil {
 		return err
 	}
 
@@ -121,11 +121,11 @@ func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
 }
 
 func (client *OVSNetworkClient) DeleteL2Rules(extIf *externalInterface) {
-	ovsctlClient.DeletePortFromOVS(client.bridgeName, client.hostInterfaceName)
+	client.ovsctlClient.DeletePortFromOVS(client.bridgeName, client.hostInterfaceName)
 }
 
 func (client *OVSNetworkClient) SetBridgeMasterToHostInterface() error {
-	return ovsctlClient.AddPortOnOVSBridge(client.hostInterfaceName, client.bridgeName, 0)
+	return client.ovsctlClient.AddPortOnOVSBridge(client.hostInterfaceName, client.bridgeName, 0)
 }
 
 func (client *OVSNetworkClient) SetHairpinOnHostInterface(enable bool) error {

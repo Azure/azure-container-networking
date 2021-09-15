@@ -1,6 +1,9 @@
 package iptables
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 type MockIPTableCommand struct {
 	returnError bool
@@ -18,5 +21,7 @@ func (m MockIPTableCommand) RunCmd(version string, params string) error {
 	if m.returnError {
 		return errors.New(m.errorStr)
 	}
+
+	fmt.Printf("[mock iptables] Running command - iptables %s\n", params)
 	return nil
 }
