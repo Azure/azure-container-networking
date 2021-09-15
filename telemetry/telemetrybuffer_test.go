@@ -153,7 +153,5 @@ func TestReadConfigFile(t *testing.T) {
 
 func TestStartTelemetryService(t *testing.T) {
 	err := StartTelemetryService("", nil)
-	if err == nil {
-		t.Errorf("StartTelemetryService didnt return error for incorrect service name %v", err)
-	}
+	assert.Error(t, err)
 }
