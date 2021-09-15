@@ -1,7 +1,6 @@
 package kubecontroller
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 
@@ -10,11 +9,17 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ErrUnsupportedNCQuantity indicates that the node has an unsupported nummber of Network Containers attached.
-var ErrUnsupportedNCQuantity = errors.New("unsupported number of network containers")
+var (
+	// ErrInvalidPrimaryIP indicates the NC primary IP is invalid.
+	ErrInvalidPrimaryIP = errors.New("invalid primary IP")
+	// ErrInvalidSecondaryIP indicates that a secondary IP on the NC is invalid.
+	ErrInvalidSecondaryIP = errors.New("invalid secondary IP")
+	// ErrUnsupportedNCQuantity indicates that the node has an unsupported nummber of Network Containers attached.
+	ErrUnsupportedNCQuantity = errors.New("unsupported number of network containers")
+)
 
 // CRDStatusToNCRequest translates a crd status to createnetworkcontainer request
-func CRDStatusToNCRequest(status v1alpha.NodeNetworkConfigStatus) (cns.CreateNetworkContainerRequest, error) {
+func CRDStatusToNCRequest(status *v1alpha.NodeNetworkConfigStatus) (cns.CreateNetworkContainerRequest, error) {
 	// if NNC has no NC, return an empty request
 	if len(status.NetworkContainers) == 0 {
 		return cns.CreateNetworkContainerRequest{}, nil
@@ -29,7 +34,7 @@ func CRDStatusToNCRequest(status v1alpha.NodeNetworkConfigStatus) (cns.CreateNet
 
 	ip := net.ParseIP(nc.PrimaryIP)
 	if ip == nil {
-		return cns.CreateNetworkContainerRequest{}, fmt.Errorf("invalid PrimaryIP %s", nc.PrimaryIP)
+		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(ErrInvalidPrimaryIP, "IP: %s", nc.PrimaryIP)
 	}
 
 	_, ipNet, err := net.ParseCIDR(nc.SubnetAddressSpace)
@@ -48,7 +53,7 @@ func CRDStatusToNCRequest(status v1alpha.NodeNetworkConfigStatus) (cns.CreateNet
 	for _, ipAssignment := range nc.IPAssignments {
 		secondaryIP := net.ParseIP(ipAssignment.IP)
 		if secondaryIP == nil {
-			return cns.CreateNetworkContainerRequest{}, fmt.Errorf("invalid SecondaryIP %s", ipAssignment.IP)
+			return cns.CreateNetworkContainerRequest{}, errors.Wrapf(ErrInvalidSecondaryIP, "IP: %s", ipAssignment.IP)
 		}
 		secondaryIPConfigs[ipAssignment.Name] = cns.SecondaryIPConfig{
 			IPAddress: secondaryIP.String(),

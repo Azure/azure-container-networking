@@ -42,15 +42,15 @@ func New(nnccli nncgetter, cnscli cnsclient) *Reconciler {
 }
 
 // Reconcile is called on CRD status changes
-func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	nnc, err := r.nnccli.Get(ctx, request.NamespacedName)
+func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	nnc, err := r.nnccli.Get(ctx, req.NamespacedName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
-			return reconcile.Result{}, client.IgnoreNotFound(err)
+			return reconcile.Result{}, errors.Wrapf(client.IgnoreNotFound(err), "NodeNetworkConfig %v not found", req.NamespacedName)
 		}
 		logger.Errorf("[cns-rc] Error retrieving CRD from cache : %v", err)
-		return reconcile.Result{}, err
+		return reconcile.Result{}, errors.Wrapf(err, "failed to get NodeNetworkConfig %v", req.NamespacedName)
 	}
 
 	logger.Printf("[cns-rc] CRD Spec: %v", nnc.Spec)
@@ -73,11 +73,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		len(networkContainer.IPAssignments))
 
 	// Otherwise, create NC request and hand it off to CNS
-	ncRequest, err := CRDStatusToNCRequest(nnc.Status)
+	ncRequest, err := CRDStatusToNCRequest(&nnc.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
 		// requeue
-		return reconcile.Result{}, err
+		return reconcile.Result{}, errors.Wrap(err, "failed to convert NNC status to network container request")
 	}
 
 	responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(&ncRequest)
@@ -85,7 +85,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	if err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 		// requeue
-		return reconcile.Result{}, err
+		return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
 	}
 
 	r.cnscli.UpdateIPAMPoolMonitor(nnc.Status.Scaler, nnc.Spec)

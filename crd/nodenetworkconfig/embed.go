@@ -18,5 +18,8 @@ var NodeNetworkConfigsYAML []byte
 // to a CustomResourceDefinition and returns it or an unmarshalling error.
 func GetNodeNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
 	nodeNetworkConfigs := &apiextensionsv1.CustomResourceDefinition{}
-	return nodeNetworkConfigs, errors.Wrap(yaml.Unmarshal(NodeNetworkConfigsYAML, &nodeNetworkConfigs), "error unmarshalling embedded nnc")
+	if err := yaml.Unmarshal(NodeNetworkConfigsYAML, &nodeNetworkConfigs); err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling embedded nnc")
+	}
+	return nodeNetworkConfigs, nil
 }

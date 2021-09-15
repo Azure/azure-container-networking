@@ -562,7 +562,7 @@ func main() {
 		}
 		logger.Printf("Set GlobalPodInfoScheme %v", cns.GlobalPodInfoScheme)
 
-		err = InitializeCRDState(rootCtx, httpRestService, *cnsconfig)
+		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -806,8 +806,11 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
-			//nolint:wrapcheck
-			return ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
+			err = ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
+			if err != nil {
+				return errors.Wrap(err, "failed to reconcile NC state")
+			}
+			return nil
 		}
 
 		// If it's any other error, log it and return
@@ -817,22 +820,25 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 	// If there are no NCs, pass nil to CNSClient
 	if len(nnc.Status.NetworkContainers) == 0 {
-		//nolint:wrapcheck
-		return ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
+		err = ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
+		if err != nil {
+			return errors.Wrap(err, "failed to reconcile NC state")
+		}
+		return nil
 	}
 
 	// Convert to CreateNetworkContainerRequest
-	ncRequest, err := kubecontroller.CRDStatusToNCRequest(nnc.Status)
+	ncRequest, err := kubecontroller.CRDStatusToNCRequest(&nnc.Status)
 	if err != nil {
 		logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
-		return err
+		return errors.Wrap(err, "failed to convert NNC status to network container request")
 	}
 
 	// rebuild CNS state from CNI
 	logger.Printf("initializing CNS from CNI")
 	podInfoByIPProvider, err := cnireconciler.NewCNIPodInfoProvider()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 	}
 	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
 	if err != nil {
@@ -845,7 +851,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
-func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
+func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
 	logger.Printf("[Azure CNS] Starting request controller")
 
 	// convert interface type to implementation type
@@ -869,21 +875,22 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	nnccli, err := nodenetworkconfig.NewClient(kubeConfig)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create NNC client")
 	}
 	nodeName, err := configuration.NodeName()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get NodeName")
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// initialize the ipam pool monitor
 	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, scopedcli)
-	cnscli := &httpapi.Client{
+	cnsclient := &httpapi.Client{
 		RestService: httpRestServiceImplementation,
 	}
-	if err := initCNS(ctx, scopedcli, cnscli); err != nil {
+	err = initCNS(ctx, scopedcli, cnsclient)
+	if err != nil {
 		return errors.Wrap(err, "failed to initialize CNS state")
 	}
 
@@ -893,9 +900,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
 	})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create manager")
 	}
-	reconciler := kubecontroller.New(nnccli, cnscli)
+	reconciler := kubecontroller.New(nnccli, cnsclient)
 	if err := reconciler.SetupWithManager(manager, nodeName); err != nil {
 		return err
 	}
