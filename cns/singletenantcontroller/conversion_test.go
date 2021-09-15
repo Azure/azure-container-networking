@@ -23,6 +23,54 @@ const (
 	version            = 1
 )
 
+var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
+	NetworkContainers: []v1alpha.NetworkContainer{
+		{},
+		{},
+	},
+}
+
+var validStatus = v1alpha.NodeNetworkConfigStatus{
+	NetworkContainers: []v1alpha.NetworkContainer{
+		{
+			PrimaryIP: primaryIP,
+			ID:        ncID,
+			IPAssignments: []v1alpha.IPAssignment{
+				{
+					Name: uuid,
+					IP:   testSecIP,
+				},
+			},
+			SubnetName:         subnetName,
+			DefaultGateway:     defaultGateway,
+			SubnetAddressSpace: subnetAddressSpace,
+			Version:            version,
+		},
+	},
+	Scaler: v1alpha.Scaler{
+		BatchSize: 1,
+	},
+}
+
+var validRequest = cns.CreateNetworkContainerRequest{
+	Version: strconv.FormatInt(version, 10),
+	IPConfiguration: cns.IPConfiguration{
+		GatewayIPAddress: defaultGateway,
+		IPSubnet: cns.IPSubnet{
+			PrefixLength: uint8(subnetPrefixLen),
+			IPAddress:    primaryIP,
+		},
+	},
+	NetworkContainerid:   ncID,
+	NetworkContainerType: cns.Docker,
+	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+		uuid: {
+			IPAddress: testSecIP,
+			NCVersion: version,
+		},
+	},
+}
+
 func TestConvertNNCStatusToNCRequest(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -37,13 +85,8 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 			ncreq:   cns.CreateNetworkContainerRequest{},
 		},
 		{
-			name: ">1 nc",
-			status: v1alpha.NodeNetworkConfigStatus{
-				NetworkContainers: []v1alpha.NetworkContainer{
-					{},
-					{},
-				},
-			},
+			name:    ">1 nc",
+			status:  invalidStatusMultiNC,
 			wantErr: true,
 		},
 		{
@@ -142,44 +185,10 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "valid",
-			status: v1alpha.NodeNetworkConfigStatus{
-				NetworkContainers: []v1alpha.NetworkContainer{
-					{
-						PrimaryIP: primaryIP,
-						ID:        ncID,
-						IPAssignments: []v1alpha.IPAssignment{
-							{
-								Name: uuid,
-								IP:   testSecIP,
-							},
-						},
-						SubnetName:         subnetName,
-						DefaultGateway:     defaultGateway,
-						SubnetAddressSpace: subnetAddressSpace,
-						Version:            version,
-					},
-				},
-			},
+			name:    "valid",
+			status:  validStatus,
 			wantErr: false,
-			ncreq: cns.CreateNetworkContainerRequest{
-				Version: strconv.FormatInt(version, 10),
-				IPConfiguration: cns.IPConfiguration{
-					GatewayIPAddress: defaultGateway,
-					IPSubnet: cns.IPSubnet{
-						PrefixLength: uint8(subnetPrefixLen),
-						IPAddress:    primaryIP,
-					},
-				},
-				NetworkContainerid:   ncID,
-				NetworkContainerType: cns.Docker,
-				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-					uuid: {
-						IPAddress: testSecIP,
-						NCVersion: version,
-					},
-				},
-			},
+			ncreq:   validRequest,
 		},
 	}
 	for _, tt := range tests {

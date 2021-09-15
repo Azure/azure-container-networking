@@ -19,13 +19,12 @@ import (
 )
 
 type cnsclient interface {
-	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error
-	CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest) error
-	UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec)
+	CreateOrUpdateNC(cns.CreateNetworkContainerRequest) error
+	UpdateIPAMPoolMonitor(v1alpha.Scaler, v1alpha.NodeNetworkConfigSpec)
 }
 
 type nncgetter interface {
-	Get(ctx context.Context, key types.NamespacedName) (*v1alpha.NodeNetworkConfig, error)
+	Get(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error)
 }
 
 // Reconciler watches for CRD status changes
@@ -61,18 +60,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, nil
 	}
 
-	networkContainer := nnc.Status.NetworkContainers[0]
-	logger.Printf("[cns-rc] CRD Status: NcId: [%s], Version: [%d],  podSubnet: [%s], Subnet CIDR: [%s], "+
-		"Gateway Addr: [%s], Primary IP: [%s], SecondaryIpsCount: [%d]",
-		networkContainer.ID,
-		networkContainer.Version,
-		networkContainer.SubnetName,
-		networkContainer.SubnetAddressSpace,
-		networkContainer.DefaultGateway,
-		networkContainer.PrimaryIP,
-		len(networkContainer.IPAssignments))
-
-	// Otherwise, create NC request and hand it off to CNS
+	// Create NC request and hand it off to CNS
 	ncRequest, err := CRDStatusToNCRequest(&nnc.Status)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
