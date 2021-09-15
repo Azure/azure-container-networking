@@ -12,7 +12,7 @@ const (
 )
 
 // ErrNodeNameUnset indicates the the $EnvNodeName variable is unset in the environment.
-var ErrNodeNameUnset = errors.Errorf("Must declare %s environment variable", EnvNodeName)
+var ErrNodeNameUnset = errors.Errorf("must declare %s environment variable", EnvNodeName)
 
 // NodeName checks the environment variables for the NODENAME and returns it or an error if unset.
 func NodeName() (string, error) {
