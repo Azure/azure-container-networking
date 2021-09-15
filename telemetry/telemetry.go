@@ -129,7 +129,7 @@ func (reportMgr *ReportManager) ReportToBytes() ([]byte, error) {
 	case *CNIReport:
 	case *AIMetric:
 	default:
-		err = fmt.Errorf("[Telemetry] Invalid report type")
+		err = fmt.Errorf("[Telemetry] Invalid report type %T", reportMgr.Report)
 	}
 
 	if err != nil {
@@ -142,10 +142,8 @@ func (reportMgr *ReportManager) ReportToBytes() ([]byte, error) {
 
 // This function for sending CNI metrics to telemetry service
 func SendCNIMetric(cniMetric *AIMetric, tb *TelemetryBuffer) error {
-	var (
-		err    error
-		report []byte
-	)
+	var err error
+	var report []byte
 
 	if tb != nil && tb.Connected {
 		reportMgr := &ReportManager{Report: cniMetric}
