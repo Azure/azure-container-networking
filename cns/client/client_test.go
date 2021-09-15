@@ -50,6 +50,7 @@ type mockdo struct {
 	ncIDtoCreateHostNCApipaEndpointResponse map[string]*cns.CreateHostNCApipaEndpointResponse
 	ncIDtoDeleteHostNCApipaEndpointResponse map[string]*cns.DeleteHostNCApipaEndpointResponse
 	ipConfigRequestsToIPConfigResponse      map[string]*cns.IPConfigResponse
+	ipConfigRequestToCNSResponse            map[string]*cns.Response
 }
 
 func packToHTTPBody(obj interface{}) (io.ReadCloser, error) {
@@ -179,6 +180,33 @@ func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 			Body:       body,
 		}, nil
 
+	case cns.ReleaseIPConfig:
+		payload := cns.IPConfigRequest{}
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			return nil, errors.Wrap(err, "Decoding the request failed")
+		}
+
+		if payload.DesiredIPAddress == "INTERNAL_SERVER_ERROR" {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			}, nil
+		}
+
+		cnsResponse, exists := m.ipConfigRequestToCNSResponse[payload.DesiredIPAddress+payload.PodInterfaceID+payload.InfraContainerID]
+		if !exists {
+			return nil, errors.New("CNS Response not found in mockdo")
+		}
+
+		body, err := packToHTTPBody(cnsResponse)
+		if err != nil {
+			return nil, errors.Wrap(err, "Packing interface to http body failed")
+		}
+
+		return &http.Response{
+			StatusCode: 200,
+			Body:       body,
+		}, nil
 	default:
 		return nil, errors.New("Case not supported in mockdo")
 	}
@@ -987,6 +1015,97 @@ func TestRequestIPAddress(t *testing.T) {
 				assert.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReleaseIPAddress(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		ipconfig cns.IPConfigRequest
+		mockdo   *mockdo
+		routes   map[string]url.URL
+		wantErr  bool
+	}{
+		{
+			name: "existing ipconfig",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigRequest{
+				DesiredIPAddress: "testipaddress",
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				ipConfigRequestToCNSResponse: map[string]*cns.Response{
+					"testipaddress" + "testpodinterfaceid" + "testcontainerid": {},
+				},
+			},
+			routes:  emptyRoutes,
+			wantErr: false,
+		},
+		{
+			name: "non-existing ipconfig",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigRequest{
+				DesiredIPAddress: "testipaddress",
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+		{
+			name: "status not ok",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigRequest{
+				DesiredIPAddress: "INTERNAL_SERVER_ERROR",
+			},
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+		{
+			name: "return code not zero",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigRequest{
+				DesiredIPAddress: "testipaddress",
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				ipConfigRequestToCNSResponse: map[string]*cns.Response{
+					"testipaddress" + "testpodinterfaceid" + "testcontainerid": {
+						ReturnCode: types.UnsupportedNetworkType,
+					},
+				},
+			},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+		{
+			name:    "nil context",
+			ctx:     nil,
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			err := client.ReleaseIPAddress(tt.ctx, tt.ipconfig)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
