@@ -71,19 +71,21 @@ func (m *mockDelegatePlugin) Errorf(format string, args ...interface{}) *cniType
 	}
 }
 
-func getCIDRNotationForAddress(t *testing.T, ipaddresswithcidr string) *net.IPNet {
+func getCIDRNotationForAddress(ipaddresswithcidr string) *net.IPNet {
 	ip, ipnet, err := net.ParseCIDR(ipaddresswithcidr)
-	require.NoError(t, err)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse cidr with err: %v", err))
+	}
 	ipnet.IP = ip
 	return ipnet
 }
 
-func getResult(t *testing.T, ip string) []*cniTypesCurr.Result {
+func getResult(ip string) []*cniTypesCurr.Result {
 	res := []*cniTypesCurr.Result{
 		{
 			IPs: []*cniTypesCurr.IPConfig{
 				{
-					Address: *getCIDRNotationForAddress(t, ip),
+					Address: *getCIDRNotationForAddress(ip),
 				},
 			},
 		},
@@ -101,16 +103,16 @@ type ipamStruct struct { //nolint:unused
 	QueryInterval string `json:"queryInterval,omitempty"`
 }
 
-func getNwInfo(t *testing.T, subnetv4, subnetv6 string) *network.NetworkInfo {
+func getNwInfo(subnetv4, subnetv6 string) *network.NetworkInfo {
 	nwinfo := &network.NetworkInfo{}
 	if subnetv4 != "" {
 		nwinfo.Subnets = append(nwinfo.Subnets, network.SubnetInfo{
-			Prefix: *getCIDRNotationForAddress(t, subnetv4),
+			Prefix: *getCIDRNotationForAddress(subnetv4),
 		})
 	}
 	if subnetv6 != "" {
 		nwinfo.Subnets = append(nwinfo.Subnets, network.SubnetInfo{
-			Prefix: *getCIDRNotationForAddress(t, subnetv6),
+			Prefix: *getCIDRNotationForAddress(subnetv6),
 		})
 	}
 	return nwinfo
@@ -141,17 +143,17 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult(t, "10.0.0.1/24"),
+						resultsIPv4: getResult("10.0.0.1/24"),
 					},
 					del: del{},
 				},
-				nwInfo: getNwInfo(t, "10.0.0.0/24", ""),
+				nwInfo: getNwInfo("10.0.0.0/24", ""),
 			},
 			args: args{
 				nwCfg:        &cni.NetworkConfig{},
-				subnetPrefix: getCIDRNotationForAddress(t, "10.0.0.0/24"),
+				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
 			},
-			want:    getResult(t, "10.0.0.1/24")[0],
+			want:    getResult("10.0.0.1/24")[0],
 			wantErr: false,
 		},
 		{
@@ -159,20 +161,20 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult(t, "10.0.0.1/24"),
-						resultsIPv6: getResult(t, "2001:0db8:abcd:0015::0/64"),
+						resultsIPv4: getResult("10.0.0.1/24"),
+						resultsIPv6: getResult("2001:0db8:abcd:0015::0/64"),
 					},
 				},
-				nwInfo: getNwInfo(t, "10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
+				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
 			},
 			args: args{
 				nwCfg: &cni.NetworkConfig{
 					IPV6Mode: network.IPV6Nat,
 				},
-				subnetPrefix: getCIDRNotationForAddress(t, "10.0.0.0/24"),
+				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
 			},
-			want:    getResult(t, "10.0.0.1/24")[0],
-			want1:   getResult(t, "2001:0db8:abcd:0015::0/64")[0],
+			want:    getResult("10.0.0.1/24")[0],
+			want1:   getResult("2001:0db8:abcd:0015::0/64")[0],
 			wantErr: false,
 		},
 		{
@@ -183,7 +185,7 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 						errv4: errors.New("test error"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo(t, "10.0.0.0/24", ""),
+				nwInfo: getNwInfo("10.0.0.0/24", ""),
 			},
 			args: args{
 				nwCfg: &cni.NetworkConfig{},
@@ -197,19 +199,19 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult(t, "10.0.0.1/24"),
+						resultsIPv4: getResult("10.0.0.1/24"),
 						errv6:       errors.New("test v6 error"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo(t, "10.0.0.0/24", ""),
+				nwInfo: getNwInfo("10.0.0.0/24", ""),
 			},
 			args: args{
 				nwCfg: &cni.NetworkConfig{
 					IPV6Mode: network.IPV6Nat,
 				},
-				subnetPrefix: getCIDRNotationForAddress(t, "10.0.0.0/24"),
+				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
 			},
-			want:    getResult(t, "10.0.0.1/24")[0],
+			want:    getResult("10.0.0.1/24")[0],
 			want1:   nil,
 			wantErr: true,
 		},
@@ -258,10 +260,10 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				plugin: &mockDelegatePlugin{
 					del: del{},
 				},
-				nwInfo: getNwInfo(t, "10.0.0.0/24", ""),
+				nwInfo: getNwInfo("10.0.0.0/24", ""),
 			},
 			args: args{
-				address: getCIDRNotationForAddress(t, "10.0.0.4/24"),
+				address: getCIDRNotationForAddress("10.0.0.4/24"),
 				nwCfg: &cni.NetworkConfig{
 					Ipam: ipamStruct{
 						Address: "10.0.0.4",
@@ -275,10 +277,10 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				plugin: &mockDelegatePlugin{
 					del: del{},
 				},
-				nwInfo: getNwInfo(t, "10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
+				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
 			},
 			args: args{
-				address: getCIDRNotationForAddress(t, "2001:db8:abcd:0015::0/64"),
+				address: getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
 				nwCfg: &cni.NetworkConfig{
 					Ipam: ipamStruct{
 						Address: "2001:db8:abcd:0015::0/64",
@@ -294,7 +296,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 						err: errors.New("error when address is nil"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo(t, "", "2001:db8:abcd:0012::0/64"),
+				nwInfo: getNwInfo("", "2001:db8:abcd:0012::0/64"),
 			},
 			args: args{
 				address: nil,
@@ -314,10 +316,10 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 						err: errors.New("error on v4 delete"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo(t, "10.0.0.0/24", ""),
+				nwInfo: getNwInfo("10.0.0.0/24", ""),
 			},
 			args: args{
-				address: getCIDRNotationForAddress(t, "10.0.0.4/24"),
+				address: getCIDRNotationForAddress("10.0.0.4/24"),
 				nwCfg: &cni.NetworkConfig{
 					Ipam: ipamStruct{
 						Address: "10.0.0.4/24",
@@ -334,10 +336,10 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 						err: errors.New("error on v6 delete"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo(t, "10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
+				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
 			},
 			args: args{
-				address: getCIDRNotationForAddress(t, "2001:db8:abcd:0015::0/64"),
+				address: getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
 				nwCfg: &cni.NetworkConfig{
 					Ipam: ipamStruct{
 						Address: "10.0.0.4/24",

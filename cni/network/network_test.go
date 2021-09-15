@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getTestResources() (*netPlugin, *acnnetwork.MockNetworkManager) {
+func getTestPlugin() *netPlugin {
 	pluginName := "testplugin"
 	config := &common.PluginConfig{}
 	grpcClient := &nns.MockGrpcClient{}
@@ -24,13 +24,13 @@ func getTestResources() (*netPlugin, *acnnetwork.MockNetworkManager) {
 	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 	plugin.nm = mockNetworkManager
-	return plugin, mockNetworkManager
+	return plugin
 }
 
 // the Add/Delete methods in Plugin require refactoring to have UT's written for them,
 // but the mocks in this test are a start
 func TestPlugin(t *testing.T) {
-	plugin, _ := getTestResources()
+	plugin := getTestPlugin()
 
 	nwCfg := cni.NetworkConfig{
 		Name:              "test-nwcfg",
@@ -94,16 +94,16 @@ func getTestEndpoint(podname, podnamespace, ipwithcidr, podinterfaceid, infracon
 }
 
 func TestGetAllEndpointState(t *testing.T) {
-	plugin, mockNetworkManager := getTestResources()
+	plugin := getTestPlugin()
 	networkid := "azure"
 
 	ep1 := getTestEndpoint("podname1", "podnamespace1", "10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
 	ep2 := getTestEndpoint("podname2", "podnamespace2", "10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
 
-	err := mockNetworkManager.CreateEndpoint(nil, networkid, ep1)
+	err := plugin.nm.CreateEndpoint(nil, networkid, ep1)
 	require.NoError(t, err)
 
-	err = mockNetworkManager.CreateEndpoint(nil, networkid, ep2)
+	err = plugin.nm.CreateEndpoint(nil, networkid, ep2)
 	require.NoError(t, err)
 
 	state, err := plugin.GetAllEndpointState(networkid)
@@ -132,7 +132,7 @@ func TestGetAllEndpointState(t *testing.T) {
 }
 
 func TestEndpointsWithEmptyState(t *testing.T) {
-	plugin, _ := getTestResources()
+	plugin := getTestPlugin()
 	networkid := "azure"
 	state, err := plugin.GetAllEndpointState(networkid)
 	require.NoError(t, err)

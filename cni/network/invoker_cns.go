@@ -9,7 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	cnsclient "github.com/Azure/azure-container-networking/cns/client"
+	cnsc "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -25,7 +25,7 @@ const (
 type CNSIPAMInvoker struct {
 	podName      string
 	podNamespace string
-	cnsClient    *cnsclient.Client
+	cnsClient    *cnsc.Client
 }
 
 type IPv4ResultInfo struct {
@@ -40,7 +40,7 @@ type IPv4ResultInfo struct {
 
 func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
 	cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-	cnsClient, err := cnsclient.New(cnsURL, defaultRequestTimeout)
+	cnsClient, err := cnsc.New(cnsURL, defaultRequestTimeout)
 
 	return &CNSIPAMInvoker{
 		podName:      podName,

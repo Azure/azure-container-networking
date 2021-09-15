@@ -127,7 +127,7 @@ func IpToInt(ip net.IP) uint32 {
 	return binary.BigEndian.Uint32(ip)
 }
 
-func GetInterfaceSubnetWithSpecificIp(ipAddr string) *net.IPNet {
+func GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		log.Printf("InterfaceAddrs failed with %+v", err)

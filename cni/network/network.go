@@ -18,7 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cns"
-	cnsclient "github.com/Azure/azure-container-networking/cns/client"
+	cnsc "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
@@ -75,11 +75,12 @@ const (
 // NetPlugin represents the CNI network plugin.
 type netPlugin struct {
 	*cni.Plugin
-	nm          network.NetworkManager
-	ipamInvoker IPAMInvoker
-	report      *telemetry.CNIReport
-	tb          *telemetry.TelemetryBuffer
-	nnsClient   NnsClient
+	nm           network.NetworkManager
+	ipamInvoker  IPAMInvoker
+	report       *telemetry.CNIReport
+	tb           *telemetry.TelemetryBuffer
+	nnsClient    NnsClient
+	multitenancy multitenancyClient
 }
 
 // client for node network service
@@ -432,20 +433,23 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			break
 		}
 	}
-
-	result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = GetMultiTenancyCNIResult(context.TODO(), enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
-	if err != nil {
-		log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
-		return err
-	}
-
-	defer func() {
+	if nwCfg.MultiTenancy {
+		result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = plugin.multitenancy.GetMultiTenancyCNIResult(context.TODO(), enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
 		if err != nil {
-			CleanupMultitenancyResources(enableInfraVnet, nwCfg, azIpamResult, plugin)
+			log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
+			return fmt.Errorf("error while getting multitenancy result %w", err)
 		}
-	}()
 
-	log.Printf("Result from multitenancy %+v", result)
+		defer func() {
+			if err != nil {
+				if nwCfg.MultiTenancy && azIpamResult != nil && azIpamResult.IPs != nil {
+					plugin.multitenancy.CleanupMultitenancyResources(enableInfraVnet, &azIpamResult.IPs[0].Address, nwCfg, plugin)
+				}
+			}
+		}()
+
+		log.Printf("Result from multitenancy %+v", result)
+	}
 
 	// Initialize values from network config.
 	networkId, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
@@ -693,7 +697,9 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		epInfo.InfraVnetIP = azIpamResult.IPs[0].Address
 	}
 
-	SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, epInfo, result)
+	if nwCfg.MultiTenancy {
+		plugin.multitenancy.SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, epInfo, result)
+	}
 
 	if nwCfg.Mode == opModeTransparent {
 		// this mechanism of using only namespace and name is not unique for different incarnations of POD/container.
@@ -707,7 +713,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
 
-	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnscli, err := cnsc.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return plugin.Errorf(err.Error())
@@ -904,7 +910,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 
-		if !cnsclient.IsNotFound(err) {
+		if !cnsc.IsNotFound(err) {
 			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
 			return err
 		}
@@ -948,7 +954,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnscli, err := cnsc.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return plugin.Errorf(err.Error())
@@ -1100,7 +1106,7 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnscli, err := cnsc.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return plugin.Errorf(err.Error())

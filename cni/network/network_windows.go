@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -8,10 +9,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"context"
+
+	"github.com/Azure/azure-container-networking/common"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	cnsc "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -29,6 +32,12 @@ var (
 	// windows build for version 1903
 	win1903Version = 18362
 )
+
+type azureNetIOShim struct{}
+
+func (a azureNetIOShim) GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet {
+	return common.GetInterfaceSubnetWithSpecificIP(ipAddr)
+}
 
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
  * This is a temporary work around for issue #57253 of Kubernetes.
@@ -162,13 +171,23 @@ func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (st
 	err = nil
 
 	if nwCfg.MultiTenancy {
+		client, err := cnsc.New("http://localhost:"+strconv.Itoa(cnsPort), cnsc.DefaultTimeout)
+		if err != nil {
+			log.Printf("Failed to get CNS client. Error: %v", err)
+			return networkName, err
+		}
+		multitenancyClient := azureMultitenancyClient{
+			cnsclient: client,
+			netioshim: &azureNetIOShim{},
+		}
+
 		determineWinVer()
 		if len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
 			err = fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s", podName, podNs)
 			return networkName, err
 		}
 
-		_, cnsNetworkConfig, _, err = getContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
+		_, cnsNetworkConfig, _, err = multitenancyClient.getContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
 		if err != nil {
 			log.Printf(
 				"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v",
@@ -190,10 +209,10 @@ func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (st
 }
 
 func setupInfraVnetRoutingForMultitenancy(
-	nwCfg *cni.NetworkConfig,
-	azIpamResult *cniTypesCurr.Result,
-	epInfo *network.EndpointInfo,
-	result *cniTypesCurr.Result) {
+	_ *cni.NetworkConfig,
+	_ *cniTypesCurr.Result,
+	_ *network.EndpointInfo,
+	_ *cniTypesCurr.Result) {
 }
 
 func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
