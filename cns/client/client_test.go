@@ -48,6 +48,7 @@ var dnsservers = []string{"8.8.8.8", "8.8.4.4"}
 type mockdo struct {
 	podInfoToNCResponse                     map[string]*cns.GetNetworkContainerResponse
 	ncIDtoCreateHostNCApipaEndpointResponse map[string]*cns.CreateHostNCApipaEndpointResponse
+	ncIDtoDeleteHostNCApipaEndpointResponse map[string]*cns.DeleteHostNCApipaEndpointResponse
 }
 
 func packToHTTPBody(obj interface{}) (io.ReadCloser, error) {
@@ -112,6 +113,34 @@ func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 		}
 
 		body, err := packToHTTPBody(createHostNCApipaEndpointResponse)
+		if err != nil {
+			return nil, errors.Wrap(err, "Packing interface to http body failed")
+		}
+
+		return &http.Response{
+			StatusCode: 200,
+			Body:       body,
+		}, nil
+
+	case cns.DeleteHostNCApipaEndpointPath:
+		payload := cns.DeleteHostNCApipaEndpointRequest{}
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			return nil, errors.Wrap(err, "Decoding the request failed")
+		}
+
+		if payload.NetworkContainerID == "INTERNAL_SERVER_ERROR" {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			}, nil
+		}
+
+		deleteHostNCApipaEndpointResponse, exists := m.ncIDtoDeleteHostNCApipaEndpointResponse[payload.NetworkContainerID]
+		if !exists {
+			return nil, errors.New("Host NC Apipa endpoint not found in mockdo")
+		}
+
+		body, err := packToHTTPBody(deleteHostNCApipaEndpointResponse)
 		if err != nil {
 			return nil, errors.Wrap(err, "Packing interface to http body failed")
 		}
@@ -750,6 +779,85 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 				assert.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDeleteHostNCApipaEndpoint(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name               string
+		ctx                context.Context
+		networkContainerID string
+		mockdo             *mockdo
+		routes             map[string]url.URL
+		wantErr            bool
+	}{
+		{
+			name:               "delete existing endpoint",
+			ctx:                context.TODO(),
+			networkContainerID: "testncid",
+			mockdo: &mockdo{
+				ncIDtoDeleteHostNCApipaEndpointResponse: map[string]*cns.DeleteHostNCApipaEndpointResponse{
+					"testncid": {},
+				},
+			},
+			routes:  emptyRoutes,
+			wantErr: false,
+		},
+		{
+			name:               "non existing network container ID",
+			ctx:                context.TODO(),
+			networkContainerID: "testncid",
+			mockdo:             &mockdo{},
+			routes:             emptyRoutes,
+			wantErr:            true,
+		},
+		{
+			name:               "status not ok",
+			ctx:                context.TODO(),
+			networkContainerID: "INTERNAL_SERVER_ERROR",
+			mockdo:             &mockdo{},
+			routes:             emptyRoutes,
+			wantErr:            true,
+		},
+		{
+			name:               "return code not zero",
+			ctx:                context.TODO(),
+			networkContainerID: "testncid",
+			mockdo: &mockdo{
+				ncIDtoDeleteHostNCApipaEndpointResponse: map[string]*cns.DeleteHostNCApipaEndpointResponse{
+					"testncid": {
+						Response: cns.Response{
+							ReturnCode: types.UnsupportedNetworkType,
+						},
+					},
+				},
+			},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+		{
+			name:    "nil context",
+			ctx:     nil,
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			err := client.DeleteHostNCApipaEndpoint(tt.ctx, tt.networkContainerID)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
