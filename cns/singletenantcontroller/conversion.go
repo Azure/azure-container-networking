@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ErrUnsupoortedNCQuantity indicates that the node has an unsupported nummber of Network Containers attached.
+// ErrUnsupportedNCQuantity indicates that the node has an unsupported nummber of Network Containers attached.
 var ErrUnsupportedNCQuantity = errors.New("unsupported number of network containers")
 
 // CRDStatusToNCRequest translates a crd status to createnetworkcontainer request

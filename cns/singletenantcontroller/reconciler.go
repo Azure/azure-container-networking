@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -96,7 +97,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, nodeName string) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.NodeNetworkConfig{}).
 		WithEventFilter(predicate.Funcs{
 			// ignore delete events.
@@ -115,4 +116,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, nodeName string) error {
 			},
 		}).
 		Complete(r)
+	if err != nil {
+		return errors.Wrap(err, "failed to set up reconciler with manager")
+	}
+	return nil
 }
