@@ -30,7 +30,7 @@ type OVSEndpointClient struct {
 	allowInboundFromNCToHost bool
 	enableSnatForDns         bool
 	netlink                  netlinkinterface.NetlinkInterface
-	ovsctlClient             ovsctl.OvsctlInterface
+	ovsctlClient             ovsctl.OvsInterface
 }
 
 const (
@@ -46,7 +46,7 @@ func NewOVSEndpointClient(
 	vlanid int,
 	localIP string,
 	nl netlinkinterface.NetlinkInterface,
-	ovs ovsctl.OvsctlInterface) *OVSEndpointClient {
+	ovs ovsctl.OvsInterface) *OVSEndpointClient {
 
 	client := &OVSEndpointClient{
 		bridgeName:               nw.extIf.BridgeName,
@@ -61,7 +61,8 @@ func NewOVSEndpointClient(
 		allowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
 		enableSnatForDns:         epInfo.EnableSnatForDns,
 		netlink:                  nl,
-		ovsctlClient:             ovs}
+		ovsctlClient:             ovs,
+	}
 
 	NewInfraVnetClient(client, epInfo.Id[:7])
 	NewSnatClient(client, nw.SnatBridgeIP, localIP, epInfo)
@@ -125,7 +126,7 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 		// This rule also checks if packets coming from right source ip based on the ovs port to prevent ip spoofing.
 		// Otherwise it drops the packet.
 		log.Printf("[ovs] Adding IP SNAT rule for egress traffic on %v.", containerOVSPort)
-		if err := client.ovsctlClient.AddIpSnatRule(client.bridgeName, ipAddr.IP, client.vlanID, containerOVSPort, client.hostPrimaryMac, hostPort); err != nil {
+		if err := client.ovsctlClient.AddIPSnatRule(client.bridgeName, ipAddr.IP, client.vlanID, containerOVSPort, client.hostPrimaryMac, hostPort); err != nil {
 			return err
 		}
 
@@ -171,7 +172,9 @@ func (client *OVSEndpointClient) DeleteEndpointRules(ep *endpoint) {
 
 	// Delete port from ovs bridge
 	log.Printf("[ovs] Deleting interface %v from bridge %v", client.hostVethName, client.bridgeName)
-	client.ovsctlClient.DeletePortFromOVS(client.bridgeName, client.hostVethName)
+	if err := client.ovsctlClient.DeletePortFromOVS(client.bridgeName, client.hostVethName); err != nil {
+		log.Printf("[ovs] Deletion of interface %v from bridge %v failed", client.hostVethName, client.bridgeName)
+	}
 
 	DeleteSnatEndpointRules(client)
 	DeleteInfraVnetEndpointRules(client, ep, hostPort)

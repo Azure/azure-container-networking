@@ -5,6 +5,8 @@ package network
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -13,10 +15,16 @@ import (
 	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
+var errorOVSNetworkClient = errors.New("OVSNetworkClient Error")
+
+func newErrorOVSNetworkClient(errStr string) error {
+	return fmt.Errorf("%w : %s", errorOVSNetworkClient, errStr)
+}
+
 type OVSNetworkClient struct {
 	bridgeName        string
 	hostInterfaceName string
-	ovsctlClient      ovsctl.OvsctlInterface
+	ovsctlClient      ovsctl.OvsInterface
 }
 
 const (
@@ -59,7 +67,7 @@ func (client *OVSNetworkClient) AddRoutes(nwInfo *NetworkInfo, interfaceName str
 	return nil
 }
 
-func NewOVSClient(bridgeName, hostInterfaceName string, ovsctlClient ovsctl.OvsctlInterface) *OVSNetworkClient {
+func NewOVSClient(bridgeName, hostInterfaceName string, ovsctlClient ovsctl.OvsInterface) *OVSNetworkClient {
 	ovsClient := &OVSNetworkClient{
 		bridgeName:        bridgeName,
 		hostInterfaceName: hostInterfaceName,
@@ -113,19 +121,26 @@ func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
 	}
 
 	log.Printf("[ovs] Adding DNAT rule for ingress ARP traffic on interface %v.", client.hostInterfaceName)
-	if err := client.ovsctlClient.AddArpDnatRule(client.bridgeName, ofport, macHex); err != nil {
-		return err
+	err = client.ovsctlClient.AddArpDnatRule(client.bridgeName, ofport, macHex)
+	if err != nil {
+		return newErrorOVSNetworkClient(err.Error())
 	}
 
 	return nil
 }
 
 func (client *OVSNetworkClient) DeleteL2Rules(extIf *externalInterface) {
-	client.ovsctlClient.DeletePortFromOVS(client.bridgeName, client.hostInterfaceName)
+	if err := client.ovsctlClient.DeletePortFromOVS(client.bridgeName, client.hostInterfaceName); err != nil {
+		log.Printf("[ovs] Deletion of interface %v from bridge %v failed", client.hostInterfaceName, client.bridgeName)
+	}
 }
 
 func (client *OVSNetworkClient) SetBridgeMasterToHostInterface() error {
-	return client.ovsctlClient.AddPortOnOVSBridge(client.hostInterfaceName, client.bridgeName, 0)
+	err := client.ovsctlClient.AddPortOnOVSBridge(client.hostInterfaceName, client.bridgeName, 0)
+	if err != nil {
+		return newErrorOVSNetworkClient(err.Error())
+	}
+	return nil
 }
 
 func (client *OVSNetworkClient) SetHairpinOnHostInterface(enable bool) error {

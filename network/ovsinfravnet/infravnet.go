@@ -84,7 +84,7 @@ func (client *OVSInfraVnetClient) CreateInfraVnetRules(
 	}
 
 	// 0 signifies not to add vlan tag to this traffic
-	if err := ovs.AddIpSnatRule(bridgeName, infraIP.IP, 0, infraContainerPort, hostPrimaryMac, hostPort); err != nil {
+	if err := ovs.AddIPSnatRule(bridgeName, infraIP.IP, 0, infraContainerPort, hostPrimaryMac, hostPort); err != nil {
 		log.Printf("[ovs] AddIpSnatRule failed with error %v", err)
 		return err
 	}
@@ -147,7 +147,9 @@ func (client *OVSInfraVnetClient) DeleteInfraVnetRules(
 	ovs.DeleteIPSnatRule(bridgeName, infraContainerPort)
 
 	log.Printf("[ovs] Deleting infravnet interface %v from bridge %v", client.hostInfraVethName, bridgeName)
-	ovs.DeletePortFromOVS(bridgeName, client.hostInfraVethName)
+	if err := ovs.DeletePortFromOVS(bridgeName, client.hostInfraVethName); err != nil {
+		log.Printf("[ovs] Deletion of infravnet interface %v from bridge %v failed", client.hostInfraVethName, bridgeName)
+	}
 }
 
 func (client *OVSInfraVnetClient) DeleteInfraVnetEndpoint() error {

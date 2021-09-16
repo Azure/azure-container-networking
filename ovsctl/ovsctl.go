@@ -4,6 +4,7 @@
 package ovsctl
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -24,18 +25,23 @@ const (
 	high = 20
 )
 
-type OvsctlInterface interface {
+var errorMockOvsctl = errors.New("MockOvsctlError")
+
+func newErrorOvsctl(errorString string) error {
+	return fmt.Errorf("%w: %v", errorMockOvsctl, errorString)
+}
+
+type OvsInterface interface {
+	// TODO: remove this interface after platform calls are mocked
 	CreateOVSBridge(bridgeName string) error
 	DeleteOVSBridge(bridgeName string) error
 	AddPortOnOVSBridge(hostIfName string, bridgeName string, vlanID int) error
 	GetOVSPortNumber(interfaceName string) (string, error)
-	// check if this function is being used anywhere
 	AddVMIpAcceptRule(bridgeName string, primaryIP string, mac string) error
 	AddArpSnatRule(bridgeName string, mac string, macHex string, ofport string) error
-	AddIpSnatRule(bridgeName string, ip net.IP, vlanID int, port string, mac string, outport string) error
+	AddIPSnatRule(bridgeName string, ip net.IP, vlanID int, port string, mac string, outport string) error
 	AddArpDnatRule(bridgeName string, port string, mac string) error
 	AddFakeArpReply(bridgeName string, ip net.IP) error
-	// check for this as well
 	AddArpReplyRule(bridgeName string, port string, ip net.IP, mac string, vlanid int, mode string) error
 	AddMacDnatRule(bridgeName string, port string, ip net.IP, mac string, vlanid int, containerPort string) error
 	DeleteArpReplyRule(bridgeName string, port string, ip net.IP, vlanid int)
@@ -57,7 +63,7 @@ func (Ovsctl) CreateOVSBridge(bridgeName string) error {
 	_, err := platform.ExecuteCommand(ovsCreateCmd)
 	if err != nil {
 		log.Printf("[ovs] Error while creating OVS bridge %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -70,7 +76,7 @@ func (Ovsctl) DeleteOVSBridge(bridgeName string) error {
 	_, err := platform.ExecuteCommand(ovsCreateCmd)
 	if err != nil {
 		log.Printf("[ovs] Error while deleting OVS bridge %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -81,7 +87,7 @@ func (Ovsctl) AddPortOnOVSBridge(hostIfName string, bridgeName string, vlanID in
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Error while setting OVS as master to primary interface %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -92,7 +98,7 @@ func (Ovsctl) GetOVSPortNumber(interfaceName string) (string, error) {
 	ofport, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Get ofport failed with error %v", err)
-		return "", err
+		return "", newErrorOvsctl(err.Error())
 	}
 
 	return strings.Trim(ofport, "\n"), nil
@@ -103,7 +109,7 @@ func (Ovsctl) AddVMIpAcceptRule(bridgeName string, primaryIP string, mac string)
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding SNAT rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -115,14 +121,14 @@ func (Ovsctl) AddArpSnatRule(bridgeName string, mac string, macHex string, ofpor
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding ARP SNAT rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
 }
 
 // IP SNAT Rule - Change src mac to VM Mac for packets coming from container host veth port.
-func (Ovsctl) AddIpSnatRule(bridgeName string, ip net.IP, vlanID int, port string, mac string, outport string) error {
+func (Ovsctl) AddIPSnatRule(bridgeName string, ip net.IP, vlanID int, port string, mac string, outport string) error {
 	var cmd string
 	if outport == "" {
 		outport = "normal"
@@ -141,7 +147,7 @@ func (Ovsctl) AddIpSnatRule(bridgeName string, ip net.IP, vlanID int, port strin
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding IP SNAT rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	// Drop other packets which doesn't satisfy above condition
@@ -150,7 +156,7 @@ func (Ovsctl) AddIpSnatRule(bridgeName string, ip net.IP, vlanID int, port strin
 	_, err = platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Dropping vlantag packet rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -163,7 +169,7 @@ func (Ovsctl) AddArpDnatRule(bridgeName string, port string, mac string) error {
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding DNAT rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -183,7 +189,7 @@ func (Ovsctl) AddFakeArpReply(bridgeName string, ip net.IP) error {
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding ARP reply rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -199,7 +205,7 @@ func (Ovsctl) AddArpReplyRule(bridgeName string, port string, ip net.IP, mac str
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding ARP reply rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	// If arp fields matches, set arp reply rule for the request
@@ -212,7 +218,7 @@ func (Ovsctl) AddArpReplyRule(bridgeName string, port string, ip net.IP, mac str
 	_, err = platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding ARP reply rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -233,7 +239,7 @@ func (Ovsctl) AddMacDnatRule(bridgeName string, port string, ip net.IP, mac stri
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Adding MAC DNAT rule failed with error %v", err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil
@@ -287,7 +293,7 @@ func (Ovsctl) DeletePortFromOVS(bridgeName string, interfaceName string) error {
 	_, err := platform.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[ovs] Failed to disconnect interface %v from bridge, err:%v.", interfaceName, err)
-		return err
+		return newErrorOvsctl(err.Error())
 	}
 
 	return nil

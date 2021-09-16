@@ -28,12 +28,14 @@ func TestAddRoutes(t *testing.T) {
 func TestCreateBridge(t *testing.T) {
 	ovsctlClient := ovsctl.NewMockOvsctl(false, "", "")
 	f, err := os.Create(ovsConfigFile)
-	defer f.Close()
 	if err != nil {
 		t.Errorf("Unable to create %v before test: %v", ovsConfigFile, err)
 		return
 	}
-	f.WriteString("FORCE_COREFILES=yes")
+	defer f.Close()
+	if _, err := f.WriteString("FORCE_COREFILES=yes"); err != nil {
+		t.Errorf("Unable to write to file %v: %v", ovsConfigFile, err)
+	}
 
 	ovsClient := NewOVSClient(bridgeName, hostIntf, ovsctlClient)
 	if err := ovsClient.CreateBridge(); err != nil {
@@ -74,9 +76,6 @@ func TestDeleteL2Rules(t *testing.T) {
 
 	ovsClient := NewOVSClient(bridgeName, hostIntf, ovsctlClient)
 	ovsClient.DeleteL2Rules(&extIf)
-	// if err := ovsClient.DeleteL2Rules(&extIf); err != nil {
-	// 	t.Errorf("Unable to delete L2 rules: %v", err)
-	// }
 }
 
 func TestSetBridgeMasterToHostInterface(t *testing.T) {

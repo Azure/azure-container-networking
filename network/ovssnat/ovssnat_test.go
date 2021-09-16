@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/ovsctl"
 )
@@ -27,7 +26,6 @@ func TestAllowInboundFromHostToNC(t *testing.T) {
 		containerSnatVethName: anyInterface,
 		netlink:               nl,
 		ovsctlClient:          ovsctl.NewMockOvsctl(false, "", ""),
-		iptableClient:         iptables.NewMockIPTableCommand(false, ""),
 	}
 
 	if err := nl.AddLink(&netlink.DummyLink{

@@ -127,7 +127,6 @@ func (epc EPCommon) AssignIPToInterface(interfaceName string, ipAddresses []net.
 func addOrDeleteFilterRule(bridgeName string, action string, ipAddress string, chainName string, target string) error {
 	var err error
 	option := "i"
-	iptableCmd := iptables.NewIPTableCommand()
 
 	if chainName == iptables.Output {
 		option = "o"
@@ -137,11 +136,11 @@ func addOrDeleteFilterRule(bridgeName string, action string, ipAddress string, c
 
 	switch action {
 	case iptables.Insert:
-		err = iptables.InsertIptableRule(iptables.V4, iptables.Filter, chainName, matchCondition, target, iptableCmd)
+		err = iptables.InsertIptableRule(iptables.V4, iptables.Filter, chainName, matchCondition, target)
 	case iptables.Append:
-		err = iptables.AppendIptableRule(iptables.V4, iptables.Filter, chainName, matchCondition, target, iptableCmd)
+		err = iptables.AppendIptableRule(iptables.V4, iptables.Filter, chainName, matchCondition, target)
 	case iptables.Delete:
-		err = iptables.DeleteIptableRule(iptables.V4, iptables.Filter, chainName, matchCondition, target, iptableCmd)
+		err = iptables.DeleteIptableRule(iptables.V4, iptables.Filter, chainName, matchCondition, target)
 	}
 
 	return err
@@ -207,7 +206,7 @@ func EnableIPForwarding(ifName string) error {
 	}
 
 	// Append a rule in forward chain to allow forwarding from bridge
-	if err := iptables.AppendIptableRule(iptables.V4, iptables.Filter, iptables.Forward, "", iptables.Accept, iptables.NewIPTableCommand()); err != nil {
+	if err := iptables.AppendIptableRule(iptables.V4, iptables.Filter, iptables.Forward, "", iptables.Accept); err != nil {
 		log.Printf("[net] Appending forward chain rule: allow traffic coming from snatbridge failed with: %v", err)
 		return err
 	}
@@ -246,7 +245,7 @@ func AddSnatRule(match string, ip net.IP) error {
 	}
 
 	target := fmt.Sprintf("SNAT --to %s", ip.String())
-	return iptables.InsertIptableRule(version, iptables.Nat, iptables.Postrouting, match, target, iptables.NewIPTableCommand())
+	return iptables.InsertIptableRule(version, iptables.Nat, iptables.Postrouting, match, target)
 }
 
 func DisableRAForInterface(ifName string) error {

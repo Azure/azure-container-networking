@@ -1,16 +1,8 @@
 package ovsctl
 
 import (
-	"errors"
-	"fmt"
 	"net"
 )
-
-var errorMockOvsctl = errors.New("MockOvsctlError")
-
-func newErrorMockOvsctl(errorString string) error {
-	return fmt.Errorf("%w: %v", errorMockOvsctl, errorString)
-}
 
 type MockOvsctl struct {
 	returnError bool
@@ -28,21 +20,21 @@ func NewMockOvsctl(returnError bool, errorStr string, ovsPort string) MockOvsctl
 
 func (m MockOvsctl) CreateOVSBridge(bridgeName string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
 
 func (m MockOvsctl) DeleteOVSBridge(bridgeName string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
 
 func (m MockOvsctl) AddPortOnOVSBridge(hostIfName string, bridgeName string, vlanID int) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
@@ -53,49 +45,49 @@ func (MockOvsctl) GetOVSPortNumber(interfaceName string) (string, error) {
 
 func (m MockOvsctl) AddVMIpAcceptRule(bridgeName string, primaryIP string, mac string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
 
 func (m MockOvsctl) AddArpSnatRule(bridgeName string, mac string, macHex string, ofport string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
 
-func (m MockOvsctl) AddIpSnatRule(bridgeName string, ip net.IP, vlanID int, port string, mac string, outport string) error {
+func (m MockOvsctl) AddIPSnatRule(bridgeName string, ip net.IP, vlanID int, port string, mac string, outport string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
 
 func (m MockOvsctl) AddArpDnatRule(bridgeName string, port string, mac string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
 
 func (m MockOvsctl) AddFakeArpReply(bridgeName string, ip net.IP) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
 
 func (m MockOvsctl) AddArpReplyRule(bridgeName string, port string, ip net.IP, mac string, vlanid int, mode string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
 
 func (m MockOvsctl) AddMacDnatRule(bridgeName string, port string, ip net.IP, mac string, vlanid int, containerPort string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
@@ -108,7 +100,7 @@ func (MockOvsctl) DeleteMacDnatRule(bridgeName string, port string, ip net.IP, v
 
 func (m MockOvsctl) DeletePortFromOVS(bridgeName string, interfaceName string) error {
 	if m.returnError {
-		return newErrorMockOvsctl(m.errorStr)
+		return newErrorOvsctl(m.errorStr)
 	}
 	return nil
 }
