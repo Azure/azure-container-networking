@@ -1,7 +1,7 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
-// +build !windows
+// +build windows
 
 package network
 
@@ -16,6 +16,8 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T){
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
 	hnsv2 = hnswrapper.Hnsv2wrapperFake{}
 
 	nwInfo := &NetworkInfo{

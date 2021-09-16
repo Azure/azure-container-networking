@@ -18,6 +18,9 @@ import (
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
+
+// this hnsv2 variable is package level variable in network
+// we do this to avoid passing around os specific objects in platform agnostic code
 var hnsv2 hnswrapper.HnsV2WrapperInterface = hnswrapper.Hnsv2wrapper{}
 
 const (
