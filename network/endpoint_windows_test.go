@@ -1,8 +1,13 @@
+// Copyright 2017 Microsoft. All rights reserved.
+// MIT License
+
+// +build !windows
+
 package network
 
 import (
+	"fmt"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
-	uuid "github.com/satori/go.uuid"
 	"net"
 	"testing"
 )
@@ -14,8 +19,8 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T){
 	hnsv2 = hnswrapper.Hnsv2wrapperFake{}
 
 	epInfo := &EndpointInfo{
-		Id:                 uuid.NewV4().String(),
-		ContainerID:        uuid.NewV4().String(),
+		Id:                 "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+		ContainerID:        "545055c2-1462-42c8-b222-e75d0b291632",
 		NetNsPath:          "fakeNameSpace",
 		IfName:             "eth0",
 		Data:               make(map[string]interface{}),

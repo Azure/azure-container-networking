@@ -1,9 +1,13 @@
+// Copyright 2017 Microsoft. All rights reserved.
+// MIT License
+
+// +build !windows
+
 package network
 
 import (
 	"fmt"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
-	uuid "github.com/satori/go.uuid"
 	"testing"
 )
 
@@ -15,7 +19,7 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T){
 	hnsv2 = hnswrapper.Hnsv2wrapperFake{}
 
 	nwInfo := &NetworkInfo{
-		Id:           uuid.NewV4().String(),
+		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode: "bridge",
 	}
