@@ -51,6 +51,7 @@ type mockdo struct {
 	ncIDtoDeleteHostNCApipaEndpointResponse map[string]*cns.DeleteHostNCApipaEndpointResponse
 	ipConfigRequestsToIPConfigResponse      map[string]*cns.IPConfigResponse
 	ipConfigRequestToCNSResponse            map[string]*cns.Response
+	stateFilterToGetIPAddressStatusResponse map[cns.IPConfigState]*cns.GetIPAddressStatusResponse
 }
 
 func packToHTTPBody(obj interface{}) (io.ReadCloser, error) {
@@ -207,6 +208,35 @@ func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 			StatusCode: 200,
 			Body:       body,
 		}, nil
+
+	case cns.PathDebugIPAddresses:
+		payload := cns.GetIPAddressesRequest{}
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			return nil, errors.Wrap(err, "Decoding the request failed")
+		}
+
+		if payload.IPConfigStateFilter[0] == "INTERNAL_SERVER_ERROR" {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
+			}, nil
+		}
+
+		getIPAddressStatusResponse, exists := m.stateFilterToGetIPAddressStatusResponse[payload.IPConfigStateFilter[0]]
+		if !exists {
+			return nil, errors.New("Get IP Address status response not found in mockdo")
+		}
+
+		body, err := packToHTTPBody(getIPAddressStatusResponse)
+		if err != nil {
+			return nil, errors.Wrap(err, "Packing interface to http body failed")
+		}
+
+		return &http.Response{
+			StatusCode: 200,
+			Body:       body,
+		}, nil
+
 	default:
 		return nil, errors.New("Case not supported in mockdo")
 	}
@@ -1106,6 +1136,103 @@ func TestReleaseIPAddress(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestGetIPAddressesMatchingStates(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name        string
+		ctx         context.Context
+		stateFilter []cns.IPConfigState
+		mockdo      *mockdo
+		routes      map[string]url.URL
+		want        []cns.IPConfigurationStatus
+		wantErr     bool
+	}{
+		{
+			name:        "happy case",
+			ctx:         context.TODO(),
+			stateFilter: []cns.IPConfigState{cns.Available},
+			mockdo: &mockdo{
+				stateFilterToGetIPAddressStatusResponse: map[cns.IPConfigState]*cns.GetIPAddressStatusResponse{
+					cns.Available: {
+						IPConfigurationStatus: []cns.IPConfigurationStatus{},
+					},
+				},
+			},
+			routes:  emptyRoutes,
+			want:    []cns.IPConfigurationStatus{},
+			wantErr: false,
+		},
+		{
+			name:        "length of zero",
+			ctx:         context.TODO(),
+			stateFilter: []cns.IPConfigState{},
+			mockdo:      &mockdo{},
+			routes:      emptyRoutes,
+			want:        nil,
+			wantErr:     false,
+		},
+		{
+			name:        "non-existing filter",
+			ctx:         context.TODO(),
+			stateFilter: []cns.IPConfigState{"nonexisting"},
+			mockdo:      &mockdo{},
+			routes:      emptyRoutes,
+			want:        nil,
+			wantErr:     true,
+		},
+		{
+			name:        "status not ok",
+			ctx:         context.TODO(),
+			stateFilter: []cns.IPConfigState{"INTERNAL_SERVER_ERROR"},
+			mockdo:      &mockdo{},
+			routes:      emptyRoutes,
+			want:        nil,
+			wantErr:     true,
+		},
+		{
+			name:        "return code not zero",
+			ctx:         context.TODO(),
+			stateFilter: []cns.IPConfigState{cns.Available},
+			mockdo: &mockdo{
+				stateFilterToGetIPAddressStatusResponse: map[cns.IPConfigState]*cns.GetIPAddressStatusResponse{
+					cns.Available: {
+						Response: cns.Response{
+							ReturnCode: types.UnsupportedNetworkType,
+						},
+					},
+				},
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:        "nil context",
+			ctx:         nil,
+			stateFilter: []cns.IPConfigState{cns.Available},
+			mockdo:      &mockdo{},
+			routes:      emptyRoutes,
+			wantErr:     true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			got, err := client.GetIPAddressesMatchingStates(tt.ctx, tt.stateFilter...)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
