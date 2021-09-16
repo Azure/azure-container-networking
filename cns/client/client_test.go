@@ -53,6 +53,7 @@ type mockdo struct {
 	ipConfigRequestToCNSResponse            map[string]*cns.Response
 	stateFilterToGetIPAddressStatusResponse map[cns.IPConfigState]*cns.GetIPAddressStatusResponse
 	getPodContextResponse                   *cns.GetPodContextResponse
+	getHTTPServiceDataResponse              *restserver.GetHTTPServiceDataResponse
 }
 
 func packToHTTPBody(obj interface{}) (io.ReadCloser, error) {
@@ -244,6 +245,21 @@ func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 		}
 
 		body, err := packToHTTPBody(m.getPodContextResponse)
+		if err != nil {
+			return nil, errors.Wrap(err, "Packing interface to http body failed")
+		}
+
+		return &http.Response{
+			StatusCode: 200,
+			Body:       body,
+		}, nil
+
+	case cns.PathDebugRestData:
+		if m.getHTTPServiceDataResponse == nil {
+			return nil, errors.New("No http service data response found")
+		}
+
+		body, err := packToHTTPBody(m.getHTTPServiceDataResponse)
 		if err != nil {
 			return nil, errors.Wrap(err, "Packing interface to http body failed")
 		}
@@ -1313,6 +1329,74 @@ func TestGetPodOrchestratorContext(t *testing.T) {
 				routes: tt.routes,
 			}
 			got, err := client.GetPodOrchestratorContext(tt.ctx)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetHTTPServiceData(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		mockdo  *mockdo
+		routes  map[string]url.URL
+		want    *restserver.GetHTTPServiceDataResponse
+		wantErr bool
+	}{
+		{
+			name: "happy case",
+			mockdo: &mockdo{
+				getHTTPServiceDataResponse: &restserver.GetHTTPServiceDataResponse{},
+			},
+			routes:  emptyRoutes,
+			ctx:     context.TODO(),
+			want:    &restserver.GetHTTPServiceDataResponse{},
+			wantErr: false,
+		},
+		{
+			name:    "non-existing service",
+			ctx:     context.TODO(),
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "return code not zero",
+			ctx:  context.TODO(),
+			mockdo: &mockdo{
+				getHTTPServiceDataResponse: &restserver.GetHTTPServiceDataResponse{
+					Response: restserver.Response{
+						ReturnCode: types.UnsupportedNetworkType,
+					},
+				},
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "nil context",
+			ctx:     nil,
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			got, err := client.GetHTTPServiceData(tt.ctx)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
