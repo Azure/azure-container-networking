@@ -52,6 +52,7 @@ type mockdo struct {
 	ipConfigRequestsToIPConfigResponse      map[string]*cns.IPConfigResponse
 	ipConfigRequestToCNSResponse            map[string]*cns.Response
 	stateFilterToGetIPAddressStatusResponse map[cns.IPConfigState]*cns.GetIPAddressStatusResponse
+	getPodContextResponse                   *cns.GetPodContextResponse
 }
 
 func packToHTTPBody(obj interface{}) (io.ReadCloser, error) {
@@ -228,6 +229,21 @@ func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 		}
 
 		body, err := packToHTTPBody(getIPAddressStatusResponse)
+		if err != nil {
+			return nil, errors.Wrap(err, "Packing interface to http body failed")
+		}
+
+		return &http.Response{
+			StatusCode: 200,
+			Body:       body,
+		}, nil
+
+	case cns.PathDebugPodContext:
+		if m.getPodContextResponse == nil {
+			return nil, errors.New("No pod context found")
+		}
+
+		body, err := packToHTTPBody(m.getPodContextResponse)
 		if err != nil {
 			return nil, errors.Wrap(err, "Packing interface to http body failed")
 		}
@@ -1227,6 +1243,76 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 				routes: tt.routes,
 			}
 			got, err := client.GetIPAddressesMatchingStates(tt.ctx, tt.stateFilter...)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetPodOrchestratorContext(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name    string
+		mockdo  *mockdo
+		routes  map[string]url.URL
+		ctx     context.Context
+		want    map[string]string
+		wantErr bool
+	}{
+		{
+			name: "happy case",
+			mockdo: &mockdo{
+				getPodContextResponse: &cns.GetPodContextResponse{
+					PodContext: map[string]string{},
+				},
+			},
+			routes:  emptyRoutes,
+			ctx:     context.TODO(),
+			want:    map[string]string{},
+			wantErr: false,
+		},
+		{
+			name:    "non-existing context",
+			ctx:     context.TODO(),
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "return code not zero",
+			ctx:  context.TODO(),
+			mockdo: &mockdo{
+				getPodContextResponse: &cns.GetPodContextResponse{
+					Response: cns.Response{
+						ReturnCode: types.UnsupportedNetworkType,
+					},
+				},
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "nil context",
+			ctx:     nil,
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			got, err := client.GetPodOrchestratorContext(tt.ctx)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
