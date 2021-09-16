@@ -1,0 +1,14 @@
+package hnswrapper
+
+import "github.com/Microsoft/hcsshim/hcn"
+
+type HnsV2WrapperInterface interface {
+	CreateEndpoint(endpoint *hcn.HostComputeEndpoint) (*hcn.HostComputeEndpoint, error)
+	DeleteEndpoint(endpoint *hcn.HostComputeEndpoint) error
+	CreateNetwork(network *hcn.HostComputeNetwork) (*hcn.HostComputeNetwork, error)
+	DeleteNetwork(network *hcn.HostComputeNetwork)  error
+	GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeNamespace, error)
+	AddNamespaceEndpoint(namespaceId string, hnsResponseId string) error
+	RemoveNamespaceEndpoint(namespaceId string, hnsResponseId string) error
+	GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error)
+}
