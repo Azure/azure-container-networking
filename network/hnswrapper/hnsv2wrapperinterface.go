@@ -8,8 +8,8 @@ type HnsV2WrapperInterface interface {
 	CreateNetwork(network *hcn.HostComputeNetwork) (*hcn.HostComputeNetwork, error)
 	DeleteNetwork(network *hcn.HostComputeNetwork)  error
 	GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeNamespace, error)
-	AddNamespaceEndpoint(namespaceId string, hnsResponseId string) error
-	RemoveNamespaceEndpoint(namespaceId string, hnsResponseId string) error
+	AddNamespaceEndpoint(namespaceId string, endpointId string) error
+	RemoveNamespaceEndpoint(namespaceId string, endpointId string) error
 	GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error)
 	GetEndpointByID(endpointId string) (*hcn.HostComputeEndpoint, error)
 }

@@ -38,10 +38,10 @@ func (Hnsv2wrapperFake) GetNamespaceByID(netNamespacePath string) (*hcn.HostComp
 	return nameSpace, nil
 }
 
-func (Hnsv2wrapperFake) AddNamespaceEndpoint(namespaceId string, hnsResponseId string) error {
+func (Hnsv2wrapperFake) AddNamespaceEndpoint(namespaceId string, endpointId string) error {
 	return nil
 }
 
-func (Hnsv2wrapperFake) RemoveNamespaceEndpoint(namespaceId string, hnsResponseId string) error {
+func (Hnsv2wrapperFake) RemoveNamespaceEndpoint(namespaceId string, endpointId string) error {
 	return nil
 }

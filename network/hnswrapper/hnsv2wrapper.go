@@ -28,12 +28,12 @@ func (w Hnsv2wrapper) GetNamespaceByID(netNamespacePath string) (*hcn.HostComput
 	return hcn.GetNamespaceByID(netNamespacePath)
 }
 
-func (w Hnsv2wrapper) AddNamespaceEndpoint(namespaceId string, hnsResponseId string) error {
-	return hcn.AddNamespaceEndpoint(namespaceId, hnsResponseId)
+func (w Hnsv2wrapper) AddNamespaceEndpoint(namespaceId string, endpointId string) error {
+	return hcn.AddNamespaceEndpoint(namespaceId, endpointId)
 }
 
-func (w Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId string, hnsResponseId string) error {
-	return hcn.RemoveNamespaceEndpoint(namespaceId, hnsResponseId)
+func (w Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId string, endpointId string) error {
+	return hcn.RemoveNamespaceEndpoint(namespaceId, endpointId)
 }
 
 func (w Hnsv2wrapper) GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error) {
