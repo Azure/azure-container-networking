@@ -225,8 +225,8 @@ endif
 # Clean all build artifacts.
 .PHONY: clean
 clean:
-	rm -rf $(OUTPUT_DIR)
-	rm -rf $(TOOLS_BIN_DIR)
+	$(RMDIR) $(OUTPUT_DIR)
+	$(RMDIR) $(TOOLS_BIN_DIR)
 
 # Build the Azure CNM plugin.
 $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT): $(CNMFILES)
