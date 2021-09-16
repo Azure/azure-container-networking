@@ -42,6 +42,7 @@ CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 CNMS_BUILD_DIR = $(BUILD_DIR)/cnms
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
+NPM_RELATIVE_BUILD_DIR = output/$(GOOS)_$(GOARCH)/npm
 NPM_TELEMETRY_DIR = $(NPM_BUILD_DIR)/telemetry
 TOOLS_DIR = $(REPO_ROOT)/build/tools
 TOOLS_BIN_DIR = $(TOOLS_DIR)/bin
@@ -231,7 +232,7 @@ ifeq ($(GOOS),linux)
 	--no-cache \
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(VERSION) \
-	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
+	--build-arg NPM_BUILD_DIR=$(NPM_RELATIVE_BUILD_DIR) \
 	.
 	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
 endif
