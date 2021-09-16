@@ -1,4 +1,3 @@
-// Copyright Microsoft. All rights reserved.
 package telemetry
 
 import (
