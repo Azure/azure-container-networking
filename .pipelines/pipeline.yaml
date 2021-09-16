@@ -202,7 +202,7 @@ stages:
               gpgv codecov.SHA256SUM.sig codecov.SHA256SUM
               shasum -a 256 -c codecov.SHA256SUM
               chmod +x codecov
-              ./codecov -f coverage.out -v -Z
+              ./codecov -f coverage.out -v -Z -r Azure/azure-container-networking
             name: "Coverage"
             displayName: "Generate Coverage Reports"
             condition: always()
