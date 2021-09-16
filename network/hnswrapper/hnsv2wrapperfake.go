@@ -21,6 +21,11 @@ func (f Hnsv2wrapperFake) GetNetworkByID(networkId string) (*hcn.HostComputeNetw
 	return network,nil
 }
 
+func (f Hnsv2wrapperFake) GetEndpointByID(endpointId string) (*hcn.HostComputeEndpoint, error) {
+	endpoint := &hcn.HostComputeEndpoint{Id: uuid.NewV4().String()}
+	return endpoint,nil
+}
+
 func (Hnsv2wrapperFake) CreateEndpoint(endpoint *hcn.HostComputeEndpoint)  (*hcn.HostComputeEndpoint, error)  {
 	return endpoint, nil
 }

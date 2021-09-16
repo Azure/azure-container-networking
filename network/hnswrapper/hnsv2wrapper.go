@@ -1,6 +1,8 @@
 package hnswrapper
 
-import "github.com/Microsoft/hcsshim/hcn"
+import (
+	"github.com/Microsoft/hcsshim/hcn"
+)
 
 type Hnsv2wrapper struct {
 
@@ -36,4 +38,8 @@ func (w Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId string, hnsResponseId 
 
 func (w Hnsv2wrapper) GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error) {
 	return hcn.GetNetworkByID(networkId)
+}
+
+func (f Hnsv2wrapper) GetEndpointByID(endpointId string) (*hcn.HostComputeEndpoint, error) {
+	return hcn.GetEndpointByID(endpointId)
 }

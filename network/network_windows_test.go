@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	uuid "github.com/satori/go.uuid"
 	"testing"
@@ -27,12 +28,14 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T){
 	network,err := nm.newNetworkImplHnsV2(nwInfo,extInterface)
 
 	if err != nil {
+		fmt.Printf("+%v", err)
 		t.Fatal(err)
 	}
 
 	err = nm.deleteNetworkImplHnsV2(network)
 
 	if err != nil {
+		fmt.Printf("+%v", err)
 		t.Fatal(err)
 	}
 }

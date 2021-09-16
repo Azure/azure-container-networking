@@ -436,17 +436,17 @@ func (nw *network) deleteEndpointImplHnsV2(cli apipaClient, ep *endpoint) error 
 
 	log.Printf("[net] Deleting hcn endpoint with id: %s", ep.HnsId)
 
-	if hcnEndpoint, err = hcn.GetEndpointByID(ep.HnsId); err != nil {
+	if hcnEndpoint, err = hnsv2.GetEndpointByID(ep.HnsId); err != nil {
 		return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %v", ep.HnsId, err)
 	}
 
 	// Remove this endpoint from the namespace
-	if err = hcn.RemoveNamespaceEndpoint(hcnEndpoint.HostComputeNamespace, hcnEndpoint.Id); err != nil {
+	if err = hnsv2.RemoveNamespaceEndpoint(hcnEndpoint.HostComputeNamespace, hcnEndpoint.Id); err != nil {
 		return fmt.Errorf("Failed to remove hcn endpoint: %s from namespace: %s due to error: %v", ep.HnsId,
 			hcnEndpoint.HostComputeNamespace, err)
 	}
 
-	if err = hcnEndpoint.Delete(); err != nil {
+	if err = hnsv2.DeleteEndpoint(hcnEndpoint); err != nil {
 		return fmt.Errorf("Failed to delete hcn endpoint: %s due to error: %v", ep.HnsId, err)
 	}
 

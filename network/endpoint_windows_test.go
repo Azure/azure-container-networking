@@ -29,12 +29,14 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T){
 	endpoint,err := nw.newEndpointImplHnsV2(nil, epInfo)
 
 	if err != nil {
+		fmt.Printf("+%v", err)
 		t.Fatal(err)
 	}
 
 	err = nw.deleteEndpointImplHnsV2(nil, endpoint)
 
 	if err != nil {
+		fmt.Printf("+%v", err)
 		t.Fatal(err)
 	}
 }
