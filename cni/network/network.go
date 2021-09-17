@@ -340,6 +340,10 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// Temporary if block to determing whether we disable SNAT on host (for multi-tenant scenario only)
 	if nwCfg.MultiTenancy {
+		if plugin.multitenancyClient == nil {
+			plugin.multitenancyClient = &Multitenancy{}
+		}
+
 		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(
 			snatConfigFileName, nmAgentSnatAndDnsSupportAPI); err != nil {
 			return err
@@ -433,10 +437,6 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	if nwCfg.MultiTenancy {
-		if plugin.multitenancyClient == nil {
-			plugin.multitenancyClient = &Multitenancy{}
-		}
-
 		result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = plugin.multitenancyClient.GetMultiTenancyCNIResult(
 			context.TODO(), enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
 		if err != nil {

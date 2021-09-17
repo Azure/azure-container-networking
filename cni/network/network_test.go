@@ -597,7 +597,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 				nm:                 acnnetwork.NewMockNetworkmanager(),
 				tb:                 &telemetry.TelemetryBuffer{},
 				report:             &telemetry.CNIReport{},
-				multitenancyClient: &MockMultitenancy{},
+				multitenancyClient: NewMockMultitenancy(false),
 			},
 			args: &cniSkel.CmdArgs{
 				StdinData:   localNwCfg.Serialize(),
@@ -615,7 +615,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 				nm:                 acnnetwork.NewMockNetworkmanager(),
 				tb:                 &telemetry.TelemetryBuffer{},
 				report:             &telemetry.CNIReport{},
-				multitenancyClient: &MockMultitenancy{fail: true},
+				multitenancyClient: NewMockMultitenancy(true),
 			},
 			args: &cniSkel.CmdArgs{
 				StdinData:   localNwCfg.Serialize(),
@@ -647,7 +647,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 
 func TestPluginMultitenancyDelete(t *testing.T) {
 	plugin, _ := GetTestResources()
-	plugin.multitenancyClient = &MockMultitenancy{}
+	plugin.multitenancyClient = NewMockMultitenancy(false)
 	localNwCfg := cni.NetworkConfig{
 		CNIVersion:                 "0.3.0",
 		Name:                       "mulnet",

@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"errors"
 	"net"
 
@@ -21,7 +22,15 @@ const (
 
 var errMockMulAdd = errors.New("multitenancy fail")
 
-func (m *MockMultitenancy) GetMultiTenancyCNIResult(enableInfraVnet bool,
+func NewMockMultitenancy(fail bool) *MockMultitenancy {
+	return &MockMultitenancy{
+		fail: fail,
+	}
+}
+
+func (m *MockMultitenancy) GetMultiTenancyCNIResult(
+	ctx context.Context,
+	enableInfraVnet bool,
 	nwCfg *cni.NetworkConfig,
 	plugin *netPlugin,
 	k8sPodName string,
