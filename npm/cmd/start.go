@@ -134,12 +134,12 @@ func initLogging() error {
 	return nil
 }
 
-func k8sServerVersion(clientset *kubernetes.Clientset) *k8sversion.Info {
+func k8sServerVersion(kubeclientset kubernetes.Interface) *k8sversion.Info {
 	var err error
 	var serverVersion *k8sversion.Info
 	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
 		<-ticker
-		serverVersion, err = clientset.ServerVersion()
+		serverVersion, err = kubeclientset.Discovery().ServerVersion()
 		if err == nil {
 			break
 		}
