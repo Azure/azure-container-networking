@@ -15,7 +15,12 @@ const (
 
 	npmCacheFlag         = "-c"
 	iptablesSaveFileFlag = "-i"
+	dstFlag              = "-d"
+	srcFlag              = "-s"
 	unknownShorthandFlag = "-z"
+
+	testIP1 = "10.240.0.17" // from npmCacheWithCustomFormat.json
+	testIP2 = "10.240.0.68" // ditto
 
 	debugCmdString          = "debug"
 	convertIPTableCmdString = "convertiptable"
@@ -55,4 +60,8 @@ func testCommand(t *testing.T, tests []*testCases) {
 			}
 		})
 	}
+}
+
+func concatArgs(baseArgs []string, args ...string) []string {
+	return append(baseArgs, args...)
 }
