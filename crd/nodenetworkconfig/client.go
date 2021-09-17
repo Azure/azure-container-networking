@@ -62,7 +62,8 @@ func (c *Client) create(ctx context.Context, res *v1.CustomResourceDefinition) (
 // Get returns the NodeNetworkConfig identified by the NamespacedName.
 func (c *Client) Get(ctx context.Context, key types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
 	nodeNetworkConfig := &v1alpha.NodeNetworkConfig{}
-	return nodeNetworkConfig, errors.Wrapf(c.nnccli.Get(ctx, key, nodeNetworkConfig), "failed to get nnc %v", key)
+	err := c.nnccli.Get(ctx, key, nodeNetworkConfig)
+	return nodeNetworkConfig, errors.Wrapf(err, "failed to get nnc %v", key)
 }
 
 // Install installs the embedded NodeNetworkConfig CRD definition in the cluster.
@@ -127,7 +128,7 @@ func (c *Client) PatchSpec(ctx context.Context, key types.NamespacedName, spec *
 func (c *Client) UpdateSpec(ctx context.Context, key types.NamespacedName, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
 	nnc, err := c.Get(ctx, key)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to update nnc")
+		return nil, errors.Wrap(err, "failed to get nnc")
 	}
 	spec.DeepCopyInto(&nnc.Spec)
 	if err := c.nnccli.Update(ctx, nnc); err != nil {

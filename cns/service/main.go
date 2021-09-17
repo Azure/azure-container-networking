@@ -793,10 +793,9 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 	// Get nnc using direct client
 	nnc, err := cli.Get(ctx)
 	if err != nil {
-		// If the CRD is not defined, exit
+
 		if crd.IsNotDefined(err) {
-			logger.Errorf("CRD is not defined on cluster: %v", err)
-			os.Exit(1)
+			return errors.Wrap(err, "failed to get NNC during init CNS state")
 		}
 
 		if nnc == nil {
@@ -807,10 +806,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
 			err = ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
-			if err != nil {
-				return errors.Wrap(err, "failed to reconcile NC state")
-			}
-			return nil
+			return errors.Wrap(err, "failed to reconcile NC state")
 		}
 
 		// If it's any other error, log it and return
