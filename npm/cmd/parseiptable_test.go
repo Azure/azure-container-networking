@@ -1,12 +1,6 @@
 package main
 
-import (
-	"bytes"
-	"io/ioutil"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
+import "testing"
 
 /* out
 Usage:
@@ -16,78 +10,46 @@ Usage:
           -h, --help                   help for parseiptable
           -i, --iptables-file string   Set the iptable-save file path (optional)
 */
-const (
-	iptableSaveFile = "../pkg/dataplane/testfiles/iptablesave"
-	parseIPTableCMD = "parseiptable"
-	debugCMD        = "debug"
-)
 
 func TestParseIPTableCmd(t *testing.T) {
-	tests := []struct {
-		name            string
-		args            []string
-		wantErr         bool
-		wantEmptyOutput bool
-	}{
+	tests := []*testCases{
 		{
 			name:            "unknown shorthand flag",
-			args:            []string{debugCMD, parseIPTableCMD, "-c"},
+			args:            []string{debugCmdString, parseIPTableCmdString, unknownShorthandFlag},
 			wantErr:         true,
 			wantEmptyOutput: false,
 		},
 		{
 			name:            "unknown shorthand flag with a correct file",
-			args:            []string{debugCMD, parseIPTableCMD, "-c", iptableSaveFile},
+			args:            []string{debugCmdString, parseIPTableCmdString, unknownShorthandFlag, iptableSaveFile},
 			wantErr:         true,
 			wantEmptyOutput: false,
 		},
 		{
 			name:            "non-existing iptables file",
-			args:            []string{debugCMD, parseIPTableCMD, "-i", "non-existing-iptables-file"},
+			args:            []string{debugCmdString, parseIPTableCmdString, iptablesSaveFileFlag, nonExistingFile},
 			wantErr:         true,
 			wantEmptyOutput: false,
 		},
 		{
 			name:            "correct iptables file",
-			args:            []string{debugCMD, parseIPTableCMD, "-i", iptableSaveFile},
+			args:            []string{debugCmdString, parseIPTableCmdString, iptablesSaveFileFlag, iptableSaveFile},
 			wantErr:         false,
 			wantEmptyOutput: true,
 		},
 		{
 			name:            "correct iptables file with shorthand flag first",
-			args:            []string{debugCMD, "-i", iptableSaveFile, parseIPTableCMD},
+			args:            []string{debugCmdString, iptablesSaveFileFlag, iptableSaveFile, parseIPTableCmdString},
 			wantErr:         false,
 			wantEmptyOutput: true,
 		},
 		{
-			name:            "Iptables iformation from Kernel",
-			args:            []string{debugCMD, parseIPTableCMD},
+			name:            "Iptables information from Kernel",
+			args:            []string{debugCmdString, parseIPTableCmdString},
 			wantErr:         false,
 			wantEmptyOutput: true,
 		},
 	}
 
-	rootCMD := rootCmd
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			b := bytes.NewBufferString("")
-			rootCMD.SetOut(b)
-			rootCMD.SetArgs(tt.args)
-			err := rootCMD.Execute()
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			out, err := ioutil.ReadAll(b)
-			require.NoError(t, err)
-			if tt.wantEmptyOutput {
-				require.Empty(t, out)
-			} else {
-				require.NotEmpty(t, out)
-			}
-		})
-	}
+	testCommand(t, tests)
 }
