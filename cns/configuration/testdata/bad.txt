@@ -1,0 +1,13 @@
+{
+    "TelemetrySettings": {
+        "DebugMode": false,
+        "DisableAll": false,
+        "HeartBeatIntervalInMins": 30,
+        "RefreshIntervalInSecs": 15,
+        "SnapshotIntervalInMins": 60,
+        "TelemetryBatchIntervalInSecs": 15,
+        "TelemetryBatchSizeBytes": 16384
+    },
+    "ManagedSettings": {
+        "Infrast"
+    }
