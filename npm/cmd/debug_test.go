@@ -24,10 +24,9 @@ const (
 )
 
 type testCases struct {
-	name            string
-	args            []string
-	wantErr         bool
-	wantEmptyOutput bool
+	name    string
+	args    []string
+	wantErr bool
 }
 
 func testCommand(t *testing.T, tests []*testCases) {
@@ -47,7 +46,7 @@ func testCommand(t *testing.T, tests []*testCases) {
 
 			out, err := ioutil.ReadAll(b)
 			require.NoError(t, err)
-			if tt.wantEmptyOutput {
+			if !tt.wantErr {
 				require.Empty(t, out)
 			} else {
 				require.NotEmpty(t, out)
