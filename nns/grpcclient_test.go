@@ -34,7 +34,7 @@ func teardown() {
 // CNI ADD to add container to network
 func TestAddContainerNetworking(t *testing.T) {
 	client := &GrpcClient{}
-	if err, _ := client.AddContainerNetworking(
+	if _, err := client.AddContainerNetworking(
 		context.Background(),
 		"sf_8e9961f4-5b4f-4b3c-a9ae-c3294b0d9681",
 		"testnwspace"); err != nil {
@@ -45,7 +45,7 @@ func TestAddContainerNetworking(t *testing.T) {
 // CNI DEL to delete container from network
 func TestDeleteContainerNetworking(t *testing.T) {
 	client := &GrpcClient{}
-	if err, _ := client.DeleteContainerNetworking(
+	if _, err := client.DeleteContainerNetworking(
 		context.Background(),
 		"sf_8e9961f4-5b4f-4b3c-a9ae-c3294b0d9681",
 		"testnwspace"); err != nil {
@@ -58,7 +58,7 @@ func TestAddContainerNetworkingFailure(t *testing.T) {
 	client := &GrpcClient{}
 
 	var err error
-	if err, _ = client.AddContainerNetworking(context.Background(), "testpod", "testnwspace"); err == nil {
+	if _, err = client.AddContainerNetworking(context.Background(), "testpod", "testnwspace"); err == nil {
 		t.Fatalf("TestAddContainerNetworkingFailure failed. Expected error but none returned")
 	}
 
@@ -72,7 +72,7 @@ func TestDeleteContainerNetworkingFailure(t *testing.T) {
 	client := &GrpcClient{}
 
 	var err error
-	if err, _ = client.DeleteContainerNetworking(context.Background(), "testpod", "testnwspace"); err == nil {
+	if _, err = client.DeleteContainerNetworking(context.Background(), "testpod", "testnwspace"); err == nil {
 		t.Fatalf("TestDeleteContainerNetworkingFailure failed. Expected error but none returned")
 	}
 
@@ -95,7 +95,7 @@ func TestAddContainerNetworkingGrpcServerDown(t *testing.T) {
 	client := &GrpcClient{}
 
 	var err error
-	if err, _ = client.AddContainerNetworking(
+	if _, err = client.AddContainerNetworking(
 		context.Background(), "sf_8e9961f4-5b4f-4b3c-a9ae-c3294b0d9681", "testnwspace"); err != nil {
 		t.Fatalf("TestAddContainerNetworkingGrpcServerDown failed. %s", err)
 	}

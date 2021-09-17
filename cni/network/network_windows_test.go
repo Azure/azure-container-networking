@@ -67,7 +67,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 		name       string
 		methods    []string
 		cniArgs    skel.CmdArgs
-		plugin     *netPlugin
+		plugin     *NetPlugin
 		wantErr    bool
 		wantErrMsg string
 	}{
@@ -81,7 +81,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "container1", "container1-ns"),
 				IfName:      eth0IfName,
 			},
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:            plugin,
 				nm:                network.NewMockNetworkmanager(),
 				ipamInvoker:       NewMockIpamInvoker(false, false, false),
@@ -101,7 +101,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "container1", "container1-ns"),
 				IfName:      eth0IfName,
 			},
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:            plugin,
 				nm:                network.NewMockNetworkmanager(),
 				ipamInvoker:       NewMockIpamInvoker(false, false, false),

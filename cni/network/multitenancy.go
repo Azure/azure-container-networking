@@ -30,21 +30,6 @@ const (
 
 // MultitenancyClient interface
 type MultitenancyClient interface {
-	GetMultiTenancyCNIResult(
-		ctx context.Context,
-		enableInfraVnet bool,
-		nwCfg *cni.NetworkConfig,
-		plugin *netPlugin,
-		k8sPodName string,
-		k8sNamespace string,
-		ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error)
-
-	CleanupMultitenancyResources(
-		enableInfraVnet bool,
-		nwCfg *cni.NetworkConfig,
-		azIpamResult *cniTypesCurr.Result,
-		plugin *netPlugin)
-
 	SetupRoutingForMultitenancy(
 		nwCfg *cni.NetworkConfig,
 		cnsNetworkConfig *cns.GetNetworkContainerResponse,
@@ -54,6 +39,13 @@ type MultitenancyClient interface {
 	DetermineSnatFeatureOnHost(
 		snatFile string,
 		nmAgentSupportedApisURL string) (bool, bool, error)
+
+	GetContainerNetworkConfiguration(
+		ctx context.Context,
+		nwCfg *cni.NetworkConfig,
+		podName string,
+		podNamespace string,
+		ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error)
 }
 
 type Multitenancy struct{}
@@ -168,7 +160,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 	setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo, result)
 }
 
-func getContainerNetworkConfiguration(
+func (m *Multitenancy) GetContainerNetworkConfiguration(
 	ctx context.Context, nwCfg *cni.NetworkConfig, podName string, podNamespace string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
 	var podNameWithoutSuffix string
 
@@ -265,7 +257,7 @@ func getInfraVnetIP(
 	enableInfraVnet bool,
 	infraSubnet string,
 	nwCfg *cni.NetworkConfig,
-	plugin *netPlugin,
+	plugin *NetPlugin,
 ) (*cniTypesCurr.Result, error) {
 
 	if enableInfraVnet {
@@ -289,7 +281,7 @@ func cleanupInfraVnetIP(
 	enableInfraVnet bool,
 	infraIPNet *net.IPNet,
 	nwCfg *cni.NetworkConfig,
-	plugin *netPlugin) {
+	plugin *NetPlugin) {
 
 	log.Printf("Cleanup infravnet ip")
 
@@ -326,19 +318,18 @@ var (
 )
 
 // GetMultiTenancyCNIResult retrieves network goal state of a container from CNS
-func (m *Multitenancy) GetMultiTenancyCNIResult(
+func (plugin *NetPlugin) GetMultiTenancyCNIResult(
 	ctx context.Context,
 	enableInfraVnet bool,
 	nwCfg *cni.NetworkConfig,
-	plugin *netPlugin,
 	k8sPodName string,
 	k8sNamespace string,
 	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error) {
 
-	result, cnsNetworkConfig, subnetPrefix, err := getContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
+	result, cnsNetworkConfig, subnetPrefix, err := plugin.multitenancyClient.GetContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
 	if err != nil {
 		log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
-		return nil, nil, net.IPNet{}, nil, err
+		return nil, nil, net.IPNet{}, nil, fmt.Errorf("%w", err)
 	}
 
 	log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
@@ -372,7 +363,7 @@ func (m *Multitenancy) GetMultiTenancyCNIResult(
 	return result, cnsNetworkConfig, subnetPrefix, azIpamResult, nil
 }
 
-func (m *Multitenancy) CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig, azIpamResult *cniTypesCurr.Result, plugin *netPlugin) {
+func CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig, azIpamResult *cniTypesCurr.Result, plugin *NetPlugin) {
 	if azIpamResult != nil && azIpamResult.IPs != nil {
 		cleanupInfraVnetIP(enableInfraVnet, &azIpamResult.IPs[0].Address, nwCfg, plugin)
 	}

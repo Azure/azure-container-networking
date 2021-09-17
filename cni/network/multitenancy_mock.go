@@ -28,17 +28,26 @@ func NewMockMultitenancy(fail bool) *MockMultitenancy {
 	}
 }
 
-func (m *MockMultitenancy) GetMultiTenancyCNIResult(
-	ctx context.Context,
-	enableInfraVnet bool,
+func (m *MockMultitenancy) SetupRoutingForMultitenancy(
 	nwCfg *cni.NetworkConfig,
-	plugin *netPlugin,
-	k8sPodName string,
-	k8sNamespace string,
-	ifName string) (*current.Result, *cns.GetNetworkContainerResponse, net.IPNet, *current.Result, error) {
+	cnsNetworkConfig *cns.GetNetworkContainerResponse,
+	azIpamResult *current.Result,
+	epInfo *network.EndpointInfo,
+	result *current.Result) {
+}
 
+func (m *MockMultitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (bool, bool, error) {
+	return true, true, nil
+}
+
+func (m *MockMultitenancy) GetContainerNetworkConfiguration(
+	ctx context.Context,
+	nwCfg *cni.NetworkConfig,
+	podName string,
+	podNamespace string,
+	ifName string) (*current.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
 	if m.fail {
-		return nil, nil, net.IPNet{}, nil, errMockMulAdd
+		return nil, nil, net.IPNet{}, errMockMulAdd
 	}
 
 	cnsResponse := &cns.GetNetworkContainerResponse{
@@ -63,28 +72,8 @@ func (m *MockMultitenancy) GetMultiTenancyCNIResult(
 			ID:        1,
 		},
 	}
-
 	_, ipnet, _ := net.ParseCIDR(cnsResponse.PrimaryInterfaceIdentifier)
 	result := convertToCniResult(cnsResponse, "eth1")
 
-	return result, cnsResponse, *ipnet, nil, nil
-}
-
-func (m *MockMultitenancy) CleanupMultitenancyResources(
-	enableInfraVnet bool,
-	nwCfg *cni.NetworkConfig,
-	azIpamResult *current.Result,
-	plugin *netPlugin) {
-}
-
-func (m *MockMultitenancy) SetupRoutingForMultitenancy(
-	nwCfg *cni.NetworkConfig,
-	cnsNetworkConfig *cns.GetNetworkContainerResponse,
-	azIpamResult *current.Result,
-	epInfo *network.EndpointInfo,
-	result *current.Result) {
-}
-
-func (m *MockMultitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (bool, bool, error) {
-	return true, true, nil
+	return result, cnsResponse, *ipnet, nil
 }

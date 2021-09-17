@@ -63,11 +63,11 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func GetTestResources() (*netPlugin, *acnnetwork.MockNetworkManager) {
+func GetTestResources() (*NetPlugin, *acnnetwork.MockNetworkManager) {
 	pluginName := "testplugin"
 	config := &common.PluginConfig{}
 	grpcClient := &nns.MockGrpcClient{}
-	plugin, _ := NewPlugin(pluginName, config, grpcClient)
+	plugin, _ := NewPlugin(pluginName, config, grpcClient, &Multitenancy{}, nil)
 	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 	plugin.nm = mockNetworkManager
@@ -82,7 +82,7 @@ func TestPluginAdd(t *testing.T) {
 		name       string
 		nwCfg      cni.NetworkConfig
 		args       *cniSkel.CmdArgs
-		plugin     *netPlugin
+		plugin     *NetPlugin
 		wantErr    bool
 		wantErrMsg string
 	}{
@@ -123,7 +123,7 @@ func TestPluginDelete(t *testing.T) {
 	tests := []struct {
 		name       string
 		args       *cniSkel.CmdArgs
-		plugin     *netPlugin
+		plugin     *NetPlugin
 		wantErr    bool
 		wantErrMsg string
 	}{
@@ -225,7 +225,7 @@ func TestPluginCNIFieldsMissing(t *testing.T) {
 	tests := []struct {
 		name       string
 		args       *cniSkel.CmdArgs
-		plugin     *netPlugin
+		plugin     *NetPlugin
 		wantErr    bool
 		wantErrMsg string
 	}{
@@ -440,16 +440,18 @@ func TestIpamDeleteFail(t *testing.T) {
 func TestAddDualStack(t *testing.T) {
 	nwCfg.IPV6Mode = "ipv6nat"
 	args.StdinData = nwCfg.Serialize()
+	cniPlugin, _ := cni.NewPlugin("test", "0.3.0")
 
 	tests := []struct {
 		name       string
-		plugin     *netPlugin
+		plugin     *NetPlugin
 		wantErr    bool
 		wantErrMsg string
 	}{
 		{
 			name: "Dualstack happy path",
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
+				Plugin:      cniPlugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
 				ipamInvoker: NewMockIpamInvoker(true, false, false),
 				report:      &telemetry.CNIReport{},
@@ -459,7 +461,8 @@ func TestAddDualStack(t *testing.T) {
 		},
 		{
 			name: "Dualstack ipv6 fail",
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
+				Plugin:      cniPlugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
 				ipamInvoker: NewMockIpamInvoker(true, false, true),
 				report:      &telemetry.CNIReport{},
@@ -497,14 +500,14 @@ func TestPluginGet(t *testing.T) {
 	tests := []struct {
 		name       string
 		methods    []string
-		plugin     *netPlugin
+		plugin     *NetPlugin
 		wantErr    bool
 		wantErrMsg string
 	}{
 		{
 			name:    "CNI Get happy path",
 			methods: []string{CNI_ADD, "GET"},
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
 				ipamInvoker: NewMockIpamInvoker(false, false, false),
@@ -516,7 +519,7 @@ func TestPluginGet(t *testing.T) {
 		{
 			name:    "CNI Get fail with network not found",
 			methods: []string{"GET"},
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
 				ipamInvoker: NewMockIpamInvoker(false, false, false),
@@ -529,7 +532,7 @@ func TestPluginGet(t *testing.T) {
 		{
 			name:    "CNI Get fail with endpoint not found",
 			methods: []string{CNI_ADD, CNI_DEL, "GET"},
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
 				ipamInvoker: NewMockIpamInvoker(false, false, false),
@@ -585,14 +588,14 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		plugin     *netPlugin
+		plugin     *NetPlugin
 		args       *cniSkel.CmdArgs
 		wantErr    bool
 		wantErrMsg string
 	}{
 		{
 			name: "Add Happy path",
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:             plugin,
 				nm:                 acnnetwork.NewMockNetworkmanager(),
 				tb:                 &telemetry.TelemetryBuffer{},
@@ -610,7 +613,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 		},
 		{
 			name: "Add Fail",
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:             plugin,
 				nm:                 acnnetwork.NewMockNetworkmanager(),
 				tb:                 &telemetry.TelemetryBuffer{},
@@ -716,14 +719,14 @@ func TestPluginBaremetalAdd(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		plugin     *netPlugin
+		plugin     *NetPlugin
 		args       *cniSkel.CmdArgs
 		wantErr    bool
 		wantErrMsg string
 	}{
 		{
 			name: "Baremetal Add Happy path",
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:    plugin,
 				nm:        acnnetwork.NewMockNetworkmanager(),
 				tb:        &telemetry.TelemetryBuffer{},
@@ -741,7 +744,7 @@ func TestPluginBaremetalAdd(t *testing.T) {
 		},
 		{
 			name: "Baremetal Add Fail",
-			plugin: &netPlugin{
+			plugin: &NetPlugin{
 				Plugin:    plugin,
 				nm:        acnnetwork.NewMockNetworkmanager(),
 				tb:        &telemetry.TelemetryBuffer{},
@@ -847,7 +850,7 @@ func TestNewPlugin(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			plugin, err := NewPlugin("test", &tt.config, nil)
+			plugin, err := NewPlugin("test", &tt.config, nil, nil, nil)
 			if tt.wantErr {
 				require.NoError(t, err)
 				require.NotNil(t, plugin)
@@ -937,6 +940,7 @@ func TestEndpointsWithEmptyState(t *testing.T) {
 }
 
 func TestGetNetworkName(t *testing.T) {
+	plugin, _ := GetTestResources()
 	tests := []struct {
 		name  string
 		nwCfg cni.NetworkConfig
@@ -951,7 +955,7 @@ func TestGetNetworkName(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			nwName, _ := getNetworkName("", "", "", &tt.nwCfg)
+			nwName, _ := plugin.getNetworkName("", "", "", &tt.nwCfg)
 			require.Equal(t, tt.nwCfg.Name, nwName)
 		})
 	}

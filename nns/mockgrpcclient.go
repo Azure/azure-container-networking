@@ -12,9 +12,10 @@ type MockGrpcClient struct {
 	Fail bool
 }
 
+// ErrMockNnsAdd - mock add failure
 var ErrMockNnsAdd = errors.New("mock nns add fail")
 
-// Add container to the network. Container Id is appended to the podName
+// AddContainerNetworking - Mock nns add
 func (c *MockGrpcClient) AddContainerNetworking(
 	ctx context.Context,
 	podName, nwNamespace string) (*contracts.ConfigureContainerNetworkingResponse, error) {
@@ -25,7 +26,7 @@ func (c *MockGrpcClient) AddContainerNetworking(
 	return &contracts.ConfigureContainerNetworkingResponse{}, nil
 }
 
-// Add container to the network. Container Id is appended to the podName
+// DeleteContainerNetworking - Mock nns delete
 func (c *MockGrpcClient) DeleteContainerNetworking(
 	ctx context.Context,
 	podName, nwNamespace string) (*contracts.ConfigureContainerNetworkingResponse, error) {
