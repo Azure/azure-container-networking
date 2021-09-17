@@ -183,9 +183,9 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.RequestIPConfig, newHandlerFuncWithHistogram(service.requestIPConfigHandler, httpRequestLatency))
 	listener.AddHandler(cns.ReleaseIPConfig, newHandlerFuncWithHistogram(service.releaseIPConfigHandler, httpRequestLatency))
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
-	listener.AddHandler(cns.DebugIPAddresses, service.handleDebugIPAddresses)
-	listener.AddHandler(cns.DebugPodContext, service.handleDebugPodContext)
-	listener.AddHandler(cns.DebugRestData, service.handleDebugRestData)
+	listener.AddHandler(cns.PathDebugIPAddresses, service.handleDebugIPAddresses)
+	listener.AddHandler(cns.PathDebugPodContext, service.handleDebugPodContext)
+	listener.AddHandler(cns.PathDebugRestData, service.handleDebugRestData)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)

@@ -7,9 +7,8 @@ import (
 	"sync"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/client/httpapi"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
-	"github.com/Azure/azure-container-networking/cns/cnsclient/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
@@ -52,7 +51,7 @@ type requestController struct {
 	KubeClient      KubeClient      // KubeClient is a cached client which interacts with API server
 	directAPIClient DirectAPIClient // Direct client to interact with API server
 	directCRDClient DirectCRDClient // Direct client to interact with CRDs on API server
-	CNSClient       cnsclient.APIClient
+	CNSClient       cnsclient
 	nodeName        string // name of node running this program
 	Reconciler      *CrdReconciler
 	initialized     bool

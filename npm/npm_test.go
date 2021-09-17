@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/exec"
-	utilexec "k8s.io/utils/exec"
 )
 
 // To indicate the object is needed to be DeletedFinalStateUnknown Object
@@ -27,15 +26,6 @@ func getKey(obj interface{}, t *testing.T) string {
 		return ""
 	}
 	return key
-}
-
-func newNPMgr(t *testing.T, exec utilexec.Interface) *NetworkPolicyManager {
-	npMgr := &NetworkPolicyManager{
-		ipsMgr:           ipsm.NewIpsetManager(exec),
-		TelemetryEnabled: false,
-	}
-
-	return npMgr
 }
 
 func TestMain(m *testing.M) {

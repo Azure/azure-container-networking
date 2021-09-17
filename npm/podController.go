@@ -20,7 +20,6 @@ import (
 	coreinformer "k8s.io/client-go/informers/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -54,31 +53,6 @@ func newNpmPod(podObj *corev1.Pod) *NpmPod {
 	}
 }
 
-/* (TODO) commenting function as it not being used today.
-   But useful to keep for future
-// getPodObjFromNpmObj returns a new pod object based on NpmPod
-func (nPod *NpmPod) getPodObjFromNpmPodObj() *corev1.Pod {
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      nPod.Name,
-			Namespace: nPod.Namespace,
-			Labels:    nPod.Labels,
-		},
-		Status: corev1.PodStatus{
-			Phase: nPod.Phase,
-			PodIP: nPod.PodIP,
-		},
-		Spec: corev1.PodSpec{
-			HostNetwork: nPod.IsHostNetwork,
-			Containers: []corev1.Container{
-				corev1.Container{
-					Ports: nPod.ContainerPorts,
-				},
-			},
-		},
-	}
-} */
-
 func (nPod *NpmPod) appendLabels(new map[string]string, clear LabelAppendOperation) {
 	if clear {
 		nPod.Labels = make(map[string]string)
@@ -108,7 +82,6 @@ func (nPod *NpmPod) updateNpmPodAttributes(podObj *corev1.Pod) {
 }
 
 type podController struct {
-	clientset kubernetes.Interface
 	podLister corelisters.PodLister
 	workqueue workqueue.RateLimitingInterface
 	ipsMgr    *ipsm.IpsetManager
@@ -117,10 +90,8 @@ type podController struct {
 	npmNamespaceCache *npmNamespaceCache
 }
 
-func NewPodController(podInformer coreinformer.PodInformer, clientset kubernetes.Interface,
-	ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *podController {
+func NewPodController(podInformer coreinformer.PodInformer, ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *podController {
 	podController := &podController{
-		clientset:         clientset,
 		podLister:         podInformer.Lister(),
 		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Pods"),
 		ipsMgr:            ipsMgr,

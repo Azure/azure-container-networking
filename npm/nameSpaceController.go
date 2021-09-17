@@ -17,7 +17,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformer "k8s.io/client-go/informers/core/v1"
-	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -72,17 +71,14 @@ func isSystemNs(nsObj *corev1.Namespace) bool {
 }
 
 type nameSpaceController struct {
-	clientset         kubernetes.Interface
 	nameSpaceLister   corelisters.NamespaceLister
 	workqueue         workqueue.RateLimitingInterface
 	ipsMgr            *ipsm.IpsetManager
 	npmNamespaceCache *npmNamespaceCache
 }
 
-func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, clientset kubernetes.Interface,
-	ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *nameSpaceController {
+func NewNameSpaceController(nameSpaceInformer coreinformer.NamespaceInformer, ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *nameSpaceController {
 	nameSpaceController := &nameSpaceController{
-		clientset:         clientset,
 		nameSpaceLister:   nameSpaceInformer.Lister(),
 		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Namespaces"),
 		ipsMgr:            ipsMgr,

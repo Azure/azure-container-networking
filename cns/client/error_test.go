@@ -1,4 +1,4 @@
-package cnsclient
+package client
 
 import (
 	"testing"

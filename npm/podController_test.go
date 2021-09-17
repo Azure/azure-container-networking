@@ -30,7 +30,6 @@ const (
 type podFixture struct {
 	t *testing.T
 
-	kubeclient *k8sfake.Clientset
 	// Objects to put in the store.
 	podLister []*corev1.Pod
 	// (TODO) Actions expected to happen on the client. Will use this to check action.
@@ -54,11 +53,11 @@ func newFixture(t *testing.T, exec utilexec.Interface) *podFixture {
 }
 
 func (f *podFixture) newPodController(stopCh chan struct{}) {
-	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
+	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
+	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
 	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
-	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.kubeclient, f.ipsMgr, npmNamespaceCache)
+	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.ipsMgr, npmNamespaceCache)
 
 	for _, pod := range f.podLister {
 		f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Add(pod)

@@ -1,29 +1,45 @@
 package network
 
 import (
+	"errors"
+	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 )
 
 const (
 	multicastSolicitPrefix = "ff02::1:ff00:0/104"
 )
 
+var errorLinuxBridgeClient = errors.New("LinuxBridgeClient Error")
+
+func newErrorLinuxBridgeClient(errStr string) error {
+	return fmt.Errorf("%w : %s", errorLinuxBridgeClient, errStr)
+}
+
 type LinuxBridgeClient struct {
 	bridgeName        string
 	hostInterfaceName string
 	nwInfo            NetworkInfo
+	netlink           netlinkinterface.NetlinkInterface
 }
 
-func NewLinuxBridgeClient(bridgeName string, hostInterfaceName string, nwInfo NetworkInfo) *LinuxBridgeClient {
+func NewLinuxBridgeClient(
+	bridgeName string,
+	hostInterfaceName string,
+	nwInfo NetworkInfo,
+	nl netlinkinterface.NetlinkInterface,
+) *LinuxBridgeClient {
 	client := &LinuxBridgeClient{
 		bridgeName:        bridgeName,
 		nwInfo:            nwInfo,
 		hostInterfaceName: hostInterfaceName,
+		netlink:           nl,
 	}
 
 	return client
@@ -39,7 +55,7 @@ func (client *LinuxBridgeClient) CreateBridge() error {
 		},
 	}
 
-	if err := netlink.AddLink(&link); err != nil {
+	if err := client.netlink.AddLink(&link); err != nil {
 		return err
 	}
 
@@ -48,13 +64,13 @@ func (client *LinuxBridgeClient) CreateBridge() error {
 
 func (client *LinuxBridgeClient) DeleteBridge() error {
 	// Disconnect external interface from its bridge.
-	err := netlink.SetLinkMaster(client.hostInterfaceName, "")
+	err := client.netlink.SetLinkMaster(client.hostInterfaceName, "")
 	if err != nil {
 		log.Printf("[net] Failed to disconnect interface %v from bridge, err:%v.", client.hostInterfaceName, err)
 	}
 
 	// Delete the bridge.
-	err = netlink.DeleteLink(client.bridgeName)
+	err = client.netlink.DeleteLink(client.bridgeName)
 	if err != nil {
 		log.Printf("[net] Failed to delete bridge %v, err:%v.", client.bridgeName, err)
 	}
@@ -141,11 +157,19 @@ func (client *LinuxBridgeClient) DeleteL2Rules(extIf *externalInterface) {
 }
 
 func (client *LinuxBridgeClient) SetBridgeMasterToHostInterface() error {
-	return netlink.SetLinkMaster(client.hostInterfaceName, client.bridgeName)
+	err := client.netlink.SetLinkMaster(client.hostInterfaceName, client.bridgeName)
+	if err != nil {
+		return newErrorLinuxBridgeClient(err.Error())
+	}
+	return nil
 }
 
 func (client *LinuxBridgeClient) SetHairpinOnHostInterface(enable bool) error {
-	return netlink.SetLinkHairpin(client.hostInterfaceName, enable)
+	err := client.netlink.SetLinkHairpin(client.hostInterfaceName, enable)
+	if err != nil {
+		return newErrorLinuxBridgeClient(err.Error())
+	}
+	return nil
 }
 
 func (client *LinuxBridgeClient) setBrouteRedirect(action string) error {

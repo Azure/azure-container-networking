@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -8,7 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/cnsclient"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -24,7 +25,7 @@ const (
 type CNSIPAMInvoker struct {
 	podName      string
 	podNamespace string
-	cnsClient    *cnsclient.CNSClient
+	cnsClient    *cnsclient.Client
 }
 
 type IPv4ResultInfo struct {
@@ -39,7 +40,7 @@ type IPv4ResultInfo struct {
 
 func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
 	cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-	cnsClient, err := cnsclient.InitCnsClient(cnsURL, defaultRequestTimeout)
+	cnsClient, err := cnsclient.New(cnsURL, defaultRequestTimeout)
 
 	return &CNSIPAMInvoker{
 		podName:      podName,
@@ -67,7 +68,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 	}
 
 	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
-	response, err := invoker.cnsClient.RequestIPAddress(&ipconfig)
+	response, err := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfig)
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
 		return nil, nil, err
@@ -203,5 +204,6 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	return invoker.cnsClient.ReleaseIPAddress(&req)
+	//nolint:wrapcheck
+	return invoker.cnsClient.ReleaseIPAddress(context.TODO(), req)
 }

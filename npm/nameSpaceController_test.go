@@ -34,8 +34,6 @@ type expectedNsValues struct {
 type nameSpaceFixture struct {
 	t *testing.T
 
-	kubeclient *k8sfake.Clientset
-	// Objects to put in the store.
 	nsLister []*corev1.Namespace
 	// Actions expected to happen on the client.
 	kubeactions []core.Action
@@ -58,12 +56,12 @@ func newNsFixture(t *testing.T, utilexec exec.Interface) *nameSpaceFixture {
 }
 
 func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
-	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
+	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
+	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
 	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
 	f.nsController = NewNameSpaceController(
-		f.kubeInformer.Core().V1().Namespaces(), f.kubeclient, f.ipsMgr, npmNamespaceCache)
+		f.kubeInformer.Core().V1().Namespaces(), f.ipsMgr, npmNamespaceCache)
 
 	for _, ns := range f.nsLister {
 		f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Add(ns)

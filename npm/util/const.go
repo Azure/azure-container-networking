@@ -145,6 +145,8 @@ const (
 
 	NamespacePrefix string = "ns-"
 	NegationPrefix  string = "not-"
+
+	SetPolicyDelimiter string = ","
 )
 
 // NPM telemetry constants.

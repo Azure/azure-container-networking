@@ -174,6 +174,7 @@ func (ipsMgr *IpsetManager) deleteList(listName string) error {
 	}
 
 	delete(ipsMgr.listMap, listName)
+	metrics.DeleteIPSet(listName)
 	return nil
 }
 
@@ -203,9 +204,13 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 }
 
 func (ipsMgr *IpsetManager) createList(listName string) error {
+	prometheusTimer := metrics.StartNewTimer()
+
 	if _, exists := ipsMgr.listMap[listName]; exists {
 		return nil
 	}
+
+	defer metrics.RecordIPSetExecTime(prometheusTimer) // record execution time regardless of failure
 
 	entry := &ipsEntry{
 		name:          listName,
@@ -214,42 +219,29 @@ func (ipsMgr *IpsetManager) createList(listName string) error {
 		spec:          []string{util.IpsetSetListFlag},
 	}
 	log.Logf("Creating List: %+v", entry)
-	if errCode, err := ipsMgr.run(entry); err != nil && errCode != 1 {
+	errCode, err := ipsMgr.run(entry)
+	if err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset list %s.", listName)
 		return err
+	}
+	if err == nil {
+		metrics.IncNumIPSets()
 	}
 
 	ipsMgr.listMap[listName] = newIpset(listName)
 	return nil
 }
 
-// Destroy completely cleans ipset.
-func (ipsMgr *IpsetManager) destroy() error {
-	entry := &ipsEntry{
-		operationFlag: util.IpsetFlushFlag,
-	}
-	if _, err := ipsMgr.run(entry); err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to flush ipset")
-		return err
-	}
-
-	entry.operationFlag = util.IpsetDestroyFlag
-	if _, err := ipsMgr.run(entry); err != nil {
-		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to destroy ipset")
-		return err
-	}
-
-	// TODO set IPSetInventory to 0 for all set names
-	return nil
-}
-
 // createSet creates an ipset.
 func (ipsMgr *IpsetManager) createSet(setName string, spec []string) error {
-	timer := metrics.StartNewTimer()
+	// This timer measures execution time to run this function regardless of success or failure cases
+	prometheusTimer := metrics.StartNewTimer()
 
 	if _, exists := ipsMgr.setMap[setName]; exists {
 		return nil
 	}
+
+	defer metrics.RecordIPSetExecTime(prometheusTimer)
 
 	entry := &ipsEntry{
 		name:          setName,
@@ -264,17 +256,16 @@ func (ipsMgr *IpsetManager) createSet(setName string, spec []string) error {
 	// since errCode can be one in case of "set with the same name already exists"
 	// and "maximal number of sets reached, cannot create more."
 	// It may have more situations with errCode==1.
-	if errCode, err := ipsMgr.run(entry); err != nil && errCode != 1 {
+	errCode, err := ipsMgr.run(entry)
+	if err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset.")
 		return err
 	}
+	if err == nil {
+		metrics.IncNumIPSets()
+	}
 
 	ipsMgr.setMap[setName] = newIpset(setName)
-
-	metrics.NumIPSets.Inc()
-	timer.StopAndRecord(metrics.AddIPSetExecTime)
-	metrics.SetIPSetInventory(setName, 0)
-
 	return nil
 }
 
@@ -299,11 +290,7 @@ func (ipsMgr *IpsetManager) deleteSet(setName string) error {
 	}
 
 	delete(ipsMgr.setMap, setName)
-
-	metrics.NumIPSets.Dec()
-	metrics.NumIPSetEntries.Add(float64(-metrics.GetIPSetInventory(setName)))
-	metrics.SetIPSetInventory(setName, 0)
-
+	metrics.DeleteIPSet(setName)
 	return nil
 }
 
@@ -356,8 +343,12 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 	}
 
 	// add set to list
-	if errCode, err := ipsMgr.run(entry); err != nil && errCode != 1 {
+	errCode, err := ipsMgr.run(entry)
+	if err != nil && errCode != 1 {
 		return fmt.Errorf("Error: failed to create ipset rules. rule: %+v, error: %v", entry, err)
+	}
+	if err == nil {
+		metrics.AddEntryToIPSet(listName)
 	}
 
 	ipsMgr.listMap[listName].elements[setName] = ""
@@ -413,6 +404,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 
 	// Now cleanup the cache. Do nothing if the specified key doesn't exist.
 	delete(ipsMgr.listMap[listName].elements, setName)
+	metrics.RemoveEntryFromIPSet(listName)
 
 	if len(ipsMgr.listMap[listName].elements) == 0 {
 		if err := ipsMgr.deleteList(listName); err != nil {
@@ -490,17 +482,17 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	}
 
 	// todo: check err handling besides error code, corrupt state possible here
-	if errCode, err := ipsMgr.run(entry); err != nil && errCode != 1 {
+	errCode, err := ipsMgr.run(entry)
+	if err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset rules. %+v", entry)
 		return err
+	}
+	if err == nil {
+		metrics.AddEntryToIPSet(setName)
 	}
 
 	// Stores the podKey as the context for this ip.
 	ipsMgr.setMap[setName].elements[ip] = podKey
-
-	metrics.NumIPSetEntries.Inc()
-	metrics.IncIPSetInventory(setName)
-
 	return nil
 }
 
@@ -554,9 +546,7 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 
 	// Now cleanup the cache
 	delete(ipsMgr.setMap[setName].elements, ip)
-
-	metrics.NumIPSetEntries.Dec()
-	metrics.DecIPSetInventory(setName)
+	metrics.RemoveEntryFromIPSet(setName)
 
 	if len(ipsMgr.setMap[setName].elements) == 0 {
 		if err := ipsMgr.deleteSet(setName); err != nil {
@@ -586,7 +576,7 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 
 		return err
 	}
-	if reply == nil {
+	if len(reply) == 0 { // this would occur if there were ever 0 ipsets
 		metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Received empty string from ipset list while destroying azure-npm ipsets")
 		return nil
 	}
@@ -613,56 +603,39 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 		return nil
 	}
 
-	entry := &ipsEntry{
-		operationFlag: util.IpsetFlushFlag,
-	}
-
+	destroyFailureCount := 0
 	for _, ipsetName := range ipsetLists {
-		entry := &ipsEntry{
+		flushEntry := &ipsEntry{
 			operationFlag: util.IpsetFlushFlag,
 			set:           ipsetName,
 		}
+		_, flushError := ipsMgr.run(flushEntry)
 
-		if _, err := ipsMgr.run(entry); err != nil {
+		deleteEntry := &ipsEntry{
+			operationFlag: util.IpsetDestroyFlag,
+			set:           ipsetName,
+		}
+		_, destroyError := ipsMgr.run(deleteEntry)
+
+		if flushError != nil {
 			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to flush ipset %s", ipsetName)
 		}
-	}
-
-	for _, ipsetName := range ipsetLists {
-		entry.operationFlag = util.IpsetDestroyFlag
-		entry.set = ipsetName
-		if _, err := ipsMgr.run(entry); err != nil {
+		if destroyError != nil {
+			destroyFailureCount++
 			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to destroy ipset %s", ipsetName)
 		}
-	}
-
-	return nil
-}
-
-// Clean removes all the empty sets & lists under the namespace.
-func (ipsMgr *IpsetManager) Clean() error {
-	ipsMgr.Lock()
-	defer ipsMgr.Unlock()
-	for setName, set := range ipsMgr.setMap {
-		if len(set.elements) > 0 {
-			continue
-		}
-
-		if err := ipsMgr.deleteSet(setName); err != nil {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to clean ipset")
-			return err
+		if flushError == nil || destroyError == nil {
+			metrics.RemoveAllEntriesFromIPSet(ipsetName)
 		}
 	}
 
-	for listName, list := range ipsMgr.listMap {
-		if len(list.elements) > 0 {
-			continue
-		}
-
-		if err := ipsMgr.deleteList(listName); err != nil {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to clean ipset list")
-			return err
-		}
+	// After this function, NumIPSets should be 0 or the number of NPM IPSets that existed and failed to be destroyed.
+	// When NPM restarts, Prometheus metrics will initialize at 0, but NPM IPSets may exist.
+	if metrics.NumIPSetsIsPositive() {
+		// in this case, we should have originalNumIPSets == len(ipsetLists)
+		metrics.SetNumIPSets(destroyFailureCount)
+	} else {
+		metrics.ResetNumIPSets()
 	}
 
 	return nil

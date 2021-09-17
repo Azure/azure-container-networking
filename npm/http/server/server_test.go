@@ -29,7 +29,7 @@ func NPMEncoder() npm.NetworkPolicyManagerEncoder {
 	exec := &fakeexec.FakeExec{}
 	npmVersion := "npm-ut-test"
 
-	npmEncoder := npm.NewNetworkPolicyManager(kubeclient, kubeInformer, exec, npmVersion, fakeK8sVersion)
+	npmEncoder := npm.NewNetworkPolicyManager(kubeInformer, exec, npmVersion, fakeK8sVersion)
 	return npmEncoder
 }
 
