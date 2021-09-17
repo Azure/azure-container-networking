@@ -12,7 +12,7 @@ var convertIPtableCmd = &cobra.Command{
 	Use:   "convertiptable",
 	Short: "Get list of iptable's rules in JSON format",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		iptableName, _ := cmd.Flags().GetString("table")
+		iptableName, _ := cmd.Flags().GetString("table") // TODO this isn't an argument right now
 		if iptableName == "" {
 			iptableName = "filter"
 		}
@@ -25,12 +25,14 @@ var convertIPtableCmd = &cobra.Command{
 				return fmt.Errorf("%w", err)
 			}
 			fmt.Printf("%s\n", ipTableRulesRes)
-		} else {
+		} else if npmCacheF != "" && iptableSaveF != "" {
 			ipTableRulesRes, err := c.GetJSONRulesFromIptableFile(iptableName, npmCacheF, iptableSaveF)
 			if err != nil {
 				return fmt.Errorf("%w", err)
 			}
 			fmt.Printf("%s\n", ipTableRulesRes)
+		} else {
+			return errSpecifyBothFiles
 		}
 		return nil
 	},
@@ -38,6 +40,6 @@ var convertIPtableCmd = &cobra.Command{
 
 func init() {
 	debugCmd.AddCommand(convertIPtableCmd)
-	convertIPtableCmd.Flags().StringP("iptables-file", "i", "", "Set the iptable-save file path (optional)")
-	convertIPtableCmd.Flags().StringP("cache-file", "c", "", "Set the NPM cache file path (optional)")
+	convertIPtableCmd.Flags().StringP("iptables-file", "i", "", "Set the iptable-save file path (optional, but required when using a cache file)")
+	convertIPtableCmd.Flags().StringP("cache-file", "c", "", "Set the NPM cache file path (optional, but required when using an iptables file)")
 }

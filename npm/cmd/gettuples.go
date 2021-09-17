@@ -12,8 +12,8 @@ func init() {
 	debugCmd.AddCommand(getTuplesCmd)
 	getTuplesCmd.Flags().StringP("src", "s", "", "set the source")
 	getTuplesCmd.Flags().StringP("dst", "d", "", "set the destination")
-	getTuplesCmd.Flags().StringP("iptables-file", "i", "", "Set the iptable-save file path (optional)")
-	getTuplesCmd.Flags().StringP("cache-file", "c", "", "Set the NPM cache file path (optional)")
+	getTuplesCmd.Flags().StringP("iptables-file", "i", "", "Set the iptable-save file path (optional, but required when using a cache file)")
+	getTuplesCmd.Flags().StringP("cache-file", "c", "", "Set the NPM cache file path (optional, but required when using an iptables save file)")
 }
 
 // getTuplesCmd represents the getTuples command
@@ -35,7 +35,7 @@ var getTuplesCmd = &cobra.Command{
 		dstType := dataplane.GetInputType(dst)
 		srcInput := &dataplane.Input{Content: src, Type: srcType}
 		dstInput := &dataplane.Input{Content: dst, Type: dstType}
-		if npmCacheF == "" || iptableSaveF == "" {
+		if npmCacheF == "" && iptableSaveF == "" {
 			_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput)
 			if err != nil {
 				return fmt.Errorf("%w", err)
@@ -43,7 +43,7 @@ var getTuplesCmd = &cobra.Command{
 			for _, tuple := range tuples {
 				fmt.Printf("%+v\n", tuple)
 			}
-		} else {
+		} else if npmCacheF != "" && iptableSaveF != "" {
 			_, tuples, err := dataplane.GetNetworkTupleFile(srcInput, dstInput, npmCacheF, iptableSaveF)
 			if err != nil {
 				return fmt.Errorf("%w", err)
@@ -51,6 +51,8 @@ var getTuplesCmd = &cobra.Command{
 			for _, tuple := range tuples {
 				fmt.Printf("%+v\n", tuple)
 			}
+		} else {
+			return errSpecifyBothFiles
 		}
 
 		return nil
