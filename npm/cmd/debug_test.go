@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"testing"
 
@@ -39,7 +38,6 @@ func testCommand(t *testing.T, tests []*testCases) {
 			b := bytes.NewBufferString("")
 			rootCMD.SetOut(b)
 			rootCMD.SetArgs(tt.args)
-			fmt.Println(tt.args)
 			err := rootCMD.Execute()
 			if tt.wantErr {
 				require.Error(t, err)
@@ -50,8 +48,6 @@ func testCommand(t *testing.T, tests []*testCases) {
 			out, err := ioutil.ReadAll(b)
 			require.NoError(t, err)
 			if tt.wantEmptyOutput {
-				fmt.Println("stuff: ")
-				fmt.Println(string(out))
 				require.Empty(t, out)
 			} else {
 				require.NotEmpty(t, out)
