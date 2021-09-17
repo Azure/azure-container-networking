@@ -3,12 +3,20 @@ package main
 import (
 	"testing"
 
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/stretchr/testify/require"
 	k8sversion "k8s.io/apimachinery/pkg/version"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/kubernetes/fake"
 )
+
+func TestInitLogging(t *testing.T) {
+	expectedLogPath := log.LogPath
+	err := initLogging()
+	require.NoError(t, err)
+	require.Equal(t, expectedLogPath, log.GetLogDirectory())
+}
 
 func TestK8sServerVersion(t *testing.T) {
 	// NPM has break behavior change from k8s version >= 1.11.
