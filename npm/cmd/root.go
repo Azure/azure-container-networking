@@ -4,11 +4,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
-	Use:   "azure-npm",
-	Short: "Collection of functions related to Azure NPM's debugging tools",
-	CompletionOptions: cobra.CompletionOptions{
-		DisableDefaultCmd: true,
-	},
+// NewRootCmd returns a root cobra command
+func NewRootCmd() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "azure-npm",
+		Short: "Collection of functions related to Azure NPM's debugging tools",
+		CompletionOptions: cobra.CompletionOptions{
+			DisableDefaultCmd: true,
+		},
+	}
+
+	rootCmd.AddCommand(newStartNPMCmd())
+	rootCmd.AddCommand(newDebugCmd())
+	return rootCmd
 }

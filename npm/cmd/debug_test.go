@@ -30,26 +30,28 @@ type testCases struct {
 }
 
 func testCommand(t *testing.T, tests []*testCases) {
-	rootCMD := rootCmd
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			rootCMD := NewRootCmd()
 			b := bytes.NewBufferString("")
 			rootCMD.SetOut(b)
 			rootCMD.SetArgs(tt.args)
 			err := rootCMD.Execute()
+
 			if tt.wantErr {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+
+			require.NoError(t, err)
 
 			out, err := ioutil.ReadAll(b)
 			require.NoError(t, err)
-			if !tt.wantErr {
-				require.Empty(t, out)
-			} else {
+			if tt.wantErr {
 				require.NotEmpty(t, out)
+			} else {
+				require.Empty(t, out)
 			}
 		})
 	}

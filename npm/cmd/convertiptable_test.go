@@ -39,7 +39,7 @@ func TestConvertIPTableCmd(t *testing.T) {
 		{
 			name:    "cache file but no iptables save file",
 			args:    []string{debugCmdString, convertIPTableCmdString, npmCacheFlag, npmCacheFile},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "cache file but bad iptables save file",
@@ -61,11 +61,11 @@ func TestConvertIPTableCmd(t *testing.T) {
 			args:    []string{debugCmdString, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, npmCacheFile, convertIPTableCmdString},
 			wantErr: false,
 		},
-		{
-			name:    "Iptables information from Kernel",
-			args:    []string{debugCmdString, convertIPTableCmdString},
-			wantErr: false,
-		},
+		// {
+		// 	name:    "Iptables information from Kernel",
+		// 	args:    []string{debugCmdString, convertIPTableCmdString},
+		// 	wantErr: true,
+		// },
 	}
 
 	testCommand(t, tests)
