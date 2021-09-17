@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
 	"github.com/Azure/azure-container-networking/network/netlinkinterface"
+	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
 	"golang.org/x/sys/unix"
 )
@@ -129,7 +130,7 @@ func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 	var networkClient NetworkClient
 
 	if nw.VlanId != 0 {
-		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name)
+		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name, ovsctl.NewOvsctl())
 	} else {
 		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, NetworkInfo{}, nm.netlink)
 	}
@@ -385,7 +386,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 	opt, _ := nwInfo.Options[genericData].(map[string]interface{})
 	if opt != nil && opt[VlanIDKey] != nil {
-		networkClient = NewOVSClient(bridgeName, extIf.Name)
+		networkClient = NewOVSClient(bridgeName, extIf.Name, ovsctl.NewOvsctl())
 	} else {
 		networkClient = NewLinuxBridgeClient(bridgeName, extIf.Name, *nwInfo, nm.netlink)
 	}

@@ -19,6 +19,7 @@ func NewSnatClient(client *OVSEndpointClient, snatBridgeIP string, localIP strin
 			client.hostPrimaryMac,
 			epInfo.DNS.Servers,
 			client.netlink,
+			client.ovsctlClient,
 		)
 	}
 }

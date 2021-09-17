@@ -1,3 +1,6 @@
+// Copyright 2017 Microsoft. All rights reserved.
+// MIT License
+
 package ovssnat
 
 import (
@@ -42,6 +45,7 @@ type OVSSnatClient struct {
 	snatBridgeIP           string
 	SkipAddressesFromBlock []string
 	netlink                netlinkinterface.NetlinkInterface
+	ovsctlClient           ovsctl.OvsInterface
 }
 
 func NewSnatClient(hostIfName string,
@@ -51,6 +55,7 @@ func NewSnatClient(hostIfName string,
 	hostPrimaryMac string,
 	skipAddressesFromBlock []string,
 	nl netlinkinterface.NetlinkInterface,
+	ovsctlClient ovsctl.OvsInterface,
 ) OVSSnatClient {
 	log.Printf("Initialize new snat client")
 	snatClient := OVSSnatClient{
@@ -60,6 +65,7 @@ func NewSnatClient(hostIfName string,
 		snatBridgeIP:          snatBridgeIP,
 		hostPrimaryMac:        hostPrimaryMac,
 		netlink:               nl,
+		ovsctlClient:          ovsctlClient,
 	}
 
 	snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, skipAddressesFromBlock...)
@@ -450,7 +456,7 @@ func (client *OVSSnatClient) createSnatBridge(snatBridgeIP string, hostPrimaryMa
 		return newErrorOVSSnatClient(err.Error())
 	}
 
-	if err := ovsctl.AddPortOnOVSBridge(azureSnatVeth1, mainInterface, 0); err != nil {
+	if err := client.ovsctlClient.AddPortOnOVSBridge(azureSnatVeth1, mainInterface, 0); err != nil {
 		return newErrorOVSSnatClient(err.Error())
 	}
 
