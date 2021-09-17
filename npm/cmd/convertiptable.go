@@ -19,19 +19,20 @@ func newConvertIPTableCmd() *cobra.Command {
 			npmCacheF, _ := cmd.Flags().GetString("cache-file")
 			iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
 			c := &dataplane.Converter{}
-			if npmCacheF == "" && iptableSaveF == "" {
+			switch {
+			case npmCacheF == "" && iptableSaveF == "":
 				ipTableRulesRes, err := c.GetJSONRulesFromIptables(iptableName)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
 				fmt.Printf("%s\n", ipTableRulesRes)
-			} else if npmCacheF != "" && iptableSaveF != "" {
+			case npmCacheF != "" && iptableSaveF != "":
 				ipTableRulesRes, err := c.GetJSONRulesFromIptableFile(iptableName, npmCacheF, iptableSaveF)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
 				fmt.Printf("%s\n", ipTableRulesRes)
-			} else {
+			default:
 				return errSpecifyBothFiles
 			}
 			return nil
