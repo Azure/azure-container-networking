@@ -1,13 +1,21 @@
-# Cross platform operations
+# Default platform commands
 SHELL=/bin/bash
 MKDIR := mkdir -p
 RMDIR := rm -rf
 ARCHIVE_CMD = tar -czvf
+
+# Default platform extensions
 ARCHIVE_EXT = tgz
+
+# Windows specific commands
 ifeq ($(OS),Windows_NT)
 MKDIR := powershell.exe -NoProfile -Command New-Item -ItemType Directory -Force
 RMDIR := powershell.exe -NoProfile -Command Remove-Item -Recurse -Force
 ARCHIVE_CMD = zip -9lq
+endif
+
+# Windows specific extensions
+ifeq ($(GOOS),windows)
 ARCHIVE_EXT = zip
 EXE_EXT = .exe
 endif
