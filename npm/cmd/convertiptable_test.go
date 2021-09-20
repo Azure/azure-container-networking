@@ -15,45 +15,47 @@ Flags:
 */
 
 func TestConvertIPTableCmd(t *testing.T) {
+	baseArgs := []string{debugCmdString, convertIPTableCmdString}
+
 	tests := []*testCases{
 		{
 			name:    "unknown shorthand flag",
-			args:    []string{debugCmdString, convertIPTableCmdString, unknownShorthandFlag},
+			args:    concatArgs(baseArgs, unknownShorthandFlag),
 			wantErr: true,
 		},
 		{
 			name:    "unknown shorthand flag with correct files",
-			args:    []string{debugCmdString, convertIPTableCmdString, unknownShorthandFlag, iptableSaveFile, npmCacheFlag, npmCacheFile},
+			args:    concatArgs(baseArgs, unknownShorthandFlag, iptableSaveFile, npmCacheFlag, npmCacheFile),
 			wantErr: true,
 		},
 		{
 			name:    "iptables save file but no cache file",
-			args:    []string{debugCmdString, convertIPTableCmdString, iptablesSaveFileFlag, iptableSaveFile},
+			args:    concatArgs(baseArgs, iptablesSaveFileFlag, iptableSaveFile),
 			wantErr: true,
 		},
 		{
 			name:    "iptables save file but bad cache file",
-			args:    []string{debugCmdString, convertIPTableCmdString, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, nonExistingFile},
+			args:    concatArgs(baseArgs, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, nonExistingFile),
 			wantErr: true,
 		},
 		{
 			name:    "cache file but no iptables save file",
-			args:    []string{debugCmdString, convertIPTableCmdString, npmCacheFlag, npmCacheFile},
-			wantErr: true,
+			args:    concatArgs(baseArgs, npmCacheFlag, npmCacheFile),
+			wantErr: false,
 		},
 		{
 			name:    "cache file but bad iptables save file",
-			args:    []string{debugCmdString, convertIPTableCmdString, iptablesSaveFileFlag, nonExistingFile, npmCacheFlag, npmCacheFile},
+			args:    concatArgs(baseArgs, iptablesSaveFileFlag, nonExistingFile, npmCacheFlag, npmCacheFile),
 			wantErr: true,
 		},
 		{
 			name:    "correct files",
-			args:    []string{debugCmdString, convertIPTableCmdString, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, npmCacheFile},
+			args:    concatArgs(baseArgs, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, npmCacheFile),
 			wantErr: false,
 		},
 		{
 			name:    "correct files with file order switched",
-			args:    []string{debugCmdString, convertIPTableCmdString, npmCacheFlag, npmCacheFile, iptablesSaveFileFlag, iptableSaveFile},
+			args:    concatArgs(baseArgs, npmCacheFlag, npmCacheFile, iptablesSaveFileFlag, iptableSaveFile),
 			wantErr: false,
 		},
 		{
@@ -61,10 +63,11 @@ func TestConvertIPTableCmd(t *testing.T) {
 			args:    []string{debugCmdString, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, npmCacheFile, convertIPTableCmdString},
 			wantErr: false,
 		},
+		// TODO test case where HTTP request made for NPM cache
 		// {
 		// 	name:    "Iptables information from Kernel",
-		// 	args:    []string{debugCmdString, convertIPTableCmdString},
-		// 	wantErr: true,
+		// 	args:    concatArgs(baseArgs, convertIPTableCmdString),
+		// 	wantErr: false,
 		// },
 	}
 

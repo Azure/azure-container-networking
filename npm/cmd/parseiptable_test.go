@@ -14,25 +14,27 @@ Usage:
 */
 
 func TestParseIPTableCmd(t *testing.T) {
+	baseArgs := []string{debugCmdString, parseIPTableCmdString}
+
 	tests := []*testCases{
 		{
 			name:    "unknown shorthand flag",
-			args:    []string{debugCmdString, parseIPTableCmdString, unknownShorthandFlag},
+			args:    concatArgs(baseArgs, unknownShorthandFlag),
 			wantErr: true,
 		},
 		{
 			name:    "unknown shorthand flag with a correct file",
-			args:    []string{debugCmdString, parseIPTableCmdString, unknownShorthandFlag, iptableSaveFile},
+			args:    concatArgs(baseArgs, unknownShorthandFlag, iptableSaveFile),
 			wantErr: true,
 		},
 		{
 			name:    "non-existing iptables file",
-			args:    []string{debugCmdString, parseIPTableCmdString, iptablesSaveFileFlag, nonExistingFile},
+			args:    concatArgs(baseArgs, iptablesSaveFileFlag, nonExistingFile),
 			wantErr: true,
 		},
 		{
 			name:    "correct iptables file",
-			args:    []string{debugCmdString, parseIPTableCmdString, iptablesSaveFileFlag, iptableSaveFile},
+			args:    concatArgs(baseArgs, iptablesSaveFileFlag, iptableSaveFile),
 			wantErr: false,
 		},
 		{
@@ -40,11 +42,12 @@ func TestParseIPTableCmd(t *testing.T) {
 			args:    []string{debugCmdString, iptablesSaveFileFlag, iptableSaveFile, parseIPTableCmdString},
 			wantErr: false,
 		},
-		{
-			name:    "Iptables information from Kernel",
-			args:    []string{debugCmdString, parseIPTableCmdString},
-			wantErr: false,
-		},
+		// TODO test case where HTTP request made for NPM cache
+		// {
+		// 	name:    "Iptables information from Kernel",
+		// 	args:    baseArgs,
+		// 	wantErr: false,
+		// },
 	}
 
 	testCommand(t, tests)
