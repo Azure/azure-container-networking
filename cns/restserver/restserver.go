@@ -34,6 +34,28 @@ var (
 	ncVersionURLs sync.Map
 )
 
+type lockedDurationSet struct {
+	sync.Mutex
+	waits map[string]time.Time
+}
+
+func (m *lockedDurationSet) Push(key string) {
+	m.Lock()
+	defer m.Unlock()
+	_, ok := m.waits[key]
+	if !ok {
+		m.waits[key] = time.Now()
+	}
+}
+
+func (m *lockedDurationSet) Pop(key string) time.Duration {
+	m.Lock()
+	start := m.waits[key]
+	delete(m.waits, key)
+	m.Unlock()
+	return time.Since(start)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
@@ -48,6 +70,7 @@ type HTTPRestService struct {
 	routingTable             *routes.RoutingTable
 	store                    store.KeyValueStore
 	state                    *httpRestServiceState
+	podsPendingIPAllocation  *lockedDurationSet
 	sync.RWMutex
 	dncPartitionKey string
 }
@@ -137,6 +160,7 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		PodIPConfigState:         podIPConfigState,
 		routingTable:             routingTable,
 		state:                    serviceState,
+		podsPendingIPAllocation:  &lockedDurationSet{waits: map[string]time.Time{}},
 	}, nil
 }
 
