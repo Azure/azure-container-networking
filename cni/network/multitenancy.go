@@ -11,7 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	cnsc "github.com/Azure/azure-container-networking/cns/client"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -64,7 +64,7 @@ func getContainerNetworkConfiguration(
 
 func getContainerNetworkConfigurationInternal(
 	ctx context.Context, cnsURL string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
-	client, err := cnsc.New(cnsURL, cnsc.DefaultTimeout)
+	client, err := cnscli.New(cnsURL, cnscli.DefaultTimeout)
 	if err != nil {
 		log.Printf("Failed to get CNS client. Error: %v", err)
 		return nil, nil, net.IPNet{}, err

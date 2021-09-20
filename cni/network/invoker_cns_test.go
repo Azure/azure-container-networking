@@ -48,13 +48,6 @@ func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfi
 	return c.release.err
 }
 
-func getCIDRNotationForAddress(t *testing.T, ipaddresswithcidr string) *net.IPNet {
-	ip, ipnet, err := net.ParseCIDR(ipaddresswithcidr)
-	require.NoError(t, err)
-	ipnet.IP = ip
-	return ipnet
-}
-
 func marshallPodInfo(podInfo cns.KubernetesPodInfo) []byte {
 	orchestratorContext, _ := json.Marshal(podInfo)
 	return orchestratorContext
