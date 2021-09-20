@@ -22,5 +22,12 @@ linters:
   - promlinter
   - revive
 linters-settings:
+  gocritic:
+    enabled-tags:
+    - "diagnostic"
+    - "style"
+    - "performance"
+  govet:
+    check-shadowing: true
   lll:
     line-length: 200

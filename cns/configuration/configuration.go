@@ -11,9 +11,12 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/pkg/errors"
 )
 
 const (
+	// EnvCNSConfig is the CNS_CONFIGURATION_PATH env var key
+	EnvCNSConfig      = "CNS_CONFIGURATION_PATH"
 	defaultConfigName = "cns_config.json"
 )
 
@@ -65,32 +68,42 @@ type ManagedSettings struct {
 	NodeSyncIntervalInSeconds int
 }
 
-// This functions reads cns config file and save it in a structure
-func ReadConfig() (CNSConfig, error) {
-	var cnsConfig CNSConfig
-
+func getConfigFilePath() (string, error) {
 	// Check if env set for config path otherwise use default path
-	configpath, found := os.LookupEnv("CNS_CONFIGURATION_PATH")
+	configpath, found := os.LookupEnv(EnvCNSConfig)
 	if !found {
 		dir, err := common.GetExecutableDirectory()
 		if err != nil {
-			logger.Errorf("[Configuration] Failed to find exe dir:%v", err)
-			return cnsConfig, err
+			return "", errors.Wrap(err, "failed to discover exec dir for config")
 		}
-
 		configpath = filepath.Join(dir, defaultConfigName)
+	}
+	return configpath, nil
+}
+
+// ReadConfig returns a CNS config from file or an error.
+func ReadConfig() (*CNSConfig, error) {
+	configpath, err := getConfigFilePath()
+	if err != nil {
+		return nil, err
 	}
 
 	logger.Printf("[Configuration] Config path:%s", configpath)
 
-	content, err := ioutil.ReadFile(configpath)
+	return readConfigFromFile(configpath)
+}
+
+func readConfigFromFile(f string) (*CNSConfig, error) {
+	content, err := ioutil.ReadFile(f)
 	if err != nil {
-		logger.Errorf("[Configuration] Failed to read config file :%v", err)
-		return cnsConfig, err
+		return nil, errors.Wrapf(err, "failed to read config file %s", f)
 	}
 
-	err = json.Unmarshal(content, &cnsConfig)
-	return cnsConfig, err
+	var config CNSConfig
+	if err := json.Unmarshal(content, &config); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal config")
+	}
+	return &config, nil
 }
 
 // set telmetry setting defaults
@@ -137,6 +150,10 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	if config.MetricsBindAddress == "" {
 		config.MetricsBindAddress = ":9090"
 	}
-	config.SyncHostNCVersionIntervalMs = 1000
-	config.SyncHostNCTimeoutMs = 500
+	if config.SyncHostNCVersionIntervalMs == 0 {
+		config.SyncHostNCVersionIntervalMs = 1000
+	}
+	if config.SyncHostNCTimeoutMs == 0 {
+		config.SyncHostNCTimeoutMs = 500
+	}
 }

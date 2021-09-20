@@ -1,6 +1,7 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
+//go:build linux
 // +build linux
 
 package netlink
@@ -23,19 +24,8 @@ const (
 	RTPROT_KERNEL = 2
 )
 
-// GetIpAddressFamily returns the address family of an IP address.
-func GetIpAddressFamily(ip net.IP) int {
-	if len(ip) <= net.IPv4len {
-		return unix.AF_INET
-	}
-	if ip.To4() != nil {
-		return unix.AF_INET
-	}
-	return unix.AF_INET6
-}
-
-// setIpAddress sends an IP address set request.
-func setIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet, add bool) error {
+// setIPAddress sends an IP address set request.
+func (Netlink) setIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet, add bool) error {
 	var msgType, flags int
 
 	s, err := getSocket()
@@ -58,7 +48,7 @@ func setIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet, add bool) e
 
 	req := newRequest(msgType, flags)
 
-	family := GetIpAddressFamily(ipAddress)
+	family := GetIPAddressFamily(ipAddress)
 
 	ifAddr := newIfAddrMsg(family)
 	ifAddr.Index = uint32(iface.Index)
@@ -79,14 +69,14 @@ func setIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet, add bool) e
 	return s.sendAndWaitForAck(req)
 }
 
-// AddIpAddress adds an IP address to a network interface.
-func AddIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
-	return setIpAddress(ifName, ipAddress, ipNet, true)
+// AddIPAddress adds an IP address to a network interface.
+func (n Netlink) AddIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
+	return n.setIPAddress(ifName, ipAddress, ipNet, true)
 }
 
-// DeleteIpAddress deletes an IP address from a network interface.
-func DeleteIpAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
-	return setIpAddress(ifName, ipAddress, ipNet, false)
+// DeleteIPAddress deletes an IP address from a network interface.
+func (n Netlink) DeleteIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error {
+	return n.setIPAddress(ifName, ipAddress, ipNet, false)
 }
 
 // Route represents a netlink route.
@@ -149,8 +139,8 @@ func deserializeRoute(msg *message) (*Route, error) {
 	return &route, nil
 }
 
-// GetIpRoute returns a list of IP routes matching the given filter.
-func GetIpRoute(filter *Route) ([]*Route, error) {
+// GetIPRoute returns a list of IP routes matching the given filter.
+func (Netlink) GetIPRoute(filter *Route) ([]*Route, error) {
 	s, err := getSocket()
 	if err != nil {
 		return nil, err
@@ -289,12 +279,23 @@ func setIpRoute(route *Route, add bool) error {
 	return s.sendAndWaitForAck(req)
 }
 
-// AddIpRoute adds an IP route to the route table.
-func AddIpRoute(route *Route) error {
+// AddIPRoute adds an IP route to the route table.
+func (Netlink) AddIPRoute(route *Route) error {
 	return setIpRoute(route, true)
 }
 
-// DeleteIpRoute deletes an IP route from the route table.
-func DeleteIpRoute(route *Route) error {
+// DeleteIPRoute deletes an IP route from the route table.
+func (Netlink) DeleteIPRoute(route *Route) error {
 	return setIpRoute(route, false)
+}
+
+// GetIPAddressFamily returns the address family of an IP address.
+func GetIPAddressFamily(ip net.IP) int {
+	if len(ip) <= net.IPv4len {
+		return unix.AF_INET
+	}
+	if ip.To4() != nil {
+		return unix.AF_INET
+	}
+	return unix.AF_INET6
 }

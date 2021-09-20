@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/network/policy"
 )
 
@@ -95,7 +96,7 @@ type apipaClient interface {
 }
 
 // NewEndpoint creates a new endpoint in the network.
-func (nw *network) newEndpoint(cli apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpoint(cli apipaClient, nl netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
@@ -107,7 +108,7 @@ func (nw *network) newEndpoint(cli apipaClient, epInfo *EndpointInfo) (*endpoint
 	}()
 
 	// Call the platform implementation.
-	ep, err = nw.newEndpointImpl(cli, epInfo)
+	ep, err = nw.newEndpointImpl(cli, nl, epInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func (nw *network) newEndpoint(cli apipaClient, epInfo *EndpointInfo) (*endpoint
 }
 
 // DeleteEndpoint deletes an existing endpoint from the network.
-func (nw *network) deleteEndpoint(cli apipaClient, endpointID string) error {
+func (nw *network) deleteEndpoint(cli apipaClient, nl netlinkinterface.NetlinkInterface, endpointID string) error {
 	var err error
 
 	log.Printf("[net] Deleting endpoint %v from network %v.", endpointID, nw.Id)
@@ -137,7 +138,7 @@ func (nw *network) deleteEndpoint(cli apipaClient, endpointID string) error {
 	}
 
 	// Call the platform implementation.
-	err = nw.deleteEndpointImpl(cli, ep)
+	err = nw.deleteEndpointImpl(cli, nl, ep)
 	if err != nil {
 		return err
 	}
@@ -261,7 +262,7 @@ func (ep *endpoint) detach() error {
 }
 
 // updateEndpoint updates an existing endpoint in the network.
-func (nw *network) updateEndpoint(exsitingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
+func (nm *networkManager) updateEndpoint(nw *network, exsitingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error {
 	var err error
 
 	log.Printf("[net] Updating existing endpoint [%+v] in network %v to target [%+v].", exsitingEpInfo, nw.Id, targetEpInfo)
@@ -275,21 +276,21 @@ func (nw *network) updateEndpoint(exsitingEpInfo *EndpointInfo, targetEpInfo *En
 
 	ep := nw.Endpoints[exsitingEpInfo.Id]
 	if ep == nil {
-		return nil, errEndpointNotFound
+		return errEndpointNotFound
 	}
 
 	log.Printf("[net] Retrieved endpoint to update %+v.", ep)
 
 	// Call the platform implementation.
-	ep, err = nw.updateEndpointImpl(exsitingEpInfo, targetEpInfo)
+	ep, err = nm.updateEndpointImpl(nw, exsitingEpInfo, targetEpInfo)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Update routes for existing endpoint
 	nw.Endpoints[exsitingEpInfo.Id].Routes = ep.Routes
 
-	return ep, nil
+	return nil
 }
 
 func GetPodNameWithoutSuffix(podName string) string {

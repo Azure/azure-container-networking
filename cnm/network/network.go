@@ -12,6 +12,7 @@ import (
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
 )
@@ -49,8 +50,9 @@ func NewPlugin(config *common.PluginConfig) (NetPlugin, error) {
 		return nil, err
 	}
 
+	nl := netlink.NewNetlink()
 	// Setup network manager.
-	nm, err := network.NewNetworkManager()
+	nm, err := network.NewNetworkManager(nl)
 	if err != nil {
 		return nil, err
 	}

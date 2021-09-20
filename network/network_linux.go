@@ -4,6 +4,7 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
+	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
 	"golang.org/x/sys/unix"
 )
@@ -44,6 +47,12 @@ const (
 	dotDelimiter   = "."
 )
 
+var errorNetworkManager = errors.New("Network_linux pkg error")
+
+func newErrorNetworkManager(errStr string) error {
+	return fmt.Errorf("%w : %s", errorNetworkManager, errStr)
+}
+
 // Linux implementation of route.
 type route netlink.Route
 
@@ -56,7 +65,10 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 
 	switch nwInfo.Mode {
 	case opModeTunnel:
-		handleCommonOptions(extIf.Name, nwInfo)
+		err := nm.handleCommonOptions(extIf.Name, nwInfo)
+		if err != nil {
+			log.Printf("tunnel handleCommonOptions failed with error %s", err.Error())
+		}
 		fallthrough
 	case opModeBridge:
 		log.Printf("create bridge")
@@ -67,9 +79,15 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		if opt != nil && opt[VlanIDKey] != nil {
 			vlanid, _ = strconv.Atoi(opt[VlanIDKey].(string))
 		}
-		handleCommonOptions(extIf.BridgeName, nwInfo)
+		err := nm.handleCommonOptions(extIf.BridgeName, nwInfo)
+		if err != nil {
+			log.Printf("bridge handleCommonOptions failed with error %s", err.Error())
+		}
 	case opModeTransparent:
-		handleCommonOptions(extIf.Name, nwInfo)
+		err := nm.handleCommonOptions(extIf.Name, nwInfo)
+		if err != nil {
+			log.Printf("transparent handleCommonOptions failed with error %s", err.Error())
+		}
 	default:
 		return nil, errNetworkModeInvalid
 	}
@@ -88,17 +106,17 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 	return nw, nil
 }
 
-func handleCommonOptions(ifname string, nwInfo *NetworkInfo) error {
+func (nm *networkManager) handleCommonOptions(ifname string, nwInfo *NetworkInfo) error {
 	var err error
 	if routes, exists := nwInfo.Options[RoutesKey]; exists {
-		err = AddRoutes(ifname, routes.([]RouteInfo))
+		err = nm.addBridgeRoutes(ifname, routes.([]RouteInfo))
 		if err != nil {
 			return err
 		}
 	}
 
 	if iptcmds, exists := nwInfo.Options[IPTablesKey]; exists {
-		err = AddToIptables(iptcmds.([]iptables.IPTableEntry))
+		err = nm.addToIptables(iptcmds.([]iptables.IPTableEntry))
 		if err != nil {
 			return err
 		}
@@ -112,9 +130,9 @@ func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 	var networkClient NetworkClient
 
 	if nw.VlanId != 0 {
-		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name)
+		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name, ovsctl.NewOvsctl())
 	} else {
-		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, NetworkInfo{})
+		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, NetworkInfo{}, nm.netlink)
 	}
 
 	// Disconnect the interface if this was the last network using it.
@@ -128,7 +146,7 @@ func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 //  SaveIPConfig saves the IP configuration of an interface.
 func (nm *networkManager) saveIPConfig(hostIf *net.Interface, extIf *externalInterface) error {
 	// Save the default routes on the interface.
-	routes, err := netlink.GetIpRoute(&netlink.Route{Dst: &net.IPNet{}, LinkIndex: hostIf.Index})
+	routes, err := nm.netlink.GetIPRoute(&netlink.Route{Dst: &net.IPNet{}, LinkIndex: hostIf.Index})
 	if err != nil {
 		log.Printf("[net] Failed to query routes: %v.", err)
 		return err
@@ -163,7 +181,7 @@ func (nm *networkManager) saveIPConfig(hostIf *net.Interface, extIf *externalInt
 
 		log.Printf("[net] Deleting IP address %v from interface %v.", ipNet, hostIf.Name)
 
-		err = netlink.DeleteIpAddress(hostIf.Name, ipAddr, ipNet)
+		err = nm.netlink.DeleteIPAddress(hostIf.Name, ipAddr, ipNet)
 		if err != nil {
 			break
 		}
@@ -280,7 +298,7 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 	for _, addr := range extIf.IPAddresses {
 		log.Printf("[net] Adding IP address %v to interface %v.", addr, targetIf.Name)
 
-		err := netlink.AddIpAddress(targetIf.Name, addr.IP, addr)
+		err := nm.netlink.AddIPAddress(targetIf.Name, addr.IP, addr)
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 			log.Printf("[net] Failed to add IP address %v: %v.", addr, err)
 			return err
@@ -293,7 +311,7 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 
 		log.Printf("[net] Adding IP route %+v.", route)
 
-		err := netlink.AddIpRoute((*netlink.Route)(route))
+		err := nm.netlink.AddIPRoute((*netlink.Route)(route))
 		if err != nil {
 			log.Printf("[net] Failed to add IP route %v: %v.", route, err)
 			return err
@@ -368,9 +386,9 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 	opt, _ := nwInfo.Options[genericData].(map[string]interface{})
 	if opt != nil && opt[VlanIDKey] != nil {
-		networkClient = NewOVSClient(bridgeName, extIf.Name)
+		networkClient = NewOVSClient(bridgeName, extIf.Name, ovsctl.NewOvsctl())
 	} else {
-		networkClient = NewLinuxBridgeClient(bridgeName, extIf.Name, *nwInfo)
+		networkClient = NewLinuxBridgeClient(bridgeName, extIf.Name, *nwInfo, nm.netlink)
 	}
 
 	// Check if the bridge already exists.
@@ -424,7 +442,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 	// External interface down.
 	log.Printf("[net] Setting link %v state down.", hostIf.Name)
-	err = netlink.SetLinkState(hostIf.Name, false)
+	err = nm.netlink.SetLinkState(hostIf.Name, false)
 	if err != nil {
 		return err
 	}
@@ -437,14 +455,14 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 	// External interface up.
 	log.Printf("[net] Setting link %v state up.", hostIf.Name)
-	err = netlink.SetLinkState(hostIf.Name, true)
+	err = nm.netlink.SetLinkState(hostIf.Name, true)
 	if err != nil {
 		return err
 	}
 
 	// Bridge up.
 	log.Printf("[net] Setting link %v state up.", bridgeName)
-	err = netlink.SetLinkState(bridgeName, true)
+	err = nm.netlink.SetLinkState(bridgeName, true)
 	if err != nil {
 		return err
 	}
@@ -483,7 +501,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 	if nwInfo.IPV6Mode == IPV6Nat {
 		// adds pod cidr gateway ip to bridge
-		if err = addIpv6NatGateway(nwInfo); err != nil {
+		if err = addIpv6NatGateway(nm.netlink, nwInfo); err != nil {
 			log.Errorf("[net] Adding IPv6 Nat Gateway failed:%v", err)
 			return err
 		}
@@ -535,7 +553,7 @@ func (nm *networkManager) disconnectExternalInterface(extIf *externalInterface, 
 	log.Printf("[net] Disconnected interface %v.", extIf.Name)
 }
 
-func AddToIptables(cmds []iptables.IPTableEntry) error {
+func (*networkManager) addToIptables(cmds []iptables.IPTableEntry) error {
 	log.Printf("Adding additional iptable rules...")
 	for _, cmd := range cmds {
 		err := iptables.RunCmd(cmd.Version, cmd.Params)
@@ -547,13 +565,13 @@ func AddToIptables(cmds []iptables.IPTableEntry) error {
 	return nil
 }
 
-func AddRoutes(bridgeName string, routes []RouteInfo) error {
+func (nm *networkManager) addBridgeRoutes(bridgeName string, routes []RouteInfo) error {
 	log.Printf("Adding routes...")
 	for _, route := range routes {
 		route.DevName = bridgeName
 		devIf, _ := net.InterfaceByName(route.DevName)
 		ifIndex := devIf.Index
-		gwfamily := netlink.GetIpAddressFamily(route.Gw)
+		gwfamily := netlink.GetIPAddressFamily(route.Gw)
 
 		nlRoute := &netlink.Route{
 			Family:    gwfamily,
@@ -562,7 +580,7 @@ func AddRoutes(bridgeName string, routes []RouteInfo) error {
 			LinkIndex: ifIndex,
 		}
 
-		if err := netlink.AddIpRoute(nlRoute); err != nil {
+		if err := nm.netlink.AddIPRoute(nlRoute); err != nil {
 			if !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 				return fmt.Errorf("Failed to add %+v to host interface with error: %v", nlRoute, err)
 			}
@@ -576,7 +594,7 @@ func AddRoutes(bridgeName string, routes []RouteInfo) error {
 }
 
 // Add ipv6 nat gateway IP on bridge
-func addIpv6NatGateway(nwInfo *NetworkInfo) error {
+func addIpv6NatGateway(nl netlinkinterface.NetlinkInterface, nwInfo *NetworkInfo) error {
 	log.Printf("[net] Adding ipv6 nat gateway on azure bridge")
 	for _, subnetInfo := range nwInfo.Subnets {
 		if subnetInfo.Family == platform.AfINET6 {
@@ -584,7 +602,11 @@ func addIpv6NatGateway(nwInfo *NetworkInfo) error {
 				IP:   subnetInfo.Gateway,
 				Mask: subnetInfo.Prefix.Mask,
 			}}
-			return epcommon.AssignIPToInterface(nwInfo.BridgeName, ipAddr)
+			epc := epcommon.NewEPCommon(nl)
+			err := epc.AssignIPToInterface(nwInfo.BridgeName, ipAddr)
+			if err != nil {
+				return newErrorNetworkManager(err.Error())
+			}
 		}
 	}
 
@@ -613,14 +635,15 @@ func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
 	}
 }
 
-func AddStaticRoute(ip string, interfaceName string) error {
+// AddStaticRoute adds a static route to the interface.
+func AddStaticRoute(nl netlinkinterface.NetlinkInterface, ip string, interfaceName string) error {
 	log.Printf("[ovs] Adding %v static route", ip)
 	var routes []RouteInfo
 	_, ipNet, _ := net.ParseCIDR(ip)
 	gwIP := net.ParseIP("0.0.0.0")
 	route := RouteInfo{Dst: *ipNet, Gw: gwIP}
 	routes = append(routes, route)
-	if err := addRoutes(interfaceName, routes); err != nil {
+	if err := addRoutes(nl, interfaceName, routes); err != nil {
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 			log.Printf("addroutes failed with error %v", err)
 			return err

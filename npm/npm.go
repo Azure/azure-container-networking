@@ -5,7 +5,6 @@ package npm
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"sync"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -41,8 +41,16 @@ type npmNamespaceCache struct {
 	nsMap map[string]*Namespace // Key is ns-<nsname>
 }
 
-type NetworkPolicyManagerEncoder interface {
-	Encode(writer io.Writer) error
+func (n *npmNamespaceCache) MarshalJSON() ([]byte, error) {
+	n.Lock()
+	defer n.Unlock()
+
+	nsMapRaw, err := json.Marshal(n.nsMap)
+	if err != nil {
+		return nil, errors.Errorf("failed to marshal nsMap due to %v", err)
+	}
+
+	return nsMapRaw, nil
 }
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
@@ -97,39 +105,47 @@ func NewNetworkPolicyManager(informerFactory informers.SharedInformerFactory, ex
 	return npMgr
 }
 
-func (npMgr *NetworkPolicyManager) encode(enc *json.Encoder) error {
-	if err := enc.Encode(npMgr.NodeName); err != nil {
-		return fmt.Errorf("failed to encode nodename %w", err)
+func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
+	m := map[CacheKey]json.RawMessage{}
+
+	npmNamespaceCacheRaw, err := json.Marshal(npMgr.npmNamespaceCache)
+	if err != nil {
+		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
+	}
+	m[NsMap] = npmNamespaceCacheRaw
+
+	podControllerRaw, err := json.Marshal(npMgr.podController)
+	if err != nil {
+		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
+	}
+	m[PodMap] = podControllerRaw
+
+	if npMgr.ipsMgr != nil {
+		listMapRaw, listMapMarshalErr := npMgr.ipsMgr.MarshalListMapJSON()
+		if listMapMarshalErr != nil {
+			return nil, errors.Errorf("%s: %v", errMarshalNPMCache, listMapMarshalErr)
+		}
+		m[ListMap] = listMapRaw
+
+		setMapRaw, setMapMarshalErr := npMgr.ipsMgr.MarshalSetMapJSON()
+		if setMapMarshalErr != nil {
+			return nil, errors.Errorf("%s: %v", errMarshalNPMCache, setMapMarshalErr)
+		}
+		m[SetMap] = setMapRaw
 	}
 
-	npMgr.npmNamespaceCache.Lock()
-	defer npMgr.npmNamespaceCache.Unlock()
-	if err := enc.Encode(npMgr.npmNamespaceCache.nsMap); err != nil {
-		return fmt.Errorf("failed to encode npm namespace cache %w", err)
+	nodeNameRaw, err := json.Marshal(npMgr.NodeName)
+	if err != nil {
+		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
+	}
+	m[NodeName] = nodeNameRaw
+
+	npmCacheRaw, err := json.Marshal(m)
+	if err != nil {
+		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
 	}
 
-	return nil
-}
-
-// Encode returns all information of pod, namespace, ipsm map information.
-// TODO(jungukcho): While this approach is beneficial to hold separate lock instead of global lock,
-// it has strict ordering limitation between encoding and decoding.
-// Will find flexible way by maintaining performance benefit.
-func (npMgr *NetworkPolicyManager) Encode(writer io.Writer) error {
-	enc := json.NewEncoder(writer)
-	if err := npMgr.encode(enc); err != nil {
-		return err
-	}
-
-	if err := npMgr.podController.Encode(enc); err != nil {
-		return err
-	}
-
-	if err := npMgr.ipsMgr.Encode(enc); err != nil {
-		return fmt.Errorf("failed to encode ipsm cache %w", err)
-	}
-
-	return nil
+	return npmCacheRaw, nil
 }
 
 // GetAppVersion returns network policy manager app version

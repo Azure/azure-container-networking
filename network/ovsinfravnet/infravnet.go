@@ -1,12 +1,17 @@
+// Copyright 2017 Microsoft. All rights reserved.
+// MIT License
+
 package ovsinfravnet
 
 import (
+	"errors"
+	"fmt"
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/netlink"
 
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
@@ -14,16 +19,25 @@ const (
 	azureInfraIfName = "eth2"
 )
 
+var errorOVSInfraVnetClient = errors.New("OVSInfraVnetClient Error")
+
+func newErrorOVSInfraVnetClient(errStr string) error {
+	return fmt.Errorf("%w : %s", errorOVSInfraVnetClient, errStr)
+}
+
 type OVSInfraVnetClient struct {
 	hostInfraVethName      string
 	ContainerInfraVethName string
 	containerInfraMac      string
+	netlink                netlinkinterface.NetlinkInterface
 }
 
-func NewInfraVnetClient(hostIfName string, contIfName string) OVSInfraVnetClient {
-	infraVnetClient := OVSInfraVnetClient{}
-	infraVnetClient.hostInfraVethName = hostIfName
-	infraVnetClient.ContainerInfraVethName = contIfName
+func NewInfraVnetClient(hostIfName string, contIfName string, nl netlinkinterface.NetlinkInterface) OVSInfraVnetClient {
+	infraVnetClient := OVSInfraVnetClient{
+		hostInfraVethName:      hostIfName,
+		ContainerInfraVethName: contIfName,
+		netlink:                nl,
+	}
 
 	log.Printf("Initialize new infravnet client %+v", infraVnetClient)
 
@@ -31,13 +45,15 @@ func NewInfraVnetClient(hostIfName string, contIfName string) OVSInfraVnetClient
 }
 
 func (client *OVSInfraVnetClient) CreateInfraVnetEndpoint(bridgeName string) error {
-	if err := epcommon.CreateEndpoint(client.hostInfraVethName, client.ContainerInfraVethName); err != nil {
+	ovs := ovsctl.NewOvsctl()
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.CreateEndpoint(client.hostInfraVethName, client.ContainerInfraVethName); err != nil {
 		log.Printf("Creating infraep failed with error %v", err)
 		return err
 	}
 
 	log.Printf("[ovs] Adding port %v master %v.", client.hostInfraVethName, bridgeName)
-	if err := ovsctl.AddPortOnOVSBridge(client.hostInfraVethName, bridgeName, 0); err != nil {
+	if err := ovs.AddPortOnOVSBridge(client.hostInfraVethName, bridgeName, 0); err != nil {
 		log.Printf("Adding infraveth to ovsbr failed with error %v", err)
 		return err
 	}
@@ -59,20 +75,22 @@ func (client *OVSInfraVnetClient) CreateInfraVnetRules(
 	hostPrimaryMac string,
 	hostPort string) error {
 
-	infraContainerPort, err := ovsctl.GetOVSPortNumber(client.hostInfraVethName)
+	ovs := ovsctl.NewOvsctl()
+
+	infraContainerPort, err := ovs.GetOVSPortNumber(client.hostInfraVethName)
 	if err != nil {
 		log.Printf("[ovs] Get ofport failed with error %v", err)
 		return err
 	}
 
 	// 0 signifies not to add vlan tag to this traffic
-	if err := ovsctl.AddIpSnatRule(bridgeName, infraIP.IP, 0, infraContainerPort, hostPrimaryMac, hostPort); err != nil {
+	if err := ovs.AddIPSnatRule(bridgeName, infraIP.IP, 0, infraContainerPort, hostPrimaryMac, hostPort); err != nil {
 		log.Printf("[ovs] AddIpSnatRule failed with error %v", err)
 		return err
 	}
 
 	// 0 signifies not to match traffic based on vlan tag
-	if err := ovsctl.AddMacDnatRule(bridgeName, hostPort, infraIP.IP, client.containerInfraMac, 0, infraContainerPort); err != nil {
+	if err := ovs.AddMacDnatRule(bridgeName, hostPort, infraIP.IP, client.containerInfraMac, 0, infraContainerPort); err != nil {
 		log.Printf("[ovs] AddMacDnatRule failed with error %v", err)
 		return err
 	}
@@ -82,12 +100,17 @@ func (client *OVSInfraVnetClient) CreateInfraVnetRules(
 
 func (client *OVSInfraVnetClient) MoveInfraEndpointToContainerNS(netnsPath string, nsID uintptr) error {
 	log.Printf("[ovs] Setting link %v netns %v.", client.ContainerInfraVethName, netnsPath)
-	return netlink.SetLinkNetNs(client.ContainerInfraVethName, nsID)
+	err := client.netlink.SetLinkNetNs(client.ContainerInfraVethName, nsID)
+	if err != nil {
+		return newErrorOVSInfraVnetClient(err.Error())
+	}
+	return nil
 }
 
 func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
-	if err := epcommon.SetupContainerInterface(client.ContainerInfraVethName, azureInfraIfName); err != nil {
-		return err
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.SetupContainerInterface(client.ContainerInfraVethName, azureInfraIfName); err != nil {
+		return newErrorOVSInfraVnetClient(err.Error())
 	}
 
 	client.ContainerInfraVethName = azureInfraIfName
@@ -97,7 +120,11 @@ func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
 
 func (client *OVSInfraVnetClient) ConfigureInfraVnetContainerInterface(infraIP net.IPNet) error {
 	log.Printf("[ovs] Adding IP address %v to link %v.", infraIP.String(), client.ContainerInfraVethName)
-	return netlink.AddIpAddress(client.ContainerInfraVethName, infraIP.IP, &infraIP)
+	err := client.netlink.AddIPAddress(client.ContainerInfraVethName, infraIP.IP, &infraIP)
+	if err != nil {
+		return newErrorOVSInfraVnetClient(err.Error())
+	}
+	return nil
 }
 
 func (client *OVSInfraVnetClient) DeleteInfraVnetRules(
@@ -105,28 +132,32 @@ func (client *OVSInfraVnetClient) DeleteInfraVnetRules(
 	infraIP net.IPNet,
 	hostPort string) {
 
+	ovs := ovsctl.NewOvsctl()
+
 	log.Printf("[ovs] Deleting MAC DNAT rule for infravnet IP address %v", infraIP.IP.String())
-	ovsctl.DeleteMacDnatRule(bridgeName, hostPort, infraIP.IP, 0)
+	ovs.DeleteMacDnatRule(bridgeName, hostPort, infraIP.IP, 0)
 
 	log.Printf("[ovs] Get ovs port for infravnet interface %v.", client.hostInfraVethName)
-	infraContainerPort, err := ovsctl.GetOVSPortNumber(client.hostInfraVethName)
+	infraContainerPort, err := ovs.GetOVSPortNumber(client.hostInfraVethName)
 	if err != nil {
 		log.Printf("[ovs] Get infravnet portnum failed with error %v", err)
 	}
 
 	log.Printf("[ovs] Deleting IP SNAT for infravnet port %v", infraContainerPort)
-	ovsctl.DeleteIPSnatRule(bridgeName, infraContainerPort)
+	ovs.DeleteIPSnatRule(bridgeName, infraContainerPort)
 
 	log.Printf("[ovs] Deleting infravnet interface %v from bridge %v", client.hostInfraVethName, bridgeName)
-	ovsctl.DeletePortFromOVS(bridgeName, client.hostInfraVethName)
+	if err := ovs.DeletePortFromOVS(bridgeName, client.hostInfraVethName); err != nil {
+		log.Printf("[ovs] Deletion of infravnet interface %v from bridge %v failed", client.hostInfraVethName, bridgeName)
+	}
 }
 
 func (client *OVSInfraVnetClient) DeleteInfraVnetEndpoint() error {
 	log.Printf("[ovs] Deleting Infra veth pair %v.", client.hostInfraVethName)
-	err := netlink.DeleteLink(client.hostInfraVethName)
+	err := client.netlink.DeleteLink(client.hostInfraVethName)
 	if err != nil {
 		log.Printf("[ovs] Failed to delete veth pair %v: %v.", client.hostInfraVethName, err)
-		return err
+		return newErrorOVSInfraVnetClient(err.Error())
 	}
 
 	return nil

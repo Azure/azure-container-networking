@@ -13,8 +13,9 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformer "k8s.io/client-go/informers/core/v1"
@@ -109,15 +110,16 @@ func NewPodController(podInformer coreinformer.PodInformer, ipsMgr *ipsm.IpsetMa
 	return podController
 }
 
-func (c *podController) Encode(enc *json.Encoder) error {
+func (c *podController) MarshalJSON() ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
 
-	if err := enc.Encode(c.podMap); err != nil {
-		return fmt.Errorf("failed to encode podMap %w", err)
+	podMapRaw, err := json.Marshal(c.podMap)
+	if err != nil {
+		return nil, errors.Errorf("failed to marshal podMap due to %v", err)
 	}
 
-	return nil
+	return podMapRaw, nil
 }
 
 func (c *podController) lengthOfPodMap() int {
@@ -307,7 +309,7 @@ func (c *podController) syncPod(key string) error {
 	defer c.Unlock()
 
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			klog.Infof("pod %s not found, may be it is deleted", key)
 			// cleanUpDeletedPod will check if the pod exists in cache, if it does then proceeds with deletion
 			// if it does not exists, then event will be no-op

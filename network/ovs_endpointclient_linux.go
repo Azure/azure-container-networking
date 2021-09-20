@@ -1,11 +1,14 @@
+// Copyright 2017 Microsoft. All rights reserved.
+// MIT License
+
 package network
 
 import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/network/ovsinfravnet"
 	"github.com/Azure/azure-container-networking/network/ovssnat"
 	"github.com/Azure/azure-container-networking/ovsctl"
@@ -26,6 +29,8 @@ type OVSEndpointClient struct {
 	allowInboundFromHostToNC bool
 	allowInboundFromNCToHost bool
 	enableSnatForDns         bool
+	netlink                  netlinkinterface.NetlinkInterface
+	ovsctlClient             ovsctl.OvsInterface
 }
 
 const (
@@ -39,7 +44,9 @@ func NewOVSEndpointClient(
 	hostVethName string,
 	containerVethName string,
 	vlanid int,
-	localIP string) *OVSEndpointClient {
+	localIP string,
+	nl netlinkinterface.NetlinkInterface,
+	ovs ovsctl.OvsInterface) *OVSEndpointClient {
 
 	client := &OVSEndpointClient{
 		bridgeName:               nw.extIf.BridgeName,
@@ -53,6 +60,8 @@ func NewOVSEndpointClient(
 		allowInboundFromHostToNC: epInfo.AllowInboundFromHostToNC,
 		allowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
 		enableSnatForDns:         epInfo.EnableSnatForDns,
+		netlink:                  nl,
+		ovsctlClient:             ovs,
 	}
 
 	NewInfraVnetClient(client, epInfo.Id[:7])
@@ -62,7 +71,8 @@ func NewOVSEndpointClient(
 }
 
 func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
-	if err := epcommon.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return err
 	}
 
@@ -87,19 +97,19 @@ func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 
 func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 	log.Printf("[ovs] Setting link %v master %v.", client.hostVethName, client.bridgeName)
-	if err := ovsctl.AddPortOnOVSBridge(client.hostVethName, client.bridgeName, client.vlanID); err != nil {
+	if err := client.ovsctlClient.AddPortOnOVSBridge(client.hostVethName, client.bridgeName, client.vlanID); err != nil {
 		return err
 	}
 
 	log.Printf("[ovs] Get ovs port for interface %v.", client.hostVethName)
-	containerOVSPort, err := ovsctl.GetOVSPortNumber(client.hostVethName)
+	containerOVSPort, err := client.ovsctlClient.GetOVSPortNumber(client.hostVethName)
 	if err != nil {
 		log.Printf("[ovs] Get ofport failed with error %v", err)
 		return err
 	}
 
 	log.Printf("[ovs] Get ovs port for interface %v.", client.hostPrimaryIfName)
-	hostPort, err := ovsctl.GetOVSPortNumber(client.hostPrimaryIfName)
+	hostPort, err := client.ovsctlClient.GetOVSPortNumber(client.hostPrimaryIfName)
 	if err != nil {
 		log.Printf("[ovs] Get ofport failed with error %v", err)
 		return err
@@ -108,7 +118,7 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 	for _, ipAddr := range epInfo.IPAddresses {
 		// Add Arp Reply Rules
 		// Set Vlan id on arp request packet and forward it to table 1
-		if err := ovsctl.AddFakeArpReply(client.bridgeName, ipAddr.IP); err != nil {
+		if err := client.ovsctlClient.AddFakeArpReply(client.bridgeName, ipAddr.IP); err != nil {
 			return err
 		}
 
@@ -116,14 +126,14 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 		// This rule also checks if packets coming from right source ip based on the ovs port to prevent ip spoofing.
 		// Otherwise it drops the packet.
 		log.Printf("[ovs] Adding IP SNAT rule for egress traffic on %v.", containerOVSPort)
-		if err := ovsctl.AddIpSnatRule(client.bridgeName, ipAddr.IP, client.vlanID, containerOVSPort, client.hostPrimaryMac, hostPort); err != nil {
+		if err := client.ovsctlClient.AddIPSnatRule(client.bridgeName, ipAddr.IP, client.vlanID, containerOVSPort, client.hostPrimaryMac, hostPort); err != nil {
 			return err
 		}
 
 		// Add IP DNAT rule based on dst ip and vlanid - This rule changes the destination mac to corresponding container mac based on the ip and
 		// forwards the packet to corresponding container hostveth port
 		log.Printf("[ovs] Adding MAC DNAT rule for IP address %v on hostport %v, containerport: %v", ipAddr.IP.String(), hostPort, containerOVSPort)
-		if err := ovsctl.AddMacDnatRule(client.bridgeName, hostPort, ipAddr.IP, client.containerMac, client.vlanID, containerOVSPort); err != nil {
+		if err := client.ovsctlClient.AddMacDnatRule(client.bridgeName, hostPort, ipAddr.IP, client.containerMac, client.vlanID, containerOVSPort); err != nil {
 			return err
 		}
 	}
@@ -137,32 +147,34 @@ func (client *OVSEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 
 func (client *OVSEndpointClient) DeleteEndpointRules(ep *endpoint) {
 	log.Printf("[ovs] Get ovs port for interface %v.", ep.HostIfName)
-	containerPort, err := ovsctl.GetOVSPortNumber(client.hostVethName)
+	containerPort, err := client.ovsctlClient.GetOVSPortNumber(client.hostVethName)
 	if err != nil {
 		log.Printf("[ovs] Get portnum failed with error %v", err)
 	}
 
 	log.Printf("[ovs] Get ovs port for interface %v.", client.hostPrimaryIfName)
-	hostPort, err := ovsctl.GetOVSPortNumber(client.hostPrimaryIfName)
+	hostPort, err := client.ovsctlClient.GetOVSPortNumber(client.hostPrimaryIfName)
 	if err != nil {
 		log.Printf("[ovs] Get portnum failed with error %v", err)
 	}
 
 	// Delete IP SNAT
 	log.Printf("[ovs] Deleting IP SNAT for port %v", containerPort)
-	ovsctl.DeleteIPSnatRule(client.bridgeName, containerPort)
+	client.ovsctlClient.DeleteIPSnatRule(client.bridgeName, containerPort)
 
 	// Delete Arp Reply Rules for container
 	log.Printf("[ovs] Deleting ARP reply rule for ip %v vlanid %v for container port %v", ep.IPAddresses[0].IP.String(), ep.VlanID, containerPort)
-	ovsctl.DeleteArpReplyRule(client.bridgeName, containerPort, ep.IPAddresses[0].IP, ep.VlanID)
+	client.ovsctlClient.DeleteArpReplyRule(client.bridgeName, containerPort, ep.IPAddresses[0].IP, ep.VlanID)
 
 	// Delete MAC address translation rule.
 	log.Printf("[ovs] Deleting MAC DNAT rule for IP address %v and vlan %v.", ep.IPAddresses[0].IP.String(), ep.VlanID)
-	ovsctl.DeleteMacDnatRule(client.bridgeName, hostPort, ep.IPAddresses[0].IP, ep.VlanID)
+	client.ovsctlClient.DeleteMacDnatRule(client.bridgeName, hostPort, ep.IPAddresses[0].IP, ep.VlanID)
 
 	// Delete port from ovs bridge
 	log.Printf("[ovs] Deleting interface %v from bridge %v", client.hostVethName, client.bridgeName)
-	ovsctl.DeletePortFromOVS(client.bridgeName, client.hostVethName)
+	if err := client.ovsctlClient.DeletePortFromOVS(client.bridgeName, client.hostVethName); err != nil {
+		log.Printf("[ovs] Deletion of interface %v from bridge %v failed", client.hostVethName, client.bridgeName)
+	}
 
 	DeleteSnatEndpointRules(client)
 	DeleteInfraVnetEndpointRules(client, ep, hostPort)
@@ -171,7 +183,7 @@ func (client *OVSEndpointClient) DeleteEndpointRules(ep *endpoint) {
 func (client *OVSEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {
 	// Move the container interface to container's network namespace.
 	log.Printf("[ovs] Setting link %v netns %v.", client.containerVethName, epInfo.NetNsPath)
-	if err := netlink.SetLinkNetNs(client.containerVethName, nsID); err != nil {
+	if err := client.netlink.SetLinkNetNs(client.containerVethName, nsID); err != nil {
 		return err
 	}
 
@@ -183,7 +195,8 @@ func (client *OVSEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo
 }
 
 func (client *OVSEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-	if err := epcommon.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
 		return err
 	}
 
@@ -197,7 +210,8 @@ func (client *OVSEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) 
 }
 
 func (client *OVSEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
-	if err := epcommon.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
+	epc := epcommon.NewEPCommon(client.netlink)
+	if err := epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
 		return err
 	}
 
@@ -209,12 +223,12 @@ func (client *OVSEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *E
 		return err
 	}
 
-	return addRoutes(client.containerVethName, epInfo.Routes)
+	return addRoutes(client.netlink, client.containerVethName, epInfo.Routes)
 }
 
 func (client *OVSEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	log.Printf("[ovs] Deleting veth pair %v %v.", ep.HostIfName, ep.IfName)
-	err := netlink.DeleteLink(ep.HostIfName)
+	err := client.netlink.DeleteLink(ep.HostIfName)
 	if err != nil {
 		log.Printf("[ovs] Failed to delete veth pair %v: %v.", ep.HostIfName, err)
 		return err
