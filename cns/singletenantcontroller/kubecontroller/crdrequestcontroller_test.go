@@ -98,12 +98,15 @@ type MockCNSRestService struct {
 }
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
-func (m *MockCNSRestService) CreateOrUpdateNetworkContainerInternal(ncRequest cns.CreateNetworkContainerRequest) types.ResponseCode {
+func (m *MockCNSRestService) CreateOrUpdateNetworkContainerInternal(ncRequest *cns.CreateNetworkContainerRequest) types.ResponseCode {
 	m.MockCNSUpdated = true
 	return types.Success
 }
 
-func (m *MockCNSRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) types.ResponseCode {
+func (m *MockCNSRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest,
+	podInfoByIP map[string]cns.PodInfo,
+	scalar v1alpha.Scaler,
+	spec v1alpha.NodeNetworkConfigSpec) types.ResponseCode {
 	m.MockCNSInitialized = true
 	m.Pods = podInfoByIP
 	m.NCRequest = ncRequest

@@ -44,7 +44,7 @@ var _ singletenantcontroller.RequestController = (*requestController)(nil)
 
 type cnsrestservice interface {
 	ReconcileNCState(*cns.CreateNetworkContainerRequest, map[string]cns.PodInfo, v1alpha.Scaler, v1alpha.NodeNetworkConfigSpec) types.ResponseCode
-	CreateOrUpdateNetworkContainerInternal(cns.CreateNetworkContainerRequest) types.ResponseCode
+	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) types.ResponseCode
 }
 
 // requestController

@@ -33,7 +33,7 @@ const (
 type cnsrestservice interface {
 	DeleteNetworkContainerInternal(cns.DeleteNetworkContainerRequest) types.ResponseCode
 	GetNetworkContainerInternal(cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, types.ResponseCode)
-	CreateOrUpdateNetworkContainerInternal(cns.CreateNetworkContainerRequest) types.ResponseCode
+	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) types.ResponseCode
 }
 
 // multiTenantCrdReconciler reconciles multi-tenant network containers.
@@ -131,7 +131,7 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 		return ctrl.Result{}, err
 	}
 	prefixLength, _ := ipNet.Mask.Size()
-	networkContainerRequest := cns.CreateNetworkContainerRequest{
+	networkContainerRequest := &cns.CreateNetworkContainerRequest{
 		NetworkContainerid:   nc.Spec.UUID,
 		OrchestratorContext:  orchestratorContext,
 		NetworkContainerType: cns.Kubernetes,

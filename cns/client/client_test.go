@@ -82,7 +82,7 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 		secondaryIPConfigs[ipId.String()] = secIpConfig
 	}
 
-	req := cns.CreateNetworkContainerRequest{
+	req := &cns.CreateNetworkContainerRequest{
 		NetworkContainerType: dockerContainerType,
 		NetworkContainerid:   "testNcId1",
 		IPConfiguration:      ipConfig,

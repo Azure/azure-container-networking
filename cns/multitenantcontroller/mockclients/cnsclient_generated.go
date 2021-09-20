@@ -40,7 +40,7 @@ func (m *MockCNSRestService) EXPECT() *MockCNSRestServiceMockRecorder {
 }
 
 // CreateOrUpdateNetworkContainerInternal mocks base method.
-func (m *MockCNSRestService) CreateOrUpdateNetworkContainerInternal(nc cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
+func (m *MockCNSRestService) CreateOrUpdateNetworkContainerInternal(nc *cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOrUpdateNetworkContainerInternal", nc)
 	ret0, _ := ret[0].(cnstypes.ResponseCode)

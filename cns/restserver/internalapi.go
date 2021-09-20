@@ -221,7 +221,7 @@ func (service *HTTPRestService) ReconcileNCState(
 	}
 
 	// If the NC was created successfully, then reconcile the allocated pod state
-	returnCode := service.CreateOrUpdateNetworkContainerInternal(*ncRequest)
+	returnCode := service.CreateOrUpdateNetworkContainerInternal(ncRequest)
 	if returnCode != types.Success {
 		return returnCode
 	}
@@ -303,7 +303,7 @@ func (service *HTTPRestService) DeleteNetworkContainerInternal(
 
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(
-	req cns.CreateNetworkContainerRequest,
+	req *cns.CreateNetworkContainerRequest,
 ) types.ResponseCode {
 	if req.NetworkContainerid == "" {
 		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
@@ -344,11 +344,11 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(
 	}
 
 	// This will Create Or Update the NC state.
-	returnCode, returnMessage := service.saveNetworkContainerGoalState(req)
+	returnCode, returnMessage := service.saveNetworkContainerGoalState(*req)
 
 	// If the NC was created successfully, log NC snapshot.
 	if returnCode == 0 {
-		logNCSnapshot(req)
+		logNCSnapshot(*req)
 	} else {
 		logger.Errorf(returnMessage)
 	}

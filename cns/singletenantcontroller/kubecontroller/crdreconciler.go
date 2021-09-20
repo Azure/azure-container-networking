@@ -62,7 +62,7 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	responseCode := r.CNSRestService.CreateOrUpdateNetworkContainerInternal(ncRequest)
+	responseCode := r.CNSRestService.CreateOrUpdateNetworkContainerInternal(&ncRequest)
 	err = restserver.ResponseCodeToError(responseCode)
 	if err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
