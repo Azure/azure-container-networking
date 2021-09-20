@@ -10,7 +10,7 @@ github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
 github.com/Microsoft/go-winio/pkg/security
 github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.8.18 => github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
+# github.com/Microsoft/hcsshim v0.8.18 => github.com/microsoft/hcsshim v0.8.22
 ## explicit
 github.com/Microsoft/hcsshim
 github.com/Microsoft/hcsshim/computestorage
@@ -57,13 +57,15 @@ github.com/containernetworking/cni/pkg/utils
 github.com/containernetworking/cni/pkg/version
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/docker/docker v1.4.2-0.20190924003213-a8608b5b67c7
+# github.com/docker/docker v20.10.8+incompatible
+## explicit
 github.com/docker/docker/pkg/ioutils
 github.com/docker/docker/pkg/longpath
 github.com/docker/docker/pkg/plugingetter
 github.com/docker/docker/pkg/plugins
 github.com/docker/docker/pkg/plugins/transport
 # github.com/docker/go-connections v0.4.0
+## explicit
 github.com/docker/go-connections/sockets
 github.com/docker/go-connections/tlsconfig
 # github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
@@ -862,6 +864,6 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit
 sigs.k8s.io/yaml
 # github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
-# github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
+# github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.22
 # github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 # github.com/onsi/gomega => github.com/onsi/gomega v1.10.0

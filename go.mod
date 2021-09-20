@@ -9,6 +9,8 @@ require (
 	github.com/Microsoft/hcsshim v0.8.18
 	github.com/billgraziano/dpapi v0.3.0
 	github.com/containernetworking/cni v0.8.1
+	github.com/docker/docker v20.10.8+incompatible // indirect
+	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.2
@@ -46,7 +48,7 @@ require (
 
 replace (
 	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.18-0.20210804034220-264a47d1abd8
+	github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.22
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
