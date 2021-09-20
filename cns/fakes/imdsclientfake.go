@@ -1,3 +1,6 @@
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
+
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 

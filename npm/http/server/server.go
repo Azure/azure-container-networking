@@ -1,18 +1,18 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
 	_ "net/http/pprof"
 
-	"github.com/Azure/azure-container-networking/npm/cache"
+	"github.com/Azure/azure-container-networking/log"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"k8s.io/klog"
 
-	"github.com/Azure/azure-container-networking/npm"
 	"github.com/gorilla/mux"
 )
 
@@ -21,7 +21,7 @@ type NPMRestServer struct {
 	router           *mux.Router
 }
 
-func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder npm.NetworkPolicyManagerEncoder) {
+func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marshaler) {
 	rs := NPMRestServer{}
 
 	rs.router = mux.NewRouter()
@@ -60,12 +60,16 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder npm.Network
 	klog.Errorf("Failed to start NPM HTTP Server with error: %+v", srv.ListenAndServe())
 }
 
-func (n *NPMRestServer) npmCacheHandler(npmEncoder npm.NetworkPolicyManagerEncoder) http.Handler {
+func (n *NPMRestServer) npmCacheHandler(npmCacheEncoder json.Marshaler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := cache.Encode(w, npmEncoder)
+		b, err := json.Marshal(npmCacheEncoder)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
+		}
+		_, err = w.Write(b)
+		if err != nil {
+			log.Errorf("failed to write resp: %w", err)
 		}
 	})
 }

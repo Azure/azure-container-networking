@@ -421,7 +421,7 @@ func main() {
 		logger.Errorf("[Azure CNS] Error reading cns config: %v", err)
 	}
 
-	configuration.SetCNSConfigDefaults(&cnsconfig)
+	configuration.SetCNSConfigDefaults(cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
 	if cnsconfig.WireserverIP != "" {
@@ -556,7 +556,7 @@ func main() {
 		}
 		logger.Printf("Set GlobalPodInfoScheme %v", cns.GlobalPodInfoScheme)
 
-		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
+		err = InitializeCRDState(rootCtx, httpRestService, *cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -566,7 +566,7 @@ func main() {
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.
 	// It must be started before we start HTTPRestService.
 	if config.ChannelMode == cns.MultiTenantCRD {
-		err = InitializeMultiTenantController(rootCtx, httpRestService, cnsconfig)
+		err = InitializeMultiTenantController(rootCtx, httpRestService, *cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
 			return

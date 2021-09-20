@@ -1,44 +1,26 @@
 package server
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
-	"time"
 
-	"github.com/Azure/azure-container-networking/npm/cache"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/azure-container-networking/npm"
-	k8sversion "k8s.io/apimachinery/pkg/version"
-	kubeinformers "k8s.io/client-go/informers"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
-	fakeexec "k8s.io/utils/exec/testing"
 )
-
-func NPMEncoder() npm.NetworkPolicyManagerEncoder {
-	noResyncPeriodFunc := func() time.Duration { return 0 }
-	kubeclient := k8sfake.NewSimpleClientset()
-	kubeInformer := kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
-	fakeK8sVersion := &k8sversion.Info{
-		GitVersion: "v1.20.2",
-	}
-	exec := &fakeexec.FakeExec{}
-	npmVersion := "npm-ut-test"
-
-	npmEncoder := npm.NewNetworkPolicyManager(kubeInformer, exec, npmVersion, fakeK8sVersion)
-	return npmEncoder
-}
 
 func TestGetNPMCacheHandler(t *testing.T) {
 	assert := assert.New(t)
 
-	npmEncoder := NPMEncoder()
+	nodeName := "nodename"
+	npmCacheEncoder := npm.CacheEncoder(nodeName)
 	n := &NPMRestServer{}
-	handler := n.npmCacheHandler(npmEncoder)
+	handler := n.npmCacheHandler(npmCacheEncoder)
 
 	req, err := http.NewRequest(http.MethodGet, api.NPMMgrPath, nil)
 	if err != nil {
@@ -53,14 +35,19 @@ func TestGetNPMCacheHandler(t *testing.T) {
 			status, http.StatusOK)
 	}
 
-	var actual *cache.NPMCache
-	actual, err = cache.Decode(rr.Body)
+	byteArray, err := ioutil.ReadAll(rr.Body)
 	if err != nil {
-		t.Fatal(err)
+		t.Errorf("failed to read response's data : %w", err)
 	}
 
-	expected := &cache.NPMCache{
-		Nodename: os.Getenv("HOSTNAME"),
+	actual := &npm.Cache{}
+	err = json.Unmarshal(byteArray, actual)
+	if err != nil {
+		t.Fatalf("failed to unmarshal %s due to %v", string(byteArray), err)
+	}
+
+	expected := &npm.Cache{
+		NodeName: nodeName,
 		NsMap:    make(map[string]*npm.Namespace),
 		PodMap:   make(map[string]*npm.NpmPod),
 		ListMap:  make(map[string]*ipsm.Ipset),

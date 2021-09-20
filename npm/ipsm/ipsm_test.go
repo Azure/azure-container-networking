@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
 )
@@ -529,6 +530,54 @@ func TestDestroyNpmIpsets(t *testing.T) {
 		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.DestroyNpmIpsets")
 		t.Errorf(err.Error())
 	}
+}
+
+func TestMarshalListMapJSON(t *testing.T) {
+	testListSet := "test-list"
+	calls := []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testListSet), "setlist"}},
+	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
+	err := ipsMgr.createList(testListSet)
+	require.NoError(t, err)
+
+	listMapRaw, err := ipsMgr.MarshalListMapJSON()
+	require.NoError(t, err)
+	fmt.Println(string(listMapRaw))
+
+	expect := []byte(`{"test-list":{}}`)
+
+	fmt.Printf("%v\n", ipsMgr.listMap)
+	assert.ElementsMatch(t, expect, listMapRaw)
+}
+
+func TestMarshalSetMapJSON(t *testing.T) {
+	testSet := "test-set"
+	calls := []testutils.TestCmd{
+		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSet), "nethash"}},
+	}
+
+	fexec := testutils.GetFakeExecWithScripts(calls)
+	ipsMgr := NewIpsetManager(fexec)
+	defer testutils.VerifyCalls(t, fexec, calls)
+
+	err := ipsMgr.createSet(testSet, []string{util.IpsetNetHashFlag})
+	require.NoError(t, err)
+
+	setMapRaw, err := ipsMgr.MarshalSetMapJSON()
+	require.NoError(t, err)
+	fmt.Println(string(setMapRaw))
+
+	expect := []byte(`{"test-set":{}}`)
+	for key, val := range ipsMgr.setMap {
+		fmt.Printf("key: %s value: %+v\n", key, val)
+	}
+
+	assert.ElementsMatch(t, expect, setMapRaw)
 }
 
 // Enable these tests once the the changes for ipsm are enabled

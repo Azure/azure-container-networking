@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/pkg/errors"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -75,22 +76,28 @@ func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	}
 }
 
-// Encode encodes listmap and setmap.
-// The ordering to encode them is important.
-// Do encode listMap first and then setMap.
-func (ipsMgr *IpsetManager) Encode(enc *json.Encoder) error {
+func (ipsMgr *IpsetManager) MarshalListMapJSON() ([]byte, error) {
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
 
-	if err := enc.Encode(ipsMgr.listMap); err != nil {
-		return fmt.Errorf("failed to encode listMap %w", err)
+	listMapRaw, err := json.Marshal(ipsMgr.listMap)
+	if err != nil {
+		return nil, errors.Errorf("failed to marshal ListMap due to %v", err)
 	}
 
-	if err := enc.Encode(ipsMgr.setMap); err != nil {
-		return fmt.Errorf("failed to encode setMap %w", err)
+	return listMapRaw, nil
+}
+
+func (ipsMgr *IpsetManager) MarshalSetMapJSON() ([]byte, error) {
+	ipsMgr.Lock()
+	defer ipsMgr.Unlock()
+
+	setMapRaw, err := json.Marshal(ipsMgr.setMap)
+	if err != nil {
+		return nil, errors.Errorf("failed to marshal SetMap due to %v", err)
 	}
 
-	return nil
+	return setMapRaw, nil
 }
 
 // Exists checks if an element exists in setMap/listMap.

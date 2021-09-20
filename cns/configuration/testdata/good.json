@@ -1,0 +1,32 @@
+{
+    "ChannelMode": "Direct",
+    "InitializeFromCNI": true,
+    "ManagedSettings": {
+        "InfrastructureNetworkID": "abc",
+        "NodeID": "abc",
+        "NodeSyncIntervalInSeconds": 30,
+        "PrivateEndpoint": "abc"
+    },
+    "MetricsBindAddress": ":9091",
+    "SyncHostNCTimeoutMs": 5,
+    "SyncHostNCVersionIntervalMs": 5,
+    "TLSCertificatePath": "/test",
+    "TLSEndpoint": "0.0.0.0",
+    "TLSPort": "10091",
+    "TLSSubjectName": "subj",
+    "TelemetrySettings": {
+        "DebugMode": true,
+        "DisableAll": true,
+        "DisableEvent": true,
+        "DisableMetadataRefreshThread": true,
+        "DisableMetric": true,
+        "DisableTrace": true,
+        "HeartBeatIntervalInMins": 30,
+        "RefreshIntervalInSecs": 15,
+        "SnapshotIntervalInMins": 60,
+        "TelemetryBatchIntervalInSecs": 15,
+        "TelemetryBatchSizeBytes": 16384
+    },
+    "UseHTTPS": true,
+    "WireserverIP": "168.63.129.16"
+}
