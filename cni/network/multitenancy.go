@@ -53,7 +53,7 @@ type Multitenancy struct{}
 var errNmaResponse = errors.New("nmagent request status code")
 
 // DetermineSnatFeatureOnHost - Temporary function to determine whether we need to disable SNAT due to NMAgent support
-func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (bool, bool, error) {
+func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (snatForDNS, snatOnHost bool, err error) {
 	var (
 		snatConfig            snatConfiguration
 		retrieveSnatConfigErr error
@@ -97,7 +97,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 					jsonStr, _ := json.Marshal(snatConfig)
 					fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(filePerm))
 					if err == nil {
-						_, err := fp.Write(jsonStr)
+						_, err = fp.Write(jsonStr)
 						if err != nil {
 							log.Errorf("DetermineSnatFeatureOnHost: Write to json failed:%+v", err)
 						}
@@ -324,7 +324,7 @@ func (plugin *NetPlugin) GetMultiTenancyCNIResult(
 	nwCfg *cni.NetworkConfig,
 	k8sPodName string,
 	k8sNamespace string,
-	ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, *cniTypesCurr.Result, error) {
+	ifName string) (res *cniTypesCurr.Result, resp *cns.GetNetworkContainerResponse, prefix net.IPNet, infraRes *cniTypesCurr.Result, err error) {
 
 	result, cnsNetworkConfig, subnetPrefix, err := plugin.multitenancyClient.GetContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
 	if err != nil {

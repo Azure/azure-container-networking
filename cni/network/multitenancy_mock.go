@@ -36,7 +36,7 @@ func (m *MockMultitenancy) SetupRoutingForMultitenancy(
 	result *current.Result) {
 }
 
-func (m *MockMultitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (bool, bool, error) {
+func (m *MockMultitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (snatDNS, snatHost bool, err error) {
 	return true, true, nil
 }
 

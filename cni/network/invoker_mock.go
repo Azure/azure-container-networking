@@ -38,7 +38,7 @@ func NewMockIpamInvoker(ipv6, v4Fail, v6Fail bool) *MockIpamInvoker {
 	}
 }
 
-func (invoker *MockIpamInvoker) Add(nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, subnetPrefix *net.IPNet, options map[string]interface{}) (*current.Result, *current.Result, error) {
+func (invoker *MockIpamInvoker) Add(nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, subnetPrefix *net.IPNet, options map[string]interface{}) (v4, v6 *current.Result, err error) {
 	var resultV6 *current.Result
 
 	if invoker.v4Fail {

@@ -231,7 +231,7 @@ func GetEndpointID(args *cniSkel.CmdArgs) string {
 }
 
 // getPodInfo returns POD info by parsing the CNI args.
-func (plugin *NetPlugin) getPodInfo(args string) (string, string, error) {
+func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 	podCfg, err := cni.ParseCniArgs(args)
 	if err != nil {
 		log.Printf("Error while parsing CNI Args %v", err)
@@ -278,7 +278,7 @@ func SetCustomDimensions(cniMetric *telemetry.AIMetric, nwCfg *cni.NetworkConfig
 	}
 }
 
-func (plugin *NetPlugin) setCNIReportDetails(nwCfg *cni.NetworkConfig, opType string, msg string) {
+func (plugin *NetPlugin) setCNIReportDetails(nwCfg *cni.NetworkConfig, opType, msg string) {
 	plugin.report.OperationType = opType
 	plugin.report.SubContext = fmt.Sprintf("%+v", nwCfg)
 	plugin.report.EventMessage = msg
@@ -468,7 +468,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		nwInfo.IPAMType = nwCfg.Ipam.Type
 		options = nwInfo.Options
 
-		result, err = plugin.handleConsecutiveAdd(args, endpointId, networkID, nwInfo, nwCfg)
+		result, err = plugin.handleConsecutiveAdd(args, endpointId, networkID, &nwInfo, nwCfg)
 		if err != nil {
 			log.Printf("handleConsecutiveAdd failed with error %v", err)
 			return err
@@ -517,7 +517,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		log.Printf("[cni-net] Created network %v with subnet %v.", networkID, subnetPrefix.String())
 	}
 
-	epInfo, err := plugin.createEndpointInternal(nwCfg, cnsNetworkConfig, result, resultV6, azIpamResult, args, nwInfo,
+	epInfo, err := plugin.createEndpointInternal(nwCfg, cnsNetworkConfig, result, resultV6, azIpamResult, args, &nwInfo,
 		policies, endpointId, k8sPodName, k8sNamespace, enableInfraVnet, enableSnatForDns)
 	if err != nil {
 		log.Errorf("Endpoint creation failed:%w", err)
@@ -621,7 +621,8 @@ func (plugin *NetPlugin) createNetworkInternal(
 	nwInfo.IPAMType = nwCfg.Ipam.Type
 
 	if len(result.IPs) > 0 {
-		_, podnetwork, err := net.ParseCIDR(result.IPs[0].Address.String())
+		var podnetwork *net.IPNet
+		_, podnetwork, err = net.ParseCIDR(result.IPs[0].Address.String())
 		if err != nil {
 			return nwInfo, fmt.Errorf("%w", err)
 		}
@@ -653,7 +654,7 @@ func (plugin *NetPlugin) createEndpointInternal(
 	resultV6 *cniTypesCurr.Result,
 	azIpamResult *cniTypesCurr.Result,
 	args *cniSkel.CmdArgs,
-	nwInfo network.NetworkInfo,
+	nwInfo *network.NetworkInfo,
 	policies []policy.Policy,
 	endpointID string,
 	k8sPodName string,
@@ -671,7 +672,7 @@ func (plugin *NetPlugin) createEndpointInternal(
 	if nwCfg.IPV6Mode == network.IPV6Nat {
 		var ipv6Policy policy.Policy
 
-		ipv6Policy, err = addIPV6EndpointPolicy(nwInfo)
+		ipv6Policy, err = addIPV6EndpointPolicy(*nwInfo)
 		if err != nil {
 			err = plugin.Errorf("Failed to set ipv6 endpoint policy: %v", err)
 			return epInfo, err
