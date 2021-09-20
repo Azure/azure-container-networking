@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	iptableSaveFile = "../pkg/dataplane/testfiles/iptablesave"
-	npmCacheFile    = "../pkg/dataplane/testfiles/npmCacheWithCustomFormat.json"
+	iptableSaveFile = "../pkg/dataplane/testdata/iptablesave"
+	npmCacheFile    = "../pkg/dataplane/testdata/npmcache.json"
 	nonExistingFile = "non-existing-iptables-file"
 
 	npmCacheFlag         = "-c"

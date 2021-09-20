@@ -41,7 +41,7 @@ func TestGetTuplesCmd(t *testing.T) {
 		{
 			name:    "cache file but no iptables save file",
 			args:    concatArgs(standardArgs, npmCacheFlag, npmCacheFile),
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "cache file but bad iptables save file",
