@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"context"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
