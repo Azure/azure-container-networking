@@ -229,7 +229,7 @@ func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNe
 }
 
 // GetMultiTenancyCNIResult retrieves network goal state of a container from CNS
-func (a *azureMultitenancyClient) GetMultiTenancyCNIResult(
+func (a *azureMultitenancyClient) GetMultiTenancyCNIResult( //nolint: gocritic
 	ctx context.Context,
 	enableInfraVnet bool,
 	nwCfg *cni.NetworkConfig,

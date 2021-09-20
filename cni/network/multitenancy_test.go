@@ -90,7 +90,7 @@ func getIPNetWithString(ipaddrwithcidr string) *net.IPNet {
 }
 
 func TestSetupRoutingForMultitenancy(t *testing.T) {
-	require := require.New(t)
+	require := require.New(t) //nolint:gocritic
 	type args struct {
 		nwCfg            *cni.NetworkConfig
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
@@ -167,7 +167,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 }
 
 func TestCleanupMultitenancyResources(t *testing.T) {
-	require := require.New(t)
+	require := require.New(t) //nolint:gocritic
 	type args struct {
 		enableInfraVnet bool
 		nwCfg           *cni.NetworkConfig
@@ -224,7 +224,7 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 }
 
 func TestGetMultiTenancyCNIResult(t *testing.T) {
-	require := require.New(t)
+	require := require.New(t) //nolint:gocritic
 	type args struct {
 		ctx             context.Context
 		enableInfraVnet bool
