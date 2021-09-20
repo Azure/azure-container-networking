@@ -11,78 +11,79 @@ import (
 	reflect "reflect"
 
 	cns "github.com/Azure/azure-container-networking/cns"
+	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	v1alpha "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	gomock "github.com/golang/mock/gomock"
 )
 
-// MockAPIClient is a mock of APIClient interface.
-type MockAPIClient struct {
+// MockCNSRestService is a mock of CNS Rest Server.
+type MockCNSRestService struct {
 	ctrl     *gomock.Controller
-	recorder *MockAPIClientMockRecorder
+	recorder *MockCNSRestServiceMockRecorder
 }
 
 // MockAPIClientMockRecorder is the mock recorder for MockAPIClient.
-type MockAPIClientMockRecorder struct {
-	mock *MockAPIClient
+type MockCNSRestServiceMockRecorder struct {
+	mock *MockCNSRestService
 }
 
 // NewMockAPIClient creates a new mock instance.
-func NewMockAPIClient(ctrl *gomock.Controller) *MockAPIClient {
-	mock := &MockAPIClient{ctrl: ctrl}
-	mock.recorder = &MockAPIClientMockRecorder{mock}
+func NewMockCNSRestServer(ctrl *gomock.Controller) *MockCNSRestService {
+	mock := &MockCNSRestService{ctrl: ctrl}
+	mock.recorder = &MockCNSRestServiceMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockAPIClient) EXPECT() *MockAPIClientMockRecorder {
+func (m *MockCNSRestService) EXPECT() *MockCNSRestServiceMockRecorder {
 	return m.recorder
 }
 
-// CreateOrUpdateNC mocks base method.
-func (m *MockAPIClient) CreateOrUpdateNC(nc cns.CreateNetworkContainerRequest) error {
+// CreateOrUpdateNetworkContainerInternal mocks base method.
+func (m *MockCNSRestService) CreateOrUpdateNetworkContainerInternal(nc cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrUpdateNC", nc)
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "CreateOrUpdateNetworkContainerInternal", nc)
+	ret0, _ := ret[0].(cnstypes.ResponseCode)
 	return ret0
 }
 
-// CreateOrUpdateNC indicates an expected call of CreateOrUpdateNC.
-func (mr *MockAPIClientMockRecorder) CreateOrUpdateNC(nc interface{}) *gomock.Call {
+// CreateOrUpdateNetworkContainerInternal indicates an expected call of CreateOrUpdateNetworkContainerInternal.
+func (mr *MockCNSRestServiceMockRecorder) CreateOrUpdateNetworkContainerInternal(nc interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateNC", reflect.TypeOf((*MockAPIClient)(nil).CreateOrUpdateNC), nc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateNetworkContainerInternal", reflect.TypeOf((*MockCNSRestService)(nil).CreateOrUpdateNetworkContainerInternal), nc)
 }
 
-// DeleteNC mocks base method.
-func (m *MockAPIClient) DeleteNC(nc cns.DeleteNetworkContainerRequest) error {
+// DeleteNetworkContainerInternal mocks base method.
+func (m *MockCNSRestService) DeleteNetworkContainerInternal(nc cns.DeleteNetworkContainerRequest) cnstypes.ResponseCode {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteNC", nc)
-	ret0, _ := ret[0].(error)
+	ret := m.ctrl.Call(m, "DeleteNetworkContainerInternal", nc)
+	ret0, _ := ret[0].(cnstypes.ResponseCode)
 	return ret0
 }
 
-// DeleteNC indicates an expected call of DeleteNC.
-func (mr *MockAPIClientMockRecorder) DeleteNC(nc interface{}) *gomock.Call {
+// DeleteNetworkContainerInternal indicates an expected call of DeleteNetworkContainerInternal.
+func (mr *MockCNSRestServiceMockRecorder) DeleteNetworkContainerInternal(nc interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNC", reflect.TypeOf((*MockAPIClient)(nil).DeleteNC), nc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNetworkContainerInternal", reflect.TypeOf((*MockCNSRestService)(nil).DeleteNetworkContainerInternal), nc)
 }
 
-// GetNC mocks base method.
-func (m *MockAPIClient) GetNC(nc cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, error) {
+// GetNetworkContainerInternal mocks base method.
+func (m *MockCNSRestService) GetNetworkContainerInternal(nc cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, cnstypes.ResponseCode) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNC", nc)
+	ret := m.ctrl.Call(m, "GetNetworkContainerInternal", nc)
 	ret0, _ := ret[0].(cns.GetNetworkContainerResponse)
-	ret1, _ := ret[1].(error)
+	ret1, _ := ret[1].(cnstypes.ResponseCode)
 	return ret0, ret1
 }
 
-// GetNC indicates an expected call of GetNC.
-func (mr *MockAPIClientMockRecorder) GetNC(nc interface{}) *gomock.Call {
+// GetNetworkContainerInternal indicates an expected call of GetNetworkContainerInternal.
+func (mr *MockCNSRestServiceMockRecorder) GetNetworkContainerInternal(nc interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNC", reflect.TypeOf((*MockAPIClient)(nil).GetNC), nc)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNetworkContainerInternal", reflect.TypeOf((*MockCNSRestService)(nil).GetNetworkContainerInternal), nc)
 }
 
 // ReconcileNCState mocks base method.
-func (m *MockAPIClient) ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
+func (m *MockCNSRestService) ReconcileNCState(nc *cns.CreateNetworkContainerRequest, pods map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReconcileNCState", nc, pods, scalar, spec)
 	ret0, _ := ret[0].(error)
@@ -90,19 +91,19 @@ func (m *MockAPIClient) ReconcileNCState(nc *cns.CreateNetworkContainerRequest, 
 }
 
 // ReconcileNCState indicates an expected call of ReconcileNCState.
-func (mr *MockAPIClientMockRecorder) ReconcileNCState(nc, pods, scalar, spec interface{}) *gomock.Call {
+func (mr *MockCNSRestServiceMockRecorder) ReconcileNCState(nc, pods, scalar, spec interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconcileNCState", reflect.TypeOf((*MockAPIClient)(nil).ReconcileNCState), nc, pods, scalar, spec)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReconcileNCState", reflect.TypeOf((*MockCNSRestService)(nil).ReconcileNCState), nc, pods, scalar, spec)
 }
 
 // UpdateIPAMPoolMonitor mocks base method.
-func (m *MockAPIClient) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
+func (m *MockCNSRestService) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "UpdateIPAMPoolMonitor", scalar, spec)
 }
 
 // UpdateIPAMPoolMonitor indicates an expected call of UpdateIPAMPoolMonitor.
-func (mr *MockAPIClientMockRecorder) UpdateIPAMPoolMonitor(scalar, spec interface{}) *gomock.Call {
+func (mr *MockCNSRestServiceMockRecorder) UpdateIPAMPoolMonitor(scalar, spec interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateIPAMPoolMonitor", reflect.TypeOf((*MockAPIClient)(nil).UpdateIPAMPoolMonitor), scalar, spec)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateIPAMPoolMonitor", reflect.TypeOf((*MockCNSRestService)(nil).UpdateIPAMPoolMonitor), scalar, spec)
 }
