@@ -38,7 +38,7 @@ jobs:
 
       - name: Make NPM image
         run: |
-          VERSION=cyclonus make azure-npm-image
+          VERSION=cyclonus IMAGE_PLATFORM_ARCHES=linux/amd64 IMAGE_ACTION=load make azure-npm-image
       
       - name: Install Azure NPM
         run: |

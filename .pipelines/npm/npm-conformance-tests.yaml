@@ -72,8 +72,8 @@ jobs:
   - script: |
       echo Tag: $(TAG)
       echo ResourceGroup: $(RESOURCE_GROUP)
+      docker run --privileged --rm tonistiigi/binfmt --install arm64
       VERSION=$(TAG) make azure-npm-image
-      docker push $IMAGE_REGISTRY/azure-npm:$(TAG)
     displayName: 'Build and Push NPM Image'
 
   - task: Docker@2

@@ -91,10 +91,18 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
+          - task: Docker@2
+            displayName: Docker Login
+            inputs:
+              containerRegistry: $(ACR_SERVICE_CONNECTION)
+              command: 'login'
+              addPipelineData: false
+
           - script: |
               echo Tag is $(TAG)
               sudo make tools-images VERSION=$(TAG)
-              sudo make all-images VERSION=$(TAG)
+              docker run --privileged --rm tonistiigi/binfmt --install arm64
+              make all-images VERSION=$(TAG)
             name: "BuildImages"
             displayName: "Build Images"
 
@@ -108,20 +116,7 @@ stages:
             name: "TrivyScan"
             displayName: "Image Vulnerability Scan"
 
-          - task: Docker@2
-            displayName: Docker Login
-            inputs:
-              containerRegistry: $(ACR_SERVICE_CONNECTION)
-              command: 'login'
-              addPipelineData: false
-
           - script: |
-              docker tag $IMAGE_REGISTRY/azure-npm:$(TAG) $IMAGE_REGISTRY/azure-npm:$(TAG)-test
-              docker push $IMAGE_REGISTRY/azure-npm:$(TAG)-test
-
-              docker tag $IMAGE_REGISTRY/azure-cns:$(TAG) $IMAGE_REGISTRY/azure-cns:$(TAG)-test
-              docker push $IMAGE_REGISTRY/azure-cns:$(TAG)-test
-
               docker tag $IMAGE_REGISTRY/azure-cni-manager:$(TAG) $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
               docker push $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
 
@@ -135,8 +130,8 @@ stages:
                   done
               }
 
-              auto-retry docker pull $IMAGE_REGISTRY/azure-npm:$(TAG)-test
-              auto-retry docker pull $IMAGE_REGISTRY/azure-cns:$(TAG)-test
+              auto-retry docker pull $IMAGE_REGISTRY/azure-npm:$(TAG)
+              auto-retry docker pull $IMAGE_REGISTRY/azure-cns:$(TAG)
               auto-retry docker pull $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
             name: "mcrreplication"
             displayName: "Push NPM Image and Wait for Repository"
