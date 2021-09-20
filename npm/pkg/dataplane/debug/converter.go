@@ -1,18 +1,18 @@
 package dataplane
 
 import (
-	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/npm/cache"
+	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
@@ -26,20 +26,20 @@ type Converter struct {
 	ListMap        map[string]string // key: hash(value), value: one of namespace, label of namespace, multiple values
 	SetMap         map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
 	AzureNPMChains map[string]bool
-	NPMCache       *cache.NPMCache
+	NPMCache       *npm.Cache
 }
 
 // NpmCacheFromFile initialize NPM cache from file.
 func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
-	file, err := os.Open(npmCacheJSONFile)
+	byteArray, err := ioutil.ReadFile(npmCacheJSONFile)
 	if err != nil {
-		return fmt.Errorf("failed to open file : %w", err)
+		return fmt.Errorf("failed to read %s file : %w", npmCacheJSONFile, err)
 	}
 
-	defer file.Close()
-	c.NPMCache, err = cache.Decode(bufio.NewReader(file))
+	c.NPMCache = &npm.Cache{}
+	err = json.Unmarshal(byteArray, c.NPMCache)
 	if err != nil {
-		return fmt.Errorf("failed to decode npm cache due to : %w", err)
+		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
 	}
 	return nil
 }
@@ -60,12 +60,15 @@ func (c *Converter) NpmCache() error {
 		return fmt.Errorf("failed to request NPM Cache : %w", err)
 	}
 	defer resp.Body.Close()
-
-	c.NPMCache, err = cache.Decode(resp.Body)
+	byteArray, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("cannot decode NPM Cache : %w", err)
+		return fmt.Errorf("failed to read response's data : %w", err)
 	}
-
+	c.NPMCache = &npm.Cache{}
+	err = json.Unmarshal(byteArray, c.NPMCache)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
+	}
 	return nil
 }
 

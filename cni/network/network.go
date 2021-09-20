@@ -745,6 +745,12 @@ func (plugin *NetPlugin) createEndpointInternal(
 		return epInfo, plugin.Errorf(err.Error())
 	}
 
+	cnscli, err := cnsclient.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
+		return plugin.Errorf(err.Error())
+	}
+
 	// Create the endpoint.
 	log.Printf("[cni-net] Creating endpoint %v.", epInfo.Id)
 	err = plugin.nm.CreateEndpoint(cnscli, nwInfo.Id, &epInfo)

@@ -11,8 +11,10 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	utilexec "k8s.io/utils/exec"
+	fakeexec "k8s.io/utils/exec/testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -633,6 +635,31 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	if _, exists := f.podController.podMap[podKey]; exists {
 		t.Error("TestPodStatusUpdatePod failed @ cached pod obj exists check")
 	}
+}
+
+func TestPodMapMarshalJSON(t *testing.T) {
+	fexec := &fakeexec.FakeExec{}
+	f := newFixture(t, fexec)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newPodController(stopCh)
+
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+	pod := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+	podKey, err := cache.MetaNamespaceKeyFunc(pod)
+	assert.NoError(t, err)
+
+	npmPod := newNpmPod(pod)
+	f.podController.podMap[podKey] = npmPod
+
+	npMapRaw, err := f.podController.MarshalJSON()
+	assert.NoError(t, err)
+
+	expect := []byte(`{"test-namespace/test-pod":{"Name":"test-pod","Namespace":"test-namespace","PodIP":"1.2.3.4","Labels":{},"ContainerPorts":[],"Phase":"Running"}}`)
+	fmt.Printf("%s\n", string(npMapRaw))
+	assert.ElementsMatch(t, expect, npMapRaw)
 }
 
 func TestHasValidPodIP(t *testing.T) {

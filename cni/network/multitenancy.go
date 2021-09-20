@@ -320,6 +320,7 @@ var (
 // GetMultiTenancyCNIResult retrieves network goal state of a container from CNS
 func (plugin *NetPlugin) GetMultiTenancyCNIResult(
 	ctx context.Context,
+	ctx context.Context,
 	enableInfraVnet bool,
 	nwCfg *cni.NetworkConfig,
 	k8sPodName string,

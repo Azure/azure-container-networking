@@ -1,3 +1,6 @@
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
+
 package promutil
 
 import "testing"
@@ -12,7 +15,7 @@ func NotifyIfErrors(t *testing.T, errors ...error) {
 		}
 	}
 	if !allGood {
-		t.Errorf("Encountered these errors while getting metric values: ")
+		t.Errorf("Encountered these errors while getting Prometheus metric values: ")
 		for _, err := range errors {
 			if err != nil {
 				t.Errorf("%v", err)

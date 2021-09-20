@@ -14,11 +14,11 @@ func TestGetJSONRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
 	_, err := c.GetJSONRulesFromIptableFile(
 		util.IptablesFilterTable,
-		npmCacheWithCustomFormatFile,
+		npmCacheFile,
 		iptableSaveFile,
 	)
 	if err != nil {
-		t.Errorf("error during TestGetJSONRulesFromIptable : %w", err)
+		t.Errorf("failed to test GetJSONRulesFromIptable : %w", err)
 	}
 }
 
@@ -26,7 +26,7 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
 	_, err := c.GetProtobufRulesFromIptableFile(
 		util.IptablesFilterTable,
-		npmCacheWithCustomFormatFile,
+		npmCacheFile,
 		iptableSaveFile,
 	)
 	if err != nil {
@@ -36,9 +36,9 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 
 func TestNpmCacheFromFile(t *testing.T) {
 	c := &Converter{}
-	err := c.NpmCacheFromFile(npmCacheWithCustomFormatFile)
+	err := c.NpmCacheFromFile(npmCacheFile)
 	if err != nil {
-		t.Errorf("Failed to decode NPMCache from %s file : %w", npmCacheWithCustomFormatFile, err)
+		t.Errorf("Failed to decode NPMCache from %s file : %w", npmCacheFile, err)
 	}
 }
 
@@ -91,7 +91,7 @@ func TestGetSetType(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheWithCustomFormatFile)
+	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}
@@ -313,7 +313,7 @@ func TestGetRulesFromChain(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheWithCustomFormatFile)
+	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}
@@ -502,7 +502,7 @@ func TestGetModulesFromRule(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheWithCustomFormatFile)
+	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %w", err)
 	}
