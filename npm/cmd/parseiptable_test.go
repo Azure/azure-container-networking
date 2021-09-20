@@ -2,17 +2,6 @@ package main
 
 import "testing"
 
-/* out
-Parse iptable into Go object, dumping it to the console
-
-Usage:
-        azure-npm debug parseiptable [flags]
-
-        Flags:
-          -h, --help                   help for parseiptable
-          -i, --iptables-file string   Set the iptable-save file path (optional)
-*/
-
 func TestParseIPTableCmd(t *testing.T) {
 	baseArgs := []string{debugCmdString, parseIPTableCmdString}
 
@@ -42,12 +31,11 @@ func TestParseIPTableCmd(t *testing.T) {
 			args:    []string{debugCmdString, iptablesSaveFileFlag, iptableSaveFile, parseIPTableCmdString},
 			wantErr: false,
 		},
-		// TODO test case where HTTP request made for NPM cache
-		// {
-		// 	name:    "Iptables information from Kernel",
-		// 	args:    baseArgs,
-		// 	wantErr: false,
-		// },
+		{
+			name:    "Iptables information from Kernel",
+			args:    baseArgs,
+			wantErr: false,
+		},
 	}
 
 	testCommand(t, tests)

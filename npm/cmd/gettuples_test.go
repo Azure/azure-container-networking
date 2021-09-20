@@ -2,21 +2,7 @@ package main
 
 import "testing"
 
-/* out
-Get a list of hit rule tuples between specified source and destination
-
-Usage:
-  azure-npm debug gettuples [flags]
-
-Flags:
-  -c, --cache-file string      Set the NPM cache file path (optional)
-  -d, --dst string             set the destination
-  -h, --help                   help for gettuples
-  -i, --iptables-file string   Set the iptable-save file path (optional)
-  -s, --src string             set the source
-*/
-
-// TODO figure out how to not get errors for src/dst
+// (TODO) test case where HTTP request made for NPM cache
 func TestGetTuplesCmd(t *testing.T) {
 	baseArgs := []string{debugCmdString, getTuplesCmdString}
 	standardArgs := concatArgs(baseArgs, srcFlag, testIP1, dstFlag, testIP2)
@@ -82,12 +68,6 @@ func TestGetTuplesCmd(t *testing.T) {
 			args:    []string{debugCmdString, srcFlag, testIP1, dstFlag, testIP2, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, npmCacheFile, getTuplesCmdString},
 			wantErr: false,
 		},
-		// TODO test case where HTTP request made for NPM cache
-		// {
-		// 	name:    "Iptables information from Kernel",
-		// 	args:    standardArgs,
-		// 	wantErr: false,
-		// },
 	}
 
 	testCommand(t, tests)

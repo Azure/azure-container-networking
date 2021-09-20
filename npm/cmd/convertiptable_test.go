@@ -2,18 +2,7 @@ package main
 
 import "testing"
 
-/* out
-Get list of iptable's rules in JSON format
-
-Usage:
-  azure-npm debug convertiptable [flags]
-
-Flags:
-  -c, --cache-file string      Set the NPM cache file path (optional)
-  -h, --help                   help for convertiptable
-  -i, --iptables-file string   Set the iptable-save file path (optional)
-*/
-
+// (TODO) test case where HTTP request made for NPM cache
 func TestConvertIPTableCmd(t *testing.T) {
 	baseArgs := []string{debugCmdString, convertIPTableCmdString}
 
@@ -60,15 +49,9 @@ func TestConvertIPTableCmd(t *testing.T) {
 		},
 		{
 			name:    "correct files with shorthand flags first",
-			args:    []string{debugCmdString, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, npmCacheFile, convertIPTableCmdString},
+			args:    concatArgs(baseArgs, iptablesSaveFileFlag, iptableSaveFile, npmCacheFlag, npmCacheFile, convertIPTableCmdString),
 			wantErr: false,
 		},
-		// TODO test case where HTTP request made for NPM cache
-		// {
-		// 	name:    "Iptables information from Kernel",
-		// 	args:    concatArgs(baseArgs, convertIPTableCmdString),
-		// 	wantErr: false,
-		// },
 	}
 
 	testCommand(t, tests)
