@@ -14,9 +14,8 @@ func TestNewDataPlane(t *testing.T) {
 	if dp == nil {
 		t.Error("NewDataPlane() returned nil")
 	}
-	set := ipsets.NewIPSet("test", ipsets.NameSpace)
 
-	err := dp.CreateIPSet(set)
+	err := dp.CreateIPSet("test", ipsets.NameSpace)
 	if err != nil {
 		t.Error("CreateIPSet() returned error")
 	}

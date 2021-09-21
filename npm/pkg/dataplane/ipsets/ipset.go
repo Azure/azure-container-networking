@@ -24,9 +24,10 @@ type IPSet struct {
 	// NetPolReference holds networkpolicy names where this IPSet
 	// is being referred as part of rules
 	NetPolReference map[string]struct{}
-	// IpsetReferCount keeps count of 2nd level Nested IPSets
-	// with member as this IPSet
-	IpsetReferCount int
+	// ipsetReferCount keeps track of how many lists in the cache refer to this ipset
+	ipsetReferCount int
+	// kernelCount keeps track of how many lists in the kernel refer to this ipset
+	kernelCount int // TODO rename
 }
 
 type SetProperties struct {
@@ -75,7 +76,7 @@ var (
 		CIDRBlocks:               "CIDRBlocks",
 	}
 	// ErrIPSetInvalidKind is returned when IPSet kind is invalid
-	ErrIPSetInvalidKind = errors.New("Invalid IPSet Kind")
+	ErrIPSetInvalidKind = errors.New("invalid IPSet Kind")
 )
 
 func (x SetType) String() string {
@@ -105,7 +106,8 @@ func NewIPSet(name string, setType SetType) *IPSet {
 		// Map with Key as Network Policy name to to emulate set
 		// and value as struct{} for minimal memory consumption
 		NetPolReference: make(map[string]struct{}),
-		IpsetReferCount: 0,
+		ipsetReferCount: 0,
+		kernelCount:     0,
 	}
 	if set.Kind == HashSet {
 		set.IPPodKey = make(map[string]string)
@@ -163,47 +165,71 @@ func getSetKind(setType SetType) SetKind {
 	}
 }
 
-func (set *IPSet) AddMemberIPSet(memberIPSet *IPSet) {
-	set.MemberIPSets[memberIPSet.Name] = memberIPSet
+func (set *IPSet) incIPSetReferCount() {
+	set.ipsetReferCount++
 }
 
-func (set *IPSet) IncIpsetReferCount() {
-	set.IpsetReferCount++
-}
-
-func (set *IPSet) DecIpsetReferCount() {
-	if set.IpsetReferCount == 0 {
+func (set *IPSet) decIPSetReferCount() {
+	if set.ipsetReferCount == 0 {
 		return
 	}
-	set.IpsetReferCount--
+	set.ipsetReferCount--
 }
 
-func (set *IPSet) AddSelectorReference(netPolName string) {
-	set.SelectorReference[netPolName] = struct{}{}
+func (set *IPSet) incKernelCount() {
+	set.kernelCount++
 }
 
-func (set *IPSet) DeleteSelectorReference(netPolName string) {
-	delete(set.SelectorReference, netPolName)
+func (set *IPSet) decKernelCount() {
+	if set.kernelCount == 0 {
+		return
+	}
+	set.kernelCount--
 }
 
-func (set *IPSet) AddNetPolReference(netPolName string) {
+func (set *IPSet) addSelectorReference(selectorName string) {
+	set.SelectorReference[selectorName] = struct{}{}
+}
+
+func (set *IPSet) deleteSelectorReference(selectorName string) {
+	delete(set.SelectorReference, selectorName)
+}
+
+func (set *IPSet) addNetPolReference(netPolName string) {
 	set.NetPolReference[netPolName] = struct{}{}
 }
 
-func (set *IPSet) DeleteNetPolReference(netPolName string) {
+func (set *IPSet) deleteNetPolReference(netPolName string) {
 	delete(set.NetPolReference, netPolName)
 }
 
-func (set *IPSet) CanBeDeleted() bool {
-	return len(set.SelectorReference) == 0 &&
-		len(set.NetPolReference) == 0 &&
-		set.IpsetReferCount == 0 &&
+func (set *IPSet) shouldBeInKernel() bool {
+	return set.usedByNetPol() || set.referencedInKernel()
+}
+
+func (set *IPSet) canBeDeleted() bool {
+	return !set.usedByNetPol() &&
+		!set.referencedInList() &&
 		len(set.MemberIPSets) == 0 &&
 		len(set.IPPodKey) == 0
 }
 
-// UsedByNetPol check if an IPSet is referred in network policies.
-func (set *IPSet) UsedByNetPol() bool {
+// usedByNetPol check if an IPSet is referred in network policies.
+func (set *IPSet) usedByNetPol() bool {
 	return len(set.SelectorReference) > 0 &&
 		len(set.NetPolReference) > 0
+}
+
+func (set *IPSet) referencedInList() bool {
+	return set.ipsetReferCount > 0
+}
+
+func (set *IPSet) referencedInKernel() bool {
+	return set.kernelCount > 0
+}
+
+// panics if set is not a list set
+func (set *IPSet) hasMember(memberName string) bool {
+	_, isMember := set.MemberIPSets[memberName]
+	return isMember
 }
