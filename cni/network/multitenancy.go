@@ -163,9 +163,9 @@ func (m *Multitenancy) GetContainerNetworkConfiguration(
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
-		podNameWithoutSuffix = network.GetPodNameWithoutSuffix(podName1)
+		podNameWithoutSuffix = network.GetPodNameWithoutSuffix(podName)
 	} else {
-		podNameWithoutSuffix = podName1
+		podNameWithoutSuffix = podName
 	}
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
@@ -360,5 +360,5 @@ func CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig
 		cleanupInfraVnetIP(enableInfraVnet, &azIpamResult.IPs[0].Address, nwCfg, plugin)
 	}
 
-	return result, cnsNetworkConfig, subnetPrefix, azIpamResult, nil
+	return
 }

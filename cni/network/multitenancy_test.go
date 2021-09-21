@@ -102,7 +102,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 	tests := []struct {
 		name               string
 		args               args
-		multitenancyClient *azureMultitenancyClient
+		multitenancyClient *Multitenancy
 		expected           args
 	}{
 		{
@@ -171,13 +171,13 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 	type args struct {
 		enableInfraVnet bool
 		nwCfg           *cni.NetworkConfig
-		infraIPNet      *net.IPNet
-		plugin          *netPlugin
+		infraIPNet      *cniTypesCurr.Result
+		plugin          *NetPlugin
 	}
 	tests := []struct {
 		name               string
 		args               args
-		multitenancyClient *azureMultitenancyClient
+		multitenancyClient *Multitenancy
 		expected           args
 	}{
 		{
@@ -187,8 +187,8 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 				nwCfg: &cni.NetworkConfig{
 					MultiTenancy: true,
 				},
-				infraIPNet: getCIDRNotationForAddress("10.0.0.5/24"),
-				plugin: &netPlugin{
+				infraIPNet: &cniTypesCurr.Result{},
+				plugin: &NetPlugin{
 					ipamInvoker: &AzureIPAMInvoker{
 						plugin: &mockDelegatePlugin{},
 					},
@@ -203,8 +203,8 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 						Address: "10.0.0.5",
 					},
 				},
-				infraIPNet: getCIDRNotationForAddress("10.0.0.5/24"),
-				plugin: &netPlugin{
+				infraIPNet: &cniTypesCurr.Result{},
+				plugin: &NetPlugin{
 					ipamInvoker: &AzureIPAMInvoker{
 						plugin: &mockDelegatePlugin{},
 					},
@@ -215,7 +215,7 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tt.multitenancyClient.CleanupMultitenancyResources(tt.args.enableInfraVnet, tt.args.infraIPNet, tt.args.nwCfg, tt.args.plugin)
+			CleanupMultitenancyResources(tt.args.enableInfraVnet, tt.args.nwCfg, tt.args.infraIPNet, tt.args.plugin)
 			require.Exactly(tt.expected.nwCfg, tt.args.nwCfg)
 			require.Exactly(tt.expected.infraIPNet, tt.args.infraIPNet)
 			require.Exactly(tt.expected.plugin, tt.args.plugin)
@@ -229,7 +229,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 		ctx             context.Context
 		enableInfraVnet bool
 		nwCfg           *cni.NetworkConfig
-		plugin          *netPlugin
+		plugin          *NetPlugin
 		k8sPodName      string
 		k8sNamespace    string
 		ifName          string
@@ -237,7 +237,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 	tests := []struct {
 		name               string
 		args               args
-		multitenancyClient *azureMultitenancyClient
+		multitenancyClient *Multitenancy
 		want               *cniTypesCurr.Result
 		want1              *cns.GetNetworkContainerResponse
 		want2              net.IPNet
@@ -255,7 +255,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 					InfraVnetAddressSpace:      "10.0.0.0/16",
 					Ipam:                       ipamStruct{Type: "azure-vnet-ipam"},
 				},
-				plugin: &netPlugin{
+				plugin: &NetPlugin{
 
 					// TODO: change this to a mock invoker when it's added, and set enableInfraVnet: true, below
 					ipamInvoker: &AzureIPAMInvoker{
