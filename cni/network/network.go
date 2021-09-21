@@ -423,6 +423,11 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	if nwCfg.MultiTenancy {
+		cnsclient, er := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+		if err != nil {
+			return fmt.Errorf("failed to create cns client for multitenancy %w", er)
+		}
+		plugin.multitenancyClient.Init(cnsclient, AzureNetIOShim{})
 		plugin.report.Context = "AzureCNIMultitenancy"
 		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
 		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(

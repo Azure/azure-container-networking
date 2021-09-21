@@ -189,25 +189,18 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 				},
 				infraIPNet: &cniTypesCurr.Result{},
 				plugin: &NetPlugin{
-					ipamInvoker: &AzureIPAMInvoker{
-						plugin: &mockDelegatePlugin{},
-					},
+					ipamInvoker: NewMockIpamInvoker(false, false, false),
 				},
 			},
 			expected: args{
 				nwCfg: &cni.NetworkConfig{
 					MultiTenancy:     true,
 					EnableSnatOnHost: false,
-					Ipam: ipamStruct{
-						Subnet:  "10.0.0.0/24",
-						Address: "10.0.0.5",
-					},
+					Ipam:             ipamStruct{},
 				},
 				infraIPNet: &cniTypesCurr.Result{},
 				plugin: &NetPlugin{
-					ipamInvoker: &AzureIPAMInvoker{
-						plugin: &mockDelegatePlugin{},
-					},
+					ipamInvoker: NewMockIpamInvoker(false, false, false),
 				},
 			},
 		},
@@ -246,7 +239,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 		{
 			name: "test happy path",
 			args: args{
-				enableInfraVnet: false,
+				enableInfraVnet: true,
 				nwCfg: &cni.NetworkConfig{
 					MultiTenancy:               true,
 					EnableSnatOnHost:           true,
@@ -255,23 +248,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 					Ipam:                       ipamStruct{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-
-					// TODO: change this to a mock invoker when it's added, and set enableInfraVnet: true, below
-					ipamInvoker: &AzureIPAMInvoker{
-						plugin: &mockDelegatePlugin{
-							add: add{
-								resultsIPv4: []*cniTypesCurr.Result{
-									{
-										IPs: []*cniTypesCurr.IPConfig{
-											{
-												Address: *getCIDRNotationForAddress("10.0.0.5/16"),
-											},
-										},
-									},
-								},
-							},
-						},
-					},
+					ipamInvoker: NewMockIpamInvoker(false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
@@ -375,7 +352,20 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 				},
 			},
 			want2: *getCIDRNotationForAddress("10.0.0.0/16"),
-			want3: nil,
+			want3: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Version: "4",
+						Address: net.IPNet{
+							IP:   net.ParseIP("10.240.0.5"),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: net.ParseIP("10.240.0.1"),
+					},
+				},
+				Routes: nil,
+				DNS:    cniTypes.DNS{},
+			},
 		},
 	}
 	for _, tt := range tests {

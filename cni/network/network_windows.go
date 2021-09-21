@@ -12,7 +12,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -30,12 +29,6 @@ var (
 	// windows build for version 1903
 	win1903Version = 18362
 )
-
-type azureNetIOShim struct{}
-
-func (a azureNetIOShim) GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet {
-	return common.GetInterfaceSubnetWithSpecificIP(ipAddr)
-}
 
 /* handleConsecutiveAdd handles consecutive add calls for infrastructure containers on Windows platform.
  * This is a temporary work around for issue #57253 of Kubernetes.

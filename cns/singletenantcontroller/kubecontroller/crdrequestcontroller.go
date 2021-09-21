@@ -220,7 +220,7 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 			return nil
 		}
 
-		// If instance of crd is not found, pass nil to CNSClient
+		// If instance of crd is not found, pass nil to cnsclient
 		if client.IgnoreNotFound(err) == nil {
 			//nolint:wrapcheck
 			return rc.CNSClient.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
@@ -231,7 +231,7 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 		return err
 	}
 
-	// If there are no NCs, pass nil to CNSClient
+	// If there are no NCs, pass nil to cnsclient
 	if len(nnc.Status.NetworkContainers) == 0 {
 		//nolint:wrapcheck
 		return rc.CNSClient.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)

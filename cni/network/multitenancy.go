@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -44,10 +45,15 @@ type MultitenancyClient interface {
 		podName string,
 		podNamespace string,
 		ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error)
+
+	Init(cnsclient cnsclient, netioshim netioshim)
 }
 
 type Multitenancy struct {
+	// cnsclient is used to communicate with CNS
 	cnsclient cnsclient
+
+	// netioshim is used to interact with networking syscalls
 	netioshim netioshim
 }
 
@@ -55,7 +61,18 @@ type netioshim interface {
 	GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet
 }
 
+type AzureNetIOShim struct{}
+
+func (a AzureNetIOShim) GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet {
+	return common.GetInterfaceSubnetWithSpecificIP(ipAddr)
+}
+
 var errNmaResponse = errors.New("nmagent request status code")
+
+func (m *Multitenancy) Init(cnsclient cnsclient, netioshim netioshim) {
+	m.cnsclient = cnsclient
+	m.netioshim = netioshim
+}
 
 // DetermineSnatFeatureOnHost - Temporary function to determine whether we need to disable SNAT due to NMAgent support
 func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (snatForDNS, snatOnHost bool, err error) {

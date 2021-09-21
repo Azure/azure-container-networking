@@ -28,6 +28,8 @@ func NewMockMultitenancy(fail bool) *MockMultitenancy {
 	}
 }
 
+func (m *MockMultitenancy) Init(cnsclient cnsclient, netnetioshim netioshim) {}
+
 func (m *MockMultitenancy) SetupRoutingForMultitenancy(
 	nwCfg *cni.NetworkConfig,
 	cnsNetworkConfig *cns.GetNetworkContainerResponse,

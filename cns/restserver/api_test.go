@@ -994,7 +994,7 @@ func TestCreateNetwork(t *testing.T) {
 
 	res, err := httpc.Post(url, contentTypeJSON, &body)
 	if err != nil {
-		t.Errorf("[Azure CNSClient] HTTP Post returned error %v", err.Error())
+		t.Errorf("[Azure cnsclient] HTTP Post returned error %v", err.Error())
 	}
 
 	defer res.Body.Close()
@@ -1009,11 +1009,11 @@ func TestCreateNetwork(t *testing.T) {
 
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
-		t.Errorf("[Azure CNSClient] Error received while parsing ReleaseIPAddress response resp:%v err:%v", res.Body, err.Error())
+		t.Errorf("[Azure cnsclient] Error received while parsing ReleaseIPAddress response resp:%v err:%v", res.Body, err.Error())
 	}
 
 	if resp.ReturnCode != 0 {
-		t.Errorf("[Azure CNSClient] ReleaseIPAddress received error response :%v", resp.Message)
+		t.Errorf("[Azure cnsclient] ReleaseIPAddress received error response :%v", resp.Message)
 		// return fmt.Errorf(resp.Message)
 	}
 }
