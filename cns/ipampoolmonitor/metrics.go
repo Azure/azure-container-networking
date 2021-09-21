@@ -56,7 +56,7 @@ var (
 	)
 	ipamRequestedIPConfigCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_reuested_ips",
+			Name: "ipam_requested_ips",
 			Help: "Requested IP count.",
 		},
 	)
