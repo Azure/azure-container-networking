@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/pkg/errors"
 )
 
 // used to request an IPConfig from the CNS state
@@ -442,11 +443,11 @@ func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) (c
 	// if error, ipstate is nil, if exists, ipstate is not nil and error is nil
 	podInfo, err := cns.NewPodInfoFromIPConfigRequest(req)
 	if err != nil {
-		return cns.PodIpInfo{}, err
+		return cns.PodIpInfo{}, errors.Wrapf(err, "failed to parse IPConfigRequest %v", req)
 	}
 
-	if podIpInfo, isExist, err := service.GetExistingIPConfig(podInfo); err != nil || isExist {
-		return podIpInfo, err
+	if podIPInfo, isExist, err := service.GetExistingIPConfig(podInfo); err != nil || isExist {
+		return podIPInfo, err
 	}
 
 	// return desired IPConfig

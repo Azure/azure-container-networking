@@ -241,8 +241,8 @@ func (service *HTTPRestService) ReconcileNCState(
 			ipconfigRequest := cns.IPConfigRequest{
 				DesiredIPAddress:    secIpConfig.IPAddress,
 				OrchestratorContext: jsonContext,
-				PodInterfaceID:      podInfo.InterfaceID(),
 				InfraContainerID:    podInfo.InfraContainerID(),
+				PodInterfaceID:      podInfo.InterfaceID(),
 			}
 
 			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
