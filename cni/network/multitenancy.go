@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -169,6 +170,16 @@ func (m *Multitenancy) GetContainerNetworkConfiguration(
 	}
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
+	return getContainerNetworkConfigurationInternal(ctx, nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
+}
+
+func getContainerNetworkConfigurationInternal(
+	ctx context.Context, cnsURL string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+	client, err := cnscli.New(cnsURL, cnscli.DefaultTimeout)
+	if err != nil {
+		log.Printf("Failed to get CNS client. Error: %v", err)
+		return nil, nil, net.IPNet{}, err
+	}
 
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      podNameWithoutSuffix,

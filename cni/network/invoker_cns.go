@@ -3,19 +3,23 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
-	"strconv"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	cnsc "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+)
+
+var (
+	errEmtpyHostSubnetPrefix = errors.New("empty host subnet prefix not allowed")
+	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
 )
 
 const (
@@ -25,7 +29,7 @@ const (
 type CNSIPAMInvoker struct {
 	podName      string
 	podNamespace string
-	cnsClient    *cnsc.Client
+	cnsClient    cnsclient
 }
 
 type IPv4ResultInfo struct {
@@ -38,27 +42,34 @@ type IPv4ResultInfo struct {
 	hostGateway        string
 }
 
-func NewCNSInvoker(podName, namespace string) (*CNSIPAMInvoker, error) {
-	cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-	cnsClient, err := cnsc.New(cnsURL, defaultRequestTimeout)
-
+func NewCNSInvoker(podName, namespace string, cnsClient cnsclient) *CNSIPAMInvoker {
 	return &CNSIPAMInvoker{
 		podName:      podName,
 		podNamespace: namespace,
 		cnsClient:    cnsClient,
-	}, err
+	}
 }
 
 // Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
-func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, hostSubnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
+func (invoker *CNSIPAMInvoker) Add( //nolint don't consider unnamedResult
+	_ *cni.NetworkConfig,
+	args *cniSkel.CmdArgs,
+	hostSubnetPrefix *net.IPNet,
+	options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
 		PodNamespace: invoker.podNamespace,
 	}
+
+	log.Printf(podInfo.PodName)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("Failed to unmarshal orchestrator context during add: %w", err)
+	}
+
+	if args == nil {
+		return nil, nil, errEmptyCNIArgs
 	}
 
 	ipconfig := cns.IPConfigRequest{
@@ -94,7 +105,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 		return nil, nil, fmt.Errorf("Gateway address %v from response is invalid", info.ncGatewayIPAddress)
 	}
 
-	// set result ipconfig from CNS Response Body
+	// set result ipconfigArgument from CNS Response Body
 	ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
 	if ip == nil {
 		return nil, nil, fmt.Errorf("Unable to parse IP from response: %v with err %v", info.podIPAddress, err)
@@ -123,7 +134,7 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 	}
 
 	// set subnet prefix for host vm
-	err = setHostOptions(nwCfg, hostSubnetPrefix, ncipnet, options, info)
+	err = setHostOptions(hostSubnetPrefix, ncipnet, options, &info)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -132,11 +143,15 @@ func (invoker *CNSIPAMInvoker) Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdAr
 	return result, nil, nil
 }
 
-func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSubnetPrefix *net.IPNet, options map[string]interface{}, info IPv4ResultInfo) error {
+func setHostOptions(hostSubnetPrefix, ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
 	// get the name of the primary IP address
 	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
 	if err != nil {
 		return err
+	}
+
+	if hostSubnetPrefix == nil {
+		return errEmtpyHostSubnetPrefix
 	}
 
 	*hostSubnetPrefix = *hostIPNet
@@ -180,7 +195,7 @@ func setHostOptions(nwCfg *cni.NetworkConfig, hostSubnetPrefix *net.IPNet, ncSub
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, options map[string]interface{}) error {
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, _ *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
@@ -190,6 +205,10 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		return err
+	}
+
+	if args == nil {
+		return errEmptyCNIArgs
 	}
 
 	req := cns.IPConfigRequest{
@@ -204,6 +223,9 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	//nolint:wrapcheck
-	return invoker.cnsClient.ReleaseIPAddress(context.TODO(), req)
+	if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
+		return fmt.Errorf("failed to release IP %v with err %w", address, err)
+	}
+
+	return nil
 }
