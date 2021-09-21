@@ -12,7 +12,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	cnsc "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -176,16 +176,6 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName string, nwCfg *cn
 	err = nil
 
 	if nwCfg.MultiTenancy {
-		client, err := cnsc.New("http://localhost:"+strconv.Itoa(cnsPort), cnsc.DefaultTimeout)
-		if err != nil {
-			log.Printf("Failed to get CNS client. Error: %v", err)
-			return networkName, err
-		}
-		multitenancyClient := azureMultitenancyClient{
-			cnsclient: client,
-			netioshim: &azureNetIOShim{},
-		}
-
 		determineWinVer()
 		if len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
 			err = fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s", podName, podNs)
