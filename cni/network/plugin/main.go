@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
+	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/telemetry"
@@ -166,7 +167,13 @@ func main() {
 
 	cniReport := reportManager.Report.(*telemetry.CNIReport)
 
-	netPlugin, err := network.NewPlugin(name, &config, &nns.GrpcClient{})
+	netPlugin, err := network.NewPlugin(
+		name,
+		&config,
+		&nns.GrpcClient{},
+		&network.Multitenancy{},
+		&acnnetwork.AzureHNSEndpoint{},
+	)
 	if err != nil {
 		log.Printf("Failed to create network plugin, err:%v.\n", err)
 		return

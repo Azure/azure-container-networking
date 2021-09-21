@@ -1,8 +1,6 @@
 package network
 
 import (
-	"fmt"
-
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
 )
@@ -50,7 +48,7 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 	if info, exists := nm.TestNetworkInfoMap[networkID]; exists {
 		return *info, nil
 	}
-	return NetworkInfo{}, fmt.Errorf("Not found")
+	return NetworkInfo{}, errNetworkNotFound
 }
 
 // CreateEndpoint mock
@@ -61,6 +59,7 @@ func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, networkID string, ep
 
 // DeleteEndpoint mock
 func (nm *MockNetworkManager) DeleteEndpoint(_ apipaClient, networkID string, endpointID string) error {
+	delete(nm.TestEndpointInfoMap, endpointID)
 	return nil
 }
 
@@ -70,7 +69,10 @@ func (nm *MockNetworkManager) GetAllEndpoints(networkID string) (map[string]*End
 
 // GetEndpointInfo mock
 func (nm *MockNetworkManager) GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error) {
-	return nm.TestEndpointInfoMap[networkID], nil
+	if info, exists := nm.TestEndpointInfoMap[endpointID]; exists {
+		return info, nil
+	}
+	return nil, errEndpointNotFound
 }
 
 // GetEndpointInfoBasedOnPODDetails mock

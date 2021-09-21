@@ -23,7 +23,8 @@ const (
 const snatConfigFileName = "/tmp/snatConfig"
 
 // handleConsecutiveAdd is a dummy function for Linux platform.
-func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo network.NetworkInfo, epInfo *network.EndpointInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
+func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointID string, networkID string,
+	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
 	return nil, nil
 }
 
@@ -95,7 +96,7 @@ func setupInfraVnetRoutingForMultitenancy(
 	}
 }
 
-func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) (network.DNSInfo, error) {
 	var nwDNS network.DNSInfo
 
 	if len(nwCfg.DNS.Nameservers) > 0 {
@@ -113,8 +114,8 @@ func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result
 	return nwDNS, nil
 }
 
-func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
-	return getNetworkDNSSettings(nwCfg, result, namespace)
+func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, _ string) (network.DNSInfo, error) {
+	return getNetworkDNSSettings(nwCfg, result)
 }
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.
@@ -131,6 +132,6 @@ func updateSubnetPrefix(cnsNetworkConfig *cns.GetNetworkContainerResponse, subne
 	return nil
 }
 
-func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
 	return nwCfg.Name, nil
 }

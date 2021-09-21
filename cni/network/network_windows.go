@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -8,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"context"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -35,21 +35,28 @@ var (
  * We can delete this if statement once they fix it.
  * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
  */
-func handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, nwInfo network.NetworkInfo, epInfo *network.EndpointInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
+func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, networkId string,
+	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
+
+	epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
+	if epInfo == nil {
+		return nil, nil
+	}
+
 	// Return in case of HNSv2 as consecutive add call doesn't need to be handled
 	if useHnsV2, err := network.UseHnsV2(args.Netns); useHnsV2 {
 		return nil, err
 	}
 
-	hnsEndpoint, err := hcsshim.GetHNSEndpointByName(endpointId)
+	hnsEndpoint, err := plugin.hnsEndpointClient.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)
-		endpoint, _ := hcsshim.GetHNSEndpointByID(hnsEndpoint.Id)
-		isAttached, _ := endpoint.IsAttached(args.ContainerID)
+		endpoint, _ := plugin.hnsEndpointClient.GetHNSEndpointByID(hnsEndpoint.Id)
+		isAttached, _ := plugin.hnsEndpointClient.IsAttached(endpoint, args.ContainerID)
 		// Attach endpoint if it's not attached yet.
 		if !isAttached {
 			log.Printf("[net] Attaching ep %v to container %v", hnsEndpoint.Id, args.ContainerID)
-			err := hcsshim.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
+			err := plugin.hnsEndpointClient.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
 			if err != nil {
 				log.Printf("[cni-net] Failed to hot attach shared endpoint[%v] to container [%v], err:%v.", hnsEndpoint.Id, args.ContainerID, err)
 				return nil, err
@@ -151,7 +158,7 @@ func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPref
 	return nil
 }
 
-func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
 	var (
 		networkName      string
 		err              error
@@ -168,7 +175,7 @@ func getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (st
 			return networkName, err
 		}
 
-		_, cnsNetworkConfig, _, err = getContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
+		_, cnsNetworkConfig, _, err = plugin.multitenancyClient.GetContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
 		if err != nil {
 			log.Printf(
 				"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v",
@@ -196,7 +203,7 @@ func setupInfraVnetRoutingForMultitenancy(
 	result *cniTypesCurr.Result) {
 }
 
-func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, _ *cniTypesCurr.Result) (network.DNSInfo, error) {
 	var nwDNS network.DNSInfo
 
 	// use custom dns if present

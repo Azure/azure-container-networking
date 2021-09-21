@@ -5,17 +5,17 @@ go 1.16
 require (
 	code.cloudfoundry.org/clock v1.0.0 // indirect
 	github.com/Masterminds/semver v1.5.0
-	github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5
-	github.com/Microsoft/hcsshim v0.8.10-0.20200506181021-222e9efadbe0
+	github.com/Microsoft/go-winio v0.4.17
+	github.com/Microsoft/hcsshim v0.8.18
 	github.com/billgraziano/dpapi v0.3.0
-	github.com/containernetworking/cni v0.7.0-rc2
-	github.com/docker/docker v0.7.3-0.20190327010347-be7ac8be2ae0 // indirect
+	github.com/containernetworking/cni v0.8.1
+	github.com/docker/docker v20.10.8+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.5
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-version v1.3.0
 	github.com/ishidawataru/sctp v0.0.0-20210226210310-f2269e66cdee // indirect
@@ -30,7 +30,6 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
-	github.com/vishvananda/netlink v1.1.0 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
 	golang.org/x/term v0.0.0-20210503060354-a79de5458b56 // indirect
@@ -48,6 +47,8 @@ require (
 )
 
 replace (
+	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
+	github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.22
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
