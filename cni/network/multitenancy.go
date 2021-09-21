@@ -351,7 +351,7 @@ func (plugin *NetPlugin) GetMultiTenancyCNIResult(
 	result, cnsNetworkConfig, subnetPrefix, err := plugin.multitenancyClient.GetContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
 	if err != nil {
 		log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
-		return nil, nil, net.IPNet{}, nil, fmt.Errorf("%w", err)
+		return nil, nil, net.IPNet{}, nil, fmt.Errorf("GetContainerNetworkConfiguration failed:%w", err)
 	}
 
 	log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
