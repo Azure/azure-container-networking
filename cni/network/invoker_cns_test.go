@@ -64,7 +64,7 @@ func getTestIPConfigRequest() cns.IPConfigRequest {
 }
 
 func TestCNSIPAMInvoker_Add(t *testing.T) {
-	require := require.New(t)
+	require := require.New(t) //nolint further usage of require without passing t
 	type fields struct {
 		podName      string
 		podNamespace string
@@ -160,7 +160,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					request: requestIPAddressHandler{
 						ipconfigArgument: getTestIPConfigRequest(),
 						result:           nil,
-						err:              errors.New("failed error from CNS"), //nolint:goerr113
+						err:              errors.New("failed error from CNS"), //nolint "error for ut"
 					},
 				},
 			},
@@ -189,7 +189,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 }
 
 func TestCNSIPAMInvoker_Delete(t *testing.T) {
-	require := require.New(t)
+	require := require.New(t) //nolint further usage of require without passing t
 	type fields struct {
 		podName      string
 		podNamespace string
@@ -237,7 +237,7 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				cnsClient: &MockCNSClient{
 					release: releaseIPAddressHandler{
 						ipconfigArgument: getTestIPConfigRequest(),
-						err:              errors.New("handle CNS delete error"), //nolint:goerr113
+						err:              errors.New("handle CNS delete error"), //nolint ut error
 					},
 				},
 			},
@@ -263,12 +263,12 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 }
 
 func Test_setHostOptions(t *testing.T) {
-	require := require.New(t)
+	require := require.New(t) //nolint further usage of require without passing t
 	type args struct {
 		hostSubnetPrefix *net.IPNet
 		ncSubnetPrefix   *net.IPNet
 		options          map[string]interface{}
-		info             IPv4ResultInfo
+		info             *IPv4ResultInfo
 	}
 	tests := []struct {
 		name        string
@@ -282,7 +282,7 @@ func Test_setHostOptions(t *testing.T) {
 				hostSubnetPrefix: getCIDRNotationForAddress(t, "10.0.1.0/24"),
 				ncSubnetPrefix:   getCIDRNotationForAddress(t, "10.0.1.0/24"),
 				options:          map[string]interface{}{},
-				info: IPv4ResultInfo{
+				info: &IPv4ResultInfo{
 					podIPAddress:       "10.0.1.10",
 					ncSubnetPrefix:     24,
 					ncPrimaryIP:        "10.0.1.20",
@@ -324,7 +324,7 @@ func Test_setHostOptions(t *testing.T) {
 		{
 			name: "test error on bad host subnet",
 			args: args{
-				info: IPv4ResultInfo{
+				info: &IPv4ResultInfo{
 					hostSubnet: "",
 				},
 			},
@@ -333,7 +333,7 @@ func Test_setHostOptions(t *testing.T) {
 		{
 			name: "test error on nil hostsubnetprefix",
 			args: args{
-				info: IPv4ResultInfo{
+				info: &IPv4ResultInfo{
 					hostSubnet: "10.0.0.0/24",
 				},
 			},

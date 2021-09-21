@@ -485,10 +485,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		switch nwCfg.Ipam.Type {
 		case network.AzureCNS:
 			cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-			cnsClient, err := cnscli.New(cnsURL, defaultRequestTimeout)
-			if err != nil {
-				log.Printf("initializing cns client failed with err %v", err)
-				return err
+			cnsClient, er := cnscli.New(cnsURL, defaultRequestTimeout)
+			if er != nil {
+				return fmt.Errorf("initializing cns client failed with err %w", er)
 			}
 			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
 
@@ -744,7 +743,7 @@ func (plugin *NetPlugin) createEndpointInternal(
 
 	setEndpointOptions(cnsNetworkConfig, &epInfo, vethName)
 
-	cnscli, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return epInfo, plugin.Errorf(err.Error())
@@ -752,7 +751,7 @@ func (plugin *NetPlugin) createEndpointInternal(
 
 	// Create the endpoint.
 	log.Printf("[cni-net] Creating endpoint %v.", epInfo.Id)
-	err = plugin.nm.CreateEndpoint(cnscli, nwInfo.Id, &epInfo)
+	err = plugin.nm.CreateEndpoint(cnsclient, nwInfo.Id, &epInfo)
 	if err != nil {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
 	}
@@ -922,10 +921,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		switch nwCfg.Ipam.Type {
 		case network.AzureCNS:
 			cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-			cnsClient, err := cnscli.New(cnsURL, defaultRequestTimeout)
+			cnsClient, er := cnscli.New(cnsURL, defaultRequestTimeout)
 			if err != nil {
 				log.Printf("[cni-net] failed to create cns client", networkId, err)
-				return err
+				return fmt.Errorf("ailed to create cns client with err %w", er)
 			}
 			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
 
@@ -984,7 +983,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	cnscli, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return plugin.Errorf(err.Error())
@@ -993,7 +992,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// schedule send metric before attempting delete
 	defer sendMetricFunc()
 	// Delete the endpoint.
-	if err = plugin.nm.DeleteEndpoint(cnscli, networkId, endpointId); err != nil {
+	if err = plugin.nm.DeleteEndpoint(cnsclient, networkId, endpointId); err != nil {
 		err = plugin.Errorf("Failed to delete endpoint: %v", err)
 		return err
 	}
@@ -1137,13 +1136,13 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	cnscli, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, err = cnscli.GetNetworkConfiguration(context.TODO(), orchestratorContext); err != nil {
+	if targetNetworkConfig, err = cnsclient.GetNetworkConfiguration(context.TODO(), orchestratorContext); err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return plugin.Errorf(err.Error())
 	}
