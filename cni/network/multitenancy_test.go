@@ -235,14 +235,13 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 		ifName          string
 	}
 	tests := []struct {
-		name               string
-		args               args
-		multitenancyClient *Multitenancy
-		want               *cniTypesCurr.Result
-		want1              *cns.GetNetworkContainerResponse
-		want2              net.IPNet
-		want3              *cniTypesCurr.Result
-		wantErr            bool
+		name    string
+		args    args
+		want    *cniTypesCurr.Result
+		want1   *cns.GetNetworkContainerResponse
+		want2   net.IPNet
+		want3   *cniTypesCurr.Result
+		wantErr bool
 	}{
 		{
 			name: "test happy path",
@@ -273,53 +272,54 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 							},
 						},
 					},
-				},
-				k8sPodName:   "testpod",
-				k8sNamespace: "testnamespace",
-				ifName:       "eth0",
-			},
-			multitenancyClient: &Multitenancy{
-				netioshim: &mockNetIOShim{},
-				cnsclient: &MockCNSClient{
-					require: require,
-					getNetworkConfiguration: getNetworkConfigurationHandler{
-						orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
-							PodName:      "testpod",
-							PodNamespace: "testnamespace",
-						}),
-						returnResponse: &cns.GetNetworkContainerResponse{
-							PrimaryInterfaceIdentifier: "10.0.0.0/16",
-							LocalIPConfiguration: cns.IPConfiguration{
-								IPSubnet: cns.IPSubnet{
-									IPAddress:    "10.0.0.5",
-									PrefixLength: 16,
-								},
-								GatewayIPAddress: "",
-							},
-							CnetAddressSpace: []cns.IPSubnet{
-								{
-									IPAddress:    "10.1.0.0",
-									PrefixLength: 16,
-								},
-							},
-							IPConfiguration: cns.IPConfiguration{
-								IPSubnet: cns.IPSubnet{
-									IPAddress:    "10.1.0.5",
-									PrefixLength: 16,
-								},
-								DNSServers:       nil,
-								GatewayIPAddress: "10.1.0.1",
-							},
-							Routes: []cns.Route{
-								{
-									IPAddress:        "10.1.0.0/16",
-									GatewayIPAddress: "10.1.0.1",
+					multitenancyClient: &Multitenancy{
+						netioshim: &mockNetIOShim{},
+						cnsclient: &MockCNSClient{
+							require: require,
+							getNetworkConfiguration: getNetworkConfigurationHandler{
+								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
+									PodName:      "testpod",
+									PodNamespace: "testnamespace",
+								}),
+								returnResponse: &cns.GetNetworkContainerResponse{
+									PrimaryInterfaceIdentifier: "10.0.0.0/16",
+									LocalIPConfiguration: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.0.0.5",
+											PrefixLength: 16,
+										},
+										GatewayIPAddress: "",
+									},
+									CnetAddressSpace: []cns.IPSubnet{
+										{
+											IPAddress:    "10.1.0.0",
+											PrefixLength: 16,
+										},
+									},
+									IPConfiguration: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.1.0.5",
+											PrefixLength: 16,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "10.1.0.1",
+									},
+									Routes: []cns.Route{
+										{
+											IPAddress:        "10.1.0.0/16",
+											GatewayIPAddress: "10.1.0.1",
+										},
+									},
 								},
 							},
 						},
 					},
 				},
+				k8sPodName:   "testpod",
+				k8sNamespace: "testnamespace",
+				ifName:       "eth0",
 			},
+
 			want: &cniTypesCurr.Result{
 				Interfaces: []*cniTypesCurr.Interface{
 					{
