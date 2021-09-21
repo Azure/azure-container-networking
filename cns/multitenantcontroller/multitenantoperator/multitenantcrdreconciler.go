@@ -30,7 +30,7 @@ const (
 	NCStateTerminated = "Terminated"
 )
 
-type cnsrestservice interface {
+type cnsRESTservice interface {
 	DeleteNetworkContainerInternal(cns.DeleteNetworkContainerRequest) types.ResponseCode
 	GetNetworkContainerInternal(cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, types.ResponseCode)
 	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) types.ResponseCode
@@ -40,7 +40,7 @@ type cnsrestservice interface {
 type multiTenantCrdReconciler struct {
 	KubeClient     client.Client
 	NodeName       string
-	CNSRestService cnsrestservice
+	CNSRestService cnsRESTservice
 }
 
 // Reconcile is called on multi-tenant CRD status changes.

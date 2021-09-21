@@ -20,7 +20,7 @@ import (
 
 var _ = Describe("multiTenantCrdReconciler", func() {
 	var kubeClient *mockclients.MockClient
-	var cnsRestService *mockclients.Mockcnsrestservice
+	var cnsRestService *mockclients.MockcnsRESTservice
 	var mockCtl *gomock.Controller
 	var reconciler *multiTenantCrdReconciler
 	const uuidValue = "uuid"
@@ -38,7 +38,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 		logger.InitLogger("multiTenantCrdReconciler", 0, 0, "")
 		mockCtl = gomock.NewController(GinkgoT())
 		kubeClient = mockclients.NewMockClient(mockCtl)
-		cnsRestService = mockclients.NewMockcnsrestservice(mockCtl)
+		cnsRestService = mockclients.NewMockcnsRESTservice(mockCtl)
 		reconciler = &multiTenantCrdReconciler{
 			KubeClient:     kubeClient,
 			NodeName:       mockNodeName,
