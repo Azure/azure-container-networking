@@ -1,8 +1,6 @@
 package network
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"net"
 	"testing"
@@ -16,42 +14,6 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/stretchr/testify/require"
 )
-
-// Handler structs
-type requestIPAddressHandler struct {
-	// arguments
-	ipconfigArgument cns.IPConfigRequest
-
-	// results
-	result *cns.IPConfigResponse
-	err    error
-}
-
-type releaseIPAddressHandler struct {
-	ipconfigArgument cns.IPConfigRequest
-	err              error
-}
-
-type MockCNSClient struct {
-	require *require.Assertions
-	request requestIPAddressHandler
-	release releaseIPAddressHandler
-}
-
-func (c *MockCNSClient) RequestIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
-	c.require.Exactly(c.request.ipconfigArgument, ipconfig)
-	return c.request.result, c.request.err
-}
-
-func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) error {
-	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
-	return c.release.err
-}
-
-func marshallPodInfo(podInfo cns.KubernetesPodInfo) []byte {
-	orchestratorContext, _ := json.Marshal(podInfo)
-	return orchestratorContext
-}
 
 var testPodInfo cns.KubernetesPodInfo
 
@@ -129,14 +91,14 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					Netns:       "testnetns",
 					IfName:      "testifname",
 				},
-				hostSubnetPrefix: getCIDRNotationForAddress(t, "10.0.0.1/24"),
+				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
 				options:          map[string]interface{}{},
 			},
 			want: &cniTypesCurr.Result{
 				IPs: []*cniTypesCurr.IPConfig{
 					{
 						Version: "4",
-						Address: *getCIDRNotationForAddress(t, "10.0.1.10/24"),
+						Address: *getCIDRNotationForAddress("10.0.1.10/24"),
 						Gateway: net.ParseIP("10.0.0.1"),
 					},
 				},
@@ -279,8 +241,8 @@ func Test_setHostOptions(t *testing.T) {
 		{
 			name: "test happy path",
 			args: args{
-				hostSubnetPrefix: getCIDRNotationForAddress(t, "10.0.1.0/24"),
-				ncSubnetPrefix:   getCIDRNotationForAddress(t, "10.0.1.0/24"),
+				hostSubnetPrefix: getCIDRNotationForAddress("10.0.1.0/24"),
+				ncSubnetPrefix:   getCIDRNotationForAddress("10.0.1.0/24"),
 				options:          map[string]interface{}{},
 				info: &IPv4ResultInfo{
 					podIPAddress:       "10.0.1.10",
@@ -313,7 +275,7 @@ func Test_setHostOptions(t *testing.T) {
 				},
 				network.RoutesKey: []network.RouteInfo{
 					{
-						Dst: *getCIDRNotationForAddress(t, "10.0.1.0/24"),
+						Dst: *getCIDRNotationForAddress("10.0.1.0/24"),
 						Gw:  net.ParseIP("10.0.0.1"),
 					},
 				},

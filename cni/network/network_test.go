@@ -17,17 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getTestPlugin() *netPlugin {
-	pluginName := "testplugin"
-	config := &common.PluginConfig{}
-	grpcClient := &nns.MockGrpcClient{}
-	plugin, _ := NewPlugin(pluginName, config, grpcClient)
-	plugin.report = &telemetry.CNIReport{}
-	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
-	plugin.nm = mockNetworkManager
-	return plugin
-}
-
 const (
 	eth0IfName = "eth0"
 )
@@ -74,7 +63,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func GetTestResources() (*NetPlugin, *acnnetwork.MockNetworkManager) {
+func GetTestResources() *NetPlugin {
 	pluginName := "testplugin"
 	config := &common.PluginConfig{}
 	grpcClient := &nns.MockGrpcClient{}
@@ -83,12 +72,12 @@ func GetTestResources() (*NetPlugin, *acnnetwork.MockNetworkManager) {
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 	plugin.nm = mockNetworkManager
 	plugin.ipamInvoker = NewMockIpamInvoker(false, false, false)
-	return plugin, mockNetworkManager
+	return plugin
 }
 
 // Happy path scenario for add and delete
 func TestPluginAdd(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 	tests := []struct {
 		name       string
 		nwCfg      cni.NetworkConfig
@@ -130,7 +119,7 @@ func TestPluginAdd(t *testing.T) {
 
 // Happy path scenario for delete
 func TestPluginDelete(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 	tests := []struct {
 		name       string
 		args       *cniSkel.CmdArgs
@@ -176,7 +165,7 @@ func TestPluginDelete(t *testing.T) {
 
 // Test multiple cni add calls
 func TestPluginSecondAddDifferentPod(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 
 	tests := []struct {
 		name       string
@@ -231,7 +220,7 @@ func TestPluginSecondAddDifferentPod(t *testing.T) {
 
 // Check CNI returns error if required fields are missing
 func TestPluginCNIFieldsMissing(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 
 	tests := []struct {
 		name       string
@@ -308,7 +297,7 @@ func TestPluginCNIFieldsMissing(t *testing.T) {
 
 // Test cni handles ipam CNI_ADD failures as expected
 func TestIpamAddFail(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 
 	tests := []struct {
 		name              string
@@ -406,7 +395,7 @@ func TestIpamAddFail(t *testing.T) {
 
 // Test cni handles ipam CNI_DEL failures as expected
 func TestIpamDeleteFail(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 
 	tests := []struct {
 		name       string
@@ -660,7 +649,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 }
 
 func TestPluginMultitenancyDelete(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 	plugin.multitenancyClient = NewMockMultitenancy(false)
 	localNwCfg := cni.NetworkConfig{
 		CNIVersion:                 "0.3.0",
@@ -789,7 +778,7 @@ func TestPluginBaremetalAdd(t *testing.T) {
 }
 
 func TestPluginBaremetalDelete(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 	plugin.nnsClient = &nns.MockGrpcClient{}
 	localNwCfg := cni.NetworkConfig{
 		CNIVersion:                 "0.3.0",
@@ -879,7 +868,7 @@ func TestNewPlugin(t *testing.T) {
 
 // Test CNI Update call
 func TestPluginUpdate(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 
 	err := plugin.Add(args)
 	require.NoError(t, err)
@@ -905,7 +894,7 @@ func getTestEndpoint(podname, podnamespace, ipwithcidr, podinterfaceid, infracon
 }
 
 func TestGetAllEndpointState(t *testing.T) {
-	plugin, mockNetworkManager := GetTestResources()
+	plugin := GetTestResources()
 	networkid := "azure"
 
 	ep1 := getTestEndpoint("podname1", "podnamespace1", "10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
@@ -943,7 +932,7 @@ func TestGetAllEndpointState(t *testing.T) {
 }
 
 func TestEndpointsWithEmptyState(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 	networkid := "azure"
 	state, err := plugin.GetAllEndpointState(networkid)
 	require.NoError(t, err)
@@ -951,7 +940,7 @@ func TestEndpointsWithEmptyState(t *testing.T) {
 }
 
 func TestGetNetworkName(t *testing.T) {
-	plugin, _ := GetTestResources()
+	plugin := GetTestResources()
 	tests := []struct {
 		name  string
 		nwCfg cni.NetworkConfig

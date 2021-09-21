@@ -278,7 +278,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 				k8sNamespace: "testnamespace",
 				ifName:       "eth0",
 			},
-			multitenancyClient: &azureMultitenancyClient{
+			multitenancyClient: &Multitenancy{
 				netioshim: &mockNetIOShim{},
 				cnsclient: &MockCNSClient{
 					require: require,
@@ -381,11 +381,10 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, got2, got3, err := tt.multitenancyClient.GetMultiTenancyCNIResult(
+			got, got1, got2, got3, err := tt.args.plugin.GetMultiTenancyCNIResult(
 				tt.args.ctx,
 				tt.args.enableInfraVnet,
 				tt.args.nwCfg,
-				tt.args.plugin,
 				tt.args.k8sPodName,
 				tt.args.k8sNamespace,
 				tt.args.ifName)

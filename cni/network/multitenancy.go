@@ -15,7 +15,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -47,7 +46,14 @@ type MultitenancyClient interface {
 		ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error)
 }
 
-type Multitenancy struct{}
+type Multitenancy struct {
+	cnsclient cnsclient
+	netioshim netioshim
+}
+
+type netioshim interface {
+	GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet
+}
 
 var errNmaResponse = errors.New("nmagent request status code")
 
@@ -170,28 +176,24 @@ func (m *Multitenancy) GetContainerNetworkConfiguration(
 	}
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
-	return getContainerNetworkConfigurationInternal(ctx, nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
+	return m.getContainerNetworkConfigurationInternal(ctx, nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
 }
 
-func getContainerNetworkConfigurationInternal(
+func (m *Multitenancy) getContainerNetworkConfigurationInternal(
 	ctx context.Context, cnsURL string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
-	client, err := cnscli.New(cnsURL, cnscli.DefaultTimeout)
-	if err != nil {
-		log.Printf("Failed to get CNS client. Error: %v", err)
-		return nil, nil, net.IPNet{}, err
-	}
 
 	podInfo := cns.KubernetesPodInfo{
-		PodName:      podNameWithoutSuffix,
-		PodNamespace: podNamespace,
+		PodName:      podName,
+		PodNamespace: namespace,
 	}
+
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
 		return nil, nil, net.IPNet{}, err
 	}
 
-	networkConfig, err := a.cnsclient.GetNetworkConfiguration(ctx, orchestratorContext)
+	networkConfig, err := m.cnsclient.GetNetworkConfiguration(ctx, orchestratorContext)
 	if err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return nil, nil, net.IPNet{}, err
@@ -199,7 +201,7 @@ func getContainerNetworkConfigurationInternal(
 
 	log.Printf("Network config received from cns %+v", networkConfig)
 
-	subnetPrefix := a.netioshim.GetInterfaceSubnetWithSpecificIP(networkConfig.PrimaryInterfaceIdentifier)
+	subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(networkConfig.PrimaryInterfaceIdentifier)
 	if subnetPrefix == nil {
 		errBuf := fmt.Sprintf("Interface not found for this ip %v", networkConfig.PrimaryInterfaceIdentifier)
 		log.Printf(errBuf)
@@ -370,6 +372,4 @@ func CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig
 	if azIpamResult != nil && azIpamResult.IPs != nil {
 		cleanupInfraVnetIP(enableInfraVnet, &azIpamResult.IPs[0].Address, nwCfg, plugin)
 	}
-
-	return
 }
