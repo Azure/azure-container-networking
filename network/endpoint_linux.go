@@ -12,6 +12,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/network/netlinkinterface"
+	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
 const (
@@ -20,10 +22,9 @@ const (
 
 	// Prefix for host virtual network interface names.
 	hostVEthInterfacePrefix = commonInterfacePrefix + "v"
-
-	// Prefix for container network interface names.
-	containerInterfacePrefix = "eth"
 )
+
+type AzureHNSEndpointClient interface{}
 
 func generateVethName(key string) string {
 	h := sha1.New()
@@ -45,7 +46,7 @@ func ConstructEndpointID(containerID string, _ string, ifName string) (string, s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(_ apipaClient, nl netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
 	var containerIf *net.Interface
 	var ns *Namespace
 	var ep *endpoint
@@ -97,13 +98,15 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 			hostIfName,
 			contIfName,
 			vlanid,
-			localIP)
+			localIP,
+			nl,
+			ovsctl.NewOvsctl())
 	} else if nw.Mode != opModeTransparent {
 		log.Printf("Bridge client")
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode)
+		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl)
 	} else {
 		log.Printf("Transparent client")
-		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode)
+		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl)
 	}
 
 	// Cleanup on failure.
@@ -216,7 +219,7 @@ func (nw *network) newEndpointImpl(epInfo *EndpointInfo) (*endpoint, error) {
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlinkinterface.NetlinkInterface, ep *endpoint) error {
 	var epClient EndpointClient
 
 	// Delete the veth pair by deleting one of the peer interfaces.
@@ -224,11 +227,11 @@ func (nw *network) deleteEndpointImpl(ep *endpoint) error {
 	// entering the container netns and hence works both for CNI and CNM.
 	if ep.VlanID != 0 {
 		epInfo := ep.getInfo()
-		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP)
+		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl())
 	} else if nw.Mode != opModeTransparent {
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode)
+		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl)
 	} else {
-		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode)
+		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl)
 	}
 
 	epClient.DeleteEndpointRules(ep)
@@ -241,7 +244,7 @@ func (nw *network) deleteEndpointImpl(ep *endpoint) error {
 func (ep *endpoint) getInfoImpl(epInfo *EndpointInfo) {
 }
 
-func addRoutes(interfaceName string, routes []RouteInfo) error {
+func addRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
@@ -255,9 +258,9 @@ func addRoutes(interfaceName string, routes []RouteInfo) error {
 			ifIndex = interfaceIf.Index
 		}
 
-		family := netlink.GetIpAddressFamily(route.Gw)
+		family := netlink.GetIPAddressFamily(route.Gw)
 		if route.Gw == nil {
-			family = netlink.GetIpAddressFamily(route.Dst.IP)
+			family = netlink.GetIPAddressFamily(route.Dst.IP)
 		}
 
 		nlRoute := &netlink.Route{
@@ -270,7 +273,7 @@ func addRoutes(interfaceName string, routes []RouteInfo) error {
 			Scope:     route.Scope,
 		}
 
-		if err := netlink.AddIpRoute(nlRoute); err != nil {
+		if err := nl.AddIPRoute(nlRoute); err != nil {
 			if !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 				return err
 			} else {
@@ -282,7 +285,7 @@ func addRoutes(interfaceName string, routes []RouteInfo) error {
 	return nil
 }
 
-func deleteRoutes(interfaceName string, routes []RouteInfo) error {
+func deleteRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
@@ -307,7 +310,7 @@ func deleteRoutes(interfaceName string, routes []RouteInfo) error {
 		}
 
 		nlRoute := &netlink.Route{
-			Family:    netlink.GetIpAddressFamily(route.Gw),
+			Family:    netlink.GetIPAddressFamily(route.Gw),
 			Dst:       &route.Dst,
 			Gw:        route.Gw,
 			LinkIndex: ifIndex,
@@ -315,7 +318,7 @@ func deleteRoutes(interfaceName string, routes []RouteInfo) error {
 			Scope:     route.Scope,
 		}
 
-		if err := netlink.DeleteIpRoute(nlRoute); err != nil {
+		if err := nl.DeleteIPRoute(nlRoute); err != nil {
 			return err
 		}
 	}
@@ -324,7 +327,7 @@ func deleteRoutes(interfaceName string, routes []RouteInfo) error {
 }
 
 // updateEndpointImpl updates an existing endpoint in the network.
-func (nw *network) updateEndpointImpl(existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
+func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
 	var ns *Namespace
 	var ep *endpoint
 	var err error
@@ -368,7 +371,7 @@ func (nw *network) updateEndpointImpl(existingEpInfo *EndpointInfo, targetEpInfo
 	}
 
 	log.Printf("[updateEndpointImpl] Going to update routes in netns %v.", netns)
-	if err = updateRoutes(existingEpInfo, targetEpInfo); err != nil {
+	if err = nm.updateRoutes(existingEpInfo, targetEpInfo); err != nil {
 		return nil, err
 	}
 
@@ -383,7 +386,7 @@ func (nw *network) updateEndpointImpl(existingEpInfo *EndpointInfo, targetEpInfo
 	return ep, nil
 }
 
-func updateRoutes(existingEp *EndpointInfo, targetEp *EndpointInfo) error {
+func (nm *networkManager) updateRoutes(existingEp *EndpointInfo, targetEp *EndpointInfo) error {
 	log.Printf("Updating routes for the endpoint %+v.", existingEp)
 	log.Printf("Target endpoint is %+v", targetEp)
 
@@ -440,12 +443,12 @@ func updateRoutes(existingEp *EndpointInfo, targetEp *EndpointInfo) error {
 
 	}
 
-	err := deleteRoutes(existingEp.IfName, tobeDeletedRoutes)
+	err := deleteRoutes(nm.netlink, existingEp.IfName, tobeDeletedRoutes)
 	if err != nil {
 		return err
 	}
 
-	err = addRoutes(existingEp.IfName, tobeAddedRoutes)
+	err = addRoutes(nm.netlink, existingEp.IfName, tobeAddedRoutes)
 	if err != nil {
 		return err
 	}

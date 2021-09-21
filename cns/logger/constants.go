@@ -2,10 +2,10 @@
 package logger
 
 const (
-	//Metrics
+	// Metrics
 	HeartBeatMetricStr = "HeartBeat"
 
-	//Dimensions
+	// Dimensions
 	OrchestratorTypeStr = "OrchestratorType"
 	NodeIDStr           = "NodeID"
 	// CNS Snspshot properties

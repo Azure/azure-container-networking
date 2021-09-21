@@ -9,7 +9,6 @@ import (
 
 // deleteRulesNotExistInMap deletes rules from nat Ebtable if rule was not in stateRules after a certain number of iterations.
 func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[string]string, stateRules map[string]string) {
-
 	table := ebtables.Nat
 	action := ebtables.Delete
 

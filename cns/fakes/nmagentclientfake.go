@@ -1,11 +1,13 @@
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
+
 // Copyright 2020 Microsoft. All rights reserved.
 // MIT License
 
 package fakes
 
 // NMAgentClientTest can be used to query to VM Host info.
-type NMAgentClientTest struct {
-}
+type NMAgentClientTest struct{}
 
 // NewFakeNMAgentClient return a mock implemetation of NMAgentClient
 func NewFakeNMAgentClient() *NMAgentClientTest {

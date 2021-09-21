@@ -8,9 +8,6 @@ const (
 	NPMMgrPath         = "/npm/v1/debug/manager"
 )
 
-type DescribeIPSetRequest struct {
-	ipsetname string `json:"name"`
-}
+type DescribeIPSetRequest struct{}
 
-type DescribeIPSetResponse struct {
-}
+type DescribeIPSetResponse struct{}

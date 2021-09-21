@@ -137,7 +137,7 @@ func getSDNInterfaces(fileLocation string) (*NetworkInterfaces, error) {
 }
 
 func populateAddressSpace(localAddressSpace *addressSpace, sdnInterfaces *NetworkInterfaces, localInterfaces []net.Interface) error {
-	//Find the interface with matching MacAddress or Name
+	// Find the interface with matching MacAddress or Name
 	for _, sdnIf := range sdnInterfaces.Interfaces {
 		ifName := ""
 

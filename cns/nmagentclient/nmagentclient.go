@@ -15,15 +15,17 @@ import (
 )
 
 const (
-	//GetNmAgentSupportedApiURLFmt Api endpoint to get supported Apis of NMAgent
+	// GetNmAgentSupportedApiURLFmt Api endpoint to get supported Apis of NMAgent
 	GetNmAgentSupportedApiURLFmt       = "http://%s/machine/plugins/?comp=nmagent&type=GetSupportedApis"
 	GetNetworkContainerVersionURLFmt   = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/version/authenticationToken/%s/api-version/1"
 	GetNcVersionListWithOutTokenURLFmt = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/%s"
 )
 
-//WireServerIP - wire server ip
-var WireserverIP = "168.63.129.16"
-var getNcVersionListWithOutTokenURLVersion = "2"
+// WireServerIP - wire server ip
+var (
+	WireserverIP                           = "168.63.129.16"
+	getNcVersionListWithOutTokenURLVersion = "2"
+)
 
 // NMANetworkContainerResponse - NMAgent response.
 type NMANetworkContainerResponse struct {
@@ -137,9 +139,7 @@ func GetNetworkContainerVersion(
 func GetNmAgentSupportedApis(
 	httpc *http.Client,
 	getNmAgentSupportedApisURL string) ([]string, error) {
-	var (
-		returnErr error
-	)
+	var returnErr error
 
 	if getNmAgentSupportedApisURL == "" {
 		getNmAgentSupportedApisURL = fmt.Sprintf(
@@ -206,7 +206,7 @@ func (nmagentclient *NMAgentClient) GetNcVersionListWithOutToken(ncNeedUpdateLis
 	}
 	logger.Printf("NMAgent NC List Response is %s", nmaNcListResponse)
 
-	var receivedNcVersionListInMap = make(map[string]string)
+	receivedNcVersionListInMap := make(map[string]string)
 	for _, containers := range nmaNcListResponse.Containers {
 		receivedNcVersionListInMap[containers.NetworkContainerID] = containers.Version
 	}

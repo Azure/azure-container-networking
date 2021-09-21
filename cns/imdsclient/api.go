@@ -47,16 +47,6 @@ type xmlDocument struct {
 	}
 }
 
-type vnetJsonResponse struct {
-	HTTPResponseCode string `json:"httpResponseCode"`
-	VnetID           string `json:"vnetId"`
-	VnetVersion      string `json:"vnetVersion"`
-	VnetSpace        string `json:"vnetSpace"`
-	CnetSpace        string `json:"cnetSpace"`
-	DnsServers       string `json:"dnsServers"`
-	DefaultGateway   string `json:"defaultGateway"`
-}
-
 type containerVersionJsonResponse struct {
 	HTTPResponseCode   string `json:"httpResponseCode"`
 	NetworkContainerID string `json:"networkContainerId"`

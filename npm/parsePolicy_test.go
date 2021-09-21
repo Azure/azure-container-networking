@@ -18,7 +18,7 @@ func TestAddPolicy(t *testing.T) {
 			"app": "db",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -33,7 +33,7 @@ func TestAddPolicy(t *testing.T) {
 			"ns": "dev",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -48,7 +48,7 @@ func TestAddPolicy(t *testing.T) {
 			"app": "sql",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testNotIn",
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values: []string{
@@ -69,28 +69,28 @@ func TestAddPolicy(t *testing.T) {
 				},
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				{
 					Ports: []networkingv1.NetworkPolicyPort{
-						networkingv1.NetworkPolicyPort{
+						{
 							Protocol: &tcp,
 							Port:     &port6783,
 						},
 					},
 					From: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: oldIngressPodSelector,
 						},
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: oldIngressNamespaceSelector,
 						},
 					},
 				},
 			},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				{
 					Ports: []networkingv1.NetworkPolicyPort{},
 					To: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: oldEgressPodSelector,
 						},
 					},
@@ -114,7 +114,7 @@ func TestAddPolicy(t *testing.T) {
 			"ns": "new",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testNotIn",
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values: []string{
@@ -160,7 +160,7 @@ func TestDeductPolicy(t *testing.T) {
 			"app": "db",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -175,7 +175,7 @@ func TestDeductPolicy(t *testing.T) {
 			"ns": "dev",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testIn",
 				Operator: metav1.LabelSelectorOpIn,
 				Values: []string{
@@ -190,7 +190,7 @@ func TestDeductPolicy(t *testing.T) {
 			"app": "sql",
 		},
 		MatchExpressions: []metav1.LabelSelectorRequirement{
-			metav1.LabelSelectorRequirement{
+			{
 				Key:      "testNotIn",
 				Operator: metav1.LabelSelectorOpNotIn,
 				Values: []string{
@@ -211,28 +211,28 @@ func TestDeductPolicy(t *testing.T) {
 				},
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				{
 					Ports: []networkingv1.NetworkPolicyPort{
-						networkingv1.NetworkPolicyPort{
+						{
 							Protocol: &tcp,
 							Port:     &port6783,
 						},
 					},
 					From: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: oldIngressPodSelector,
 						},
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: oldIngressNamespaceSelector,
 						},
 					},
 				},
 			},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				{
 					Ports: []networkingv1.NetworkPolicyPort{},
 					To: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: oldEgressPodSelector,
 						},
 					},
@@ -255,25 +255,25 @@ func TestDeductPolicy(t *testing.T) {
 				},
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				networkingv1.NetworkPolicyIngressRule{
+				{
 					Ports: []networkingv1.NetworkPolicyPort{
-						networkingv1.NetworkPolicyPort{
+						{
 							Protocol: &tcp,
 							Port:     &port6783,
 						},
 					},
 					From: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: oldIngressPodSelector,
 						},
 					},
 				},
 			},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				{
 					Ports: []networkingv1.NetworkPolicyPort{},
 					To: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: &metav1.LabelSelector{},
 						},
 					},
@@ -323,10 +323,10 @@ func TestDeductPolicy(t *testing.T) {
 				},
 			},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
-				networkingv1.NetworkPolicyEgressRule{
+				{
 					Ports: []networkingv1.NetworkPolicyPort{},
 					To: []networkingv1.NetworkPolicyPeer{
-						networkingv1.NetworkPolicyPeer{
+						{
 							PodSelector: oldEgressPodSelector,
 						},
 					},

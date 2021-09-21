@@ -27,7 +27,7 @@ func (plugin *Plugin) getAPIServerURL() string {
 		urls = defaultAPIServerURL + plugin.Name + ".sock"
 	}
 
-	os.MkdirAll(pluginSocketPath, 0755)
+	os.MkdirAll(pluginSocketPath, 0o755)
 
 	return urls
 }

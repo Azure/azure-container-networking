@@ -1,9 +1,11 @@
-package manifests
+package nodenetworkconfig
 
 import (
 	_ "embed"
 
-	v1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	// import the manifests package so that caller of this package have the manifests compiled in as a side-effect.
+	_ "github.com/Azure/azure-container-networking/crd/nodenetworkconfig/manifests"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"sigs.k8s.io/yaml"
 )
 
@@ -13,7 +15,7 @@ var NodeNetworkConfigsYAML []byte
 
 // GetNodeNetworkConfigsDefinition parses the raw []byte NodeNetworkConfigs in
 // to a CustomResourceDefinition and returns it or an unmarshalling error.
-func GetNodeNetworkConfigs() (*v1beta1.CustomResourceDefinition, error) {
-	nodeNetworkConfigs := &v1beta1.CustomResourceDefinition{}
+func GetNodeNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
+	nodeNetworkConfigs := &apiextensionsv1.CustomResourceDefinition{}
 	return nodeNetworkConfigs, yaml.Unmarshal(NodeNetworkConfigsYAML, &nodeNetworkConfigs)
 }

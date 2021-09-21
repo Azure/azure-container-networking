@@ -22,14 +22,18 @@ import (
 	remoteApi "github.com/docker/libnetwork/drivers/remote/api"
 )
 
-var plugin NetPlugin
-var mux *http.ServeMux
+var (
+	plugin NetPlugin
+	mux    *http.ServeMux
+)
 
-var anyInterface = "dummy"
-var anySubnet = "192.168.1.0/24"
-var ipnet = net.IPNet{IP: net.ParseIP("192.168.1.0"), Mask: net.IPv4Mask(255, 255, 255, 0)}
-var networkID = "N1"
-var netns = "22212"
+var (
+	anyInterface = "dummy"
+	anySubnet    = "192.168.1.0/24"
+	ipnet        = net.IPNet{IP: net.ParseIP("192.168.1.0"), Mask: net.IPv4Mask(255, 255, 255, 0)}
+	networkID    = "N1"
+	netns        = "22212"
+)
 
 // endpoint ID must contain 7 characters
 var endpointID = "E1-xxxx"
@@ -55,9 +59,10 @@ func TestMain(m *testing.M) {
 		fmt.Printf("Failed to start network plugin %v\n", err)
 		os.Exit(2)
 	}
+	nl := netlink.NewNetlink()
 
 	// Create a dummy test network interface.
-	err = netlink.AddLink(&netlink.DummyLink{
+	err = nl.AddLink(&netlink.DummyLink{
 		LinkInfo: netlink.LinkInfo{
 			Type: netlink.LINK_TYPE_DUMMY,
 			Name: anyInterface,
@@ -75,7 +80,7 @@ func TestMain(m *testing.M) {
 		os.Exit(4)
 	}
 
-	err = netlink.AddIpAddress(anyInterface, net.ParseIP("192.168.1.4"), &ipnet)
+	err = nl.AddIPAddress(anyInterface, net.ParseIP("192.168.1.4"), &ipnet)
 	if err != nil {
 		fmt.Printf("Failed to add test IP address, err:%v.\n", err)
 		os.Exit(5)
@@ -88,7 +93,10 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 
 	// Cleanup.
-	netlink.DeleteLink(anyInterface)
+	err = nl.DeleteLink(anyInterface)
+	if err != nil {
+		fmt.Printf("Failed to delete link, err:%v.\n", err)
+	}
 	plugin.Stop()
 
 	os.Exit(exitCode)
@@ -178,7 +186,7 @@ func TestCNM(t *testing.T) {
 	log.Printf("###DeleteEndpoint#####################################################################################")
 	deleteEndpointT(t)
 	log.Printf("###DeleteNetwork#####################################################################################")
-	//deleteNetworkT(t)
+	// deleteNetworkT(t)
 }
 
 // Tests NetworkDriver.CreateNetwork functionality.

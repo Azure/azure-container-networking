@@ -3,10 +3,11 @@ package nns
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/Azure/azure-container-networking/log"
 	contracts "github.com/Azure/azure-container-networking/proto/nodenetworkservice/3.302.0.744"
 	"google.golang.org/grpc"
-	"time"
 )
 
 const (
@@ -16,23 +17,24 @@ const (
 )
 
 // client to invoke Node network service APIs using grpc
-type GrpcClient struct {
-}
+type GrpcClient struct{}
 
 // Add container to the network. Container Id is appended to the podName
 func (c *GrpcClient) AddContainerNetworking(
 	ctx context.Context,
-	podName, nwNamespace string) (error, *contracts.ConfigureContainerNetworkingResponse) {
+	podName, nwNamespace string) (*contracts.ConfigureContainerNetworkingResponse, error) {
 
-	return configureContainerNetworking(ctx, contracts.RequestType_Setup, podName, nwNamespace)
+	err, resp := configureContainerNetworking(ctx, contracts.RequestType_Setup, podName, nwNamespace)
+	return resp, err
 }
 
 // Add container to the network. Container Id is appended to the podName
 func (c *GrpcClient) DeleteContainerNetworking(
 	ctx context.Context,
-	podName, nwNamespace string) (error, *contracts.ConfigureContainerNetworkingResponse) {
+	podName, nwNamespace string) (*contracts.ConfigureContainerNetworkingResponse, error) {
 
-	return configureContainerNetworking(ctx, contracts.RequestType_Teardown, podName, nwNamespace)
+	err, resp := configureContainerNetworking(ctx, contracts.RequestType_Teardown, podName, nwNamespace)
+	return resp, err
 }
 
 // create a grpc connection to the node network service (nns) and call the appropriate
@@ -80,7 +82,6 @@ func configureContainerNetworking(
 // create a connection to the node network service listening at localhost:6678
 // and return nns client that encapsulates that connection
 func newGrpcClient(ctx context.Context) (contracts.NodeNetworkServiceClient, *grpc.ClientConn, error) {
-
 	localCtx, cancel := context.WithTimeout(ctx, connectionTimeout)
 	defer cancel()
 

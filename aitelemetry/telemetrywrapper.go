@@ -96,7 +96,7 @@ func getMetadata(th *telemetryHandle) {
 		return
 	}
 
-	//acquire write lock before writing metadata to telemetry handle
+	// acquire write lock before writing metadata to telemetry handle
 	th.rwmutex.Lock()
 	th.metadata = metadata
 	th.rwmutex.Unlock()
@@ -188,7 +188,7 @@ func (th *telemetryHandle) TrackLog(report Report) {
 	// Initialize new trace message
 	trace := appinsights.NewTraceTelemetry(report.Message, appinsights.Warning)
 
-	//Override few of existing columns with metadata
+	// Override few of existing columns with metadata
 	trace.Tags.User().SetAuthUserId(runtime.GOOS)
 	trace.Tags.Operation().SetId(report.Context)
 	trace.Tags.Operation().SetParentId(th.appVersion)

@@ -1,6 +1,7 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
+//go:build linux
 // +build linux
 
 package netlink
@@ -18,13 +19,13 @@ const (
 
 // AddDummyInterface creates a dummy test interface used during actual tests.
 func addDummyInterface(name string) (*net.Interface, error) {
-	err := AddLink(&DummyLink{
+	nl := NewNetlink()
+	err := nl.AddLink(&DummyLink{
 		LinkInfo: LinkInfo{
 			Type: LINK_TYPE_DUMMY,
 			Name: name,
 		},
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +41,6 @@ func addDummyInterface(name string) (*net.Interface, error) {
 // TestEcho tests basic netlink messaging via echo.
 func TestEcho(t *testing.T) {
 	err := Echo("this is a test")
-
 	if err != nil {
 		t.Errorf("Echo failed: %+v", err)
 	}
@@ -54,13 +54,14 @@ func TestAddDeleteBridge(t *testing.T) {
 			Name: ifName,
 		},
 	}
+	nl := NewNetlink()
 
-	err := AddLink(&link)
+	err := nl.AddLink(&link)
 	if err != nil {
 		t.Errorf("AddLink failed: %+v", err)
 	}
 
-	err = DeleteLink(ifName)
+	err = nl.DeleteLink(ifName)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %+v", err)
 	}
@@ -80,13 +81,14 @@ func TestAddDeleteVEth(t *testing.T) {
 		},
 		PeerName: ifName2,
 	}
+	nl := NewNetlink()
 
-	err := AddLink(&link)
+	err := nl.AddLink(&link)
 	if err != nil {
 		t.Errorf("AddLink failed: %+v", err)
 	}
 
-	err = DeleteLink(ifName)
+	err = nl.DeleteLink(ifName)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %+v", err)
 	}
@@ -112,13 +114,14 @@ func TestAddDeleteIPVlan(t *testing.T) {
 		},
 		Mode: IPVLAN_MODE_L2,
 	}
+	nl := NewNetlink()
 
-	err = AddLink(&link)
+	err = nl.AddLink(&link)
 	if err != nil {
 		t.Errorf("AddLink failed: %+v", err)
 	}
 
-	err = DeleteLink(ifName)
+	err = nl.DeleteLink(ifName)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %+v", err)
 	}
@@ -128,7 +131,7 @@ func TestAddDeleteIPVlan(t *testing.T) {
 		t.Errorf("Interface not deleted")
 	}
 
-	err = DeleteLink(dummyName)
+	err = nl.DeleteLink(dummyName)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %v", err)
 	}
@@ -140,8 +143,9 @@ func TestSetLinkState(t *testing.T) {
 	if err != nil {
 		t.Errorf("addDummyInterface failed: %v", err)
 	}
+	nl := NewNetlink()
 
-	err = SetLinkState(ifName, true)
+	err = nl.SetLinkState(ifName, true)
 	if err != nil {
 		t.Errorf("SetLinkState up failed: %+v", err)
 	}
@@ -151,7 +155,7 @@ func TestSetLinkState(t *testing.T) {
 		t.Errorf("Interface not up")
 	}
 
-	err = SetLinkState(ifName, false)
+	err = nl.SetLinkState(ifName, false)
 	if err != nil {
 		t.Errorf("SetLinkState down failed: %+v", err)
 	}
@@ -161,7 +165,7 @@ func TestSetLinkState(t *testing.T) {
 		t.Errorf("Interface not down")
 	}
 
-	err = DeleteLink(ifName)
+	err = nl.DeleteLink(ifName)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %+v", err)
 	}
@@ -173,18 +177,19 @@ func TestSetLinkPromisc(t *testing.T) {
 	if err != nil {
 		t.Errorf("addDummyInterface failed: %v", err)
 	}
+	nl := NewNetlink()
 
-	err = SetLinkPromisc(ifName, true)
+	err = nl.SetLinkPromisc(ifName, true)
 	if err != nil {
 		t.Errorf("SetLinkPromisc on failed: %+v", err)
 	}
 
-	err = SetLinkPromisc(ifName, false)
+	err = nl.SetLinkPromisc(ifName, false)
 	if err != nil {
 		t.Errorf("SetLinkPromisc off failed: %+v", err)
 	}
 
-	err = DeleteLink(ifName)
+	err = nl.DeleteLink(ifName)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %+v", err)
 	}
@@ -198,8 +203,9 @@ func TestSetLinkHairpin(t *testing.T) {
 			Name: ifName,
 		},
 	}
+	nl := NewNetlink()
 
-	err := AddLink(&link)
+	err := nl.AddLink(&link)
 	if err != nil {
 		t.Errorf("AddLink failed: %+v", err)
 	}
@@ -209,27 +215,27 @@ func TestSetLinkHairpin(t *testing.T) {
 		t.Errorf("addDummyInterface failed: %v", err)
 	}
 
-	err = SetLinkMaster(ifName2, ifName)
+	err = nl.SetLinkMaster(ifName2, ifName)
 	if err != nil {
 		t.Errorf("SetLinkMaster failed: %+v", err)
 	}
 
-	err = SetLinkHairpin(ifName2, true)
+	err = nl.SetLinkHairpin(ifName2, true)
 	if err != nil {
 		t.Errorf("SetLinkHairpin on failed: %+v", err)
 	}
 
-	err = SetLinkHairpin(ifName2, false)
+	err = nl.SetLinkHairpin(ifName2, false)
 	if err != nil {
 		t.Errorf("SetLinkHairpin off failed: %+v", err)
 	}
 
-	err = DeleteLink(ifName2)
+	err = nl.DeleteLink(ifName2)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %+v", err)
 	}
 
-	err = DeleteLink(ifName)
+	err = nl.DeleteLink(ifName)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %+v", err)
 	}
@@ -243,18 +249,19 @@ func TestAddRemoveStaticArp(t *testing.T) {
 
 	ip := net.ParseIP("192.168.0.2")
 	mac, _ := net.ParseMAC("aa:b3:4d:5e:e2:4a")
+	nl := NewNetlink()
 
-	err = AddOrRemoveStaticArp(ADD, ifName, ip, mac, false)
+	err = nl.AddOrRemoveStaticArp(ADD, ifName, ip, mac, false)
 	if err != nil {
 		t.Errorf("ret val %v", err)
 	}
 
-	err = AddOrRemoveStaticArp(REMOVE, ifName, ip, mac, false)
+	err = nl.AddOrRemoveStaticArp(REMOVE, ifName, ip, mac, false)
 	if err != nil {
 		t.Errorf("ret val %v", err)
 	}
 
-	err = DeleteLink(ifName)
+	err = nl.DeleteLink(ifName)
 	if err != nil {
 		t.Errorf("DeleteLink failed: %+v", err)
 	}

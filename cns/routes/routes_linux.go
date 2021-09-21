@@ -5,8 +5,6 @@
 
 package routes
 
-const ()
-
 func getRoutes() ([]Route, error) {
 	return nil, nil
 }

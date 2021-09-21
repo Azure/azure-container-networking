@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/Azure/azure-container-networking/test/nnsmockserver"
 )
 

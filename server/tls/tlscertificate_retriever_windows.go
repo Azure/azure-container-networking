@@ -7,9 +7,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"github.com/billgraziano/dpapi"
 	"io/ioutil"
 	"strings"
+
+	"github.com/billgraziano/dpapi"
 )
 
 type windowsTlsCertificateRetriever struct {
@@ -119,13 +120,11 @@ func NewTlsCertificateRetriever(settings TlsSettings) (TlsCertificateRetriever, 
 	}
 
 	content, err := windowsCertStoreRetriever.readFile()
-
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read file with error %+v", err)
 	}
 
 	decrypted, err := windowsCertStoreRetriever.decrypt(content)
-
 	if err != nil {
 		return nil, fmt.Errorf("Failed to decrypt file with error %+v", err)
 	}

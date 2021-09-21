@@ -23,8 +23,7 @@ type errorResponse struct {
 }
 
 // Request sent by libnetwork for activation.
-type activateRequest struct {
-}
+type activateRequest struct{}
 
 // Response sent by plugin for activation.
 type ActivateResponse struct {

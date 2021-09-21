@@ -85,12 +85,12 @@ func (plugin *Plugin) EnableDiscovery() error {
 
 	// Create the spec directory.
 	path := plugin.getSpecPath()
-	os.MkdirAll(path, 0755)
+	os.MkdirAll(path, 0o755)
 
 	// Write the listener URL to the spec file.
 	fileName := path + plugin.Name + ".spec"
 	url := plugin.Listener.URL.String()
-	err := ioutil.WriteFile(fileName, []byte(url), 0644)
+	err := ioutil.WriteFile(fileName, []byte(url), 0o644)
 	return err
 }
 

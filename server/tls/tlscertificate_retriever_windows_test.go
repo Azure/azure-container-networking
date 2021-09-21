@@ -9,11 +9,12 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"github.com/billgraziano/dpapi"
 	"io/ioutil"
 	"math/big"
 	"os"
 	"testing"
+
+	"github.com/billgraziano/dpapi"
 )
 
 const (
@@ -27,7 +28,7 @@ func TestPemConsumptionWindows(t *testing.T) {
 	pemLocation := fmt.Sprintf("%s/%s.Pem", currentDirectory, commonName)
 
 	encryptedPem, _ := dpapi.Encrypt(string(pemContent))
-	ioutil.WriteFile(pemLocation, []byte(encryptedPem), 0644)
+	ioutil.WriteFile(pemLocation, []byte(encryptedPem), 0o644)
 	defer os.Remove(pemLocation)
 
 	config := TlsSettings{

@@ -11,8 +11,10 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	utilexec "k8s.io/utils/exec"
+	fakeexec "k8s.io/utils/exec/testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,7 +32,6 @@ const (
 type podFixture struct {
 	t *testing.T
 
-	kubeclient *k8sfake.Clientset
 	// Objects to put in the store.
 	podLister []*corev1.Pod
 	// (TODO) Actions expected to happen on the client. Will use this to check action.
@@ -38,8 +39,6 @@ type podFixture struct {
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 
-	// (TODO) will remove npMgr if possible
-	npMgr         *NetworkPolicyManager
 	ipsMgr        *ipsm.IpsetManager
 	podController *podController
 	kubeInformer  kubeinformers.SharedInformerFactory
@@ -50,18 +49,17 @@ func newFixture(t *testing.T, exec utilexec.Interface) *podFixture {
 		t:           t,
 		podLister:   []*corev1.Pod{},
 		kubeobjects: []runtime.Object{},
-		npMgr:       newNPMgr(t, exec),
 		ipsMgr:      ipsm.NewIpsetManager(exec),
 	}
 	return f
 }
 
 func (f *podFixture) newPodController(stopCh chan struct{}) {
-	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
-	f.kubeInformer = kubeinformers.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
+	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
+	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.kubeclient, f.npMgr)
-	f.podController.podListerSynced = alwaysReady
+	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
+	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.ipsMgr, npmNamespaceCache)
 
 	for _, pod := range f.podLister {
 		f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Add(pod)
@@ -69,7 +67,7 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 
 	// Do not start informer to avoid unnecessary event triggers
 	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
-	//f.kubeInformer.Start(stopCh)
+	// f.kubeInformer.Start(stopCh)
 }
 
 func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNewtwork bool, podPhase corev1.PodPhase) *corev1.Pod {
@@ -83,12 +81,12 @@ func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNewtw
 		Spec: corev1.PodSpec{
 			HostNetwork: isHostNewtwork,
 			Containers: []corev1.Container{
-				corev1.Container{
+				{
 					Ports: []corev1.ContainerPort{
-						corev1.ContainerPort{
+						{
 							Name:          fmt.Sprintf("app:%s", name),
 							ContainerPort: 8080,
-							//Protocol:      "TCP",
+							// Protocol:      "TCP",
 						},
 					},
 				},
@@ -164,10 +162,10 @@ type expectedValues struct {
 
 func checkPodTestResult(testName string, f *podFixture, testCases []expectedValues) {
 	for _, test := range testCases {
-		if got := len(f.npMgr.PodMap); got != test.expectedLenOfPodMap {
+		if got := len(f.podController.podMap); got != test.expectedLenOfPodMap {
 			f.t.Errorf("%s failed @ PodMap length = %d, want %d", testName, got, test.expectedLenOfPodMap)
 		}
-		if got := len(f.npMgr.NsMap); got != test.expectedLenOfNsMap {
+		if got := len(f.podController.npmNamespaceCache.nsMap); got != test.expectedLenOfNsMap {
 			f.t.Errorf("%s failed @ NsMap length = %d, want %d", testName, got, test.expectedLenOfNsMap)
 		}
 		if got := f.podController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
@@ -178,7 +176,7 @@ func checkPodTestResult(testName string, f *podFixture, testCases []expectedValu
 
 func checkNpmPodWithInput(testName string, f *podFixture, inputPodObj *corev1.Pod) {
 	podKey := getKey(inputPodObj, f.t)
-	cachedNpmPodObj := f.npMgr.PodMap[podKey]
+	cachedNpmPodObj := f.podController.podMap[podKey]
 
 	if cachedNpmPodObj.PodIP != inputPodObj.Status.PodIP {
 		f.t.Errorf("%s failed @ PodIp check got = %s, want %s", testName, cachedNpmPodObj.PodIP, inputPodObj.Status.PodIP)
@@ -201,7 +199,7 @@ func TestAddMultiplePods(t *testing.T) {
 	podObj1 := createPod("test-pod-1", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podObj2 := createPod("test-pod-2", "test-namespace", "0", "1.2.3.5", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
@@ -233,7 +231,7 @@ func TestAddMultiplePods(t *testing.T) {
 	addPod(t, f, podObj2)
 
 	testCases := []expectedValues{
-		{2, 2, 0},
+		{2, 1, 0},
 	}
 	checkPodTestResult("TestAddMultiplePods", f, testCases)
 	checkNpmPodWithInput("TestAddMultiplePods", f, podObj1)
@@ -246,7 +244,7 @@ func TestAddPod(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
 		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName("all-namespaces"), util.GetHashedName("ns-test-namespace")}},
@@ -271,7 +269,7 @@ func TestAddPod(t *testing.T) {
 
 	addPod(t, f, podObj)
 	testCases := []expectedValues{
-		{1, 2, 0},
+		{1, 1, 0},
 	}
 	checkPodTestResult("TestAddPod", f, testCases)
 	checkNpmPodWithInput("TestAddPod", f, podObj)
@@ -284,7 +282,7 @@ func TestAddHostNetworkPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	var calls = []testutils.TestCmd{}
+	calls := []testutils.TestCmd{}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -298,11 +296,11 @@ func TestAddHostNetworkPod(t *testing.T) {
 
 	addPod(t, f, podObj)
 	testCases := []expectedValues{
-		{0, 1, 0},
+		{0, 0, 0},
 	}
 	checkPodTestResult("TestAddHostNetworkPod", f, testCases)
 
-	if _, exists := f.npMgr.PodMap[podKey]; exists {
+	if _, exists := f.podController.podMap[podKey]; exists {
 		t.Error("TestAddHostNetworkPod failed @ cached pod obj exists check")
 	}
 }
@@ -314,7 +312,7 @@ func TestDeletePod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -350,11 +348,11 @@ func TestDeletePod(t *testing.T) {
 
 	deletePod(t, f, podObj, DeletedFinalStateknownObject)
 	testCases := []expectedValues{
-		{0, 2, 0},
+		{0, 1, 0},
 	}
 
 	checkPodTestResult("TestDeletePod", f, testCases)
-	if _, exists := f.npMgr.PodMap[podKey]; exists {
+	if _, exists := f.podController.podMap[podKey]; exists {
 		t.Error("TestDeletePod failed @ cached pod obj exists check")
 	}
 }
@@ -366,7 +364,7 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, HostNetwork, corev1.PodRunning)
 	podKey := getKey(podObj, t)
 
-	var calls = []testutils.TestCmd{}
+	calls := []testutils.TestCmd{}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -380,21 +378,22 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 
 	deletePod(t, f, podObj, DeletedFinalStateknownObject)
 	testCases := []expectedValues{
-		{0, 1, 0},
+		{0, 0, 0},
 	}
 	checkPodTestResult("TestDeleteHostNetworkPod", f, testCases)
-	if _, exists := f.npMgr.PodMap[podKey]; exists {
+	if _, exists := f.podController.podMap[podKey]; exists {
 		t.Error("TestDeleteHostNetworkPod failed @ cached pod obj exists check")
 	}
 }
 
+// this UT only tests deletePod event handler function in podController
 func TestDeletePodWithTombstone(t *testing.T) {
 	labels := map[string]string{
 		"app": "test-pod",
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{}
+	calls := []testutils.TestCmd{}
 
 	fexec := testutils.GetFakeExecWithScripts(calls)
 	defer testutils.VerifyCalls(t, fexec, calls)
@@ -412,7 +411,7 @@ func TestDeletePodWithTombstone(t *testing.T) {
 
 	f.podController.deletePod(tombstone)
 	testCases := []expectedValues{
-		{0, 1, 0},
+		{0, 0, 1},
 	}
 	checkPodTestResult("TestDeletePodWithTombstone", f, testCases)
 }
@@ -423,7 +422,7 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	}
 	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -459,7 +458,7 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 
 	deletePod(t, f, podObj, DeletedFinalStateUnknownObject)
 	testCases := []expectedValues{
-		{0, 2, 0},
+		{0, 1, 0},
 	}
 	checkPodTestResult("TestDeletePodWithTombstoneAfterAddingPod", f, testCases)
 }
@@ -470,7 +469,7 @@ func TestLabelUpdatePod(t *testing.T) {
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -510,7 +509,7 @@ func TestLabelUpdatePod(t *testing.T) {
 	updatePod(t, f, oldPodObj, newPodObj)
 
 	testCases := []expectedValues{
-		{1, 2, 0},
+		{1, 1, 0},
 	}
 	checkPodTestResult("TestLabelUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestLabelUpdatePod", f, newPodObj)
@@ -522,7 +521,7 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	}
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -573,7 +572,7 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	updatePod(t, f, oldPodObj, newPodObj)
 
 	testCases := []expectedValues{
-		{1, 2, 0},
+		{1, 1, 0},
 	}
 	checkPodTestResult("TestIPAddressUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestIPAddressUpdatePod", f, newPodObj)
@@ -586,7 +585,7 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
 	podKey := getKey(oldPodObj, t)
 
-	var calls = []testutils.TestCmd{
+	calls := []testutils.TestCmd{
 		// add pod
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("ns-test-namespace"), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName("all-namespaces"), "setlist"}},
@@ -630,12 +629,37 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	updatePod(t, f, oldPodObj, newPodObj)
 
 	testCases := []expectedValues{
-		{0, 2, 0},
+		{0, 1, 0},
 	}
 	checkPodTestResult("TestPodStatusUpdatePod", f, testCases)
-	if _, exists := f.npMgr.PodMap[podKey]; exists {
+	if _, exists := f.podController.podMap[podKey]; exists {
 		t.Error("TestPodStatusUpdatePod failed @ cached pod obj exists check")
 	}
+}
+
+func TestPodMapMarshalJSON(t *testing.T) {
+	fexec := &fakeexec.FakeExec{}
+	f := newFixture(t, fexec)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newPodController(stopCh)
+
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+	pod := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+	podKey, err := cache.MetaNamespaceKeyFunc(pod)
+	assert.NoError(t, err)
+
+	npmPod := newNpmPod(pod)
+	f.podController.podMap[podKey] = npmPod
+
+	npMapRaw, err := f.podController.MarshalJSON()
+	assert.NoError(t, err)
+
+	expect := []byte(`{"test-namespace/test-pod":{"Name":"test-pod","Namespace":"test-namespace","PodIP":"1.2.3.4","Labels":{},"ContainerPorts":[],"Phase":"Running"}}`)
+	fmt.Printf("%s\n", string(npMapRaw))
+	assert.ElementsMatch(t, expect, npMapRaw)
 }
 
 func TestHasValidPodIP(t *testing.T) {
@@ -647,5 +671,37 @@ func TestHasValidPodIP(t *testing.T) {
 	}
 	if ok := hasValidPodIP(podObj); !ok {
 		t.Errorf("TestisValidPod failed @ isValidPod")
+	}
+}
+
+// Extra unit test which is not quite related to PodController,
+// but help to understand how workqueue works to make event handler logic lock-free.
+// If the same key are queued into workqueue in multiple times,
+// they are combined into one item (accurately, if the item is not processed).
+func TestWorkQueue(t *testing.T) {
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+
+	fexec := testutils.GetFakeExecWithScripts([]testutils.TestCmd{})
+	f := newFixture(t, fexec)
+
+	f.podLister = append(f.podLister, podObj)
+	f.kubeobjects = append(f.kubeobjects, podObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newPodController(stopCh)
+
+	podKeys := []string{"test-pod", "test-pod", "test-pod1"}
+	expectedWorkQueueLength := []int{1, 1, 2}
+
+	for idx, podKey := range podKeys {
+		f.podController.workqueue.Add(podKey)
+		workQueueLength := f.podController.workqueue.Len()
+		if workQueueLength != expectedWorkQueueLength[idx] {
+			t.Errorf("TestWorkQueue failed due to returned workqueue length = %d, want %d",
+				workQueueLength, expectedWorkQueueLength)
+		}
 	}
 }

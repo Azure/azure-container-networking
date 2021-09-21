@@ -25,7 +25,7 @@ func TestPemConsumptionLinux(t *testing.T) {
 	currentDirectory, _ := os.Getwd()
 	pemLocation := fmt.Sprintf("%s/%s.Pem", currentDirectory, commonName)
 
-	ioutil.WriteFile(pemLocation, pemContent, 0644)
+	ioutil.WriteFile(pemLocation, pemContent, 0o644)
 	defer os.Remove(pemLocation)
 
 	config := TlsSettings{

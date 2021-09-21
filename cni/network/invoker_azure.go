@@ -10,15 +10,22 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
 
 type AzureIPAMInvoker struct {
-	plugin *netPlugin
+	plugin delegatePlugin
 	nwInfo *network.NetworkInfo
 }
 
-func NewAzureIpamInvoker(plugin *netPlugin, nwInfo *network.NetworkInfo) *AzureIPAMInvoker {
+type delegatePlugin interface {
+	DelegateAdd(pluginName string, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error)
+	DelegateDel(pluginName string, nwCfg *cni.NetworkConfig) error
+	Errorf(format string, args ...interface{}) *cniTypes.Error
+}
+
+func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.NetworkInfo) *AzureIPAMInvoker {
 	return &AzureIPAMInvoker{
 		plugin: plugin,
 		nwInfo: nwInfo,
@@ -45,13 +52,13 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArg
 	result, err = invoker.plugin.DelegateAdd(nwCfg.Ipam.Type, nwCfg)
 	if err != nil {
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
-		return nil, nil, err	
+		return nil, nil, err
 	}
 
 	defer func() {
 		if err != nil {
 			if len(result.IPs) > 0 {
-				if er := invoker.plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, nil, options); er != nil {
+				if er := invoker.Delete(&result.IPs[0].Address, nwCfg, nil, options); er != nil {
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
@@ -83,7 +90,6 @@ func (invoker *AzureIPAMInvoker) Add(nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArg
 }
 
 func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error {
-
 	if nwCfg == nil {
 		return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
 	}

@@ -50,7 +50,6 @@ func (dockerClient *DockerClient) NetworkExists(networkName string) error {
 
 	res, err := http.Get(
 		dockerClient.connectionURL + inspectNetworkPath + networkName)
-
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error received from http Post for docker network inspect %v %v", networkName, err.Error())
 		return err
@@ -120,7 +119,6 @@ func (dockerClient *DockerClient) CreateNetwork(networkName string, nicInfo *imd
 		dockerClient.connectionURL+createNetworkPath,
 		common.JsonContent,
 		netConfigJSON)
-
 	if err != nil {
 		logger.Printf("[Azure CNS] Error received from http Post for docker network create %v", networkName)
 		return err

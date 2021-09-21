@@ -77,8 +77,8 @@ func dumpAddressManager(am AddressManager) {
 
 // setupTestAddressSpace creates a simple address space used by various tests.
 func setupTestAddressSpace(am AddressManager) error {
-	var anyInterface = "any"
-	var anyPriority = 42
+	anyInterface := "any"
+	anyPriority := 42
 
 	amImpl := am.(*addressManager)
 
@@ -151,242 +151,239 @@ func TestManager(t *testing.T) {
 	RunSpecs(t, "Manager Suite")
 }
 
-var (
-	_ = Describe("Test Manager", func() {
-
-		Describe("Test Initialize", func() {
-			Context("When store is nil", func() {
-				It("Initialize return nil", func() {
-					var config common.PluginConfig
-					config.Store = nil
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = ""
-					am, err := NewAddressManager()
-					Expect(am).NotTo(BeNil())
-					Expect(err).NotTo(HaveOccurred())
-					err = am.Initialize(&config, false,options)
-					Expect(err).To(BeNil())
-				})
-			})
-
-			Context("When restore key not found", func() {
-				It("Initialize return nil", func() {
-					var config common.PluginConfig
-					storeMock := &testutils.KeyValueStoreMock{}
-					storeMock.ReadError = store.ErrKeyNotFound
-					config.Store = storeMock
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = ""
-					am, err := NewAddressManager()
-					Expect(am).NotTo(BeNil())
-					Expect(err).NotTo(HaveOccurred())
-					err = am.Initialize(&config, false,options)
-					Expect(err).To(BeNil())
-				})
-			})
-
-			Context("When restore return error", func() {
-				It("Initialize return error", func() {
-					var config common.PluginConfig
-					storeMock := &testutils.KeyValueStoreMock{}
-					storeMock.ReadError = errors.New("Error")
-					config.Store = storeMock
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = ""
-					am, err := NewAddressManager()
-					Expect(am).NotTo(BeNil())
-					Expect(err).NotTo(HaveOccurred())
-					err = am.Initialize(&config, false, options)
-					Expect(err).To(HaveOccurred())
-				})
-			})
-
-			Context("When StartSource fail", func() {
-				It("Initialize return error", func() {
-					var config common.PluginConfig
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = "Invalid"
-					am, err := NewAddressManager()
-					Expect(am).NotTo(BeNil())
-					Expect(err).NotTo(HaveOccurred())
-					err = am.Initialize(&config, false,options)
-					Expect(err).To(HaveOccurred())
-				})
+var _ = Describe("Test Manager", func() {
+	Describe("Test Initialize", func() {
+		Context("When store is nil", func() {
+			It("Initialize return nil", func() {
+				var config common.PluginConfig
+				config.Store = nil
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = ""
+				am, err := NewAddressManager()
+				Expect(am).NotTo(BeNil())
+				Expect(err).NotTo(HaveOccurred())
+				err = am.Initialize(&config, false, options)
+				Expect(err).To(BeNil())
 			})
 		})
 
-		Describe("Test restore", func() {
-			Context("When store is nil", func() {
-				It("restore return nil", func() {
-					am := &addressManager{
-						AddrSpaces: make(map[string]*addressSpace),
-					}
-					err := am.restore(false)
-					Expect(err).To(BeNil())
-				})
-			})
-
-			Context("Test Populate pointers", func() {
-				It("Should build addrsByID successfully", func() {
-					am := &addressManager{
-						AddrSpaces: make(map[string]*addressSpace),
-					}
-					timeReboot, _ := platform.GetLastRebootTime()
-					am.store = &testutils.KeyValueStoreMock{
-						ModificationTime: timeReboot.Add(time.Hour),
-					}
-					ap := &addressPool{
-						Id:        "ap-test",
-						RefCount:  1,
-						Addresses: make(map[string]*addressRecord),
-					}
-					ap.Addresses["ar-test"] = &addressRecord{
-						ID:    "ar-test",
-						InUse: true,
-					}
-					as := &addressSpace{
-						Id:    "as-test",
-						Pools: make(map[string]*addressPool),
-					}
-					as.Pools["ap-test"] = ap
-					am.AddrSpaces["as-test"] = as
-					err := am.restore(false)
-					Expect(err).To(BeNil())
-					as = am.AddrSpaces["as-test"]
-					ap = as.Pools["ap-test"]
-					ar := ap.addrsByID["ar-test"]
-					Expect(ar.ID).To(Equal("ar-test"))
-					Expect(ap.RefCount).To(Equal(1))
-					Expect(ar.InUse).To(BeTrue())
-				})
-			})
-
-			Context("When GetModificationTime return error", func() {
-				It("Should not clear the RefCount and InUse", func() {
-					am := &addressManager{
-						AddrSpaces: make(map[string]*addressSpace),
-					}
-					am.store = &testutils.KeyValueStoreMock{
-						GetModificationTimeError: errors.New("Error"),
-					}
-					ap := &addressPool{
-						Id:        "ap-test",
-						RefCount:  1,
-						Addresses: make(map[string]*addressRecord),
-					}
-					ap.Addresses["ar-test"] = &addressRecord{
-						ID:    "ar-test",
-						InUse: true,
-					}
-					as := &addressSpace{
-						Id:    "as-test",
-						Pools: make(map[string]*addressPool),
-					}
-					as.Pools["ap-test"] = ap
-					am.AddrSpaces["as-test"] = as
-					err := am.restore(false)
-					Expect(err).To(BeNil())
-					as = am.AddrSpaces["as-test"]
-					ap = as.Pools["ap-test"]
-					ar := ap.addrsByID["ar-test"]
-					Expect(ar.ID).To(Equal("ar-test"))
-					Expect(ap.RefCount).To(Equal(1))
-					Expect(ar.InUse).To(BeTrue())
-				})
+		Context("When restore key not found", func() {
+			It("Initialize return nil", func() {
+				var config common.PluginConfig
+				storeMock := &testutils.KeyValueStoreMock{}
+				storeMock.ReadError = store.ErrKeyNotFound
+				config.Store = storeMock
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = ""
+				am, err := NewAddressManager()
+				Expect(am).NotTo(BeNil())
+				Expect(err).NotTo(HaveOccurred())
+				err = am.Initialize(&config, false, options)
+				Expect(err).To(BeNil())
 			})
 		})
 
-		Describe("Test save", func() {
-			Context("When store is nill", func() {
-				It("Should return nil", func() {
-					am := &addressManager{}
-					err := am.save()
-					Expect(err).NotTo(HaveOccurred())
-				})
+		Context("When restore return error", func() {
+			It("Initialize return error", func() {
+				var config common.PluginConfig
+				storeMock := &testutils.KeyValueStoreMock{}
+				storeMock.ReadError = errors.New("Error")
+				config.Store = storeMock
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = ""
+				am, err := NewAddressManager()
+				Expect(am).NotTo(BeNil())
+				Expect(err).NotTo(HaveOccurred())
+				err = am.Initialize(&config, false, options)
+				Expect(err).To(HaveOccurred())
 			})
 		})
 
-		Describe("Test StartSource", func() {
-			Context("When environment is azure", func() {
-				It("Should return azure source", func() {
-					am := &addressManager{}
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = common.OptEnvironmentAzure
-					err := am.StartSource(options)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(am.source).NotTo(BeNil())
-				})
-			})
-
-			Context("When environment is mas", func() {
-				It("Should return mas", func() {
-					am := &addressManager{}
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = common.OptEnvironmentMAS
-					err := am.StartSource(options)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(am.source).NotTo(BeNil())
-				})
-			})
-
-			Context("When environment is null", func() {
-				It("Should return null source", func() {
-					am := &addressManager{}
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = "null"
-					err := am.StartSource(options)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(am.source).NotTo(BeNil())
-				})
-			})
-
-			Context("When environment is nil", func() {
-				It("Should return nil", func() {
-					am := &addressManager{}
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = ""
-					err := am.StartSource(options)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(am.source).To(BeNil())
-				})
-			})
-
-			Context("When environment is nil", func() {
-				It("Should return nil", func() {
-					am := &addressManager{}
-					options := map[string]interface{}{}
-					options[common.OptEnvironment] = "Invalid"
-					err := am.StartSource(options)
-					Expect(err).To(HaveOccurred())
-					Expect(am.source).To(BeNil())
-				})
-			})
-		})
-
-		Describe("Test GetDefaultAddressSpaces", func() {
-			Context("When local and global are nil", func() {
-				It("Should return empty string", func() {
-					am := &addressManager{
-						AddrSpaces: make(map[string]*addressSpace),
-					}
-					localId, globalId := am.GetDefaultAddressSpaces()
-					Expect(localId).To(BeEmpty())
-					Expect(globalId).To(BeEmpty())
-				})
-			})
-
-			Context("When local and global are nil", func() {
-				It("Should return empty string", func() {
-					am := &addressManager{
-						AddrSpaces: make(map[string]*addressSpace),
-					}
-					am.AddrSpaces[LocalDefaultAddressSpaceId] = &addressSpace{Id: "localId"}
-					am.AddrSpaces[GlobalDefaultAddressSpaceId] = &addressSpace{Id: "globalId"}
-					localId, globalId := am.GetDefaultAddressSpaces()
-					Expect(localId).To(Equal("localId"))
-					Expect(globalId).To(Equal("globalId"))
-				})
+		Context("When StartSource fail", func() {
+			It("Initialize return error", func() {
+				var config common.PluginConfig
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = "Invalid"
+				am, err := NewAddressManager()
+				Expect(am).NotTo(BeNil())
+				Expect(err).NotTo(HaveOccurred())
+				err = am.Initialize(&config, false, options)
+				Expect(err).To(HaveOccurred())
 			})
 		})
 	})
-)
+
+	Describe("Test restore", func() {
+		Context("When store is nil", func() {
+			It("restore return nil", func() {
+				am := &addressManager{
+					AddrSpaces: make(map[string]*addressSpace),
+				}
+				err := am.restore(false)
+				Expect(err).To(BeNil())
+			})
+		})
+
+		Context("Test Populate pointers", func() {
+			It("Should build addrsByID successfully", func() {
+				am := &addressManager{
+					AddrSpaces: make(map[string]*addressSpace),
+				}
+				timeReboot, _ := platform.GetLastRebootTime()
+				am.store = &testutils.KeyValueStoreMock{
+					ModificationTime: timeReboot.Add(time.Hour),
+				}
+				ap := &addressPool{
+					Id:        "ap-test",
+					RefCount:  1,
+					Addresses: make(map[string]*addressRecord),
+				}
+				ap.Addresses["ar-test"] = &addressRecord{
+					ID:    "ar-test",
+					InUse: true,
+				}
+				as := &addressSpace{
+					Id:    "as-test",
+					Pools: make(map[string]*addressPool),
+				}
+				as.Pools["ap-test"] = ap
+				am.AddrSpaces["as-test"] = as
+				err := am.restore(false)
+				Expect(err).To(BeNil())
+				as = am.AddrSpaces["as-test"]
+				ap = as.Pools["ap-test"]
+				ar := ap.addrsByID["ar-test"]
+				Expect(ar.ID).To(Equal("ar-test"))
+				Expect(ap.RefCount).To(Equal(1))
+				Expect(ar.InUse).To(BeTrue())
+			})
+		})
+
+		Context("When GetModificationTime return error", func() {
+			It("Should not clear the RefCount and InUse", func() {
+				am := &addressManager{
+					AddrSpaces: make(map[string]*addressSpace),
+				}
+				am.store = &testutils.KeyValueStoreMock{
+					GetModificationTimeError: errors.New("Error"),
+				}
+				ap := &addressPool{
+					Id:        "ap-test",
+					RefCount:  1,
+					Addresses: make(map[string]*addressRecord),
+				}
+				ap.Addresses["ar-test"] = &addressRecord{
+					ID:    "ar-test",
+					InUse: true,
+				}
+				as := &addressSpace{
+					Id:    "as-test",
+					Pools: make(map[string]*addressPool),
+				}
+				as.Pools["ap-test"] = ap
+				am.AddrSpaces["as-test"] = as
+				err := am.restore(false)
+				Expect(err).To(BeNil())
+				as = am.AddrSpaces["as-test"]
+				ap = as.Pools["ap-test"]
+				ar := ap.addrsByID["ar-test"]
+				Expect(ar.ID).To(Equal("ar-test"))
+				Expect(ap.RefCount).To(Equal(1))
+				Expect(ar.InUse).To(BeTrue())
+			})
+		})
+	})
+
+	Describe("Test save", func() {
+		Context("When store is nill", func() {
+			It("Should return nil", func() {
+				am := &addressManager{}
+				err := am.save()
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+	})
+
+	Describe("Test StartSource", func() {
+		Context("When environment is azure", func() {
+			It("Should return azure source", func() {
+				am := &addressManager{}
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = common.OptEnvironmentAzure
+				err := am.StartSource(options)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(am.source).NotTo(BeNil())
+			})
+		})
+
+		Context("When environment is mas", func() {
+			It("Should return mas", func() {
+				am := &addressManager{}
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = common.OptEnvironmentMAS
+				err := am.StartSource(options)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(am.source).NotTo(BeNil())
+			})
+		})
+
+		Context("When environment is null", func() {
+			It("Should return null source", func() {
+				am := &addressManager{}
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = "null"
+				err := am.StartSource(options)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(am.source).NotTo(BeNil())
+			})
+		})
+
+		Context("When environment is nil", func() {
+			It("Should return nil", func() {
+				am := &addressManager{}
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = ""
+				err := am.StartSource(options)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(am.source).To(BeNil())
+			})
+		})
+
+		Context("When environment is nil", func() {
+			It("Should return nil", func() {
+				am := &addressManager{}
+				options := map[string]interface{}{}
+				options[common.OptEnvironment] = "Invalid"
+				err := am.StartSource(options)
+				Expect(err).To(HaveOccurred())
+				Expect(am.source).To(BeNil())
+			})
+		})
+	})
+
+	Describe("Test GetDefaultAddressSpaces", func() {
+		Context("When local and global are nil", func() {
+			It("Should return empty string", func() {
+				am := &addressManager{
+					AddrSpaces: make(map[string]*addressSpace),
+				}
+				localId, globalId := am.GetDefaultAddressSpaces()
+				Expect(localId).To(BeEmpty())
+				Expect(globalId).To(BeEmpty())
+			})
+		})
+
+		Context("When local and global are nil", func() {
+			It("Should return empty string", func() {
+				am := &addressManager{
+					AddrSpaces: make(map[string]*addressSpace),
+				}
+				am.AddrSpaces[LocalDefaultAddressSpaceId] = &addressSpace{Id: "localId"}
+				am.AddrSpaces[GlobalDefaultAddressSpaceId] = &addressSpace{Id: "globalId"}
+				localId, globalId := am.GetDefaultAddressSpaces()
+				Expect(localId).To(Equal("localId"))
+				Expect(globalId).To(Equal("globalId"))
+			})
+		})
+	})
+})

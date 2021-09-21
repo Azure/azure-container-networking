@@ -1,3 +1,6 @@
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
+
 package npm
 
 import (
@@ -14,7 +17,7 @@ import (
 
 // NewRootCmd returns a root
 func NPMRootCmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "npm",
 		Short: "Collection of functions related to Azure NPM",
 	}
@@ -31,7 +34,7 @@ func NPMRootCmd() *cobra.Command {
 }
 
 func GetCmd(npmClient *npm.NPMHttpClient) *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get in-memory maps from Azure NPM",
 	}

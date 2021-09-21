@@ -1,10 +1,19 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/util"
+)
+
+var (
+	// ErrSrcNotSpecified thrown during NPM debug cli mode when the source packet is not specified
+	ErrSrcNotSpecified = errors.New("source not specified")
+
+	// ErrDstNotSpecified thrown during NPM debug cli mode when the source packet is not specified
+	ErrDstNotSpecified = errors.New("destination not specified")
 )
 
 /*

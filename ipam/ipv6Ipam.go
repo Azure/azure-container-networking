@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -67,7 +68,7 @@ func newIPv6IpamSource(options map[string]interface{}, isLoaded bool) (*ipv6Ipam
 	return &ipv6IpamSource{
 		name:                name,
 		subnetMaskSizeLimit: defaultIPv6SubnetMaskSizeLimit,
-		nodeHostname:        nodeName,
+		nodeHostname:        strings.ToLower(nodeName),
 		kubeConfigPath:      kubeConfigPath,
 		isLoaded:            isLoaded,
 	}, nil

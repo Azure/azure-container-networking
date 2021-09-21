@@ -1,35 +1,13 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.3.0
+    controller-gen.kubebuilder.io/version: v0.6.2
   creationTimestamp: null
   name: nodenetworkconfigs.acn.azure.com
 spec:
-  additionalPrinterColumns:
-  - JSONPath: .status.status
-    name: Status
-    type: string
-  - JSONPath: .spec.requestedIPCount
-    name: Requested IPs
-    type: string
-  - JSONPath: .status.assignedIPCount
-    name: Assigned IPs
-    type: string
-  - JSONPath: .status.networkContainers[*].subnetName
-    name: Subnet
-    type: string
-  - JSONPath: .status.networkContainers[*].subnetAddressSpace
-    name: Subnet CIDR
-    type: string
-  - JSONPath: .status.networkContainers[*].id
-    name: NC ID
-    type: string
-  - JSONPath: .status.networkContainers[*].version
-    name: NC Version
-    type: string
   group: acn.azure.com
   names:
     kind: NodeNetworkConfig
@@ -39,101 +17,122 @@ spec:
     - nnc
     singular: nodenetworkconfig
   scope: Namespaced
-  subresources:
-    status: {}
-  validation:
-    openAPIV3Schema:
-      description: NodeNetworkConfig is the Schema for the nodenetworkconfigs API
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          description: NodeNetworkConfigSpec defines the desired state of NetworkConfig
-          properties:
-            ipsNotInUse:
-              items:
-                type: string
-              type: array
-            requestedIPCount:
-              format: int64
-              type: integer
-          type: object
-        status:
-          description: NodeNetworkConfigStatus defines the observed state of NetworkConfig
-          properties:
-            assignedIPCount:
-              type: integer
-            networkContainers:
-              items:
-                description: NetworkContainer defines the structure of a Network Container
-                  as found in NetworkConfigStatus
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    - jsonPath: .spec.requestedIPCount
+      name: Requested IPs
+      type: string
+    - jsonPath: .status.assignedIPCount
+      name: Assigned IPs
+      type: string
+    - jsonPath: .status.networkContainers[*].subnetName
+      name: Subnet
+      type: string
+    - jsonPath: .status.networkContainers[*].subnetAddressSpace
+      name: Subnet CIDR
+      type: string
+    - jsonPath: .status.networkContainers[*].id
+      name: NC ID
+      type: string
+    - jsonPath: .status.networkContainers[*].version
+      name: NC Version
+      type: string
+    name: v1alpha
+    schema:
+      openAPIV3Schema:
+        description: NodeNetworkConfig is the Schema for the nodenetworkconfigs API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NodeNetworkConfigSpec defines the desired state of NetworkConfig
+            properties:
+              ipsNotInUse:
+                items:
+                  type: string
+                type: array
+              requestedIPCount:
+                format: int64
+                type: integer
+            type: object
+          status:
+            description: NodeNetworkConfigStatus defines the observed state of NetworkConfig
+            properties:
+              assignedIPCount:
+                type: integer
+              networkContainers:
+                items:
+                  description: NetworkContainer defines the structure of a Network
+                    Container as found in NetworkConfigStatus
+                  properties:
+                    defaultGateway:
+                      type: string
+                    id:
+                      type: string
+                    ipAssignments:
+                      items:
+                        description: IPAssignment groups an IP address and Name. Name
+                          is a UUID set by the the IP address assigner.
+                        properties:
+                          ip:
+                            type: string
+                          name:
+                            type: string
+                        type: object
+                      type: array
+                    primaryIP:
+                      type: string
+                    subnetAddressSpace:
+                      type: string
+                    subnetName:
+                      type: string
+                    version:
+                      format: int64
+                      type: integer
+                  type: object
+                type: array
+              scaler:
+                description: Scaler groups IP request params together
                 properties:
-                  defaultGateway:
-                    type: string
-                  id:
-                    type: string
-                  ipAssignments:
-                    items:
-                      description: IPAssignment groups an IP address and Name. Name
-                        is a UUID set by the the IP address assigner.
-                      properties:
-                        ip:
-                          type: string
-                        name:
-                          type: string
-                      type: object
-                    type: array
-                  primaryIP:
-                    type: string
-                  subnetAddressSpace:
-                    type: string
-                  subnetName:
-                    type: string
-                  version:
+                  batchSize:
+                    format: int64
+                    type: integer
+                  maxIPCount:
+                    format: int64
+                    type: integer
+                  releaseThresholdPercent:
+                    format: int64
+                    type: integer
+                  requestThresholdPercent:
                     format: int64
                     type: integer
                 type: object
-              type: array
-            scaler:
-              description: Scaler groups IP request params together
-              properties:
-                batchSize:
-                  format: int64
-                  type: integer
-                maxIPCount:
-                  format: int64
-                  type: integer
-                releaseThresholdPercent:
-                  format: int64
-                  type: integer
-                requestThresholdPercent:
-                  format: int64
-                  type: integer
-              type: object
-            status:
-              description: Status indicates the NNC reconcile status
-              enum:
-              - Updating
-              - Update
-              - Error
-              type: string
-          type: object
-      type: object
-  version: v1alpha
-  versions:
-  - name: v1alpha
+              status:
+                description: Status indicates the NNC reconcile status
+                enum:
+                - Updating
+                - Update
+                - Error
+                type: string
+            type: object
+        type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

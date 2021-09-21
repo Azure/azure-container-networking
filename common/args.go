@@ -27,8 +27,10 @@ type Argument struct {
 // ArgumentList represents a set of command line arguments.
 type ArgumentList []*Argument
 
-var argList *ArgumentList
-var usageFunc func()
+var (
+	argList   *ArgumentList
+	usageFunc func()
+)
 
 // ParseArgs parses and validates command line arguments based on rules in the given ArgumentList.
 func ParseArgs(args *ArgumentList, usage func()) {
@@ -133,5 +135,6 @@ func printHelp() {
 	printHelpForArg(&Argument{
 		Name:        "help",
 		Shorthand:   "h",
-		Description: "Print usage information"})
+		Description: "Print usage information",
+	})
 }

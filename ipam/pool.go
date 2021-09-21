@@ -247,8 +247,6 @@ func (as *addressSpace) merge(newas *addressSpace) {
 			}
 		}
 	}
-
-	return
 }
 
 // Creates a new addressPool object.

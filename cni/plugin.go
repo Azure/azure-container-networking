@@ -216,6 +216,7 @@ func (plugin *Plugin) IsSafeToRemoveLock(processName string) (bool, error) {
 		pName, err := platform.GetProcessNameByID(string(content))
 		if err != nil {
 			return true, nil
+			// if process id changed. read lockfile?
 		}
 
 		log.Printf("[CNI] Process name is %s", pName)

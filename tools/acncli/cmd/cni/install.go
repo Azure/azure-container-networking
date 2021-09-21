@@ -1,3 +1,6 @@
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
+
 package cni
 
 import (
@@ -12,7 +15,7 @@ import (
 
 // install CNI will install CNI to a local machine
 func InstallCmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Installs an ACN component",
 	}
@@ -21,11 +24,10 @@ func InstallCmd() *cobra.Command {
 }
 
 func InstallCNICmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "cni",
 		Short: "Installs CNI and conflist ",
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			envs := i.InstallerConfig{
 				ExemptBins: make(map[string]bool),
 			}

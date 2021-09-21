@@ -42,26 +42,17 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
-              GOOS=windows make all-binaries VERSION=$(TAG)
-            name: "BuildWindows"
-            displayName: "Build Windows"
-
-          - script: |
-              GOOS=linux make all-binaries VERSION=$(TAG)
-            name: "BuildLinux"
-            displayName: "Build Linux"
+              make all-binaries-platforms VERSION=$(TAG)
+            name: "BuildAllPlatformBinaries"
+            displayName: "Build all platform binaries"
 
           - script: |
               mkdir -p ./output/bins
-              cd ./output/linux_amd64
-              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
-              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
-              sudo rm -R -- */ && cd ..
-              cd ./windows_amd64
-              sudo find . -mindepth 2 -type f -regextype posix-extended ! -iregex '.*\.(zip|tgz)$' -delete
-              sudo find . -mindepth 2 -type f -print -exec mv {} ../bins \;
-              sudo rm -R -- */ && cd ..
-              rmdir ./linux_amd64 && rmdir ./windows_amd64
+              cd ./output
+              find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+              find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+              shopt -s extglob
+              rm -rf !("bins")
             name: "PrepareArtifacts"
             displayName: "Prepare Artifacts"
 
@@ -213,11 +204,11 @@ stages:
             displayName: "Publish Code Coverage Results"
             condition: always()
 
-  - template: singletenancy/aks-swift/e2e-job-template.yaml
-    parameters:
-      name: "aks_on_swift_e2e"
-      displayName: AKS on Swift
-      pipelineBuildImage: "$(BUILD_IMAGE)"
+  #- template: singletenancy/aks-swift/e2e-job-template.yaml
+  #  parameters:
+  #    name: "aks_on_swift_e2e"
+  #    displayName: AKS on Swift
+  #    pipelineBuildImage: "$(BUILD_IMAGE)"
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
@@ -252,7 +243,7 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
-      - "aks_on_swift_e2e"
+     # - "aks_on_swift_e2e"
       - "ubuntu_16_04_linux_e2e"
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"

@@ -25,8 +25,10 @@ type socket struct {
 }
 
 // Default netlink socket.
-var s *socket
-var m sync.Mutex
+var (
+	s *socket
+	m sync.Mutex
+)
 
 // Returns a reference to the default netlink socket.
 func getSocket() (*socket, error) {
@@ -114,7 +116,6 @@ func (s *socket) sendAndWaitForAck(msg *message) error {
 func (s *socket) receive() ([]syscall.NetlinkMessage, error) {
 	buffer := make([]byte, unix.Getpagesize())
 	n, _, err := unix.Recvfrom(s.fd, buffer, 0)
-
 	if err != nil {
 		return nil, err
 	}

@@ -15,4 +15,4 @@ COPY $NPM_BUILD_DIR/azure-npm /usr/bin
 WORKDIR /usr/bin
 
 # Run the npm command by default when the container starts.
-ENTRYPOINT ["/usr/bin/azure-npm"]
+ENTRYPOINT ["/usr/bin/azure-npm", "start"]

@@ -26,12 +26,10 @@ type DiskInfo struct {
 }
 
 func getMemInfo() (*MemInfo, error) {
-
 	return nil, nil
 }
 
 func getDiskInfo(path string) (*DiskInfo, error) {
-
 	return nil, nil
 }
 
@@ -45,9 +43,4 @@ func (report *CNIReport) GetOSDetails() {
 	if err == nil {
 		report.OSDetails.OSVersion = strings.Replace(out, delimiter, "", -1)
 	}
-}
-
-// Get kernel version
-func (reportMgr *ReportManager) GetKernelVersion() {
-	// stub
 }

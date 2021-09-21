@@ -1,3 +1,6 @@
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
+
 package api
 
 import (
@@ -11,7 +14,7 @@ const (
 
 	EnvPrefix = "AZURE_CNI"
 
-	//CNI Install Flags
+	// CNI Install Flags
 	FlagMode              = "mode"
 	FlagTarget            = "target"
 	FlagIPAM              = "ipam"
@@ -22,7 +25,7 @@ const (
 	FlagConflistDirectory = "conflist-directory"
 	FlagVersion           = "version"
 
-	//CNI Log Flags
+	// CNI Log Flags
 	FlagFollow      = "follow"
 	FlagLogFilePath = "log-file"
 

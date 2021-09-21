@@ -6,7 +6,6 @@ package telemetry
 import (
 	"fmt"
 	"os/exec"
-	"reflect"
 	"runtime"
 	"strings"
 	"syscall"
@@ -40,7 +39,7 @@ func getMemInfo() (*MemInfo, error) {
 		return nil, fmt.Errorf("Sysinfo failed due to %v", err)
 	}
 
-	unit := uint64(info.Unit) * MB //MB
+	unit := uint64(info.Unit) * MB // MB
 	memInfo := &MemInfo{MemTotal: info.Totalram / unit, MemFree: info.Freeram / unit}
 
 	return memInfo, nil
@@ -112,16 +111,5 @@ func (report *CNIReport) GetOSDetails() {
 		OSVersion:      osInfoArr["VERSION"],
 		KernelVersion:  kernelVersion,
 		OSDistribution: osInfoArr["ID"],
-	}
-}
-
-// Get kernel version
-func (reportMgr *ReportManager) GetKernelVersion() {
-	out, err := exec.Command("uname", "-r").Output()
-	if err == nil {
-		v := reflect.ValueOf(reportMgr.Report).Elem().FieldByName("Metadata")
-		if v.CanSet() {
-			v.FieldByName("KernelVersion").SetString(strings.TrimSuffix(string(out), "\n"))
-		}
 	}
 }

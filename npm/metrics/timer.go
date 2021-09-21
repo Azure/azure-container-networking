@@ -17,8 +17,8 @@ func StartNewTimer() *Timer {
 	return &Timer{time.Now().UnixNano(), 0}
 }
 
-// StopAndRecord ends a timer and records its delta in a summary
-func (timer *Timer) StopAndRecord(observer prometheus.Summary) {
+// stopAndRecord ends a timer and records its delta in a summary
+func (timer *Timer) stopAndRecord(observer prometheus.Summary) {
 	observer.Observe(timer.timeElapsed())
 }
 

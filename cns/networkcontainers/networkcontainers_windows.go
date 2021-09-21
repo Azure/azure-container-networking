@@ -97,7 +97,8 @@ func setWeakHostOnInterface(ipAddress, ncID string) error {
 
 	ethIndexString := strconv.Itoa(targetIface.Index)
 
-	args := []string{"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
+	args := []string{
+		"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
 		"/index",
 		ethIndexString,
 		"/operation",
@@ -105,7 +106,8 @@ func setWeakHostOnInterface(ipAddress, ncID string) error {
 		"/weakhostsend",
 		"true",
 		"/weakhostreceive",
-		"true"}
+		"true",
+	}
 
 	logger.Printf("[Azure CNS] Going to enable weak host send/receive on interface: %v for NC: %s", args, ncID)
 	c := exec.Command("cmd", args...)
@@ -147,7 +149,8 @@ func createOrUpdateWithOperation(
 	ipv4NetStr := fmt.Sprintf("%d.%d.%d.%d", ipv4NetInt[0], ipv4NetInt[1], ipv4NetInt[2], ipv4NetInt[3])
 	logger.Printf("[Azure CNS] Created netmask in string format %v", ipv4NetStr)
 
-	args := []string{"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
+	args := []string{
+		"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
 		"/name",
 		adapterName,
 		"/operation",
@@ -161,7 +164,8 @@ func createOrUpdateWithOperation(
 		"/weakhostsend",
 		"true",
 		"/weakhostreceive",
-		"true"}
+		"true",
+	}
 
 	c := exec.Command("cmd", args...)
 
@@ -194,11 +198,13 @@ func deleteInterface(interfaceName string) error {
 		return fmt.Errorf("[Azure CNS] Interface name is nil")
 	}
 
-	args := []string{"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
+	args := []string{
+		"/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
 		"/name",
 		interfaceName,
 		"/operation",
-		"DELETE"}
+		"DELETE",
+	}
 
 	c := exec.Command("cmd", args...)
 
@@ -225,7 +231,9 @@ func configureNetworkContainerNetworking(operation, podName, podNamespace, docke
 		IfName:      "eth0",
 		Args: [][2]string{
 			{k8sPodNamespaceStr, podNamespace},
-			{k8sPodNameStr, podName}}}
+			{k8sPodNameStr, podName},
+		},
+	}
 	logger.Printf("[Azure CNS] run time conf info %+v", cniRtConf)
 
 	netConfig, err := getNetworkConfig(netPluginConfig.networkConfigPath)

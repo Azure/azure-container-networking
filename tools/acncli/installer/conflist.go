@@ -1,3 +1,6 @@
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
+
 package installer
 
 import (
@@ -55,7 +58,7 @@ func LoadConf(conflistpath string) (ccn.NetworkConfig, rawConflist, int, error) 
 	}
 
 	// find the conflist that matches the AzureCNIBin type
-	for pluginIndex, _ = range conflist.Plugins {
+	for pluginIndex = range conflist.Plugins {
 		mapbytes, err := json.Marshal(conflist.Plugins[pluginIndex])
 		if err != nil {
 			return netconfig, conflist, pluginIndex, err

@@ -66,7 +66,8 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 		logger.Request(service.Name, &req, err)
 
 		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
+			//nolint:goconst
+			returnMessage = "[Azure CNS] Error. Unable to decode input request."
 			returnCode = types.InvalidParameter
 		} else {
 			switch r.Method {
@@ -138,7 +139,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 		}
 
 	} else {
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. CNS is not yet initialized with environment.")
+		returnMessage = "[Azure CNS] Error. CNS is not yet initialized with environment."
 		returnCode = types.UnsupportedEnvironment
 	}
 
@@ -225,7 +226,8 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 	logger.Request(service.Name, &req, err)
 
 	if err != nil {
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
+		//nolint:goconst
+		returnMessage = "[Azure CNS] Error. Unable to decode input request."
 		returnCode = types.InvalidParameter
 	} else {
 		switch r.Method {
@@ -275,7 +277,8 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 	logger.Request(service.Name, &req, err)
 
 	if err != nil {
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. Unable to decode input request.")
+		//nolint:goconst
+		returnMessage = "[Azure CNS] Error. Unable to decode input request."
 		returnCode = types.InvalidParameter
 	} else {
 		switch r.Method {
@@ -332,7 +335,7 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 
 	if req.ReservationID == "" {
 		returnCode = types.ReservationNotFound
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. ReservationId is empty")
+		returnMessage = "[Azure CNS] Error. ReservationId is empty"
 	}
 
 	switch r.Method {
@@ -408,7 +411,7 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 
 	if req.ReservationID == "" {
 		returnCode = types.ReservationNotFound
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. ReservationId is empty")
+		returnMessage = "[Azure CNS] Error. ReservationId is empty"
 	}
 
 	switch r.Method {
@@ -766,7 +769,6 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 	logger.Printf("[Azure CNS] createOrUpdateNetworkContainer")
 
 	var req cns.CreateNetworkContainerRequest
-
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
@@ -892,7 +894,7 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 	if req.NetworkContainerid == "" {
 		returnCode = types.NetworkContainerNotSpecified
-		returnMessage = fmt.Sprintf("[Azure CNS] Error. NetworkContainerid is empty")
+		returnMessage = "[Azure CNS] Error. NetworkContainerid is empty"
 	}
 
 	switch r.Method {
@@ -933,7 +935,6 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		}
 
 		service.saveState()
-		break
 	default:
 		returnMessage = "[Azure CNS] Error. DeleteNetworkContainer did not receive a POST."
 		returnCode = types.InvalidParameter

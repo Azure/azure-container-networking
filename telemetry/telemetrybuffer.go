@@ -49,15 +49,14 @@ const (
 
 // TelemetryBuffer object
 type TelemetryBuffer struct {
-	client             net.Conn
-	listener           net.Listener
-	connections        []net.Conn
-	azureHostReportURL string
-	FdExists           bool
-	Connected          bool
-	data               chan interface{}
-	cancel             chan bool
-	mutex              sync.Mutex
+	client      net.Conn
+	listener    net.Listener
+	connections []net.Conn
+	FdExists    bool
+	Connected   bool
+	data        chan interface{}
+	cancel      chan bool
+	mutex       sync.Mutex
 }
 
 // Buffer object holds the different types of reports
@@ -326,17 +325,6 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 			return
 		}
 	}
-}
-
-// TryToConnectToTelemetryService - Attempt to connect telemetry process without spawning it if it's not already running.
-func (tb *TelemetryBuffer) TryToConnectToTelemetryService() {
-	if err := tb.Connect(); err != nil {
-		log.Logf("Connection to telemetry socket failed: %v", err)
-		return
-	}
-
-	tb.Connected = true
-	log.Logf("Connected to telemetry service")
 }
 
 func getTelemetryServiceDirectory() (path string, dir string) {

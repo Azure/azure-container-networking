@@ -42,7 +42,6 @@ type AIConfig struct {
 
 // TelmetryHandle holds appinsight handles and metadata
 type telemetryHandle struct {
-	telemetryConfig              *appinsights.TelemetryConfiguration
 	appName                      string
 	appVersion                   string
 	metadata                     common.Metadata

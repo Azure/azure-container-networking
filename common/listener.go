@@ -167,7 +167,7 @@ func (listener *Listener) AddEndpoint(endpoint string) {
 }
 
 // AddHandler registers a protocol handler.
-func (listener *Listener) AddHandler(path string, handler func(http.ResponseWriter, *http.Request)) {
+func (listener *Listener) AddHandler(path string, handler http.HandlerFunc) {
 	listener.mux.HandleFunc(path, handler)
 }
 

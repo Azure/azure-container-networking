@@ -21,18 +21,20 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 )
 
-var ipamQueryUrl = "localhost:42424"
-var ipamQueryResponse = "" +
-	"<Interfaces>" +
-	"	<Interface MacAddress=\"*\" IsPrimary=\"true\">" +
-	"		<IPSubnet Prefix=\"10.0.0.0/16\">" +
-	"			<IPAddress Address=\"10.0.0.4\" IsPrimary=\"true\"/>" +
-	"			<IPAddress Address=\"10.0.0.5\" IsPrimary=\"false\"/>" +
-	"			<IPAddress Address=\"10.0.0.6\" IsPrimary=\"false\"/>" +
-	"			<IPAddress Address=\"10.0.0.7\" IsPrimary=\"false\"/>" +
-	"		</IPSubnet>" +
-	"	</Interface>" +
-	"</Interfaces>"
+var (
+	ipamQueryUrl      = "localhost:42424"
+	ipamQueryResponse = "" +
+		"<Interfaces>" +
+		"	<Interface MacAddress=\"*\" IsPrimary=\"true\">" +
+		"		<IPSubnet Prefix=\"10.0.0.0/16\">" +
+		"			<IPAddress Address=\"10.0.0.4\" IsPrimary=\"true\"/>" +
+		"			<IPAddress Address=\"10.0.0.5\" IsPrimary=\"false\"/>" +
+		"			<IPAddress Address=\"10.0.0.6\" IsPrimary=\"false\"/>" +
+		"			<IPAddress Address=\"10.0.0.7\" IsPrimary=\"false\"/>" +
+		"		</IPSubnet>" +
+		"	</Interface>" +
+		"</Interfaces>"
+)
 
 func TestIpam(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -73,11 +75,11 @@ var (
 	err         error
 	endpointID1 = uuid.New().String()
 
-	//this usedAddresses map is to test not duplicate IP's
+	// this usedAddresses map is to test not duplicate IP's
 	// have been provided throughout this test execution
 	UsedAddresses = map[string]string{}
 
-	//below is the network,used to test if the IP's provided by IPAM
+	// below is the network,used to test if the IP's provided by IPAM
 	// is in the the space requested.
 	network = net.IPNet{IP: net.ParseIP("10.0.0.0"), Mask: net.CIDRMask(16, 32)}
 
@@ -104,9 +106,7 @@ var (
 	})
 
 	_ = Describe("Test IPAM", func() {
-
 		Context("IPAM start", func() {
-
 			var config common.PluginConfig
 
 			It("Create IPAM plugin", func() {
@@ -127,7 +127,6 @@ var (
 		})
 
 		Describe("Test IPAM ADD and DELETE pool", func() {
-
 			var result *cniTypesCurr.Result
 
 			Context("When ADD with nothing, call for ipam triggering request pool and address", func() {
@@ -153,7 +152,6 @@ var (
 					Expect(err).ShouldNot(HaveOccurred())
 
 					delete(UsedAddresses, result.IPs[0].Address.IP.String())
-
 				})
 			})
 
@@ -167,7 +165,6 @@ var (
 		})
 
 		Describe("Test IPAM ADD and DELETE address", func() {
-
 			Context("When address is given", func() {
 				It("Request pool and address successfully", func() {
 					arg.StdinData = getStdinData("0.4.0", "", "10.0.0.6")
@@ -217,14 +214,13 @@ var (
 
 					AssertProperAddressSpace(result.IPs[0].Address)
 
-					//release the container ID for next test
+					// release the container ID for next test
 					arg.ContainerID = ""
 				})
 			})
 		})
 
 		Describe("Test IPAM DELETE", func() {
-
 			Context("Delete when only container id is given", func() {
 				It("Deleted", func() {
 					arg.StdinData = getStdinData("0.4.0", "10.0.0.0/16", "")
@@ -236,13 +232,11 @@ var (
 					address := UsedAddresses[arg.ContainerID]
 
 					RemoveAddressUsage(address, arg.ContainerID)
-
 				})
 			})
 
 			Context("When address and subnet is given", func() {
 				It("Release address successfully", func() {
-
 					nextAddress := GetNextAddress()
 					arg.StdinData = getStdinData("0.4.0", "10.0.0.0/16", nextAddress)
 					err = plugin.Delete(arg)
@@ -291,7 +285,7 @@ var (
 )
 
 func GetNextAddress() string {
-	//return first value
+	// return first value
 	for a := range UsedAddresses {
 		return a
 	}
@@ -299,7 +293,7 @@ func GetNextAddress() string {
 }
 
 func AssertAddressNotInUse(address string) {
-	//confirm if IP is in use by other invocation
+	// confirm if IP is in use by other invocation
 	_, exists := UsedAddresses[address]
 
 	Expect(exists).Should(BeFalse())
@@ -325,7 +319,7 @@ func RemoveAddressUsage(address, containerId string) {
 }
 
 func AssertProperAddressSpace(address net.IPNet) {
-	//validate the IP is part of this network IP space
+	// validate the IP is part of this network IP space
 	Expect(network.Contains(address.IP)).Should(Equal(true))
 	Expect(address.Mask).Should(Equal(network.Mask))
 }

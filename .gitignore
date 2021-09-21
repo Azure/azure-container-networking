@@ -23,4 +23,4 @@ ipam-*.xml
 
 controller-gen
 build/tools/bin
-npm/debugTools/http
+npm/debug/http

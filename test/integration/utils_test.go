@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	//crd "dnc/requestcontroller/kubernetes"
+	// crd "dnc/requestcontroller/kubernetes"
 	"os"
 	"testing"
 
@@ -226,7 +226,6 @@ func waitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 	return retrier.Do(ctx, checkPodIPsFn)
 }
 
-
 func exportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector, logDir string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
 	podLogOpts := corev1.PodLogOptions{}
@@ -250,7 +249,7 @@ func exportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Client
 			return err
 		}
 		str := buf.String()
-		err = writeToFile(logDir, pod.Name + logExtension, str)
+		err = writeToFile(logDir, pod.Name+logExtension, str)
 		if err != nil {
 			return err
 		}
@@ -259,9 +258,9 @@ func exportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Client
 }
 
 func writeToFile(dir, fileName, str string) error {
-	if _, err := os.Stat(dir); os.IsNotExist(err) { 
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		// your dir does not exist
-		os.MkdirAll(dir, 0666)
+		os.MkdirAll(dir, 0o666)
 	}
 	// open output file
 	f, err := os.Create(dir + fileName)
