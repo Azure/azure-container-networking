@@ -35,6 +35,29 @@ const (
 	containerIfNamePrefix = "vEthernet"
 )
 
+type AzureHNSEndpointClient interface {
+	GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error)
+	GetHNSEndpointByID(endpointID string) (*hcsshim.HNSEndpoint, error)
+	HotAttachEndpoint(containerID string, endpointID string) error
+	IsAttached(hnsep *hcsshim.HNSEndpoint, containerID string) (bool, error)
+}
+
+func (az AzureHNSEndpoint) GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error) {
+	return hcsshim.GetHNSEndpointByName(endpointName)
+}
+
+func (az AzureHNSEndpoint) GetHNSEndpointByID(id string) (*hcsshim.HNSEndpoint, error) {
+	return hcsshim.GetHNSEndpointByID(id)
+}
+
+func (az AzureHNSEndpoint) HotAttachEndpoint(containerID, endpointID string) error {
+	return hcsshim.HotAttachEndpoint(containerID, endpointID)
+}
+
+func (az AzureHNSEndpoint) IsAttached(hnsep *hcsshim.HNSEndpoint, containerID string) (bool, error) {
+	return hnsep.IsAttached(containerID)
+}
+
 // HotAttachEndpoint is a wrapper of hcsshim's HotAttachEndpoint.
 func (endpoint *EndpointInfo) HotAttachEndpoint(containerID string) error {
 	return hcsshim.HotAttachEndpoint(containerID, endpoint.Id)

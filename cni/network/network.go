@@ -7,11 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
-	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -73,14 +69,15 @@ const (
 )
 
 // NetPlugin represents the CNI network plugin.
-type netPlugin struct {
+type NetPlugin struct {
 	*cni.Plugin
-	nm           network.NetworkManager
-	ipamInvoker  IPAMInvoker
-	report       *telemetry.CNIReport
-	tb           *telemetry.TelemetryBuffer
-	nnsClient    NnsClient
-	multitenancy multitenancyClient
+	nm                 network.NetworkManager
+	ipamInvoker        IPAMInvoker
+	report             *telemetry.CNIReport
+	tb                 *telemetry.TelemetryBuffer
+	nnsClient          NnsClient
+	hnsEndpointClient  network.AzureHNSEndpointClient
+	multitenancyClient MultitenancyClient
 }
 
 // client for node network service
@@ -88,12 +85,12 @@ type NnsClient interface {
 	// Do network port programming for the pod via node network service.
 	// podName - name of the pod as received from containerD
 	// nwNamesapce - network namespace name as received from containerD
-	AddContainerNetworking(ctx context.Context, podName, nwNamespace string) (error, *nnscontracts.ConfigureContainerNetworkingResponse)
+	AddContainerNetworking(ctx context.Context, podName, nwNamespace string) (*nnscontracts.ConfigureContainerNetworkingResponse, error)
 
 	// Undo or delete network port programming for the pod via node network service.
 	// podName - name of the pod as received from containerD
 	// nwNamesapce - network namespace name as received from containerD
-	DeleteContainerNetworking(ctx context.Context, podName, nwNamespace string) (error, *nnscontracts.ConfigureContainerNetworkingResponse)
+	DeleteContainerNetworking(ctx context.Context, podName, nwNamespace string) (*nnscontracts.ConfigureContainerNetworkingResponse, error)
 }
 
 // snatConfiguration contains a bool that determines whether CNI enables snat on host and snat for dns
@@ -102,8 +99,12 @@ type snatConfiguration struct {
 	EnableSnatForDns bool
 }
 
-// NewPlugin creates a new netPlugin object.
-func NewPlugin(name string, config *common.PluginConfig, client NnsClient) (*netPlugin, error) {
+// NewPlugin creates a new NetPlugin object.
+func NewPlugin(name string,
+	config *common.PluginConfig,
+	client NnsClient,
+	multitenancyClient MultitenancyClient,
+	azHnsClient network.AzureHNSEndpointClient) (*NetPlugin, error) {
 	// Setup base plugin.
 	plugin, err := cni.NewPlugin(name, config.Version)
 	if err != nil {
@@ -119,20 +120,22 @@ func NewPlugin(name string, config *common.PluginConfig, client NnsClient) (*net
 
 	config.NetApi = nm
 
-	return &netPlugin{
-		Plugin:    plugin,
-		nm:        nm,
-		nnsClient: client,
+	return &NetPlugin{
+		Plugin:             plugin,
+		nm:                 nm,
+		nnsClient:          client,
+		multitenancyClient: multitenancyClient,
+		hnsEndpointClient:  azHnsClient,
 	}, nil
 }
 
-func (plugin *netPlugin) SetCNIReport(report *telemetry.CNIReport, tb *telemetry.TelemetryBuffer) {
+func (plugin *NetPlugin) SetCNIReport(report *telemetry.CNIReport, tb *telemetry.TelemetryBuffer) {
 	plugin.report = report
 	plugin.tb = tb
 }
 
 // Starts the plugin.
-func (plugin *netPlugin) Start(config *common.PluginConfig) error {
+func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
 	// Initialize base plugin.
 	err := plugin.Initialize(config)
 	if err != nil {
@@ -158,7 +161,7 @@ func (plugin *netPlugin) Start(config *common.PluginConfig) error {
 	return nil
 }
 
-func (plugin *netPlugin) GetAllEndpointState(networkid string) (*api.AzureCNIState, error) {
+func (plugin *NetPlugin) GetAllEndpointState(networkid string) (*api.AzureCNIState, error) {
 	st := api.AzureCNIState{
 		ContainerInterfaces: make(map[string]api.PodNetworkInterfaceInfo),
 	}
@@ -187,14 +190,14 @@ func (plugin *netPlugin) GetAllEndpointState(networkid string) (*api.AzureCNISta
 }
 
 // Stops the plugin.
-func (plugin *netPlugin) Stop() {
+func (plugin *NetPlugin) Stop() {
 	plugin.nm.Uninitialize()
 	plugin.Uninitialize()
 	log.Printf("[cni-net] Plugin stopped.")
 }
 
 // FindMasterInterface returns the name of the master interface.
-func (plugin *netPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPrefix *net.IPNet) string {
+func (plugin *NetPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPrefix *net.IPNet) string {
 	// An explicit master configuration wins. Explicitly specifying a master is
 	// useful if host has multiple interfaces with addresses in the same subnet.
 	if nwCfg.Master != "" {
@@ -228,7 +231,7 @@ func GetEndpointID(args *cniSkel.CmdArgs) string {
 }
 
 // getPodInfo returns POD info by parsing the CNI args.
-func (plugin *netPlugin) getPodInfo(args string) (string, string, error) {
+func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 	podCfg, err := cni.ParseCniArgs(args)
 	if err != nil {
 		log.Printf("Error while parsing CNI Args %v", err)
@@ -275,11 +278,7 @@ func SetCustomDimensions(cniMetric *telemetry.AIMetric, nwCfg *cni.NetworkConfig
 	}
 }
 
-func (plugin *netPlugin) setCNIReportDetails(nwCfg *cni.NetworkConfig, opType string, msg string) {
-	if nwCfg.MultiTenancy {
-		plugin.report.Context = "AzureCNIMultitenancy"
-	}
-
+func (plugin *NetPlugin) setCNIReportDetails(nwCfg *cni.NetworkConfig, opType, msg string) {
 	plugin.report.OperationType = opType
 	plugin.report.SubContext = fmt.Sprintf("%+v", nwCfg)
 	plugin.report.EventMessage = msg
@@ -309,21 +308,16 @@ func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
 //
 
 // Add handles CNI add commands.
-func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
+func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	var (
 		result           *cniTypesCurr.Result
 		resultV6         *cniTypesCurr.Result
 		azIpamResult     *cniTypesCurr.Result
-		err              error
-		vethName         string
-		nwCfg            *cni.NetworkConfig
-		epInfo           *network.EndpointInfo
 		iface            *cniTypesCurr.Interface
 		subnetPrefix     net.IPNet
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
 		enableInfraVnet  bool
 		enableSnatForDns bool
-		nwDNSInfo        network.DNSInfo
 		cniMetric        telemetry.AIMetric
 	)
 
@@ -333,20 +327,13 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData)
 
 	// Parse network configuration from stdin.
-	nwCfg, err = cni.ParseNetworkConfig(args.StdinData)
+	nwCfg, err := cni.ParseNetworkConfig(args.StdinData)
 	if err != nil {
 		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
 		return err
 	}
 
 	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
-
-	// Temporary if block to determing whether we disable SNAT on host (for multi-tenant scenario only)
-	if nwCfg.MultiTenancy {
-		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = determineSnat(); err != nil {
-			return err
-		}
-	}
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 	plugin.setCNIReportDetails(nwCfg, CNI_ADD, "")
@@ -417,7 +404,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	if nwCfg.ExecutionMode == string(Baremetal) {
 		var res *nnscontracts.ConfigureContainerNetworkingResponse
 		log.Printf("Baremetal mode. Calling vnet agent for ADD")
-		err, res = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
+		res, err = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
 
 		if err == nil {
 			result = convertNnsToCniResult(res, args.IfName, k8sPodName, "AddContainerNetworking")
@@ -433,18 +420,24 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 			break
 		}
 	}
+
 	if nwCfg.MultiTenancy {
-		result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = plugin.multitenancy.GetMultiTenancyCNIResult(context.TODO(), enableInfraVnet, nwCfg, plugin, k8sPodName, k8sNamespace, args.IfName)
-		if err != nil {
-			log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
-			return fmt.Errorf("error while getting multitenancy result %w", err)
+		plugin.report.Context = "AzureCNIMultitenancy"
+		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
+		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(
+			snatConfigFileName, nmAgentSnatAndDnsSupportAPI); err != nil {
+			return fmt.Errorf("%w", err)
 		}
 
+		result, cnsNetworkConfig, subnetPrefix, azIpamResult, err = plugin.GetMultiTenancyCNIResult(
+			context.TODO(), enableInfraVnet, nwCfg, k8sPodName, k8sNamespace, args.IfName)
+		if err != nil {
+			log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
+			return fmt.Errorf("GetMultiTenancyCNIResult failed:%w", err)
+		}
 		defer func() {
 			if err != nil {
-				if nwCfg.MultiTenancy && azIpamResult != nil && azIpamResult.IPs != nil {
-					plugin.multitenancy.CleanupMultitenancyResources(enableInfraVnet, &azIpamResult.IPs[0].Address, nwCfg, plugin)
-				}
+				CleanupMultitenancyResources(enableInfraVnet, nwCfg, azIpamResult, plugin)
 			}
 		}()
 
@@ -452,7 +445,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	networkId, err := getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkID, err := plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 		return err
@@ -461,199 +454,243 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	endpointId := GetEndpointID(args)
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
+	options := make(map[string]interface{})
 	// Check whether the network already exists.
-	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkId)
+	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
+	/* Handle consecutive ADD calls for infrastructure containers.
+	 * This is a temporary work around for issue #57253 of Kubernetes.
+	 * We can delete this if statement once they fix it.
+	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
+	 */
+
 	if nwInfoErr == nil {
-		/* Handle consecutive ADD calls for infrastructure containers.
-		 * This is a temporary work around for issue #57253 of Kubernetes.
-		 * We can delete this if statement once they fix it.
-		 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
-		 */
-		epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
-		if epInfo != nil {
-			resultConsAdd, errConsAdd := handleConsecutiveAdd(args, endpointId, nwInfo, epInfo, nwCfg)
-			if errConsAdd != nil {
-				log.Printf("handleConsecutiveAdd failed with error %v", errConsAdd)
-				result = resultConsAdd
-				err = errConsAdd
-				return err
-			}
+		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
+		nwInfo.IPAMType = nwCfg.Ipam.Type
+		options = nwInfo.Options
 
-			if resultConsAdd != nil {
-				result = resultConsAdd
-				return nil
-			}
-		}
-	}
-
-	switch nwCfg.Ipam.Type {
-	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+		result, err = plugin.handleConsecutiveAdd(args, endpointId, networkID, &nwInfo, nwCfg)
 		if err != nil {
-			log.Printf("[cni-net] Creating network %v, failed with err %v", networkId, err)
+			log.Printf("handleConsecutiveAdd failed with error %v", err)
 			return err
 		}
-	default:
-		plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
+
+		if result != nil {
+			return nil
+		}
 	}
 
-	options := make(map[string]interface{})
+	// Initialize azureipam/cns ipam
+	if plugin.ipamInvoker == nil {
+		switch nwCfg.Ipam.Type {
+		case network.AzureCNS:
+			plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+			if err != nil {
+				log.Printf("[cni-net] Creating network %v, failed with err %v", networkID, err)
+				return err
+			}
+		default:
+			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
+		}
+	}
 
+	// Allocate from azure ipam
+	if !nwCfg.MultiTenancy {
+		result, resultV6, err = plugin.ipamInvoker.Add(nwCfg, args, &subnetPrefix, options)
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			err = plugin.cleanupAllocationOnError(err, result, resultV6, nwCfg, args, options)
+		}()
+	}
+
+	// Create network
 	if nwInfoErr != nil {
 		// Network does not exist.
-		log.Printf("[cni-net] Creating network %v.", networkId)
-
-		if !nwCfg.MultiTenancy {
-			result, resultV6, err = plugin.ipamInvoker.Add(nwCfg, args, &subnetPrefix, options)
-			if err != nil {
-				return err
-			}
-
-			defer func() {
-				if err != nil {
-					if result != nil && len(result.IPs) > 0 {
-						if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
-							err = plugin.Errorf("Failed to cleanup when NwInfo was not nil with error %v, after Add failed with error %w", er, err)
-						}
-					}
-					if resultV6 != nil && len(resultV6.IPs) > 0 {
-						if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
-							err = plugin.Errorf("Failed to cleanup when NwInfo was not nil with error %v, after Add failed with error %w", er, err)
-						}
-					}
-				}
-			}()
-		}
-
-		gateway := result.IPs[0].Gateway
-		subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
-		nwCfg.Ipam.Subnet = subnetPrefix.String()
-		// Find the master interface.
-		masterIfName := plugin.findMasterInterface(nwCfg, &subnetPrefix)
-		if masterIfName == "" {
-			err = plugin.Errorf("Failed to find the master interface")
-			return err
-		}
-		log.Printf("[cni-net] Found master interface %v.", masterIfName)
-
-		// Add the master as an external interface.
-		err = plugin.nm.AddExternalInterface(masterIfName, subnetPrefix.String())
-		if err != nil {
-			err = plugin.Errorf("Failed to add external interface: %v", err)
+		log.Printf("[cni-net] Creating network %v.", networkID)
+		if nwInfo, err = plugin.createNetworkInternal(networkID, policies, args, nwCfg, cnsNetworkConfig, subnetPrefix, result, resultV6); err != nil {
+			log.Errorf("Create network failed:%w", err)
 			return err
 		}
 
-		nwDNSInfo, err = getNetworkDNSSettings(nwCfg, result, k8sNamespace)
-		if err != nil {
-			err = plugin.Errorf("Failed to getDNSSettings: %v", err)
-			return err
-		}
+		log.Printf("[cni-net] Created network %v with subnet %v.", networkID, subnetPrefix.String())
+	}
 
-		log.Printf("[cni-net] nwDNSInfo: %v", nwDNSInfo)
-		// Update subnet prefix for multi-tenant scenario
-		if err = updateSubnetPrefix(cnsNetworkConfig, &subnetPrefix); err != nil {
-			err = plugin.Errorf("Failed to updateSubnetPrefix: %v", err)
-			return err
-		}
+	epInfo, err := plugin.createEndpointInternal(nwCfg, cnsNetworkConfig, result, resultV6, azIpamResult, args, &nwInfo,
+		policies, endpointId, k8sPodName, k8sNamespace, enableInfraVnet, enableSnatForDns)
+	if err != nil {
+		log.Errorf("Endpoint creation failed:%w", err)
+		return err
+	}
 
-		// Create the network.
-		nwInfo = network.NetworkInfo{
-			Id:           networkId,
-			Mode:         nwCfg.Mode,
-			MasterIfName: masterIfName,
-			AdapterName:  nwCfg.AdapterName,
-			Subnets: []network.SubnetInfo{
-				{
-					Family:  platform.AfINET,
-					Prefix:  subnetPrefix,
-					Gateway: gateway,
-				},
-			},
-			BridgeName:                    nwCfg.Bridge,
-			EnableSnatOnHost:              nwCfg.EnableSnatOnHost,
-			DNS:                           nwDNSInfo,
-			Policies:                      policies,
-			NetNs:                         args.Netns,
-			DisableHairpinOnHostInterface: nwCfg.DisableHairpinOnHostInterface,
-			IPV6Mode:                      nwCfg.IPV6Mode,
-			ServiceCidrs:                  nwCfg.ServiceCidrs,
-		}
+	msg := fmt.Sprintf("CNI ADD succeeded : CNI Version %+v, IP:%+v, VlanID: %v, Interfaces:%+v, podname %v, namespace %v",
+		result.CNIVersion, result.IPs, epInfo.Data[network.VlanIDKey], result.Interfaces, k8sPodName, k8sNamespace)
+	plugin.setCNIReportDetails(nwCfg, CNI_ADD, msg)
 
-		nwInfo.IPAMType = nwCfg.Ipam.Type
+	return nil
+}
 
-		if len(result.IPs) > 0 {
-			_, podnetwork, err := net.ParseCIDR(result.IPs[0].Address.String())
-			if err != nil {
-				return err
-			}
-
-			nwInfo.PodSubnet = network.SubnetInfo{
-				Family:  platform.GetAddressFamily(&result.IPs[0].Address.IP),
-				Prefix:  *podnetwork,
-				Gateway: result.IPs[0].Gateway,
+func (plugin *NetPlugin) cleanupAllocationOnError(err error,
+	result, resultV6 *cniTypesCurr.Result,
+	nwCfg *cni.NetworkConfig,
+	args *cniSkel.CmdArgs,
+	options map[string]interface{}) error {
+	if err != nil {
+		if result != nil && len(result.IPs) > 0 {
+			if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
+				err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
 			}
 		}
-
-		nwInfo.Options = options
-		setNetworkOptions(cnsNetworkConfig, &nwInfo)
-
-		addNatIPV6SubnetInfo(nwCfg, resultV6, &nwInfo)
-
-		err = plugin.nm.CreateNetwork(&nwInfo)
-		if err != nil {
-			err = plugin.Errorf("Failed to create network: %v", err)
-			return err
-		}
-
-		log.Printf("[cni-net] Created network %v with subnet %v.", networkId, subnetPrefix.String())
-	} else {
-		if !nwCfg.MultiTenancy {
-			// Network already exists.
-			log.Printf("[cni-net] Found network %v with subnet %v.", networkId, nwInfo.Subnets[0].Prefix.String())
-			result, resultV6, err = plugin.ipamInvoker.Add(nwCfg, args, &subnetPrefix, nwInfo.Options)
-			if err != nil {
-				return err
+		if resultV6 != nil && len(resultV6.IPs) > 0 {
+			if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
+				err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
 			}
-
-			nwInfo.IPAMType = nwCfg.Ipam.Type
-
-			defer func() {
-				if err != nil {
-					if result != nil && len(result.IPs) > 0 {
-						if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, nwInfo.Options); er != nil {
-							err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
-						}
-					}
-					if resultV6 != nil && len(resultV6.IPs) > 0 {
-						if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, nwInfo.Options); er != nil {
-							err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
-						}
-					}
-				}
-			}()
 		}
 	}
 
+	return err
+}
+
+func (plugin *NetPlugin) createNetworkInternal(
+	networkID string,
+	policies []policy.Policy,
+	args *cniSkel.CmdArgs,
+	nwCfg *cni.NetworkConfig,
+	cnsNetworkConfig *cns.GetNetworkContainerResponse,
+	subnetPrefix net.IPNet,
+	result *cniTypesCurr.Result,
+	resultV6 *cniTypesCurr.Result) (network.NetworkInfo, error) {
+
+	nwInfo := network.NetworkInfo{}
+	options := make(map[string]interface{})
+	gateway := result.IPs[0].Gateway
+	subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
+	nwCfg.Ipam.Subnet = subnetPrefix.String()
+	// Find the master interface.
+	masterIfName := plugin.findMasterInterface(nwCfg, &subnetPrefix)
+	if masterIfName == "" {
+		err := plugin.Errorf("Failed to find the master interface")
+		return nwInfo, err
+	}
+	log.Printf("[cni-net] Found master interface %v.", masterIfName)
+
+	// Add the master as an external interface.
+	err := plugin.nm.AddExternalInterface(masterIfName, subnetPrefix.String())
+	if err != nil {
+		err = plugin.Errorf("Failed to add external interface: %v", err)
+		return nwInfo, err
+	}
+
+	nwDNSInfo, err := getNetworkDNSSettings(nwCfg, result)
+	if err != nil {
+		err = plugin.Errorf("Failed to getDNSSettings: %v", err)
+		return nwInfo, err
+	}
+
+	log.Printf("[cni-net] nwDNSInfo: %v", nwDNSInfo)
+	// Update subnet prefix for multi-tenant scenario
+	if err = updateSubnetPrefix(cnsNetworkConfig, &subnetPrefix); err != nil {
+		err = plugin.Errorf("Failed to updateSubnetPrefix: %v", err)
+		return nwInfo, err
+	}
+
+	// Create the network.
+	nwInfo = network.NetworkInfo{
+		Id:           networkID,
+		Mode:         nwCfg.Mode,
+		MasterIfName: masterIfName,
+		AdapterName:  nwCfg.AdapterName,
+		Subnets: []network.SubnetInfo{
+			{
+				Family:  platform.AfINET,
+				Prefix:  subnetPrefix,
+				Gateway: gateway,
+			},
+		},
+		BridgeName:                    nwCfg.Bridge,
+		EnableSnatOnHost:              nwCfg.EnableSnatOnHost,
+		DNS:                           nwDNSInfo,
+		Policies:                      policies,
+		NetNs:                         args.Netns,
+		DisableHairpinOnHostInterface: nwCfg.DisableHairpinOnHostInterface,
+		IPV6Mode:                      nwCfg.IPV6Mode,
+		ServiceCidrs:                  nwCfg.ServiceCidrs,
+	}
+
+	nwInfo.IPAMType = nwCfg.Ipam.Type
+
+	if len(result.IPs) > 0 {
+		var podnetwork *net.IPNet
+		_, podnetwork, err = net.ParseCIDR(result.IPs[0].Address.String())
+		if err != nil {
+			return nwInfo, fmt.Errorf("%w", err)
+		}
+
+		nwInfo.PodSubnet = network.SubnetInfo{
+			Family:  platform.GetAddressFamily(&result.IPs[0].Address.IP),
+			Prefix:  *podnetwork,
+			Gateway: result.IPs[0].Gateway,
+		}
+	}
+
+	nwInfo.Options = options
+	setNetworkOptions(cnsNetworkConfig, &nwInfo)
+
+	addNatIPV6SubnetInfo(nwCfg, resultV6, &nwInfo)
+
+	err = plugin.nm.CreateNetwork(&nwInfo)
+	if err != nil {
+		err = plugin.Errorf("Failed to create network: %v", err)
+	}
+
+	return nwInfo, err
+}
+
+func (plugin *NetPlugin) createEndpointInternal(
+	nwCfg *cni.NetworkConfig,
+	cnsNetworkConfig *cns.GetNetworkContainerResponse,
+	result *cniTypesCurr.Result,
+	resultV6 *cniTypesCurr.Result,
+	azIpamResult *cniTypesCurr.Result,
+	args *cniSkel.CmdArgs,
+	nwInfo *network.NetworkInfo,
+	policies []policy.Policy,
+	endpointID string,
+	k8sPodName string,
+	k8sNamespace string,
+	enableInfraVnet bool,
+	enableSnatForDNS bool,
+) (network.EndpointInfo, error) {
+	epInfo := network.EndpointInfo{}
 	epDNSInfo, err := getEndpointDNSSettings(nwCfg, result, k8sNamespace)
 	if err != nil {
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
-		return err
+		return epInfo, err
 	}
 
 	if nwCfg.IPV6Mode == network.IPV6Nat {
 		var ipv6Policy policy.Policy
 
-		ipv6Policy, err = addIPV6EndpointPolicy(nwInfo)
+		ipv6Policy, err = addIPV6EndpointPolicy(*nwInfo)
 		if err != nil {
 			err = plugin.Errorf("Failed to set ipv6 endpoint policy: %v", err)
-			return err
+			return epInfo, err
 		}
 
 		policies = append(policies, ipv6Policy)
 	}
 
-	epInfo = &network.EndpointInfo{
-		Id:                 endpointId,
+	vethName := fmt.Sprintf("%s.%s", k8sNamespace, k8sPodName)
+	if nwCfg.Mode != opModeTransparent {
+		// this mechanism of using only namespace and name is not unique for different incarnations of POD/container.
+		// IT will result in unpredictable behavior if API server decides to
+		// reorder DELETE and ADD call for new incarnation of same POD.
+		vethName = fmt.Sprintf("%s%s%s", nwInfo.Id, args.ContainerID, args.IfName)
+	}
+
+	epInfo = network.EndpointInfo{
+		Id:                 endpointID,
 		ContainerID:        args.ContainerID,
 		NetNsPath:          args.Netns,
 		IfName:             args.IfName,
@@ -664,7 +701,7 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 		EnableSnatOnHost:   nwCfg.EnableSnatOnHost,
 		EnableMultiTenancy: nwCfg.MultiTenancy,
 		EnableInfraVnet:    enableInfraVnet,
-		EnableSnatForDns:   enableSnatForDns,
+		EnableSnatForDns:   enableSnatForDNS,
 		PODName:            k8sPodName,
 		PODNameSpace:       k8sNamespace,
 		SkipHotAttachEp:    false, // Hot attach at the time of endpoint creation
@@ -698,44 +735,29 @@ func (plugin *netPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	if nwCfg.MultiTenancy {
-		plugin.multitenancy.SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, epInfo, result)
+		plugin.multitenancyClient.SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, &epInfo, result)
 	}
 
-	if nwCfg.Mode == opModeTransparent {
-		// this mechanism of using only namespace and name is not unique for different incarnations of POD/container.
-		// IT will result in unpredictable behavior if API server decides to
-		// reorder DELETE and ADD call for new incarnation of same POD.
-		vethName = fmt.Sprintf("%s.%s", k8sNamespace, k8sPodName)
-	} else {
-		// A runtime must not call ADD twice (without a corresponding DEL) for the same
-		// (network name, container id, name of the interface inside the container)
-		vethName = fmt.Sprintf("%s%s%s", networkId, k8sContainerID, k8sIfName)
-	}
-	setEndpointOptions(cnsNetworkConfig, epInfo, vethName)
+	setEndpointOptions(cnsNetworkConfig, &epInfo, vethName)
 
 	cnscli, err := cnsc.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
-		return plugin.Errorf(err.Error())
+		return epInfo, plugin.Errorf(err.Error())
 	}
 
 	// Create the endpoint.
 	log.Printf("[cni-net] Creating endpoint %v.", epInfo.Id)
-	err = plugin.nm.CreateEndpoint(cnscli, networkId, epInfo)
+	err = plugin.nm.CreateEndpoint(cnscli, nwInfo.Id, &epInfo)
 	if err != nil {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
-		return err
 	}
 
-	msg := fmt.Sprintf("CNI ADD succeeded : CNI Version %+v, IP:%+v, Interfaces:%+v, vlanid: %v, podname %v, namespace %v",
-		result.CNIVersion, result.IPs, result.Interfaces, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace)
-	plugin.setCNIReportDetails(nwCfg, CNI_ADD, msg)
-
-	return nil
+	return epInfo, err
 }
 
 // Get handles CNI Get commands.
-func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
+func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 	var (
 		result       cniTypesCurr.Result
 		err          error
@@ -788,7 +810,7 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	if networkId, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
+	if networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 	}
@@ -832,7 +854,7 @@ func (plugin *netPlugin) Get(args *cniSkel.CmdArgs) error {
 }
 
 // Delete handles CNI delete commands.
-func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
+func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var (
 		err          error
 		nwCfg        *cni.NetworkConfig
@@ -888,23 +910,25 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		// schedule send metric before attempting delete
 		defer sendMetricFunc()
-		err, _ = plugin.nnsClient.DeleteContainerNetworking(context.Background(), k8sPodName, args.Netns)
+		_, err = plugin.nnsClient.DeleteContainerNetworking(context.Background(), k8sPodName, args.Netns)
 		return err
 	}
 
-	switch nwCfg.Ipam.Type {
-	case network.AzureCNS:
-		plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
-		if err != nil {
-			log.Printf("[cni-net] Creating network %v failed with err %v.", networkId, err)
-			return err
+	if plugin.ipamInvoker == nil {
+		switch nwCfg.Ipam.Type {
+		case network.AzureCNS:
+			plugin.ipamInvoker, err = NewCNSInvoker(k8sPodName, k8sNamespace)
+			if err != nil {
+				log.Printf("[cni-net] Creating network %v failed with err %v.", networkId, err)
+				return err
+			}
+		default:
+			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 		}
-	default:
-		plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 	}
 
 	// Initialize values from network config.
-	networkId, err = getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
 
 	// If error is not found error, then we ignore it, to comply with CNI SPEC.
 	if err != nil {
@@ -969,6 +993,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	if !nwCfg.MultiTenancy {
+		log.Printf("epinfo:%+v", epInfo)
 		// Call into IPAM plugin to release the endpoint's addresses.
 		for _, address := range epInfo.IPAddresses {
 			log.Printf("release ip:%s", address.IP.String())
@@ -996,7 +1021,7 @@ func (plugin *netPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 // Update handles CNI update commands.
 // Update is only supported for multitenancy and to update routes.
-func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
+func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	var (
 		result              *cniTypesCurr.Result
 		err                 error
@@ -1166,77 +1191,6 @@ func (plugin *netPlugin) Update(args *cniSkel.CmdArgs) error {
 	plugin.setCNIReportDetails(nwCfg, CNI_UPDATE, msg)
 
 	return nil
-}
-
-// Temporary function to determine whether we need to disable SNAT due to NMAgent support
-func determineSnat() (bool, bool, error) {
-	var (
-		snatConfig            snatConfiguration
-		retrieveSnatConfigErr error
-		jsonFile              *os.File
-		httpClient            = &http.Client{Timeout: time.Second * 5}
-		snatConfigFile        = snatConfigFileName + jsonFileExtension
-	)
-
-	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
-	if jsonFile, retrieveSnatConfigErr = os.Open(snatConfigFile); retrieveSnatConfigErr == nil {
-		bytes, _ := ioutil.ReadAll(jsonFile)
-		jsonFile.Close()
-		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
-			log.Errorf("[cni-net] failed to unmarshal to snatConfig with error %v",
-				retrieveSnatConfigErr)
-		}
-	}
-
-	// If we weren't able to retrieve snatConfiguration, query NMAgent
-	if retrieveSnatConfigErr != nil {
-		var resp *http.Response
-		resp, retrieveSnatConfigErr = httpClient.Get(nmAgentSupportedApisURL)
-		if retrieveSnatConfigErr == nil {
-			defer resp.Body.Close()
-
-			if resp.StatusCode == http.StatusOK {
-				var bodyBytes []byte
-				// if the list of APIs (strings) contains the nmAgentSnatSupportAPI we will disable snat on host
-				if bodyBytes, retrieveSnatConfigErr = ioutil.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
-					bodyStr := string(bodyBytes)
-					if !strings.Contains(bodyStr, nmAgentSnatAndDnsSupportAPI) {
-						snatConfig.EnableSnatForDns = true
-						snatConfig.EnableSnatOnHost = !strings.Contains(bodyStr, nmAgentSnatSupportAPI)
-					}
-
-					jsonStr, _ := json.Marshal(snatConfig)
-					fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0o664))
-					if err == nil {
-						fp.Write(jsonStr)
-						fp.Close()
-					} else {
-						log.Errorf("[cni-net] failed to save snat settings to %s with error: %+v", snatConfigFile, err)
-					}
-				}
-			} else {
-				retrieveSnatConfigErr = fmt.Errorf("nmagent request status code %d", resp.StatusCode)
-			}
-		}
-	}
-
-	// Log and return the error when we fail acquire snat configuration for host and dns
-	if retrieveSnatConfigErr != nil {
-		log.Errorf("[cni-net] failed to acquire SNAT configuration with error %v",
-			retrieveSnatConfigErr)
-		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
-	}
-
-	log.Printf("[cni-net] saved snat settings %+v to %s", snatConfig, snatConfigFile)
-	if snatConfig.EnableSnatOnHost {
-		log.Printf("[cni-net] enabling SNAT on container host for outbound connectivity")
-	} else if snatConfig.EnableSnatForDns {
-		log.Printf("[cni-net] enabling SNAT on container host for DNS traffic")
-	} else {
-		log.Printf("[cni-net] disabling SNAT on container host")
-	}
-
-	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
 }
 
 func convertNnsToCniResult(

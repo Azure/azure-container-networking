@@ -4,18 +4,22 @@ code.cloudfoundry.org/clock
 # github.com/Masterminds/semver v1.5.0
 ## explicit
 github.com/Masterminds/semver
-# github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5
+# github.com/Microsoft/go-winio v0.4.17 => github.com/microsoft/go-winio v0.4.17
 ## explicit
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
+github.com/Microsoft/go-winio/pkg/security
 github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.8.10-0.20200506181021-222e9efadbe0
+# github.com/Microsoft/hcsshim v0.8.18 => github.com/microsoft/hcsshim v0.8.22
 ## explicit
 github.com/Microsoft/hcsshim
+github.com/Microsoft/hcsshim/computestorage
 github.com/Microsoft/hcsshim/hcn
 github.com/Microsoft/hcsshim/internal/cni
 github.com/Microsoft/hcsshim/internal/cow
 github.com/Microsoft/hcsshim/internal/hcs
+github.com/Microsoft/hcsshim/internal/hcs/schema1
+github.com/Microsoft/hcsshim/internal/hcs/schema2
 github.com/Microsoft/hcsshim/internal/hcserror
 github.com/Microsoft/hcsshim/internal/hns
 github.com/Microsoft/hcsshim/internal/interop
@@ -27,11 +31,10 @@ github.com/Microsoft/hcsshim/internal/oc
 github.com/Microsoft/hcsshim/internal/regstate
 github.com/Microsoft/hcsshim/internal/runhcs
 github.com/Microsoft/hcsshim/internal/safefile
-github.com/Microsoft/hcsshim/internal/schema1
-github.com/Microsoft/hcsshim/internal/schema2
 github.com/Microsoft/hcsshim/internal/timeout
 github.com/Microsoft/hcsshim/internal/vmcompute
 github.com/Microsoft/hcsshim/internal/wclayer
+github.com/Microsoft/hcsshim/internal/winapi
 github.com/Microsoft/hcsshim/osversion
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
@@ -40,9 +43,9 @@ github.com/beorn7/perks/quantile
 github.com/billgraziano/dpapi
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
-# github.com/containerd/cgroups v0.0.0-20190919134610-bf292b21730f
+# github.com/containerd/cgroups v1.0.1
 github.com/containerd/cgroups/stats/v1
-# github.com/containernetworking/cni v0.7.0-rc2
+# github.com/containernetworking/cni v0.8.1
 ## explicit
 github.com/containernetworking/cni/libcni
 github.com/containernetworking/cni/pkg/invoke
@@ -50,10 +53,11 @@ github.com/containernetworking/cni/pkg/skel
 github.com/containernetworking/cni/pkg/types
 github.com/containernetworking/cni/pkg/types/020
 github.com/containernetworking/cni/pkg/types/current
+github.com/containernetworking/cni/pkg/utils
 github.com/containernetworking/cni/pkg/version
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/docker/docker v0.7.3-0.20190327010347-be7ac8be2ae0
+# github.com/docker/docker v20.10.8+incompatible
 ## explicit
 github.com/docker/docker/pkg/ioutils
 github.com/docker/docker/pkg/longpath
@@ -102,7 +106,7 @@ github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
 # github.com/google/gofuzz v1.1.0
 github.com/google/gofuzz
-# github.com/google/uuid v1.1.2
+# github.com/google/uuid v1.2.0
 ## explicit
 github.com/google/uuid
 # github.com/googleapis/gnostic v0.5.5
@@ -250,8 +254,6 @@ github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
 # github.com/subosito/gotenv v1.2.0
 github.com/subosito/gotenv
-# github.com/vishvananda/netlink v1.1.0
-## explicit
 # github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
 ## explicit
 # go.opencensus.io v0.23.0
@@ -861,5 +863,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 ## explicit
 sigs.k8s.io/yaml
+# github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
+# github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.8.22
 # github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 # github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
