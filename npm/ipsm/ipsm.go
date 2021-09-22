@@ -619,6 +619,8 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 		_, err := ipsMgr.run(flushEntry)
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to flush ipset %s", ipsetName)
+		} else {
+			metrics.ResetEntriesInIPSet(ipsetName)
 		}
 	}
 
