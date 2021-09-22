@@ -59,7 +59,9 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	// record a pod allocated an IP
 	defer func() {
 		// observe allocation wait time
-		ipAllocationLatency.Observe(float64(service.podsPendingIPAllocation.Pop(podInfo.Key())))
+		if since := service.podsPendingIPAllocation.Pop(podInfo.Key()); since > 0 {
+			ipAllocationLatency.Observe(float64(since))
+		}
 	}()
 	reserveResp := &cns.IPConfigResponse{
 		Response: cns.Response{

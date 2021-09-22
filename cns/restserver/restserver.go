@@ -39,6 +39,8 @@ type lockedDurationSet struct {
 	waits map[string]time.Time
 }
 
+// Push registers the passed key and saves the timestamp it is first registered.
+// If the key is already registered, does not overwrite the saved timestamp.
 func (m *lockedDurationSet) Push(key string) {
 	m.Lock()
 	defer m.Unlock()
@@ -48,11 +50,16 @@ func (m *lockedDurationSet) Push(key string) {
 	}
 }
 
+// Pop returns the elapsed duration since the passed key was first registered,
+// or -1 if it is not found.
 func (m *lockedDurationSet) Pop(key string) time.Duration {
 	m.Lock()
-	start := m.waits[key]
+	start, ok := m.waits[key]
 	delete(m.waits, key)
 	m.Unlock()
+	if !ok {
+		return -1
+	}
 	return time.Since(start)
 }
 
