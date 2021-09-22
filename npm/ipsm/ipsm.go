@@ -616,22 +616,22 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 			operationFlag: util.IpsetFlushFlag,
 			set:           ipsetName,
 		}
-		_, flushError := ipsMgr.run(flushEntry)
+		_, err := ipsMgr.run(flushEntry)
+		if err != nil {
+			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to flush ipset %s", ipsetName)
+		}
+	}
 
+	for _, ipsetName := range ipsetLists {
 		deleteEntry := &ipsEntry{
 			operationFlag: util.IpsetDestroyFlag,
 			set:           ipsetName,
 		}
-		_, destroyError := ipsMgr.run(deleteEntry)
-
-		if flushError != nil {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to flush ipset %s", ipsetName)
-		}
-		if destroyError != nil {
+		_, err := ipsMgr.run(deleteEntry)
+		if err != nil {
 			destroyFailureCount++
 			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to destroy ipset %s", ipsetName)
-		}
-		if flushError == nil || destroyError == nil {
+		} else {
 			metrics.RemoveAllEntriesFromIPSet(ipsetName)
 		}
 	}
