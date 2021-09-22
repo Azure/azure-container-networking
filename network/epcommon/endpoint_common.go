@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/platform"
 )
 
@@ -45,10 +44,10 @@ func newErrorEPCommon(errStr string) error {
 }
 
 type EPCommon struct {
-	netlink netlinkinterface.NetlinkInterface
+	netlink netlink.NetlinkInterface
 }
 
-func NewEPCommon(nl netlinkinterface.NetlinkInterface) EPCommon {
+func NewEPCommon(nl netlink.NetlinkInterface) EPCommon {
 	return EPCommon{
 		netlink: nl,
 	}
