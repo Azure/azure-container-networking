@@ -63,13 +63,7 @@ func RemoveEntryFromIPSet(setName string) {
 	}
 }
 
-// ResetEntriesInIPSet sets the number of entries for ipset setName to 0.
-// It doesn't ever update the number of IPSets.
-func ResetEntriesInIPSet(setName string) {
-	numIPSetEntries.Add(-getEntryCountForIPSet(setName))
-}
-
-// RemoveAllEntriesFromIPSet sets the number of entries for ipset setName to 0 and deletes the set
+// RemoveAllEntriesFromIPSet sets the number of entries for ipset setName to 0.
 // It doesn't ever update the number of IPSets.
 func RemoveAllEntriesFromIPSet(setName string) {
 	numIPSetEntries.Add(-getEntryCountForIPSet(setName))

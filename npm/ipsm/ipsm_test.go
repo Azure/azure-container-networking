@@ -530,8 +530,8 @@ func TestDestroyNpmIpsets(t *testing.T) {
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSet2Name), "nethash"}},
 		{Cmd: []string{"ipset", "list"}, Stdout: ipsetListStdout},
 		{Cmd: []string{"ipset", "-F", "-exist", testSet1Name}},
-		{Cmd: []string{"ipset", "-X", "-exist", testSet1Name}},
 		{Cmd: []string{"ipset", "-F", "-exist", testSet2Name}},
+		{Cmd: []string{"ipset", "-X", "-exist", testSet1Name}},
 		{Cmd: []string{"ipset", "-X", "-exist", testSet2Name}},
 	}
 
