@@ -107,11 +107,11 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 	client.hostVethMac = hostVethIf.HardwareAddr
 
 	log.Printf("Setting mtu %d on veth interface %s", primaryIf.MTU, client.hostVethName)
-	if err = client.netlink.SetLinkMTU(client.hostVethName, primaryIf.MTU); err != nil {
+	if err := client.netlink.SetLinkMTU(client.hostVethName, primaryIf.MTU); err != nil {
 		log.Errorf("Setting mtu failed for hostveth %s:%v", client.hostVethName, err)
 	}
 
-	if err = client.netlink.SetLinkMTU(client.containerVethName, primaryIf.MTU); err != nil {
+	if err := client.netlink.SetLinkMTU(client.containerVethName, primaryIf.MTU); err != nil {
 		log.Errorf("Setting mtu failed for containerveth %s:%v", client.containerVethName, err)
 	}
 
