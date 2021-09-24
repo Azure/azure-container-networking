@@ -20,7 +20,10 @@ import (
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 	cniVers "github.com/containernetworking/cni/pkg/version"
+	"github.com/pkg/errors"
 )
+
+var errEmptyContent = errors.New("Read content is zero bytes")
 
 // Plugin is the parent class for CNI plugins.
 type Plugin struct {
@@ -197,26 +200,30 @@ func (plugin *Plugin) IsSafeToRemoveLock(processName string) (bool, error) {
 			return false, cmdErr
 		}
 
-		// Read pid from lockfile
 		lockFileName := plugin.Store.GetLockFileName()
-		content, err := ioutil.ReadFile(lockFileName)
+		// Read pid from lockfile
+		lockFilePid, err := plugin.readLockFile(lockFileName)
 		if err != nil {
-			log.Errorf("Failed to read lock file :%v, ", err)
-			return false, err
+			return false, errors.Wrap(err, "IsSafeToRemoveLock lockfile read failed")
 		}
 
-		if len(content) <= 0 {
-			log.Errorf("Num bytes read from lock file is 0")
-			return false, fmt.Errorf("Num bytes read from lock file is 0")
-		}
-
-		log.Printf("Read from Lock file:%s", content)
+		log.Printf("Read from Lock file:%s", lockFilePid)
 		// Get the process name if running and
 		// check if that matches with our expected process
-		pName, err := platform.GetProcessNameByID(string(content))
+		pName, err := platform.GetProcessNameByID(lockFilePid)
 		if err != nil {
-			return true, nil
-			// if process id changed. read lockfile?
+			var content string
+			content, err = plugin.readLockFile(lockFileName)
+			if err != nil {
+				return false, errors.Wrap(err, "IsSafeToRemoveLock lockfile 2nd read failed")
+			}
+
+			if string(content) == lockFilePid {
+				return true, nil
+			}
+
+			log.Printf("Lockfile content changed from %s to %s. So not safe to clean lock file", lockFilePid, content)
+			return false, nil
 		}
 
 		log.Printf("[CNI] Process name is %s", pName)
@@ -228,4 +235,19 @@ func (plugin *Plugin) IsSafeToRemoveLock(processName string) (bool, error) {
 
 	log.Errorf("Plugin store is nil")
 	return false, fmt.Errorf("plugin store nil")
+}
+
+func (plugin *Plugin) readLockFile(filename string) (string, error) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		log.Errorf("Failed to read lock file :%v, ", err)
+		return "", fmt.Errorf("readLockFile error:%w", err)
+	}
+
+	if len(content) == 0 {
+		log.Errorf("Num bytes read from lock file is 0")
+		return "", errEmptyContent
+	}
+
+	return string(content), nil
 }

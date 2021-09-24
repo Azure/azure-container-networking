@@ -25,7 +25,7 @@ const (
 	lockExtension = ".lock"
 
 	// Maximum number of retries before failing a lock call.
-	lockMaxRetries = 200
+	lockMaxRetries = 100
 
 	// Delay between lock retries.
 	lockRetryDelay = 100 * time.Millisecond
