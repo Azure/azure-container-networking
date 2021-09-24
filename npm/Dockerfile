@@ -21,11 +21,11 @@ COPY --from=builder /usr/local/bin/azure-npm \
 	/usr/bin/azure-npm
 
 # Install dependencies.
-RUN apt-get update
-RUN apt-get install -y iptables
-RUN apt-get install -y ipset
-RUN apt-get install -y ca-certificates
-RUN apt-get upgrade -y
+RUN apk update
+RUN apk add --no-cache iptables
+RUN apk add --no-cache ipset
+RUN apk add --no-cache ca-certificates
+RUN apk upgrade
 
 RUN chmod +x /usr/bin/azure-npm
 
