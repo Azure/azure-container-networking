@@ -250,8 +250,8 @@ ifeq ($(GOOS),linux)
 	--build-arg VERSION=$(VERSION) \
 	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
-	--platform=linux/amd64,linux/arm64 \
-	--push \
+	--platform=$(IMAGE_PLATFORM_ARCHES) \
+	--$(IMAGE_ACTION) \
 	.
 
 	echo $(AZURE_CNS_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)

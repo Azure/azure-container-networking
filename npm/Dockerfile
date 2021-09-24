@@ -1,5 +1,5 @@
 # Build npm
-FROM golang:1.16-alpine AS builder
+FROM golang:1.17 AS builder
 # Build args
 ARG VERSION
 ARG NPM_AI_PATH
@@ -14,7 +14,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm -ldflags "-X main.version="$VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" -gcflags="-dwarflocationlists=true" npm/cmd/*.go
 
 # Use a minimal image as a final image base
-FROM ubuntu:focal
+FROM alpine:3.14
 
 # Copy into final image
 COPY --from=builder /usr/local/bin/azure-npm \
