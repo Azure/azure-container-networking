@@ -41,12 +41,16 @@ var (
 */
 
 const (
-	CreateIPSet  = "CreateIPSet"
-	AppendIPSet  = "AppendIPSet"
-	DeleteIPSet  = "DeleteIPSet"
-	DestroyIPSet = "DestroyIPSet"
-	TestIPSet    = "TestIPSet"
-	AddPolicy    = "AddNetworkPolicy"
+	CreateIPSet             = "CreateIPSet"
+	AppendIPSet             = "AppendIPSet"
+	DeleteIPSet             = "DeleteIPSet"
+	DestroyIPSet            = "DestroyIPSet"
+	TestIPSet               = "TestIPSet"
+	AddPolicy               = "AddNetworkPolicy"
+	AddSelectorReference    = "AddSelectorReference"
+	DeleteSelectorReference = "DeleteSelectorReference"
+	AddNetPolReference      = "AddNetPolReference"
+	DeleteNetPolReference   = "DeleteNetPolReference"
 
 	SetCannotBeDestroyedInUseByKernelComponent = 1
 	ElemSeperatorNotSupported                  = 2
