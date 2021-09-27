@@ -6,7 +6,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
+	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,8 +19,11 @@ import (
 )
 
 type cnsclient interface {
-	CreateOrUpdateNC(cns.CreateNetworkContainerRequest) error
-	UpdateIPAMPoolMonitor(v1alpha.Scaler, v1alpha.NodeNetworkConfigSpec)
+	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
+}
+
+type ipampoolmonitorclient interface {
+	Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec)
 }
 
 type nncgetter interface {
@@ -29,14 +32,16 @@ type nncgetter interface {
 
 // Reconciler watches for CRD status changes
 type Reconciler struct {
-	cnscli cnsclient
-	nnccli nncgetter
+	cnscli             cnsclient
+	ipampoolmonitorcli ipampoolmonitorclient
+	nnccli             nncgetter
 }
 
-func New(nnccli nncgetter, cnscli cnsclient) *Reconciler {
+func New(nnccli nncgetter, cnscli cnsclient, ipampipampoolmonitorcli ipampoolmonitorclient) *Reconciler {
 	return &Reconciler{
-		cnscli: cnscli,
-		nnccli: nnccli,
+		cnscli:             cnscli,
+		ipampoolmonitorcli: ipampipampoolmonitorcli,
+		nnccli:             nnccli,
 	}
 }
 
@@ -76,7 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
 	}
 
-	r.cnscli.UpdateIPAMPoolMonitor(nnc.Status.Scaler, nnc.Spec)
+	r.ipampoolmonitorcli.Update(nnc.Status.Scaler, nnc.Spec)
 	// record assigned IPs metric
 	assignedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
 

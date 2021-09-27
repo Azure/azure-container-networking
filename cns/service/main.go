@@ -21,7 +21,6 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/client/httpapi"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	cni "github.com/Azure/azure-container-networking/cns/cnireconciler"
@@ -36,6 +35,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	kubecontroller "github.com/Azure/azure-container-networking/cns/singletenantcontroller"
+	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
@@ -784,7 +784,7 @@ type nodeNetworkConfigGetter interface {
 }
 
 type ncStateReconciler interface {
-	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error
+	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
@@ -805,7 +805,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
-			err = ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
+			err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
 			return errors.Wrap(err, "failed to reconcile NC state")
 		}
 
@@ -816,7 +816,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 	// If there are no NCs, pass nil to CNSClient
 	if len(nnc.Status.NetworkContainers) == 0 {
-		err = ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
+		err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
 		if err != nil {
 			return errors.Wrap(err, "failed to reconcile NC state")
 		}
@@ -843,7 +843,8 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 	// errors.Wrap provides additional context, and return nil if the err input arg is nil
 	// Call cnsclient init cns passing those two things.
-	return errors.Wrap(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc.Status.Scaler, nnc.Spec), "err in CNS reconciliation")
+	err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc.Status.Scaler, nnc.Spec))
+	return errors.Wrap(err, "err in CNS reconciliation")
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
@@ -882,10 +883,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// initialize the ipam pool monitor
 	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, scopedcli)
-	cnsclient := &httpapi.Client{
-		RestService: httpRestServiceImplementation,
-	}
-	err = initCNS(ctx, scopedcli, cnsclient)
+	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize CNS state")
 	}
@@ -898,7 +896,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err != nil {
 		return errors.Wrap(err, "failed to create manager")
 	}
-	reconciler := kubecontroller.New(nnccli, cnsclient)
+	reconciler := kubecontroller.New(nnccli, httpRestServiceImplementation, httpRestServiceImplementation.IPAMPoolMonitor)
 	if err := reconciler.SetupWithManager(manager, nodeName); err != nil {
 		return err
 	}
