@@ -40,8 +40,11 @@ func TestAddToSet(t *testing.T) {
 func TestRemoveFromSet(t *testing.T) {
 	iMgr := NewIPSetManager()
 
-	iMgr.CreateIPSet(testSetName, NameSpace)
-	err := iMgr.AddToSet([]string{testSetName}, testPodIP, testPodKey)
+	err := iMgr.CreateIPSet(testSetName, NameSpace)
+	if err != nil {
+		t.Errorf("CreateIPSet() returned error %s", err.Error())
+	}
+	err = iMgr.AddToSet([]string{testSetName}, testPodIP, testPodKey)
 	if err != nil {
 		t.Errorf("RemoveFromSet() returned error %s", err.Error())
 	}

@@ -319,7 +319,7 @@ func (iMgr *IPSetManager) DeleteSet(name string) error {
 	return nil
 }
 
-func (iMgr *IPSetManager) AddSelectorReference(setName string, selectorName string) error {
+func (iMgr *IPSetManager) AddSelectorReference(setName, selectorName string) error {
 	if err := iMgr.checkIfExists(setName, npmerrors.AddSelectorReference); err != nil {
 		return err
 	}
@@ -328,7 +328,7 @@ func (iMgr *IPSetManager) AddSelectorReference(setName string, selectorName stri
 	return nil
 }
 
-func (iMgr *IPSetManager) AddNetPolReference(setName string, netPolName string) error {
+func (iMgr *IPSetManager) AddNetPolReference(setName, netPolName string) error {
 	if err := iMgr.checkIfExists(setName, npmerrors.AddNetPolReference); err != nil {
 		return err
 	}
@@ -337,7 +337,7 @@ func (iMgr *IPSetManager) AddNetPolReference(setName string, netPolName string) 
 	return nil
 }
 
-func (iMgr *IPSetManager) DeleteSelectorReference(setName string, selectorName string) error {
+func (iMgr *IPSetManager) DeleteSelectorReference(setName, selectorName string) error {
 	if err := iMgr.checkIfExists(setName, npmerrors.DeleteSelectorReference); err != nil {
 		return err
 	}
@@ -346,7 +346,7 @@ func (iMgr *IPSetManager) DeleteSelectorReference(setName string, selectorName s
 	return nil
 }
 
-func (iMgr *IPSetManager) DeleteNetPolReference(setName string, netPolName string) error {
+func (iMgr *IPSetManager) DeleteNetPolReference(setName, netPolName string) error {
 	if err := iMgr.checkIfExists(setName, npmerrors.DeleteNetPolReference); err != nil {
 		return err
 	}
