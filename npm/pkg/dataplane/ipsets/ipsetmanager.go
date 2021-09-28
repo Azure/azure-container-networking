@@ -113,9 +113,8 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 }
 
 func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
-	wasInKernel := member.shouldBeInKernel()
 	member.decKernelReferCount()
-	if wasInKernel && !member.shouldBeInKernel() {
+	if !member.shouldBeInKernel() {
 		iMgr.modifyCacheForKernelRemoval(member.Name)
 	}
 }
@@ -189,7 +188,7 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey stri
 		}
 
 		// update the IP ownership with podkey
-		delete(set.IPPodKey, ip)
+		delete(set.IPPodKey, ip) // FIXME? this adds the set to the dirty cache even if the ip is not currently in the set
 		iMgr.modifyCacheForKernelUpdate(setName)
 
 		metrics.RemoveEntryFromIPSet(setName)
