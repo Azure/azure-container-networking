@@ -1,11 +1,12 @@
 package cni
 
 import (
+	"os"
+	"testing"
+
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/require"
-	"os"
-	"testing"
 )
 
 func TestMain(m *testing.M) {
@@ -24,12 +25,12 @@ func TestPluginSafeToRemoveLock(t *testing.T) {
 		wantErrMsg  string
 	}{
 		{
-			name: "Safe to remove lock-true",
+			name: "Safe to remove lock-true. Process name not match",
 			plugin: Plugin{
 				Plugin: &common.Plugin{
 					Name:    "cni",
 					Version: "0.3.0",
-					Store:   store.NewMockStore("testfiles/processinit.lock"),
+					Store:   store.NewMockStore("testfiles/processfound.lock"),
 				},
 				version: "0.3.0",
 			},
@@ -38,7 +39,7 @@ func TestPluginSafeToRemoveLock(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name: "Safe to remove lock-true",
+			name: "Safe to remove lock-true. Process not running",
 			plugin: Plugin{
 				Plugin: &common.Plugin{
 					Name:    "cni",
@@ -50,20 +51,6 @@ func TestPluginSafeToRemoveLock(t *testing.T) {
 			processName: "azure-vnet",
 			wantIsSafe:  true,
 			wantErr:     false,
-		},
-		{
-			name: "Safe to remove lock-false",
-			plugin: Plugin{
-				Plugin: &common.Plugin{
-					Name:    "cni",
-					Version: "0.3.0",
-					Store:   store.NewMockStore("testfiles/processinit.lock"),
-				},
-				version: "0.3.0",
-			},
-			processName: "init",
-			wantIsSafe:  false,
-			wantErr:     true,
 		},
 	}
 

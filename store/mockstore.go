@@ -23,6 +23,7 @@ func (ms *mockStore) Read(key string, value interface{}) error {
 func (ms *mockStore) Write(key string, value interface{}) error {
 	return nil
 }
+
 func (ms *mockStore) Flush() error {
 	return nil
 }
@@ -42,10 +43,9 @@ func (ms *mockStore) GetModificationTime() (time.Time, error) {
 func (ms *mockStore) GetLockFileModificationTime() (time.Time, error) {
 	return time.Time{}, nil
 }
+
 func (ms *mockStore) GetLockFileName() string {
 	return ms.lockFilePath
 }
 
-func (ms *mockStore) Remove() {
-
-}
+func (ms *mockStore) Remove() {}
