@@ -13,18 +13,18 @@ MKDIR := powershell.exe -NoProfile -Command New-Item -ItemType Directory -Force
 RMDIR := powershell.exe -NoProfile -Command Remove-Item -Recurse -Force
 endif
 
+# Build defaults.
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+GOOSES ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
+GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
+
 # Windows specific extensions
 ifeq ($(GOOS),windows)
 ARCHIVE_CMD = zip -9lq
 ARCHIVE_EXT = zip
 EXE_EXT = .exe
 endif
-
-# Build defaults.
-GOOS ?= $(shell go env GOOS)
-GOARCH ?= $(shell go env GOARCH)
-GOOSES ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
-GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
 
 # Build directories.
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
