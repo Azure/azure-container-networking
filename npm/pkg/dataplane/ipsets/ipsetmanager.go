@@ -58,14 +58,6 @@ func (iMgr *IPSetManager) modifyCacheForKernelUpdate(setName string) {
 	}
 }
 
-func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
-	wasInKernel := member.shouldBeInKernel()
-	member.incKernelReferCount()
-	if !wasInKernel {
-		iMgr.modifyCacheForKernelAddition(member.Name)
-	}
-}
-
 func (iMgr *IPSetManager) addReferenceAndModifyCache(set *IPSet, referenceName string, addFunction func(string)) {
 	wasInKernel := set.shouldBeInKernel()
 	addFunction(referenceName)
@@ -79,11 +71,11 @@ func (iMgr *IPSetManager) addReferenceAndModifyCache(set *IPSet, referenceName s
 	}
 }
 
-func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
+func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
 	wasInKernel := member.shouldBeInKernel()
-	member.decKernelReferCount()
-	if wasInKernel && !member.shouldBeInKernel() {
-		iMgr.modifyCacheForKernelRemoval(member.Name)
+	member.incKernelReferCount()
+	if !wasInKernel {
+		iMgr.modifyCacheForKernelAddition(member.Name)
 	}
 }
 
@@ -97,6 +89,14 @@ func (iMgr *IPSetManager) deleteReferenceAndModifyCache(set *IPSet, referenceNam
 		for _, member := range set.MemberIPSets {
 			iMgr.decKernelReferCountAndModifyCache(member)
 		}
+	}
+}
+
+func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
+	wasInKernel := member.shouldBeInKernel()
+	member.decKernelReferCount()
+	if wasInKernel && !member.shouldBeInKernel() {
+		iMgr.modifyCacheForKernelRemoval(member.Name)
 	}
 }
 
