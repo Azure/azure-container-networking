@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/types/bounded"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 )
@@ -34,35 +35,6 @@ var (
 	ncVersionURLs sync.Map
 )
 
-type lockedDurationSet struct {
-	sync.Mutex
-	waits map[string]time.Time
-}
-
-// Push registers the passed key and saves the timestamp it is first registered.
-// If the key is already registered, does not overwrite the saved timestamp.
-func (m *lockedDurationSet) Push(key string) {
-	m.Lock()
-	defer m.Unlock()
-	_, ok := m.waits[key]
-	if !ok {
-		m.waits[key] = time.Now()
-	}
-}
-
-// Pop returns the elapsed duration since the passed key was first registered,
-// or -1 if it is not found.
-func (m *lockedDurationSet) Pop(key string) time.Duration {
-	m.Lock()
-	start, ok := m.waits[key]
-	delete(m.waits, key)
-	m.Unlock()
-	if !ok {
-		return -1
-	}
-	return time.Since(start)
-}
-
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
@@ -77,7 +49,7 @@ type HTTPRestService struct {
 	routingTable             *routes.RoutingTable
 	store                    store.KeyValueStore
 	state                    *httpRestServiceState
-	podsPendingIPAllocation  *lockedDurationSet
+	podsPendingIPAllocation  *bounded.TimedSet
 	sync.RWMutex
 	dncPartitionKey string
 }
@@ -167,7 +139,7 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		PodIPConfigState:         podIPConfigState,
 		routingTable:             routingTable,
 		state:                    serviceState,
-		podsPendingIPAllocation:  &lockedDurationSet{waits: map[string]time.Time{}},
+		podsPendingIPAllocation:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 	}, nil
 }
 

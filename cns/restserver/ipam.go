@@ -91,9 +91,6 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 
 	podInfo, returnCode, message := service.validateIPConfigRequest(req)
 
-	// remove this pod from the waiting for IP allocation set, if it is present
-	_ = service.podsPendingIPAllocation.Pop(podInfo.Key())
-
 	if err = service.releaseIPConfig(podInfo); err != nil {
 		returnCode = types.UnexpectedError
 		message = err.Error()
