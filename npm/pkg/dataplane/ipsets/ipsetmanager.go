@@ -99,7 +99,7 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 	}
 
 	set := iMgr.setMap[setName]
-	wasInKernel := set.shouldBeInKernel()
+	wasInKernel := set.shouldBeInKernel() // required because the set may have 0 references i.e. this reference doesn't exist
 	set.deleteReference(referenceName, referenceType)
 	if wasInKernel && !set.shouldBeInKernel() {
 		iMgr.modifyCacheForKernelRemoval(set.Name)
