@@ -50,6 +50,9 @@ spec:
               reservationID:
                 description: ReservationID - reservation ID for allocating IP
                 type: string
+              reservationSetID:
+                description: ReservationSetID - reservationSet for networkcontainer
+                type: string
               subnet:
                 description: Subnet - customer subnet name
                 type: string

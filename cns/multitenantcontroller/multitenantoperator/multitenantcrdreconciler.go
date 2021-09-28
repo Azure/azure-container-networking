@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
 	ncapi "github.com/Azure/azure-container-networking/crd/multitenantnetworkcontainer/api/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,11 +30,17 @@ const (
 	NCStateTerminated = "Terminated"
 )
 
+type cnsRESTservice interface {
+	DeleteNetworkContainerInternal(cns.DeleteNetworkContainerRequest) types.ResponseCode
+	GetNetworkContainerInternal(cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, types.ResponseCode)
+	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) types.ResponseCode
+}
+
 // multiTenantCrdReconciler reconciles multi-tenant network containers.
 type multiTenantCrdReconciler struct {
-	KubeClient client.Client
-	NodeName   string
-	CNSClient  cnsclient
+	KubeClient     client.Client
+	NodeName       string
+	CNSRestService cnsRESTservice
 }
 
 // Reconcile is called on multi-tenant CRD status changes.
@@ -59,9 +66,10 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 		}
 
 		// Remove the deleted network container from CNS.
-		err := r.CNSClient.DeleteNC(cns.DeleteNetworkContainerRequest{
+		responseCode := r.CNSRestService.DeleteNetworkContainerInternal(cns.DeleteNetworkContainerRequest{
 			NetworkContainerid: nc.Spec.UUID,
 		})
+		err := restserver.ResponseCodeToError(responseCode)
 		if err != nil {
 			logger.Errorf("Failed to delete NC %s (UUID: %s) from CNS: %v", request.NamespacedName.String(), nc.Spec.UUID, err)
 			return ctrl.Result{}, err
@@ -96,10 +104,11 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 	}
 
 	// Check CNS NC states.
-	_, err = r.CNSClient.GetNC(cns.GetNetworkContainerRequest{
+	_, returnCode := r.CNSRestService.GetNetworkContainerInternal(cns.GetNetworkContainerRequest{
 		NetworkContainerid:  nc.Spec.UUID,
 		OrchestratorContext: orchestratorContext,
 	})
+	err = restserver.ResponseCodeToError(returnCode)
 	if err == nil {
 		logger.Printf("NC %s (UUID: %s) has already been created in CNS", request.NamespacedName.String(), nc.Spec.UUID)
 		return ctrl.Result{}, nil
@@ -122,7 +131,7 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 		return ctrl.Result{}, err
 	}
 	prefixLength, _ := ipNet.Mask.Size()
-	networkContainerRequest := cns.CreateNetworkContainerRequest{
+	networkContainerRequest := &cns.CreateNetworkContainerRequest{
 		NetworkContainerid:   nc.Spec.UUID,
 		OrchestratorContext:  orchestratorContext,
 		NetworkContainerType: cns.Kubernetes,
@@ -141,7 +150,9 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 		},
 	}
 	logger.Printf("CreateOrUpdateNC with networkContainerRequest: %#v", networkContainerRequest)
-	if err = r.CNSClient.CreateOrUpdateNC(networkContainerRequest); err != nil {
+	responseCode := r.CNSRestService.CreateOrUpdateNetworkContainerInternal(networkContainerRequest)
+	err = restserver.ResponseCodeToError(responseCode)
+	if err != nil {
 		logger.Errorf("Failed to persist state for NC %s (UUID: %s) to CNS: %v", request.NamespacedName.String(), nc.Spec.UUID, err)
 		return ctrl.Result{}, err
 	}

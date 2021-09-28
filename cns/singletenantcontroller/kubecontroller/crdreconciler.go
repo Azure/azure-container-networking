@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -16,7 +17,7 @@ import (
 type CrdReconciler struct {
 	KubeClient      KubeClient
 	NodeName        string
-	CNSClient       cnsclient
+	CNSRestService  *restserver.HTTPRestService
 	IPAMPoolMonitor cns.IPAMPoolMonitor
 }
 
@@ -61,13 +62,15 @@ func (r *CrdReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	if err = r.CNSClient.CreateOrUpdateNC(ncRequest); err != nil {
+	responseCode := r.CNSRestService.CreateOrUpdateNetworkContainerInternal(&ncRequest)
+	err = restserver.ResponseCodeToError(responseCode)
+	if err != nil {
 		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 		// requeue
 		return reconcile.Result{}, err
 	}
 
-	r.CNSClient.UpdateIPAMPoolMonitor(nnc.Status.Scaler, nnc.Spec)
+	r.CNSRestService.IPAMPoolMonitor.Update(nnc.Status.Scaler, nnc.Spec)
 	// record assigned IPs metric
 	assignedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
 

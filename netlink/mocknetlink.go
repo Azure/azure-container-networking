@@ -6,10 +6,11 @@ import (
 	"net"
 )
 
-var errorMockNetlink = errors.New("Mock Netlink Error")
+// ErrorMockNetlink - netlink mock error
+var ErrorMockNetlink = errors.New("Mock Netlink Error")
 
 func newErrorMockNetlink(errStr string) error {
-	return fmt.Errorf("%w : %s", errorMockNetlink, errStr)
+	return fmt.Errorf("%w : %s", ErrorMockNetlink, errStr)
 }
 
 type MockNetlink struct {
@@ -17,8 +18,8 @@ type MockNetlink struct {
 	errorString string
 }
 
-func NewMockNetlink(returnError bool, errorString string) MockNetlink {
-	return MockNetlink{
+func NewMockNetlink(returnError bool, errorString string) *MockNetlink {
+	return &MockNetlink{
 		returnError: returnError,
 		errorString: errorString,
 	}
@@ -31,11 +32,15 @@ func (f *MockNetlink) error() error {
 	return nil
 }
 
-func (f *MockNetlink) AddLink(Link) error {
+func (f *MockNetlink) AddLink(l Link) error {
 	return f.error()
 }
 
-func (f *MockNetlink) DeleteLink(string) error {
+func (f *MockNetlink) SetLinkMTU(name string, mtu int) error {
+	return f.error()
+}
+
+func (f *MockNetlink) DeleteLink(name string) error {
 	return f.error()
 }
 

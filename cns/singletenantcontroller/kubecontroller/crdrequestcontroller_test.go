@@ -11,6 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,8 +89,8 @@ func (mc MockKubeClient) Update(ctx context.Context, obj client.Object, opts ...
 	return nil
 }
 
-// MockCNSClient implements API client interface
-type MockCNSClient struct {
+// MockCNSRestServer implements CNSRestServer interface
+type MockCNSRestService struct {
 	MockCNSUpdated     bool
 	MockCNSInitialized bool
 	Pods               map[string]cns.PodInfo
@@ -97,27 +98,19 @@ type MockCNSClient struct {
 }
 
 // we're just testing that reconciler interacts with CNS on Reconcile().
-func (mi *MockCNSClient) CreateOrUpdateNC(ncRequest cns.CreateNetworkContainerRequest) error {
-	mi.MockCNSUpdated = true
-	return nil
+func (m *MockCNSRestService) CreateOrUpdateNetworkContainerInternal(ncRequest *cns.CreateNetworkContainerRequest) types.ResponseCode {
+	m.MockCNSUpdated = true
+	return types.Success
 }
 
-func (mi *MockCNSClient) UpdateIPAMPoolMonitor(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
-}
-
-func (mi *MockCNSClient) DeleteNC(nc cns.DeleteNetworkContainerRequest) error {
-	return nil
-}
-
-func (mi *MockCNSClient) GetNC(nc cns.GetNetworkContainerRequest) (cns.GetNetworkContainerResponse, error) {
-	return cns.GetNetworkContainerResponse{NetworkContainerID: nc.NetworkContainerid}, nil
-}
-
-func (mi *MockCNSClient) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) error {
-	mi.MockCNSInitialized = true
-	mi.Pods = podInfoByIP
-	mi.NCRequest = ncRequest
-	return nil
+func (m *MockCNSRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest,
+	podInfoByIP map[string]cns.PodInfo,
+	scalar v1alpha.Scaler,
+	spec v1alpha.NodeNetworkConfigSpec) types.ResponseCode {
+	m.MockCNSInitialized = true
+	m.Pods = podInfoByIP
+	m.NCRequest = ncRequest
+	return types.Success
 }
 
 // MockDirectCRDClient implements the DirectCRDClient interface
@@ -651,12 +644,12 @@ func TestInitRequestController(t *testing.T) {
 	mockCRDDirectClient := &MockDirectCRDClient{
 		mockAPI: mockAPI,
 	}
-	mockCNSClient := &MockCNSClient{}
+	mockCNSRestService := &MockCNSRestService{}
 	rc := &requestController{
 		cfg:             Config{},
 		directAPIClient: mockAPIDirectClient,
 		directCRDClient: mockCRDDirectClient,
-		CNSClient:       mockCNSClient,
+		CNSRestService:  mockCNSRestService,
 		nodeName:        existingNNCName,
 	}
 
@@ -666,19 +659,19 @@ func TestInitRequestController(t *testing.T) {
 		t.Fatalf("Expected no failure to init cns when given mock clients")
 	}
 
-	if !mockCNSClient.MockCNSInitialized {
+	if !mockCNSRestService.MockCNSInitialized {
 		t.Fatalf("MockCNSClient should have been initialized on request controller init")
 	}
 
-	if _, ok := mockCNSClient.Pods[mockPodHostNetwork.Status.PodIP]; ok {
+	if _, ok := mockCNSRestService.Pods[mockPodHostNetwork.Status.PodIP]; ok {
 		t.Fatalf("Init shouldn't pass cns pods that are part of host network")
 	}
 
-	if _, ok := mockCNSClient.Pods[mockPod.Status.PodIP]; !ok {
+	if _, ok := mockCNSRestService.Pods[mockPod.Status.PodIP]; !ok {
 		t.Fatalf("Init should pass cns pods that aren't part of host network")
 	}
 
-	if _, ok := mockCNSClient.NCRequest.SecondaryIPConfigs[allocatedUUID]; !ok {
+	if _, ok := mockCNSRestService.NCRequest.SecondaryIPConfigs[allocatedUUID]; !ok {
 		t.Fatalf("Expected secondary ip config to be in ncrequest")
 	}
 }

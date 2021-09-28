@@ -9,6 +9,8 @@ package netlink
 import (
 	"net"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -97,6 +99,37 @@ func TestAddDeleteVEth(t *testing.T) {
 	if err == nil {
 		t.Errorf("Interface not deleted")
 	}
+}
+
+// TestSetMTU tests if MTU can be sent on link
+func TestSetMTU(t *testing.T) {
+	link := VEthLink{
+		LinkInfo: LinkInfo{
+			Type: LINK_TYPE_VETH,
+			Name: ifName,
+		},
+		PeerName: ifName2,
+	}
+	nl := NewNetlink()
+
+	err := nl.AddLink(&link)
+	if err != nil {
+		t.Errorf("AddLink failed: %+v", err)
+	}
+
+	//nolint:errcheck // not testing deletelink here
+	defer nl.DeleteLink(ifName)
+
+	if err = nl.SetLinkMTU(ifName, 1028); err != nil {
+		t.Errorf("SetMTU failed: %+v", err)
+	}
+
+	iface, err := net.InterfaceByName(ifName)
+	if err != nil {
+		t.Errorf("InterfaceByName err:%v", err)
+	}
+
+	require.Equal(t, 1028, iface.MTU, "Expected mtu:1024 but got %d", iface.MTU)
 }
 
 // TestAddDeleteIPVlan tests adding and deleting an IPVLAN interface.

@@ -7,11 +7,11 @@ import (
 	"sync"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/client/httpapi"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
@@ -42,6 +42,11 @@ type Config struct {
 
 var _ singletenantcontroller.RequestController = (*requestController)(nil)
 
+type cnsrestservice interface {
+	ReconcileNCState(*cns.CreateNetworkContainerRequest, map[string]cns.PodInfo, v1alpha.Scaler, v1alpha.NodeNetworkConfigSpec) types.ResponseCode
+	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) types.ResponseCode
+}
+
 // requestController
 // - watches CRD status changes
 // - updates CRD spec
@@ -51,7 +56,7 @@ type requestController struct {
 	KubeClient      KubeClient      // KubeClient is a cached client which interacts with API server
 	directAPIClient DirectAPIClient // Direct client to interact with API server
 	directCRDClient DirectCRDClient // Direct client to interact with CRDs on API server
-	CNSClient       cnsclient
+	CNSRestService  cnsrestservice
 	nodeName        string // name of node running this program
 	Reconciler      *CrdReconciler
 	initialized     bool
@@ -121,16 +126,11 @@ func New(cfg Config) (*requestController, error) {
 		return nil, err
 	}
 
-	// Create httpClient
-	httpClient := &httpapi.Client{
-		RestService: cfg.Service,
-	}
-
 	// Create reconciler
 	crdreconciler := &CrdReconciler{
-		KubeClient: mgr.GetClient(),
-		NodeName:   nodeName,
-		CNSClient:  httpClient,
+		KubeClient:     mgr.GetClient(),
+		NodeName:       nodeName,
+		CNSRestService: cfg.Service,
 	}
 
 	// Setup manager with reconciler
@@ -146,7 +146,7 @@ func New(cfg Config) (*requestController, error) {
 		KubeClient:      mgr.GetClient(),
 		directAPIClient: directAPIClient,
 		directCRDClient: directCRDClient,
-		CNSClient:       httpClient,
+		CNSRestService:  cfg.Service,
 		nodeName:        nodeName,
 		Reconciler:      crdreconciler,
 	}
@@ -220,10 +220,10 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 			return nil
 		}
 
-		// If instance of crd is not found, pass nil to cnsclient
+		// If instance of crd is not found, pass nil to CNSRestService
 		if client.IgnoreNotFound(err) == nil {
 			//nolint:wrapcheck
-			return rc.CNSClient.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
+			return restserver.ResponseCodeToError(rc.CNSRestService.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
 		}
 
 		// If it's any other error, log it and return
@@ -231,10 +231,10 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 		return err
 	}
 
-	// If there are no NCs, pass nil to cnsclient
+	// If there are no NCs, pass nil to CNSRestService
 	if len(nnc.Status.NetworkContainers) == 0 {
 		//nolint:wrapcheck
-		return rc.CNSClient.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec)
+		return restserver.ResponseCodeToError(rc.CNSRestService.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
 	}
 
 	// Convert to CreateNetworkContainerRequest
@@ -272,8 +272,8 @@ func (rc *requestController) initCNS(ctx context.Context) error {
 	}
 
 	// errors.Wrap provides additional context, and return nil if the err input arg is nil
-	// Call cnsclient init cns passing those two things.
-	return errors.Wrap(rc.CNSClient.ReconcileNCState(&ncRequest, podInfoByIP, nnc.Status.Scaler, nnc.Spec), "err in CNS reconciliation")
+	// Call CNSRestService init cns passing those two things.
+	return errors.Wrap(restserver.ResponseCodeToError(rc.CNSRestService.ReconcileNCState(&ncRequest, podInfoByIP, nnc.Status.Scaler, nnc.Spec)), "err in CNS reconciliation")
 }
 
 // kubePodsToPodInfoByIP maps kubernetes pods to cns.PodInfos by IP

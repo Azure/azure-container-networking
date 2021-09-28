@@ -9,15 +9,15 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"github.com/Azure/azure-container-networking/network/hnswrapper"
+
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/network/netlinkinterface"
+	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 )
-
 
 // this hnsv2 variable is package level variable in network
 // we do this to avoid passing around os specific objects in platform agnostic code
@@ -93,7 +93,7 @@ func ConstructEndpointID(containerID string, netNsPath string, ifName string) (s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(cli apipaClient, _ netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
 	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
@@ -415,7 +415,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(cli apipaClient, _ netlinkinterface.NetlinkInterface, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, ep *endpoint) error {
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
 		if err != nil {
 			return err

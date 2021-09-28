@@ -6,9 +6,9 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
-	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/platform"
 )
 
@@ -33,7 +33,8 @@ type TransparentEndpointClient struct {
 	containerMac      net.HardwareAddr
 	hostVethMac       net.HardwareAddr
 	mode              string
-	netlink           netlinkinterface.NetlinkInterface
+	netlink           netlink.NetlinkInterface
+	netioshim         netio.NetIOInterface
 }
 
 func NewTransparentEndpointClient(
@@ -41,7 +42,7 @@ func NewTransparentEndpointClient(
 	hostVethName string,
 	containerVethName string,
 	mode string,
-	nl netlinkinterface.NetlinkInterface,
+	nl netlink.NetlinkInterface,
 ) *TransparentEndpointClient {
 
 	client := &TransparentEndpointClient{
@@ -52,6 +53,7 @@ func NewTransparentEndpointClient(
 		hostPrimaryMac:    extIf.MacAddress,
 		mode:              mode,
 		netlink:           nl,
+		netioshim:         &netio.NetIO{},
 	}
 
 	return client
@@ -64,7 +66,7 @@ func setArpProxy(ifName string) error {
 }
 
 func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
-	if _, err := net.InterfaceByName(client.hostVethName); err == nil {
+	if _, err := client.netioshim.GetNetworkInterfaceByName(client.hostVethName); err == nil {
 		log.Printf("Deleting old host veth %v", client.hostVethName)
 		if err = client.netlink.DeleteLink(client.hostVethName); err != nil {
 			log.Printf("[net] Failed to delete old hostveth %v: %v.", client.hostVethName, err)
@@ -72,24 +74,46 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 		}
 	}
 
+	primaryIf, err := client.netioshim.GetNetworkInterfaceByName(client.hostPrimaryIfName)
+	if err != nil {
+		return newErrorTransparentEndpointClient(err.Error())
+	}
+
 	epc := epcommon.NewEPCommon(client.netlink)
 	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return newErrorTransparentEndpointClient(err.Error())
 	}
 
-	containerIf, err := net.InterfaceByName(client.containerVethName)
+	defer func() {
+		if err != nil {
+			if delErr := client.netlink.DeleteLink(client.hostVethName); delErr != nil {
+				log.Errorf("Deleting veth failed on addendpoint failure:%v", delErr)
+			}
+		}
+	}()
+
+	containerIf, err := client.netioshim.GetNetworkInterfaceByName(client.containerVethName)
 	if err != nil {
-		return err
+		return newErrorTransparentEndpointClient(err.Error())
 	}
 
 	client.containerMac = containerIf.HardwareAddr
 
-	hostVethIf, err := net.InterfaceByName(client.hostVethName)
+	hostVethIf, err := client.netioshim.GetNetworkInterfaceByName(client.hostVethName)
 	if err != nil {
-		return err
+		return newErrorTransparentEndpointClient(err.Error())
 	}
 
 	client.hostVethMac = hostVethIf.HardwareAddr
+
+	log.Printf("Setting mtu %d on veth interface %s", primaryIf.MTU, client.hostVethName)
+	if err := client.netlink.SetLinkMTU(client.hostVethName, primaryIf.MTU); err != nil {
+		log.Errorf("Setting mtu failed for hostveth %s:%v", client.hostVethName, err)
+	}
+
+	if err := client.netlink.SetLinkMTU(client.containerVethName, primaryIf.MTU); err != nil {
+		log.Errorf("Setting mtu failed for containerveth %s:%v", client.containerVethName, err)
+	}
 
 	return nil
 }

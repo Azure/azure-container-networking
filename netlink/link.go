@@ -11,6 +11,7 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
 
@@ -147,6 +148,29 @@ func (Netlink) AddLink(link Link) error {
 	}
 
 	req.addPayload(attrLinkInfo)
+
+	return s.sendAndWaitForAck(req)
+}
+
+func (Netlink) SetLinkMTU(name string, mtu int) error {
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		log.Printf("[net] Interface not found. returning error")
+		return errors.Wrap(err, "SetLinkMTU:InterfaceByName failed")
+	}
+
+	s, err := getSocket()
+	if err != nil {
+		return err
+	}
+
+	req := newRequest(unix.RTM_SETLINK, unix.NLM_F_ACK)
+	ifInfo := newIfInfoMsg()
+	ifInfo.Index = int32(iface.Index)
+	req.addPayload(ifInfo)
+
+	mtuData := newAttributeUint32(unix.IFLA_MTU, uint32(mtu))
+	req.addPayload(mtuData)
 
 	return s.sendAndWaitForAck(req)
 }

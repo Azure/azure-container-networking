@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
-	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
 )
@@ -44,7 +43,7 @@ type OVSSnatClient struct {
 	localIP                string
 	snatBridgeIP           string
 	SkipAddressesFromBlock []string
-	netlink                netlinkinterface.NetlinkInterface
+	netlink                netlink.NetlinkInterface
 	ovsctlClient           ovsctl.OvsInterface
 }
 
@@ -54,7 +53,7 @@ func NewSnatClient(hostIfName string,
 	snatBridgeIP string,
 	hostPrimaryMac string,
 	skipAddressesFromBlock []string,
-	nl netlinkinterface.NetlinkInterface,
+	nl netlink.NetlinkInterface,
 	ovsctlClient ovsctl.OvsInterface,
 ) OVSSnatClient {
 	log.Printf("Initialize new snat client")

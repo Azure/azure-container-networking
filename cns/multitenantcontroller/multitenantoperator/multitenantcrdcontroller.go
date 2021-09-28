@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Azure/azure-container-networking/cns/client/httpapi"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/restserver"
@@ -31,8 +30,7 @@ var _ (multitenantcontroller.RequestController) = (*requestController)(nil)
 type requestController struct {
 	mgr        manager.Manager // Manager starts the reconcile loop which watches for crd status changes
 	KubeClient client.Client   // KubeClient is a cached client which interacts with API server
-	CNSClient  cnsclient
-	nodeName   string // name of node running this program
+	nodeName   string          // name of node running this program
 	Reconciler *multiTenantCrdReconciler
 	Started    bool
 	lock       sync.Mutex
@@ -72,16 +70,11 @@ func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*req
 		return nil, err
 	}
 
-	// Create httpClient
-	httpClient := &httpapi.Client{
-		RestService: restService,
-	}
-
 	// Create multiTenantCrdReconciler
 	reconciler := &multiTenantCrdReconciler{
-		KubeClient: mgr.GetClient(),
-		NodeName:   nodeName,
-		CNSClient:  httpClient,
+		KubeClient:     mgr.GetClient(),
+		NodeName:       nodeName,
+		CNSRestService: restService,
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		logger.Errorf("Error setting up new multiTenantCrdReconciler: %v", err)
@@ -92,7 +85,6 @@ func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*req
 	return &requestController{
 		mgr:        mgr,
 		KubeClient: mgr.GetClient(),
-		CNSClient:  httpClient,
 		nodeName:   nodeName,
 		Reconciler: reconciler,
 	}, nil

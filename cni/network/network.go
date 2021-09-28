@@ -314,7 +314,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		result           *cniTypesCurr.Result
 		resultV6         *cniTypesCurr.Result
 		azIpamResult     *cniTypesCurr.Result
-		iface            *cniTypesCurr.Interface
 		subnetPrefix     net.IPNet
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
 		enableInfraVnet  bool
@@ -354,7 +353,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			result = &cniTypesCurr.Result{}
 		}
 
-		iface = &cniTypesCurr.Interface{
+		iface := &cniTypesCurr.Interface{
 			Name: args.IfName,
 		}
 		result.Interfaces = append(result.Interfaces, iface)
@@ -509,7 +508,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		defer func() {
-			err = plugin.cleanupAllocationOnError(err, result, resultV6, nwCfg, args, options)
+			if err != nil {
+				plugin.cleanupAllocationOnError(result, resultV6, nwCfg, args, options)
+			}
 		}()
 	}
 
@@ -539,25 +540,22 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	return nil
 }
 
-func (plugin *NetPlugin) cleanupAllocationOnError(err error,
+func (plugin *NetPlugin) cleanupAllocationOnError(
 	result, resultV6 *cniTypesCurr.Result,
 	nwCfg *cni.NetworkConfig,
 	args *cniSkel.CmdArgs,
-	options map[string]interface{}) error {
-	if err != nil {
-		if result != nil && len(result.IPs) > 0 {
-			if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
-				err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
-			}
-		}
-		if resultV6 != nil && len(resultV6.IPs) > 0 {
-			if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
-				err = plugin.Errorf("Failed to cleanup when NwInfo was nil with error %v, after Add failed with error %w", er, err)
-			}
+	options map[string]interface{}) {
+
+	if result != nil && len(result.IPs) > 0 {
+		if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
+			log.Errorf("Failed to cleanup ip allocation on failure: %v", er)
 		}
 	}
-
-	return err
+	if resultV6 != nil && len(resultV6.IPs) > 0 {
+		if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
+			log.Errorf("Failed to cleanup ipv6 allocation on failure: %v", er)
+		}
+	}
 }
 
 func (plugin *NetPlugin) createNetworkInternal(
@@ -649,7 +647,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 
 	err = plugin.nm.CreateNetwork(&nwInfo)
 	if err != nil {
-		err = plugin.Errorf("Failed to create network: %v", err)
+		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)
 	}
 
 	return nwInfo, err

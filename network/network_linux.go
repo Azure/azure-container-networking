@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
-	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
 	"golang.org/x/sys/unix"
@@ -594,7 +593,7 @@ func (nm *networkManager) addBridgeRoutes(bridgeName string, routes []RouteInfo)
 }
 
 // Add ipv6 nat gateway IP on bridge
-func addIpv6NatGateway(nl netlinkinterface.NetlinkInterface, nwInfo *NetworkInfo) error {
+func addIpv6NatGateway(nl netlink.NetlinkInterface, nwInfo *NetworkInfo) error {
 	log.Printf("[net] Adding ipv6 nat gateway on azure bridge")
 	for _, subnetInfo := range nwInfo.Subnets {
 		if subnetInfo.Family == platform.AfINET6 {
@@ -636,7 +635,7 @@ func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
 }
 
 // AddStaticRoute adds a static route to the interface.
-func AddStaticRoute(nl netlinkinterface.NetlinkInterface, ip string, interfaceName string) error {
+func AddStaticRoute(nl netlink.NetlinkInterface, ip, interfaceName string) error {
 	log.Printf("[ovs] Adding %v static route", ip)
 	var routes []RouteInfo
 	_, ipNet, _ := net.ParseCIDR(ip)

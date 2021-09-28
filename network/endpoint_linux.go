@@ -12,7 +12,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
@@ -46,7 +45,7 @@ func ConstructEndpointID(containerID string, _ string, ifName string) (string, s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(_ apipaClient, nl netlinkinterface.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
 	var containerIf *net.Interface
 	var ns *Namespace
 	var ep *endpoint
@@ -219,7 +218,7 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlinkinterface.NetlinkInt
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlinkinterface.NetlinkInterface, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, ep *endpoint) error {
 	var epClient EndpointClient
 
 	// Delete the veth pair by deleting one of the peer interfaces.
@@ -244,7 +243,7 @@ func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlinkinterface.Netlink
 func (ep *endpoint) getInfoImpl(epInfo *EndpointInfo) {
 }
 
-func addRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
+func addRoutes(nl netlink.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
@@ -285,7 +284,7 @@ func addRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, route
 	return nil
 }
 
-func deleteRoutes(nl netlinkinterface.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
+func deleteRoutes(nl netlink.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
 	interfaceIf, _ := net.InterfaceByName(interfaceName)
 

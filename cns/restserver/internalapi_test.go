@@ -231,12 +231,12 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
-	validateNCStateAfterReconcile(t, &req, expectedNcCount+1, expectedAllocatedPods)
+	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAllocatedPods)
 }
 
 func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
@@ -264,12 +264,12 @@ func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
-	validateNCStateAfterReconcile(t, &req, expectedNcCount+1, expectedAllocatedPods)
+	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAllocatedPods)
 }
 
 func TestReconcileNCWithSystemPods(t *testing.T) {
@@ -296,13 +296,13 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	expectedAllocatedPods["192.168.0.1"] = cns.NewPodInfo("", "", "systempod", "kube-system")
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(&req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
 	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
 	delete(expectedAllocatedPods, "192.168.0.1")
-	validateNCStateAfterReconcile(t, &req, expectedNcCount, expectedAllocatedPods)
+	validateNCStateAfterReconcile(t, req, expectedNcCount, expectedAllocatedPods)
 }
 
 func setOrchestratorTypeInternal(orchestratorType string) {
@@ -385,7 +385,7 @@ func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.
 	svc.IPAMPoolMonitor.Update(
 		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
 		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	validateNetworkRequest(t, req)
+	validateNetworkRequest(t, *req)
 }
 
 // Validate the networkRequest is persisted.
@@ -453,7 +453,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 	}
 }
 
-func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConfig, ncId string, ncVersion string) cns.CreateNetworkContainerRequest {
+func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConfig, ncID, ncVersion string) *cns.CreateNetworkContainerRequest {
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = dnsservers
 	ipConfig.GatewayIPAddress = gatewayIp
@@ -464,7 +464,7 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 
 	req := cns.CreateNetworkContainerRequest{
 		NetworkContainerType: dockerContainerType,
-		NetworkContainerid:   ncId,
+		NetworkContainerid:   ncID,
 		IPConfiguration:      ipConfig,
 		Version:              ncVersion,
 	}
@@ -479,7 +479,7 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 
 	fmt.Printf("NC Request %+v", req)
 
-	return req
+	return &req
 }
 
 func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkContainerRequest, expectedNcCount int, expectedAllocatedPods map[string]cns.PodInfo) {
@@ -549,7 +549,7 @@ func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.Seconda
 	svc.IPAMPoolMonitor.Update(
 		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
 		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
-	return req
+	return *req
 }
 
 func restartService() {

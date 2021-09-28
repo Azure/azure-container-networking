@@ -26,6 +26,10 @@ func (Netlink) AddLink(link Link) error {
 	return nil
 }
 
+func (Netlink) SetLinkMTU(name string, mtu int) error {
+	return nil
+}
+
 func (Netlink) DeleteLink(name string) error {
 	return nil
 }

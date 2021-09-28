@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/epcommon"
-	"github.com/Azure/azure-container-networking/network/netlinkinterface"
 )
 
 const (
@@ -26,14 +25,14 @@ type LinuxBridgeClient struct {
 	bridgeName        string
 	hostInterfaceName string
 	nwInfo            NetworkInfo
-	netlink           netlinkinterface.NetlinkInterface
+	netlink           netlink.NetlinkInterface
 }
 
 func NewLinuxBridgeClient(
 	bridgeName string,
 	hostInterfaceName string,
 	nwInfo NetworkInfo,
-	nl netlinkinterface.NetlinkInterface,
+	nl netlink.NetlinkInterface,
 ) *LinuxBridgeClient {
 	client := &LinuxBridgeClient{
 		bridgeName:        bridgeName,
