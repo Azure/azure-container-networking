@@ -97,11 +97,12 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 	// If we weren't able to retrieve snatConfiguration, query NMAgent
 	if retrieveSnatConfigErr != nil {
 		var resp *http.Response
-		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, nmAgentSnatAndDnsSupportAPI, nil)
+		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, nmAgentSupportedApisURL, nil)
 		if err != nil {
 			log.Errorf("failed creating http request:%+v", err)
 			return false, false, fmt.Errorf("%w", err)
 		}
+		log.Printf("Query nma for dns snat support: %s", nmAgentSupportedApisURL)
 		resp, retrieveSnatConfigErr = httpClient.Do(req)
 		if retrieveSnatConfigErr == nil {
 			defer resp.Body.Close()
