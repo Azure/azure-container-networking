@@ -40,6 +40,7 @@ var (
 | where Raw !contains "Operation not permitted" // Most probably from UTs
 */
 
+// Error labels for ipsetmanager
 const (
 	CreateIPSet             = "CreateIPSet"
 	AppendIPSet             = "AppendIPSet"
@@ -51,7 +52,10 @@ const (
 	DeleteSelectorReference = "DeleteSelectorReference"
 	AddNetPolReference      = "AddNetPolReference"
 	DeleteNetPolReference   = "DeleteNetPolReference"
+)
 
+// Error codes for ipsetmanager
+const (
 	SetCannotBeDestroyedInUseByKernelComponent = 1
 	ElemSeperatorNotSupported                  = 2
 	SetWithGivenNameDoesNotExist               = 3

@@ -20,6 +20,15 @@ type IPSetManager struct {
 	sync.Mutex
 }
 
+// ReferenceType specifies the kind of reference for an IPSet
+type ReferenceType string
+
+// Possible ReferenceTypes
+const (
+	SelectorType ReferenceType = "Selector"
+	NetPolType   ReferenceType = "NetPol"
+)
+
 func (iMgr *IPSetManager) exists(name string) bool {
 	_, ok := iMgr.setMap[name]
 	return ok
@@ -52,15 +61,28 @@ func (iMgr *IPSetManager) modifyCacheForKernelUpdate(setName string) {
 		// don't check the deletionDirtyCache
 		// if a set is in that cache, then it had no references, and if it should be in the kernel later,
 		// then one of the following functions will have been called for it:
-		// - addReference
+		// - AddReference
 		// - modifyCacheForListKernelRemoval
 		// - addMemberIPSet
 	}
 }
 
-func (iMgr *IPSetManager) addReferenceAndModifyCache(set *IPSet, referenceName string, addFunction func(string)) {
+func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceType ReferenceType) error {
+	if !iMgr.exists(setName) {
+		npmErrorString := npmerrors.AddSelectorReference
+		if referenceType == NetPolType {
+			npmErrorString = npmerrors.AddNetPolReference
+		}
+		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
+	}
+
+	set := iMgr.setMap[setName]
 	wasInKernel := set.shouldBeInKernel()
-	addFunction(referenceName)
+	if referenceType == SelectorType {
+		set.addSelectorReference(referenceName)
+	} else {
+		set.addNetPolReference(referenceName)
+	}
 	if !wasInKernel {
 		iMgr.modifyCacheForKernelAddition(set.Name)
 
@@ -69,6 +91,7 @@ func (iMgr *IPSetManager) addReferenceAndModifyCache(set *IPSet, referenceName s
 			iMgr.incKernelReferCountAndModifyCache(member)
 		}
 	}
+	return nil
 }
 
 func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
@@ -79,9 +102,22 @@ func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
 	}
 }
 
-func (iMgr *IPSetManager) deleteReferenceAndModifyCache(set *IPSet, referenceName string, deleteFunction func(string)) {
+func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referenceType ReferenceType) error {
+	if !iMgr.exists(setName) {
+		npmErrorString := npmerrors.DeleteSelectorReference
+		if referenceType == NetPolType {
+			npmErrorString = npmerrors.DeleteNetPolReference
+		}
+		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
+	}
+
+	set := iMgr.setMap[setName]
 	wasInKernel := set.shouldBeInKernel()
-	deleteFunction(referenceName)
+	if referenceType == SelectorType {
+		set.deleteSelectorReference(referenceName)
+	} else {
+		set.deleteNetPolReference(referenceName)
+	}
 	if wasInKernel && !set.shouldBeInKernel() {
 		iMgr.modifyCacheForKernelRemoval(set.Name)
 
@@ -90,6 +126,7 @@ func (iMgr *IPSetManager) deleteReferenceAndModifyCache(set *IPSet, referenceNam
 			iMgr.decKernelReferCountAndModifyCache(member)
 		}
 	}
+	return nil
 }
 
 func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
@@ -179,8 +216,8 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey stri
 
 func (iMgr *IPSetManager) checkForIPUpdateErrors(setNames []string, npmErrorString string) error {
 	for _, setName := range setNames {
-		if err := iMgr.checkIfExists(setName, npmErrorString); err != nil {
-			return err
+		if !iMgr.exists(setName) {
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
 		}
 
 		set := iMgr.setMap[setName]
@@ -250,8 +287,8 @@ func (iMgr *IPSetManager) checkForRemoveFromListErrors(listName string, setNames
 }
 
 func (iMgr *IPSetManager) checkForMemberUpdateErrors(listName string, memberNames []string, npmErrorString string) error {
-	if err := iMgr.checkIfExists(listName, npmErrorString); err != nil {
-		return err
+	if !iMgr.exists(listName) {
+		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", listName))
 	}
 
 	list := iMgr.setMap[listName]
@@ -263,8 +300,8 @@ func (iMgr *IPSetManager) checkForMemberUpdateErrors(listName string, memberName
 		if listName == memberName {
 			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s cannot be added to itself", listName))
 		}
-		if err := iMgr.checkIfExists(memberName, npmErrorString); err != nil {
-			return err
+		if !iMgr.exists(memberName) {
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", memberName))
 		}
 		member := iMgr.setMap[memberName]
 
@@ -273,13 +310,6 @@ func (iMgr *IPSetManager) checkForMemberUpdateErrors(listName string, memberName
 		if member.Kind != HashSet {
 			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", memberName))
 		}
-	}
-	return nil
-}
-
-func (iMgr *IPSetManager) checkIfExists(setName, npmErrorString string) error {
-	if !iMgr.exists(setName) {
-		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
 	}
 	return nil
 }
@@ -313,8 +343,8 @@ func (iMgr *IPSetManager) removeMemberIPSet(listName, memberName string) {
 func (iMgr *IPSetManager) DeleteList(name string) error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
-	if err := iMgr.checkIfExists(name, npmerrors.DestroyIPSet); err != nil {
-		return err
+	if !iMgr.exists(name) {
+		return npmerrors.Errorf(npmerrors.DestroyIPSet, false, fmt.Sprintf("ipset %s does not exist", name))
 	}
 
 	set := iMgr.setMap[name]
@@ -329,42 +359,6 @@ func (iMgr *IPSetManager) DeleteList(name string) error {
 
 func (iMgr *IPSetManager) DeleteSet(name string) error {
 	return iMgr.DeleteList(name)
-}
-
-func (iMgr *IPSetManager) AddSelectorReference(setName, selectorName string) error {
-	if err := iMgr.checkIfExists(setName, npmerrors.AddSelectorReference); err != nil {
-		return err
-	}
-	set := iMgr.setMap[setName]
-	iMgr.addReferenceAndModifyCache(set, selectorName, set.addSelectorReference)
-	return nil
-}
-
-func (iMgr *IPSetManager) AddNetPolReference(setName, netPolName string) error {
-	if err := iMgr.checkIfExists(setName, npmerrors.AddNetPolReference); err != nil {
-		return err
-	}
-	set := iMgr.setMap[setName]
-	iMgr.addReferenceAndModifyCache(set, netPolName, set.addNetPolReference)
-	return nil
-}
-
-func (iMgr *IPSetManager) DeleteSelectorReference(setName, selectorName string) error {
-	if err := iMgr.checkIfExists(setName, npmerrors.DeleteSelectorReference); err != nil {
-		return err
-	}
-	set := iMgr.setMap[setName]
-	iMgr.deleteReferenceAndModifyCache(set, selectorName, set.deleteSelectorReference)
-	return nil
-}
-
-func (iMgr *IPSetManager) DeleteNetPolReference(setName, netPolName string) error {
-	if err := iMgr.checkIfExists(setName, npmerrors.DeleteNetPolReference); err != nil {
-		return err
-	}
-	set := iMgr.setMap[setName]
-	iMgr.deleteReferenceAndModifyCache(set, netPolName, set.deleteNetPolReference)
-	return nil
 }
 
 func (iMgr *IPSetManager) ApplyIPSets(networkID string) error {
