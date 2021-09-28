@@ -174,7 +174,7 @@ func (iMgr *IPSetManager) AddToSet(addToSets []string, ip, podKey string) error 
 			continue
 		}
 
-		iMgr.modifyCacheForKernelMemberUpdate(set.Name)
+		iMgr.modifyCacheForKernelMemberUpdate(setName)
 		metrics.AddEntryToIPSet(setName)
 	}
 	return nil
