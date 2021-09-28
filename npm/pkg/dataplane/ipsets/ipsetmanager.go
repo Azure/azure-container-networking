@@ -49,29 +49,53 @@ func (iMgr *IPSetManager) modifyCacheForKernelUpdate(setName string) {
 	set := iMgr.setMap[setName]
 	if set.shouldBeInKernel() {
 		iMgr.additionOrUpdateDirtyCache[set.Name] = struct{}{}
+		// don't check the deletionDirtyCache
+		// if a set is in that cache, then it had no references, and if it should be in the kernel later,
+		// then one of the following functions will have been called for it:
+		// - addReference
+		// - modifyCacheForListKernelRemoval
+		// - addMemberIPSet
 	}
 }
 
-func (iMgr *IPSetManager) addListToKernel(listName string) {
-	set := iMgr.setMap[listName]
-	iMgr.modifyCacheForKernelAddition(listName)
-	for _, member := range set.MemberIPSets {
-		memberWasInKernel := member.shouldBeInKernel()
-		member.incKernelReferCount()
-		if !memberWasInKernel {
-			iMgr.modifyCacheForKernelAddition(member.Name)
+func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
+	wasInKernel := member.shouldBeInKernel()
+	member.incKernelReferCount()
+	if !wasInKernel {
+		iMgr.modifyCacheForKernelAddition(member.Name)
+	}
+}
+
+func (iMgr *IPSetManager) addReferenceAndModifyCache(set *IPSet, referenceName string, addFunction func(string)) {
+	wasInKernel := set.shouldBeInKernel()
+	addFunction(referenceName)
+	if !wasInKernel {
+		iMgr.modifyCacheForKernelAddition(set.Name)
+
+		// if set.Kind == HashSet, then this for loop will do nothing
+		for _, member := range set.MemberIPSets {
+			iMgr.incKernelReferCountAndModifyCache(member)
 		}
 	}
 }
 
-func (iMgr *IPSetManager) removeListFromKernel(listName string) {
-	set := iMgr.setMap[listName]
-	iMgr.modifyCacheForKernelRemoval(listName)
-	for _, member := range set.MemberIPSets {
-		memberWasInKernel := member.shouldBeInKernel()
-		member.incKernelReferCount()
-		if !memberWasInKernel {
-			iMgr.modifyCacheForKernelRemoval(member.Name)
+func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
+	wasInKernel := member.shouldBeInKernel()
+	member.decKernelReferCount()
+	if wasInKernel && !member.shouldBeInKernel() {
+		iMgr.modifyCacheForKernelRemoval(member.Name)
+	}
+}
+
+func (iMgr *IPSetManager) deleteReferenceAndModifyCache(set *IPSet, referenceName string, deleteFunction func(string)) {
+	wasInKernel := set.shouldBeInKernel()
+	deleteFunction(referenceName)
+	if wasInKernel && !set.shouldBeInKernel() {
+		iMgr.modifyCacheForKernelRemoval(set.Name)
+
+		// if set.Kind == HashSet, then this for loop will do nothing
+		for _, member := range set.MemberIPSets {
+			iMgr.decKernelReferCountAndModifyCache(member)
 		}
 	}
 }
@@ -135,7 +159,7 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey stri
 	}
 
 	for _, setName := range removeFromSets {
-		set := iMgr.setMap[setName] // check if the Set exists
+		set := iMgr.setMap[setName]
 
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
 		cachedPodKey := set.IPPodKey[ip]
@@ -155,13 +179,13 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey stri
 
 func (iMgr *IPSetManager) checkForIPUpdateErrors(setNames []string, npmErrorString string) error {
 	for _, setName := range setNames {
-		set, exists := iMgr.setMap[setName]
-		if !exists {
-			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
+		if err := iMgr.checkIfExists(setName, npmErrorString); err != nil {
+			return err
 		}
 
+		set := iMgr.setMap[setName]
 		if set.Kind != HashSet {
-			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set", setName))
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a hash set", setName))
 		}
 	}
 	return nil
@@ -265,18 +289,12 @@ func (iMgr *IPSetManager) addMemberIPSet(listName, memberName string) {
 	member := iMgr.setMap[memberName]
 
 	list.MemberIPSets[member.Name] = member
-
-	listIsInKernel := list.shouldBeInKernel()
 	member.incIPSetReferCount()
-	if listIsInKernel {
-		memberWasInKernel := member.shouldBeInKernel()
-		member.incKernelReferCount()
-		if !memberWasInKernel {
-			iMgr.modifyCacheForKernelAddition(member.Name)
-		}
-	}
-
 	metrics.AddEntryToIPSet(list.Name)
+	listIsInKernel := list.shouldBeInKernel()
+	if listIsInKernel {
+		iMgr.incKernelReferCountAndModifyCache(member)
+	}
 }
 
 func (iMgr *IPSetManager) removeMemberIPSet(listName, memberName string) {
@@ -284,28 +302,18 @@ func (iMgr *IPSetManager) removeMemberIPSet(listName, memberName string) {
 	member := iMgr.setMap[memberName]
 
 	delete(list.MemberIPSets, member.Name)
-
-	listIsInKernel := list.shouldBeInKernel()
 	member.decIPSetReferCount()
-	if listIsInKernel {
-		wasInKernel := member.shouldBeInKernel()
-		member.decKernelReferCount()
-		if wasInKernel && !member.shouldBeInKernel() {
-			iMgr.modifyCacheForKernelRemoval(member.Name)
-		}
-	}
-
 	metrics.RemoveEntryFromIPSet(list.Name)
+	listIsInKernel := list.shouldBeInKernel()
+	if listIsInKernel {
+		iMgr.decKernelReferCountAndModifyCache(member)
+	}
 }
 
 func (iMgr *IPSetManager) DeleteList(name string) error {
-	return iMgr.DeleteSet(name)
-}
-
-func (iMgr *IPSetManager) DeleteSet(name string) error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
-	if err := iMgr.checkIfExists(name, npmerrors.DeleteIPSet); err != nil {
+	if err := iMgr.checkIfExists(name, npmerrors.DestroyIPSet); err != nil {
 		return err
 	}
 
@@ -314,9 +322,13 @@ func (iMgr *IPSetManager) DeleteSet(name string) error {
 		return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s cannot be deleted", name))
 	}
 
-	// the set will not be in the kernel, so there's no need to update the dirty cache
-	delete(iMgr.setMap, set.Name)
+	// the set will not be in the kernel since there are no references, so there's no need to update the dirty cache
+	delete(iMgr.setMap, name)
 	return nil
+}
+
+func (iMgr *IPSetManager) DeleteSet(name string) error {
+	return iMgr.DeleteList(name)
 }
 
 func (iMgr *IPSetManager) AddSelectorReference(setName, selectorName string) error {
@@ -324,7 +336,7 @@ func (iMgr *IPSetManager) AddSelectorReference(setName, selectorName string) err
 		return err
 	}
 	set := iMgr.setMap[setName]
-	iMgr.addReference(set, selectorName, set.addSelectorReference)
+	iMgr.addReferenceAndModifyCache(set, selectorName, set.addSelectorReference)
 	return nil
 }
 
@@ -333,7 +345,7 @@ func (iMgr *IPSetManager) AddNetPolReference(setName, netPolName string) error {
 		return err
 	}
 	set := iMgr.setMap[setName]
-	iMgr.addReference(set, netPolName, set.addNetPolReference)
+	iMgr.addReferenceAndModifyCache(set, netPolName, set.addNetPolReference)
 	return nil
 }
 
@@ -342,7 +354,7 @@ func (iMgr *IPSetManager) DeleteSelectorReference(setName, selectorName string) 
 		return err
 	}
 	set := iMgr.setMap[setName]
-	iMgr.deleteReference(set, selectorName, set.deleteSelectorReference)
+	iMgr.deleteReferenceAndModifyCache(set, selectorName, set.deleteSelectorReference)
 	return nil
 }
 
@@ -351,24 +363,8 @@ func (iMgr *IPSetManager) DeleteNetPolReference(setName, netPolName string) erro
 		return err
 	}
 	set := iMgr.setMap[setName]
-	iMgr.deleteReference(set, netPolName, set.deleteNetPolReference)
+	iMgr.deleteReferenceAndModifyCache(set, netPolName, set.deleteNetPolReference)
 	return nil
-}
-
-func (iMgr *IPSetManager) addReference(set *IPSet, referenceName string, addFunction func(string)) {
-	wasInKernel := set.shouldBeInKernel()
-	addFunction(referenceName)
-	if !wasInKernel {
-		iMgr.addListToKernel(set.Name)
-	}
-}
-
-func (iMgr *IPSetManager) deleteReference(set *IPSet, referenceName string, deleteFunction func(string)) {
-	wasInKernel := set.shouldBeInKernel()
-	deleteFunction(referenceName)
-	if wasInKernel {
-		iMgr.removeListFromKernel(set.Name)
-	}
 }
 
 func (iMgr *IPSetManager) ApplyIPSets(networkID string) error {
@@ -382,7 +378,7 @@ func (iMgr *IPSetManager) ApplyIPSets(networkID string) error {
 	}
 
 	iMgr.clearDirtyCache()
-	// TODO set the number of ipsets in NPM (not necessarily in kernel) using len(iMgr.setMap)
-	// or update that number within CreateSet/DeleteSet/List
+	// TODO in a new prometheus metric, set the number of ipsets in NPM (not necessarily in kernel)
+	// using len(iMgr.setMap), or update that number within CreateSet/DeleteSet/List
 	return nil
 }
