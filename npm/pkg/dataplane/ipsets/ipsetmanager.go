@@ -57,7 +57,7 @@ func (iMgr *IPSetManager) addListToKernel(listName string) {
 	iMgr.modifyCacheForKernelAddition(listName)
 	for _, member := range set.MemberIPSets {
 		memberWasInKernel := member.shouldBeInKernel()
-		member.incKernelCount()
+		member.incKernelReferCount()
 		if !memberWasInKernel {
 			iMgr.modifyCacheForKernelAddition(member.Name)
 		}
@@ -69,7 +69,7 @@ func (iMgr *IPSetManager) removeListFromKernel(listName string) {
 	iMgr.modifyCacheForKernelRemoval(listName)
 	for _, member := range set.MemberIPSets {
 		memberWasInKernel := member.shouldBeInKernel()
-		member.incKernelCount()
+		member.incKernelReferCount()
 		if !memberWasInKernel {
 			iMgr.modifyCacheForKernelRemoval(member.Name)
 		}
@@ -270,7 +270,7 @@ func (iMgr *IPSetManager) addMemberIPSet(listName, memberName string) {
 	member.incIPSetReferCount()
 	if listIsInKernel {
 		memberWasInKernel := member.shouldBeInKernel()
-		member.incKernelCount()
+		member.incKernelReferCount()
 		if !memberWasInKernel {
 			iMgr.modifyCacheForKernelAddition(member.Name)
 		}
@@ -289,7 +289,7 @@ func (iMgr *IPSetManager) removeMemberIPSet(listName, memberName string) {
 	member.decIPSetReferCount()
 	if listIsInKernel {
 		wasInKernel := member.shouldBeInKernel()
-		member.decKernelCount()
+		member.decKernelReferCount()
 		if wasInKernel && !member.shouldBeInKernel() {
 			iMgr.modifyCacheForKernelRemoval(member.Name)
 		}

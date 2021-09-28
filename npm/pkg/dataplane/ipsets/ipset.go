@@ -26,8 +26,8 @@ type IPSet struct {
 	NetPolReference map[string]struct{}
 	// ipsetReferCount keeps track of how many lists in the cache refer to this ipset
 	ipsetReferCount int
-	// kernelCount keeps track of how many lists in the kernel refer to this ipset
-	kernelCount int // TODO rename
+	// kernelReferCount keeps track of how many lists in the kernel refer to this ipset
+	kernelReferCount int
 }
 
 type SetProperties struct {
@@ -105,9 +105,9 @@ func NewIPSet(name string, setType SetType) *IPSet {
 		SelectorReference: make(map[string]struct{}),
 		// Map with Key as Network Policy name to to emulate set
 		// and value as struct{} for minimal memory consumption
-		NetPolReference: make(map[string]struct{}),
-		ipsetReferCount: 0,
-		kernelCount:     0,
+		NetPolReference:  make(map[string]struct{}),
+		ipsetReferCount:  0,
+		kernelReferCount: 0,
 	}
 	if set.Kind == HashSet {
 		set.IPPodKey = make(map[string]string)
@@ -176,15 +176,15 @@ func (set *IPSet) decIPSetReferCount() {
 	set.ipsetReferCount--
 }
 
-func (set *IPSet) incKernelCount() {
-	set.kernelCount++
+func (set *IPSet) incKernelReferCount() {
+	set.kernelReferCount++
 }
 
-func (set *IPSet) decKernelCount() {
-	if set.kernelCount == 0 {
+func (set *IPSet) decKernelReferCount() {
+	if set.kernelReferCount == 0 {
 		return
 	}
-	set.kernelCount--
+	set.kernelReferCount--
 }
 
 func (set *IPSet) addSelectorReference(selectorName string) {
@@ -225,7 +225,7 @@ func (set *IPSet) referencedInList() bool {
 }
 
 func (set *IPSet) referencedInKernel() bool {
-	return set.kernelCount > 0
+	return set.kernelReferCount > 0
 }
 
 // panics if set is not a list set
