@@ -3,6 +3,7 @@ package ipsets
 import (
 	"errors"
 
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
@@ -90,6 +91,15 @@ const (
 	ListSet SetKind = "list"
 	// HashSet is of kind hashset with members as IPs and/or port
 	HashSet SetKind = "set"
+)
+
+// ReferenceType specifies the kind of reference for an IPSet
+type ReferenceType string
+
+// Possible ReferenceTypes
+const (
+	SelectorType ReferenceType = "Selector"
+	NetPolType   ReferenceType = "NetPol"
 )
 
 func NewIPSet(name string, setType SetType) *IPSet {
@@ -187,20 +197,26 @@ func (set *IPSet) decKernelReferCount() {
 	set.kernelReferCount--
 }
 
-func (set *IPSet) addSelectorReference(selectorName string) {
-	set.SelectorReference[selectorName] = struct{}{}
+func (set *IPSet) addReference(referenceName string, referenceType ReferenceType) {
+	switch referenceType {
+	case SelectorType:
+		set.SelectorReference[referenceName] = struct{}{}
+	case NetPolType:
+		set.NetPolReference[referenceName] = struct{}{}
+	default:
+		log.Logf("IPSet_addReference: encountered unknown ReferenceType")
+	}
 }
 
-func (set *IPSet) deleteSelectorReference(selectorName string) {
-	delete(set.SelectorReference, selectorName)
-}
-
-func (set *IPSet) addNetPolReference(netPolName string) {
-	set.NetPolReference[netPolName] = struct{}{}
-}
-
-func (set *IPSet) deleteNetPolReference(netPolName string) {
-	delete(set.NetPolReference, netPolName)
+func (set *IPSet) deleteReference(referenceName string, referenceType ReferenceType) {
+	switch referenceType {
+	case SelectorType:
+		delete(set.SelectorReference, referenceName)
+	case NetPolType:
+		delete(set.NetPolReference, referenceName)
+	default:
+		log.Logf("IPSet_deleteReference: encountered unknown ReferenceType")
+	}
 }
 
 func (set *IPSet) shouldBeInKernel() bool {

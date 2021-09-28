@@ -20,15 +20,6 @@ type IPSetManager struct {
 	sync.Mutex
 }
 
-// ReferenceType specifies the kind of reference for an IPSet
-type ReferenceType string
-
-// Possible ReferenceTypes
-const (
-	SelectorType ReferenceType = "Selector"
-	NetPolType   ReferenceType = "NetPol"
-)
-
 func (iMgr *IPSetManager) exists(name string) bool {
 	_, ok := iMgr.setMap[name]
 	return ok
@@ -78,11 +69,7 @@ func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceT
 
 	set := iMgr.setMap[setName]
 	wasInKernel := set.shouldBeInKernel()
-	if referenceType == SelectorType {
-		set.addSelectorReference(referenceName)
-	} else {
-		set.addNetPolReference(referenceName)
-	}
+	set.addReference(referenceName, referenceType)
 	if !wasInKernel {
 		iMgr.modifyCacheForKernelAddition(set.Name)
 
@@ -113,11 +100,7 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 
 	set := iMgr.setMap[setName]
 	wasInKernel := set.shouldBeInKernel()
-	if referenceType == SelectorType {
-		set.deleteSelectorReference(referenceName)
-	} else {
-		set.deleteNetPolReference(referenceName)
-	}
+	set.deleteReference(referenceName, referenceType)
 	if wasInKernel && !set.shouldBeInKernel() {
 		iMgr.modifyCacheForKernelRemoval(set.Name)
 
