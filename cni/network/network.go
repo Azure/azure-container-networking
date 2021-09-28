@@ -505,6 +505,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// Allocate from azure ipam
 	if !nwCfg.MultiTenancy {
+		if nwCfg.Ipam.Type == network.AzureCNS {
+			enableSnatForDns = true
+		}
+
 		result, resultV6, err = plugin.ipamInvoker.Add(nwCfg, args, &subnetPrefix, options)
 		if err != nil {
 			return err
@@ -529,8 +533,13 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		log.Printf("[cni-net] Created network %v with subnet %v.", networkID, subnetPrefix.String())
 	}
 
+	ncPrimaryIP, exists := options[network.SNATIPKey]
+	if !exists {
+		ncPrimaryIP = ""
+	}
+
 	epInfo, err := plugin.createEndpointInternal(nwCfg, cnsNetworkConfig, result, resultV6, azIpamResult, args, &nwInfo,
-		policies, endpointId, k8sPodName, k8sNamespace, enableInfraVnet, enableSnatForDns)
+		policies, endpointId, k8sPodName, k8sNamespace, ncPrimaryIP.(string), enableInfraVnet, enableSnatForDns)
 	if err != nil {
 		log.Errorf("Endpoint creation failed:%w", err)
 		return err
@@ -668,6 +677,7 @@ func (plugin *NetPlugin) createEndpointInternal(
 	endpointID string,
 	k8sPodName string,
 	k8sNamespace string,
+	ncPrimaryIP string,
 	enableInfraVnet bool,
 	enableSnatForDNS bool,
 ) (network.EndpointInfo, error) {
@@ -711,6 +721,7 @@ func (plugin *NetPlugin) createEndpointInternal(
 		EnableMultiTenancy: nwCfg.MultiTenancy,
 		EnableInfraVnet:    enableInfraVnet,
 		EnableSnatForDns:   enableSnatForDNS,
+		IsAksSwift:         nwCfg.Ipam.Type == network.AzureCNS && !nwCfg.MultiTenancy,
 		PODName:            k8sPodName,
 		PODNameSpace:       k8sNamespace,
 		SkipHotAttachEp:    false, // Hot attach at the time of endpoint creation
@@ -720,8 +731,9 @@ func (plugin *NetPlugin) createEndpointInternal(
 	}
 
 	epPolicies := getPoliciesFromRuntimeCfg(nwCfg)
-
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
+
+	epInfo.Data[policy.NcPrimaryIPKey] = ncPrimaryIP
 
 	// Populate addresses.
 	for _, ipconfig := range result.IPs {

@@ -5,6 +5,11 @@ import (
 )
 
 const (
+	// NcPrimaryIPKey indicates constant for the key string
+	NcPrimaryIPKey string = "NCPrimaryIPKey"
+)
+
+const (
 	NetworkPolicy     CNIPolicyType = "NetworkPolicy"
 	EndpointPolicy    CNIPolicyType = "EndpointPolicy"
 	OutBoundNatPolicy CNIPolicyType = "OutBoundNAT"
