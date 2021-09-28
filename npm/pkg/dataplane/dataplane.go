@@ -54,19 +54,10 @@ func (dp *DataPlane) CreateIPSet(setName string, setType ipsets.SetType) error {
 
 // DeleteSet checks for members and references of the given "set" type ipset
 // if not used then will delete it from cache
-func (dp *DataPlane) DeleteSet(name string) error {
-	err := dp.ipsetMgr.DeleteSet(name)
+func (dp *DataPlane) DeleteIPSet(name string) error {
+	err := dp.ipsetMgr.DeleteIPSet(name)
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while deleting set: %w", err)
-	}
-	return nil
-}
-
-// DeleteList sanity checks and deletes a list ipset
-func (dp *DataPlane) DeleteList(name string) error {
-	err := dp.ipsetMgr.DeleteList(name)
-	if err != nil {
-		return fmt.Errorf("[DataPlane] error while deleting list: %w", err)
 	}
 	return nil
 }
