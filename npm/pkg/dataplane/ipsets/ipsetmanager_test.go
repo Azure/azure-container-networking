@@ -125,29 +125,16 @@ func TestRemoveFromListMissing(t *testing.T) {
 	}
 }
 
-func TestDeleteList(t *testing.T) {
-	iMgr := NewIPSetManager()
-	err := iMgr.CreateIPSet(testListName, KeyValueLabelOfNameSpace)
-	if err != nil {
-		t.Errorf("CreateIPSet() returned error %s", err.Error())
-	}
-
-	err = iMgr.DeleteList(testListName)
-	if err != nil {
-		t.Errorf("DeleteList() returned error %s", err.Error())
-	}
-}
-
-func TestDeleteSet(t *testing.T) {
+func TestDeleteIPSet(t *testing.T) {
 	iMgr := NewIPSetManager()
 	err := iMgr.CreateIPSet(testSetName, NameSpace)
 	if err != nil {
 		t.Errorf("CreateIPSet() returned error %s", err.Error())
 	}
 
-	err = iMgr.DeleteSet(testSetName)
+	err = iMgr.DeleteIPSet(testSetName)
 	if err != nil {
-		t.Errorf("DeleteSet() returned error %s", err.Error())
+		t.Errorf("DeleteIPSet() returned error %s", err.Error())
 	}
 }
 
