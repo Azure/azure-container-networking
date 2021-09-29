@@ -20,11 +20,6 @@ type IPSetManager struct {
 	sync.Mutex
 }
 
-func (iMgr *IPSetManager) exists(name string) bool {
-	_, ok := iMgr.setMap[name]
-	return ok
-}
-
 func NewIPSetManager() *IPSetManager {
 	return &IPSetManager{
 		setMap:             make(map[string]*IPSet),
@@ -85,26 +80,6 @@ func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceT
 	return nil
 }
 
-func (iMgr *IPSetManager) modifyCacheForKernelCreation(setName string) {
-	iMgr.toAddOrUpdateCache[setName] = struct{}{}
-	delete(iMgr.toDeleteCache, setName)
-	/*
-		TODO kernel-based prometheus metrics
-
-		metrics.IncNumKernelIPSets()
-		numEntries := len(set.MemberIPsets) OR len(set.IPPodKey)
-		metrics.SetNumEntriesForKernelIPSet(setName, numEntries)
-	*/
-}
-
-func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
-	wasInKernel := member.shouldBeInKernel()
-	member.incKernelReferCount()
-	if !wasInKernel {
-		iMgr.modifyCacheForKernelCreation(member.Name)
-	}
-}
-
 func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referenceType ReferenceType) error {
 	if !iMgr.exists(setName) {
 		npmErrorString := npmerrors.DeleteSelectorReference
@@ -126,30 +101,6 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 		}
 	}
 	return nil
-}
-
-func (iMgr *IPSetManager) modifyCacheForKernelRemoval(setName string) {
-	iMgr.toDeleteCache[setName] = struct{}{}
-	delete(iMgr.toAddOrUpdateCache, setName)
-	/*
-		TODO kernel-based prometheus metrics
-
-		metrics.DecNumKernelIPSets()
-		numEntries := len(set.MemberIPsets) OR len(set.IPPodKey)
-		metrics.RemoveAllEntriesFromKernelIPSet(setName)
-	*/
-}
-
-func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
-	member.decKernelReferCount()
-	if !member.shouldBeInKernel() {
-		iMgr.modifyCacheForKernelRemoval(member.Name)
-	}
-}
-
-func (iMgr *IPSetManager) clearDirtyCache() {
-	iMgr.toAddOrUpdateCache = make(map[string]struct{})
-	iMgr.toDeleteCache = make(map[string]struct{})
 }
 
 func (iMgr *IPSetManager) AddToSet(addToSets []string, ip, podKey string) error {
@@ -178,36 +129,6 @@ func (iMgr *IPSetManager) AddToSet(addToSets []string, ip, podKey string) error 
 		metrics.AddEntryToIPSet(setName)
 	}
 	return nil
-}
-
-func (iMgr *IPSetManager) checkForIPUpdateErrors(setNames []string, npmErrorString string) error {
-	for _, setName := range setNames {
-		if !iMgr.exists(setName) {
-			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
-		}
-
-		set := iMgr.setMap[setName]
-		if set.Kind != HashSet {
-			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a hash set", setName))
-		}
-	}
-	return nil
-}
-
-func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(setName string) {
-	set := iMgr.setMap[setName]
-	if set.shouldBeInKernel() {
-		iMgr.toAddOrUpdateCache[setName] = struct{}{}
-		/*
-			TODO kernel-based prometheus metrics
-
-			if isAdd {
-				metrics.AddEntryToKernelIPSet(setName)
-			} else {
-				metrics.RemoveEntryFromKernelIPSet(setName)
-			}
-		*/
-	}
 }
 
 func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []string, ip, podKey string) error {
@@ -256,6 +177,111 @@ func (iMgr *IPSetManager) AddToList(listName string, setNames []string) error {
 	return nil
 }
 
+func (iMgr *IPSetManager) RemoveFromList(listName string, setNames []string) error {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+
+	if err := iMgr.checkForListMemberUpdateErrors(listName, setNames, npmerrors.DeleteIPSet); err != nil {
+		return err
+	}
+
+	for _, setName := range setNames {
+		iMgr.removeMemberIPSet(listName, setName)
+	}
+	iMgr.modifyCacheForKernelMemberUpdate(listName)
+	metrics.RemoveEntryFromIPSet(listName)
+	return nil
+}
+
+func (iMgr *IPSetManager) ApplyIPSets(networkID string) error {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+
+	// Call the appropriate apply ipsets
+	err := iMgr.applyIPSets(networkID)
+	if err != nil {
+		return err
+	}
+
+	iMgr.clearDirtyCache()
+	// TODO could also set the number of ipsets in NPM (not necessarily in kernel) here using len(iMgr.setMap)
+	return nil
+}
+
+func (iMgr *IPSetManager) exists(name string) bool {
+	_, ok := iMgr.setMap[name]
+	return ok
+}
+
+func (iMgr *IPSetManager) modifyCacheForKernelCreation(setName string) {
+	iMgr.toAddOrUpdateCache[setName] = struct{}{}
+	delete(iMgr.toDeleteCache, setName)
+	/*
+		TODO kernel-based prometheus metrics
+
+		metrics.IncNumKernelIPSets()
+		numEntries := len(set.MemberIPsets) OR len(set.IPPodKey)
+		metrics.SetNumEntriesForKernelIPSet(setName, numEntries)
+	*/
+}
+
+func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
+	wasInKernel := member.shouldBeInKernel()
+	member.incKernelReferCount()
+	if !wasInKernel {
+		iMgr.modifyCacheForKernelCreation(member.Name)
+	}
+}
+
+func (iMgr *IPSetManager) modifyCacheForKernelRemoval(setName string) {
+	iMgr.toDeleteCache[setName] = struct{}{}
+	delete(iMgr.toAddOrUpdateCache, setName)
+	/*
+		TODO kernel-based prometheus metrics
+
+		metrics.DecNumKernelIPSets()
+		numEntries := len(set.MemberIPsets) OR len(set.IPPodKey)
+		metrics.RemoveAllEntriesFromKernelIPSet(setName)
+	*/
+}
+
+func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
+	member.decKernelReferCount()
+	if !member.shouldBeInKernel() {
+		iMgr.modifyCacheForKernelRemoval(member.Name)
+	}
+}
+
+func (iMgr *IPSetManager) checkForIPUpdateErrors(setNames []string, npmErrorString string) error {
+	for _, setName := range setNames {
+		if !iMgr.exists(setName) {
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
+		}
+
+		set := iMgr.setMap[setName]
+		if set.Kind != HashSet {
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a hash set", setName))
+		}
+	}
+	return nil
+}
+
+func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(setName string) {
+	set := iMgr.setMap[setName]
+	if set.shouldBeInKernel() {
+		iMgr.toAddOrUpdateCache[setName] = struct{}{}
+		/*
+			TODO kernel-based prometheus metrics
+
+			if isAdd {
+				metrics.AddEntryToKernelIPSet(setName)
+			} else {
+				metrics.RemoveEntryFromKernelIPSet(setName)
+			}
+		*/
+	}
+}
+
 func (iMgr *IPSetManager) checkForListMemberUpdateErrors(listName string, memberNames []string, npmErrorString string) error {
 	if !iMgr.exists(listName) {
 		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", listName))
@@ -301,22 +327,6 @@ func (iMgr *IPSetManager) addMemberIPSet(listName, memberName string) {
 	}
 }
 
-func (iMgr *IPSetManager) RemoveFromList(listName string, setNames []string) error {
-	iMgr.Lock()
-	defer iMgr.Unlock()
-
-	if err := iMgr.checkForListMemberUpdateErrors(listName, setNames, npmerrors.DeleteIPSet); err != nil {
-		return err
-	}
-
-	for _, setName := range setNames {
-		iMgr.removeMemberIPSet(listName, setName)
-	}
-	iMgr.modifyCacheForKernelMemberUpdate(listName)
-	metrics.RemoveEntryFromIPSet(listName)
-	return nil
-}
-
 func (iMgr *IPSetManager) removeMemberIPSet(listName, memberName string) {
 	list := iMgr.setMap[listName]
 	if !list.hasMember(memberName) {
@@ -333,17 +343,7 @@ func (iMgr *IPSetManager) removeMemberIPSet(listName, memberName string) {
 	}
 }
 
-func (iMgr *IPSetManager) ApplyIPSets(networkID string) error {
-	iMgr.Lock()
-	defer iMgr.Unlock()
-
-	// Call the appropriate apply ipsets
-	err := iMgr.applyIPSets(networkID)
-	if err != nil {
-		return err
-	}
-
-	iMgr.clearDirtyCache()
-	// TODO could also set the number of ipsets in NPM (not necessarily in kernel) here using len(iMgr.setMap)
-	return nil
+func (iMgr *IPSetManager) clearDirtyCache() {
+	iMgr.toAddOrUpdateCache = make(map[string]struct{})
+	iMgr.toDeleteCache = make(map[string]struct{})
 }
