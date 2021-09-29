@@ -23,7 +23,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var errEmptyContent = errors.New("Read content is zero bytes")
+var errEmptyContent = errors.New("read content is zero bytes")
 
 // Plugin is the parent class for CNI plugins.
 type Plugin struct {
