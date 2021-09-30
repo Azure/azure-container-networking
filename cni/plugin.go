@@ -158,9 +158,6 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 			log.Printf("[cni] Failed to create store: %v.", err)
 			return err
 		}
-
-		// Force unlock the json store if the lock file is left on the node after reboot
-		removeLockFileAfterReboot(plugin)
 	}
 
 	// Acquire store lock.
