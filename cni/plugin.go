@@ -210,7 +210,7 @@ func (plugin *Plugin) IsSafeToRemoveLock(processName string) (bool, error) {
 		log.Printf("Read from lockfile:%s", lockFilePid)
 		// Get the process name if running and
 		// check if that matches with our expected process
-		// if it runs non-nil error then process is not running
+		// if it returns non-nil error then process is not running
 		pName, err := platform.GetProcessNameByID(lockFilePid)
 		if err != nil {
 			var content string
