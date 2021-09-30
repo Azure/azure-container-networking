@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/http/api"
+	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
@@ -26,7 +26,7 @@ type Converter struct {
 	ListMap        map[string]string // key: hash(value), value: one of namespace, label of namespace, multiple values
 	SetMap         map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
 	AzureNPMChains map[string]bool
-	NPMCache       *npm.Cache
+	NPMCache       *controllersv1.Cache
 }
 
 // NpmCacheFromFile initialize NPM cache from file.
@@ -36,7 +36,7 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 		return fmt.Errorf("failed to read %s file : %w", npmCacheJSONFile, err)
 	}
 
-	c.NPMCache = &npm.Cache{}
+	c.NPMCache = &controllersv1.Cache{}
 	err = json.Unmarshal(byteArray, c.NPMCache)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
@@ -64,7 +64,7 @@ func (c *Converter) NpmCache() error {
 	if err != nil {
 		return fmt.Errorf("failed to read response's data : %w", err)
 	}
-	c.NPMCache = &npm.Cache{}
+	c.NPMCache = &controllersv1.Cache{}
 	err = json.Unmarshal(byteArray, c.NPMCache)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)

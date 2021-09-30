@@ -58,10 +58,10 @@ type SetType int8
 
 const (
 	// Unknown SetType
-	UnknownType SetType = 0
-	// NameSpace IPSet is created to hold
+	Unknown SetType = 0
+	// Namespace IPSet is created to hold
 	// ips of pods in a given NameSapce
-	NameSpace SetType = 1
+	Namespace SetType = 1
 	// KeyLabelOfNameSpace IPSet is a list kind ipset
 	// with members as ipsets of namespace with this Label Key
 	KeyLabelOfNameSpace SetType = 2
@@ -84,8 +84,8 @@ const (
 
 var (
 	setTypeName = map[SetType]string{
-		UnknownType:              Unknown,
-		NameSpace:                "NameSpace",
+		Unknown:                  "Unknown",
+		Namespace:                "Namespace",
 		KeyLabelOfNameSpace:      "KeyLabelOfNameSpace",
 		KeyValueLabelOfNameSpace: "KeyValueLabelOfNameSpace",
 		KeyLabelOfPod:            "KeyLabelOfPod",
@@ -256,7 +256,7 @@ func GetSetKind(setType SetType) SetKind {
 	switch setType {
 	case CIDRBlocks:
 		return HashSet
-	case NameSpace:
+	case Namespace:
 		return HashSet
 	case NamedPorts:
 		return HashSet

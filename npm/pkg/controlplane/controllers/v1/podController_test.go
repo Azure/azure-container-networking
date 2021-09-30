@@ -1,6 +1,6 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package npm
+package controllers
 
 import (
 	"fmt"
@@ -13,20 +13,27 @@ import (
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	utilexec "k8s.io/utils/exec"
-	fakeexec "k8s.io/utils/exec/testing"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
+	utilexec "k8s.io/utils/exec"
+	fakeexec "k8s.io/utils/exec/testing"
 )
 
 const (
 	HostNetwork    = true
 	NonHostNetwork = false
+)
+
+// To indicate the object is needed to be DeletedFinalStateUnknown Object
+type IsDeletedFinalStateUnknownObject bool
+
+const (
+	DeletedFinalStateUnknownObject IsDeletedFinalStateUnknownObject = true
+	DeletedFinalStateknownObject   IsDeletedFinalStateUnknownObject = false
 )
 
 type podFixture struct {
@@ -40,7 +47,7 @@ type podFixture struct {
 	kubeobjects []runtime.Object
 
 	ipsMgr        *ipsm.IpsetManager
-	podController *podController
+	podController *PodController
 	kubeInformer  kubeinformers.SharedInformerFactory
 }
 
@@ -54,11 +61,20 @@ func newFixture(t *testing.T, exec utilexec.Interface) *podFixture {
 	return f
 }
 
+func getKey(obj interface{}, t *testing.T) string {
+	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+	if err != nil {
+		t.Errorf("Unexpected error getting key for obj %v: %v", obj, err)
+		return ""
+	}
+	return key
+}
+
 func (f *podFixture) newPodController(stopCh chan struct{}) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	npmNamespaceCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
+	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
 	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.ipsMgr, npmNamespaceCache)
 
 	for _, pod := range f.podLister {
@@ -165,7 +181,7 @@ func checkPodTestResult(testName string, f *podFixture, testCases []expectedValu
 		if got := len(f.podController.podMap); got != test.expectedLenOfPodMap {
 			f.t.Errorf("%s failed @ PodMap length = %d, want %d", testName, got, test.expectedLenOfPodMap)
 		}
-		if got := len(f.podController.npmNamespaceCache.nsMap); got != test.expectedLenOfNsMap {
+		if got := len(f.podController.npmNamespaceCache.NsMap); got != test.expectedLenOfNsMap {
 			f.t.Errorf("%s failed @ NsMap length = %d, want %d", testName, got, test.expectedLenOfNsMap)
 		}
 		if got := f.podController.workqueue.Len(); got != test.expectedLenOfWorkQueue {

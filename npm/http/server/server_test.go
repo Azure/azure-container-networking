@@ -7,11 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
+	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/Azure/azure-container-networking/npm"
 )
 
 func TestGetNPMCacheHandler(t *testing.T) {
@@ -40,16 +40,16 @@ func TestGetNPMCacheHandler(t *testing.T) {
 		t.Errorf("failed to read response's data : %w", err)
 	}
 
-	actual := &npm.Cache{}
+	actual := &controllersv1.Cache{}
 	err = json.Unmarshal(byteArray, actual)
 	if err != nil {
 		t.Fatalf("failed to unmarshal %s due to %v", string(byteArray), err)
 	}
 
-	expected := &npm.Cache{
+	expected := &controllersv1.Cache{
 		NodeName: nodeName,
-		NsMap:    make(map[string]*npm.Namespace),
-		PodMap:   make(map[string]*npm.NpmPod),
+		NsMap:    make(map[string]*controllersv1.Namespace),
+		PodMap:   make(map[string]*controllersv1.NpmPod),
 		ListMap:  make(map[string]*ipsm.Ipset),
 		SetMap:   make(map[string]*ipsm.Ipset),
 	}

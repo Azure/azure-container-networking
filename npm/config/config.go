@@ -17,6 +17,7 @@ var DefaultConfig = Config{
 		EnablePrometheusMetrics: true,
 		EnablePprof:             true,
 		EnableHTTPDebugAPI:      true,
+		EnableV2Controllers:     false,
 	},
 }
 
@@ -31,4 +32,5 @@ type Toggles struct {
 	EnablePrometheusMetrics bool
 	EnablePprof             bool
 	EnableHTTPDebugAPI      bool
+	EnableV2Controllers     bool
 }

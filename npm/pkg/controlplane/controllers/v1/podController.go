@@ -1,6 +1,6 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package npm
+package controllers
 
 import (
 	"encoding/json"
@@ -82,17 +82,17 @@ func (nPod *NpmPod) updateNpmPodAttributes(podObj *corev1.Pod) {
 	}
 }
 
-type podController struct {
+type PodController struct {
 	podLister corelisters.PodLister
 	workqueue workqueue.RateLimitingInterface
 	ipsMgr    *ipsm.IpsetManager
 	podMap    map[string]*NpmPod // Key is <nsname>/<podname>
 	sync.Mutex
-	npmNamespaceCache *npmNamespaceCache
+	npmNamespaceCache *NpmNamespaceCache
 }
 
-func NewPodController(podInformer coreinformer.PodInformer, ipsMgr *ipsm.IpsetManager, npmNamespaceCache *npmNamespaceCache) *podController {
-	podController := &podController{
+func NewPodController(podInformer coreinformer.PodInformer, ipsMgr *ipsm.IpsetManager, npmNamespaceCache *NpmNamespaceCache) *PodController {
+	podController := &PodController{
 		podLister:         podInformer.Lister(),
 		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Pods"),
 		ipsMgr:            ipsMgr,
@@ -110,7 +110,7 @@ func NewPodController(podInformer coreinformer.PodInformer, ipsMgr *ipsm.IpsetMa
 	return podController
 }
 
-func (c *podController) MarshalJSON() ([]byte, error) {
+func (c *PodController) MarshalJSON() ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -122,12 +122,12 @@ func (c *podController) MarshalJSON() ([]byte, error) {
 	return podMapRaw, nil
 }
 
-func (c *podController) lengthOfPodMap() int {
+func (c *PodController) LengthOfPodMap() int {
 	return len(c.podMap)
 }
 
 // needSync filters the event if the event is not required to handle
-func (c *podController) needSync(eventType string, obj interface{}) (string, bool) {
+func (c *PodController) needSync(eventType string, obj interface{}) (string, bool) {
 	needSync := false
 	var key string
 
@@ -161,7 +161,7 @@ func (c *podController) needSync(eventType string, obj interface{}) (string, boo
 	return key, needSync
 }
 
-func (c *podController) addPod(obj interface{}) {
+func (c *PodController) addPod(obj interface{}) {
 	key, needSync := c.needSync("ADD", obj)
 	if !needSync {
 		return
@@ -176,7 +176,7 @@ func (c *podController) addPod(obj interface{}) {
 	c.workqueue.Add(key)
 }
 
-func (c *podController) updatePod(old, new interface{}) {
+func (c *PodController) updatePod(old, new interface{}) {
 	key, needSync := c.needSync("UPDATE", new)
 	if !needSync {
 		klog.Infof("[POD UPDATE EVENT] No need to sync this pod")
@@ -198,7 +198,7 @@ func (c *podController) updatePod(old, new interface{}) {
 	c.workqueue.Add(key)
 }
 
-func (c *podController) deletePod(obj interface{}) {
+func (c *PodController) deletePod(obj interface{}) {
 	podObj, ok := obj.(*corev1.Pod)
 	// DeleteFunc gets the final state of the resource (if it is known).
 	// Otherwise, it gets an object of type DeletedFinalStateUnknown.
@@ -235,7 +235,7 @@ func (c *podController) deletePod(obj interface{}) {
 	c.workqueue.Add(key)
 }
 
-func (c *podController) Run(stopCh <-chan struct{}) {
+func (c *PodController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
@@ -247,12 +247,12 @@ func (c *podController) Run(stopCh <-chan struct{}) {
 	klog.Info("Shutting down Pod workers")
 }
 
-func (c *podController) runWorker() {
+func (c *PodController) runWorker() {
 	for c.processNextWorkItem() {
 	}
 }
 
-func (c *podController) processNextWorkItem() bool {
+func (c *PodController) processNextWorkItem() bool {
 	obj, shutdown := c.workqueue.Get()
 
 	if shutdown {
@@ -294,7 +294,7 @@ func (c *podController) processNextWorkItem() bool {
 }
 
 // syncPod compares the actual state with the desired, and attempts to converge the two.
-func (c *podController) syncPod(key string) error {
+func (c *PodController) syncPod(key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -350,7 +350,7 @@ func (c *podController) syncPod(key string) error {
 	return nil
 }
 
-func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
+func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", string(podObj.GetUID()), podObj.Namespace,
 		podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
@@ -394,13 +394,13 @@ func (c *podController) syncAddedPod(podObj *corev1.Pod) error {
 }
 
 // syncAddAndUpdatePod handles updating pod ip in its label's ipset.
-func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
+func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	var err error
 	newPodObjNs := util.GetNSNameWithPrefix(newPodObj.Namespace)
 
 	// lock before using nsMap since nsMap is shared with namespace controller
 	c.npmNamespaceCache.Lock()
-	if _, exists := c.npmNamespaceCache.nsMap[newPodObjNs]; !exists {
+	if _, exists := c.npmNamespaceCache.NsMap[newPodObjNs]; !exists {
 		// Create ipset related to namespace which this pod belong to if it does not exist.
 		if err = c.ipsMgr.CreateSet(newPodObjNs, []string{util.IpsetNetHashFlag}); err != nil {
 			c.npmNamespaceCache.Unlock()
@@ -414,7 +414,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 
 		// Add namespace object into NsMap cache only when two ipset operations are successful.
 		npmNs := newNs(newPodObjNs)
-		c.npmNamespaceCache.nsMap[newPodObjNs] = npmNs
+		c.npmNamespaceCache.NsMap[newPodObjNs] = npmNs
 	}
 	c.npmNamespaceCache.Unlock()
 
@@ -517,7 +517,7 @@ func (c *podController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 }
 
 // cleanUpDeletedPod cleans up all ipset associated with this pod
-func (c *podController) cleanUpDeletedPod(cachedNpmPodKey string) error {
+func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	klog.Infof("[cleanUpDeletedPod] deleting Pod with key %s", cachedNpmPodKey)
 	// If cached npmPod does not exist, return nil
 	cachedNpmPod, exist := c.podMap[cachedNpmPodKey]
@@ -558,7 +558,7 @@ func (c *podController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 }
 
 // manageNamedPortIpsets helps with adding or deleting Pod namedPort IPsets.
-func (c *podController) manageNamedPortIpsets(portList []corev1.ContainerPort, podKey string,
+func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, podKey string,
 	podIP string, namedPortOperation NamedPortOperation) error {
 	for _, port := range portList {
 		klog.Infof("port is %+v", port)

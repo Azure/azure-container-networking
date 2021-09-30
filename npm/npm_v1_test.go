@@ -9,8 +9,8 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/exec"
 )
@@ -30,24 +30,6 @@ func getKey(obj interface{}, t *testing.T) string {
 		return ""
 	}
 	return key
-}
-
-func TestNSMapMarshalJSON(t *testing.T) {
-	npmNSCache := &npmNamespaceCache{nsMap: make(map[string]*Namespace)}
-	nsName := "ns-test"
-	ns := &Namespace{
-		name: nsName,
-		LabelsMap: map[string]string{
-			"test-key": "test-value",
-		},
-	}
-
-	npmNSCache.nsMap[nsName] = ns
-	nsMapRaw, err := npmNSCache.MarshalJSON()
-	require.NoError(t, err)
-
-	expect := []byte(`{"ns-test":{"LabelsMap":{"test-key":"test-value"}}}`)
-	assert.ElementsMatch(t, expect, nsMapRaw)
 }
 
 func TestMarshalJSONForNilValues(t *testing.T) {
@@ -77,16 +59,16 @@ func TestMarshalUnMarshalJSON(t *testing.T) {
 	npmCacheRaw, err := npmCacheEncoder.MarshalJSON()
 	assert.NoError(t, err)
 
-	decodedNPMCache := Cache{}
+	decodedNPMCache := controllersv1.Cache{}
 	if err := json.Unmarshal(npmCacheRaw, &decodedNPMCache); err != nil {
 		t.Errorf("failed to decode %s to NPMCache", npmCacheRaw)
 	}
 
-	expected := Cache{
+	expected := controllersv1.Cache{
 		ListMap:  make(map[string]*ipsm.Ipset),
 		NodeName: nodeName,
-		NsMap:    make(map[string]*Namespace),
-		PodMap:   make(map[string]*NpmPod),
+		NsMap:    make(map[string]*controllersv1.Namespace),
+		PodMap:   make(map[string]*controllersv1.NpmPod),
 		SetMap:   make(map[string]*ipsm.Ipset),
 	}
 
