@@ -22,10 +22,9 @@ func TestPluginSafeToRemoveLock(t *testing.T) {
 		processName string
 		wantIsSafe  bool
 		wantErr     bool
-		wantErrMsg  string
 	}{
 		{
-			name: "Safe to remove lock-true. Process name not match",
+			name: "Safe to remove lock-true. Process name does not match",
 			plugin: Plugin{
 				Plugin: &common.Plugin{
 					Name:    "cni",

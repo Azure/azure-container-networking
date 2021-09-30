@@ -207,9 +207,10 @@ func (plugin *Plugin) IsSafeToRemoveLock(processName string) (bool, error) {
 			return false, errors.Wrap(err, "IsSafeToRemoveLock lockfile read failed")
 		}
 
-		log.Printf("Read from Lock file:%s", lockFilePid)
+		log.Printf("Read from lockfile:%s", lockFilePid)
 		// Get the process name if running and
 		// check if that matches with our expected process
+		// if it runs non-nil error then process is not running
 		pName, err := platform.GetProcessNameByID(lockFilePid)
 		if err != nil {
 			var content string
@@ -218,12 +219,14 @@ func (plugin *Plugin) IsSafeToRemoveLock(processName string) (bool, error) {
 				return false, errors.Wrap(err, "IsSafeToRemoveLock lockfile 2nd read failed")
 			}
 
-			if string(content) == lockFilePid {
-				return true, nil
+			// pid in lockfile changed after getprocessnamebyid call. so some other process acquired lockfile in between.
+			// so its not safe to remove lockfile
+			if string(content) != lockFilePid {
+				log.Printf("Lockfile content changed from %s to %s. So not safe to remove lockfile", lockFilePid, content)
+				return false, nil
 			}
 
-			log.Printf("Lockfile content changed from %s to %s. So not safe to clean lock file", lockFilePid, content)
-			return false, nil
+			return true, nil
 		}
 
 		log.Printf("[CNI] Process name is %s", pName)
@@ -240,12 +243,12 @@ func (plugin *Plugin) IsSafeToRemoveLock(processName string) (bool, error) {
 func (plugin *Plugin) readLockFile(filename string) (string, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Errorf("Failed to read lock file :%v, ", err)
+		log.Errorf("Failed to read lockfile :%v", err)
 		return "", fmt.Errorf("readLockFile error:%w", err)
 	}
 
 	if len(content) == 0 {
-		log.Errorf("Num bytes read from lock file is 0")
+		log.Errorf("Num bytes read from lockfile is 0")
 		return "", errEmptyContent
 	}
 
