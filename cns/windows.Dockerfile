@@ -24,3 +24,4 @@ COPY --from=builder /usr/local/bin/azure-vnet-telemetry.exe \
     /usr/local/bin/azure-vnet-telemetry.exe
 
 ENTRYPOINT ["/usr/local/bin/azure-cns.exe"]
+EXPOSE 10090
