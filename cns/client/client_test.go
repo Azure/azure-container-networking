@@ -97,9 +97,18 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
 
-	svc.IPAMPoolMonitor.Update(
-		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
-		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
+				BatchSize:               batchSize,
+				ReleaseThresholdPercent: releasePercent,
+				RequestThresholdPercent: requestPercent,
+			},
+		},
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: initPoolSize,
+		},
+	})
 }
 
 func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
@@ -188,7 +197,7 @@ func TestMain(m *testing.M) {
 			},
 		},
 	}
-	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{FakeMinimumIps: 10, FakeMaximumIps: 20, FakeIpsNotInUseCount: 13, FakecachedNNC: fakeNNC}
+	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{FakeIpsNotInUseCount: 13, FakecachedNNC: &fakeNNC}
 
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)

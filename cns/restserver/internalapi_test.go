@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 )
 
@@ -200,7 +200,18 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	expectedAllocatedPods := make(map[string]cns.PodInfo)
-	returnCode := svc.ReconcileNCState(nil, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.ReconcileNCState(nil, expectedAllocatedPods, &v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
+				BatchSize:               batchSize,
+				ReleaseThresholdPercent: releasePercent,
+				RequestThresholdPercent: requestPercent,
+			},
+		},
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: initPoolSize,
+		},
+	})
 	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -231,7 +242,18 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, &v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
+				BatchSize:               batchSize,
+				ReleaseThresholdPercent: releasePercent,
+				RequestThresholdPercent: requestPercent,
+			},
+		},
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: initPoolSize,
+		},
+	})
 	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -264,7 +286,18 @@ func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, &v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
+				BatchSize:               batchSize,
+				ReleaseThresholdPercent: releasePercent,
+				RequestThresholdPercent: requestPercent,
+			},
+		},
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: initPoolSize,
+		},
+	})
 	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -296,7 +329,18 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	expectedAllocatedPods["192.168.0.1"] = cns.NewPodInfo("", "", "systempod", "kube-system")
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, fakes.NewFakeScalar(releasePercent, requestPercent, batchSize), fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	returnCode := svc.ReconcileNCState(req, expectedAllocatedPods, &v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
+				BatchSize:               batchSize,
+				ReleaseThresholdPercent: releasePercent,
+				RequestThresholdPercent: requestPercent,
+			},
+		},
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: initPoolSize,
+		},
+	})
 	if returnCode != types.Success {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
@@ -382,9 +426,18 @@ func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
-	svc.IPAMPoolMonitor.Update(
-		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
-		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
+				BatchSize:               batchSize,
+				ReleaseThresholdPercent: releasePercent,
+				RequestThresholdPercent: requestPercent,
+			},
+		},
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: initPoolSize,
+		},
+	})
 	validateNetworkRequest(t, *req)
 }
 
@@ -546,9 +599,18 @@ func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.Seconda
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
-	svc.IPAMPoolMonitor.Update(
-		fakes.NewFakeScalar(releasePercent, requestPercent, batchSize),
-		fakes.NewFakeNodeNetworkConfigSpec(initPoolSize))
+	svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
+				BatchSize:               batchSize,
+				ReleaseThresholdPercent: releasePercent,
+				RequestThresholdPercent: requestPercent,
+			},
+		},
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: initPoolSize,
+		},
+	})
 	return *req
 }
 

@@ -215,14 +215,14 @@ type NodeConfiguration struct {
 
 type IPAMPoolMonitor interface {
 	Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error
-	Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec)
+	Update(nnc *v1alpha.NodeNetworkConfig)
 	GetStateSnapshot() IpamPoolMonitorStateSnapshot
 }
 
 // IpamPoolMonitorStateSnapshot struct to expose state values for IPAMPoolMonitor struct
 type IpamPoolMonitorStateSnapshot struct {
-	MinimumFreeIps           int64
-	MaximumFreeIps           int64
+	MinimumFreeIps           int
+	MaximumFreeIps           int
 	UpdatingIpsNotInUseCount int
 	CachedNNC                v1alpha.NodeNetworkConfig
 }

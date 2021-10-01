@@ -872,7 +872,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// initialize the ipam pool monitor
-	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, scopedcli)
+	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewPoolMon(httpRestServiceImplementation, scopedcli)
 	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize CNS state")

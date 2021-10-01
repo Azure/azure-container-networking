@@ -211,8 +211,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) ReconcileNCState(
-	ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler,
-	spec v1alpha.NodeNetworkConfigSpec) types.ResponseCode {
+	ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
 	logger.Printf("Reconciling NC state with podInfo %+v", podInfoByIP)
 	// check if ncRequest is null, then return as there is no CRD state yet
 	if ncRequest == nil {
@@ -225,7 +224,7 @@ func (service *HTTPRestService) ReconcileNCState(
 	if returnCode != types.Success {
 		return returnCode
 	}
-	service.IPAMPoolMonitor.Update(scalar, spec)
+	service.IPAMPoolMonitor.Update(nnc)
 
 	// now parse the secondaryIP list, if it exists in PodInfo list, then allocate that ip
 	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
@@ -254,9 +253,9 @@ func (service *HTTPRestService) ReconcileNCState(
 		}
 	}
 
-	err := service.MarkExistingIPsAsPending(spec.IPsNotInUse)
+	err := service.MarkExistingIPsAsPending(nnc.Spec.IPsNotInUse)
 	if err != nil {
-		logger.Errorf("[Azure CNS] Error. Failed to mark IP's as pending %v", spec.IPsNotInUse)
+		logger.Errorf("[Azure CNS] Error. Failed to mark IP's as pending %v", nnc.Spec.IPsNotInUse)
 		return types.UnexpectedError
 	}
 
