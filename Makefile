@@ -94,8 +94,8 @@ AZURE_CNI_IMAGE = $(IMAGE_REGISTRY)/azure-cni-manager
 # Azure container networking service image paramters.
 AZURE_CNS_IMAGE = $(IMAGE_REGISTRY)/azure-cns
 
-IMAGE_PLATFORM_ARCHES ?= linux/amd64,linux/arm64
-IMAGE_ACTION ?= push
+IMAGE_PLATFORM_ARCHES ?= windows/amd64
+IMAGE_ACTION ?= load
 
 VERSION ?= $(shell git describe --tags --always --dirty)
 
@@ -256,6 +256,21 @@ ifeq ($(GOOS),linux)
 
 	echo $(AZURE_CNS_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
 endif
+
+# Build the Azure CNS image windows
+.PHONY: azure-cns-image-windows
+azure-cns-image-windows:
+	$(MKDIR) $(IMAGE_DIR)
+	docker build \
+	--no-cache \
+	-f cns/windows.Dockerfile \
+	-t $(AZURE_CNS_IMAGE)-win:$(VERSION) \
+	--build-arg VERSION=$(VERSION) \
+	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
+	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	.
+
+	echo $(AZURE_CNS_IMAGE)-win:$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
 
 ########################### Archives ################################
 
