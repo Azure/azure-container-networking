@@ -94,8 +94,8 @@ AZURE_CNI_IMAGE = $(IMAGE_REGISTRY)/azure-cni-manager
 # Azure container networking service image paramters.
 AZURE_CNS_IMAGE = $(IMAGE_REGISTRY)/azure-cns
 
-IMAGE_PLATFORM_ARCHES ?= windows/amd64
-IMAGE_ACTION ?= load
+IMAGE_PLATFORM_ARCHES ?= linux/amd64,linux/arm64
+IMAGE_ACTION ?= push
 
 VERSION ?= $(shell git describe --tags --always --dirty)
 
