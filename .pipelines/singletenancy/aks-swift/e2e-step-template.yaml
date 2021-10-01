@@ -34,7 +34,7 @@ steps:
         echo "DNC Underlay config"
         az keyvault secret show --name $(KV_DNC_UNDERLAY_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
         az keyvault secret show --name $(KV_DNC_UNDERLAY_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/dnc-underlay
-        echo "Dirty ACN cx cluster config"
+        echo "Dirty ACN ccp config"
         az keyvault secret show --name $(KV_AKS_SWIFT_CX_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
         az keyvault secret show --name $(KV_AKS_SWIFT_CX_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/config
     displayName: Pull Kubeconfig from Keyvault

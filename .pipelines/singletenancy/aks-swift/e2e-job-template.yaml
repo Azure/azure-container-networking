@@ -9,7 +9,7 @@ stages:
     dependsOn: build_and_test
     jobs:
       - job: ${{ parameters.name }}
-        displayName: Singletenancy AKS on Swift Suite - (${{ parameters.name }})
+        displayName: Singletenancy AKS Swift Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: "$(BUILD_POOL_NAME_SWIFT)"
@@ -17,7 +17,7 @@ stages:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         container:
-          image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibilit
+          image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
         variables:
           GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
           GOBIN: "$(GOPATH)/bin" # Go binaries path
