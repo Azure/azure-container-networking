@@ -13,9 +13,14 @@ COPY . .
 # Build cns
 RUN $Env:CGO_ENABLED=0; go build -v -o /usr/local/bin/azure-cns.exe -ldflags """-X main.version=${env:VERSION} -X ${env:CNS_AI_PATH}=${env:CNS_AI_ID}""" -gcflags="-dwarflocationlists=true" ./cns/service
 
+# Build aitelemetry
+RUN $Env:CGO_ENABLED=0; go build -v -o /usr/local/bin/azure-vnet-telemetry.exe -ldflags """-X main.version=${env:VERSION}""" -gcflags="-dwarflocationlists=true" ./cni/telemetry/service
+
 
 FROM mcr.microsoft.com/windows/nanoserver:2004
 COPY --from=builder /usr/local/bin/azure-cns.exe \
     /usr/local/bin/azure-cns.exe
+COPY --from=builder /usr/local/bin/azure-vnet-telemetry.exe \
+    /usr/local/bin/azure-vnet-telemetry.exe
 
-ENTRYPOINT ["/usr/local/bin/azure-cns.exe", "--version"]
+ENTRYPOINT ["/usr/local/bin/azure-cns.exe"]
