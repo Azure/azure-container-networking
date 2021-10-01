@@ -14,7 +14,7 @@ COPY . .
 RUN $Env:CGO_ENABLED=0; go build -v -o /usr/local/bin/azure-cns.exe -ldflags """-X main.version=${env:VERSION} -X ${env:CNS_AI_PATH}=${env:CNS_AI_ID}""" -gcflags="-dwarflocationlists=true" ./cns/service
 
 
-FROM mcr.microsoft.com/windows/servercore:ltsc2019
+FROM mcr.microsoft.com/windows/nanoserver:2004
 COPY --from=builder /usr/local/bin/azure-cns.exe \
     /usr/local/bin/azure-cns.exe
 
