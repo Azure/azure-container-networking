@@ -17,7 +17,7 @@ RUN $Env:CGO_ENABLED=0; go build -v -o /usr/local/bin/azure-cns.exe -ldflags """
 RUN $Env:CGO_ENABLED=0; go build -v -o /usr/local/bin/azure-vnet-telemetry.exe -ldflags """-X main.version=${env:VERSION}""" -gcflags="-dwarflocationlists=true" ./cni/telemetry/service
 
 # Copy into final image
-FROM mcr.microsoft.com/windows/nanoserver:2004
+FROM mcr.microsoft.com/windows/nanoserver:1809
 COPY --from=builder /usr/local/bin/azure-cns.exe \
     /usr/local/bin/azure-cns.exe
 COPY --from=builder /usr/local/bin/azure-vnet-telemetry.exe \
