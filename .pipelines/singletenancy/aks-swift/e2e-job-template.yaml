@@ -16,8 +16,6 @@ stages:
           demands: 
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        container:
-          image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibility
         variables:
           GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
           GOBIN: "$(GOPATH)/bin" # Go binaries path
