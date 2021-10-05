@@ -313,8 +313,8 @@ func (set *IPSet) getSetIntersection(existingIntersection map[string]struct{}) (
 }
 
 func (set *IPSet) canSetBeSelectorIPSet() bool {
-	return set.Kind == HashSet &&
-		(set.Type == KeyLabelOfPod ||
-			set.Type == KeyValueLabelOfPod ||
-			set.Type == NameSpace)
+	return (set.Type == KeyLabelOfPod ||
+		set.Type == KeyValueLabelOfPod ||
+		set.Type == NameSpace ||
+		set.Type == NestedLabelOfPod)
 }

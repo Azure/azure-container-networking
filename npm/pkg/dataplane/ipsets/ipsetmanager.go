@@ -53,7 +53,6 @@ func (iMgr *IPSetManager) CreateIPSet(setName string, setType SetType) {
 	}
 	iMgr.setMap[setName] = NewIPSet(setName, setType)
 	metrics.IncNumIPSets()
-	return
 }
 
 func (iMgr *IPSetManager) DeleteIPSet(name string) {
@@ -71,7 +70,15 @@ func (iMgr *IPSetManager) DeleteIPSet(name string) {
 	// the set will not be in the kernel since there are no references, so there's no need to update the dirty cache
 	delete(iMgr.setMap, name)
 	metrics.DecNumIPSets()
-	return
+}
+
+func (iMgr *IPSetManager) GetIPSet(name string) *IPSet {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	if !iMgr.exists(name) {
+		return nil
+	}
+	return iMgr.setMap[name]
 }
 
 func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceType ReferenceType) error {
@@ -376,7 +383,7 @@ func (iMgr *IPSetManager) checkForListMemberUpdateErrors(listName string, member
 
 func (iMgr *IPSetManager) addMemberIPSet(listName, memberName string) {
 	list := iMgr.setMap[listName]
-	if !list.hasMember(memberName) {
+	if list.hasMember(memberName) {
 		return
 	}
 

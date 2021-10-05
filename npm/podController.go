@@ -38,7 +38,6 @@ type NpmPod struct {
 	Name           string
 	Namespace      string
 	PodIP          string
-	NodeName       string
 	Labels         map[string]string
 	ContainerPorts []corev1.ContainerPort
 	Phase          corev1.PodPhase
@@ -49,7 +48,6 @@ func newNpmPod(podObj *corev1.Pod) *NpmPod {
 		Name:           podObj.ObjectMeta.Name,
 		Namespace:      podObj.ObjectMeta.Namespace,
 		PodIP:          podObj.Status.PodIP,
-		NodeName:       podObj.Spec.NodeName,
 		Labels:         make(map[string]string),
 		ContainerPorts: []corev1.ContainerPort{},
 		Phase:          podObj.Status.Phase,
