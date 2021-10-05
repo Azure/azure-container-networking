@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -17,27 +18,27 @@ import (
 )
 
 type cnsClientState struct {
-	req    cns.CreateNetworkContainerRequest
+	req    *cns.CreateNetworkContainerRequest
 	scaler v1alpha.Scaler
 	spec   v1alpha.NodeNetworkConfigSpec
 }
 
 type mockCNSClient struct {
-	state                 cnsClientState
-	createOrUpdateNC      func(cns.CreateNetworkContainerRequest) error
-	updateIPAMPoolMonitor func(v1alpha.Scaler, v1alpha.NodeNetworkConfigSpec)
+	state            cnsClientState
+	createOrUpdateNC func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
+	update           func(v1alpha.Scaler, v1alpha.NodeNetworkConfigSpec)
 }
 
 //nolint:gocritic // ignore hugeParam pls
-func (m *mockCNSClient) CreateOrUpdateNC(req cns.CreateNetworkContainerRequest) error {
+func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
 	m.state.req = req
 	return m.createOrUpdateNC(req)
 }
 
-func (m *mockCNSClient) UpdateIPAMPoolMonitor(scaler v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
+func (m *mockCNSClient) Update(scaler v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) {
 	m.state.scaler = scaler
 	m.state.spec = spec
-	m.updateIPAMPoolMonitor(scaler, spec)
+	m.update(scaler, spec)
 }
 
 type mockNCGetter struct {
@@ -107,13 +108,13 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 			cnsClient: mockCNSClient{
-				createOrUpdateNC: func(cns.CreateNetworkContainerRequest) error {
-					return errors.New("")
+				createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
+					return cnstypes.UnexpectedError
 				},
 			},
 			wantErr: true,
 			wantCNSClientState: cnsClientState{
-				req: validRequest,
+				req: &validRequest,
 			},
 		},
 		{
@@ -129,14 +130,14 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 			cnsClient: mockCNSClient{
-				createOrUpdateNC: func(cns.CreateNetworkContainerRequest) error {
-					return nil
+				createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
+					return cnstypes.Success
 				},
-				updateIPAMPoolMonitor: func(v1alpha.Scaler, v1alpha.NodeNetworkConfigSpec) {},
+				update: func(v1alpha.Scaler, v1alpha.NodeNetworkConfigSpec) {},
 			},
 			wantErr: false,
 			wantCNSClientState: cnsClientState{
-				req:    validRequest,
+				req:    &validRequest,
 				scaler: validStatus.Scaler,
 				spec: v1alpha.NodeNetworkConfigSpec{
 					RequestedIPCount: 1,
@@ -147,7 +148,7 @@ func TestReconcile(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r := New(&tt.ncGetter, &tt.cnsClient)
+			r := New(&tt.ncGetter, &tt.cnsClient, &tt.cnsClient)
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
 				require.Error(t, err)
