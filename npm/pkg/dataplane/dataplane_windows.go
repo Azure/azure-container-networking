@@ -43,7 +43,6 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 	podKey := getNPMPodKey(pod.Namespace, pod.Name)
 	// Check if pod is already present in cache
 	endpoint, ok := dp.endpointCache[podKey]
-	// TODO will this throw nil pointer if not ok
 	if (!ok) || (endpoint.IP != pod.PodIP) {
 		// If the existing endpoint ID has changed, it means that the Pod has been recreated
 		// this results in old endpoint to be deleted, so we can safely ignore cleaning up policies
@@ -54,7 +53,7 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 		}
 		dp.endpointCache[podKey] = endpoint
 	}
-	// TODO now check if any of the existing network policies needs to be applied
+	// Check if any of the existing network policies needs to be applied
 	// Check if the removed IPSets have any network policy references ?
 	toRemovePolicies := make(map[string]struct{})
 	for _, setName := range pod.IPSetsToRemove {
@@ -98,7 +97,7 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 		if _, ok := endpoint.NetPolReference[policyName]; ok {
 			continue
 		}
-
+		// TODO Also check if the endpoint reference in policy for this Ip is right
 		netpolSelectorIPs, err := dp.getSelectorIPsByPolicyName(policyName)
 		if err != nil {
 			return err

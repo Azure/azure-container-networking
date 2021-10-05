@@ -1,7 +1,6 @@
 package dataplane
 
 import (
-	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"k8s.io/klog"
 )

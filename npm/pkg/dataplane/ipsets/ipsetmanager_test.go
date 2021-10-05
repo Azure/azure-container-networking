@@ -20,7 +20,9 @@ func TestCreateIPSet(t *testing.T) {
 
 	iMgr.CreateIPSet(testSetName, NameSpace)
 
-	// TODO add cache check
+	if !iMgr.exists(testSetName) {
+		t.Errorf("CreateIPSet() did not create set")
+	}
 }
 
 func TestAddToSet(t *testing.T) {

@@ -8,12 +8,8 @@ import (
 	"k8s.io/klog"
 )
 
-type PolicyAction string
-
 const (
-	PolicyActionAdd    PolicyAction = "add"
-	PolicyActionRemove PolicyAction = "remove"
-	AzureNetworkName                = "azure"
+	AzureNetworkName = "azure"
 )
 
 type DataPlane struct {
