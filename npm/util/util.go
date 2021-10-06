@@ -3,8 +3,6 @@
 package util
 
 import (
-	"crypto/md5"
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"os"
@@ -335,24 +333,4 @@ func CompareSlices(list1, list2 []string) bool {
 
 func SliceToString(list []string) string {
 	return strings.Join(list, SetPolicyDelimiter)
-}
-
-func HashAnyStruct(obj interface{}) ([16]byte, error) {
-	jsonBytes, err := json.Marshal(obj)
-	if err != nil {
-		return [16]byte{}, fmt.Errorf("Failed to calculate hash for %v with error %w", obj, err)
-	}
-	return md5.Sum(jsonBytes), nil
-}
-
-func HashSliceOfStructs(obj []interface{}) ([16]byte, error) {
-	arrBytes := []byte{}
-	for _, item := range obj {
-		jsonBytes, err := json.Marshal(item)
-		if err != nil {
-			return [16]byte{}, fmt.Errorf("Failed to calculate hash for %v with error %w", obj, err)
-		}
-		arrBytes = append(arrBytes, jsonBytes...)
-	}
-	return md5.Sum(arrBytes), nil
 }

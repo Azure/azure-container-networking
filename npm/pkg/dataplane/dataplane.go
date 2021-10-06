@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	// AzureNetworkName is default network Azure CNI creates
 	AzureNetworkName = "azure"
 )
 

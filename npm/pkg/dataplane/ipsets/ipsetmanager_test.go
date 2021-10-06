@@ -168,11 +168,10 @@ func TestRemoveFromList(t *testing.T) {
 	set = iMgr.GetIPSet(testListName)
 	if set == nil {
 		t.Errorf("RemoveFromList() failed")
-	} else {
-		if len(set.MemberIPSets) != 0 {
-			t.Errorf("RemoveFromList() failed")
-		}
+	} else if len(set.MemberIPSets) != 0 {
+		t.Errorf("RemoveFromList() failed")
 	}
+
 }
 
 func TestRemoveFromListMissing(t *testing.T) {

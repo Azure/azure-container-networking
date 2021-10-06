@@ -32,11 +32,10 @@ func TestGetPolicy(t *testing.T) {
 	policy, ok := pMgr.GetPolicy("test")
 	if !ok {
 		t.Error("GetPolicy() returned false")
-	} else {
-		if policy.Name != "test" {
-			t.Errorf("GetPolicy() returned wrong policy %s", policy.Name)
-		}
+	} else if policy.Name != "test" {
+		t.Errorf("GetPolicy() returned wrong policy %s", policy.Name)
 	}
+
 }
 
 func TestRemovePolicy(t *testing.T) {

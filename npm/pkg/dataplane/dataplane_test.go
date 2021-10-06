@@ -107,7 +107,7 @@ func TestAddToSet(t *testing.T) {
 		}
 	}
 
-	var setNames []string
+	setNames := make([]string, len(setsTocreate))
 	for k := range setsTocreate {
 		setNames = append(setNames, k)
 	}

@@ -13,8 +13,11 @@ import (
 type IPSetMode string
 
 const (
+	// ApplyAllIPSets will change dataplane behavior to apply all ipsets
 	ApplyAllIPSets IPSetMode = "all"
-	ApplyOnNeed    IPSetMode = "on-need"
+	// ApplyOnNeed will change dataplane behavior to apply
+	// only ipsets that are referenced by network policies
+	ApplyOnNeed IPSetMode = "on-need"
 )
 
 type IPSetManager struct {
@@ -273,7 +276,7 @@ func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(setName) {
-		return nil, fmt.Errorf("[ipset manager] selector ipset %s does not exist.", setName)
+		return nil, fmt.Errorf("[ipset manager] selector ipset %s does not exist", setName)
 	}
 	set := iMgr.setMap[setName]
 	return set.SelectorReference, nil
