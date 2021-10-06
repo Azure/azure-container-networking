@@ -39,8 +39,8 @@ const (
 	gatewayIp           = "10.0.0.1"
 	subnetPrfixLength   = 24
 	dockerContainerType = cns.Docker
-	releasePercent      = 50
-	requestPercent      = 100
+	releasePercent      = 150
+	requestPercent      = 50
 	batchSize           = 10
 	initPoolSize        = 10
 )
@@ -176,8 +176,8 @@ func TestMain(m *testing.M) {
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               10,
-				ReleaseThresholdPercent: 50,
-				RequestThresholdPercent: 40,
+				ReleaseThresholdPercent: 150,
+				RequestThresholdPercent: 50,
 			},
 			NetworkContainers: []v1alpha.NetworkContainer{
 				{
@@ -366,8 +366,8 @@ func TestCNSClientDebugAPI(t *testing.T) {
 
 	// check for cached NNC Status struct values
 	assert.EqualValues(t, 10, testIpamPoolMonitor.CachedNNC.Status.Scaler.BatchSize, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
-	assert.EqualValues(t, 50, testIpamPoolMonitor.CachedNNC.Status.Scaler.ReleaseThresholdPercent, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
-	assert.EqualValues(t, 40, testIpamPoolMonitor.CachedNNC.Status.Scaler.RequestThresholdPercent, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
+	assert.EqualValues(t, 150, testIpamPoolMonitor.CachedNNC.Status.Scaler.ReleaseThresholdPercent, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
+	assert.EqualValues(t, 50, testIpamPoolMonitor.CachedNNC.Status.Scaler.RequestThresholdPercent, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
 	assert.Len(t, testIpamPoolMonitor.CachedNNC.Status.NetworkContainers, 1, "Expected only one Network Container in the list")
 
 	t.Logf("In-memory Data: ")

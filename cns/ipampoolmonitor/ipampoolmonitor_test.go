@@ -38,6 +38,8 @@ func initFakes(t *testing.T,
 	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, initialIPConfigCount)
 
 	poolmonitor := NewPoolMon(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC})
+	poolmonitor.once.Do(func() { close(poolmonitor.initialized) })
+
 	fakecns.PoolMonitor = poolmonitor
 
 	err := fakerc.Reconcile(true)
