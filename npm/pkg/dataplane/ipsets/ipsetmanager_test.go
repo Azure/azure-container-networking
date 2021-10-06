@@ -283,11 +283,11 @@ func TestAddDeleteSelectorReferences(t *testing.T) {
 	}
 
 	if len(iMgr.toAddOrUpdateCache) != 5 {
-		t.Errorf("AddReference did not add to cache")
+		t.Errorf("AddReference did not update toAddOrUpdateCache")
 	}
 
 	if len(iMgr.toDeleteCache) != 0 {
-		t.Errorf("AddReference did not add to cache")
+		t.Errorf("AddReference did not update toDeleteCache")
 	}
 
 	for k := range setsTocreate {
@@ -298,13 +298,121 @@ func TestAddDeleteSelectorReferences(t *testing.T) {
 	}
 
 	if len(iMgr.toAddOrUpdateCache) != 0 {
-		t.Errorf("DeleteReference did not update cache")
+		t.Errorf("DeleteReference did not update toAddOrUpdateCache")
+	}
+
+	if len(iMgr.toDeleteCache) != 5 {
+		t.Errorf("DeleteReference did not update toDeleteCache")
+	}
+
+	for k := range setsTocreate {
+		iMgr.DeleteIPSet(k)
+	}
+
+	// Above delete will not remove setpod3 and setpod4
+	// because they are referencing each other
+	if len(iMgr.setMap) != 2 {
+		t.Errorf("DeleteIPSet did not remove deletable sets")
+	}
+
+	err = iMgr.RemoveFromList("setpod3", []string{"setpod4"})
+	if err != nil {
+		t.Errorf("RemoveFromList failed with error %s", err.Error())
+	}
+
+	for k := range setsTocreate {
+		iMgr.DeleteIPSet(k)
+	}
+
+	for k := range setsTocreate {
+		set := iMgr.GetIPSet(k)
+		if set != nil {
+			t.Errorf("DeleteIPSet did not delete %s IPSet", set.Name)
+		}
+	}
+}
+
+func TestAddDeleteNetPolReferences(t *testing.T) {
+	iMgr := NewIPSetManager("azure")
+
+	setsTocreate := map[string]SetType{
+		"setNs1":  NameSpace,
+		"setpod1": KeyLabelOfPod,
+		"setpod2": KeyValueLabelOfPod,
+		"setpod3": NestedLabelOfPod,
+		"setpod4": KeyLabelOfPod,
+	}
+	networkPolicName := "testNetworkPolicy"
+	for k, v := range setsTocreate {
+		iMgr.CreateIPSet(k, v)
+	}
+	err := iMgr.AddToList("setpod3", []string{"setpod4"})
+	if err != nil {
+		t.Errorf("AddToList failed with error %s", err.Error())
+	}
+
+	for k := range setsTocreate {
+		err = iMgr.AddReference(k, networkPolicName, NetPolType)
+		if err != nil {
+			t.Errorf("AddReference failed with error %s", err.Error())
+		}
+	}
+
+	if len(iMgr.toAddOrUpdateCache) != 5 {
+		t.Errorf("AddReference did not update toAddOrUpdateCache")
 	}
 
 	if len(iMgr.toDeleteCache) != 0 {
-		t.Errorf("DeleteReference did not update cache")
+		t.Errorf("AddReference did not update toDeleteCache")
 	}
 
+	for k := range setsTocreate {
+		err = iMgr.DeleteReference(k, networkPolicName, NetPolType)
+		if err != nil {
+			t.Errorf("DeleteReference failed with error %s", err.Error())
+		}
+	}
+
+	if len(iMgr.toAddOrUpdateCache) != 0 {
+		t.Errorf("DeleteReference did not update toAddOrUpdateCache")
+	}
+
+	if len(iMgr.toDeleteCache) != 5 {
+		t.Errorf("DeleteReference did not update toDeleteCache")
+	}
+
+	for k := range setsTocreate {
+		iMgr.DeleteIPSet(k)
+	}
+
+	// Above delete will not remove setpod3 and setpod4
+	// because they are referencing each other
+	if len(iMgr.setMap) != 2 {
+		t.Errorf("DeleteIPSet did not remove deletable sets")
+	}
+
+	err = iMgr.RemoveFromList("setpod3", []string{"setpod4"})
+	if err != nil {
+		t.Errorf("RemoveFromList failed with error %s", err.Error())
+	}
+
+	for k := range setsTocreate {
+		iMgr.DeleteIPSet(k)
+	}
+
+	for k := range setsTocreate {
+		set := iMgr.GetIPSet(k)
+		if set != nil {
+			t.Errorf("DeleteIPSet did not delete %s IPSet", set.Name)
+		}
+	}
+
+	for k := range setsTocreate {
+		err = iMgr.DeleteReference(k, networkPolicName, NetPolType)
+		if err == nil {
+			t.Errorf("DeleteReference did not fail with error for ipset %s", k)
+		}
+	}
 }
 
 func TestMain(m *testing.M) {

@@ -57,12 +57,12 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 	// Check if the removed IPSets have any network policy references ?
 	toRemovePolicies := make(map[string]struct{})
 	for _, setName := range pod.IPSetsToRemove {
-		netpolReference, err := dp.ipsetMgr.GetNetworkPolicyReferencesBySet(setName)
+		selectorReference, err := dp.ipsetMgr.GetSelectorReferencesBySet(setName)
 		if err != nil {
 			return err
 		}
 
-		for policyName := range netpolReference {
+		for policyName := range selectorReference {
 			toRemovePolicies[policyName] = struct{}{}
 		}
 	}
@@ -81,12 +81,12 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 
 	toAddPolicies := make(map[string]struct{})
 	for _, setName := range pod.IPSetsToAdd {
-		netpolReference, err := dp.ipsetMgr.GetNetworkPolicyReferencesBySet(setName)
+		selectorReference, err := dp.ipsetMgr.GetSelectorReferencesBySet(setName)
 		if err != nil {
 			return err
 		}
 
-		for netpol := range netpolReference {
+		for netpol := range selectorReference {
 			toAddPolicies[netpol] = struct{}{}
 		}
 	}

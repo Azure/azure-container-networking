@@ -280,7 +280,7 @@ func (set *IPSet) canBeDeleted() bool {
 
 // usedByNetPol check if an IPSet is referred in network policies.
 func (set *IPSet) usedByNetPol() bool {
-	return len(set.SelectorReference) > 0 &&
+	return len(set.SelectorReference) > 0 ||
 		len(set.NetPolReference) > 0
 }
 

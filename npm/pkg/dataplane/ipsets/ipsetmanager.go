@@ -269,7 +269,7 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 	return setintersections, err
 }
 
-func (iMgr *IPSetManager) GetNetworkPolicyReferencesBySet(setName string) (map[string]struct{}, error) {
+func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string]struct{}, error) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(setName) {
