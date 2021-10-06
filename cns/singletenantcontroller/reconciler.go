@@ -18,26 +18,26 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-type cnsclient interface {
+type cnsClient interface {
 	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
 }
 
-type ipampoolmonitorclient interface {
+type ipamPoolMonitorClient interface {
 	Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec)
 }
 
-type nncgetter interface {
+type nncGetter interface {
 	Get(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error)
 }
 
 // Reconciler watches for CRD status changes
 type Reconciler struct {
-	cnscli             cnsclient
-	ipampoolmonitorcli ipampoolmonitorclient
-	nnccli             nncgetter
+	cnscli             cnsClient
+	ipampoolmonitorcli ipamPoolMonitorClient
+	nnccli             nncGetter
 }
 
-func New(nnccli nncgetter, cnscli cnsclient, ipampipampoolmonitorcli ipampoolmonitorclient) *Reconciler {
+func NewReconciler(nnccli nncGetter, cnscli cnsClient, ipampipampoolmonitorcli ipamPoolMonitorClient) *Reconciler {
 	return &Reconciler{
 		cnscli:             cnscli,
 		ipampoolmonitorcli: ipampipampoolmonitorcli,

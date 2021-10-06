@@ -798,11 +798,6 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 			return errors.Wrap(err, "failed to get NNC during init CNS state")
 		}
 
-		if nnc == nil {
-			logger.Errorf("NodeNetworkConfig is not present on cluster")
-			return nil
-		}
-
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
 			err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
@@ -810,23 +805,18 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 		}
 
 		// If it's any other error, log it and return
-		logger.Errorf("Error when getting nodeNetConfig using direct client when initializing cns state: %v", err)
-		return err
+		return errors.Wrap(err, "error getting NodeNetworkConfig when initializing CNS state")
 	}
 
 	// If there are no NCs, pass nil to CNSClient
 	if len(nnc.Status.NetworkContainers) == 0 {
 		err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
-		if err != nil {
-			return errors.Wrap(err, "failed to reconcile NC state")
-		}
-		return nil
+		return errors.Wrap(err, "failed to reconcile NC state")
 	}
 
 	// Convert to CreateNetworkContainerRequest
 	ncRequest, err := kubecontroller.CRDStatusToNCRequest(&nnc.Status)
 	if err != nil {
-		logger.Errorf("Error when converting nodeNetConfig status into CreateNetworkContainerRequest: %v", err)
 		return errors.Wrap(err, "failed to convert NNC status to network container request")
 	}
 
@@ -896,7 +886,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err != nil {
 		return errors.Wrap(err, "failed to create manager")
 	}
-	reconciler := kubecontroller.New(nnccli, httpRestServiceImplementation, httpRestServiceImplementation.IPAMPoolMonitor)
+	reconciler := kubecontroller.NewReconciler(nnccli, httpRestServiceImplementation, httpRestServiceImplementation.IPAMPoolMonitor)
 	if err := reconciler.SetupWithManager(manager, nodeName); err != nil {
 		return err
 	}
