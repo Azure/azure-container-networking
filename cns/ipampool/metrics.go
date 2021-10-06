@@ -1,4 +1,4 @@
-package ipampoolmonitor
+package ipampool
 
 import (
 	"github.com/prometheus/client_golang/prometheus"

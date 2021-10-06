@@ -1,4 +1,4 @@
-package ipampoolmonitor
+package ipampool
 
 import (
 	"context"
@@ -18,7 +18,7 @@ type nodeNetworkConfigSpecUpdater interface {
 	UpdateSpec(context.Context, *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error)
 }
 
-type PoolMon struct {
+type Monitor struct {
 	nnc                      *v1alpha.NodeNetworkConfig
 	nnccli                   nodeNetworkConfigSpecUpdater
 	httpService              cns.HTTPService
@@ -28,9 +28,8 @@ type PoolMon struct {
 	once                     sync.Once
 }
 
-func NewPoolMon(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater) *PoolMon {
-	logger.Printf("NewCNSIPAMPoolMonitor: Create IPAM Pool Monitor")
-	return &PoolMon{
+func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater) *Monitor {
+	return &Monitor{
 		httpService: httpService,
 		nnccli:      nnccli,
 		initialized: make(chan interface{}),
@@ -38,7 +37,7 @@ func NewPoolMon(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 	}
 }
 
-func (pm *PoolMon) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
+func (pm *Monitor) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
 	logger.Printf("[ipam-pool-monitor] Starting CNS IPAM Pool Monitor")
 
 	ticker := time.NewTicker(time.Duration(poolMonitorRefreshMilliseconds) * time.Millisecond)
@@ -61,7 +60,7 @@ func (pm *PoolMon) Start(ctx context.Context, poolMonitorRefreshMilliseconds int
 	}
 }
 
-func (pm *PoolMon) reconcile(ctx context.Context) error {
+func (pm *Monitor) reconcile(ctx context.Context) error {
 	cnsPodIPConfigCount := len(pm.httpService.GetPodIPConfigState())
 	pendingProgramCount := len(pm.httpService.GetPendingProgramIPConfigs()) // TODO: add pending program count to real cns
 	allocatedPodIPCount := len(pm.httpService.GetAllocatedIPConfigs())
@@ -89,7 +88,7 @@ func (pm *PoolMon) reconcile(ctx context.Context) error {
 
 	switch {
 	// pod count is increasing
-	case freeIPConfigCount < int64(calculateMinFreeIPs(*pm.nnc)):
+	case freeIPConfigCount < int64(CalculateMinFreeIPs(*pm.nnc)):
 		if pm.nnc.Spec.RequestedIPCount == maxIPCount {
 			// If we're already at the maxIPCount, don't try to increase
 			return nil
@@ -99,7 +98,7 @@ func (pm *PoolMon) reconcile(ctx context.Context) error {
 		return pm.increasePoolSize(ctx)
 
 	// pod count is decreasing
-	case freeIPConfigCount >= int64(calculateMaxFreeIPs(*pm.nnc)):
+	case freeIPConfigCount >= int64(CalculateMaxFreeIPs(*pm.nnc)):
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...%s ", msg)
 		return pm.decreasePoolSize(ctx, pendingReleaseIPCount)
 
@@ -118,7 +117,7 @@ func (pm *PoolMon) reconcile(ctx context.Context) error {
 	return nil
 }
 
-func (pm *PoolMon) increasePoolSize(ctx context.Context) error {
+func (pm *Monitor) increasePoolSize(ctx context.Context) error {
 	tempNNCSpec := pm.createNNCSpecForCRD()
 
 	// Query the max IP count
@@ -154,7 +153,7 @@ func (pm *PoolMon) increasePoolSize(ctx context.Context) error {
 	return nil
 }
 
-func (pm *PoolMon) decreasePoolSize(ctx context.Context, existingPendingReleaseIPCount int) error {
+func (pm *Monitor) decreasePoolSize(ctx context.Context, existingPendingReleaseIPCount int) error {
 	// mark n number of IP's as pending
 	var newIpsMarkedAsPending bool
 	var pendingIPAddresses map[string]cns.IPConfigurationStatus
@@ -229,7 +228,7 @@ func (pm *PoolMon) decreasePoolSize(ctx context.Context, existingPendingReleaseI
 
 // cleanPendingRelease removes IPs from the cache and CRD if the request controller has reconciled
 // CNS state and the pending IP release map is empty.
-func (pm *PoolMon) cleanPendingRelease(ctx context.Context) error {
+func (pm *Monitor) cleanPendingRelease(ctx context.Context) error {
 	tempNNCSpec := pm.createNNCSpecForCRD()
 
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
@@ -246,7 +245,7 @@ func (pm *PoolMon) cleanPendingRelease(ctx context.Context) error {
 }
 
 // createNNCSpecForCRD translates CNS's map of IPs to be released and requested IP count into an NNC Spec.
-func (pm *PoolMon) createNNCSpecForCRD() v1alpha.NodeNetworkConfigSpec {
+func (pm *Monitor) createNNCSpecForCRD() v1alpha.NodeNetworkConfigSpec {
 	var spec v1alpha.NodeNetworkConfigSpec
 
 	// Update the count from cached spec
@@ -262,11 +261,11 @@ func (pm *PoolMon) createNNCSpecForCRD() v1alpha.NodeNetworkConfigSpec {
 }
 
 // GetStateSnapshot gets a snapshot of the IPAMPoolMonitor struct.
-func (pm *PoolMon) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
+func (pm *Monitor) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 	nnc := *pm.nnc
 	return cns.IpamPoolMonitorStateSnapshot{
-		MinimumFreeIps:           calculateMinFreeIPs(nnc),
-		MaximumFreeIps:           calculateMaxFreeIPs(nnc),
+		MinimumFreeIps:           CalculateMinFreeIPs(nnc),
+		MaximumFreeIps:           CalculateMaxFreeIPs(nnc),
 		UpdatingIpsNotInUseCount: pm.updatingIpsNotInUseCount,
 		CachedNNC:                nnc,
 	}
@@ -275,7 +274,7 @@ func (pm *PoolMon) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 // Update ingests a NodeNetworkConfig, clamping some values to ensure they are legal and then
 // pushing it to the PoolMonitor's source channel.
 // As a side effect, marks the PoolMonitor as initialized, if it is not already.
-func (pm *PoolMon) Update(nnc *v1alpha.NodeNetworkConfig) {
+func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 	clampMaxIPs(nnc)
 	clampBatchSize(nnc)
 
@@ -307,14 +306,14 @@ func clampBatchSize(nnc *v1alpha.NodeNetworkConfig) {
 }
 
 //nolint:gocritic // ignore hugeparam
-func calculateMaxFreeIPs(nnc v1alpha.NodeNetworkConfig) int {
+func CalculateMinFreeIPs(nnc v1alpha.NodeNetworkConfig) int {
 	batchSize := nnc.Status.Scaler.BatchSize
 	requestThreshold := nnc.Status.Scaler.RequestThresholdPercent
 	return int(float64(batchSize) * (float64(requestThreshold) / 100)) //nolint:gomnd // it's a percent
 }
 
 //nolint:gocritic // ignore hugeparam
-func calculateMinFreeIPs(nnc v1alpha.NodeNetworkConfig) int {
+func CalculateMaxFreeIPs(nnc v1alpha.NodeNetworkConfig) int {
 	batchSize := nnc.Status.Scaler.BatchSize
 	releaseThreshold := nnc.Status.Scaler.ReleaseThresholdPercent
 	return int(float64(batchSize) * (float64(releaseThreshold) / 100)) //nolint:gomnd // it's a percent

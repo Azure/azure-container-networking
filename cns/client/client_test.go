@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/ipampool"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -98,15 +99,20 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	}
 
 	svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: 16,
+			IPsNotInUse:      []string{"abc"},
+		},
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               batchSize,
 				ReleaseThresholdPercent: releasePercent,
 				RequestThresholdPercent: requestPercent,
+				MaxIPCount:              250,
 			},
-		},
-		Spec: v1alpha.NodeNetworkConfigSpec{
-			RequestedIPCount: initPoolSize,
+			NetworkContainers: []v1alpha.NetworkContainer{
+				{},
+			},
 		},
 	})
 }
@@ -178,6 +184,7 @@ func TestMain(m *testing.M) {
 				BatchSize:               10,
 				ReleaseThresholdPercent: 150,
 				RequestThresholdPercent: 50,
+				MaxIPCount:              250,
 			},
 			NetworkContainers: []v1alpha.NetworkContainer{
 				{
@@ -197,7 +204,7 @@ func TestMain(m *testing.M) {
 			},
 		},
 	}
-	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{FakeIpsNotInUseCount: 13, FakecachedNNC: &fakeNNC}
+	svc.IPAMPoolMonitor = &ipampool.Fake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
 
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -356,8 +363,8 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPConfigState), 1, "PodIpConfigState with at least 1 entry expected")
 
 	testIpamPoolMonitor := inmemory.HTTPRestServiceData.IPAMPoolMonitor
-	assert.EqualValues(t, 10, testIpamPoolMonitor.MinimumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
-	assert.EqualValues(t, 20, testIpamPoolMonitor.MaximumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
+	assert.EqualValues(t, 5, testIpamPoolMonitor.MinimumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
+	assert.EqualValues(t, 15, testIpamPoolMonitor.MaximumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
 	assert.Equal(t, 13, testIpamPoolMonitor.UpdatingIpsNotInUseCount, "IPAMPoolMonitor state is not reflecting the initial set values")
 
 	// check for cached NNC Spec struct values

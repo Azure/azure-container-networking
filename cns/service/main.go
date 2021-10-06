@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imdsclient"
-	"github.com/Azure/azure-container-networking/cns/ipampoolmonitor"
+	"github.com/Azure/azure-container-networking/cns/ipampool"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
@@ -872,7 +872,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// initialize the ipam pool monitor
-	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewPoolMon(httpRestServiceImplementation, scopedcli)
+	httpRestServiceImplementation.IPAMPoolMonitor = ipampool.NewMonitor(httpRestServiceImplementation, scopedcli)
 	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize CNS state")

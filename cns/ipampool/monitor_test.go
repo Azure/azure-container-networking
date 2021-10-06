@@ -1,4 +1,4 @@
-package ipampoolmonitor
+package ipampool
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func initFakes(t *testing.T,
 	initialIPConfigCount,
 	requestThresholdPercent,
 	releaseThresholdPercent int,
-	maxPodIPCount int64) (*fakes.HTTPServiceFake, *fakes.RequestControllerFake, *PoolMon) {
+	maxPodIPCount int64) (*fakes.HTTPServiceFake, *fakes.RequestControllerFake, *Monitor) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 
 	scalarUnits := v1alpha.Scaler{
@@ -37,7 +37,7 @@ func initFakes(t *testing.T,
 	fakecns := fakes.NewHTTPServiceFake()
 	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, initialIPConfigCount)
 
-	poolmonitor := NewPoolMon(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC})
+	poolmonitor := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC})
 	poolmonitor.once.Do(func() { close(poolmonitor.initialized) })
 
 	fakecns.PoolMonitor = poolmonitor
@@ -207,8 +207,8 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 		releaseThresholdPercent,
 		maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	// increase number of allocated IP's in CNS
 	err := fakecns.SetNumberOfAllocatedIPs(8)
@@ -257,8 +257,8 @@ func TestPoolIncreasePastNodeLimit(t *testing.T) {
 		releaseThresholdPercent,
 		maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	// increase number of allocated IP's in CNS
 	err := fakecns.SetNumberOfAllocatedIPs(9)
@@ -295,8 +295,8 @@ func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 		releaseThresholdPercent,
 		maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	// increase number of allocated IP's in CNS
 	err := fakecns.SetNumberOfAllocatedIPs(16)
@@ -348,8 +348,8 @@ func TestPoolDecrease(t *testing.T) {
 	fakecns, fakerc, poolmonitor := initFakes(t, batchSize, initialIPConfigCount,
 		requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	// initial pool count is 20, set 15 of them to be allocated
 	err := fakecns.SetNumberOfAllocatedIPs(15)
@@ -407,8 +407,8 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 	fakecns, fakerc, poolmonitor := initFakes(t, batchSize, initialIPConfigCount,
 		requestThresholdPercent, releaseThresholdPercent, maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	// initial pool count is 30, set 25 of them to be allocated
 	err := fakecns.SetNumberOfAllocatedIPs(5)
@@ -487,8 +487,8 @@ func TestDecreaseAndIncreaseToSameCount(t *testing.T) {
 		releaseThresholdPercent,
 		maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	// initial pool count is 10, set 5 of them to be allocated
 	err := fakecns.SetNumberOfAllocatedIPs(7)
@@ -565,8 +565,8 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 		releaseThresholdPercent,
 		maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	// initial pool count is 30, set 23 of them to be allocated
 	err := fakecns.SetNumberOfAllocatedIPs(23)
@@ -660,8 +660,8 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 		releaseThresholdPercent,
 		maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	err := fakecns.SetNumberOfAllocatedIPs(20)
 	if err != nil {
@@ -715,8 +715,8 @@ func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 		releaseThresholdPercent,
 		maxPodIPCount)
 
-	t.Logf("Minimum free IPs to request: %v", calculateMinFreeIPs(*poolmonitor.nnc))
-	t.Logf("Maximum free IPs to release: %v", calculateMaxFreeIPs(*poolmonitor.nnc))
+	t.Logf("Minimum free IPs to request: %v", CalculateMinFreeIPs(*poolmonitor.nnc))
+	t.Logf("Maximum free IPs to release: %v", CalculateMaxFreeIPs(*poolmonitor.nnc))
 
 	// increase number of allocated IP's in CNS
 	err := fakecns.SetNumberOfAllocatedIPs(30)
@@ -750,7 +750,7 @@ func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 
 func ReconcileAndValidate(ctx context.Context,
 	t *testing.T,
-	poolmonitor *PoolMon,
+	poolmonitor *Monitor,
 	expectedRequestCount,
 	expectedIpsNotInUse int) {
 	err := poolmonitor.reconcile(context.Background())

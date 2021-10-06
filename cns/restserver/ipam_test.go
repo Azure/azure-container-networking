@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/ipampool"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
@@ -37,7 +38,7 @@ func getTestService() *HTTPRestService {
 	var config common.ServiceConfig
 	httpsvc, _ := NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
 	svc = httpsvc.(*HTTPRestService)
-	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{}
+	svc.IPAMPoolMonitor = &ipampool.Fake{}
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
 	return svc
