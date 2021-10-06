@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package k8s
@@ -18,7 +19,7 @@ import (
 const (
 	exitFail = 1
 
-	envImageTag   = "VERSION"
+	envTag        = "VERSION"
 	envInstallCNI = "INSTALL_CNI"
 	envInstallCNS = "INSTALL_CNS"
 
@@ -79,7 +80,7 @@ func TestMain(m *testing.M) {
 	if installopt := os.Getenv(envInstallCNI); installopt != "" {
 		// create dirty cni-manager ds
 		if installCNI, err := strconv.ParseBool(installopt); err == nil && installCNI == true {
-			if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, os.Getenv(envImageTag), logDir); err != nil {
+			if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, os.Getenv(envTag), logDir); err != nil {
 				log.Print(err)
 				exitCode = 2
 				return
@@ -92,7 +93,7 @@ func TestMain(m *testing.M) {
 	if installopt := os.Getenv(envInstallCNS); installopt != "" {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
-			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envImageTag), logDir); err != nil {
+			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), logDir); err != nil {
 				exitCode = 2
 				return
 			}

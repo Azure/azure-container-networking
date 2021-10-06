@@ -430,7 +430,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		plugin.report.Context = "AzureCNIMultitenancy"
 		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
 		if enableSnatForDns, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(
-			snatConfigFileName, nmAgentSnatAndDnsSupportAPI); err != nil {
+			snatConfigFileName, nmAgentSupportedApisURL); err != nil {
 			return fmt.Errorf("%w", err)
 		}
 
@@ -473,13 +473,15 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		nwInfo.IPAMType = nwCfg.Ipam.Type
 		options = nwInfo.Options
 
-		result, err = plugin.handleConsecutiveAdd(args, endpointId, networkID, &nwInfo, nwCfg)
+		var resultSecondAdd *cniTypesCurr.Result
+		resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointId, networkID, &nwInfo, nwCfg)
 		if err != nil {
 			log.Printf("handleConsecutiveAdd failed with error %v", err)
 			return err
 		}
 
-		if result != nil {
+		if resultSecondAdd != nil {
+			result = resultSecondAdd
 			return nil
 		}
 	}

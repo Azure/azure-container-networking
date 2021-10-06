@@ -8,8 +8,8 @@ type PolicyManager struct {
 	policyMap *PolicyMap
 }
 
-func NewPolicyManager() PolicyManager {
-	return PolicyManager{
+func NewPolicyManager() *PolicyManager {
+	return &PolicyManager{
 		policyMap: &PolicyMap{
 			cache: make(map[string]*NPMNetworkPolicy),
 		},

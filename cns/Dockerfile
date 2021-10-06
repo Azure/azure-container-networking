@@ -3,7 +3,7 @@ FROM alpine:latest as certs
 RUN apk --update add ca-certificates
 
 # Build cns
-FROM golang:1.16-alpine AS builder
+FROM golang:1.17 AS builder
 # Build ars
 ARG VERSION
 ARG CNS_AI_PATH
@@ -15,10 +15,10 @@ WORKDIR /usr/local/src/cns
 COPY . .
 
 # Build cns
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /usr/local/bin/azure-cns -ldflags "-X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID" -s -w " cns/service/*.go
+RUN CGO_ENABLED=0 go build -a -o /usr/local/bin/azure-cns -ldflags "-X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" -gcflags="-dwarflocationlists=true" cns/service/*.go
 
 # Build aitelemetry
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /usr/local/bin/azure-vnet-telemetry -ldflags "-X main.version="$VERSION" -s -w" cni/telemetry/service/*.go
+RUN CGO_ENABLED=0 go build -a -o /usr/local/bin/azure-vnet-telemetry -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/telemetry/service/*.go
 
 # Copy into final image
 FROM scratch

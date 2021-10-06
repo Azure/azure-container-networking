@@ -13,18 +13,18 @@ MKDIR := powershell.exe -NoProfile -Command New-Item -ItemType Directory -Force
 RMDIR := powershell.exe -NoProfile -Command Remove-Item -Recurse -Force
 endif
 
+# Build defaults.
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+GOOSES ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
+GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
+
 # Windows specific extensions
 ifeq ($(GOOS),windows)
 ARCHIVE_CMD = zip -9lq
 ARCHIVE_EXT = zip
 EXE_EXT = .exe
 endif
-
-# Build defaults.
-GOOS ?= $(shell go env GOOS)
-GOARCH ?= $(shell go env GOARCH)
-GOOSES ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
-GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
 
 # Build directories.
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
@@ -34,9 +34,7 @@ CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
 CNI_IPAMV6_DIR = $(REPO_ROOT)/cni/ipam/pluginv6
 CNI_TELEMETRY_DIR = $(REPO_ROOT)/cni/telemetry/service
 ACNCLI_DIR = $(REPO_ROOT)/tools/acncli
-TELEMETRY_CONF_DIR = $(REPO_ROOT)/telemetry
 CNS_DIR = $(REPO_ROOT)/cns/service
-CNMS_DIR = $(REPO_ROOT)/cnms/service
 NPM_DIR = $(REPO_ROOT)/npm/cmd
 OUTPUT_DIR = $(REPO_ROOT)/output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
@@ -48,15 +46,16 @@ CNI_MULTITENANCY_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
-CNMS_BUILD_DIR = $(BUILD_DIR)/cnms
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
-NPM_RELATIVE_BUILD_DIR = output/$(GOOS)_$(GOARCH)/npm
-NPM_TELEMETRY_DIR = $(NPM_BUILD_DIR)/telemetry
 TOOLS_DIR = $(REPO_ROOT)/build/tools
 TOOLS_BIN_DIR = $(TOOLS_DIR)/bin
 CNI_AI_ID = 5515a1eb-b2bc-406a-98eb-ba462e6f0411
+CNS_AI_ID = ce672799-8f08-4235-8c12-08563dc2acef
 NPM_AI_ID = 014c22bd-4107-459e-8475-67909e96edcb
 ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
+CNI_AI_PATH=$(ACN_PACKAGE_PATH)/telemetry.aiMetadata
+CNS_AI_PATH=$(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
+NPM_AI_PATH=$(ACN_PACKAGE_PATH)/npm.aiMetadata
 
 # Tool paths
 CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
@@ -75,13 +74,10 @@ CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(
 CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNMS_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-NPM_IMAGE_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+NPM_IMAGE_INFO_FILE = azure-npm-$(VERSION).txt
 CNI_IMAGE_ARCHIVE_NAME = azure-cni-manager-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNMS_IMAGE_ARCHIVE_NAME = azure-cnms-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-TELEMETRY_IMAGE_ARCHIVE_NAME = azure-vnet-telemetry-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNS_IMAGE_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNS_IMAGE_INFO_FILE = azure-cns-$(VERSION).txt
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
@@ -92,21 +88,16 @@ IMAGE_REGISTRY ?= acnpublic.azurecr.io
 # Azure network policy manager parameters.
 AZURE_NPM_IMAGE ?= $(IMAGE_REGISTRY)/azure-npm
 
-# Azure cnms parameters
-AZURE_CNMS_IMAGE ?= $(IMAGE_REGISTRY)/networkmonitor
-
 # Azure CNI installer parameters
 AZURE_CNI_IMAGE = $(IMAGE_REGISTRY)/azure-cni-manager
-
-# Azure vnet telemetry image parameters.
-AZURE_VNET_TELEMETRY_IMAGE = $(IMAGE_REGISTRY)/azure-vnet-telemetry
 
 # Azure container networking service image paramters.
 AZURE_CNS_IMAGE = $(IMAGE_REGISTRY)/azure-cns
 
+IMAGE_PLATFORM_ARCHES ?= linux/amd64,linux/arm64
+IMAGE_ACTION ?= push
+
 VERSION ?= $(shell git describe --tags --always --dirty)
-CNS_AI_ID = ce672799-8f08-4235-8c12-08563dc2acef
-cnsaipath=github.com/Azure/azure-container-networking/cns/logger.aiMetadata
 
 # Default target
 .PHONY: all-binaries-platforms
@@ -119,7 +110,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-cnms azure-npm
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images: azure-npm-image azure-cns-image
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
@@ -166,7 +157,7 @@ azure-vnet-ipamv6-binary:
 # Build the Azure CNI telemetry binary.
 .PHONY: azure-vnet-telemetry-binary
 azure-vnet-telemetry-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/telemetry.aiMetadata=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
 .PHONY: acncli-binary
@@ -176,18 +167,13 @@ acncli-binary:
 # Build the Azure CNS binary.
 .PHONY: azure-cns-binary
 azure-cns-binary:
-	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(cnsaipath)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true"
-
-# Build the Azure CNMS binary.
-.PHONY: azure-cnms-binary
-azure-cnms-binary:
-	cd $(CNMS_DIR) && CGO_ENABLED=0 go build -v -o $(CNMS_BUILD_DIR)/azure-cnms$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
 .PHONY: azure-npm-binary
 azure-npm-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
-	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(ACN_PACKAGE_PATH)/npm.aiMetadata=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 
 ########################### Container Images ########################
@@ -233,58 +219,42 @@ azure-cnm-plugin-image: azure-cnm-plugin
 
 # Build the Azure NPM image.
 .PHONY: azure-npm-image
-azure-npm-image: azure-npm-binary
+azure-npm-image:
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(IMAGE_DIR)
-	docker build \
+	docker buildx create --use
+	docker buildx build \
 	--no-cache \
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(VERSION) \
-	--build-arg NPM_BUILD_DIR=$(NPM_RELATIVE_BUILD_DIR) \
+	--build-arg VERSION=$(VERSION) \
+	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
+	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
+	--platform=$(IMAGE_PLATFORM_ARCHES) \
+	--$(IMAGE_ACTION) \
 	.
-	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
+	
+	echo $(AZURE_NPM_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
 endif
-
-# Build the Azure CNMS image
-.PHONY: azure-cnms-image
-azure-cnms-image: azure-cnms-binary
-ifeq ($(GOOS),linux)
-	$(MKDIR) $(IMAGE_DIR)
-	docker build \
-	--no-cache \
-	-f cnms/Dockerfile \
-	-t $(AZURE_CNMS_IMAGE):$(VERSION) \
-	--build-arg CNMS_BUILD_DIR=$(CNMS_BUILD_DIR) \
-	.
-	docker save $(AZURE_CNMS_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNMS_IMAGE_ARCHIVE_NAME)
-endif
-
-# Build the Azure vnet telemetry image
-.PHONY: azure-vnet-telemetry-image
-azure-vnet-telemetry-image: azure-vnet-telemetry-binary
-	$(MKDIR) $(IMAGE_DIR)
-	docker build \
-	-f cni/telemetry/Dockerfile \
-	-t $(AZURE_VNET_TELEMETRY_IMAGE):$(VERSION) \
-	--build-arg TELEMETRY_BUILD_DIR=$(NPM_BUILD_DIR) \
-	--build-arg TELEMETRY_CONF_DIR=$(TELEMETRY_CONF_DIR) \
-	.
-	docker save $(AZURE_VNET_TELEMETRY_IMAGE):$(VERSION) | gzip -c > $(NPM_BUILD_DIR)/$(TELEMETRY_IMAGE_ARCHIVE_NAME)
 
 # Build the Azure CNS image
 .PHONY: azure-cns-image
 azure-cns-image:
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(IMAGE_DIR)
-	docker build \
+	docker buildx create --use
+	docker buildx build \
 	--no-cache \
 	-f cns/Dockerfile \
 	-t $(AZURE_CNS_IMAGE):$(VERSION) \
 	--build-arg VERSION=$(VERSION) \
-	--build-arg CNS_AI_PATH=$(cnsaipath) \
+	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	--platform=$(IMAGE_PLATFORM_ARCHES) \
+	--$(IMAGE_ACTION) \
 	.
-	docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
+
+	echo $(AZURE_CNS_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
 endif
 
 ########################### Archives ################################
@@ -339,13 +309,6 @@ cns-archive: azure-cns-binary
 	cp cns/configuration/cns_config.json $(CNS_BUILD_DIR)/cns_config.json
 	cd $(CNS_BUILD_DIR) && $(ARCHIVE_CMD) $(CNS_ARCHIVE_NAME) azure-cns$(EXE_EXT) cns_config.json
 
-# Create a CNMS archive for the target platform. Only Linux is supported for now.
-.PHONY: cnms-archive
-cnms-archive: azure-cnms-binary
-ifeq ($(GOOS),linux)
-	cd $(CNMS_BUILD_DIR) && $(ARCHIVE_CMD) $(CNMS_ARCHIVE_NAME) azure-cnms$(EXE_EXT)
-endif
-
 # Create a NPM archive for the target platform. Only Linux is supported for now.
 .PHONY: npm-archive
 npm-archive: azure-npm-binary
@@ -363,21 +326,6 @@ release:
 .PHONY: publish-azure-cnm-plugin-image
 publish-azure-cnm-plugin-image:
 	docker plugin push $(CNM_PLUGIN_IMAGE):$(VERSION)
-
-# Publish the Azure vnet telemetry image to a Docker registry
-.PHONY: publish-azure-vnet-telemetry-image
-publish-azure-vnet-telemetry-image:
-	docker push $(AZURE_VNET_TELEMETRY_IMAGE):$(VERSION)
-
-# Publish the Azure NPM image to a Docker registry
-.PHONY: publish-azure-npm-image
-publish-azure-npm-image:
-	docker push $(AZURE_NPM_IMAGE):$(VERSION)
-
-# Publish the Azure CNS image to a Docker registry
-.PHONY: publish-azure-cns-image
-publish-azure-cns-image:
-	docker push $(AZURE_CNS_IMAGE):$(VERSION)
 
 ############################ Linting ################################
 

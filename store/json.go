@@ -25,7 +25,7 @@ const (
 	lockExtension = ".lock"
 
 	// Maximum number of retries before failing a lock call.
-	lockMaxRetries = 200
+	lockMaxRetries = 100
 
 	// Delay between lock retries.
 	lockRetryDelay = 100 * time.Millisecond
@@ -176,6 +176,11 @@ func (kvs *jsonFileStore) flush() error {
 
 // Lock locks the store for exclusive access.
 func (kvs *jsonFileStore) Lock(block bool) error {
+	var (
+		lockFile *os.File
+		err      error
+	)
+
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
 
@@ -183,9 +188,8 @@ func (kvs *jsonFileStore) Lock(block bool) error {
 		return ErrStoreLocked
 	}
 
-	var lockFile *os.File
-	var err error
-	lockPerm := os.FileMode(0o664) + os.FileMode(os.ModeExclusive)
+	//nolint:gomnd // 0o664 - read write mode constant
+	lockPerm := os.FileMode(0o644) + os.FileMode(os.ModeExclusive)
 
 	// Try to acquire the lock file.
 	var lockRetryCount uint
@@ -269,14 +273,6 @@ func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
 func (kvs *jsonFileStore) GetLockFileModificationTime() (time.Time, error) {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
-
-	// Check if the file exists.
-	file, err := os.Open(kvs.lockFileName)
-	if err != nil {
-		return time.Time{}.UTC(), err
-	}
-
-	defer file.Close()
 
 	info, err := os.Stat(kvs.lockFileName)
 	if err != nil {

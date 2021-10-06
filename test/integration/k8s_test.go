@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package k8s
@@ -35,11 +36,12 @@ const (
 	gpDaemonset              = gpFolder + "/daemonset.yaml"
 	gpDeployment             = gpFolder + "/deployment.yaml"
 
-	retryWindow = 5 * time.Second
+	retryAttempts = 20
+	retryDelaySec = 5 * time.Second
 )
 
 var (
-	defaultRetrier      = retry.Retrier{Attempts: 20, Delay: retryWindow}
+	defaultRetrier      = retry.Retrier{Attempts: retryAttempts, Delay: retryDelaySec}
 	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
@@ -198,7 +200,7 @@ func TestPodScaling(t *testing.T) {
 						t.Fatal(err)
 					}
 
-					portForwardCtx, cancel := context.WithTimeout(ctx, retryWindow)
+					portForwardCtx, cancel := context.WithTimeout(ctx, (retryAttempts+1)*retryDelaySec)
 					defer cancel()
 
 					var streamHandle PortForwardStreamHandle
@@ -213,7 +215,7 @@ func TestPodScaling(t *testing.T) {
 						return nil
 					}
 					if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-						t.Fatalf("could  not start port forward within %v: %v", retryWindow.String(), err)
+						t.Fatalf("could  not start port forward within %v: %v", retryDelaySec.String(), err)
 					}
 					defer streamHandle.Stop()
 

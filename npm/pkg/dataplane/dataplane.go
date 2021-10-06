@@ -9,8 +9,8 @@ import (
 )
 
 type DataPlane struct {
-	policyMgr policies.PolicyManager
-	ipsetMgr  ipsets.IPSetManager
+	policyMgr *policies.PolicyManager
+	ipsetMgr  *ipsets.IPSetManager
 	networkID string
 	// key is PodKey
 	endpointCache map[string]*NPMEndpoint
@@ -44,8 +44,8 @@ func (dp *DataPlane) ResetDataPlane() error {
 }
 
 // CreateIPSet takes in a set object and updates local cache with this set
-func (dp *DataPlane) CreateIPSet(set *ipsets.IPSet) error {
-	err := dp.ipsetMgr.CreateIPSet(set)
+func (dp *DataPlane) CreateIPSet(setName string, setType ipsets.SetType) error {
+	err := dp.ipsetMgr.CreateIPSet(setName, setType)
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while creating set: %w", err)
 	}
@@ -54,26 +54,17 @@ func (dp *DataPlane) CreateIPSet(set *ipsets.IPSet) error {
 
 // DeleteSet checks for members and references of the given "set" type ipset
 // if not used then will delete it from cache
-func (dp *DataPlane) DeleteSet(name string) error {
-	err := dp.ipsetMgr.DeleteSet(name)
+func (dp *DataPlane) DeleteIPSet(name string) error {
+	err := dp.ipsetMgr.DeleteIPSet(name)
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while deleting set: %w", err)
 	}
 	return nil
 }
 
-// DeleteList sanity checks and deletes a list ipset
-func (dp *DataPlane) DeleteList(name string) error {
-	err := dp.ipsetMgr.DeleteList(name)
-	if err != nil {
-		return fmt.Errorf("[DataPlane] error while deleting list: %w", err)
-	}
-	return nil
-}
-
-// AddToSet takes in a list of IPset objects along with IP member
+// AddToSet takes in a list of IPSet names along with IP member
 // and then updates it local cache
-func (dp *DataPlane) AddToSet(setNames []*ipsets.IPSet, ip, podKey string) error {
+func (dp *DataPlane) AddToSet(setNames []string, ip, podKey string) error {
 	err := dp.ipsetMgr.AddToSet(setNames, ip, podKey)
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding to set: %w", err)

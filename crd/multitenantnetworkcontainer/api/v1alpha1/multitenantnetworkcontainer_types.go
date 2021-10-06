@@ -32,6 +32,8 @@ type MultiTenantNetworkContainerSpec struct {
 	InterfaceName string `json:"interfaceName,omitempty"`
 	// ReservationID - reservation ID for allocating IP
 	ReservationID string `json:"reservationID,omitempty"`
+	// ReservationSetID - reservationSet for networkcontainer
+	ReservationSetID string `json:"reservationSetID,omitempty"`
 }
 
 // MultiTenantNetworkContainerStatus defines the observed state of MultiTenantNetworkContainer

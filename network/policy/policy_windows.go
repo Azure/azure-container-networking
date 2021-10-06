@@ -37,6 +37,16 @@ type KVPairRoute struct {
 	NeedEncap         bool          `json:"NeedEncap"`
 }
 
+type KVPairL4WfpProxyPolicy struct {
+	Type               CNIPolicyType   `json:"Type"`
+	OutboundProxyPort  string          `json:"OutboundProxyPort"`
+	InboundProxyPort   string          `json:"InboundProxyPort"`
+	UserSID            string          `json:"UserSID"`
+	FilterTuple        json.RawMessage `json:"FilterTuple"`
+	InboundExceptions  json.RawMessage `json:"InboundExceptions"`
+	OutboundExceptions json.RawMessage `json:"OutboundExceptions"`
+}
+
 var ValidWinVerForDnsNat bool
 
 // SerializePolicies serializes policies to json.
@@ -203,6 +213,14 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 	if err := json.Unmarshal(policy.Data, &dataRoute); err == nil {
 		if dataRoute.Type == RoutePolicy {
 			return RoutePolicy
+		}
+	}
+
+	// Check if the type is L4WFPProxy
+	var l4WfpProxyPolicy KVPairL4WfpProxyPolicy
+	if err := json.Unmarshal(policy.Data, &l4WfpProxyPolicy); err == nil {
+		if l4WfpProxyPolicy.Type == L4WFPProxyPolicy {
+			return L4WFPProxyPolicy
 		}
 	}
 
@@ -386,6 +404,28 @@ func GetHcnACLPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 	return aclEndpolicySetting, nil
 }
 
+// GetHcnL4WFPProxyPolicy returns L4WFPProxy policy.
+func GetHcnL4WFPProxyPolicy(policy Policy) (hcn.EndpointPolicy, error) {
+	l4WfpEndpolicySetting := hcn.EndpointPolicy{
+		Type: hcn.L4WFPPROXY,
+	}
+
+	// Check beforehand, the input meets the expected format
+	// otherwise, endpoint creation will fail later on.
+	var l4WfpProxyPolicySetting hcn.L4WfpProxyPolicySetting
+	if err := json.Unmarshal(policy.Data, &l4WfpProxyPolicySetting); err != nil {
+		return l4WfpEndpolicySetting, err
+	}
+
+	l4WfpProxyPolicySettingBytes, err := json.Marshal(l4WfpProxyPolicySetting)
+	if err != nil {
+		return l4WfpEndpolicySetting, err
+	}
+
+	l4WfpEndpolicySetting.Settings = l4WfpProxyPolicySettingBytes
+	return l4WfpEndpolicySetting, nil
+}
+
 // GetHcnEndpointPolicies returns array of all endpoint policies.
 func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatForDns, enableMultiTenancy bool) ([]hcn.EndpointPolicy, error) {
 	var (
@@ -408,6 +448,8 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 				endpointPolicy, err = GetHcnPortMappingPolicy(policy)
 			case ACLPolicy:
 				endpointPolicy, err = GetHcnACLPolicy(policy)
+			case L4WFPProxyPolicy:
+				endpointPolicy, err = GetHcnL4WFPProxyPolicy(policy)
 			default:
 				// return error as we should be able to parse all the policies specified
 				return hcnEndPointPolicies, fmt.Errorf("Failed to set Policy: Type: %s, Data: %s", policy.Type, policy.Data)
