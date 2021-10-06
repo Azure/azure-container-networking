@@ -150,6 +150,7 @@ func (dockerClient *DockerClient) CreateNetwork(networkName string, nicInfo *imd
 
 // DeleteNetwork creates a network using docker network create.
 func (dockerClient *DockerClient) DeleteNetwork(networkName string) error {
+	p := platform.NewExecClient()
 	logger.Printf("[Azure CNS] DeleteNetwork")
 
 	url := dockerClient.connectionURL + inspectNetworkPath + networkName
@@ -178,7 +179,7 @@ func (dockerClient *DockerClient) DeleteNetwork(networkName string) error {
 
 		cmd := fmt.Sprintf("iptables -t nat -D POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",
 			primaryNic.Subnet)
-		_, err = platform.ExecuteCommand(cmd)
+		_, err = p.ExecuteCommand(cmd)
 		if err != nil {
 			logger.Printf("[Azure CNS] Error Removing Outbound SNAT rule %v", err)
 		}

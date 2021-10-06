@@ -87,7 +87,7 @@ func GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-func ExecuteCommand(command string) (string, error) {
+func (p *execClient) ExecuteCommand(command string) (string, error) {
 	log.Printf("[Azure-Utils] %s", command)
 
 	var stderr bytes.Buffer

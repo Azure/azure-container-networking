@@ -1,7 +1,7 @@
 //go:build linux
 // +build linux
 
-package epcommon
+package networkutils
 
 import (
 	"errors"
@@ -37,23 +37,25 @@ const (
 	acceptRAV6File       = "/proc/sys/net/ipv6/conf/%s/accept_ra"
 )
 
-var errorEPCommon = errors.New("ErrorEPCommon Error")
+var errorNetworkUtils = errors.New("NetworkUtils Error")
 
-func newErrorEPCommon(errStr string) error {
-	return fmt.Errorf("%w : %s", errorEPCommon, errStr)
+func newErrorNetworkUtils(errStr string) error {
+	return fmt.Errorf("%w : %s", errorNetworkUtils, errStr)
 }
 
-type EPCommon struct {
-	netlink netlink.NetlinkInterface
+type NetworkUtils struct {
+	netlink  netlink.NetlinkInterface
+	plClient platform.ExecClient
 }
 
-func NewEPCommon(nl netlink.NetlinkInterface) EPCommon {
-	return EPCommon{
-		netlink: nl,
+func NewNetworkUtils(nl netlink.NetlinkInterface, plClient platform.ExecClient) NetworkUtils {
+	return NetworkUtils{
+		netlink:  nl,
+		plClient: plClient,
 	}
 }
 
-func (epc EPCommon) CreateEndpoint(hostVethName string, containerVethName string) error {
+func (nu NetworkUtils) CreateEndpoint(hostVethName, containerVethName string) error {
 	log.Printf("[net] Creating veth pair %v %v.", hostVethName, containerVethName)
 
 	link := netlink.VEthLink{
@@ -64,66 +66,66 @@ func (epc EPCommon) CreateEndpoint(hostVethName string, containerVethName string
 		PeerName: containerVethName,
 	}
 
-	err := epc.netlink.AddLink(&link)
+	err := nu.netlink.AddLink(&link)
 	if err != nil {
 		log.Printf("[net] Failed to create veth pair, err:%v.", err)
-		return newErrorEPCommon(err.Error())
+		return newErrorNetworkUtils(err.Error())
 	}
 
 	log.Printf("[net] Setting link %v state up.", hostVethName)
-	err = epc.netlink.SetLinkState(hostVethName, true)
+	err = nu.netlink.SetLinkState(hostVethName, true)
 	if err != nil {
-		return newErrorEPCommon(err.Error())
+		return newErrorNetworkUtils(err.Error())
 	}
 
-	if err := DisableRAForInterface(hostVethName); err != nil {
-		return newErrorEPCommon(err.Error())
+	if err := nu.DisableRAForInterface(hostVethName); err != nil {
+		return newErrorNetworkUtils(err.Error())
 	}
 
 	return nil
 }
 
-func (epc EPCommon) SetupContainerInterface(containerVethName string, targetIfName string) error {
+func (nu NetworkUtils) SetupContainerInterface(containerVethName, targetIfName string) error {
 	// Interface needs to be down before renaming.
 	log.Printf("[net] Setting link %v state down.", containerVethName)
-	if err := epc.netlink.SetLinkState(containerVethName, false); err != nil {
-		return newErrorEPCommon(err.Error())
+	if err := nu.netlink.SetLinkState(containerVethName, false); err != nil {
+		return newErrorNetworkUtils(err.Error())
 	}
 
 	// Rename the container interface.
 	log.Printf("[net] Setting link %v name %v.", containerVethName, targetIfName)
-	if err := epc.netlink.SetLinkName(containerVethName, targetIfName); err != nil {
-		return newErrorEPCommon(err.Error())
+	if err := nu.netlink.SetLinkName(containerVethName, targetIfName); err != nil {
+		return newErrorNetworkUtils(err.Error())
 	}
 
-	if err := DisableRAForInterface(targetIfName); err != nil {
-		return newErrorEPCommon(err.Error())
+	if err := nu.DisableRAForInterface(targetIfName); err != nil {
+		return newErrorNetworkUtils(err.Error())
 	}
 
 	// Bring the interface back up.
 	log.Printf("[net] Setting link %v state up.", targetIfName)
-	err := epc.netlink.SetLinkState(targetIfName, true)
+	err := nu.netlink.SetLinkState(targetIfName, true)
 	if err != nil {
-		return newErrorEPCommon(err.Error())
+		return newErrorNetworkUtils(err.Error())
 	}
 	return nil
 }
 
-func (epc EPCommon) AssignIPToInterface(interfaceName string, ipAddresses []net.IPNet) error {
+func (nu NetworkUtils) AssignIPToInterface(interfaceName string, ipAddresses []net.IPNet) error {
 	var err error
 	// Assign IP address to container network interface.
 	for i, ipAddr := range ipAddresses {
 		log.Printf("[net] Adding IP address %v to link %v.", ipAddr.String(), interfaceName)
-		err = epc.netlink.AddIPAddress(interfaceName, ipAddr.IP, &ipAddresses[i])
+		err = nu.netlink.AddIPAddress(interfaceName, ipAddr.IP, &ipAddresses[i])
 		if err != nil {
-			return newErrorEPCommon(err.Error())
+			return newErrorNetworkUtils(err.Error())
 		}
 	}
 
 	return nil
 }
 
-func addOrDeleteFilterRule(bridgeName string, action string, ipAddress string, chainName string, target string) error {
+func addOrDeleteFilterRule(bridgeName, action, ipAddress, chainName, target string) error {
 	var err error
 	option := "i"
 
@@ -169,7 +171,7 @@ func AllowIPAddresses(bridgeName string, skipAddresses []string, action string) 
 	return nil
 }
 
-func BlockIPAddresses(bridgeName string, action string) error {
+func BlockIPAddresses(bridgeName, action string) error {
 	privateIPAddresses := getPrivateIPSpace()
 	chains := getFilterChains()
 	target := getFilterchainTarget()
@@ -194,11 +196,11 @@ func BlockIPAddresses(bridgeName string, action string) error {
 }
 
 // This fucntion enables ip forwarding in VM and allow forwarding packets from the interface
-func EnableIPForwarding(ifName string) error {
+func (nu NetworkUtils) EnableIPForwarding(ifName string) error {
 	// Enable ip forwading on linux vm.
 	// sysctl -w net.ipv4.ip_forward=1
 	cmd := fmt.Sprint(enableIPForwardCmd)
-	_, err := platform.ExecuteCommand(cmd)
+	_, err := nu.plClient.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[net] Enable ipforwarding failed with: %v", err)
 		return err
@@ -213,9 +215,9 @@ func EnableIPForwarding(ifName string) error {
 	return nil
 }
 
-func EnableIPV6Forwarding() error {
+func (nu NetworkUtils) EnableIPV6Forwarding() error {
 	cmd := fmt.Sprint(enableIPV6ForwardCmd)
-	_, err := platform.ExecuteCommand(cmd)
+	_, err := nu.plClient.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[net] Enable ipv6 forwarding failed with: %v", err)
 		return err
@@ -225,10 +227,10 @@ func EnableIPV6Forwarding() error {
 }
 
 // This functions enables/disables ipv6 setting based on enable parameter passed.
-func UpdateIPV6Setting(disable int) error {
+func (nu NetworkUtils) UpdateIPV6Setting(disable int) error {
 	// sysctl -w net.ipv6.conf.all.disable_ipv6=0/1
 	cmd := fmt.Sprintf(toggleIPV6Cmd, disable)
-	_, err := platform.ExecuteCommand(cmd)
+	_, err := nu.plClient.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("[net] Update IPV6 Setting failed with: %v", err)
 	}
@@ -247,7 +249,7 @@ func AddSnatRule(match string, ip net.IP) error {
 	return iptables.InsertIptableRule(version, iptables.Nat, iptables.Postrouting, match, target)
 }
 
-func DisableRAForInterface(ifName string) error {
+func (nu NetworkUtils) DisableRAForInterface(ifName string) error {
 	raFilePath := fmt.Sprintf(acceptRAV6File, ifName)
 	exist, err := platform.CheckIfFileExists(raFilePath)
 	if !exist {
@@ -256,7 +258,7 @@ func DisableRAForInterface(ifName string) error {
 	}
 
 	cmd := fmt.Sprintf(disableRACmd, ifName)
-	out, err := platform.ExecuteCommand(cmd)
+	out, err := nu.plClient.ExecuteCommand(cmd)
 	if err != nil {
 		log.Errorf("[net] Diabling ra failed with err: %v out: %v", err, out)
 	}
