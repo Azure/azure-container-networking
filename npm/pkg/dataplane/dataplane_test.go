@@ -106,10 +106,11 @@ func TestAddToSet(t *testing.T) {
 			t.Errorf("GetIPSet() for %s returned nil", k)
 		}
 	}
-
 	setNames := make([]string, len(setsTocreate))
+	i := 0
 	for k := range setsTocreate {
-		setNames = append(setNames, k)
+		setNames[i] = k
+		i++
 	}
 
 	err := dp.AddToSet(setNames, "10.0.0.1", "testns/a")
