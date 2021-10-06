@@ -171,7 +171,6 @@ func TestRemoveFromList(t *testing.T) {
 	} else if len(set.MemberIPSets) != 0 {
 		t.Errorf("RemoveFromList() failed")
 	}
-
 }
 
 func TestRemoveFromListMissing(t *testing.T) {

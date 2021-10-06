@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
 
@@ -244,7 +245,11 @@ func (dp *DataPlane) addIPSetReferences(sets map[string]*ipsets.IPSet, netpolNam
 		dp.ipsetMgr.CreateIPSet(set.Name, set.Type)
 		err := dp.ipsetMgr.AddReference(set.Name, netpolName, referenceType)
 		if err != nil {
-			return err
+			npmErrorString := npmerrors.AddSelectorReference
+			if referenceType == ipsets.NetPolType {
+				npmErrorString = npmerrors.AddNetPolReference
+			}
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to add reference with err: %s", err.Error()))
 		}
 	}
 
@@ -262,7 +267,12 @@ func (dp *DataPlane) addIPSetReferences(sets map[string]*ipsets.IPSet, netpolNam
 				}
 				err := dp.ipsetMgr.AddToList(set.Name, memberList)
 				if err != nil {
-					return err
+					npmErrorString := npmerrors.AddSelectorReference
+					if referenceType == ipsets.NetPolType {
+						npmErrorString = npmerrors.AddNetPolReference
+					}
+					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to AddToList in addIPSetReferences with err: %s", err.Error()))
+
 				}
 			}
 		}
@@ -277,7 +287,11 @@ func (dp *DataPlane) deleteIPSetReferences(sets map[string]*ipsets.IPSet, netpol
 		// TODO add delete ipset after removing members
 		err := dp.ipsetMgr.DeleteReference(set.Name, netpolName, referenceType)
 		if err != nil {
-			return err
+			npmErrorString := npmerrors.DeleteSelectorReference
+			if referenceType == ipsets.NetPolType {
+				npmErrorString = npmerrors.DeleteNetPolReference
+			}
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to deleteIPSetReferences with err: %s", err.Error()))
 		}
 	}
 
@@ -296,7 +310,11 @@ func (dp *DataPlane) deleteIPSetReferences(sets map[string]*ipsets.IPSet, netpol
 				}
 				err := dp.ipsetMgr.RemoveFromList(set.Name, memberList)
 				if err != nil {
-					return err
+					npmErrorString := npmerrors.DeleteSelectorReference
+					if referenceType == ipsets.NetPolType {
+						npmErrorString = npmerrors.DeleteNetPolReference
+					}
+					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to RemoveFromList in deleteIPSetReferences with err: %s", err.Error()))
 				}
 			}
 		}

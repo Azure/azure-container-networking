@@ -254,7 +254,10 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 	firstLoop := true
 	for setName := range setList {
 		if !iMgr.exists(setName) {
-			return nil, fmt.Errorf("[ipset manager] selector ipset %s does not exist", setName)
+			return nil, npmerrors.Errorf(
+				npmerrors.GetSelectorReference,
+				false,
+				fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
 		}
 		set := iMgr.setMap[setName]
 		if firstLoop {
@@ -276,7 +279,10 @@ func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(setName) {
-		return nil, fmt.Errorf("[ipset manager] selector ipset %s does not exist", setName)
+		return nil, npmerrors.Errorf(
+			npmerrors.GetSelectorReference,
+			false,
+			fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
 	}
 	set := iMgr.setMap[setName]
 	return set.SelectorReference, nil

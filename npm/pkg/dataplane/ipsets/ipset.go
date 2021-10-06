@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 )
 
 type IPSet struct {
@@ -300,7 +301,10 @@ func (set *IPSet) hasMember(memberName string) bool {
 
 func (set *IPSet) getSetIntersection(existingIntersection map[string]struct{}) (map[string]struct{}, error) {
 	if !set.canSetBeSelectorIPSet() {
-		return nil, fmt.Errorf("[IPSet] Selector IPSet cannot be of type %s", set.Type.String())
+		return nil, npmerrors.Errorf(
+			npmerrors.IPSetIntersection,
+			false,
+			fmt.Sprintf("[IPSet] Selector IPSet cannot be of type %s", set.Type.String()))
 	}
 	newIntersectionMap := make(map[string]struct{})
 	for ip := range set.IPPodKey {
