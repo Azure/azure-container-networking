@@ -305,6 +305,8 @@ func clampBatchSize(nnc *v1alpha.NodeNetworkConfig) {
 	}
 }
 
+// CalculateMinFreeIPs calculates the minimum free IP quantity based on the Scaler
+// in the passed NodeNetworkConfig.
 //nolint:gocritic // ignore hugeparam
 func CalculateMinFreeIPs(nnc v1alpha.NodeNetworkConfig) int {
 	batchSize := nnc.Status.Scaler.BatchSize
@@ -312,6 +314,8 @@ func CalculateMinFreeIPs(nnc v1alpha.NodeNetworkConfig) int {
 	return int(float64(batchSize) * (float64(requestThreshold) / 100)) //nolint:gomnd // it's a percent
 }
 
+// CalculateMaxFreeIPs calculates the maximum free IP quantity based on the Scaler
+// in the passed NodeNetworkConfig.
 //nolint:gocritic // ignore hugeparam
 func CalculateMaxFreeIPs(nnc v1alpha.NodeNetworkConfig) int {
 	batchSize := nnc.Status.Scaler.BatchSize

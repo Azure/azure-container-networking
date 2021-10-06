@@ -142,7 +142,7 @@ func TestPodScaling(t *testing.T) {
 		}
 	})
 
-	counts := []int{15, 5, 15}
+	counts := []int{15, 5, 15, 150, 15}
 
 	for _, c := range counts {
 		count := c
