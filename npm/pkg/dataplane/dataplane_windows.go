@@ -53,9 +53,7 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 		}
 		dp.endpointCache[podKey] = endpoint
 	}
-	// Check if any of the existing network policies needs to be applied
-	// Check if the removed IPSets have any network policy references ?
-	toRemovePolicies := make(map[string]struct{})
+	// Check if the removed IPSets have any network policy references
 	for _, setName := range pod.IPSetsToRemove {
 		selectorReference, err := dp.ipsetMgr.GetSelectorReferencesBySet(setName)
 		if err != nil {
@@ -63,22 +61,20 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 		}
 
 		for policyName := range selectorReference {
-			toRemovePolicies[policyName] = struct{}{}
-		}
-	}
-
-	// Now check if any of these network policies are applied on this endpoint.
-	// If yes then proceed to delete the network policy
-	for policyName := range toRemovePolicies {
-		if _, ok := endpoint.NetPolReference[policyName]; ok {
-			// Delete the network policy
-			err := dp.policyMgr.RemovePolicy(policyName, []string{endpoint.ID})
-			if err != nil {
-				return err
+			// Now check if any of these network policies are applied on this endpoint.
+			// If yes then proceed to delete the network policy
+			// Remove policy should be deleting this netpol reference
+			if _, ok := endpoint.NetPolReference[policyName]; ok {
+				// Delete the network policy
+				err := dp.policyMgr.RemovePolicy(policyName, []string{endpoint.ID})
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
 
+	// Check if any of the existing network policies needs to be applied
 	toAddPolicies := make(map[string]struct{})
 	for _, setName := range pod.IPSetsToAdd {
 		selectorReference, err := dp.ipsetMgr.GetSelectorReferencesBySet(setName)
