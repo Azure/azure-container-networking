@@ -140,6 +140,10 @@ func TestAddToSet(t *testing.T) {
 	}
 
 	for k := range setsTocreate {
+		dp.DeleteIPSet(k)
+	}
+
+	for k := range setsTocreate {
 		set := dp.ipsetMgr.GetIPSet(k)
 		if set != nil {
 			t.Errorf("GetIPSet() for %s returned nil", k)
