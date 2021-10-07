@@ -6,6 +6,7 @@ type mockExecClient struct {
 	returnError bool
 }
 
+// ErrMockExec - mock exec error
 var ErrMockExec = errors.New("mock exec error")
 
 func NewMockExecClient(returnErr bool) ExecClient {

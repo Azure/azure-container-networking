@@ -124,8 +124,9 @@ func ClearNetworkConfiguration() (bool, error) {
 }
 
 func KillProcessByName(processName string) {
+	p := NewExecClient()
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
-	ExecuteCommand(cmd)
+	p.ExecuteCommand(cmd)
 }
 
 // ExecutePowershellCommand executes powershell command

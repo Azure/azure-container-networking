@@ -6,13 +6,13 @@ package network
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-container-networking/netio"
 	"net"
 	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"

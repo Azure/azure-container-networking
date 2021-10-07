@@ -7,15 +7,15 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"github.com/Azure/azure-container-networking/netio"
-	"github.com/Azure/azure-container-networking/platform"
 	"net"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -269,7 +269,7 @@ func addRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, inte
 			interfaceIf, err := netioshim.GetNetworkInterfaceByName(interfaceName)
 			if err != nil {
 				log.Errorf("Interface not found:%v", err)
-				return err
+				return fmt.Errorf("addRoutes failed: %w", err)
 			}
 			ifIndex = interfaceIf.Index
 		}

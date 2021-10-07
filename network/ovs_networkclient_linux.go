@@ -7,14 +7,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/platform"
 	"os"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 var errorOVSNetworkClient = errors.New("OVSNetworkClient Error")
@@ -73,14 +73,14 @@ func (client *OVSNetworkClient) AddRoutes(nwInfo *NetworkInfo, interfaceName str
 }
 
 func NewOVSClient(bridgeName, hostInterfaceName string, ovsctlClient ovsctl.OvsInterface,
-	netlink netlink.NetlinkInterface, plc platform.ExecClient) *OVSNetworkClient {
+	nl netlink.NetlinkInterface, plc platform.ExecClient) *OVSNetworkClient {
 	ovsClient := &OVSNetworkClient{
 		bridgeName:        bridgeName,
 		hostInterfaceName: hostInterfaceName,
 		ovsctlClient:      ovsctlClient,
-		netlink:           netlink,
+		netlink:           nl,
 		plClient:          plc,
-		nuClient:          networkutils.NewNetworkUtils(netlink, plc),
+		nuClient:          networkutils.NewNetworkUtils(nl, plc),
 	}
 
 	return ovsClient

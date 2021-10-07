@@ -1,10 +1,10 @@
 package network
 
 import (
-	"github.com/Azure/azure-container-networking/platform"
 	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/platform"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

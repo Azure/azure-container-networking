@@ -4,16 +4,16 @@
 package network
 
 import (
-	"github.com/Azure/azure-container-networking/netio"
-	"github.com/Azure/azure-container-networking/platform"
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/ovsinfravnet"
 	"github.com/Azure/azure-container-networking/network/ovssnat"
 	"github.com/Azure/azure-container-networking/ovsctl"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 type OVSEndpointClient struct {

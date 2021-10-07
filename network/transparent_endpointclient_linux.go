@@ -90,7 +90,7 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 		return newErrorTransparentEndpointClient(err.Error())
 	}
 
-	if err := client.nuc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
+	if err = client.nuc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return newErrorTransparentEndpointClient(err.Error())
 	}
 

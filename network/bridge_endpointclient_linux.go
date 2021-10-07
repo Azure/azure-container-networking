@@ -2,14 +2,14 @@ package network
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/netio"
-	"github.com/Azure/azure-container-networking/platform"
 	"net"
 
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (

@@ -1,12 +1,12 @@
 package network
 
 import (
-	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/platform"
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/ovsctl"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (

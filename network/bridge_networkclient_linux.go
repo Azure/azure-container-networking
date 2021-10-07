@@ -3,13 +3,13 @@ package network
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-container-networking/platform"
 	"net"
 
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -62,7 +62,11 @@ func (client *LinuxBridgeClient) CreateBridge() error {
 		return err
 	}
 
-	return client.nuClient.DisableRAForInterface(client.bridgeName)
+	if err := client.nuClient.DisableRAForInterface(client.bridgeName); err != nil {
+		return fmt.Errorf("CreateBridge:%w", err)
+	}
+
+	return nil
 }
 
 func (client *LinuxBridgeClient) DeleteBridge() error {
