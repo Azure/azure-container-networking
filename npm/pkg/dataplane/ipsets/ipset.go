@@ -58,7 +58,7 @@ type SetType int8
 
 const (
 	// Unknown SetType
-	Unknown SetType = 0
+	UnknownType SetType = 0
 	// NameSpace IPSet is created to hold
 	// ips of pods in a given NameSapce
 	NameSpace SetType = 1
@@ -78,11 +78,13 @@ const (
 	NestedLabelOfPod SetType = 7
 	// CIDRBlocks holds CIDR blocks
 	CIDRBlocks SetType = 8
+	// UnknownString const for unknown string
+	Unknown string = "unknown"
 )
 
 var (
 	setTypeName = map[SetType]string{
-		Unknown:                  "Unknown",
+		UnknownType:              Unknown,
 		NameSpace:                "NameSpace",
 		KeyLabelOfNameSpace:      "KeyLabelOfNameSpace",
 		KeyValueLabelOfNameSpace: "KeyValueLabelOfNameSpace",
@@ -107,6 +109,8 @@ const (
 	ListSet SetKind = "list"
 	// HashSet is of kind hashset with members as IPs and/or port
 	HashSet SetKind = "set"
+	// UnknownKind is returned when kind is unknown
+	UnknownKind SetKind = "unknown"
 )
 
 // ReferenceType specifies the kind of reference for an IPSet
@@ -171,10 +175,10 @@ func (setMetaData *IPSetMetaData) GetPrefixName() string {
 		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamespaceLabelPrefix)
 	case NestedLabelOfPod:
 		return fmt.Sprintf("%s%s", setMetaData.Name, util.NestedLabelPrefix)
-	case Unknown: // adding this to appease golint
-		return "unknown"
+	case UnknownType: // adding this to appease golint
+		return Unknown
 	default:
-		return "unknown"
+		return Unknown
 	}
 }
 
@@ -266,10 +270,10 @@ func GetSetKind(setType SetType) SetKind {
 		return ListSet
 	case NestedLabelOfPod:
 		return ListSet
-	case Unknown: // adding this to appease golint
-		return "unknown"
+	case UnknownType: // adding this to appease golint
+		return UnknownKind
 	default:
-		return "unknown"
+		return UnknownKind
 	}
 }
 

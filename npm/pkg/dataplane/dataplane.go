@@ -147,14 +147,14 @@ func (dp *DataPlane) ApplyDataPlane() error {
 func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	klog.Infof("[DataPlane] Add Policy called for %s", policy.Name)
 	// Create and add references for Selector IPSets first
-	err := dp.addIPSetReferences(policy.PodSelectorIPSets, policy.Name, ipsets.SelectorType)
+	err := dp.createIPSetsAndReferences(policy.PodSelectorIPSets, policy.Name, ipsets.SelectorType)
 	if err != nil {
 		klog.Infof("[DataPlane] error while adding Selector IPSet references: %s", err.Error())
 		return fmt.Errorf("[DataPlane] error while adding Selector IPSet references: %w", err)
 	}
 
 	// Create and add references for Rule IPSets
-	err = dp.addIPSetReferences(policy.RuleIPSets, policy.Name, ipsets.NetPolType)
+	err = dp.createIPSetsAndReferences(policy.RuleIPSets, policy.Name, ipsets.NetPolType)
 	if err != nil {
 		klog.Infof("[DataPlane] error while adding Rule IPSet references: %s", err.Error())
 		return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
@@ -194,13 +194,13 @@ func (dp *DataPlane) RemovePolicy(policyName string) error {
 		return fmt.Errorf("[DataPlane] error while removing policy: %w", err)
 	}
 	// Remove references for Rule IPSets first
-	err = dp.deleteIPSetReferences(policy.RuleIPSets, policy.Name, ipsets.NetPolType)
+	err = dp.deleteIPSetsAndReferences(policy.RuleIPSets, policy.Name, ipsets.NetPolType)
 	if err != nil {
 		return err
 	}
 
 	// Remove references for Selector IPSets
-	err = dp.deleteIPSetReferences(policy.PodSelectorIPSets, policy.Name, ipsets.SelectorType)
+	err = dp.deleteIPSetsAndReferences(policy.PodSelectorIPSets, policy.Name, ipsets.SelectorType)
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func (dp *DataPlane) UpdatePolicy(policy *policies.NPMNetworkPolicy) error {
 	return nil
 }
 
-func (dp *DataPlane) addIPSetReferences(sets map[string]*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
+func (dp *DataPlane) createIPSetsAndReferences(sets map[string]*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
 	// Create IPSets first along with reference updates
 	for _, set := range sets {
 		dp.ipsetMgr.CreateIPSet(set.MetaData)
@@ -281,7 +281,7 @@ func (dp *DataPlane) addIPSetReferences(sets map[string]*ipsets.TranslatedIPSet,
 	return nil
 }
 
-func (dp *DataPlane) deleteIPSetReferences(sets map[string]*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
+func (dp *DataPlane) deleteIPSetsAndReferences(sets map[string]*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
 	for _, set := range sets {
 		// TODO ignore set does not exist error
 		// TODO add delete ipset after removing members
