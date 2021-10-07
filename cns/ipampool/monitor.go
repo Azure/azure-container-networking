@@ -10,15 +10,23 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 )
 
-const defaultMaxIPCount = int64(250)
+const (
+	DefaultRefreshDelay = 1 * time.Second
+)
 
 type nodeNetworkConfigSpecUpdater interface {
 	UpdateSpec(context.Context, *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error)
 }
 
+type Options struct {
+	RefreshDelay time.Duration
+}
+
 type Monitor struct {
+	opts                     *Options
 	nnc                      *v1alpha.NodeNetworkConfig
 	nnccli                   nodeNetworkConfigSpecUpdater
 	httpService              cns.HTTPService
@@ -28,8 +36,12 @@ type Monitor struct {
 	once                     sync.Once
 }
 
-func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater) *Monitor {
+func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, opts *Options) *Monitor {
+	if opts.RefreshDelay < 1 {
+		opts.RefreshDelay = DefaultRefreshDelay
+	}
 	return &Monitor{
+		opts:        opts,
 		httpService: httpService,
 		nnccli:      nnccli,
 		initialized: make(chan interface{}),
@@ -37,16 +49,17 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 	}
 }
 
-func (pm *Monitor) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
+func (pm *Monitor) Start(ctx context.Context) error {
 	logger.Printf("[ipam-pool-monitor] Starting CNS IPAM Pool Monitor")
 
-	ticker := time.NewTicker(time.Duration(poolMonitorRefreshMilliseconds) * time.Millisecond)
+	ticker := time.NewTicker(pm.opts.RefreshDelay)
+	defer ticker.Stop()
 
 	for {
 		// block until something happens
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("[ipam-pool-monitor] CNS IPAM Pool Monitor received cancellation signal")
+			return errors.Wrap(ctx.Err(), "pool monitor context closed")
 		case <-ticker.C:
 			// block on ticks until we have initialized
 			<-pm.initialized
@@ -275,8 +288,7 @@ func (pm *Monitor) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 // pushing it to the PoolMonitor's source channel.
 // As a side effect, marks the PoolMonitor as initialized, if it is not already.
 func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
-	clampMaxIPs(nnc)
-	clampBatchSize(nnc)
+	clampScaler(nnc)
 
 	// if the nnc has conveged, observe the pool scaling latency (if any)
 	allocatedIPs := len(pm.httpService.GetPodIPConfigState()) - len(pm.httpService.GetPendingReleaseIPConfigs())
@@ -290,18 +302,28 @@ func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 	pm.nncSource <- *nnc
 }
 
-func clampMaxIPs(nnc *v1alpha.NodeNetworkConfig) {
-	if nnc.Status.Scaler.MaxIPCount == 0 {
-		nnc.Status.Scaler.MaxIPCount = defaultMaxIPCount
+// clampScaler makes sure that the values stored in the scaler are sane.
+// we usually expect these to be correctly set for us, but we could crash
+// without these checks. if they are incorrectly set, there will be some weird
+// IP pool behavior for a while until the nnc reconciler corrects the state.
+func clampScaler(nnc *v1alpha.NodeNetworkConfig) {
+	if nnc.Status.Scaler.MaxIPCount < 1 {
+		nnc.Status.Scaler.MaxIPCount = 1
 	}
-}
-
-func clampBatchSize(nnc *v1alpha.NodeNetworkConfig) {
 	if nnc.Status.Scaler.BatchSize < 1 {
 		nnc.Status.Scaler.BatchSize = 1
 	}
 	if nnc.Status.Scaler.BatchSize > nnc.Status.Scaler.MaxIPCount {
 		nnc.Status.Scaler.BatchSize = nnc.Status.Scaler.MaxIPCount
+	}
+	if nnc.Status.Scaler.RequestThresholdPercent < 1 {
+		nnc.Status.Scaler.RequestThresholdPercent = 1
+	}
+	if nnc.Status.Scaler.RequestThresholdPercent > 100 {
+		nnc.Status.Scaler.RequestThresholdPercent = 100
+	}
+	if nnc.Status.Scaler.ReleaseThresholdPercent < nnc.Status.Scaler.RequestThresholdPercent+100 {
+		nnc.Status.Scaler.ReleaseThresholdPercent = nnc.Status.Scaler.RequestThresholdPercent + 100 //nolint:gomnd // it's a percent
 	}
 }
 

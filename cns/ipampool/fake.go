@@ -12,7 +12,7 @@ type MonitorFake struct {
 	NodeNetworkConfig *v1alpha.NodeNetworkConfig
 }
 
-func (*MonitorFake) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
+func (*MonitorFake) Start(ctx context.Context) error {
 	return nil
 }
 

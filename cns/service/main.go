@@ -872,7 +872,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// initialize the ipam pool monitor
-	httpRestServiceImplementation.IPAMPoolMonitor = ipampool.NewMonitor(httpRestServiceImplementation, scopedcli)
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &ipampool.Options{RefreshDelay: poolIPAMRefreshRateInMilliseconds})
+	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize CNS state")
@@ -911,7 +912,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	logger.Printf("Starting IPAM Pool Monitor")
 	go func() {
 		for {
-			if err := httpRestServiceImplementation.IPAMPoolMonitor.Start(ctx, poolIPAMRefreshRateInMilliseconds); err != nil {
+			if err := poolMonitor.Start(ctx); err != nil {
 				logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", err)
 				// todo: add a CNS metric to count # of failures
 			} else {
@@ -927,7 +928,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond)
+		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs)
 		for {
 			select {
 			case <-tickerChannel:
