@@ -204,7 +204,7 @@ func TestMain(m *testing.M) {
 			},
 		},
 	}
-	svc.IPAMPoolMonitor = &ipampool.Fake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
+	svc.IPAMPoolMonitor = &ipampool.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
 
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)

@@ -1,6 +1,3 @@
-//go:build !ignore_uncovered
-// +build !ignore_uncovered
-
 package ipampool
 
 import (
@@ -10,24 +7,24 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
-type Fake struct {
+type MonitorFake struct {
 	IPsNotInUseCount  int
 	NodeNetworkConfig *v1alpha.NodeNetworkConfig
 }
 
-func (*Fake) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
+func (*MonitorFake) Start(ctx context.Context, poolMonitorRefreshMilliseconds int) error {
 	return nil
 }
 
-func (f *Fake) Update(nnc *v1alpha.NodeNetworkConfig) {
+func (f *MonitorFake) Update(nnc *v1alpha.NodeNetworkConfig) {
 	f.NodeNetworkConfig = nnc
 }
 
-func (*Fake) Reconcile() error {
+func (*MonitorFake) Reconcile() error {
 	return nil
 }
 
-func (f *Fake) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
+func (f *MonitorFake) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 	return cns.IpamPoolMonitorStateSnapshot{
 		MaximumFreeIps:           CalculateMaxFreeIPs(*f.NodeNetworkConfig),
 		MinimumFreeIps:           CalculateMinFreeIPs(*f.NodeNetworkConfig),

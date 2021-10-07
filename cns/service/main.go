@@ -784,7 +784,7 @@ type nodeNetworkConfigGetter interface {
 }
 
 type ncStateReconciler interface {
-	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) cnstypes.ResponseCode
+	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
@@ -800,7 +800,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
-			err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
+			err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc))
 			return errors.Wrap(err, "failed to reconcile NC state")
 		}
 
@@ -810,7 +810,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 	// If there are no NCs, pass nil to CNSClient
 	if len(nnc.Status.NetworkContainers) == 0 {
-		err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
+		err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc))
 		return errors.Wrap(err, "failed to reconcile NC state")
 	}
 
@@ -833,7 +833,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 	// errors.Wrap provides additional context, and return nil if the err input arg is nil
 	// Call cnsclient init cns passing those two things.
-	err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc.Status.Scaler, nnc.Spec))
+	err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc))
 	return errors.Wrap(err, "err in CNS reconciliation")
 }
 
