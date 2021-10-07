@@ -48,14 +48,14 @@ func NewIPSetManager(networkName string) *IPSetManager {
 	}
 }
 
-func (iMgr *IPSetManager) CreateIPSet(setMetaData *IPSetMetaData) {
+func (iMgr *IPSetManager) CreateIPSet(setMetadata *IPSetMetadata) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
-	prefixedName := setMetaData.GetPrefixName()
+	prefixedName := setMetadata.GetPrefixName()
 	if iMgr.exists(prefixedName) {
 		return
 	}
-	iMgr.setMap[prefixedName] = NewIPSet(setMetaData)
+	iMgr.setMap[prefixedName] = NewIPSet(setMetadata)
 	metrics.IncNumIPSets()
 }
 
@@ -142,7 +142,7 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 	return nil
 }
 
-func (iMgr *IPSetManager) AddToSet(addToSets []*IPSetMetaData, ip, podKey string) error {
+func (iMgr *IPSetManager) AddToSet(addToSets []*IPSetMetadata, ip, podKey string) error {
 	// check if the IP is IPV4 family
 	if net.ParseIP(ip).To4() == nil {
 		return npmerrors.Errorf(npmerrors.AppendIPSet, false, "IPV6 not supported")
@@ -154,8 +154,8 @@ func (iMgr *IPSetManager) AddToSet(addToSets []*IPSetMetaData, ip, podKey string
 		return err
 	}
 
-	for _, setMetaData := range addToSets {
-		prefixedName := setMetaData.GetPrefixName()
+	for _, setMetadata := range addToSets {
+		prefixedName := setMetadata.GetPrefixName()
 		set := iMgr.setMap[prefixedName]
 		cachedPodKey, ok := set.IPPodKey[ip]
 		set.IPPodKey[ip] = podKey
@@ -171,7 +171,7 @@ func (iMgr *IPSetManager) AddToSet(addToSets []*IPSetMetaData, ip, podKey string
 	return nil
 }
 
-func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []*IPSetMetaData, ip, podKey string) error {
+func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []*IPSetMetadata, ip, podKey string) error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
@@ -179,8 +179,8 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []*IPSetMetaData, ip, pod
 		return err
 	}
 
-	for _, setMetaData := range removeFromSets {
-		prefixedName := setMetaData.GetPrefixName()
+	for _, setMetadata := range removeFromSets {
+		prefixedName := setMetadata.GetPrefixName()
 		set := iMgr.setMap[prefixedName]
 
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
@@ -202,17 +202,17 @@ func (iMgr *IPSetManager) RemoveFromSet(removeFromSets []*IPSetMetaData, ip, pod
 	return nil
 }
 
-func (iMgr *IPSetManager) AddToList(listMetaData *IPSetMetaData, setMetaDatas []*IPSetMetaData) error {
+func (iMgr *IPSetManager) AddToList(listMetadata *IPSetMetadata, setMetadatas []*IPSetMetadata) error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
-	if err := iMgr.checkForListMemberUpdateErrors(listMetaData, setMetaDatas, npmerrors.AppendIPSet); err != nil {
+	if err := iMgr.checkForListMemberUpdateErrors(listMetadata, setMetadatas, npmerrors.AppendIPSet); err != nil {
 		return err
 	}
 
-	listName := listMetaData.GetPrefixName()
-	for _, setMetaData := range setMetaDatas {
-		setName := setMetaData.GetPrefixName()
+	listName := listMetadata.GetPrefixName()
+	for _, setMetadata := range setMetadatas {
+		setName := setMetadata.GetPrefixName()
 		iMgr.addMemberIPSet(listName, setName)
 	}
 	iMgr.modifyCacheForKernelMemberUpdate(listName)
@@ -220,17 +220,17 @@ func (iMgr *IPSetManager) AddToList(listMetaData *IPSetMetaData, setMetaDatas []
 	return nil
 }
 
-func (iMgr *IPSetManager) RemoveFromList(listMetaData *IPSetMetaData, setMetaDatas []*IPSetMetaData) error {
+func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadatas []*IPSetMetadata) error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
-	if err := iMgr.checkForListMemberUpdateErrors(listMetaData, setMetaDatas, npmerrors.DeleteIPSet); err != nil {
+	if err := iMgr.checkForListMemberUpdateErrors(listMetadata, setMetadatas, npmerrors.DeleteIPSet); err != nil {
 		return err
 	}
 
-	listName := listMetaData.GetPrefixName()
-	for _, setMetaData := range setMetaDatas {
-		setName := setMetaData.GetPrefixName()
+	listName := listMetadata.GetPrefixName()
+	for _, setMetadata := range setMetadatas {
+		setName := setMetadata.GetPrefixName()
 		iMgr.removeMemberIPSet(listName, setName)
 	}
 	iMgr.modifyCacheForKernelMemberUpdate(listName)
@@ -344,7 +344,7 @@ func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
 	}
 }
 
-func (iMgr *IPSetManager) checkForIPUpdateErrors(setNames []*IPSetMetaData, npmErrorString string) error {
+func (iMgr *IPSetManager) checkForIPUpdateErrors(setNames []*IPSetMetadata, npmErrorString string) error {
 	for _, set := range setNames {
 		prefixedSetName := set.GetPrefixName()
 		if !iMgr.exists(prefixedSetName) {
@@ -375,8 +375,8 @@ func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(setName string) {
 	}
 }
 
-func (iMgr *IPSetManager) checkForListMemberUpdateErrors(listMetaData *IPSetMetaData, memberMetaDatas []*IPSetMetaData, npmErrorString string) error {
-	prefixedListName := listMetaData.GetPrefixName()
+func (iMgr *IPSetManager) checkForListMemberUpdateErrors(listMetadata *IPSetMetadata, memberMetadatas []*IPSetMetadata, npmErrorString string) error {
+	prefixedListName := listMetadata.GetPrefixName()
 	if !iMgr.exists(prefixedListName) {
 		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", prefixedListName))
 	}
@@ -386,8 +386,8 @@ func (iMgr *IPSetManager) checkForListMemberUpdateErrors(listMetaData *IPSetMeta
 		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a list set", prefixedListName))
 	}
 
-	for _, memberMetaData := range memberMetaDatas {
-		memberName := memberMetaData.GetPrefixName()
+	for _, memberMetadata := range memberMetadatas {
+		memberName := memberMetadata.GetPrefixName()
 		if prefixedListName == memberName {
 			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s cannot be added to itself", prefixedListName))
 		}

@@ -45,7 +45,7 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 	metrics.InitializeAll()
 	dp := NewDataPlane("testnode")
 	assert.NotNil(t, dp)
-	setsTocreate := []*ipsets.IPSetMetaData{
+	setsTocreate := []*ipsets.IPSetMetadata{
 		{
 			Name: "test",
 			Type: ipsets.NameSpace,
@@ -86,7 +86,7 @@ func TestAddToSet(t *testing.T) {
 	metrics.InitializeAll()
 	dp := NewDataPlane("testnode")
 
-	setsTocreate := []*ipsets.IPSetMetaData{
+	setsTocreate := []*ipsets.IPSetMetadata{
 		{
 			Name: "test",
 			Type: ipsets.NameSpace,

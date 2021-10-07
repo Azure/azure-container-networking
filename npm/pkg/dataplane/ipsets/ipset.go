@@ -33,13 +33,13 @@ type IPSet struct {
 	kernelReferCount int
 }
 
-type IPSetMetaData struct {
+type IPSetMetadata struct {
 	Name string
 	Type SetType
 }
 
 type TranslatedIPSet struct {
-	MetaData *IPSetMetaData
+	Metadata *IPSetMetadata
 	// IpPodKey is used for setMaps to store Ips and ports as keys
 	// and podKey as value
 	IPPodKey map[string]string
@@ -78,7 +78,7 @@ const (
 	NestedLabelOfPod SetType = 7
 	// CIDRBlocks holds CIDR blocks
 	CIDRBlocks SetType = 8
-	// UnknownString const for unknown string
+	// Unknown const for unknown string
 	Unknown string = "unknown"
 )
 
@@ -122,14 +122,14 @@ const (
 	NetPolType   ReferenceType = "NetPol"
 )
 
-func NewIPSet(setMetaData *IPSetMetaData) *IPSet {
-	prefixedName := setMetaData.GetPrefixName()
+func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
+	prefixedName := setMetadata.GetPrefixName()
 	set := &IPSet{
 		Name:       prefixedName,
 		HashedName: util.GetHashedName(prefixedName),
 		SetProperties: SetProperties{
-			Type: setMetaData.Type,
-			Kind: GetSetKind(setMetaData.Type),
+			Type: setMetadata.Type,
+			Kind: GetSetKind(setMetadata.Type),
 		},
 		// Map with Key as Network Policy name to to emulate set
 		// and value as struct{} for minimal memory consumption
@@ -149,32 +149,32 @@ func NewIPSet(setMetaData *IPSetMetaData) *IPSet {
 }
 
 // NewIPSetMetadata is used for controllers to send in skeleton ipsets to DP
-func NewIPSetMetadata(name string, setType SetType) *IPSetMetaData {
-	set := &IPSetMetaData{
+func NewIPSetMetadata(name string, setType SetType) *IPSetMetadata {
+	set := &IPSetMetadata{
 		Name: name,
 		Type: setType,
 	}
 	return set
 }
 
-func (setMetaData *IPSetMetaData) GetPrefixName() string {
-	switch setMetaData.Type {
+func (setMetadata *IPSetMetadata) GetPrefixName() string {
+	switch setMetadata.Type {
 	case CIDRBlocks:
-		return fmt.Sprintf("%s%s", setMetaData.Name, util.CIDRPrefix)
+		return fmt.Sprintf("%s%s", setMetadata.Name, util.CIDRPrefix)
 	case NameSpace:
-		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamespacePrefix)
+		return fmt.Sprintf("%s%s", setMetadata.Name, util.NamespacePrefix)
 	case NamedPorts:
-		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamedPortIPSetPrefix)
+		return fmt.Sprintf("%s%s", setMetadata.Name, util.NamedPortIPSetPrefix)
 	case KeyLabelOfPod:
-		return fmt.Sprintf("%s%s", setMetaData.Name, util.PodLabelPrefix)
+		return fmt.Sprintf("%s%s", setMetadata.Name, util.PodLabelPrefix)
 	case KeyValueLabelOfPod:
-		return fmt.Sprintf("%s%s", setMetaData.Name, util.PodLabelPrefix)
+		return fmt.Sprintf("%s%s", setMetadata.Name, util.PodLabelPrefix)
 	case KeyLabelOfNameSpace:
-		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamespaceLabelPrefix)
+		return fmt.Sprintf("%s%s", setMetadata.Name, util.NamespaceLabelPrefix)
 	case KeyValueLabelOfNameSpace:
-		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamespaceLabelPrefix)
+		return fmt.Sprintf("%s%s", setMetadata.Name, util.NamespaceLabelPrefix)
 	case NestedLabelOfPod:
-		return fmt.Sprintf("%s%s", setMetaData.Name, util.NestedLabelPrefix)
+		return fmt.Sprintf("%s%s", setMetadata.Name, util.NestedLabelPrefix)
 	case UnknownType: // adding this to appease golint
 		return Unknown
 	default:
