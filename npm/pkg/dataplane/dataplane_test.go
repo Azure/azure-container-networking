@@ -5,6 +5,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewDataPlane(t *testing.T) {
@@ -15,75 +17,68 @@ func TestNewDataPlane(t *testing.T) {
 		t.Error("NewDataPlane() returned nil")
 	}
 
-	dp.CreateIPSet("test", ipsets.NameSpace)
+	setMetadata := ipsets.NewIPSetMetadata("test", ipsets.NameSpace)
+	dp.CreateIPSet(setMetadata)
 }
 
 func TestInitializeDataPlane(t *testing.T) {
 	metrics.InitializeAll()
 	dp := NewDataPlane("testnode")
 
-	if dp == nil {
-		t.Error("NewDataPlane() returned nil")
-	}
-
+	assert.NotNil(t, dp)
 	err := dp.InitializeDataPlane()
-	if err != nil {
-		t.Errorf("InitializeDataPlane() returned error %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func TestResetDataPlane(t *testing.T) {
 	metrics.InitializeAll()
 	dp := NewDataPlane("testnode")
 
-	if dp == nil {
-		t.Error("NewDataPlane() returned nil")
-	}
-
+	assert.NotNil(t, dp)
 	err := dp.InitializeDataPlane()
-	if err != nil {
-		t.Errorf("InitializeDataPlane() returned error %v", err)
-	}
+	require.NoError(t, err)
 	err = dp.ResetDataPlane()
-	if err != nil {
-		t.Errorf("ResetDataPlane() returned error %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func TestCreateAndDeleteIpSets(t *testing.T) {
 	metrics.InitializeAll()
 	dp := NewDataPlane("testnode")
-
-	setsTocreate := map[string]ipsets.SetType{
-		"test":  ipsets.NameSpace,
-		"test1": ipsets.NameSpace,
+	assert.NotNil(t, dp)
+	setsTocreate := []*ipsets.IPSetMetaData{
+		{
+			Name: "test",
+			Type: ipsets.NameSpace,
+		},
+		{
+			Name: "test1",
+			Type: ipsets.NameSpace,
+		},
 	}
 
-	for k, v := range setsTocreate {
-		dp.CreateIPSet(k, v)
+	for _, v := range setsTocreate {
+		dp.CreateIPSet(v)
 	}
 
 	// Creating again to see if duplicates get created
-	for k, v := range setsTocreate {
-		dp.CreateIPSet(k, v)
+	for _, v := range setsTocreate {
+		dp.CreateIPSet(v)
 	}
 
-	for k := range setsTocreate {
-		set := dp.ipsetMgr.GetIPSet(k)
-		if set == nil {
-			t.Errorf("GetIPSet() for %s returned nil", k)
-		}
+	for _, v := range setsTocreate {
+		prefixedName := v.GetPrefixName()
+		set := dp.ipsetMgr.GetIPSet(prefixedName)
+		assert.NotNil(t, set)
 	}
 
-	for k := range setsTocreate {
-		dp.DeleteIPSet(k)
+	for _, v := range setsTocreate {
+		dp.DeleteIPSet(v)
 	}
 
-	for k := range setsTocreate {
-		set := dp.ipsetMgr.GetIPSet(k)
-		if set != nil {
-			t.Errorf("GetIPSet() for %s returned nil", k)
-		}
+	for _, v := range setsTocreate {
+		prefixedName := v.GetPrefixName()
+		set := dp.ipsetMgr.GetIPSet(prefixedName)
+		assert.Nil(t, set)
 	}
 }
 
@@ -91,63 +86,54 @@ func TestAddToSet(t *testing.T) {
 	metrics.InitializeAll()
 	dp := NewDataPlane("testnode")
 
-	setsTocreate := map[string]ipsets.SetType{
-		"test":  ipsets.NameSpace,
-		"test1": ipsets.NameSpace,
+	setsTocreate := []*ipsets.IPSetMetaData{
+		{
+			Name: "test",
+			Type: ipsets.NameSpace,
+		},
+		{
+			Name: "test1",
+			Type: ipsets.NameSpace,
+		},
 	}
 
-	for k, v := range setsTocreate {
-		dp.CreateIPSet(k, v)
+	for _, v := range setsTocreate {
+		dp.CreateIPSet(v)
 	}
 
-	for k := range setsTocreate {
-		set := dp.ipsetMgr.GetIPSet(k)
-		if set == nil {
-			t.Errorf("GetIPSet() for %s returned nil", k)
-		}
-	}
-	setNames := make([]string, len(setsTocreate))
-	i := 0
-	for k := range setsTocreate {
-		setNames[i] = k
-		i++
+	for _, v := range setsTocreate {
+		prefixedName := v.GetPrefixName()
+		set := dp.ipsetMgr.GetIPSet(prefixedName)
+		assert.NotNil(t, set)
 	}
 
-	err := dp.AddToSet(setNames, "10.0.0.1", "testns/a")
-	if err != nil {
-		t.Errorf("AddToSet() returned error %v", err)
-	}
+	err := dp.AddToSet(setsTocreate, "10.0.0.1", "testns/a")
+	require.NoError(t, err)
 
 	// Test IPV6 addess it should error out
-	err = dp.AddToSet(setNames, "2001:db8:0:0:0:0:2:1", "testns/a")
-	if err == nil {
-		t.Error("AddToSet() ipv6 did not return error")
+	err = dp.AddToSet(setsTocreate, "2001:db8:0:0:0:0:2:1", "testns/a")
+	require.Error(t, err)
+
+	for _, v := range setsTocreate {
+		dp.DeleteIPSet(v)
 	}
 
-	for k := range setsTocreate {
-		dp.DeleteIPSet(k)
+	for _, v := range setsTocreate {
+		prefixedName := v.GetPrefixName()
+		set := dp.ipsetMgr.GetIPSet(prefixedName)
+		assert.NotNil(t, set)
 	}
 
-	for k := range setsTocreate {
-		set := dp.ipsetMgr.GetIPSet(k)
-		if set == nil {
-			t.Errorf("GetIPSet() for %s returned nil", k)
-		}
+	err = dp.RemoveFromSet(setsTocreate, "10.0.0.1", "testns/a")
+	require.NoError(t, err)
+
+	for _, v := range setsTocreate {
+		dp.DeleteIPSet(v)
 	}
 
-	err = dp.RemoveFromSet(setNames, "10.0.0.1", "testns/a")
-	if err != nil {
-		t.Errorf("RemoveFromSet() returned error %v", err)
-	}
-
-	for k := range setsTocreate {
-		dp.DeleteIPSet(k)
-	}
-
-	for k := range setsTocreate {
-		set := dp.ipsetMgr.GetIPSet(k)
-		if set != nil {
-			t.Errorf("GetIPSet() for %s returned nil", k)
-		}
+	for _, v := range setsTocreate {
+		prefixedName := v.GetPrefixName()
+		set := dp.ipsetMgr.GetIPSet(prefixedName)
+		assert.Nil(t, set)
 	}
 }

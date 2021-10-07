@@ -142,9 +142,13 @@ const (
 
 	// Prefixes for ipsets
 	NamedPortIPSetPrefix string = "namedport:"
+	NamespacePrefix      string = "ns-"
+	NamespaceLabelPrefix string = "nslabel-"
+	PodLabelPrefix       string = "podlabel-"
+	CIDRPrefix           string = "cidr-"
+	NestedLabelPrefix    string = "nestedlabel-"
 
-	NamespacePrefix string = "ns-"
-	NegationPrefix  string = "not-"
+	NegationPrefix string = "not-"
 
 	SetPolicyDelimiter string = ","
 )

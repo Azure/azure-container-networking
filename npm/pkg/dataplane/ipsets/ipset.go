@@ -33,6 +33,20 @@ type IPSet struct {
 	kernelReferCount int
 }
 
+type IPSetMetaData struct {
+	Name string
+	Type SetType
+}
+
+type TranslatedIPSet struct {
+	MetaData *IPSetMetaData
+	// IpPodKey is used for setMaps to store Ips and ports as keys
+	// and podKey as value
+	IPPodKey map[string]string
+	// This is used for listMaps to store child IP Sets
+	MemberIPSets map[string]*TranslatedIPSet
+}
+
 type SetProperties struct {
 	// Stores type of ip grouping
 	Type SetType
@@ -104,13 +118,14 @@ const (
 	NetPolType   ReferenceType = "NetPol"
 )
 
-func NewIPSet(name string, setType SetType) *IPSet {
+func NewIPSet(setMetaData *IPSetMetaData) *IPSet {
+	prefixedName := setMetaData.GetPrefixName()
 	set := &IPSet{
-		Name:       name,
-		HashedName: util.GetHashedName(name),
+		Name:       prefixedName,
+		HashedName: util.GetHashedName(prefixedName),
 		SetProperties: SetProperties{
-			Type: setType,
-			Kind: getSetKind(setType),
+			Type: setMetaData.Type,
+			Kind: GetSetKind(setMetaData.Type),
 		},
 		// Map with Key as Network Policy name to to emulate set
 		// and value as struct{} for minimal memory consumption
@@ -127,6 +142,40 @@ func NewIPSet(name string, setType SetType) *IPSet {
 		set.MemberIPSets = make(map[string]*IPSet)
 	}
 	return set
+}
+
+// NewIPSetMetadata is used for controllers to send in skeleton ipsets to DP
+func NewIPSetMetadata(name string, setType SetType) *IPSetMetaData {
+	set := &IPSetMetaData{
+		Name: name,
+		Type: setType,
+	}
+	return set
+}
+
+func (setMetaData *IPSetMetaData) GetPrefixName() string {
+	switch setMetaData.Type {
+	case CIDRBlocks:
+		return fmt.Sprintf("%s%s", setMetaData.Name, util.CIDRPrefix)
+	case NameSpace:
+		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamespacePrefix)
+	case NamedPorts:
+		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamedPortIPSetPrefix)
+	case KeyLabelOfPod:
+		return fmt.Sprintf("%s%s", setMetaData.Name, util.PodLabelPrefix)
+	case KeyValueLabelOfPod:
+		return fmt.Sprintf("%s%s", setMetaData.Name, util.PodLabelPrefix)
+	case KeyLabelOfNameSpace:
+		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamespaceLabelPrefix)
+	case KeyValueLabelOfNameSpace:
+		return fmt.Sprintf("%s%s", setMetaData.Name, util.NamespaceLabelPrefix)
+	case NestedLabelOfPod:
+		return fmt.Sprintf("%s%s", setMetaData.Name, util.NestedLabelPrefix)
+	case Unknown: // adding this to appease golint
+		return "unknown"
+	default:
+		return "unknown"
+	}
 }
 
 func (set *IPSet) GetSetContents() ([]string, error) {
@@ -199,7 +248,7 @@ func (set *IPSet) Compare(newSet *IPSet) bool {
 	return true
 }
 
-func getSetKind(setType SetType) SetKind {
+func GetSetKind(setType SetType) SetKind {
 	switch setType {
 	case CIDRBlocks:
 		return HashSet
