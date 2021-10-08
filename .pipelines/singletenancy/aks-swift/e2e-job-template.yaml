@@ -9,19 +9,17 @@ stages:
     dependsOn: build_and_test
     jobs:
       - job: ${{ parameters.name }}
-        displayName: Singletenancy AKS on Swift Suite - (${{ parameters.name }})
+        displayName: Singletenancy AKS Swift Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: "$(BUILD_POOL_NAME_SWIFT)"
           demands: 
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        container:
-          image: "$(BUILD_IMAGE)" # build image set as variable in pipeline runtime for flexibilit
         variables:
           GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
           GOBIN: "$(GOPATH)/bin" # Go binaries path
-          ImageTag: $[ stagedependencies.build_and_test.setup.outputs['EnvironmentalVariables.ImageTag'] ]
+          Tag: $[ stagedependencies.build_and_test.setup.outputs['EnvironmentalVariables.Tag'] ]
           modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
         steps:
           - template: e2e-step-template.yaml

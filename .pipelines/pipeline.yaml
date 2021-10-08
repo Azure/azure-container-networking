@@ -21,7 +21,6 @@ stages:
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
-              echo "##vso[task.setvariable variable=ImageTag;isOutput=true]$(git describe --tags --always --dirty)-test"
               sudo chown -R $(whoami):$(whoami) .
               go version
               go env
@@ -117,8 +116,8 @@ stages:
             displayName: "Image Vulnerability Scan"
 
           - script: |
-              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(TAG) $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
-              docker push $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
+              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(TAG) $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
+              docker push $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
 
               function auto-retry()
               {
@@ -132,7 +131,7 @@ stages:
 
               auto-retry docker pull $IMAGE_REGISTRY/azure-npm:$(TAG)
               auto-retry docker pull $IMAGE_REGISTRY/azure-cns:$(TAG)
-              auto-retry docker pull $IMAGE_REGISTRY/azure-cni-manager:$(TAG)-test
+              auto-retry docker pull $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
             name: "mcrreplication"
             displayName: "Push NPM Image and Wait for Repository"
 
@@ -199,11 +198,11 @@ stages:
             displayName: "Publish Code Coverage Results"
             condition: always()
 
-  #- template: singletenancy/aks-swift/e2e-job-template.yaml
-  #  parameters:
-  #    name: "aks_on_swift_e2e"
-  #    displayName: AKS on Swift
-  #    pipelineBuildImage: "$(BUILD_IMAGE)"
+  - template: singletenancy/aks-swift/e2e-job-template.yaml
+    parameters:
+      name: "aks_swift_e2e"
+      displayName: AKS Swift
+      pipelineBuildImage: "$(BUILD_IMAGE)"
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
@@ -238,7 +237,7 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
-     # - "aks_on_swift_e2e"
+      - "aks_swift_e2e"
       - "ubuntu_16_04_linux_e2e"
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"

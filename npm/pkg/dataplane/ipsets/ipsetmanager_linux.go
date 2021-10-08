@@ -1,5 +1,5 @@
 package ipsets
 
-func (iMgr *IPSetManager) applyIPSets(networkID string) error {
+func (iMgr *IPSetManager) applyIPSets() error {
 	return nil
 }

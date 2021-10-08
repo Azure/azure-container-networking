@@ -26,44 +26,43 @@ import (
 	"k8s.io/utils/exec"
 )
 
-func init() {
-	rootCmd.AddCommand(startNPMCmd)
-}
+func newStartNPMCmd() *cobra.Command {
+	// getTuplesCmd represents the getTuples command
+	startNPMCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Starts the Azure NPM process",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			viper.AutomaticEnv() // read in environment variables that match
+			viper.SetDefault(npmconfig.ConfigEnvPath, npmconfig.GetConfigPath())
+			cfgFile := viper.GetString(npmconfig.ConfigEnvPath)
+			viper.SetConfigFile(cfgFile)
 
-// getTuplesCmd represents the getTuples command
-var startNPMCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Starts the Azure NPM process",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		viper.AutomaticEnv() // read in environment variables that match
-		viper.SetDefault(npmconfig.ConfigEnvPath, npmconfig.GetConfigPath())
-		cfgFile := viper.GetString(npmconfig.ConfigEnvPath)
-		viper.SetConfigFile(cfgFile)
-
-		// If a config file is found, read it in.
-		if err := viper.ReadInConfig(); err == nil {
-			klog.Info("Using config file: ", viper.ConfigFileUsed())
-		} else {
-			klog.Infof("Failed to load config from env %s: %v", npmconfig.ConfigEnvPath, err)
-			b, _ := json.Marshal(npmconfig.DefaultConfig)
-			err := viper.ReadConfig(bytes.NewBuffer(b))
-			if err != nil {
-				return fmt.Errorf("failed to read in default with err %w", err)
+			// If a config file is found, read it in.
+			if err := viper.ReadInConfig(); err == nil {
+				klog.Info("Using config file: ", viper.ConfigFileUsed())
+			} else {
+				klog.Infof("Failed to load config from env %s: %v", npmconfig.ConfigEnvPath, err)
+				b, _ := json.Marshal(npmconfig.DefaultConfig)
+				err := viper.ReadConfig(bytes.NewBuffer(b))
+				if err != nil {
+					return fmt.Errorf("failed to read in default with err %w", err)
+				}
 			}
-		}
 
-		return nil
-	},
+			return nil
+		},
 
-	RunE: func(cmd *cobra.Command, args []string) error {
-		config := &npmconfig.Config{}
-		err := viper.Unmarshal(config)
-		if err != nil {
-			return fmt.Errorf("failed to load config with error %w", err)
-		}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config := &npmconfig.Config{}
+			err := viper.Unmarshal(config)
+			if err != nil {
+				return fmt.Errorf("failed to load config with error %w", err)
+			}
 
-		return start(*config)
-	},
+			return start(*config)
+		},
+	}
+	return startNPMCmd
 }
 
 func start(config npmconfig.Config) error {
@@ -134,12 +133,12 @@ func initLogging() error {
 	return nil
 }
 
-func k8sServerVersion(clientset *kubernetes.Clientset) *k8sversion.Info {
+func k8sServerVersion(kubeclientset kubernetes.Interface) *k8sversion.Info {
 	var err error
 	var serverVersion *k8sversion.Info
 	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
 		<-ticker
-		serverVersion, err = clientset.ServerVersion()
+		serverVersion, err = kubeclientset.Discovery().ServerVersion()
 		if err == nil {
 			break
 		}

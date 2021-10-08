@@ -10,24 +10,14 @@ import (
 	"k8s.io/klog"
 )
 
-// SetPolicyTypes associated with SetPolicy. Value is IPSET.
-type SetPolicyType string
-
 const (
-	SetPolicyTypeIpSet       SetPolicyType = "IPSET"
-	SetPolicyTypeNestedIpSet SetPolicyType = "NESTEDIPSET"
+	// SetPolicyTypeNestedIPSet as a temporary measure adding it here
+	// update HCSShim to version 0.9.23 or above to support nestedIPSets
+	SetPolicyTypeNestedIPSet hcn.SetPolicyType = "NESTEDIPSET"
 )
 
-// SetPolicySetting creates IPSets on network
-type SetPolicySetting struct {
-	Id     string
-	Name   string
-	Type   SetPolicyType
-	Values string
-}
-
-func (iMgr *IPSetManager) applyIPSets(networkID string) error {
-	network, err := hcn.GetNetworkByID(networkID)
+func (iMgr *IPSetManager) applyIPSets() error {
+	network, err := iMgr.getHCnNetwork()
 	if err != nil {
 		return err
 	}
@@ -76,22 +66,19 @@ func (iMgr *IPSetManager) applyIPSets(networkID string) error {
 	return nil
 }
 
-func (iMgr *IPSetManager) calculateNewSetPolicies(existingSets []string) (map[string]SetPolicySetting, error) {
+func (iMgr *IPSetManager) calculateNewSetPolicies(existingSets []string) (map[string]*hcn.SetPolicySetting, error) {
 	// some of this below logic can be abstracted a step above
-	dirtySets := iMgr.dirtyCaches
+	dirtySets := iMgr.toAddOrUpdateCache
 
 	for _, setName := range existingSets {
 		dirtySets[setName] = struct{}{}
 	}
 
-	setsToUpdate := make(map[string]SetPolicySetting)
+	setsToUpdate := make(map[string]*hcn.SetPolicySetting)
 	for setName := range dirtySets {
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
 			return nil, errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", setName))
-		}
-		if !set.UsedByNetPol() {
-			continue
 		}
 
 		setPol, err := convertToSetPolicy(set)
@@ -117,6 +104,17 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(existingSets []string) (map[st
 	return setsToUpdate, nil
 }
 
+func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
+	if iMgr.iMgrCfg.networkName == "" {
+		iMgr.iMgrCfg.networkName = "azure"
+	}
+	network, err := hcn.GetNetworkByName("azure")
+	if err != nil {
+		return nil, err
+	}
+	return network, nil
+}
+
 func isValidIPSet(set *IPSet) error {
 	if set.Name == "" {
 		return fmt.Errorf("IPSet " + set.Name + " is missing Name")
@@ -133,29 +131,29 @@ func isValidIPSet(set *IPSet) error {
 	return nil
 }
 
-func getSetPolicyType(set *IPSet) SetPolicyType {
+func getSetPolicyType(set *IPSet) hcn.SetPolicyType {
 	switch set.Kind {
 	case ListSet:
-		return SetPolicyTypeNestedIpSet
+		return SetPolicyTypeNestedIPSet
 	case HashSet:
-		return SetPolicyTypeIpSet
+		return hcn.SetPolicyTypeIpSet
 	default:
 		return "Unknown"
 	}
 }
 
-func convertToSetPolicy(set *IPSet) (SetPolicySetting, error) {
+func convertToSetPolicy(set *IPSet) (*hcn.SetPolicySetting, error) {
 	err := isValidIPSet(set)
 	if err != nil {
-		return SetPolicySetting{}, err
+		return &hcn.SetPolicySetting{}, err
 	}
 
 	setContents, err := set.GetSetContents()
 	if err != nil {
-		return SetPolicySetting{}, err
+		return &hcn.SetPolicySetting{}, err
 	}
 
-	setPolicy := SetPolicySetting{
+	setPolicy := &hcn.SetPolicySetting{
 		Id:     set.HashedName,
 		Name:   set.Name,
 		Type:   getSetPolicyType(set),
@@ -167,8 +165,8 @@ func convertToSetPolicy(set *IPSet) (SetPolicySetting, error) {
 func getAllSetPolicyNames(networkPolicies []hcn.NetworkPolicy) ([]string, error) {
 	setPols := []string{}
 	for _, netpol := range networkPolicies {
-		if netpol.Type == "SetPolicy" {
-			var set SetPolicySetting
+		if netpol.Type == hcn.SetPolicy {
+			var set hcn.SetPolicySetting
 			err := json.Unmarshal(netpol.Settings, &set)
 			if err != nil {
 				klog.Error(err.Error())

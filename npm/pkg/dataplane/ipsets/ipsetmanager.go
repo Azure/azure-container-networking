@@ -10,8 +10,19 @@ import (
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 )
 
+type IPSetMode string
+
+const (
+	// ApplyAllIPSets will change dataplane behavior to apply all ipsets
+	ApplyAllIPSets IPSetMode = "all"
+	// ApplyOnNeed will change dataplane behavior to apply
+	// only ipsets that are referenced by network policies
+	ApplyOnNeed IPSetMode = "on-need"
+)
+
 type IPSetManager struct {
-	setMap map[string]*IPSet
+	iMgrCfg *ipSetManagerCfg
+	setMap  map[string]*IPSet
 	// Map with Key as IPSet name to to emulate set
 	// and value as struct{} for minimal memory consumption.
 	toAddOrUpdateCache map[string]struct{}
@@ -20,44 +31,62 @@ type IPSetManager struct {
 	sync.Mutex
 }
 
-func NewIPSetManager() *IPSetManager {
+type ipSetManagerCfg struct {
+	ipSetMode   IPSetMode
+	networkName string
+}
+
+func NewIPSetManager(networkName string) *IPSetManager {
 	return &IPSetManager{
+		iMgrCfg: &ipSetManagerCfg{
+			ipSetMode:   ApplyOnNeed,
+			networkName: networkName,
+		},
 		setMap:             make(map[string]*IPSet),
 		toAddOrUpdateCache: make(map[string]struct{}),
 		toDeleteCache:      make(map[string]struct{}),
 	}
 }
 
-func (iMgr *IPSetManager) CreateIPSet(setName string, setType SetType) error {
+func (iMgr *IPSetManager) CreateIPSet(setName string, setType SetType) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if iMgr.exists(setName) {
-		return npmerrors.Errorf(npmerrors.CreateIPSet, false, fmt.Sprintf("ipset %s already exists", setName))
+		return
 	}
 	iMgr.setMap[setName] = NewIPSet(setName, setType)
 	metrics.IncNumIPSets()
-	return nil
 }
 
-func (iMgr *IPSetManager) DeleteIPSet(name string) error {
+func (iMgr *IPSetManager) DeleteIPSet(name string) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(name) {
-		return npmerrors.Errorf(npmerrors.DestroyIPSet, false, fmt.Sprintf("ipset %s does not exist", name))
+		return
 	}
 
 	set := iMgr.setMap[name]
 	if !set.canBeDeleted() {
-		return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s cannot be deleted", name))
+		return
 	}
 
 	// the set will not be in the kernel since there are no references, so there's no need to update the dirty cache
 	delete(iMgr.setMap, name)
 	metrics.DecNumIPSets()
-	return nil
+}
+
+func (iMgr *IPSetManager) GetIPSet(name string) *IPSet {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	if !iMgr.exists(name) {
+		return nil
+	}
+	return iMgr.setMap[name]
 }
 
 func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceType ReferenceType) error {
+	iMgr.Lock()
+	defer iMgr.Unlock()
 	if !iMgr.exists(setName) {
 		npmErrorString := npmerrors.AddSelectorReference
 		if referenceType == NetPolType {
@@ -67,6 +96,9 @@ func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceT
 	}
 
 	set := iMgr.setMap[setName]
+	if referenceType == SelectorType && !set.canSetBeSelectorIPSet() {
+		return npmerrors.Errorf(npmerrors.AddSelectorReference, false, fmt.Sprintf("ipset %s is not a selector ipset it is of type %s", setName, set.Type.String()))
+	}
 	wasInKernel := set.shouldBeInKernel()
 	set.addReference(referenceName, referenceType)
 	if !wasInKernel {
@@ -81,6 +113,8 @@ func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceT
 }
 
 func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referenceType ReferenceType) error {
+	iMgr.Lock()
+	defer iMgr.Unlock()
 	if !iMgr.exists(setName) {
 		npmErrorString := npmerrors.DeleteSelectorReference
 		if referenceType == NetPolType {
@@ -198,7 +232,7 @@ func (iMgr *IPSetManager) ApplyIPSets(networkID string) error {
 	defer iMgr.Unlock()
 
 	// Call the appropriate apply ipsets
-	err := iMgr.applyIPSets(networkID)
+	err := iMgr.applyIPSets()
 	if err != nil {
 		return err
 	}
@@ -206,6 +240,52 @@ func (iMgr *IPSetManager) ApplyIPSets(networkID string) error {
 	iMgr.clearDirtyCache()
 	// TODO could also set the number of ipsets in NPM (not necessarily in kernel) here using len(iMgr.setMap)
 	return nil
+}
+
+func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) (map[string]struct{}, error) {
+	if len(setList) == 0 {
+		return map[string]struct{}{}, nil
+	}
+	iMgr.Lock()
+	defer iMgr.Unlock()
+
+	setintersections := make(map[string]struct{})
+	var err error
+	firstLoop := true
+	for setName := range setList {
+		if !iMgr.exists(setName) {
+			return nil, npmerrors.Errorf(
+				npmerrors.GetSelectorReference,
+				false,
+				fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
+		}
+		set := iMgr.setMap[setName]
+		if firstLoop {
+			intialSetIPs := set.IPPodKey
+			for k := range intialSetIPs {
+				setintersections[k] = struct{}{}
+			}
+			firstLoop = false
+		}
+		setintersections, err = set.getSetIntersection(setintersections)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return setintersections, err
+}
+
+func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string]struct{}, error) {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	if !iMgr.exists(setName) {
+		return nil, npmerrors.Errorf(
+			npmerrors.GetSelectorReference,
+			false,
+			fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
+	}
+	set := iMgr.setMap[setName]
+	return set.SelectorReference, nil
 }
 
 func (iMgr *IPSetManager) exists(name string) bool {
@@ -312,7 +392,7 @@ func (iMgr *IPSetManager) checkForListMemberUpdateErrors(listName string, member
 
 func (iMgr *IPSetManager) addMemberIPSet(listName, memberName string) {
 	list := iMgr.setMap[listName]
-	if !list.hasMember(memberName) {
+	if list.hasMember(memberName) {
 		return
 	}
 

@@ -2,9 +2,11 @@ package ipsets
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 )
 
 type IPSet struct {
@@ -150,6 +152,53 @@ func (set *IPSet) GetSetContents() ([]string, error) {
 	}
 }
 
+// ShallowCompare check if the properties of IPSets are same
+func (set *IPSet) ShallowCompare(newSet *IPSet) bool {
+	if set.Name != newSet.Name {
+		return false
+	}
+	if set.Kind != newSet.Kind {
+		return false
+	}
+	if set.Type != newSet.Type {
+		return false
+	}
+	return true
+}
+
+// Compare checks if two ipsets are same
+func (set *IPSet) Compare(newSet *IPSet) bool {
+	if set.Name != newSet.Name {
+		return false
+	}
+	if set.Kind != newSet.Kind {
+		return false
+	}
+	if set.Type != newSet.Type {
+		return false
+	}
+	if set.Kind == HashSet {
+		if len(set.IPPodKey) != len(newSet.IPPodKey) {
+			return false
+		}
+		for podIP := range set.IPPodKey {
+			if _, ok := newSet.IPPodKey[podIP]; !ok {
+				return false
+			}
+		}
+	} else {
+		if len(set.MemberIPSets) != len(newSet.MemberIPSets) {
+			return false
+		}
+		for _, memberSet := range set.MemberIPSets {
+			if _, ok := newSet.MemberIPSets[memberSet.HashedName]; !ok {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func getSetKind(setType SetType) SetKind {
 	switch setType {
 	case CIDRBlocks:
@@ -232,7 +281,7 @@ func (set *IPSet) canBeDeleted() bool {
 
 // usedByNetPol check if an IPSet is referred in network policies.
 func (set *IPSet) usedByNetPol() bool {
-	return len(set.SelectorReference) > 0 &&
+	return len(set.SelectorReference) > 0 ||
 		len(set.NetPolReference) > 0
 }
 
@@ -248,4 +297,28 @@ func (set *IPSet) referencedInKernel() bool {
 func (set *IPSet) hasMember(memberName string) bool {
 	_, isMember := set.MemberIPSets[memberName]
 	return isMember
+}
+
+func (set *IPSet) getSetIntersection(existingIntersection map[string]struct{}) (map[string]struct{}, error) {
+	if !set.canSetBeSelectorIPSet() {
+		return nil, npmerrors.Errorf(
+			npmerrors.IPSetIntersection,
+			false,
+			fmt.Sprintf("[IPSet] Selector IPSet cannot be of type %s", set.Type.String()))
+	}
+	newIntersectionMap := make(map[string]struct{})
+	for ip := range set.IPPodKey {
+		if _, ok := existingIntersection[ip]; ok {
+			newIntersectionMap[ip] = struct{}{}
+		}
+	}
+
+	return newIntersectionMap, nil
+}
+
+func (set *IPSet) canSetBeSelectorIPSet() bool {
+	return (set.Type == KeyLabelOfPod ||
+		set.Type == KeyValueLabelOfPod ||
+		set.Type == NameSpace ||
+		set.Type == NestedLabelOfPod)
 }

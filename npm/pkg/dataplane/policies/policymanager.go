@@ -16,17 +16,19 @@ func NewPolicyManager() *PolicyManager {
 	}
 }
 
-func (pMgr *PolicyManager) GetPolicy(name string) (*NPMNetworkPolicy, error) {
-	if policy, ok := pMgr.policyMap.cache[name]; ok {
-		return policy, nil
-	}
-
-	return nil, nil
+func (pMgr *PolicyManager) PolicyExists(name string) bool {
+	_, ok := pMgr.policyMap.cache[name]
+	return ok
 }
 
-func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy) error {
+func (pMgr *PolicyManager) GetPolicy(name string) (*NPMNetworkPolicy, bool) {
+	policy, ok := pMgr.policyMap.cache[name]
+	return policy, ok
+}
+
+func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList []string) error {
 	// Call actual dataplane function to apply changes
-	err := pMgr.addPolicy(policy)
+	err := pMgr.addPolicy(policy, endpointList)
 	if err != nil {
 		return err
 	}
@@ -35,25 +37,14 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy) error {
 	return nil
 }
 
-func (pMgr *PolicyManager) RemovePolicy(name string) error {
+func (pMgr *PolicyManager) RemovePolicy(name string, endpointList []string) error {
 	// Call actual dataplane function to apply changes
-	err := pMgr.removePolicy(name)
+	err := pMgr.removePolicy(name, endpointList)
 	if err != nil {
 		return err
 	}
 
 	delete(pMgr.policyMap.cache, name)
-
-	return nil
-}
-
-func (pMgr *PolicyManager) UpdatePolicy(policy *NPMNetworkPolicy) error {
-	// check and update
-	// Call actual dataplane function to apply changes
-	err := pMgr.updatePolicy(policy)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }

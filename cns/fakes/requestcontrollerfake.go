@@ -8,23 +8,20 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 )
 
-var _ singletenantcontroller.RequestController = (*RequestControllerFake)(nil)
-
 type RequestControllerFake struct {
-	fakecns   *HTTPServiceFake
-	cachedCRD v1alpha.NodeNetworkConfig
-	ip        net.IP
+	cnscli *HTTPServiceFake
+	NNC    *v1alpha.NodeNetworkConfig
+	ip     net.IP
 }
 
 func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar v1alpha.Scaler, subnetAddressSpace string, numberOfIPConfigs int) *RequestControllerFake {
 	rc := &RequestControllerFake{
-		fakecns: cnsService,
-		cachedCRD: v1alpha.NodeNetworkConfig{
+		cnscli: cnsService,
+		NNC: &v1alpha.NodeNetworkConfig{
 			Spec: v1alpha.NodeNetworkConfigSpec{},
 			Status: v1alpha.NodeNetworkConfigStatus{
 				Scaler: scalar,
@@ -40,7 +37,7 @@ func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar v1alpha.Scaler
 	rc.ip, _, _ = net.ParseCIDR(subnetAddressSpace)
 
 	rc.CarveIPConfigsAndAddToStatusAndCNS(numberOfIPConfigs)
-	rc.cachedCRD.Spec.RequestedIPCount = int64(numberOfIPConfigs)
+	rc.NNC.Spec.RequestedIPCount = int64(numberOfIPConfigs)
 
 	return rc
 }
@@ -53,7 +50,7 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 			Name: uuid.New().String(),
 			IP:   rc.ip.String(),
 		}
-		rc.cachedCRD.Status.NetworkContainers[0].IPAssignments = append(rc.cachedCRD.Status.NetworkContainers[0].IPAssignments, ipconfigCRD)
+		rc.NNC.Status.NetworkContainers[0].IPAssignments = append(rc.NNC.Status.NetworkContainers[0].IPAssignments, ipconfigCRD)
 
 		ipconfigCNS := cns.IPConfigurationStatus{
 			ID:        ipconfigCRD.Name,
@@ -65,7 +62,7 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 		incrementIP(rc.ip)
 	}
 
-	rc.fakecns.IPStateManager.AddIPConfigs(cnsIPConfigs)
+	rc.cnscli.IPStateManager.AddIPConfigs(cnsIPConfigs)
 
 	return cnsIPConfigs
 }
@@ -82,17 +79,12 @@ func (rc *RequestControllerFake) IsStarted() bool {
 	return true
 }
 
-func (rc *RequestControllerFake) UpdateCRDSpec(_ context.Context, desiredSpec v1alpha.NodeNetworkConfigSpec) error {
-	rc.cachedCRD.Spec = desiredSpec
-	return nil
-}
-
 func remove(slice []v1alpha.IPAssignment, s int) []v1alpha.IPAssignment {
 	return append(slice[:s], slice[s+1:]...)
 }
 
 func (rc *RequestControllerFake) Reconcile(removePendingReleaseIPs bool) error {
-	diff := int(rc.cachedCRD.Spec.RequestedIPCount) - len(rc.fakecns.GetPodIPConfigState())
+	diff := int(rc.NNC.Spec.RequestedIPCount) - len(rc.cnscli.GetPodIPConfigState())
 
 	if diff > 0 {
 		// carve the difference of test IPs and add them to CNS, assume dnc has populated the CRD status
@@ -101,28 +93,28 @@ func (rc *RequestControllerFake) Reconcile(removePendingReleaseIPs bool) error {
 		// Assume DNC has removed the IPConfigs from the status
 
 		// mimic DNC removing IPConfigs from the CRD
-		for _, notInUseIPConfigName := range rc.cachedCRD.Spec.IPsNotInUse {
+		for _, notInUseIPConfigName := range rc.NNC.Spec.IPsNotInUse {
 
 			// remove ipconfig from status
 			index := 0
-			for _, ipconfig := range rc.cachedCRD.Status.NetworkContainers[0].IPAssignments {
+			for _, ipconfig := range rc.NNC.Status.NetworkContainers[0].IPAssignments {
 				if notInUseIPConfigName == ipconfig.Name {
 					break
 				}
 				index++
 			}
-			rc.cachedCRD.Status.NetworkContainers[0].IPAssignments = remove(rc.cachedCRD.Status.NetworkContainers[0].IPAssignments, index)
+			rc.NNC.Status.NetworkContainers[0].IPAssignments = remove(rc.NNC.Status.NetworkContainers[0].IPAssignments, index)
 
 		}
 	}
 
 	// remove ipconfig from CNS
 	if removePendingReleaseIPs {
-		rc.fakecns.IPStateManager.RemovePendingReleaseIPConfigs(rc.cachedCRD.Spec.IPsNotInUse)
+		rc.cnscli.IPStateManager.RemovePendingReleaseIPConfigs(rc.NNC.Spec.IPsNotInUse)
 	}
 
 	// update
-	rc.fakecns.PoolMonitor.Update(rc.cachedCRD.Status.Scaler, rc.cachedCRD.Spec)
+	rc.cnscli.PoolMonitor.Update(rc.NNC.Status.Scaler, rc.NNC.Spec)
 
 	return nil
 }

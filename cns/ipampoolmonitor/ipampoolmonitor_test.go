@@ -10,6 +10,15 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
+type fakeNodeNetworkConfigUpdater struct {
+	nnc *v1alpha.NodeNetworkConfig
+}
+
+func (f *fakeNodeNetworkConfigUpdater) UpdateSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
+	f.nnc.Spec = *spec
+	return f.nnc, nil
+}
+
 func initFakes(t *testing.T,
 	batchSize,
 	initialIPConfigCount,
@@ -29,7 +38,7 @@ func initFakes(t *testing.T,
 	fakecns := fakes.NewHTTPServiceFake()
 	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, initialIPConfigCount)
 
-	poolmonitor := NewCNSIPAMPoolMonitor(fakecns, fakerc)
+	poolmonitor := NewCNSIPAMPoolMonitor(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC})
 
 	fakecns.PoolMonitor = poolmonitor
 
