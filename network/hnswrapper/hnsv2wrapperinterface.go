@@ -18,7 +18,9 @@ type HnsV2WrapperInterface interface {
 	GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeNamespace, error)
 	AddNamespaceEndpoint(namespaceId string, endpointId string) error
 	RemoveNamespaceEndpoint(namespaceId string, endpointId string) error
+	GetNetworkByName(networkName string) (*hcn.HostComputeNetwork, error)
 	GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error)
 	GetEndpointByID(endpointId string) (*hcn.HostComputeEndpoint, error)
+	ListEndpointsOfNetwork(networkId string) ([]hcn.HostComputeEndpoint, error)
 	ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error
 }

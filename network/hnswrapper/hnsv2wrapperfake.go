@@ -29,6 +29,10 @@ func (Hnsv2wrapperFake) RemoveNetworkPolicy(network *hcn.HostComputeNetwork, net
 	return nil
 }
 
+func (Hnsv2wrapperFake) GetNetworkByName(networkName string) (*hcn.HostComputeNetwork, error) {
+	return &hcn.HostComputeNetwork{}, nil
+}
+
 func (f Hnsv2wrapperFake) GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error) {
 	network := &hcn.HostComputeNetwork{Id: "c84257e3-3d60-40c4-8c47-d740a1c260d3"}
 	return network, nil
@@ -58,6 +62,10 @@ func (Hnsv2wrapperFake) AddNamespaceEndpoint(namespaceId string, endpointId stri
 
 func (Hnsv2wrapperFake) RemoveNamespaceEndpoint(namespaceId string, endpointId string) error {
 	return nil
+}
+
+func (Hnsv2wrapperFake) ListEndpointsOfNetwork(networkId string) ([]hcn.HostComputeEndpoint, error) {
+	return []hcn.HostComputeEndpoint{}, nil
 }
 
 func (Hnsv2wrapperFake) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {

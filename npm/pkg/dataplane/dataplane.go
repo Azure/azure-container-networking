@@ -23,6 +23,7 @@ type DataPlane struct {
 	nodeName  string
 	// key is PodKey
 	endpointCache map[string]*NPMEndpoint
+	ioShim        *common.IOShim
 }
 
 type NPMEndpoint struct {
@@ -46,12 +47,13 @@ type UpdateNPMPod struct {
 	IPSetsToRemove []string
 }
 
-func NewDataPlane(nodeName string) *DataPlane {
+func NewDataPlane(nodeName string, ioShim *common.IOShim) *DataPlane {
 	return &DataPlane{
-		policyMgr:     policies.NewPolicyManager(common.NewIOShim()),
-		ipsetMgr:      ipsets.NewIPSetManager(AzureNetworkName, common.NewIOShim()),
+		policyMgr:     policies.NewPolicyManager(ioShim),
+		ipsetMgr:      ipsets.NewIPSetManager(AzureNetworkName, ioShim),
 		endpointCache: make(map[string]*NPMEndpoint),
 		nodeName:      nodeName,
+		ioShim:        ioShim,
 	}
 }
 

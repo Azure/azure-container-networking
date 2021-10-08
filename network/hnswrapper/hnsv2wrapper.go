@@ -49,12 +49,20 @@ func (w Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId string, endpointId str
 	return hcn.RemoveNamespaceEndpoint(namespaceId, endpointId)
 }
 
+func (w Hnsv2wrapper) GetNetworkByName(networkName string) (*hcn.HostComputeNetwork, error) {
+	return hcn.GetNetworkByName(networkName)
+}
+
 func (w Hnsv2wrapper) GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error) {
 	return hcn.GetNetworkByID(networkId)
 }
 
 func (f Hnsv2wrapper) GetEndpointByID(endpointId string) (*hcn.HostComputeEndpoint, error) {
 	return hcn.GetEndpointByID(endpointId)
+}
+
+func (f Hnsv2wrapper) ListEndpointsOfNetwork(networkId string) ([]hcn.HostComputeEndpoint, error) {
+	return hcn.ListEndpointsOfNetwork(networkId)
 }
 
 func (f Hnsv2wrapper) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {

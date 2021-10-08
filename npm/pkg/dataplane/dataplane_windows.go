@@ -141,7 +141,7 @@ func (dp *DataPlane) resetDataPlane() error {
 }
 
 func (dp *DataPlane) getAllPodEndpoints() ([]hcn.HostComputeEndpoint, error) {
-	endpoints, err := hcn.ListEndpointsOfNetwork(dp.networkID)
+	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 
 func (dp *DataPlane) setNetworkIDByName(networkName string) error {
 	// Get Network ID
-	network, err := hcn.GetNetworkByName(networkName)
+	network, err := dp.ioShim.Hns.GetNetworkByName(networkName)
 	if err != nil {
 		return err
 	}

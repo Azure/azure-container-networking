@@ -3,15 +3,67 @@ package dataplane
 import (
 	"testing"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	ioShim = common.NewMockIOShim([]testutils.TestCmd{})
+	ns1Set = &ipsets.TranslatedIPSet{
+		Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.NameSpace),
+	}
+	testPolicyobj = &policies.NPMNetworkPolicy{
+		Name: "ns1/testpolicy",
+		PodSelectorIPSets: map[string]*ipsets.TranslatedIPSet{
+			"setns1": ns1Set,
+			"setpodkey1": {
+				Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
+			},
+			"setpodkeyval1": {
+				Metadata: ipsets.NewIPSetMetadata("setpodkeyval1", ipsets.KeyValueLabelOfPod),
+			},
+			"nestedset1": {
+				Metadata: ipsets.NewIPSetMetadata("nestedset1", ipsets.NestedLabelOfPod),
+				MemberIPSets: map[string]*ipsets.TranslatedIPSet{
+					"setns1": ns1Set,
+				},
+			},
+		},
+		RuleIPSets: map[string]*ipsets.TranslatedIPSet{
+			"setns2": {
+				Metadata: ipsets.NewIPSetMetadata("setns2", ipsets.NameSpace),
+			},
+			"setpodkey2": {
+				Metadata: ipsets.NewIPSetMetadata("setpodkey2", ipsets.KeyLabelOfPod),
+			},
+			"setpodkeyval2": {
+				Metadata: ipsets.NewIPSetMetadata("setpodkeyval2", ipsets.KeyValueLabelOfPod),
+			},
+			"testcidr1": {
+				Metadata: ipsets.NewIPSetMetadata("testcidr1", ipsets.CIDRBlocks),
+				IPPodKey: map[string]string{
+					"10.0.0.0": "val1",
+				},
+			},
+		},
+		ACLs: []*policies.ACLPolicy{
+			{
+				PolicyID:  "testpol1",
+				Target:    policies.Dropped,
+				Direction: policies.Egress,
+			},
+		},
+	}
+)
+
 func TestNewDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode")
+	dp := NewDataPlane("testnode", ioShim)
 
 	if dp == nil {
 		t.Error("NewDataPlane() returned nil")
@@ -23,7 +75,7 @@ func TestNewDataPlane(t *testing.T) {
 
 func TestInitializeDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode")
+	dp := NewDataPlane("testnode", ioShim)
 
 	assert.NotNil(t, dp)
 	err := dp.InitializeDataPlane()
@@ -32,7 +84,7 @@ func TestInitializeDataPlane(t *testing.T) {
 
 func TestResetDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode")
+	dp := NewDataPlane("testnode", ioShim)
 
 	assert.NotNil(t, dp)
 	err := dp.InitializeDataPlane()
@@ -43,7 +95,7 @@ func TestResetDataPlane(t *testing.T) {
 
 func TestCreateAndDeleteIpSets(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode")
+	dp := NewDataPlane("testnode", ioShim)
 	assert.NotNil(t, dp)
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
@@ -84,7 +136,7 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 
 func TestAddToSet(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode")
+	dp := NewDataPlane("testnode", ioShim)
 
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
@@ -136,4 +188,42 @@ func TestAddToSet(t *testing.T) {
 		set := dp.ipsetMgr.GetIPSet(prefixedName)
 		assert.Nil(t, set)
 	}
+}
+
+func TestApplyPolicy(t *testing.T) {
+	metrics.InitializeAll()
+	dp := NewDataPlane("testnode", ioShim)
+
+	err := dp.AddPolicy(testPolicyobj)
+	require.NoError(t, err)
+}
+
+func TestRemovePolicy(t *testing.T) {
+	metrics.InitializeAll()
+	dp := NewDataPlane("testnode", ioShim)
+
+	err := dp.AddPolicy(testPolicyobj)
+	require.NoError(t, err)
+
+	err = dp.RemovePolicy(testPolicyobj.Name)
+	require.NoError(t, err)
+}
+
+func TestupdatePolicy(t *testing.T) {
+	metrics.InitializeAll()
+	dp := NewDataPlane("testnode", ioShim)
+
+	err := dp.AddPolicy(testPolicyobj)
+	require.NoError(t, err)
+
+	testPolicyobj.ACLs = []*policies.ACLPolicy{
+		{
+			PolicyID:  "testpol1",
+			Target:    policies.Dropped,
+			Direction: policies.Ingress,
+		},
+	}
+
+	err = dp.UpdatePolicy(testPolicyobj)
+	require.NoError(t, err)
 }

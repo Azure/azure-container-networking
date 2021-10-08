@@ -55,7 +55,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 		)
 	}
 
-	err = network.AddPolicy(policyNetworkRequest)
+	err = iMgr.ioShim.Hns.AddNetworkPolicy(network, policyNetworkRequest)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
 	if iMgr.iMgrCfg.networkName == "" {
 		iMgr.iMgrCfg.networkName = "azure"
 	}
-	network, err := hcn.GetNetworkByName("azure")
+	network, err := iMgr.ioShim.Hns.GetNetworkByName("azure")
 	if err != nil {
 		return nil, err
 	}
