@@ -209,7 +209,7 @@ func TestRemovePolicy(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestupdatePolicy(t *testing.T) {
+func TestUpdatePolicy(t *testing.T) {
 	metrics.InitializeAll()
 	dp := NewDataPlane("testnode", ioShim)
 
