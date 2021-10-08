@@ -1,0 +1,57 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: azure-npm
+  namespace: kube-system
+  labels:
+    app: azure-npm
+    addonmanager.kubernetes.io/mode: EnsureExists
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-npm
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-npm
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+    spec:
+      priorityClassName: system-node-critical
+      tolerations:
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+        kubernetes.io/role: agent
+      containers:
+        - name: azure-npm
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.0.33
+          securityContext:
+            privileged: true
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: xtables-lock
+              mountPath: /run/xtables.lock
+            - name: log
+              mountPath: /var/log
+      hostNetwork: true
+      volumes:
+        - name: log
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: xtables-lock
+          hostPath:
+            path: /run/xtables.lock
+            type: File
+      serviceAccountName: azure-npm

@@ -1,0 +1,45 @@
+FROM golang:alpine as build
+ADD ./ /
+WORKDIR /
+RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+
+FROM alpine:latest
+RUN apk update 
+RUN apk add \
+    axel \
+    bridge-utils \
+    bash \
+    curl \
+    bind-tools \
+    ebtables \
+    htop \
+    iptables \
+    ipset \
+    iproute2 \
+    iperf3 \
+    iftop \
+    jq \
+    lsof \
+    nano \
+    net-tools \
+    netcat-openbsd \
+    nmap \
+    nethogs \
+    sudo \
+    openssh \
+    tcpdump \
+    tcptraceroute \
+    unzip \
+    vim \
+    wget 
+
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+RUN curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+RUN install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+RUN ln -s /usr/local/bin/kubectl /usr/local/bin/k && rm ./kube*
+
+RUN wget https://github.com/microsoft/ethr/releases/latest/download/ethr_linux.zip
+RUN unzip ethr_linux.zip
+
+COPY --from=build /server .
+CMD ["./server"]
