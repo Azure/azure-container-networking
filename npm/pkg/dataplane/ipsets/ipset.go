@@ -10,6 +10,7 @@ import (
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 )
 
+// (Jungukc) It may need to have "NameSpace" in IPSet
 type IPSet struct {
 	Name       string
 	HashedName string

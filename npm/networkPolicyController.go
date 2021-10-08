@@ -41,6 +41,7 @@ type networkPolicyController struct {
 	isAzureNpmChainCreated bool
 	ipsMgr                 *ipsm.IpsetManager
 	iptMgr                 *iptm.IptablesManager
+	*translator
 }
 
 func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, ipsMgr *ipsm.IpsetManager) *networkPolicyController {
@@ -52,6 +53,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 		isAzureNpmChainCreated: false,
 		ipsMgr:                 ipsMgr,
 		iptMgr:                 iptm.NewIptablesManager(exec.New(), iptm.NewIptOperationShim()),
+		translator:             &translator{},
 	}
 
 	npInformer.Informer().AddEventHandler(
@@ -344,7 +346,7 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	c.rawNpMap[netpolKey] = netPolObj
 	metrics.IncNumPolicies()
 
-	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(netPolObj)
+	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := c.translatePolicy(netPolObj)
 	for _, set := range sets {
 		klog.Infof("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = c.ipsMgr.CreateSet(set, []string{util.IpsetNetHashFlag}); err != nil {
@@ -403,7 +405,7 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 	}
 
 	// translate policy from "cachedNetPolObj"
-	_, _, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(cachedNetPolObj)
+	_, _, lists, ingressIPCidrs, egressIPCidrs, iptEntries := c.translatePolicy(cachedNetPolObj)
 
 	var err error
 	// delete iptables entries
