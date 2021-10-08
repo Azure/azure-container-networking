@@ -1,0 +1,10 @@
+FROM golang:1.17.2-windowsservercore-ltsc2022 as build
+ADD . .
+WORKDIR /
+RUN set CGO_ENABLED=0 
+RUN set GOOS=windows 
+RUN go build -o server ./hack/toolbox/*.go
+
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+COPY --from=build /server .
+CMD ["./server"]
