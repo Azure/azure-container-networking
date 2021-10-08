@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	// DefaultRefreshDelay pool monitor poll delay default in seconds.
 	DefaultRefreshDelay = 1 * time.Second
 )
 
@@ -319,7 +320,7 @@ func clampScaler(nnc *v1alpha.NodeNetworkConfig) {
 	if nnc.Status.Scaler.RequestThresholdPercent < 1 {
 		nnc.Status.Scaler.RequestThresholdPercent = 1
 	}
-	if nnc.Status.Scaler.RequestThresholdPercent > 100 {
+	if nnc.Status.Scaler.RequestThresholdPercent > 100 { //nolint:gomnd // it's a percent
 		nnc.Status.Scaler.RequestThresholdPercent = 100
 	}
 	if nnc.Status.Scaler.ReleaseThresholdPercent < nnc.Status.Scaler.RequestThresholdPercent+100 {
