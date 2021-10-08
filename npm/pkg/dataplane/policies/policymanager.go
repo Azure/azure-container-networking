@@ -5,20 +5,20 @@ import (
 )
 
 type PolicyMap struct {
-	cache  map[string]*NPMNetworkPolicy
-	ioShim *common.IOShim
+	cache map[string]*NPMNetworkPolicy
 }
 
 type PolicyManager struct {
 	policyMap *PolicyMap
+	ioShim    *common.IOShim
 }
 
 func NewPolicyManager(ioShim *common.IOShim) *PolicyManager {
 	return &PolicyManager{
 		policyMap: &PolicyMap{
-			cache:  make(map[string]*NPMNetworkPolicy),
-			ioShim: ioShim,
+			cache: make(map[string]*NPMNetworkPolicy),
 		},
+		ioShim: ioShim,
 	}
 }
 

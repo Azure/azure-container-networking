@@ -160,21 +160,21 @@ func NewIPSetMetadata(name string, setType SetType) *IPSetMetadata {
 func (setMetadata *IPSetMetadata) GetPrefixName() string {
 	switch setMetadata.Type {
 	case CIDRBlocks:
-		return fmt.Sprintf("%s%s", setMetadata.Name, util.CIDRPrefix)
+		return fmt.Sprintf("%s%s", util.CIDRPrefix, setMetadata.Name)
 	case NameSpace:
-		return fmt.Sprintf("%s%s", setMetadata.Name, util.NamespacePrefix)
+		return fmt.Sprintf("%s%s", util.NamespacePrefix, setMetadata.Name)
 	case NamedPorts:
-		return fmt.Sprintf("%s%s", setMetadata.Name, util.NamedPortIPSetPrefix)
+		return fmt.Sprintf("%s%s", util.NamedPortIPSetPrefix, setMetadata.Name)
 	case KeyLabelOfPod:
-		return fmt.Sprintf("%s%s", setMetadata.Name, util.PodLabelPrefix)
+		return fmt.Sprintf("%s%s", util.PodLabelPrefix, setMetadata.Name)
 	case KeyValueLabelOfPod:
-		return fmt.Sprintf("%s%s", setMetadata.Name, util.PodLabelPrefix)
+		return fmt.Sprintf("%s%s", util.PodLabelPrefix, setMetadata.Name)
 	case KeyLabelOfNameSpace:
-		return fmt.Sprintf("%s%s", setMetadata.Name, util.NamespaceLabelPrefix)
+		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
 	case KeyValueLabelOfNameSpace:
-		return fmt.Sprintf("%s%s", setMetadata.Name, util.NamespaceLabelPrefix)
+		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
 	case NestedLabelOfPod:
-		return fmt.Sprintf("%s%s", setMetadata.Name, util.NestedLabelPrefix)
+		return fmt.Sprintf("%s%s", util.NestedLabelPrefix, setMetadata.Name)
 	case UnknownType: // adding this to appease golint
 		return Unknown
 	default:
