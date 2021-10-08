@@ -1,7 +1,6 @@
 package common
 
 import (
-	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	utilexec "k8s.io/utils/exec"
 )
