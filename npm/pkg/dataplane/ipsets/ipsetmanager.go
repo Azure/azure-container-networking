@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
@@ -28,6 +29,7 @@ type IPSetManager struct {
 	toAddOrUpdateCache map[string]struct{}
 	// IPSets referred to in this cache may be in the setMap, but must be deleted from the kernel
 	toDeleteCache map[string]struct{}
+	ioShim        *common.IOShim
 	sync.Mutex
 }
 
@@ -36,7 +38,7 @@ type ipSetManagerCfg struct {
 	networkName string
 }
 
-func NewIPSetManager(networkName string) *IPSetManager {
+func NewIPSetManager(networkName string, ioShim *common.IOShim) *IPSetManager {
 	return &IPSetManager{
 		iMgrCfg: &ipSetManagerCfg{
 			ipSetMode:   ApplyOnNeed,
@@ -45,6 +47,7 @@ func NewIPSetManager(networkName string) *IPSetManager {
 		setMap:             make(map[string]*IPSet),
 		toAddOrUpdateCache: make(map[string]struct{}),
 		toDeleteCache:      make(map[string]struct{}),
+		ioShim:             ioShim,
 	}
 }
 

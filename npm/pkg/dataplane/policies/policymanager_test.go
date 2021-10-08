@@ -1,9 +1,14 @@
 package policies
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Azure/azure-container-networking/common"
+	testutils "github.com/Azure/azure-container-networking/test/utils"
+)
 
 func TestAddPolicy(t *testing.T) {
-	pMgr := NewPolicyManager()
+	pMgr := NewPolicyManager(common.NewMockIOShim([]testutils.TestCmd{}))
 
 	netpol := NPMNetworkPolicy{}
 
@@ -14,7 +19,7 @@ func TestAddPolicy(t *testing.T) {
 }
 
 func TestGetPolicy(t *testing.T) {
-	pMgr := NewPolicyManager()
+	pMgr := NewPolicyManager(common.NewMockIOShim([]testutils.TestCmd{}))
 	netpol := NPMNetworkPolicy{
 		Name: "test",
 	}
@@ -39,7 +44,7 @@ func TestGetPolicy(t *testing.T) {
 }
 
 func TestRemovePolicy(t *testing.T) {
-	pMgr := NewPolicyManager()
+	pMgr := NewPolicyManager(common.NewMockIOShim([]testutils.TestCmd{}))
 
 	err := pMgr.RemovePolicy("test", nil)
 	if err != nil {

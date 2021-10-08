@@ -3,8 +3,10 @@ package dataplane
 import (
 	"fmt"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -46,8 +48,8 @@ type UpdateNPMPod struct {
 
 func NewDataPlane(nodeName string) *DataPlane {
 	return &DataPlane{
-		policyMgr:     policies.NewPolicyManager(),
-		ipsetMgr:      ipsets.NewIPSetManager(AzureNetworkName),
+		policyMgr:     policies.NewPolicyManager(common.NewIOShim()),
+		ipsetMgr:      ipsets.NewIPSetManager(AzureNetworkName, common.NewIOShim()),
 		endpointCache: make(map[string]*NPMEndpoint),
 		nodeName:      nodeName,
 	}
@@ -55,6 +57,9 @@ func NewDataPlane(nodeName string) *DataPlane {
 
 // InitializeDataPlane helps in setting up dataplane for NPM
 func (dp *DataPlane) InitializeDataPlane() error {
+	// Create Kube-All-NS IPSet
+	kubeAllSet := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNameSpace)
+	dp.CreateIPSet(kubeAllSet)
 	return dp.initializeDataPlane()
 }
 
