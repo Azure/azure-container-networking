@@ -42,7 +42,7 @@ type TransparentEndpointClient struct {
 	netlink           netlink.NetlinkInterface
 	netioshim         netio.NetIOInterface
 	plClient          platform.ExecClient
-	nuc               networkutils.NetworkUtils
+	netUtilsClient    networkutils.NetworkUtils
 }
 
 func NewTransparentEndpointClient(
@@ -64,7 +64,7 @@ func NewTransparentEndpointClient(
 		netlink:           nl,
 		netioshim:         &netio.NetIO{},
 		plClient:          plc,
-		nuc:               networkutils.NewNetworkUtils(nl, plc),
+		netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
 	}
 
 	return client
@@ -90,7 +90,7 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 		return newErrorTransparentEndpointClient(err.Error())
 	}
 
-	if err = client.nuc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
+	if err = client.netUtilsClient.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return newErrorTransparentEndpointClient(err.Error())
 	}
 
@@ -195,7 +195,7 @@ func (client *TransparentEndpointClient) MoveEndpointsToContainerNS(epInfo *Endp
 }
 
 func (client *TransparentEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-	if err := client.nuc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
+	if err := client.netUtilsClient.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
 		return err
 	}
 
@@ -205,7 +205,7 @@ func (client *TransparentEndpointClient) SetupContainerInterfaces(epInfo *Endpoi
 }
 
 func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
-	if err := client.nuc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
+	if err := client.netUtilsClient.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
 		return newErrorTransparentEndpointClient(err.Error())
 	}
 
@@ -255,51 +255,44 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		return fmt.Errorf("Adding arp in container failed: %w", err)
 	}
 
-	if err := client.setupIPV6Routes(epInfo); err != nil {
-		return err
-	}
-
-	return client.setIPV6NeighEntry(epInfo)
-}
-
-func (client *TransparentEndpointClient) setupIPV6Routes(epInfo *EndpointInfo) error {
 	if epInfo.IPV6Mode != "" {
-		log.Printf("Setting up ipv6 routes in container")
-
-		// add route for virtualgwip
-		// ip -6 route add fe80::1234:5678:9abc/128 dev eth0
-		virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualv6GwString)
-		gwRoute := RouteInfo{
-			Dst:   *virtualGwNet,
-			Scope: netlink.RT_SCOPE_LINK,
-		}
-
-		// ip -6 route add default via fe80::1234:5678:9abc dev eth0
-		_, defaultIPNet, _ := net.ParseCIDR(defaultv6Cidr)
-		log.Printf("defaultv6ipnet :%+v", defaultIPNet)
-		defaultRoute := RouteInfo{
-			Dst: *defaultIPNet,
-			Gw:  virtualGwIP,
-		}
-
-		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{gwRoute, defaultRoute}); err != nil {
+		if err := client.setupIPV6Routes(); err != nil {
 			return err
 		}
-
 	}
 
-	return nil
+	return client.setIPV6NeighEntry()
 }
 
-func (client *TransparentEndpointClient) setIPV6NeighEntry(epInfo *EndpointInfo) error {
-	if epInfo.IPV6Mode != "" {
-		log.Printf("[net] Add v6 neigh entry for default gw ip")
-		hostGwIP, _, _ := net.ParseCIDR(virtualv6GwString)
-		if err := client.netlink.AddOrRemoveStaticArp(netlink.ADD, client.containerVethName,
-			hostGwIP, client.hostVethMac, false); err != nil {
-			log.Printf("Failed setting neigh entry in container: %+v", err)
-			return fmt.Errorf("Failed setting neigh entry in container: %w", err)
-		}
+func (client *TransparentEndpointClient) setupIPV6Routes() error {
+	log.Printf("Setting up ipv6 routes in container")
+
+	// add route for virtualgwip
+	// ip -6 route add fe80::1234:5678:9abc/128 dev eth0
+	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualv6GwString)
+	gwRoute := RouteInfo{
+		Dst:   *virtualGwNet,
+		Scope: netlink.RT_SCOPE_LINK,
+	}
+
+	// ip -6 route add default via fe80::1234:5678:9abc dev eth0
+	_, defaultIPNet, _ := net.ParseCIDR(defaultv6Cidr)
+	log.Printf("defaultv6ipnet :%+v", defaultIPNet)
+	defaultRoute := RouteInfo{
+		Dst: *defaultIPNet,
+		Gw:  virtualGwIP,
+	}
+
+	return addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{gwRoute, defaultRoute})
+}
+
+func (client *TransparentEndpointClient) setIPV6NeighEntry() error {
+	log.Printf("[net] Add v6 neigh entry for default gw ip")
+	hostGwIP, _, _ := net.ParseCIDR(virtualv6GwString)
+	if err := client.netlink.AddOrRemoveStaticArp(netlink.ADD, client.containerVethName,
+		hostGwIP, client.hostVethMac, false); err != nil {
+		log.Printf("Failed setting neigh entry in container: %+v", err)
+		return fmt.Errorf("Failed setting neigh entry in container: %w", err)
 	}
 
 	return nil
