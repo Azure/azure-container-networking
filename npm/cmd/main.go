@@ -10,5 +10,6 @@ import (
 var version string
 
 func main() {
+	rootCmd := NewRootCmd()
 	cobra.CheckErr(rootCmd.Execute())
 }

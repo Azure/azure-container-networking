@@ -241,8 +241,8 @@ func (service *HTTPRestService) ReconcileNCState(
 			ipconfigRequest := cns.IPConfigRequest{
 				DesiredIPAddress:    secIpConfig.IPAddress,
 				OrchestratorContext: jsonContext,
-				PodInterfaceID:      podInfo.InterfaceID(),
 				InfraContainerID:    podInfo.InfraContainerID(),
+				PodInterfaceID:      podInfo.InterfaceID(),
 			}
 
 			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
@@ -302,9 +302,7 @@ func (service *HTTPRestService) DeleteNetworkContainerInternal(
 }
 
 // This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(
-	req *cns.CreateNetworkContainerRequest,
-) types.ResponseCode {
+func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) types.ResponseCode {
 	if req.NetworkContainerid == "" {
 		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
 		return types.NetworkContainerNotSpecified

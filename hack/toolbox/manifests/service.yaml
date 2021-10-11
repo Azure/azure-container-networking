@@ -1,0 +1,56 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-pod-8085-tcp-ipv4
+spec:
+  ipFamily: IPv4
+  type: LoadBalancer
+  selector:
+    app: agent-pod-8085-tcp
+  ports:
+    - protocol: TCP
+      port: 8085
+      targetPort: 8085
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-pod-8086-udp-ipv4
+spec:
+  type: LoadBalancer
+  ipFamily: IPv4
+  selector:
+    app: agent-pod-8086-udp
+  ports:
+    - protocol: UDP
+      port: 8086
+      targetPort: 8086
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-pod-8085-tcp-ipv6
+spec:
+  ipFamily: IPv6
+  type: LoadBalancer
+  selector:
+    app: agent-pod-8085-tcp
+  ports:
+    - protocol: TCP
+      port: 8085
+      targetPort: 8085
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-pod-8086-udp-ipv6
+spec:
+  type: LoadBalancer
+  ipFamily: IPv6
+  selector:
+    app: agent-pod-8086-udp
+  ports:
+    - protocol: UDP
+      port: 8086
+      targetPort: 8086

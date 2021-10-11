@@ -6,8 +6,10 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/mocks"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -226,4 +228,14 @@ func TestUpdatePolicy(t *testing.T) {
 
 	err = dp.UpdatePolicy(testPolicyobj)
 	require.NoError(t, err)
+}
+
+// gomock sample usage for generated mock dataplane
+func TestAddToList(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	m := mocks.NewMockGenericDataplane(ctrl)
+	m.EXPECT().AddToList("test", []string{"test"}).Return(nil)
+	require.NoError(t, m.AddToList("test", []string{"test"}))
 }

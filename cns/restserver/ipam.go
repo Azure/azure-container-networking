@@ -12,19 +12,13 @@ import (
 	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/pkg/errors"
 )
 
 // used to request an IPConfig from the CNS state
 func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
-	var (
-		err             error
-		ipconfigRequest cns.IPConfigRequest
-		podIpInfo       cns.PodIpInfo
-		returnCode      types.ResponseCode
-		returnMessage   string
-	)
-
-	err = service.Listener.Decode(w, r, &ipconfigRequest)
+	var ipconfigRequest cns.IPConfigRequest
+	err := service.Listener.Decode(w, r, &ipconfigRequest)
 	operationName := "requestIPConfigHandler"
 	logger.Request(service.Name+operationName, ipconfigRequest, err)
 	if err != nil {
@@ -32,56 +26,82 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	}
 
 	// retrieve ipconfig from nc
-	_, returnCode, returnMessage = service.validateIPConfigRequest(ipconfigRequest)
-	if returnCode == types.Success {
-		if podIpInfo, err = requestIPConfigHelper(service, ipconfigRequest); err != nil {
-			returnCode = types.FailedToAllocateIPConfig
-			returnMessage = fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest)
+	podInfo, returnCode, returnMessage := service.validateIPConfigRequest(ipconfigRequest)
+	if returnCode != types.Success {
+		reserveResp := &cns.IPConfigResponse{
+			Response: cns.Response{
+				ReturnCode: returnCode,
+				Message:    returnMessage,
+			},
 		}
+		err = service.Listener.Encode(w, &reserveResp)
+		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		return
 	}
 
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
+	// record a pod requesting an IP
+	service.podsPendingIPAllocation.Push(podInfo.Key())
+
+	podIPInfo, err := requestIPConfigHelper(service, ipconfigRequest)
+	if err != nil {
+		reserveResp := &cns.IPConfigResponse{
+			Response: cns.Response{
+				ReturnCode: types.FailedToAllocateIPConfig,
+				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest),
+			},
+			PodIpInfo: podIPInfo,
+		}
+		err = service.Listener.Encode(w, &reserveResp)
+		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		return
 	}
 
+	// record a pod allocated an IP
+	defer func() {
+		// observe allocation wait time
+		if since := service.podsPendingIPAllocation.Pop(podInfo.Key()); since > 0 {
+			ipAllocationLatency.Observe(float64(since))
+		}
+	}()
 	reserveResp := &cns.IPConfigResponse{
-		Response: resp,
+		Response: cns.Response{
+			ReturnCode: types.Success,
+		},
+		PodIpInfo: podIPInfo,
 	}
-	reserveResp.PodIpInfo = podIpInfo
 
 	err = service.Listener.Encode(w, &reserveResp)
-	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, resp.ReturnCode, err)
+	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
-	req := cns.IPConfigRequest{}
-	resp := cns.Response{}
-	var err error
-
-	defer func() {
-		err = service.Listener.Encode(w, &resp)
-		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
-	}()
-
-	err = service.Listener.Decode(w, r, &req)
+	var req cns.IPConfigRequest
+	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name+"releaseIPConfigHandler", req, err)
 	if err != nil {
-		resp.ReturnCode = types.UnexpectedError
-		resp.Message = err.Error()
+		resp := cns.Response{
+			ReturnCode: types.UnexpectedError,
+			Message:    err.Error(),
+		}
 		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, req)
+		err = service.Listener.Encode(w, &resp)
+		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
 		return
 	}
 
-	var podInfo cns.PodInfo
-	podInfo, resp.ReturnCode, resp.Message = service.validateIPConfigRequest(req)
+	podInfo, returnCode, message := service.validateIPConfigRequest(req)
 
 	if err = service.releaseIPConfig(podInfo); err != nil {
-		resp.ReturnCode = types.UnexpectedError
-		resp.Message = err.Error()
-		logger.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", resp.Message, req)
-		return
+		returnCode = types.UnexpectedError
+		message = err.Error()
+		logger.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", message, req)
 	}
+	resp := cns.Response{
+		ReturnCode: returnCode,
+		Message:    message,
+	}
+	err = service.Listener.Encode(w, &resp)
+	logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
 }
 
 // MarkIPAsPendingRelease will set the IPs which are in PendingProgramming or Available to PendingRelease state
@@ -418,20 +438,15 @@ func (service *HTTPRestService) AllocateAnyAvailableIPConfig(podInfo cns.PodInfo
 
 // If IPConfig is already allocated for pod, it returns that else it returns one of the available ipconfigs.
 func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) (cns.PodIpInfo, error) {
-	var (
-		podIpInfo cns.PodIpInfo
-		isExist   bool
-	)
-
 	// check if ipconfig already allocated for this pod and return if exists or error
 	// if error, ipstate is nil, if exists, ipstate is not nil and error is nil
 	podInfo, err := cns.NewPodInfoFromIPConfigRequest(req)
 	if err != nil {
-		return podIpInfo, err
+		return cns.PodIpInfo{}, errors.Wrapf(err, "failed to parse IPConfigRequest %v", req)
 	}
 
-	if podIpInfo, isExist, err = service.GetExistingIPConfig(podInfo); err != nil || isExist {
-		return podIpInfo, err
+	if podIPInfo, isExist, err := service.GetExistingIPConfig(podInfo); err != nil || isExist {
+		return podIPInfo, err
 	}
 
 	// return desired IPConfig

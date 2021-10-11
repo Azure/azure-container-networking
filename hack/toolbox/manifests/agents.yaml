@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-pod-8085-tcp-host
+  labels:
+    app: agent-pod-8085-tcp-host
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-pod-8085-tcp-host
+
+  template:
+    metadata:
+      labels:
+        app: agent-pod-8085-tcp-host
+    spec:
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+        kubernetes.io/role: agent
+      hostNetwork: true
+      containers:
+        - name: agent-pod-8085-tcp-host
+          image: acnpublic.azurecr.io/toolbox:latest
+          env:
+            - name: TCP_PORT
+              value: "8085"
+            - name: UDP_PORT
+              value: "8086"
+          ports:
+            - containerPort: 8085
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-pod-8085-tcp
+  labels:
+    app: agent-pod-8085-tcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-pod-8085-tcp
+  template:
+    metadata:
+      labels:
+        app: agent-pod-8085-tcp
+    spec:
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+        kubernetes.io/role: agent
+      containers:
+        - name: agent-pod-8085-tcp
+          image: acnpublic.azurecr.io/toolbox:latest
+          env:
+            - name: TCP_PORT
+              value: "8085"
+            - name: UDP_PORT
+              value: "8086"
+          ports:
+            - containerPort: 8085
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-pod-8086-udp
+  labels:
+    app: agent-pod-8086-udp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-pod-8086-udp
+  template:
+    metadata:
+      labels:
+        app: agent-pod-8086-udp
+    spec:
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+        kubernetes.io/role: agent
+      containers:
+        - name: agent-pod-8086-udp
+          image: acnpublic.azurecr.io/toolbox:latest
+          env:
+            - name: TCP_PORT
+              value: "8085"
+            - name: UDP_PORT
+              value: "8086"
+          ports:
+            - containerPort: 8086

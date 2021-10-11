@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/types/bounded"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 )
@@ -48,6 +49,7 @@ type HTTPRestService struct {
 	routingTable             *routes.RoutingTable
 	store                    store.KeyValueStore
 	state                    *httpRestServiceState
+	podsPendingIPAllocation  *bounded.TimedSet
 	sync.RWMutex
 	dncPartitionKey string
 }
@@ -137,6 +139,7 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		PodIPConfigState:         podIPConfigState,
 		routingTable:             routingTable,
 		state:                    serviceState,
+		podsPendingIPAllocation:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 	}, nil
 }
 

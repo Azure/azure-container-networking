@@ -1,0 +1,8 @@
+FROM golang as build
+ADD ./server/server.go /
+WORKDIR /
+RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+
+FROM scratch
+COPY --from=build /server .
+CMD ["./server"]

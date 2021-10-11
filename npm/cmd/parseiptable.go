@@ -7,31 +7,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// parseIPtableCmd represents the parseIPtable command
-var parseIPtableCmd = &cobra.Command{
-	Use:   "parseiptable",
-	Short: "Parse iptable into Go object, dumping it to the console",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
-		if iptableSaveF == "" {
-			iptable, err := parse.Iptables("filter")
-			if err != nil {
-				return fmt.Errorf("%w", err)
+func newParseIPTableCmd() *cobra.Command {
+	parseIPTableCmd := &cobra.Command{
+		Use:   "parseiptable",
+		Short: "Parse iptable into Go object, dumping it to the console",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
+			if iptableSaveF == "" {
+				iptable, err := parse.Iptables("filter")
+				if err != nil {
+					return fmt.Errorf("%w", err)
+				}
+				fmt.Println(iptable.String())
+			} else {
+				iptable, err := parse.IptablesFile("filter", iptableSaveF)
+				if err != nil {
+					return fmt.Errorf("%w", err)
+				}
+				fmt.Println(iptable.String())
 			}
-			fmt.Println(iptable.String())
-		} else {
-			iptable, err := parse.IptablesFile("filter", iptableSaveF)
-			if err != nil {
-				return fmt.Errorf("%w", err)
-			}
-			fmt.Println(iptable.String())
-		}
 
-		return nil
-	},
-}
+			return nil
+		},
+	}
 
-func init() {
-	debugCmd.AddCommand(parseIPtableCmd)
-	parseIPtableCmd.Flags().StringP("iptables-file", "i", "", "Set the iptable-save file path (optional)")
+	parseIPTableCmd.Flags().StringP("iptables-file", "i", "", "Set the iptable-save file path (optional)")
+	return parseIPTableCmd
 }
