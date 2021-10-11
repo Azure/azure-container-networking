@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: windows-daemonset
+spec:
+  selector:
+    matchLabels:
+      app: windows-pod
+  template:
+    metadata:
+      labels:
+        app: windows-pod
+    spec:
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\SYSTEM"
+      hostNetwork: true
+      containers:
+        - name: win-container
+          image: acnpublic.azurecr.io/azure-cns-win:v1.4.12-43-g21f203db8-dirty
+          imagePullPolicy: Always # Change to IfNotPresent after development
+          command:
+            ["%CONTAINER_SANDBOX_MOUNT_POINT%/usr/local/bin/azure-cns.exe"]
+          args:
+            [
+              "-cns-url",
+              "tcp://$(CNSIpAddress):$(CNSPort)",
+              "-log-target",
+              "$(CNSLogTarget)",
+              "-log-location",
+              "$(CNSLogDirectory)",
+              "-store-file-path",
+              "$(CNSStoreFilePath)",
+              "-config-path",
+              "%CONTAINER_SANDBOX_MOUNT_POINT%$(CNS_CONFIGURATION_PATH)",
+            ]
+          volumeMounts:
+            - name: log
+              mountPath: /k
+            - name: cns-config
+              mountPath: etc/azure-cns
+          ports:
+            - containerPort: 10090
+          env:
+            - name: CNSIpAddress
+              value: "127.0.0.1"
+            - name: CNSPort
+              value: "10090"
+            - name: CNSLogTarget
+              value: "stdoutfile" # Change to stdoutfile once hostProcess works
+            - name: CNSLogDirectory
+              value: "C:\\k"
+            - name: CNSStoreFilePath
+              value: "C:\\k\\"
+            - name: CNS_CONFIGURATION_PATH
+              value: "etc\\azure-cns\\cns_config.json"
+            - name: NODENAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+      volumes:
+        - name: log
+          hostPath:
+            path: /k
+            type: Directory
+        - name: cns-config
+          configMap:
+            name: cns-config
+      nodeSelector:
+        kubernetes.io/os: windows
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cns-config
+data:
+  cns_config.json: |
+    {
+      "TelemetrySettings": {
+          "TelemetryBatchSizeBytes": 16384,
+          "TelemetryBatchIntervalInSecs": 15,
+          "RefreshIntervalInSecs": 15,
+          "DisableAll": false,
+          "HeartBeatIntervalInMins": 30,
+          "DebugMode": false,
+          "SnapshotIntervalInMins": 60
+      },
+      "ManagedSettings": {
+          "PrivateEndpoint": "",
+          "InfrastructureNetworkID": "",
+          "NodeID": "",
+          "NodeSyncIntervalInSeconds": 30
+      },
+      "ChannelMode": "CRD",
+      "InitializeFromCNI": true
+    }
