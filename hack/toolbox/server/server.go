@@ -1,4 +1,4 @@
-package toolbox
+package main
 
 import (
 	"fmt"
@@ -12,41 +12,40 @@ import (
 )
 
 const (
-	HTTP     = "http"
-	HTTPPort = 8080
-	TCP      = "tcp"
-	TCPPort  = 8085
-	UDP      = "udp"
-	UDPPort  = 8086
+	httpport = 8080
+	tcp      = "tcp"
+	tcpport  = 8085
+	udp      = "udp"
+	udpport  = 8086
 
 	buffersize = 1024
 )
 
-func Main() {
+func main() {
 	tcpPort, err := strconv.Atoi(os.Getenv("TCP_PORT"))
 	if err != nil {
-		tcpPort = TCPPort
-		fmt.Printf("TCP_PORT not set, defaulting to port %d\n", TCPPort)
+		tcpPort = tcpport
+		fmt.Printf("TCP_PORT not set, defaulting to port %d\n", tcpport)
 	}
 
 	udpPort, err := strconv.Atoi(os.Getenv("UDP_PORT"))
 	if err != nil {
-		udpPort = UDPPort
-		fmt.Printf("UDP_PORT not set, defaulting to port %d\n", UDPPort)
+		udpPort = udpport
+		fmt.Printf("UDP_PORT not set, defaulting to port %d\n", udpport)
 	}
 
 	httpPort, err := strconv.Atoi(os.Getenv("HTTP_PORT"))
 	if err != nil {
-		httpPort = HTTPPort
-		fmt.Printf("HTTP_PORT not set, defaulting to port %d\n", HTTPPort)
+		httpPort = httpport
+		fmt.Printf("HTTP_PORT not set, defaulting to port %d\n", httpport)
 	}
 
-	go ListenOnUDP(udpPort)
-	go ListenOnTCP(tcpPort)
-	ListenHTTP(httpPort)
+	go listenOnUDP(udpPort)
+	go listenOnTCP(tcpPort)
+	listenHTTP(httpPort)
 }
 
-func ListenHTTP(port int) {
+func listenHTTP(port int) {
 	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		fmt.Printf("[HTTP] Received Connection from %v\n", r.RemoteAddr)
 		_, err := rw.Write(getResponse(r.RemoteAddr, "http"))
@@ -63,8 +62,8 @@ func ListenHTTP(port int) {
 	}
 }
 
-func ListenOnTCP(port int) {
-	listener, err := net.ListenTCP(TCP, &net.TCPAddr{Port: port})
+func listenOnTCP(port int) {
+	listener, err := net.ListenTCP(tcp, &net.TCPAddr{Port: port})
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -87,7 +86,7 @@ func ListenOnTCP(port int) {
 func handleConnection(connection net.Conn) {
 	addressString := fmt.Sprintf("%+v", connection.RemoteAddr())
 	fmt.Printf("[TCP] Received Connection from %s\n", addressString)
-	_, err := connection.Write(getResponse(addressString, TCP))
+	_, err := connection.Write(getResponse(addressString, tcp))
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -113,8 +112,8 @@ func getResponse(addressString, protocol string) []byte {
 	return []byte(fmt.Sprintf("Connected To: %s via %s\nConnected From: %v\nRemote Interfaces:\n%v", hostname, protocol, addressString, base))
 }
 
-func ListenOnUDP(port int) {
-	connection, err := net.ListenUDP(UDP, &net.UDPAddr{Port: port})
+func listenOnUDP(port int) {
+	connection, err := net.ListenUDP(udp, &net.UDPAddr{Port: port})
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -139,7 +138,7 @@ func ListenOnUDP(port int) {
 
 		addressString := fmt.Sprintf("%+v", addr)
 		fmt.Printf("[UDP] Received Connection from %s\n", addressString)
-		_, err = connection.WriteToUDP(getResponse(addressString, UDP), addr)
+		_, err = connection.WriteToUDP(getResponse(addressString, udp), addr)
 		if err != nil {
 			fmt.Println(err)
 			return

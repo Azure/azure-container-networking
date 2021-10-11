@@ -28,7 +28,7 @@ spec:
           operator: Exists
       containers:
         - name: master-pod-8085-tcp-host
-          image: matmerr/toolbox:v6.1
+          image: acnpublic.azurecr.io/toolbox:latest
           env:
             - name: TCP_PORT
               value: "8085"
@@ -66,7 +66,7 @@ spec:
           operator: Exists
       containers:
         - name: master-pod-8085-tcp
-          image: matmerr/toolbox:v6.1
+          image: acnpublic.azurecr.io/toolbox:latest
           env:
             - name: TCP_PORT
               value: "8085"
@@ -103,7 +103,7 @@ spec:
           operator: Exists
       containers:
         - name: master-pod-udp
-          image: matmerr/toolbox:v6.1
+          image: acnpublic.azurecr.io/toolbox:latest
           env:
             - name: TCP_PORT
               value: "8085"

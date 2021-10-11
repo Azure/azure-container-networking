@@ -21,7 +21,7 @@ spec:
       hostNetwork: true
       containers:
         - name: agent-pod-8085-tcp-host
-          image: matmerr/toolbox:v6.1
+          image: acnpublic.azurecr.io/toolbox:latest
           env:
             - name: TCP_PORT
               value: "8085"
@@ -51,7 +51,7 @@ spec:
         kubernetes.io/role: agent
       containers:
         - name: agent-pod-8085-tcp
-          image: matmerr/toolbox:v6.1
+          image: acnpublic.azurecr.io/toolbox:latest
           env:
             - name: TCP_PORT
               value: "8085"
@@ -81,7 +81,7 @@ spec:
         kubernetes.io/role: agent
       containers:
         - name: agent-pod-8086-udp
-          image: matmerr/toolbox:v6.1
+          image: acnpublic.azurecr.io/toolbox:latest
           env:
             - name: TCP_PORT
               value: "8085"

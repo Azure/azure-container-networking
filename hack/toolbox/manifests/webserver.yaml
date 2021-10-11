@@ -2,12 +2,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: matmerr-http-v6
+  name: toolbox
 spec:
   ipFamily: IPv6
   type: LoadBalancer
   selector:
-    app: matmerr-http-v6
+    app: toolbox
   ports:
     - protocol: TCP
       port: 8081
@@ -31,24 +31,24 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: matmerr-http-v6
+  name: toolbox
   labels:
-    app: matmerr-http-v6
+    app: toolbox
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: matmerr-http-v6
+      app: toolbox
   template:
     metadata:
       labels:
-        app: matmerr-http-v6
+        app: toolbox
     spec:
       nodeSelector:
         beta.kubernetes.io/os: linux
         kubernetes.io/role: agent
       containers:
-        - name: matmerr-http-v6
+        - name: toolbox
           image: matmerr/toolbox:v6.2
           env:
             - name: TCP_PORT
