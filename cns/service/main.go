@@ -874,6 +874,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// initialize the ipam pool monitor
 	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &ipampool.Options{RefreshDelay: poolIPAMRefreshRateInMilliseconds})
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
+	logger.Printf("Starting IPAM Pool Monitor")
+	go func() {
+		if e := poolMonitor.Start(ctx); e != nil {
+			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", e)
+		}
+	}()
+
 	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize CNS state")
@@ -901,22 +908,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 				// todo: add a CNS metric to count # of failures
 			} else {
 				logger.Printf("[Azure CNS] Exiting RequestController")
-				return
-			}
-
-			// Retry after 1sec
-			time.Sleep(time.Second)
-		}
-	}()
-
-	logger.Printf("Starting IPAM Pool Monitor")
-	go func() {
-		for {
-			if err := poolMonitor.Start(ctx); err != nil {
-				logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", err)
-				// todo: add a CNS metric to count # of failures
-			} else {
-				logger.Printf("[Azure CNS] Exiting IPAM Pool Monitor")
 				return
 			}
 
