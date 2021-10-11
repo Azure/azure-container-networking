@@ -58,17 +58,24 @@ func (pm *Monitor) Start(ctx context.Context) error {
 	defer ticker.Stop()
 
 	for {
-		// block until something happens
+		// proceed when things happen:
 		select {
-		case <-ctx.Done():
+		case <-ctx.Done(): // calling context has closed, we'll exit.
 			return errors.Wrap(ctx.Err(), "pool monitor context closed")
-		case <-ticker.C:
-			// block on ticks until we have initialized
-			<-pm.initialized
-		case nnc := <-pm.nncSource:
+		case <-ticker.C: // attempt to reconcile every tick.
+			select {
+			case <-pm.initialized: // this blocks until we have initialized
+				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
+			default:
+				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
+				continue
+			}
+		case nnc := <-pm.nncSource: // received a new NodeNetworkConfig, extract the data from it and re-recancile.
 			pm.spec = nnc.Spec
 			pm.scaler = nnc.Status.Scaler
+			pm.once.Do(func() { close(pm.initialized) }) // close the init channel the first time we receive a NodeNetworkConfig.
 		}
+		// if control has flowed through the select(s) to this point, we can now reconcile.
 		err := pm.reconcile(ctx)
 		if err != nil {
 			logger.Printf("[ipam-pool-monitor] Reconcile failed with err %v", err)
@@ -304,9 +311,6 @@ func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 		// observe elapsed duration for IP pool scaling
 		metric.ObserverPoolScaleLatency()
 	}
-
-	// defer closing the init channel to signify that we have received at least one NodeNetworkConfig.
-	defer pm.once.Do(func() { close(pm.initialized) })
 	pm.nncSource <- *nnc
 }
 
