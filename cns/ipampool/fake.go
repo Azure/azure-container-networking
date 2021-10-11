@@ -26,8 +26,8 @@ func (*MonitorFake) Reconcile() error {
 
 func (f *MonitorFake) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 	return cns.IpamPoolMonitorStateSnapshot{
-		MaximumFreeIps:           CalculateMaxFreeIPs(*f.NodeNetworkConfig),
-		MinimumFreeIps:           CalculateMinFreeIPs(*f.NodeNetworkConfig),
+		MaximumFreeIps:           CalculateMaxFreeIPs(f.NodeNetworkConfig.Status.Scaler),
+		MinimumFreeIps:           CalculateMinFreeIPs(f.NodeNetworkConfig.Status.Scaler),
 		UpdatingIpsNotInUseCount: f.IPsNotInUseCount,
 		CachedNNC:                *f.NodeNetworkConfig,
 	}
