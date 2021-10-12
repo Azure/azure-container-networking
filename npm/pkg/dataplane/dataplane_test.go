@@ -14,7 +14,7 @@ import (
 
 var (
 	ioShim     = common.NewMockIOShim([]testutils.TestCmd{})
-	serPodKey1 = &ipsets.TranslatedIPSet{
+	setPodKey1 = &ipsets.TranslatedIPSet{
 		Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
 	}
 	testPolicyobj = &policies.NPMNetworkPolicy{
@@ -23,7 +23,7 @@ var (
 			{
 				Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.NameSpace),
 			},
-			serPodKey1,
+			setPodKey1,
 			{
 				Metadata: ipsets.NewIPSetMetadata("nestedset1", ipsets.NestedLabelOfPod),
 				Members: []string{

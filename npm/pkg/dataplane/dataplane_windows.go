@@ -70,6 +70,7 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 				if err != nil {
 					return err
 				}
+				delete(endpoint.NetPolReference, policyName)
 			}
 		}
 	}
@@ -112,6 +113,8 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 		if err != nil {
 			return err
 		}
+
+		endpoint.NetPolReference[policyName] = struct{}{}
 	}
 
 	return nil
