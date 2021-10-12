@@ -625,3 +625,42 @@ func ReconcileAndValidate(t *testing.T, poolmonitor *Monitor, expectedRequestCou
 			len(poolmonitor.spec.IPsNotInUse))
 	}
 }
+
+func TestCalculateIPs(t *testing.T) {
+	tests := []struct {
+		name        string
+		in          v1alpha.Scaler
+		wantMinFree int
+		wantMaxFree int
+	}{
+		{
+			name: "good",
+			in: v1alpha.Scaler{
+				BatchSize:               16,
+				RequestThresholdPercent: 50,
+				ReleaseThresholdPercent: 150,
+				MaxIPCount:              250,
+			},
+			wantMinFree: 8,
+			wantMaxFree: 24,
+		},
+		{
+			name: "good",
+			in: v1alpha.Scaler{
+				BatchSize:               16,
+				RequestThresholdPercent: 100,
+				ReleaseThresholdPercent: 200,
+				MaxIPCount:              250,
+			},
+			wantMinFree: 16,
+			wantMaxFree: 32,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantMinFree, CalculateMinFreeIPs(tt.in))
+			assert.Equal(t, tt.wantMaxFree, CalculateMaxFreeIPs(tt.in))
+		})
+	}
+}

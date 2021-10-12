@@ -16,6 +16,8 @@ import (
 const (
 	// DefaultRefreshDelay pool monitor poll delay default in seconds.
 	DefaultRefreshDelay = 1 * time.Second
+	// DefaultMaxIPs default maximum allocatable IPs
+	DefaultMaxPods = 250
 )
 
 type nodeNetworkConfigSpecUpdater interface {
@@ -24,6 +26,7 @@ type nodeNetworkConfigSpecUpdater interface {
 
 type Options struct {
 	RefreshDelay time.Duration
+	MaxIPs       int
 }
 
 type Monitor struct {
@@ -41,6 +44,9 @@ type Monitor struct {
 func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, opts *Options) *Monitor {
 	if opts.RefreshDelay < 1 {
 		opts.RefreshDelay = DefaultRefreshDelay
+	}
+	if opts.MaxIPs < 1 {
+		opts.MaxIPs = 250
 	}
 	return &Monitor{
 		opts:        opts,
@@ -303,7 +309,7 @@ func (pm *Monitor) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 // pushing it to the PoolMonitor's source channel.
 // As a side effect, marks the PoolMonitor as initialized, if it is not already.
 func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
-	clampScaler(&nnc.Status.Scaler)
+	pm.clampScaler(&nnc.Status.Scaler)
 
 	// if the nnc has conveged, observe the pool scaling latency (if any)
 	allocatedIPs := len(pm.httpService.GetPodIPConfigState()) - len(pm.httpService.GetPendingReleaseIPConfigs())
@@ -318,9 +324,9 @@ func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 // we usually expect these to be correctly set for us, but we could crash
 // without these checks. if they are incorrectly set, there will be some weird
 // IP pool behavior for a while until the nnc reconciler corrects the state.
-func clampScaler(scaler *v1alpha.Scaler) {
+func (pm *Monitor) clampScaler(scaler *v1alpha.Scaler) {
 	if scaler.MaxIPCount < 1 {
-		scaler.MaxIPCount = 1
+		scaler.MaxIPCount = int64(pm.opts.MaxIPs)
 	}
 	if scaler.BatchSize < 1 {
 		scaler.BatchSize = 1
