@@ -20,7 +20,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
-	"github.com/Azure/azure-container-networking/cns/ipampool"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -926,7 +925,7 @@ func startService() error {
 		return err
 	}
 
-	svc.IPAMPoolMonitor = &ipampool.MonitorFake{}
+	svc.IPAMPoolMonitor = &fakes.MonitorFake{}
 
 	if service != nil {
 		// Create empty azure-cns.json. CNS should start successfully by deleting this file

@@ -1,4 +1,7 @@
-package ipampool
+//go:build !ignore_uncovered
+// +build !ignore_uncovered
+
+package fakes
 
 import (
 	"context"
@@ -26,8 +29,8 @@ func (*MonitorFake) Reconcile() error {
 
 func (f *MonitorFake) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 	return cns.IpamPoolMonitorStateSnapshot{
-		MaximumFreeIps:           CalculateMaxFreeIPs(f.NodeNetworkConfig.Status.Scaler),
-		MinimumFreeIps:           CalculateMinFreeIPs(f.NodeNetworkConfig.Status.Scaler),
+		MaximumFreeIps:           int(float64(f.NodeNetworkConfig.Status.Scaler.BatchSize) * (float64(f.NodeNetworkConfig.Status.Scaler.ReleaseThresholdPercent) / 100)), //nolint:gomnd // it's a percent
+		MinimumFreeIps:           int(float64(f.NodeNetworkConfig.Status.Scaler.BatchSize) * (float64(f.NodeNetworkConfig.Status.Scaler.RequestThresholdPercent) / 100)), //nolint:gomnd // it's a percent
 		UpdatingIpsNotInUseCount: f.IPsNotInUseCount,
 		CachedNNC:                *f.NodeNetworkConfig,
 	}

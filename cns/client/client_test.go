@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
-	"github.com/Azure/azure-container-networking/cns/ipampool"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -204,7 +203,7 @@ func TestMain(m *testing.M) {
 			},
 		},
 	}
-	svc.IPAMPoolMonitor = &ipampool.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
+	svc.IPAMPoolMonitor = &fakes.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
 
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
