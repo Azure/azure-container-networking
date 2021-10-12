@@ -124,8 +124,8 @@ func (dp *DataPlane) getSelectorIPsByPolicyName(policyName string) (map[string]s
 	}
 
 	var selectorIpSets map[string]struct{}
-	for ipsetName := range policy.PodSelectorIPSets {
-		selectorIpSets[ipsetName] = struct{}{}
+	for _, ipset := range policy.PodSelectorIPSets {
+		selectorIpSets[ipset.Metadata.GetPrefixName()] = struct{}{}
 	}
 
 	return dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIpSets)

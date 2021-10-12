@@ -2,7 +2,6 @@ package ipsets
 
 import (
 	"fmt"
-	"net"
 	"sync"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -146,10 +145,7 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 }
 
 func (iMgr *IPSetManager) AddToSet(addToSets []*IPSetMetadata, ip, podKey string) error {
-	// check if the IP is IPV4 family
-	if net.ParseIP(ip).To4() == nil {
-		return npmerrors.Errorf(npmerrors.AppendIPSet, false, "IPV6 not supported")
-	}
+	// check if the IP is IPV4 family in controller
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
