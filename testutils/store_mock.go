@@ -12,6 +12,7 @@ import (
 var _ store.KeyValueStore = (*KeyValueStoreMock)(nil)
 
 type KeyValueStoreMock struct {
+	ExistsBool               bool
 	ReadError                error
 	WriteError               error
 	FlushError               error
@@ -21,8 +22,12 @@ type KeyValueStoreMock struct {
 	GetModificationTimeError error
 }
 
-func (mockst *KeyValueStoreMock) Read(key string, value interface{}) error {
-	return mockst.ReadError
+func (store *KeyValueStoreMock) Exists() bool {
+	return store.ExistsBool
+}
+
+func (store *KeyValueStoreMock) Read(key string, value interface{}) error {
+	return store.ReadError
 }
 
 func (mockst *KeyValueStoreMock) Write(key string, value interface{}) error {

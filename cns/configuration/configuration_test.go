@@ -14,15 +14,20 @@ func TestGetConfigFilePath(t *testing.T) {
 	execpath, _ := common.GetExecutableDirectory()
 
 	// env unset
-	f, err := getConfigFilePath()
+	f, err := getConfigFilePath("")
 	assert.NoError(t, err)
 	assert.Equal(t, filepath.Join(execpath, defaultConfigName), f)
 
 	// env set
 	os.Setenv(EnvCNSConfig, "test.cfg")
-	f, err = getConfigFilePath()
+	f, err = getConfigFilePath("")
 	assert.NoError(t, err)
 	assert.Equal(t, "test.cfg", f)
+
+	// test with cmdline config path
+	f, err = getConfigFilePath("/var/lib/cns_config.json")
+	assert.NoError(t, err)
+	assert.Equal(t, "/var/lib/cns_config.json", f)
 }
 
 func TestReadConfigFromFile(t *testing.T) {

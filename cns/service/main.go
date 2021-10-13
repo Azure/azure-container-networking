@@ -251,6 +251,13 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: "",
 	},
+	{
+		Name:         acn.OptCNSConfigPath,
+		Shorthand:    acn.OptCNSConfigPathAlias,
+		Description:  "File path to the cns config file",
+		Type:         "string",
+		DefaultValue: "",
+	},
 }
 
 // init() is executed before main() whenever this package is imported
@@ -385,6 +392,7 @@ func main() {
 	nodeID := acn.GetArg(acn.OptNodeID).(string)
 	clientDebugCmd := acn.GetArg(acn.OptDebugCmd).(string)
 	clientDebugArg := acn.GetArg(acn.OptDebugArg).(string)
+	cmdLineConfigPath := acn.GetArg(acn.OptCNSConfigPath).(string)
 
 	if vers {
 		printVersion()
@@ -418,7 +426,7 @@ func main() {
 		logger.Errorf("[Azure CNS] Cannot disable telemetry via cmdline. Update cns_config.json to disable telemetry.")
 	}
 
-	cnsconfig, err := configuration.ReadConfig()
+	cnsconfig, err := configuration.ReadConfig(cmdLineConfigPath)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error reading cns config: %v", err)
 	}

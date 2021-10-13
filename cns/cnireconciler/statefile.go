@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 // WriteObjectToCNIStatefile checks for a file at the CNI statefile path,
@@ -18,7 +19,7 @@ import (
 // empty file on the host filesystem, crashing older CNI because it doesn't know
 // how to handle empty statefiles.
 func WriteObjectToCNIStatefile() error {
-	filename := "/var/run/azure-vnet.json"
+	filename := platform.CNIStateFilePath
 	return writeObjectToFile(filename)
 }
 

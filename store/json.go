@@ -54,6 +54,13 @@ func NewJsonFileStore(fileName string, lockclient processlock.Interface) (KeyVal
 	return kvs, nil
 }
 
+func (kvs *jsonFileStore) Exists() bool {
+	if _, err := os.Stat(kvs.fileName); err != nil {
+		return false
+	}
+	return true
+}
+
 // Read restores the value for the given key from persistent store.
 func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 	kvs.Mutex.Lock()

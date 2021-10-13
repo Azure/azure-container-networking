@@ -122,4 +122,8 @@ const (
 	// Client mode, args for cmd
 	OptDebugArg      = "debugarg"
 	OptDebugArgAlias = "darg"
+
+	// CNS config path
+	OptCNSConfigPath      = "config-path"
+	OptCNSConfigPathAlias = "cp"
 )
