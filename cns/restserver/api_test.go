@@ -21,7 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
 )
@@ -149,7 +149,7 @@ func TestMain(m *testing.M) {
 
 	nmAgentServer.AddHandler("/getInterface", getInterfaceInfo)
 	nmAgentServer.AddHandler("/", nmagentHandler)
-	nmagentclient.WireserverIP = nmagentEndpoint
+	nmagent.WireserverIP = nmagentEndpoint
 
 	err = nmAgentServer.Start(make(chan error, 1))
 	if err != nil {
@@ -914,7 +914,7 @@ func startService() error {
 		return err
 	}
 
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, fakes.NewFakeNMAgentClient())
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.NMAgentClientFake{})
 	if err != nil {
 		return err
 	}

@@ -1,11 +1,12 @@
-package nmagentclient
+package nmagent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -27,14 +28,14 @@ var (
 	getNcVersionListWithOutTokenURLVersion = "2"
 )
 
-// NMANetworkContainerResponse - NMAgent response.
-type NMANetworkContainerResponse struct {
+// NetworkContainerResponse - NMAgent response.
+type NetworkContainerResponse struct {
 	ResponseCode       string `json:"httpStatusCode"`
 	NetworkContainerID string `json:"networkContainerId"`
 	Version            string `json:"version"`
 }
 
-type NMAgentSupportedApisResponseXML struct {
+type SupportedAPIsResponseXML struct {
 	SupportedApis []string `xml:"type"`
 }
 
@@ -43,27 +44,27 @@ type ContainerInfo struct {
 	Version            string `json:"version"`
 }
 
-type NMANetworkContainerListResponse struct {
+type NetworkContainerListResponse struct {
 	ResponseCode string          `json:"httpStatusCode"`
 	Containers   []ContainerInfo `json:"networkContainers"`
 }
 
-// NMAgentClient is client to handle queries to nmagent
-type NMAgentClient struct {
+// Client is client to handle queries to nmagent
+type Client struct {
 	connectionURL string
 }
 
-// NMAgentClientInterface has interface that nmagent client will handle
-type NMAgentClientInterface interface {
-	GetNcVersionListWithOutToken(ncNeedUpdateList []string) map[string]int
+// Interface has interface that nmagent client will handle
+type Interface interface {
+	GetNcVersionListWithOutToken(ctx context.Context, ncNeedUpdateList []string) map[string]int
 }
 
-// NewNMAgentClient create a new nmagent client.
-func NewNMAgentClient(url string) (*NMAgentClient, error) {
+// NewClient create a new nmagent client.
+func NewClient(url string) (*Client, error) {
 	if url == "" {
 		url = fmt.Sprintf(GetNcVersionListWithOutTokenURLFmt, WireserverIP, getNcVersionListWithOutTokenURLVersion)
 	}
-	return &NMAgentClient{
+	return &Client{
 		connectionURL: url,
 	}, nil
 }
@@ -170,7 +171,7 @@ func GetNmAgentSupportedApis(
 		return nil, returnErr
 	}
 
-	var xmlDoc NMAgentSupportedApisResponseXML
+	var xmlDoc SupportedAPIsResponseXML
 	decoder := xml.NewDecoder(response.Body)
 	err = decoder.Decode(&xmlDoc)
 	if err != nil {
@@ -186,21 +187,30 @@ func GetNmAgentSupportedApis(
 }
 
 // GetNcVersionListWithOutToken query nmagent for programmed container version.
-func (nmagentclient *NMAgentClient) GetNcVersionListWithOutToken(ncNeedUpdateList []string) map[string]int {
+func (nmagentclient *Client) GetNcVersionListWithOutToken(ctx context.Context, ncNeedUpdateList []string) map[string]int {
 	ncVersionList := make(map[string]int)
 	now := time.Now()
-	response, err := http.Get(nmagentclient.connectionURL)
-	latency := time.Since(now)
-	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %+v, latency is %d", response, latency.Milliseconds())
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, nmagentclient.connectionURL, nil)
+	if err != nil {
+		logger.Errorf("failed to build nmagent request: %s", err)
+		return nil
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Errorf("failed to make nmagent request: %s", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %+v, latency is %d", resp, time.Since(now).Milliseconds())
 
-	if response.StatusCode != http.StatusOK {
-		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken failed with %d, err is %v", response.StatusCode, err)
+	if resp.StatusCode != http.StatusOK {
+		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken failed with %d, err is %v", resp.StatusCode, err)
 		return nil
 	}
 
-	var nmaNcListResponse NMANetworkContainerListResponse
-	rBytes, _ := ioutil.ReadAll(response.Body)
-	if err := json.Unmarshal(rBytes, &nmaNcListResponse); err != nil {
+	var nmaNcListResponse NetworkContainerListResponse
+	b, _ := io.ReadAll(resp.Body)
+	if err := json.Unmarshal(b, &nmaNcListResponse); err != nil {
 		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken unmarshal failed with %s", err)
 		return nil
 	}
@@ -211,14 +221,17 @@ func (nmagentclient *NMAgentClient) GetNcVersionListWithOutToken(ncNeedUpdateLis
 		receivedNcVersionListInMap[containers.NetworkContainerID] = containers.Version
 	}
 	for _, ncID := range ncNeedUpdateList {
-		if version, ok := receivedNcVersionListInMap[ncID]; ok {
-			if versionInInt, err := strconv.Atoi(version); err != nil {
-				logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken translate version %s to int failed with %s", version, err)
-			} else {
-				ncVersionList[ncID] = versionInInt
-				logger.Printf("Containers id is %s, programmed NC version is %d", ncID, versionInInt)
-			}
+		version, ok := receivedNcVersionListInMap[ncID]
+		if !ok {
+			continue
 		}
+		versionInInt, err := strconv.Atoi(version)
+		if err != nil {
+			logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken translate version %s to int failed with %s", version, err)
+			continue
+		}
+		ncVersionList[ncID] = versionInInt
+		logger.Printf("Containers id is %s, programmed NC version is %d", ncID, versionInInt)
 	}
 	return ncVersionList
 }

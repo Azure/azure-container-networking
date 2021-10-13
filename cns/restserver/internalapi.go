@@ -12,11 +12,10 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -98,8 +97,8 @@ func (service *HTTPRestService) SyncNodeStatus(
 	// check if the version is valid and save it to service state
 	for ncid, nc := range ncsToBeAdded {
 		var (
-			versionURL = fmt.Sprintf(nmagentclient.GetNetworkContainerVersionURLFmt,
-				nmagentclient.WireserverIP,
+			versionURL = fmt.Sprintf(nmagent.GetNetworkContainerVersionURLFmt,
+				nmagent.WireserverIP,
 				nc.PrimaryInterfaceIdentifier,
 				nc.NetworkContainerid,
 				nc.AuthorizationToken)
@@ -150,7 +149,7 @@ func (service *HTTPRestService) SyncNodeStatus(
 
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
-func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string, syncHostNCTimeoutMilliSec time.Duration) {
+func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) {
 	var hostVersionNeedUpdateNcList []string
 	service.RLock()
 	for _, containerstatus := range service.state.ContainerStatus {
@@ -173,40 +172,33 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 		}
 	}
 	service.RUnlock()
-	if len(hostVersionNeedUpdateNcList) > 0 {
-		logger.Printf("Updating version of the following NC IDs: %v", hostVersionNeedUpdateNcList)
-		ncVersionChannel := make(chan map[string]int)
-		ctxWithTimeout, _ := context.WithTimeout(ctx, syncHostNCTimeoutMilliSec*time.Millisecond)
-		go func() {
-			ncVersionChannel <- service.nmagentClient.GetNcVersionListWithOutToken(hostVersionNeedUpdateNcList)
-			close(ncVersionChannel)
-		}()
-		select {
-		case newHostNCVersionList := <-ncVersionChannel:
-			if newHostNCVersionList == nil {
-				logger.Errorf("Can't get vfp programmed NC version list from url without token")
-			} else {
-				service.Lock()
-				for ncID, newHostNCVersion := range newHostNCVersionList {
-					// Check whether it exist in service state and get the related nc info
-					if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
-						logger.Errorf("Can't find NC with ID %s in service state, stop updating this host NC version", ncID)
-					} else {
-						if channelMode == cns.CRD {
-							service.MarkIpsAsAvailableUntransacted(ncInfo.ID, newHostNCVersion)
-						}
-						oldHostNCVersion := ncInfo.HostVersion
-						ncInfo.HostVersion = strconv.Itoa(newHostNCVersion)
-						service.state.ContainerStatus[ncID] = ncInfo
-						logger.Printf("Updated NC %s host version from %s to %s", ncID, oldHostNCVersion, ncInfo.HostVersion)
-					}
-				}
-				service.Unlock()
-			}
-		case <-ctxWithTimeout.Done():
-			logger.Errorf("Timeout when getting vfp programmed NC version list from url without token")
-		}
+	if len(hostVersionNeedUpdateNcList) == 0 {
+		return
 	}
+
+	newHostNCVersionList := service.nmagentClient.GetNcVersionListWithOutToken(ctx, hostVersionNeedUpdateNcList)
+	if len(newHostNCVersionList) == 0 {
+		logger.Errorf("Can't get vfp programmed NC version list from url without token")
+		return
+	}
+
+	service.Lock()
+	for ncID, newHostNCVersion := range newHostNCVersionList {
+		// Check whether it exist in service state and get the related nc info
+		ncInfo, exist := service.state.ContainerStatus[ncID]
+		if !exist {
+			logger.Errorf("Can't find NC with ID %s in service state, stop updating this host NC version", ncID)
+			continue
+		}
+		if channelMode == cns.CRD {
+			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, newHostNCVersion)
+		}
+		oldHostNCVersion := ncInfo.HostVersion
+		ncInfo.HostVersion = strconv.Itoa(newHostNCVersion)
+		service.state.ContainerStatus[ncID] = ncInfo
+		logger.Printf("Updated NC %s host version from %s to %s", ncID, oldHostNCVersion, ncInfo.HostVersion)
+	}
+	service.Unlock()
 }
 
 // This API will be called by CNS RequestController on CRD update.
