@@ -2,7 +2,6 @@ package policies
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
@@ -224,8 +223,7 @@ func writeNetworkPolicyRules(creator *ioutil.FileCreator, networkPolicy *NPMNetw
 func getIPTablesRuleSpecs(aclPolicy *ACLPolicy) []string {
 	specs := make([]string, 0)
 	specs = append(specs, util.IptablesProtFlag, string(aclPolicy.Protocol)) // NOTE: protocol must be ALL instead of nil
-	specs = append(specs, getPortSpecs(aclPolicy.SrcPorts, false)...)
-	specs = append(specs, getPortSpecs(aclPolicy.DstPorts, true)...)
+	specs = append(specs, getPortSpecs([]Ports{aclPolicy.DstPorts})...)
 	specs = append(specs, getMatchSetSpecsFromSetInfo(aclPolicy.SrcList)...)
 	specs = append(specs, getMatchSetSpecsFromSetInfo(aclPolicy.DstList)...)
 	if aclPolicy.Comment != "" {
@@ -234,28 +232,13 @@ func getIPTablesRuleSpecs(aclPolicy *ACLPolicy) []string {
 	return specs
 }
 
-func getPortSpecs(portRanges []Ports, isDst bool) []string {
-	if len(portRanges) == 0 {
+func getPortSpecs(portRanges []Ports) []string {
+	// TODO(jungukcho): do not need to take slices since it can only have one dst port
+	if len(portRanges) != 1 {
 		return []string{}
 	}
-	if len(portRanges) == 1 {
-		portFlag := util.IptablesSrcPortFlag
-		if isDst {
-			portFlag = util.IptablesDstPortFlag
-		}
-		return []string{portFlag, portRanges[0].toIPTablesString()}
-	}
 
-	portRangeStrings := make([]string, 0)
-	for _, portRange := range portRanges {
-		portRangeStrings = append(portRangeStrings, portRange.toIPTablesString())
-	}
-	portFlag := util.IptablesMultiSrcPortFlag
-	if isDst {
-		portFlag = util.IptablesMultiDstPortFlag
-	}
-	specs := []string{util.IptablesModuleFlag, util.IptablesMultiportFlag, portFlag}
-	return append(specs, strings.Join(portRangeStrings, ","))
+	return []string{util.IptablesDstPortFlag, portRanges[0].toIPTablesString()}
 }
 
 func getMatchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType MatchType) []string {

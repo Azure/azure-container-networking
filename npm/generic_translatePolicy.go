@@ -3,49 +3,61 @@
 package npm
 
 import (
+	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/iptm"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 
-	//policy "github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 )
 
 /*
-TODO:
-1. Put prefix to avoid "genericSet"
+TODO (jungukcho)
+1. Make functions to remove redundancy
+2. Add 	PodSelectorDstList []SetInfo and PodSelectorSrcList []SetInfo in NPMNetworkPolicy to reduce computation
+3. Add NameSapce in NPMNetworkPolicy
 */
 
-/*
-While iterations of each field in network policy,
-it needs to know what type is?
-*/
 type translator struct{}
 
-func (t *translator) craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort, sPortOrDPortFlag string) []string {
-	partialSpec := []string{}
+// getPortRange returns a specific port (only portRule.Port exist) or port ranges (when EndPort exists as well) based on portRule
+func (t *translator) getPortRange(portRule networkingv1.NetworkPolicyPort) (string, bool) {
+	if portRule.Port == nil {
+		return "", false
+	}
+
+	portRange := portRule.Port.String()
+	if portRule.EndPort != nil {
+		portRange = fmt.Sprintf("%s:%d", portRange, *portRule.EndPort)
+	}
+	return portRange, true
+}
+
+func (t *translator) portRule(portRule *networkingv1.NetworkPolicyPort) (policies.Ports, string) {
+	portRuleInfo := policies.Ports{}
+	protocol := "TCP"
 	if portRule.Protocol != nil {
-		partialSpec = append(
-			partialSpec,
-			util.IptablesProtFlag,
-			string(*portRule.Protocol),
-		)
+		protocol = string(*portRule.Protocol)
 	}
 
-	if portRule.Port != nil {
-		partialSpec = append(
-			partialSpec,
-			sPortOrDPortFlag,
-			portRule.Port.String(),
-		)
+	if portRule.Port == nil {
+		return portRuleInfo, protocol
 	}
 
-	return partialSpec
+	// TODO(jungukcho): IntValue returns just int. Will check this..
+	portRuleInfo.Port = int32(portRule.Port.IntValue())
+	if portRule.EndPort != nil {
+		portRuleInfo.EndPort = *portRule.EndPort
+	}
+
+	return portRuleInfo, protocol
 }
 
 func (t *translator) getPortType(portRule networkingv1.NetworkPolicyPort) string {
@@ -57,183 +69,239 @@ func (t *translator) getPortType(portRule networkingv1.NetworkPolicyPort) string
 	return "invalid"
 }
 
-func (t *translator) craftPartialIptablesCommentFromPort(portRule networkingv1.NetworkPolicyPort, sPortOrDPortFlag string) string {
-	partialComment := ""
+// TODO(jungukcho): How to check nil value
+func (t *translator) namedPortRuleInfo(portRule *networkingv1.NetworkPolicyPort) (*ipsets.TranslatedIPSet, string) {
+	if portRule == nil {
+		return nil, ""
+	}
+
+	protocol := "TCP"
 	if portRule.Protocol != nil {
-		partialComment += string(*portRule.Protocol)
-		if portRule.Port != nil {
-			partialComment += "-"
-		}
+		protocol = string(*portRule.Protocol)
 	}
 
-	if portRule.Port != nil {
-		partialComment += "PORT-"
-		partialComment += portRule.Port.String()
+	if portRule.Port == nil {
+		return nil, protocol
 	}
 
-	return partialComment
+	namedPortIPSet := &ipsets.TranslatedIPSet{
+		Metadata: &ipsets.IPSetMetadata{
+			Name: util.NamedPortIPSetPrefix + portRule.Port.String(),
+			Type: ipsets.NamedPorts,
+		},
+	}
+	return namedPortIPSet, protocol
 }
 
-func (t *translator) craftPartialIptEntrySpecFromOpAndLabel(op, label, srcOrDstFlag string, isNamespaceSelector bool) []string {
-	if isNamespaceSelector {
-		label = "ns-" + label
-	}
-	partialSpec := []string{
-		util.IptablesModuleFlag,
-		util.IptablesSetModuleFlag,
-		op,
-		util.IptablesMatchSetFlag,
-		util.GetHashedName(label),
-		srcOrDstFlag,
+func (t *translator) namedPortRule(portRule *networkingv1.NetworkPolicyPort) ([]*ipsets.TranslatedIPSet, []policies.SetInfo, string) {
+	if portRule == nil {
+		return []*ipsets.TranslatedIPSet{}, []policies.SetInfo{}, ""
 	}
 
-	return util.DropEmptyFields(partialSpec)
+	namedPortIPSet, protocol := t.namedPortRuleInfo(portRule)
+	setInfo := []policies.SetInfo{
+		{
+			IPSet: &ipsets.IPSetMetadata{
+				Name: util.NamedPortIPSetPrefix + portRule.Port.String(),
+				Type: ipsets.NamedPorts,
+			},
+			MatchType: policies.DstDstMatch,
+		},
+	}
+	return []*ipsets.TranslatedIPSet{namedPortIPSet}, setInfo, protocol
 }
 
-// TODO check this func references and change the label and op logic
-// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
-func (t *translator) craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, srcOrDstFlag string, isNamespaceSelector bool) []string {
-	var spec []string
-
-	if ns != "" {
-		spec = []string{
-			util.IptablesModuleFlag,
-			util.IptablesSetModuleFlag,
-			util.IptablesMatchSetFlag,
-			util.GetHashedName("ns-" + ns),
-			srcOrDstFlag,
-		}
-	}
-
-	if len(ops) == 1 && len(labels) == 1 {
-		if ops[0] == "" && labels[0] == "" {
-			if isNamespaceSelector {
-				// This is an empty namespaceSelector,
-				// selecting all namespaces.
-				spec = []string{
-					util.IptablesModuleFlag,
-					util.IptablesSetModuleFlag,
-					util.IptablesMatchSetFlag,
-					util.GetHashedName(util.KubeAllNamespacesFlag),
-					srcOrDstFlag,
-				}
-			}
-
-			return spec
-		}
-	}
-
-	for i := range ops {
-		// TODO need to change this logic, create a list of lsts here and have a single match against it
-		spec = append(spec, t.craftPartialIptEntrySpecFromOpAndLabel(ops[i], labels[i], srcOrDstFlag, isNamespaceSelector)...)
-	}
-
-	return spec
+func createCidrSetName(policyName, ns, direction string, ipBlockSetIndex int) string {
+	setNameFormat := "%s-in-ns-%s-%d%s"
+	return fmt.Sprintf(setNameFormat, policyName, ns, ipBlockSetIndex, direction)
 }
 
-// craftPartialIptEntrySpecFromSelector :- ns must be "" for namespace selectors
-// func helps in taking a labelSelector and converts it into corresponding matchSets
-// to be a used in full iptable rules
-//  selector *metav1.LabelSelector: is used to create matchSets
-//  ns string: helps with adding a namespace name in case of empty (or all) selector
-//  srcOrDstFlag string: helps with determining if the src flag is to used in matchsets or dst flag,
-// depending on ingress or egress translate policy
-//  isNamespaceSelector bool: helps in adding prefix for nameSpace ipsets
-func (t *translator) craftPartialIptEntrySpecFromSelector(ns string, selector *metav1.LabelSelector, srcOrDstFlag string, isNamespaceSelector bool) ([]string, []string, map[string][]string) {
-	// parse the sector into labels and maps of multiVal match Exprs
-	labelsWithOps, nsLabelListKVs := parseSelector(selector)
-	ops, labels := GetOperatorsAndLabels(labelsWithOps)
+func (t *translator) IPBlockIPSet(policyName, ns, direction string, ipBlockSetIndex int, IPBlockRule *networkingv1.IPBlock) *ipsets.TranslatedIPSet {
+	if IPBlockRule == nil || len(IPBlockRule.CIDR) <= 0 {
+		return nil
+	}
 
-	valueLabels := []string{}
-	listLabelsWithMembers := make(map[string][]string)
-	labelsForSpec := labels
-	// parseSelector returns a slice of processed label and a map of lists with members.
-	// now we need to compute the 2nd-level ipset names from lists and its members
-	// add use those 2nd level ipsets to be used to create the partial match set
-	for labelKeyWithOps, labelValueList := range nsLabelListKVs {
-		// look at each list and its members
-		op, labelKey := GetOperatorAndLabel(labelKeyWithOps)
-		// get the new 2nd level IpSet name
-		labelKVIpsetName := getSetNameForMultiValueSelector(labelKey, labelValueList)
-		if !util.StrExistsInSlice(labels, labelKVIpsetName) {
-			// Important: make sure length andordering of ops and labelsForSpec are same
-			// because craftPartialEntry loops over both of them at once and assumes
-			// a given position ops is to be applied on the same position label in labelsForSpec
+	// TODO: use it in networkPolicyController as well and use const for "out" and int
+	ipBlockIPSetName := createCidrSetName(policyName, ns, direction, ipBlockSetIndex)
+	ipBlockIPSet := &ipsets.TranslatedIPSet{
+		Metadata: &ipsets.IPSetMetadata{
+			Name: ipBlockIPSetName,
+			Type: ipsets.CIDRBlocks,
+		},
+		Members: []string{},
+	}
+
+	// TODO(junguk): "0.0.0.0/0"
+	//ipBlockInfo := []string{IPBlockRule.CIDR}
+	// TODO(jungukcho) Just use slices
+	// TODO(junguk): Do I need to create return slices or just *ipsets.TranslatedIPSet enough?
+	ipBlockIPSet.Members = append(ipBlockIPSet.Members, IPBlockRule.CIDR)
+	if len(IPBlockRule.Except) > 0 {
+		for _, except := range IPBlockRule.Except {
+			ipBlockIPSet.Members = append(ipBlockIPSet.Members, except+util.IpsetNomatch)
+		}
+	}
+	return ipBlockIPSet
+}
+
+func (t *translator) IPBlockRule(policyName, ns, direction string, ipBlockSetIndex int, IPBlockRule *networkingv1.IPBlock) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
+	if IPBlockRule == nil || len(IPBlockRule.CIDR) <= 0 {
+		return []*ipsets.TranslatedIPSet{}, []policies.SetInfo{}
+	}
+
+	ipBlockIPSet := t.IPBlockIPSet(policyName, ns, direction, ipBlockSetIndex, IPBlockRule)
+	setInfo := []policies.SetInfo{
+		{
+			IPSet: &ipsets.IPSetMetadata{
+				Name: ipBlockIPSet.Metadata.Name,
+				Type: ipsets.CIDRBlocks, // need to change name
+			},
+			Included:  false,
+			MatchType: policies.SrcMatch,
+		},
+	}
+
+	return []*ipsets.TranslatedIPSet{ipBlockIPSet}, setInfo
+}
+
+// createPodSelectorRule return srcList for ACL by using ops and labelsForSpec
+func (t *translator) createPodSelectorRule(ops []string, labelsForSpec []string) []policies.SetInfo {
+	srcList := []policies.SetInfo{}
+	for i := 0; i < len(labelsForSpec); i++ {
+		lableForSpec := labelsForSpec[i]
+		podIPSet := ipsets.TranslatedIPSet{
+			Metadata: &ipsets.IPSetMetadata{
+				Name: lableForSpec,
+				Type: ipsets.KeyValueLabelOfPod,
+			},
+			Members: []string{},
+		}
+
+		setInfo := policies.SetInfo{
+			// TODO(jungukcho): is using podIPSet.Metadata safe?
+			IPSet:     podIPSet.Metadata,
+			Included:  false,
+			MatchType: policies.DstMatch,
+		}
+
+		if ops[i] == "" {
+			setInfo.Included = true
+		}
+		srcList = append(srcList, setInfo)
+	}
+	return srcList
+}
+
+func (t *translator) createPodSelectorIPSets(singleValueLabels []string, multiValuesLabels map[string][]string) []*ipsets.TranslatedIPSet {
+	podSelectorIPSets := []*ipsets.TranslatedIPSet{}
+
+	for _, hashSet := range singleValueLabels {
+		ipset := &ipsets.TranslatedIPSet{
+			// TODO(jungukcho): create function and do not use capitals
+			Metadata: &ipsets.IPSetMetadata{
+				Name: hashSet,
+				Type: ipsets.KeyLabelOfPod,
+			},
+		}
+		podSelectorIPSets = append(podSelectorIPSets, ipset)
+	}
+
+	for listSetName, hashSet := range multiValuesLabels {
+		ipset := &ipsets.TranslatedIPSet{
+			Metadata: &ipsets.IPSetMetadata{
+				Name: listSetName,
+				Type: ipsets.NestedLabelOfPod,
+			},
+			Members: hashSet,
+		}
+		podSelectorIPSets = append(podSelectorIPSets, ipset)
+	}
+
+	return podSelectorIPSets
+}
+
+func (t *translator) targetPodSelectorInfo(ns string, selector *metav1.LabelSelector, srcOrDstFlag string) ([]string, []string, []string, map[string][]string) {
+	singleValueLabelsWithOps, multiValuesLabelsWithOps := parseSelector(selector)
+	ops, singleValueLabels := GetOperatorsAndLabels(singleValueLabelsWithOps)
+	labelsForSpec := make([]string, len(singleValueLabels))
+	copy(labelsForSpec, singleValueLabels)
+
+	listSetMembers := []string{}
+	// (TODO) []struct : key : string, value : []string - deterministic
+	multiValuesLabels := make(map[string][]string)
+
+	for multiValueLabelKeyWithOps, multiValueLabelList := range multiValuesLabelsWithOps {
+		op, multiValueLabelKey := GetOperatorAndLabel(multiValueLabelKeyWithOps)
+		ipSetNameForMultiValueLabel := getSetNameForMultiValueSelector(multiValueLabelKey, multiValueLabelList)
+		if !util.StrExistsInSlice(singleValueLabels, ipSetNameForMultiValueLabel) {
 			ops = append(ops, op)
-			// TODO doubt check if this 2nd level needs to be added to the labels when labels are added to lists
-			// check if the 2nd level is already part of labels
-			labelsForSpec = append(labelsForSpec, labelKVIpsetName)
+			labelsForSpec = append(labelsForSpec, ipSetNameForMultiValueLabel)
 		}
-		for _, labelValue := range labelValueList {
-			ipsetName := util.GetIpSetFromLabelKV(labelKey, labelValue)
-			valueLabels = append(valueLabels, ipsetName)
-			listLabelsWithMembers[labelKVIpsetName] = append(listLabelsWithMembers[labelKVIpsetName], ipsetName)
+		for _, labelValue := range multiValueLabelList {
+			ipsetName := util.GetIpSetFromLabelKV(multiValueLabelKey, labelValue)
+			listSetMembers = append(listSetMembers, ipsetName)
+			multiValuesLabels[ipSetNameForMultiValueLabel] = append(multiValuesLabels[ipSetNameForMultiValueLabel], ipsetName)
 		}
 	}
-	iptEntrySpecs := t.craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labelsForSpec, srcOrDstFlag, isNamespaceSelector)
-	// only append valueLabels to labels after creating the Ipt Spec with valueLabels
-	// as 1D valueLabels are included in 2nd level labelKVIpsetName
-	labels = append(labels, valueLabels...)
-	return iptEntrySpecs, labels, listLabelsWithMembers
+	singleValueLabels = append(singleValueLabels, listSetMembers...)
+	return ops, labelsForSpec, singleValueLabels, multiValuesLabels
 }
 
-// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
-func (t *translator) craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSelector, isNamespaceSelector bool) string {
-	if selector == nil {
-		return "none"
-	}
+func (t *translator) targetPodSelector(ns string, selector *metav1.LabelSelector, srcOrDstFlag string) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
+	ops, labelsForSpec, singleValueLabels, multiValuesLabels := t.targetPodSelectorInfo(ns, selector, srcOrDstFlag)
+	podSelectorIPSets := t.createPodSelectorIPSets(singleValueLabels, multiValuesLabels)
+	srcList := t.createPodSelectorRule(ops, labelsForSpec)
 
-	if len(selector.MatchExpressions) == 0 && len(selector.MatchLabels) == 0 {
-		if isNamespaceSelector {
-			return util.KubeAllNamespacesFlag
-		}
-
-		return "ns-" + ns
-	}
-
-	// TODO check if we are missing any crucial comment
-	labelsWithOps, labelKVs := parseSelector(selector)
-	ops, labelsWithoutOps := GetOperatorsAndLabels(labelsWithOps)
-	for labelKeyWithOps, labelValueList := range labelKVs {
-		op, labelKey := GetOperatorAndLabel(labelKeyWithOps)
-		labelKVIpsetName := getSetNameForMultiValueSelector(labelKey, labelValueList)
-		labelsWithoutOps = append(labelsWithoutOps, labelKVIpsetName)
-		ops = append(ops, op)
-	}
-
-	var prefix, postfix string
-	if isNamespaceSelector {
-		prefix = "ns-"
-	} else {
-		if ns != "" {
-			postfix = "-IN-ns-" + ns
-		}
-	}
-
-	comments := []string{}
-	for i := range labelsWithoutOps {
-		comments = append(comments, prefix+ops[i]+labelsWithoutOps[i])
-	}
-
-	sort.Strings(comments)
-	return strings.Join(comments, "-AND-") + postfix
+	return podSelectorIPSets, srcList
 }
 
-func (t *translator) appendSelectorLabelsToLists(lists, listLabelsWithMembers map[string][]string, isNamespaceSelector bool) {
-	for parsedListName, parsedListMembers := range listLabelsWithMembers {
-		if isNamespaceSelector {
-			parsedListName = util.GetNSNameWithPrefix(parsedListName)
+// TODO(jungukcho): get parameter for MatchType - direction?
+func (t *translator) allowAllTraffic() ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
+	allowAllIPSets := []*ipsets.TranslatedIPSet{
+		{
+			Metadata: &ipsets.IPSetMetadata{
+				Name: util.KubeAllNamespacesFlag,
+				Type: ipsets.KeyLabelOfNamespace,
+			},
+		},
+	}
+
+	setInfo := []policies.SetInfo{
+		{
+			//TODO(jungukcho): this is confusion IPSet -> Metadata
+			IPSet: &ipsets.IPSetMetadata{
+				Name: util.KubeAllNamespacesFlag,
+				Type: ipsets.KeyLabelOfNamespace,
+			},
+			MatchType: policies.SrcMatch,
+		},
+	}
+	return allowAllIPSets, setInfo
+}
+
+func (t *translator) defaultDropACL(npmNetpol *policies.NPMNetworkPolicy, hasIngress, hasEgress bool) {
+	if hasIngress {
+		ingressDropACL := &policies.ACLPolicy{
+			PolicyID:  npmNetpol.Name,
+			Target:    policies.Dropped,
+			Direction: policies.Ingress,
+			DstList:   npmNetpol.PodSelectorDstList,
 		}
-		for _, member := range parsedListMembers {
-			if isNamespaceSelector {
-				member = util.GetNSNameWithPrefix(member)
-			}
-			lists[parsedListName] = append(lists[parsedListName], member)
+		npmNetpol.ACLs = append(npmNetpol.ACLs, ingressDropACL)
+	}
+
+	if hasEgress {
+		egressDropACL := &policies.ACLPolicy{
+			PolicyID:  npmNetpol.Name,
+			Target:    policies.Dropped,
+			Direction: policies.Egress,
+			DstList:   npmNetpol.PodSelectorSrcList,
 		}
+		npmNetpol.ACLs = append(npmNetpol.ACLs, egressDropACL)
 	}
 }
 
-func (t *translator) translateIngress(ns string, policyName string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, map[string][]string, [][]string, []*iptm.IptEntry) {
+func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) ([]string, []string, map[string][]string, [][]string, []*iptm.IptEntry) {
 	var (
 		netHashIPsets   []string            // ipsets with type: net:hash
 		namedPorts      []string            // ipsets with type: hash:ip,port
@@ -241,29 +309,24 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 		ipCidrs         [][]string
 		entries         []*iptm.IptEntry
 		fromRuleEntries []*iptm.IptEntry
-		addedCidrEntry  bool // all cidr entry will be added in one set per from/to rule
-		addedPortEntry  bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 	)
 
-	log.Logf("started parsing ingress rule")
-	netHashIPsets = append(netHashIPsets, "ns-"+ns)
-	ipCidrs = make([][]string, len(rules))
-	listIPsets = make(map[string][]string)
+	var addedCidrEntry bool // all cidr entry will be added in one set per from/to rule
+	var addedPortEntry bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 
-	targetSelectorIptEntrySpec, labels, listLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector(ns, &targetSelector, util.IptablesDstFlag, false)
-	netHashIPsets = append(netHashIPsets, labels...)
-	for parsedListName, parsedListMembers := range listLabelsWithMembers {
-		listIPsets[parsedListName] = append(listIPsets[parsedListName], parsedListMembers...)
-	}
-	targetSelectorComment := t.craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
+	podSelectorIPSets, targetPodDstList := t.targetPodSelector(npmNetpol.NameSpace, &targetSelector, util.IptablesDstFlag)
+	npmNetpol.PodSelectorDstList = targetPodDstList
+	npmNetpol.PodSelectorIPSets = podSelectorIPSets
+
+	targetSelectorIptEntrySpec := []string{}
+	targetSelectorComment := ""
 
 	for i, rule := range rules {
+		fmt.Printf("i: %d rule: %d\n", i, len(rule.Ports))
 		allowExternal := false
 		portRuleExists := rule.Ports != nil && len(rule.Ports) > 0
 		fromRuleExists := false
 		addedPortEntry = addedPortEntry || portRuleExists
-		ipCidrs[i] = make([]string, len(rule.From))
-
 		if rule.From != nil {
 			if len(rule.From) == 0 {
 				fromRuleExists = true
@@ -283,96 +346,50 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 		}
 
 		if !portRuleExists && !fromRuleExists && !allowExternal {
-			entry := &iptm.IptEntry{
-				Chain: util.IptablesAzureIngressPortChain,
+			// TODO(jungukcho): make it function
+			acl := &policies.ACLPolicy{
+				PolicyID:  npmNetpol.Name,
+				Target:    policies.Allowed,
+				Direction: policies.Ingress,
+				DstList:   targetPodDstList,
 			}
-			entry.Specs = append(
-				entry.Specs,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName(util.KubeAllNamespacesFlag),
-				util.IptablesSrcFlag,
-			)
-			entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
-			entry.Specs = append(
-				entry.Specs,
-				util.IptablesJumpFlag,
-				util.IptablesMark,
-				util.IptablesSetMarkFlag,
-				util.IptablesAzureIngressMarkHex,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-"+targetSelectorComment+
-					"-FROM-"+util.KubeAllNamespacesFlag,
-			)
-
-			entries = append(entries, entry)
-			listIPsets[util.KubeAllNamespacesFlag] = []string{}
+			ruleIPSets, srcList := t.allowAllTraffic()
+			acl.SrcList = srcList
+			npmNetpol.ACLs = append(npmNetpol.ACLs, acl)
+			npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, ruleIPSets...)
 			continue
 		}
 
 		// Only Ports rules exist
 		if portRuleExists && !fromRuleExists && !allowExternal {
+			// TODO(jungukcho): make it function
+			onlyPortACL := &policies.ACLPolicy{
+				PolicyID:  npmNetpol.Name,
+				Target:    policies.Allowed,
+				Direction: policies.Ingress,
+				DstList:   targetPodDstList,
+			}
+
 			for _, portRule := range rule.Ports {
-				switch portCheck := t.getPortType(portRule); portCheck {
-				case "namedport":
-					portName := util.NamedPortIPSetPrefix + portRule.Port.String()
-					namedPorts = append(namedPorts, portName)
-					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureIngressPortChain,
-						Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-					}
-					if portRule.Protocol != nil {
-						entry.Specs = append(
-							entry.Specs,
-							util.IptablesProtFlag,
-							string(*portRule.Protocol),
-						)
-					}
-					entry.Specs = append(
-						entry.Specs,
-						util.IptablesModuleFlag,
-						util.IptablesSetModuleFlag,
-						util.IptablesMatchSetFlag,
-						util.GetHashedName(portName),
-						util.IptablesDstFlag+","+util.IptablesDstFlag,
-						util.IptablesJumpFlag,
-						util.IptablesMark,
-						util.IptablesSetMarkFlag,
-						util.IptablesAzureIngressMarkHex,
-						util.IptablesModuleFlag,
-						util.IptablesCommentModuleFlag,
-						util.IptablesCommentFlag,
-						"ALLOW-ALL-"+
-							t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-							"-TO-"+targetSelectorComment,
-					)
-					entries = append(entries, entry)
-				case "validport":
-					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureIngressPortChain,
-						Specs: t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag),
-					}
-					entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
-					entry.Specs = append(
-						entry.Specs,
-						util.IptablesJumpFlag,
-						util.IptablesMark,
-						util.IptablesSetMarkFlag,
-						util.IptablesAzureIngressMarkHex,
-						util.IptablesModuleFlag,
-						util.IptablesCommentModuleFlag,
-						util.IptablesCommentFlag,
-						"ALLOW-ALL-"+
-							t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-							"-TO-"+targetSelectorComment,
-					)
-					entries = append(entries, entry)
-				default:
-					log.Logf("Invalid NetworkPolicyPort.")
+				portType := getPortType(portRule)
+				if portType == "invalid" {
+					// TODO(jungukcho): deal with error
+					//return fmt.Errorf("Invalid Port type %s", portType)
+					klog.Info("Invalid NetworkPolicyPort")
+					continue
 				}
+
+				if portType == "namedport" {
+					namedPortIPSet, namedPortRuleDstList, protocol := t.namedPortRule(&portRule)
+					onlyPortACL.DstList = append(onlyPortACL.DstList, namedPortRuleDstList...)
+					onlyPortACL.Protocol = policies.Protocol(protocol)
+					npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet...)
+				} else if portType == "validport" { // TODO (jungukcho): change validport -> numberPort
+					portInfo, protocol := t.portRule(&portRule)
+					onlyPortACL.DstPorts = portInfo
+					onlyPortACL.Protocol = policies.Protocol(protocol)
+				}
+				npmNetpol.ACLs = append(npmNetpol.ACLs, onlyPortACL)
 			}
 			continue
 		}
@@ -382,119 +399,52 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 			// Handle IPBlock field of NetworkPolicyPeer
 			if fromRule.IPBlock != nil {
 				if len(fromRule.IPBlock.CIDR) > 0 {
-					ipCidrs[i] = append(ipCidrs[i], fromRule.IPBlock.CIDR)
-					cidrIpsetName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + "in"
-					if len(fromRule.IPBlock.Except) > 0 {
-						for _, except := range fromRule.IPBlock.Except {
-							// TODO move IP cidrs rule to allow based only
-							ipCidrs[i] = append(ipCidrs[i], except+util.IpsetNomatch)
-						}
-					}
+					// TODO(jungukcho): check this - need UTs
+					// TODO(jungukcho): need a const for "in"
+					ipBlockIPSet, ipBlockSrcList := t.IPBlockRule(npmNetpol.Name, npmNetpol.NameSpace, "in", i, fromRule.IPBlock)
+					npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, ipBlockIPSet...)
 					if j != 0 && addedCidrEntry {
 						continue
 					}
-					if portRuleExists {
-						for _, portRule := range rule.Ports {
-							switch portCheck := t.getPortType(portRule); portCheck {
-							case "namedport":
-								portName := util.NamedPortIPSetPrefix + portRule.Port.String()
-								namedPorts = append(namedPorts, portName)
-								entry := &iptm.IptEntry{
-									Chain: util.IptablesAzureIngressPortChain,
-									Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-								}
-								if portRule.Protocol != nil {
-									entry.Specs = append(
-										entry.Specs,
-										util.IptablesProtFlag,
-										string(*portRule.Protocol),
-									)
-								}
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesModuleFlag,
-									util.IptablesSetModuleFlag,
-									util.IptablesMatchSetFlag,
-									util.GetHashedName(cidrIpsetName),
-									util.IptablesSrcFlag,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesModuleFlag,
-									util.IptablesSetModuleFlag,
-									util.IptablesMatchSetFlag,
-									util.GetHashedName(portName),
-									util.IptablesDstFlag+","+util.IptablesDstFlag,
-									util.IptablesJumpFlag,
-									util.IptablesMark,
-									util.IptablesSetMarkFlag,
-									util.IptablesAzureIngressMarkHex,
-									util.IptablesModuleFlag,
-									util.IptablesCommentModuleFlag,
-									util.IptablesCommentFlag,
-									"ALLOW-"+cidrIpsetName+
-										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-										"-TO-"+targetSelectorComment,
-								)
-								fromRuleEntries = append(fromRuleEntries, entry)
-							case "validport":
-								entry := &iptm.IptEntry{
-									Chain: util.IptablesAzureIngressPortChain,
-									Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-								}
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesModuleFlag,
-									util.IptablesSetModuleFlag,
-									util.IptablesMatchSetFlag,
-									util.GetHashedName(cidrIpsetName),
-									util.IptablesSrcFlag,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesJumpFlag,
-									util.IptablesMark,
-									util.IptablesSetMarkFlag,
-									util.IptablesAzureIngressMarkHex,
-									util.IptablesModuleFlag,
-									util.IptablesCommentModuleFlag,
-									util.IptablesCommentFlag,
-									"ALLOW-"+cidrIpsetName+
-										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-										"-TO-"+targetSelectorComment,
-								)
-								fromRuleEntries = append(fromRuleEntries, entry)
-							default:
-								log.Logf("Invalid NetworkPolicyPort.")
-							}
+
+					if !portRuleExists {
+						fromRuleACL := &policies.ACLPolicy{
+							PolicyID:  npmNetpol.Name,
+							Target:    policies.Allowed,
+							Direction: policies.Ingress,
+							DstList:   targetPodDstList,
 						}
+						fromRuleACL.SrcList = append(fromRuleACL.SrcList, ipBlockSrcList...)
+						npmNetpol.ACLs = append(npmNetpol.ACLs, fromRuleACL)
 					} else {
-						entry := &iptm.IptEntry{
-							Chain: util.IptablesAzureIngressFromChain,
-							Specs: append([]string(nil), targetSelectorIptEntrySpec...),
+						for _, portRule := range rule.Ports {
+							ipBlockAndPortRuleACL := &policies.ACLPolicy{
+								PolicyID:  npmNetpol.Name,
+								Target:    policies.Allowed,
+								Direction: policies.Ingress,
+								DstList:   targetPodDstList,
+								SrcList:   ipBlockSrcList,
+							}
+
+							portType := getPortType(portRule)
+							if portType == "invalid" {
+								// TODO(jungukcho): deal with error
+								klog.Info("Invalid NetworkPolicyPort")
+								continue
+							}
+
+							if portType == "namedport" {
+								namedPortIPSet, namedPortRuleDstList, protocol := t.namedPortRule(&portRule)
+								ipBlockAndPortRuleACL.DstList = append(ipBlockAndPortRuleACL.DstList, namedPortRuleDstList...)
+								ipBlockAndPortRuleACL.Protocol = policies.Protocol(protocol)
+								npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet...)
+							} else if portType == "validport" { // TODO (jungukcho): change validport -> numberPort
+								portInfo, protocol := t.portRule(&portRule)
+								ipBlockAndPortRuleACL.DstPorts = portInfo
+								ipBlockAndPortRuleACL.Protocol = policies.Protocol(protocol)
+							}
+							npmNetpol.ACLs = append(npmNetpol.ACLs, ipBlockAndPortRuleACL)
 						}
-						entry.Specs = append(
-							entry.Specs,
-							util.IptablesModuleFlag,
-							util.IptablesSetModuleFlag,
-							util.IptablesMatchSetFlag,
-							util.GetHashedName(cidrIpsetName),
-							util.IptablesSrcFlag,
-							util.IptablesJumpFlag,
-							util.IptablesMark,
-							util.IptablesSetMarkFlag,
-							util.IptablesAzureIngressMarkHex,
-							util.IptablesModuleFlag,
-							util.IptablesCommentModuleFlag,
-							util.IptablesCommentFlag,
-							"ALLOW-"+cidrIpsetName+
-								"-TO-"+targetSelectorComment,
-						)
-						fromRuleEntries = append(fromRuleEntries, entry)
 					}
 					addedCidrEntry = true
 				}
@@ -557,7 +507,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+iptPartialNsComment+
-										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule)+
 										"-TO-"+targetSelectorComment,
 								)
 								entries = append(entries, entry)
@@ -572,7 +522,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 								)
 								entry.Specs = append(
 									entry.Specs,
-									t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
+									t.craftPartialIptEntrySpecFromPort(portRule)...,
 								)
 								entry.Specs = append(
 									entry.Specs,
@@ -584,7 +534,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+iptPartialNsComment+
-										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule)+
 										"-TO-"+targetSelectorComment,
 								)
 								entries = append(entries, entry)
@@ -621,16 +571,16 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 
 			if fromRule.PodSelector != nil && fromRule.NamespaceSelector == nil {
 				// TODO check old code if we need any ns- prefix for pod selectors
-				iptPartialPodSpec, podLabelsWithoutOps, listPodLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector(ns, fromRule.PodSelector, util.IptablesSrcFlag, false)
+				iptPartialPodSpec, podLabelsWithoutOps, listPodLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector(npmNetpol.NameSpace, fromRule.PodSelector, util.IptablesSrcFlag, false)
 				if len(podLabelsWithoutOps) == 1 {
 					if podLabelsWithoutOps[0] == "" {
-						podLabelsWithoutOps[0] = util.GetNSNameWithPrefix(ns)
+						podLabelsWithoutOps[0] = util.GetNSNameWithPrefix(npmNetpol.NameSpace)
 					}
 				}
 				netHashIPsets = append(netHashIPsets, podLabelsWithoutOps...)
 				// TODO check this if ns- is needed here.
 				t.appendSelectorLabelsToLists(listIPsets, listPodLabelsWithMembers, false)
-				iptPartialPodComment := t.craftPartialIptablesCommentFromSelector(ns, fromRule.PodSelector, false)
+				iptPartialPodComment := t.craftPartialIptablesCommentFromSelector(npmNetpol.NameSpace, fromRule.PodSelector, false)
 				if portRuleExists {
 					for _, portRule := range rule.Ports {
 						switch portCheck := t.getPortType(portRule); portCheck {
@@ -667,7 +617,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule)+
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -682,7 +632,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 							)
 							entry.Specs = append(
 								entry.Specs,
-								t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
+								t.craftPartialIptEntrySpecFromPort(portRule)...,
 							)
 							entry.Specs = append(
 								entry.Specs,
@@ -694,7 +644,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule)+
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -791,7 +741,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialNsComment+
 									"-AND-"+iptPartialPodComment+
-									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule)+
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -810,7 +760,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 							)
 							entry.Specs = append(
 								entry.Specs,
-								t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
+								t.craftPartialIptEntrySpecFromPort(portRule)...,
 							)
 							entry.Specs = append(
 								entry.Specs,
@@ -823,7 +773,7 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialNsComment+
 									"-AND-"+iptPartialPodComment+
-									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule)+
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -863,29 +813,19 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 		}
 
 		if allowExternal {
-			entry := &iptm.IptEntry{
-				Chain: util.IptablesAzureIngressPortChain,
-				Specs: append([]string(nil), targetSelectorIptEntrySpec...),
+			allowExternalACL := &policies.ACLPolicy{
+				PolicyID:  npmNetpol.Name,
+				Target:    policies.Allowed,
+				Direction: policies.Ingress,
+				DstList:   targetPodDstList,
 			}
-			entry.Specs = append(
-				entry.Specs,
-				util.IptablesJumpFlag,
-				util.IptablesMark,
-				util.IptablesSetMarkFlag,
-				util.IptablesAzureIngressMarkHex,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				"ALLOW-ALL-TO-"+
-					targetSelectorComment,
-			)
-			entries = append(entries, entry)
-			continue
+			npmNetpol.ACLs = append(npmNetpol.ACLs, allowExternalACL)
 		}
 	}
 
 	// prepending fromRuleEntries (which is in reverse order) so that they will retain correct ordering
 	// of drop->allow... when the rules are beind prepended to their corresponding chain
+	// TODO(jungukcho): Is it necessary?
 	if len(fromRuleEntries) > 0 {
 		entries = append(fromRuleEntries, entries...)
 	}
@@ -894,733 +834,321 @@ func (t *translator) translateIngress(ns string, policyName string, targetSelect
 	return util.DropEmptyFields(netHashIPsets), util.DropEmptyFields(namedPorts), listIPsets, ipCidrs, entries
 }
 
-func (t *translator) translateEgress(ns string, policyName string, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyEgressRule) ([]string, []string, map[string][]string, [][]string, []*iptm.IptEntry) {
+func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, map[string][]string, [][]string, [][]string, []*iptm.IptEntry) {
 	var (
-		netHashIPsets  []string            // ipsets with type: net:hash
-		namedPorts     []string            // ipsets with type: hash:ip,port
-		listIPsets     map[string][]string // ipsets with type: list:set
-		ipCidrs        [][]string
-		entries        []*iptm.IptEntry
-		toRuleEntries  []*iptm.IptEntry
-		addedCidrEntry bool // all cidr entry will be added in one set per from/to rule
-		addedPortEntry bool // add drop entry when there are non ALLOW-ALL* rules
+		resultSets            []string
+		resultNamedPorts      []string
+		resultListMap         map[string][]string
+		resultIngressIPCidrs  [][]string
+		resultEgressIPCidrs   [][]string
+		entries               []*iptm.IptEntry
+		hasIngress, hasEgress bool
 	)
 
-	log.Logf("started parsing egress rule")
-	netHashIPsets = append(netHashIPsets, "ns-"+ns)
-	ipCidrs = make([][]string, len(rules))
-	listIPsets = make(map[string][]string)
+	defer func() {
+		log.Logf("Finished translatePolicy")
+		log.Logf("sets: %v", resultSets)
+		log.Logf("lists: %v", resultListMap)
+		log.Logf("entries: ")
+		for _, entry := range entries {
+			log.Logf("entry: %+v", entry)
+		}
+	}()
 
-	targetSelectorIptEntrySpec, labels, listLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector(ns, &targetSelector, util.IptablesSrcFlag, false)
-	netHashIPsets = append(netHashIPsets, labels...)
-	t.appendSelectorLabelsToLists(listIPsets, listLabelsWithMembers, false)
-	targetSelectorComment := t.craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
-	for i, rule := range rules {
-		allowExternal := false
-		portRuleExists := rule.Ports != nil && len(rule.Ports) > 0
-		toRuleExists := false
-		addedPortEntry = addedPortEntry || portRuleExists
-		ipCidrs[i] = make([]string, len(rule.To))
+	npNs := npObj.ObjectMeta.Namespace
+	policyName := npObj.ObjectMeta.Name
+	resultListMap = make(map[string][]string)
 
-		if rule.To != nil {
-			if len(rule.To) == 0 {
-				toRuleExists = true
-				allowExternal = true
-			}
+	// TODO(jungukcho): craete this before calling translateIngress function
+	npmNetpol := &policies.NPMNetworkPolicy{
+		Name:      policyName,
+		NameSpace: npNs,
+	}
 
-			for _, toRule := range rule.To {
-				if toRule.PodSelector != nil ||
-					toRule.NamespaceSelector != nil ||
-					toRule.IPBlock != nil {
-					toRuleExists = true
-					break
-				}
-			}
-		} else if !portRuleExists {
-			allowExternal = true
+	//targetSelectorIptEntrySpec, targetSelectorLabels, listLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector(npNs, &npObj.Spec.PodSelector, util.IptablesDstFlag, false)
+	// Since nested ipset list:sets are not allowed. We cannot use 2nd level Ipsets
+	// for NameSpaceSelectors with multiple values
+	// NPM will need to duplicate rules for each value in NSSelector
+	if len(npObj.Spec.PolicyTypes) == 0 {
+		ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := t.translateIngress(npmNetpol, npObj.Spec.PodSelector, npObj.Spec.Ingress)
+		resultSets = append(resultSets, ingressSets...)
+		resultNamedPorts = append(resultNamedPorts, ingressNamedPorts...)
+		for resultListKey, resultLists := range ingressLists {
+			resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
+		}
+		entries = append(entries, ingressEntries...)
+
+		egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
+		resultSets = append(resultSets, egressSets...)
+		resultNamedPorts = append(resultNamedPorts, egressNamedPorts...)
+		for resultListKey, resultLists := range egressLists {
+			resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
+		}
+		entries = append(entries, egressEntries...)
+
+		hasIngress = len(ingressSets) > 0
+		hasEgress = len(egressSets) > 0
+
+		t.defaultDropACL(npmNetpol, hasIngress, hasEgress)
+
+		//entries = append(entries, t.getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
+		for resultListKey, resultLists := range resultListMap {
+			resultListMap[resultListKey] = util.UniqueStrSlice(resultLists)
 		}
 
-		if !portRuleExists && !toRuleExists && !allowExternal {
-			entry := &iptm.IptEntry{
-				Chain: util.IptablesAzureEgressPortChain,
-				Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-			}
-			entry.Specs = append(
-				entry.Specs,
-				util.IptablesModuleFlag,
-				util.IptablesSetModuleFlag,
-				util.IptablesMatchSetFlag,
-				util.GetHashedName(util.KubeAllNamespacesFlag),
-				util.IptablesDstFlag,
-				util.IptablesJumpFlag,
-				util.IptablesMark,
-				util.IptablesSetMarkFlag,
-				util.IptablesAzureEgressXMarkHex,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-"+targetSelectorComment+
-					"-TO-"+util.KubeAllNamespacesFlag,
-			)
+		return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultNamedPorts), resultListMap, ingressIPCidrs, egressIPCidrs, entries
+	}
 
-			entries = append(entries, entry)
-			if _, ok := listIPsets[util.KubeAllNamespacesFlag]; !ok {
-				listIPsets[util.KubeAllNamespacesFlag] = nil
+	for _, ptype := range npObj.Spec.PolicyTypes {
+		if ptype == networkingv1.PolicyTypeIngress {
+			ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := t.translateIngress(npmNetpol, npObj.Spec.PodSelector, npObj.Spec.Ingress)
+			resultSets = append(resultSets, ingressSets...)
+			resultNamedPorts = append(resultNamedPorts, ingressNamedPorts...)
+			for resultListKey, resultLists := range ingressLists {
+				resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
 			}
-			continue
-		}
+			resultIngressIPCidrs = ingressIPCidrs
+			entries = append(entries, ingressEntries...)
 
-		// Only Ports rules exist
-		if portRuleExists && !toRuleExists && !allowExternal {
-			for _, portRule := range rule.Ports {
-				switch portCheck := t.getPortType(portRule); portCheck {
-				case "namedport":
-					portName := util.NamedPortIPSetPrefix + portRule.Port.String()
-					namedPorts = append(namedPorts, portName)
-					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureEgressPortChain,
-						Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-					}
-					if portRule.Protocol != nil {
-						entry.Specs = append(
-							entry.Specs,
-							util.IptablesProtFlag,
-							string(*portRule.Protocol),
-						)
-					}
-					entry.Specs = append(
-						entry.Specs,
-						util.IptablesModuleFlag,
-						util.IptablesSetModuleFlag,
-						util.IptablesMatchSetFlag,
-						util.GetHashedName(portName),
-						util.IptablesDstFlag+","+util.IptablesDstFlag,
-						util.IptablesJumpFlag,
-						util.IptablesMark,
-						util.IptablesSetMarkFlag,
-						util.IptablesAzureEgressXMarkHex,
-						util.IptablesModuleFlag,
-						util.IptablesCommentModuleFlag,
-						util.IptablesCommentFlag,
-						"ALLOW-ALL-TO-"+
-							t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-							"-FROM-"+targetSelectorComment,
-					)
-					entries = append(entries, entry)
-				case "validport":
-					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureEgressPortChain,
-						Specs: t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag),
-					}
-					entry.Specs = append(entry.Specs, targetSelectorIptEntrySpec...)
-					entry.Specs = append(
-						entry.Specs,
-						util.IptablesJumpFlag,
-						util.IptablesMark,
-						util.IptablesSetMarkFlag,
-						util.IptablesAzureEgressXMarkHex,
-						util.IptablesModuleFlag,
-						util.IptablesCommentModuleFlag,
-						util.IptablesCommentFlag,
-						"ALLOW-ALL-TO-"+
-							t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-							"-FROM-"+targetSelectorComment,
-					)
-					entries = append(entries, entry)
-				default:
-					log.Logf("Invalid NetworkPolicyPort.")
-				}
-			}
-			continue
-		}
-
-		// toRuleExists
-		for j, toRule := range rule.To {
-			// Handle IPBlock field of NetworkPolicyPeer
-			if toRule.IPBlock != nil {
-				if len(toRule.IPBlock.CIDR) > 0 {
-					ipCidrs[i] = append(ipCidrs[i], toRule.IPBlock.CIDR)
-					cidrIpsetName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + "out"
-					if len(toRule.IPBlock.Except) > 0 {
-						for _, except := range toRule.IPBlock.Except {
-							// TODO move IP cidrs rule to allow based only
-							ipCidrs[i] = append(ipCidrs[i], except+util.IpsetNomatch)
-						}
-					}
-					if j != 0 && addedCidrEntry {
-						continue
-					}
-					if portRuleExists {
-						for _, portRule := range rule.Ports {
-							switch portCheck := t.getPortType(portRule); portCheck {
-							case "namedport":
-								portName := util.NamedPortIPSetPrefix + portRule.Port.String()
-								namedPorts = append(namedPorts, portName)
-								entry := &iptm.IptEntry{
-									Chain: util.IptablesAzureEgressPortChain,
-									Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-								}
-								if portRule.Protocol != nil {
-									entry.Specs = append(
-										entry.Specs,
-										util.IptablesProtFlag,
-										string(*portRule.Protocol),
-									)
-								}
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesModuleFlag,
-									util.IptablesSetModuleFlag,
-									util.IptablesMatchSetFlag,
-									util.GetHashedName(cidrIpsetName),
-									util.IptablesDstFlag,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesModuleFlag,
-									util.IptablesSetModuleFlag,
-									util.IptablesMatchSetFlag,
-									util.GetHashedName(portName),
-									util.IptablesDstFlag+","+util.IptablesDstFlag,
-									util.IptablesJumpFlag,
-									util.IptablesMark,
-									util.IptablesSetMarkFlag,
-									util.IptablesAzureEgressXMarkHex,
-									util.IptablesModuleFlag,
-									util.IptablesCommentModuleFlag,
-									util.IptablesCommentFlag,
-									"ALLOW-"+cidrIpsetName+
-										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-										"-FROM-"+targetSelectorComment,
-								)
-								toRuleEntries = append(toRuleEntries, entry)
-							case "validport":
-								entry := &iptm.IptEntry{
-									Chain: util.IptablesAzureEgressPortChain,
-									Specs: t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag),
-								}
-								entry.Specs = append(
-									entry.Specs,
-									targetSelectorIptEntrySpec...,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesModuleFlag,
-									util.IptablesSetModuleFlag,
-									util.IptablesMatchSetFlag,
-									util.GetHashedName(cidrIpsetName),
-									util.IptablesDstFlag,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesJumpFlag,
-									util.IptablesMark,
-									util.IptablesSetMarkFlag,
-									util.IptablesAzureEgressXMarkHex,
-									util.IptablesModuleFlag,
-									util.IptablesCommentModuleFlag,
-									util.IptablesCommentFlag,
-									"ALLOW-"+cidrIpsetName+
-										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-										"-FROM-"+targetSelectorComment,
-								)
-								toRuleEntries = append(toRuleEntries, entry)
-							default:
-								log.Logf("Invalid NetworkPolicyPort.")
-							}
-						}
-					} else {
-						entry := &iptm.IptEntry{
-							Chain: util.IptablesAzureEgressToChain,
-						}
-						entry.Specs = append(
-							entry.Specs,
-							targetSelectorIptEntrySpec...,
-						)
-						entry.Specs = append(
-							entry.Specs,
-							util.IptablesModuleFlag,
-							util.IptablesSetModuleFlag,
-							util.IptablesMatchSetFlag,
-							util.GetHashedName(cidrIpsetName),
-							util.IptablesDstFlag,
-						)
-						entry.Specs = append(
-							entry.Specs,
-							util.IptablesJumpFlag,
-							util.IptablesMark,
-							util.IptablesSetMarkFlag,
-							util.IptablesAzureEgressXMarkHex,
-							util.IptablesModuleFlag,
-							util.IptablesCommentModuleFlag,
-							util.IptablesCommentFlag,
-							"ALLOW-"+cidrIpsetName+
-								"-FROM-"+targetSelectorComment,
-						)
-						toRuleEntries = append(toRuleEntries, entry)
-					}
-					addedCidrEntry = true
-				}
-				continue
-			}
-
-			// Handle podSelector and namespaceSelector.
-			// For PodSelector, use hash:net in ipset.
-			// For NamespaceSelector, use set:list in ipset.
-			if toRule.PodSelector == nil && toRule.NamespaceSelector == nil {
-				continue
-			}
-
-			if toRule.PodSelector == nil && toRule.NamespaceSelector != nil {
-				for _, nsSelector := range FlattenNameSpaceSelector(toRule.NamespaceSelector) {
-					iptPartialNsSpec, nsLabelsWithoutOps, listLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector("", &nsSelector, util.IptablesDstFlag, true)
-					if len(nsLabelsWithoutOps) == 1 && nsLabelsWithoutOps[0] == "" {
-						// Empty namespaceSelector. This selects all namespaces
-						nsLabelsWithoutOps[0] = util.KubeAllNamespacesFlag
-						if _, ok := listIPsets[nsLabelsWithoutOps[0]]; !ok {
-							listIPsets[nsLabelsWithoutOps[0]] = nil
-						}
-					} else {
-						for i := range nsLabelsWithoutOps {
-							// Add namespaces prefix to distinguish namespace ipset lists and pod ipsets
-							nsLabelsWithoutOps[i] = util.GetNSNameWithPrefix(nsLabelsWithoutOps[i])
-							if _, ok := listIPsets[nsLabelsWithoutOps[i]]; !ok {
-								listIPsets[nsLabelsWithoutOps[i]] = nil
-							}
-						}
-						t.appendSelectorLabelsToLists(listIPsets, listLabelsWithMembers, true)
-					}
-					iptPartialNsComment := t.craftPartialIptablesCommentFromSelector("", &nsSelector, true)
-					if portRuleExists {
-						for _, portRule := range rule.Ports {
-							switch portCheck := t.getPortType(portRule); portCheck {
-							case "namedport":
-								portName := util.NamedPortIPSetPrefix + portRule.Port.String()
-								namedPorts = append(namedPorts, portName)
-								entry := &iptm.IptEntry{
-									Chain: util.IptablesAzureEgressPortChain,
-									Specs: append([]string(nil), iptPartialNsSpec...),
-								}
-								entry.Specs = append(
-									entry.Specs,
-									targetSelectorIptEntrySpec...,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesModuleFlag,
-									util.IptablesSetModuleFlag,
-									util.IptablesMatchSetFlag,
-									util.GetHashedName(portName),
-									util.IptablesDstFlag+","+util.IptablesDstFlag,
-									util.IptablesJumpFlag,
-									util.IptablesMark,
-									util.IptablesSetMarkFlag,
-									util.IptablesAzureEgressXMarkHex,
-									util.IptablesModuleFlag,
-									util.IptablesCommentModuleFlag,
-									util.IptablesCommentFlag,
-									"ALLOW-"+iptPartialNsComment+
-										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-										"-FROM-"+targetSelectorComment,
-								)
-								entries = append(entries, entry)
-							case "validport":
-								entry := &iptm.IptEntry{
-									Chain: util.IptablesAzureEgressPortChain,
-									Specs: append([]string(nil), iptPartialNsSpec...),
-								}
-								entry.Specs = append(
-									entry.Specs,
-									t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									targetSelectorIptEntrySpec...,
-								)
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesJumpFlag,
-									util.IptablesMark,
-									util.IptablesSetMarkFlag,
-									util.IptablesAzureEgressXMarkHex,
-									util.IptablesModuleFlag,
-									util.IptablesCommentModuleFlag,
-									util.IptablesCommentFlag,
-									"ALLOW-"+iptPartialNsComment+
-										"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-										"-FROM-"+targetSelectorComment,
-								)
-								entries = append(entries, entry)
-							default:
-								log.Logf("Invalid NetworkPolicyPort.")
-							}
-						}
-					} else {
-						entry := &iptm.IptEntry{
-							Chain: util.IptablesAzureEgressToChain,
-							Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-						}
-						entry.Specs = append(
-							entry.Specs,
-							iptPartialNsSpec...,
-						)
-						entry.Specs = append(
-							entry.Specs,
-							util.IptablesJumpFlag,
-							util.IptablesMark,
-							util.IptablesSetMarkFlag,
-							util.IptablesAzureEgressXMarkHex,
-							util.IptablesModuleFlag,
-							util.IptablesCommentModuleFlag,
-							util.IptablesCommentFlag,
-							"ALLOW-"+targetSelectorComment+
-								"-TO-"+iptPartialNsComment,
-						)
-						entries = append(entries, entry)
-					}
-				}
-				continue
-			}
-
-			if toRule.PodSelector != nil && toRule.NamespaceSelector == nil {
-				iptPartialPodSpec, podLabelsWithoutOps, listPodLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector(ns, toRule.PodSelector, util.IptablesDstFlag, false)
-				if len(podLabelsWithoutOps) == 1 {
-					if podLabelsWithoutOps[0] == "" {
-						podLabelsWithoutOps[0] = util.GetNSNameWithPrefix(ns)
-					}
-				}
-				netHashIPsets = append(netHashIPsets, podLabelsWithoutOps...)
-				// TODO check if the ns- is needed here ?
-				t.appendSelectorLabelsToLists(listIPsets, listPodLabelsWithMembers, false)
-				iptPartialPodComment := t.craftPartialIptablesCommentFromSelector(ns, toRule.PodSelector, false)
-				if portRuleExists {
-					for _, portRule := range rule.Ports {
-						switch portCheck := t.getPortType(portRule); portCheck {
-						case "namedport":
-							portName := util.NamedPortIPSetPrefix + portRule.Port.String()
-							namedPorts = append(namedPorts, portName)
-							entry := &iptm.IptEntry{
-								Chain: util.IptablesAzureEgressPortChain,
-								Specs: append([]string(nil), iptPartialPodSpec...),
-							}
-							entry.Specs = append(
-								entry.Specs,
-								targetSelectorIptEntrySpec...,
-							)
-							if portRule.Protocol != nil {
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesProtFlag,
-									string(*portRule.Protocol),
-								)
-							}
-							entry.Specs = append(
-								entry.Specs,
-								util.IptablesModuleFlag,
-								util.IptablesSetModuleFlag,
-								util.IptablesMatchSetFlag,
-								util.GetHashedName(portName),
-								util.IptablesDstFlag+","+util.IptablesDstFlag,
-								util.IptablesJumpFlag,
-								util.IptablesMark,
-								util.IptablesSetMarkFlag,
-								util.IptablesAzureEgressXMarkHex,
-								util.IptablesModuleFlag,
-								util.IptablesCommentModuleFlag,
-								util.IptablesCommentFlag,
-								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-									"-FROM-"+targetSelectorComment,
-							)
-							entries = append(entries, entry)
-						case "validport":
-							entry := &iptm.IptEntry{
-								Chain: util.IptablesAzureEgressPortChain,
-								Specs: append([]string(nil), iptPartialPodSpec...),
-							}
-							entry.Specs = append(
-								entry.Specs,
-								t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
-							)
-							entry.Specs = append(
-								entry.Specs,
-								targetSelectorIptEntrySpec...,
-							)
-							entry.Specs = append(
-								entry.Specs,
-								util.IptablesJumpFlag,
-								util.IptablesMark,
-								util.IptablesSetMarkFlag,
-								util.IptablesAzureEgressXMarkHex,
-								util.IptablesModuleFlag,
-								util.IptablesCommentModuleFlag,
-								util.IptablesCommentFlag,
-								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
-									"-FROM-"+targetSelectorComment,
-							)
-							entries = append(entries, entry)
-						default:
-							log.Logf("Invalid NetworkPolicyPort.")
-						}
-					}
-				} else {
-					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureEgressToChain,
-						Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-					}
-					entry.Specs = append(
-						entry.Specs,
-						iptPartialPodSpec...,
-					)
-					entry.Specs = append(
-						entry.Specs,
-						util.IptablesJumpFlag,
-						util.IptablesMark,
-						util.IptablesSetMarkFlag,
-						util.IptablesAzureEgressXMarkHex,
-						util.IptablesModuleFlag,
-						util.IptablesCommentModuleFlag,
-						util.IptablesCommentFlag,
-						"ALLOW-"+targetSelectorComment+
-							"-TO-"+iptPartialPodComment,
-					)
-					entries = append(entries, entry)
-				}
-				continue
-			}
-
-			// toRule has both namespaceSelector and podSelector set.
-			// We should match the selected pods in the selected namespaces.
-			// This allows traffic from podSelector intersects namespaceSelector
-			// This is only supported in kubernetes version >= 1.11
-			if !util.IsNewNwPolicyVerFlag {
-				continue
-			}
-			for _, nsSelector := range FlattenNameSpaceSelector(toRule.NamespaceSelector) {
-				// we pass true for the podspec and comment here because it's a combo of both selectors and not limited to network policy namespace
-				iptPartialNsSpec, nsLabelsWithoutOps, listLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector("", &nsSelector, util.IptablesDstFlag, true)
-				// Add namespaces prefix to distinguish namespace ipsets and pod ipsets
-				for i := range nsLabelsWithoutOps {
-					nsLabelsWithoutOps[i] = "ns-" + nsLabelsWithoutOps[i]
-					if _, ok := listIPsets[nsLabelsWithoutOps[i]]; !ok {
-						listIPsets[nsLabelsWithoutOps[i]] = nil
-					}
-				}
-				t.appendSelectorLabelsToLists(listIPsets, listLabelsWithMembers, true)
-				iptPartialPodSpec, podLabelsWithoutOps, listPodLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector("", toRule.PodSelector, util.IptablesDstFlag, false)
-				netHashIPsets = append(netHashIPsets, podLabelsWithoutOps...)
-				t.appendSelectorLabelsToLists(listIPsets, listPodLabelsWithMembers, false)
-				iptPartialNsComment := t.craftPartialIptablesCommentFromSelector("", &nsSelector, true)
-				iptPartialPodComment := t.craftPartialIptablesCommentFromSelector("", toRule.PodSelector, false)
-				if portRuleExists {
-					for _, portRule := range rule.Ports {
-						switch portCheck := t.getPortType(portRule); portCheck {
-						case "namedport":
-							portName := util.NamedPortIPSetPrefix + portRule.Port.String()
-							namedPorts = append(namedPorts, portName)
-							entry := &iptm.IptEntry{
-								Chain: util.IptablesAzureEgressPortChain,
-								Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-							}
-							entry.Specs = append(
-								entry.Specs,
-								iptPartialNsSpec...,
-							)
-							entry.Specs = append(
-								entry.Specs,
-								iptPartialPodSpec...,
-							)
-							if portRule.Protocol != nil {
-								entry.Specs = append(
-									entry.Specs,
-									util.IptablesProtFlag,
-									string(*portRule.Protocol),
-								)
-							}
-							entry.Specs = append(
-								entry.Specs,
-								util.IptablesModuleFlag,
-								util.IptablesSetModuleFlag,
-								util.IptablesMatchSetFlag,
-								util.GetHashedName(portName),
-								util.IptablesDstFlag+","+util.IptablesDstFlag,
-								util.IptablesJumpFlag,
-								util.IptablesMark,
-								util.IptablesSetMarkFlag,
-								util.IptablesAzureEgressXMarkHex,
-								util.IptablesModuleFlag,
-								util.IptablesCommentModuleFlag,
-								util.IptablesCommentFlag,
-								"ALLOW-"+targetSelectorComment+
-									"-TO-"+iptPartialNsComment+
-									"-AND-"+iptPartialPodComment+
-									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag),
-							)
-							entries = append(entries, entry)
-						case "validport":
-							entry := &iptm.IptEntry{
-								Chain: util.IptablesAzureEgressPortChain,
-								Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-							}
-							entry.Specs = append(
-								entry.Specs,
-								iptPartialNsSpec...,
-							)
-							entry.Specs = append(
-								entry.Specs,
-								iptPartialPodSpec...,
-							)
-							entry.Specs = append(
-								entry.Specs,
-								t.craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)...,
-							)
-							entry.Specs = append(
-								entry.Specs,
-								util.IptablesJumpFlag,
-								util.IptablesMark,
-								util.IptablesSetMarkFlag,
-								util.IptablesAzureEgressXMarkHex,
-								util.IptablesModuleFlag,
-								util.IptablesCommentModuleFlag,
-								util.IptablesCommentFlag,
-								"ALLOW-"+targetSelectorComment+
-									"-TO-"+iptPartialNsComment+
-									"-AND-"+iptPartialPodComment+
-									"-AND-"+t.craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag),
-							)
-							entries = append(entries, entry)
-						default:
-							log.Logf("Invalid NetworkPolicyPort.")
-						}
-					}
-				} else {
-					entry := &iptm.IptEntry{
-						Chain: util.IptablesAzureEgressToChain,
-						Specs: append([]string(nil), targetSelectorIptEntrySpec...),
-					}
-					entry.Specs = append(
-						entry.Specs,
-						iptPartialNsSpec...,
-					)
-					entry.Specs = append(
-						entry.Specs,
-						iptPartialPodSpec...,
-					)
-					entry.Specs = append(
-						entry.Specs,
-						util.IptablesJumpFlag,
-						util.IptablesMark,
-						util.IptablesSetMarkFlag,
-						util.IptablesAzureEgressXMarkHex,
-						util.IptablesModuleFlag,
-						util.IptablesCommentModuleFlag,
-						util.IptablesCommentFlag,
-						"ALLOW-"+targetSelectorComment+
-							"-TO-"+iptPartialNsComment+
-							"-AND-"+iptPartialPodComment,
-					)
-					entries = append(entries, entry)
-				}
+			if npObj.Spec.Ingress != nil &&
+				len(npObj.Spec.Ingress) == 1 &&
+				len(npObj.Spec.Ingress[0].Ports) == 0 &&
+				len(npObj.Spec.Ingress[0].From) == 0 {
+				hasIngress = false
+			} else {
+				hasIngress = true
 			}
 		}
 
-		if allowExternal {
-			entry := &iptm.IptEntry{
-				Chain: util.IptablesAzureEgressPortChain,
-				Specs: append([]string(nil), targetSelectorIptEntrySpec...),
+		if ptype == networkingv1.PolicyTypeEgress {
+			egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
+			resultSets = append(resultSets, egressSets...)
+			resultNamedPorts = append(resultNamedPorts, egressNamedPorts...)
+			for resultListKey, resultLists := range egressLists {
+				resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
 			}
-			entry.Specs = append(
-				entry.Specs,
-				util.IptablesJumpFlag,
-				util.IptablesMark,
-				util.IptablesSetMarkFlag,
-				util.IptablesAzureEgressXMarkHex,
-				util.IptablesModuleFlag,
-				util.IptablesCommentModuleFlag,
-				util.IptablesCommentFlag,
-				"ALLOW-ALL-FROM-"+
-					targetSelectorComment,
-			)
-			entries = append(entries, entry)
-			// borrowing this var to add jump entry from port chain only
-			addedPortEntry = true
+			resultEgressIPCidrs = egressIPCidrs
+			entries = append(entries, egressEntries...)
+
+			if npObj.Spec.Egress != nil &&
+				len(npObj.Spec.Egress) == 1 &&
+				len(npObj.Spec.Egress[0].Ports) == 0 &&
+				len(npObj.Spec.Egress[0].To) == 0 {
+				hasEgress = false
+			} else {
+				hasEgress = true
+			}
 		}
 	}
 
-	// prepending toRuleEntries (which is in reverse order) so that they will retain correct ordering
-	// of drop->allow... when the rules are beind prepended to their corresponding chain
-	if len(toRuleEntries) > 0 {
-		entries = append(toRuleEntries, entries...)
+	//entries = append(entries, t.getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
+	t.defaultDropACL(npmNetpol, hasIngress, hasEgress)
+	for resultListKey, resultLists := range resultListMap {
+		resultListMap[resultListKey] = util.UniqueStrSlice(resultLists)
 	}
 
-	log.Logf("finished parsing egress rule")
-	return util.DropEmptyFields(netHashIPsets), util.DropEmptyFields(namedPorts), listIPsets, ipCidrs, entries
+	return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultNamedPorts), resultListMap, resultIngressIPCidrs, resultEgressIPCidrs, entries
 }
 
-// Drop all non-whitelisted packets.
-func (t *translator) getDefaultDropEntries(ns string, targetSelector metav1.LabelSelector, hasIngress, hasEgress bool) []*iptm.IptEntry {
-	var entries []*iptm.IptEntry
-
-	targetSelectorIngressIptEntrySpec, _, _ := t.craftPartialIptEntrySpecFromSelector(ns, &targetSelector, util.IptablesDstFlag, false)
-	targetSelectorEgressIptEntrySpec, _, _ := t.craftPartialIptEntrySpecFromSelector(ns, &targetSelector, util.IptablesSrcFlag, false)
-	targetSelectorComment := t.craftPartialIptablesCommentFromSelector(ns, &targetSelector, false)
-
-	if hasIngress {
-		entry := &iptm.IptEntry{
-			Chain: util.IptablesAzureIngressDropsChain,
-			Specs: append([]string(nil), targetSelectorIngressIptEntrySpec...),
+/*
+	Just for testing now
+*/
+func (t *translator) appendSelectorLabelsToLists(lists, listLabelsWithMembers map[string][]string, isNamespaceSelector bool) {
+	for parsedListName, parsedListMembers := range listLabelsWithMembers {
+		if isNamespaceSelector {
+			parsedListName = util.GetNSNameWithPrefix(parsedListName)
 		}
-		entry.Specs = append(
-			entry.Specs,
-			util.IptablesJumpFlag,
-			util.IptablesDrop,
-			util.IptablesModuleFlag,
-			util.IptablesCommentModuleFlag,
-			util.IptablesCommentFlag,
-			"DROP-ALL-TO-"+targetSelectorComment,
-		)
-		entries = append(entries, entry)
-	}
-
-	if hasEgress {
-		entry := &iptm.IptEntry{
-			Chain: util.IptablesAzureEgressDropsChain,
-			Specs: append([]string(nil), targetSelectorEgressIptEntrySpec...),
+		for _, member := range parsedListMembers {
+			if isNamespaceSelector {
+				member = util.GetNSNameWithPrefix(member)
+			}
+			lists[parsedListName] = append(lists[parsedListName], member)
 		}
-		entry.Specs = append(
-			entry.Specs,
-			util.IptablesJumpFlag,
-			util.IptablesDrop,
-			util.IptablesModuleFlag,
-			util.IptablesCommentModuleFlag,
-			util.IptablesCommentFlag,
-			"DROP-ALL-FROM-"+targetSelectorComment,
-		)
-		entries = append(entries, entry)
 	}
-
-	return entries
 }
 
-// translatePolicy translates network policy object into a set of iptables rules.
-// input:
-// kubernetes network policy project
-// output:
-// 1. ipset set names generated from all podSelectors
-// 2. ipset list names generated from all namespaceSelectors
-// 3. iptables entries generated from the input network policy object.
-func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, map[string][]string, [][]string, [][]string, []*iptm.IptEntry) {
-	// networkPolicy := policy.NPMNetworkPolicy{
-	// 	Name:              npObj.Name,
-	// 	NameSpace:         npObj.Namespace,
-	// 	PodSelectorIPSets: []*ipsets.IPSet{},
-	// 	RuleIPSets:        []*ipsets.IPSet{},
-	// 	ACLs:              []*policy.ACLPolicy{},
-	// 	Pods:              []string{},
-	// 	RawNP:             npObj,
-	// }
+func (t *translator) craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort) []string {
+	partialSpec := []string{}
+	if portRule.Protocol != nil {
+		partialSpec = append(
+			partialSpec,
+			util.IptablesProtFlag,
+			string(*portRule.Protocol),
+		)
+	}
 
+	if portRange, exist := t.getPortRange(portRule); exist {
+		partialSpec = append(
+			partialSpec,
+			util.IptablesDstPortFlag,
+			portRange,
+		)
+	}
+	return partialSpec
+}
+
+func (t *translator) craftPartialIptEntrySpecFromOpAndLabel(op, label, srcOrDstFlag string, isNamespaceSelector bool) []string {
+	if isNamespaceSelector {
+		label = "ns-" + label
+	}
+	partialSpec := []string{
+		util.IptablesModuleFlag,
+		util.IptablesSetModuleFlag,
+		op,
+		util.IptablesMatchSetFlag,
+		util.GetHashedName(label),
+		srcOrDstFlag,
+	}
+
+	return util.DropEmptyFields(partialSpec)
+}
+
+// TODO check this func references and change the label and op logic
+// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
+func (t *translator) craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, srcOrDstFlag string, isNamespaceSelector bool) []string {
+	var spec []string
+
+	fmt.Println("ns : ", ns)
+	if ns != "" {
+		spec = []string{
+			util.IptablesModuleFlag,
+			util.IptablesSetModuleFlag,
+			util.IptablesMatchSetFlag,
+			util.GetHashedName("ns-" + ns),
+			srcOrDstFlag,
+		}
+	}
+
+	if len(ops) == 1 && len(labels) == 1 {
+		if ops[0] == "" && labels[0] == "" {
+			if isNamespaceSelector {
+				// This is an empty namespaceSelector,
+				// selecting all namespaces.
+				spec = []string{
+					util.IptablesModuleFlag,
+					util.IptablesSetModuleFlag,
+					util.IptablesMatchSetFlag,
+					util.GetHashedName(util.KubeAllNamespacesFlag),
+					srcOrDstFlag,
+				}
+			}
+
+			return spec
+		}
+	}
+	for i := range ops {
+		// TODO need to change this logic, create a list of lsts here and have a single match against it
+		spec = append(spec, t.craftPartialIptEntrySpecFromOpAndLabel(ops[i], labels[i], srcOrDstFlag, isNamespaceSelector)...)
+	}
+	return spec
+}
+
+// craftPartialIptEntrySpecFromSelector :- ns must be "" for namespace selectors
+// func helps in taking a labelSelector and converts it into corresponding matchSets
+// to be a used in full iptable rules
+//  selector *metav1.LabelSelector: is used to create matchSets
+//  ns string: helps with adding a namespace name in case of empty (or all) selector
+//  srcOrDstFlag string: helps with determining if the src flag is to used in matchsets or dst flag,
+// depending on ingress or egress translate policy
+//  isNamespaceSelector bool: helps in adding prefix for nameSpace ipsets
+func (t *translator) craftPartialIptEntrySpecFromSelector(ns string, selector *metav1.LabelSelector, srcOrDstFlag string, isNamespaceSelector bool) ([]string, []string, map[string][]string) {
+	// parse the sector into labels and maps of multiVal match Exprs
+	labelsWithOps, nsLabelListKVs := parseSelector(selector)
+	ops, labels := GetOperatorsAndLabels(labelsWithOps)
+
+	valueLabels := []string{}
+	listLabelsWithMembers := make(map[string][]string)
+	labelsForSpec := labels
+	// parseSelector returns a slice of processed label and a map of lists with members.
+	// now we need to compute the 2nd-level ipset names from lists and its members
+	// add use those 2nd level ipsets to be used to create the partial match set
+	for labelKeyWithOps, labelValueList := range nsLabelListKVs {
+		// look at each list and its members
+		op, labelKey := GetOperatorAndLabel(labelKeyWithOps)
+		// get the new 2nd level IpSet name
+		labelKVIpsetName := getSetNameForMultiValueSelector(labelKey, labelValueList)
+		if !util.StrExistsInSlice(labels, labelKVIpsetName) {
+			// Important: make sure length andordering of ops and labelsForSpec are same
+			// because craftPartialEntry loops over both of them at once and assumes
+			// a given position ops is to be applied on the same position label in labelsForSpec
+			ops = append(ops, op)
+			// TODO doubt check if this 2nd level needs to be added to the labels when labels are added to lists
+			// check if the 2nd level is already part of labels
+			labelsForSpec = append(labelsForSpec, labelKVIpsetName)
+		}
+		for _, labelValue := range labelValueList {
+			ipsetName := util.GetIpSetFromLabelKV(labelKey, labelValue)
+			valueLabels = append(valueLabels, ipsetName)
+			listLabelsWithMembers[labelKVIpsetName] = append(listLabelsWithMembers[labelKVIpsetName], ipsetName)
+		}
+	}
+	iptEntrySpecs := t.craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labelsForSpec, srcOrDstFlag, isNamespaceSelector)
+	// only append valueLabels to labels after creating the Ipt Spec with valueLabels
+	// as 1D valueLabels are included in 2nd level labelKVIpsetName
+	labels = append(labels, valueLabels...)
+	return iptEntrySpecs, labels, listLabelsWithMembers
+}
+
+func (t *translator) craftPartialIptablesCommentFromPort(portRule networkingv1.NetworkPolicyPort) string {
+	partialComment := ""
+	if portRule.Protocol != nil {
+		partialComment += string(*portRule.Protocol)
+		if portRule.Port != nil {
+			partialComment += "-"
+		}
+	}
+
+	if portRule.Port != nil {
+		partialComment += "PORT-"
+		partialComment += portRule.Port.String()
+	}
+
+	return partialComment
+}
+
+// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
+func (t *translator) craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSelector, isNamespaceSelector bool) string {
+	if selector == nil {
+		return "none"
+	}
+
+	if len(selector.MatchExpressions) == 0 && len(selector.MatchLabels) == 0 {
+		if isNamespaceSelector {
+			return util.KubeAllNamespacesFlag
+		}
+
+		return "ns-" + ns
+	}
+
+	// TODO check if we are missing any crucial comment
+	labelsWithOps, labelKVs := parseSelector(selector)
+	ops, labelsWithoutOps := GetOperatorsAndLabels(labelsWithOps)
+	for labelKeyWithOps, labelValueList := range labelKVs {
+		op, labelKey := GetOperatorAndLabel(labelKeyWithOps)
+		labelKVIpsetName := getSetNameForMultiValueSelector(labelKey, labelValueList)
+		labelsWithoutOps = append(labelsWithoutOps, labelKVIpsetName)
+		ops = append(ops, op)
+	}
+
+	var prefix, postfix string
+	if isNamespaceSelector {
+		prefix = "ns-"
+	} else {
+		if ns != "" {
+			postfix = "-IN-ns-" + ns
+		}
+	}
+
+	comments := []string{}
+	for i := range labelsWithoutOps {
+		comments = append(comments, prefix+ops[i]+labelsWithoutOps[i])
+	}
+
+	sort.Strings(comments)
+	return strings.Join(comments, "-AND-") + postfix
+}
+
+func (t *translator) translatePolicyV1(npObj *networkingv1.NetworkPolicy) ([]string, []string, map[string][]string, [][]string, [][]string, []*iptm.IptEntry) {
 	var (
 		resultSets            []string
 		resultNamedPorts      []string
@@ -1651,7 +1179,7 @@ func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) ([]strin
 	// for NameSpaceSelectors with multiple values
 	// NPM will need to duplicate rules for each value in NSSelector
 	if len(npObj.Spec.PolicyTypes) == 0 {
-		ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := t.translateIngress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Ingress)
+		ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := translateIngress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Ingress)
 		resultSets = append(resultSets, ingressSets...)
 		resultNamedPorts = append(resultNamedPorts, ingressNamedPorts...)
 		for resultListKey, resultLists := range ingressLists {
@@ -1659,7 +1187,7 @@ func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) ([]strin
 		}
 		entries = append(entries, ingressEntries...)
 
-		egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := t.translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
+		egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
 		resultSets = append(resultSets, egressSets...)
 		resultNamedPorts = append(resultNamedPorts, egressNamedPorts...)
 		for resultListKey, resultLists := range egressLists {
@@ -1669,7 +1197,7 @@ func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) ([]strin
 
 		hasIngress = len(ingressSets) > 0
 		hasEgress = len(egressSets) > 0
-		entries = append(entries, t.getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
+		entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
 		for resultListKey, resultLists := range resultListMap {
 			resultListMap[resultListKey] = util.UniqueStrSlice(resultLists)
 		}
@@ -1679,7 +1207,7 @@ func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) ([]strin
 
 	for _, ptype := range npObj.Spec.PolicyTypes {
 		if ptype == networkingv1.PolicyTypeIngress {
-			ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := t.translateIngress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Ingress)
+			ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := translateIngress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Ingress)
 			resultSets = append(resultSets, ingressSets...)
 			resultNamedPorts = append(resultNamedPorts, ingressNamedPorts...)
 			for resultListKey, resultLists := range ingressLists {
@@ -1699,7 +1227,7 @@ func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) ([]strin
 		}
 
 		if ptype == networkingv1.PolicyTypeEgress {
-			egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := t.translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
+			egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
 			resultSets = append(resultSets, egressSets...)
 			resultNamedPorts = append(resultNamedPorts, egressNamedPorts...)
 			for resultListKey, resultLists := range egressLists {
@@ -1719,7 +1247,7 @@ func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) ([]strin
 		}
 	}
 
-	entries = append(entries, t.getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
+	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
 	for resultListKey, resultLists := range resultListMap {
 		resultListMap[resultListKey] = util.UniqueStrSlice(resultLists)
 	}

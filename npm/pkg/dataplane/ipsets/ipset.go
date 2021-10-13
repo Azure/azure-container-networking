@@ -196,6 +196,11 @@ func (setMetadata *IPSetMetadata) GetHashedName() string {
 	return util.GetHashedName(prefixedName)
 }
 
+func (set *IPSet) String() string {
+	return fmt.Sprintf("Name: %s HashedNamed: %s Type: %s Kind: %s",
+		set.Name, set.HashedName, setTypeName[set.Type], string(set.Kind))
+}
+
 func (set *IPSet) GetSetContents() ([]string, error) {
 	switch set.Kind {
 	case HashSet:

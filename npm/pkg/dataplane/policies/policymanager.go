@@ -96,15 +96,9 @@ func normalizePolicy(networkPolicy *NPMNetworkPolicy) {
 		if aclPolicy.Protocol == "" {
 			aclPolicy.Protocol = AnyProtocol
 		}
-		for _, portRange := range aclPolicy.SrcPorts {
-			if portRange.EndPort == 0 {
-				portRange.EndPort = portRange.Port
-			}
-		}
-		for _, portRange := range aclPolicy.DstPorts {
-			if portRange.EndPort == 0 {
-				portRange.EndPort = portRange.Port
-			}
+
+		if aclPolicy.DstPorts.EndPort == 0 {
+			aclPolicy.DstPorts.EndPort = aclPolicy.DstPorts.Port
 		}
 	}
 }
@@ -128,16 +122,11 @@ func checkForErrors(networkPolicy *NPMNetworkPolicy) error {
 				string(aclPolicy.Protocol),
 			))
 		}
-		for _, portRange := range aclPolicy.DstPorts {
-			if !portRange.isValidRange() {
-				return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has invalid port range in DstPorts (start: %d, end: %d)", aclPolicy.PolicyID, portRange.Port, portRange.EndPort))
-			}
+
+		if !aclPolicy.DstPorts.isValidRange() {
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has invalid port range in DstPorts (start: %d, end: %d)", aclPolicy.PolicyID, aclPolicy.DstPorts.Port, aclPolicy.DstPorts.EndPort))
 		}
-		for _, portRange := range aclPolicy.DstPorts {
-			if !portRange.isValidRange() {
-				return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has invalid port range in SrcPorts (start: %d, end: %d)", aclPolicy.PolicyID, portRange.Port, portRange.EndPort))
-			}
-		}
+
 		for _, setInfo := range aclPolicy.SrcList {
 			if !setInfo.hasKnownMatchType() {
 				return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has set %s in SrcList with unknown Match Type", aclPolicy.PolicyID, setInfo.IPSet.Name))

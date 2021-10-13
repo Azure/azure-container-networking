@@ -50,12 +50,8 @@ var (
 			},
 			Target:    Dropped,
 			Direction: Ingress,
-			SrcPorts: []Ports{
-				{144, 255},
-			},
-			DstPorts: []Ports{
-				{222, 333},
-				{456, 456},
+			DstPorts: Ports{
+				222, 333,
 			},
 			Protocol: TCP,
 		},
@@ -71,10 +67,7 @@ var (
 			},
 			Target:    Allowed,
 			Direction: Ingress,
-			SrcPorts: []Ports{
-				{144, 144},
-			},
-			Protocol: UDP,
+			Protocol:  UDP,
 		},
 		{
 			PolicyID: "test3",
@@ -88,8 +81,8 @@ var (
 			},
 			Target:    Dropped,
 			Direction: Egress,
-			DstPorts: []Ports{
-				{144, 144},
+			DstPorts: Ports{
+				144, 144,
 			},
 			Protocol: UDP,
 		},

@@ -346,7 +346,7 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	c.rawNpMap[netpolKey] = netPolObj
 	metrics.IncNumPolicies()
 
-	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := c.translatePolicy(netPolObj)
+	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(netPolObj)
 	for _, set := range sets {
 		klog.Infof("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = c.ipsMgr.CreateSet(set, []string{util.IpsetNetHashFlag}); err != nil {

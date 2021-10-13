@@ -13,9 +13,13 @@ type NPMNetworkPolicy struct {
 	NameSpace string
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
+
+	// To reduce computation
+	PodSelectorDstList []SetInfo
+	PodSelectorSrcList []SetInfo
+
 	// RuleIPSets holds all IPSets generated from policy's rules
 	// and not from pod selector IPSets
-	//
 	RuleIPSets []*ipsets.TranslatedIPSet
 	ACLs       []*ACLPolicy
 	// podIP is key and endpoint ID as value
@@ -42,10 +46,8 @@ type ACLPolicy struct {
 	Target Verdict
 	// Direction defines the flow of traffic
 	Direction Direction
-	// SrcPorts holds the source port information
-	SrcPorts []Ports
 	// DstPorts holds the destination port information
-	DstPorts []Ports
+	DstPorts Ports
 	// Protocol is the value of traffic protocol
 	Protocol Protocol
 }
@@ -77,8 +79,7 @@ func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
 }
 
 func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
-	return aclPolicy.Protocol != AnyProtocol ||
-		(len(aclPolicy.SrcPorts) == 0 && len(aclPolicy.DstPorts) == 0)
+	return (aclPolicy.Protocol != AnyProtocol)
 }
 
 // SetInfo helps capture additional details in a matchSet

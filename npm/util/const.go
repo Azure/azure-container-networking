@@ -47,6 +47,7 @@ const (
 	IptablesMark               string = "MARK"
 	IptablesSrcFlag            string = "src"
 	IptablesDstFlag            string = "dst"
+	IptablesNamedPortFlag      string = "dst,dst"
 	IptablesNotFlag            string = "!"
 	IptablesProtFlag           string = "-p"
 	IptablesSFlag              string = "-s"
@@ -64,8 +65,6 @@ const (
 	IptablesCtstateModuleFlag  string = "conntrack" // state module is obsolete: https://unix.stackexchange.com/questions/108169/what-is-the-difference-between-m-conntrack-ctstate-and-m-state-state
 	IptablesCtstateFlag        string = "--ctstate"
 	IptablesMultiportFlag      string = "multiport"
-	IptablesMultiDstPortFlag   string = "--dports"
-	IptablesMultiSrcPortFlag   string = "--sports"
 	IptablesRelatedState       string = "RELATED"
 	IptablesEstablishedState   string = "ESTABLISHED"
 	IptablesNewState           string = "NEW"
