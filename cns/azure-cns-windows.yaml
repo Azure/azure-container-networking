@@ -48,7 +48,7 @@ spec:
             - name: CNSPort
               value: "10090"
             - name: CNSLogTarget
-              value: "stdoutfile" # Change to stdoutfile once hostProcess works
+              value: "stdoutfile"
             - name: CNSLogDirectory
               value: "C:\\k"
             - name: CNSStoreFilePath
