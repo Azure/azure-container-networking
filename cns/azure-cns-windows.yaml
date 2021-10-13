@@ -1,15 +1,17 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: windows-daemonset
+  name: azure-cns
+  labels:
+    app: azure-cns
 spec:
   selector:
     matchLabels:
-      app: windows-pod
+      k8s-app: azure-cns
   template:
     metadata:
       labels:
-        app: windows-pod
+        k8s-app: azure-cns
     spec:
       securityContext:
         windowsOptions:
@@ -17,7 +19,7 @@ spec:
           runAsUserName: "NT AUTHORITY\\SYSTEM"
       hostNetwork: true
       containers:
-        - name: win-container
+        - name: cns-container
           image: acnpublic.azurecr.io/azure-cns-win:v1.4.12-43-g21f203db8-dirty
           imagePullPolicy: Always # Change to IfNotPresent after development
           command:
