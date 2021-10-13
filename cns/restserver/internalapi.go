@@ -150,40 +150,52 @@ func (service *HTTPRestService) SyncNodeStatus(
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
 func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) {
-	var hostVersionNeedUpdateNcList []string
-	service.RLock()
-	for _, containerstatus := range service.state.ContainerStatus {
+	service.Lock()
+	defer service.Unlock()
+	var hostVersionNeedsUpdateContainers []string
+	for idx := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
-		hostVersion, err := strconv.Atoi(containerstatus.HostVersion)
+		hostVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
 		if err != nil {
-			logger.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", containerstatus.HostVersion, err)
+			logger.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", service.state.ContainerStatus[idx].HostVersion, err)
 			continue
 		}
-		dncNcVersion, err := strconv.Atoi(containerstatus.CreateNetworkContainerRequest.Version)
+		dncNcVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version)
 		if err != nil {
-			logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", containerstatus.CreateNetworkContainerRequest.Version, err)
+			logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version, err)
 			continue
 		}
 		// host NC version is the NC version from NMAgent, if it's smaller than NC version from DNC, then append it to indicate it needs update.
 		if hostVersion < dncNcVersion {
-			hostVersionNeedUpdateNcList = append(hostVersionNeedUpdateNcList, containerstatus.ID)
+			hostVersionNeedsUpdateContainers = append(hostVersionNeedsUpdateContainers, service.state.ContainerStatus[idx].ID)
 		} else if hostVersion > dncNcVersion {
 			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", hostVersion, dncNcVersion)
 		}
 	}
-	service.RUnlock()
-	if len(hostVersionNeedUpdateNcList) == 0 {
+	if len(hostVersionNeedsUpdateContainers) == 0 {
+		return
+	}
+	ncList, err := service.nmagentClient.GetNCVersionList(ctx)
+	if err != nil {
+		logger.Errorf("%v", err)
 		return
 	}
 
-	newHostNCVersionList := service.nmagentClient.GetNcVersionListWithOutToken(ctx, hostVersionNeedUpdateNcList)
-	if len(newHostNCVersionList) == 0 {
-		logger.Errorf("Can't get vfp programmed NC version list from url without token")
-		return
+	newHostNCVersionList := map[string]string{}
+	for _, nc := range ncList.Containers {
+		newHostNCVersionList[nc.NetworkContainerID] = nc.Version
 	}
+	for _, ncID := range hostVersionNeedsUpdateContainers {
+		versionStr, ok := newHostNCVersionList[ncID]
+		if !ok {
+			continue
+		}
+		version, err := strconv.Atoi(versionStr)
+		if err != nil {
+			logger.Errorf("failed to parse %s to int", versionStr)
+			continue
+		}
 
-	service.Lock()
-	for ncID, newHostNCVersion := range newHostNCVersionList {
 		// Check whether it exist in service state and get the related nc info
 		ncInfo, exist := service.state.ContainerStatus[ncID]
 		if !exist {
@@ -191,14 +203,13 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 			continue
 		}
 		if channelMode == cns.CRD {
-			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, newHostNCVersion)
+			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, version)
 		}
 		oldHostNCVersion := ncInfo.HostVersion
-		ncInfo.HostVersion = strconv.Itoa(newHostNCVersion)
+		ncInfo.HostVersion = versionStr
 		service.state.ContainerStatus[ncID] = ncInfo
 		logger.Printf("Updated NC %s host version from %s to %s", ncID, oldHostNCVersion, ncInfo.HostVersion)
 	}
-	service.Unlock()
 }
 
 // This API will be called by CNS RequestController on CRD update.

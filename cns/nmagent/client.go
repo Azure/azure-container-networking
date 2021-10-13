@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -54,11 +54,6 @@ type Client struct {
 	connectionURL string
 }
 
-// Interface has interface that nmagent client will handle
-type Interface interface {
-	GetNcVersionListWithOutToken(ctx context.Context, ncNeedUpdateList []string) map[string]int
-}
-
 // NewClient create a new nmagent client.
 func NewClient(url string) (*Client, error) {
 	if url == "" {
@@ -70,9 +65,7 @@ func NewClient(url string) (*Client, error) {
 }
 
 // JoinNetwork joins the given network
-func JoinNetwork(
-	networkID string,
-	joinNetworkURL string) (*http.Response, error) {
+func JoinNetwork(networkID, joinNetworkURL string) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] JoinNetwork: %s", networkID)
 
 	// Empty body is required as wireserver cannot handle a post without the body.
@@ -91,10 +84,7 @@ func JoinNetwork(
 }
 
 // PublishNetworkContainer publishes given network container
-func PublishNetworkContainer(
-	networkContainerID string,
-	createNetworkContainerURL string,
-	requestBodyData []byte) (*http.Response, error) {
+func PublishNetworkContainer(networkContainerID, createNetworkContainerURL string, requestBodyData []byte) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] PublishNetworkContainer NC: %s", networkContainerID)
 
 	requestBody := bytes.NewBuffer(requestBodyData)
@@ -107,9 +97,7 @@ func PublishNetworkContainer(
 }
 
 // UnpublishNetworkContainer unpublishes given network container
-func UnpublishNetworkContainer(
-	networkContainerID string,
-	deleteNetworkContainerURL string) (*http.Response, error) {
+func UnpublishNetworkContainer(networkContainerID, deleteNetworkContainerURL string) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] UnpublishNetworkContainer NC: %s", networkContainerID)
 
 	// Empty body is required as wireserver cannot handle a post without the body.
@@ -124,9 +112,7 @@ func UnpublishNetworkContainer(
 }
 
 // GetNetworkContainerVersion :- Retrieves NC version from NMAgent
-func GetNetworkContainerVersion(
-	networkContainerID,
-	getNetworkContainerVersionURL string) (*http.Response, error) {
+func GetNetworkContainerVersion(networkContainerID, getNetworkContainerVersionURL string) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] GetNetworkContainerVersion NC: %s", networkContainerID)
 
 	response, err := common.GetHttpClient().Get(getNetworkContainerVersionURL)
@@ -137,9 +123,7 @@ func GetNetworkContainerVersion(
 }
 
 // GetNmAgentSupportedApis :- Retrieves Supported Apis from NMAgent
-func GetNmAgentSupportedApis(
-	httpc *http.Client,
-	getNmAgentSupportedApisURL string) ([]string, error) {
+func GetNmAgentSupportedApis(httpc *http.Client, getNmAgentSupportedApisURL string) ([]string, error) {
 	var returnErr error
 
 	if getNmAgentSupportedApisURL == "" {
@@ -186,52 +170,32 @@ func GetNmAgentSupportedApis(
 	return xmlDoc.SupportedApis, nil
 }
 
-// GetNcVersionListWithOutToken query nmagent for programmed container version.
-func (nmagentclient *Client) GetNcVersionListWithOutToken(ctx context.Context, ncNeedUpdateList []string) map[string]int {
-	ncVersionList := make(map[string]int)
+// GetNCVersionList query nmagent for programmed container versions.
+func (c *Client) GetNCVersionList(ctx context.Context) (*NetworkContainerListResponse, error) {
 	now := time.Now()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, nmagentclient.connectionURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.connectionURL, nil)
 	if err != nil {
-		logger.Errorf("failed to build nmagent request: %s", err)
-		return nil
+		return nil, errors.Wrap(err, "failed to build nmagent request")
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		logger.Errorf("failed to make nmagent request: %s", err)
-		return nil
+		return nil, errors.Wrap(err, "failed to make nmagent request")
 	}
 	defer resp.Body.Close()
 	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %+v, latency is %d", resp, time.Since(now).Milliseconds())
 
 	if resp.StatusCode != http.StatusOK {
-		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken failed with %d, err is %v", resp.StatusCode, err)
-		return nil
+		return nil, errors.Wrap(err, "failed to GetNCVersionList")
 	}
 
-	var nmaNcListResponse NetworkContainerListResponse
-	b, _ := io.ReadAll(resp.Body)
-	if err := json.Unmarshal(b, &nmaNcListResponse); err != nil {
-		logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken unmarshal failed with %s", err)
-		return nil
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read response body")
 	}
-	logger.Printf("NMAgent NC List Response is %s", nmaNcListResponse)
 
-	receivedNcVersionListInMap := make(map[string]string)
-	for _, containers := range nmaNcListResponse.Containers {
-		receivedNcVersionListInMap[containers.NetworkContainerID] = containers.Version
+	var response NetworkContainerListResponse
+	if err := json.Unmarshal(b, &response); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal response")
 	}
-	for _, ncID := range ncNeedUpdateList {
-		version, ok := receivedNcVersionListInMap[ncID]
-		if !ok {
-			continue
-		}
-		versionInInt, err := strconv.Atoi(version)
-		if err != nil {
-			logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken translate version %s to int failed with %s", version, err)
-			continue
-		}
-		ncVersionList[ncID] = versionInInt
-		logger.Printf("Containers id is %s, programmed NC version is %d", ncID, versionInInt)
-	}
-	return ncVersionList
+	return &response, nil
 }
