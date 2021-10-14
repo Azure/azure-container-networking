@@ -35,9 +35,8 @@ const (
 	gpServiceAccountPath     = gpFolder + "/service-account.yaml"
 	gpDaemonset              = gpFolder + "/daemonset.yaml"
 	gpDeployment             = gpFolder + "/deployment.yaml"
-
-	retryAttempts = 20
-	retryDelaySec = 5 * time.Second
+	retryAttempts            = 60
+	retryDelaySec            = 5 * time.Second
 )
 
 var (
@@ -45,6 +44,7 @@ var (
 	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
+	gpPodScaleCounts    = []int{3, 15, 150, 3}
 )
 
 func shouldLabelNodes() bool {
@@ -142,12 +142,10 @@ func TestPodScaling(t *testing.T) {
 		}
 	})
 
-	counts := []int{15, 5, 15}
-
-	for _, c := range counts {
+	for _, c := range gpPodScaleCounts {
 		count := c
 		t.Run(fmt.Sprintf("replica count %d", count), func(t *testing.T) {
-			replicaCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+			replicaCtx, cancel := context.WithTimeout(ctx, (retryAttempts+1)*retryDelaySec)
 			defer cancel()
 
 			if err := updateReplicaCount(t, replicaCtx, deploymentsClient, deployment.Name, count); err != nil {
@@ -192,7 +190,7 @@ func TestPodScaling(t *testing.T) {
 			}
 
 			t.Run("all pods can ping each other", func(t *testing.T) {
-				clusterCheckCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+				clusterCheckCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 				defer cancel()
 				clusterCheckFn := func() error {
 					pf, err := NewPortForwarder(restConfig)
@@ -215,7 +213,7 @@ func TestPodScaling(t *testing.T) {
 						return nil
 					}
 					if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-						t.Fatalf("could  not start port forward within %v: %v", retryDelaySec.String(), err)
+						t.Fatalf("could not start port forward within %v: %v", retryDelaySec.String(), err)
 					}
 					defer streamHandle.Stop()
 
@@ -235,8 +233,7 @@ func TestPodScaling(t *testing.T) {
 					return errors.New("not all pings are healthy")
 				}
 
-				retrier := retry.Retrier{Attempts: 5, Delay: 20 * time.Second}
-				if err := retrier.Do(clusterCheckCtx, clusterCheckFn); err != nil {
+				if err := defaultRetrier.Do(clusterCheckCtx, clusterCheckFn); err != nil {
 					t.Fatalf("cluster could not reach healthy state: %v", err)
 				}
 

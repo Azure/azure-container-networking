@@ -1,13 +1,7 @@
 name: golangci-lint
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
   pull_request:
-  schedule:
-    # run once a day at midnight
-    - cron: '0 0 * * *'
 jobs:
   golangci:
     strategy:

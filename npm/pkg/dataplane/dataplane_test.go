@@ -13,41 +13,38 @@ import (
 )
 
 var (
-	ioShim = common.NewMockIOShim([]testutils.TestCmd{})
-	ns1Set = &ipsets.TranslatedIPSet{
-		Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.Namespace),
+	ioShim     = common.NewMockIOShim([]testutils.TestCmd{})
+	setPodKey1 = &ipsets.TranslatedIPSet{
+		Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
 	}
 	testPolicyobj = &policies.NPMNetworkPolicy{
 		Name: "ns1/testpolicy",
-		PodSelectorIPSets: map[string]*ipsets.TranslatedIPSet{
-			"setns1": ns1Set,
-			"setpodkey1": {
-				Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
+		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+			{
+				Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.Namespace),
 			},
-			"setpodkeyval1": {
-				Metadata: ipsets.NewIPSetMetadata("setpodkeyval1", ipsets.KeyValueLabelOfPod),
-			},
-			"nestedset1": {
+			setPodKey1,
+			{
 				Metadata: ipsets.NewIPSetMetadata("nestedset1", ipsets.NestedLabelOfPod),
-				MemberIPSets: map[string]*ipsets.TranslatedIPSet{
-					"setns1": ns1Set,
+				Members: []string{
+					"setpodkey1",
 				},
 			},
 		},
-		RuleIPSets: map[string]*ipsets.TranslatedIPSet{
-			"setns2": {
+		RuleIPSets: []*ipsets.TranslatedIPSet{
+			{
 				Metadata: ipsets.NewIPSetMetadata("setns2", ipsets.Namespace),
 			},
-			"setpodkey2": {
+			{
 				Metadata: ipsets.NewIPSetMetadata("setpodkey2", ipsets.KeyLabelOfPod),
 			},
-			"setpodkeyval2": {
+			{
 				Metadata: ipsets.NewIPSetMetadata("setpodkeyval2", ipsets.KeyValueLabelOfPod),
 			},
-			"testcidr1": {
+			{
 				Metadata: ipsets.NewIPSetMetadata("testcidr1", ipsets.CIDRBlocks),
-				IPPodKey: map[string]string{
-					"10.0.0.0": "val1",
+				Members: []string{
+					"10.0.0.0/8",
 				},
 			},
 		},
@@ -164,7 +161,7 @@ func TestAddToSet(t *testing.T) {
 
 	// Test IPV6 addess it should error out
 	err = dp.AddToSet(setsTocreate, "2001:db8:0:0:0:0:2:1", "testns/a")
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
 		dp.DeleteIPSet(v)
@@ -177,6 +174,9 @@ func TestAddToSet(t *testing.T) {
 	}
 
 	err = dp.RemoveFromSet(setsTocreate, "10.0.0.1", "testns/a")
+	require.NoError(t, err)
+
+	err = dp.RemoveFromSet(setsTocreate, "2001:db8:0:0:0:0:2:1", "testns/a")
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {

@@ -28,7 +28,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imdsclient"
-	"github.com/Azure/azure-container-networking/cns/ipampoolmonitor"
+	"github.com/Azure/azure-container-networking/cns/ipampool"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
@@ -784,7 +784,7 @@ type nodeNetworkConfigGetter interface {
 }
 
 type ncStateReconciler interface {
-	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec) cnstypes.ResponseCode
+	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
@@ -800,7 +800,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 		// If instance of crd is not found, pass nil to CNSClient
 		if client.IgnoreNotFound(err) == nil {
-			err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
+			err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc))
 			return errors.Wrap(err, "failed to reconcile NC state")
 		}
 
@@ -810,7 +810,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 	// If there are no NCs, pass nil to CNSClient
 	if len(nnc.Status.NetworkContainers) == 0 {
-		err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc.Status.Scaler, nnc.Spec))
+		err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc))
 		return errors.Wrap(err, "failed to reconcile NC state")
 	}
 
@@ -833,7 +833,7 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 
 	// errors.Wrap provides additional context, and return nil if the err input arg is nil
 	// Call cnsclient init cns passing those two things.
-	err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc.Status.Scaler, nnc.Spec))
+	err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc))
 	return errors.Wrap(err, "err in CNS reconciliation")
 }
 
@@ -872,7 +872,15 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// initialize the ipam pool monitor
-	httpRestServiceImplementation.IPAMPoolMonitor = ipampoolmonitor.NewCNSIPAMPoolMonitor(httpRestServiceImplementation, scopedcli)
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &ipampool.Options{RefreshDelay: poolIPAMRefreshRateInMilliseconds})
+	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
+	logger.Printf("Starting IPAM Pool Monitor")
+	go func() {
+		if e := poolMonitor.Start(ctx); e != nil {
+			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", e)
+		}
+	}()
+
 	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize CNS state")
@@ -908,26 +916,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 
-	logger.Printf("Starting IPAM Pool Monitor")
-	go func() {
-		for {
-			if err := httpRestServiceImplementation.IPAMPoolMonitor.Start(ctx, poolIPAMRefreshRateInMilliseconds); err != nil {
-				logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", err)
-				// todo: add a CNS metric to count # of failures
-			} else {
-				logger.Printf("[Azure CNS] Exiting IPAM Pool Monitor")
-				return
-			}
-
-			// Retry after 1sec
-			time.Sleep(time.Second)
-		}
-	}()
-
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond)
+		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs)
 		for {
 			select {
 			case <-tickerChannel:

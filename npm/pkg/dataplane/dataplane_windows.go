@@ -70,6 +70,7 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 				if err != nil {
 					return err
 				}
+				delete(endpoint.NetPolReference, policyName)
 			}
 		}
 	}
@@ -112,6 +113,8 @@ func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 		if err != nil {
 			return err
 		}
+
+		endpoint.NetPolReference[policyName] = struct{}{}
 	}
 
 	return nil
@@ -124,8 +127,8 @@ func (dp *DataPlane) getSelectorIPsByPolicyName(policyName string) (map[string]s
 	}
 
 	var selectorIpSets map[string]struct{}
-	for ipsetName := range policy.PodSelectorIPSets {
-		selectorIpSets[ipsetName] = struct{}{}
+	for _, ipset := range policy.PodSelectorIPSets {
+		selectorIpSets[ipset.Metadata.GetPrefixName()] = struct{}{}
 	}
 
 	return dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIpSets)

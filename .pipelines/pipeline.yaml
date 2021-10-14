@@ -2,11 +2,13 @@ pr:
   branches:
     include:
       - master
+      - honeycomb-dev
 
 trigger:
   branches:
     include:
       - master
+      - honeycomb-dev
 
 stages:
   - stage: build_and_test

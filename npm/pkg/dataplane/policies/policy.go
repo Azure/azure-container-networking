@@ -8,10 +8,11 @@ import (
 type NPMNetworkPolicy struct {
 	Name string
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
-	PodSelectorIPSets map[string]*ipsets.TranslatedIPSet
+	PodSelectorIPSets []*ipsets.TranslatedIPSet
 	// RuleIPSets holds all IPSets generated from policy's rules
 	// and not from pod selector IPSets
-	RuleIPSets map[string]*ipsets.TranslatedIPSet
+	//
+	RuleIPSets []*ipsets.TranslatedIPSet
 	ACLs       []*ACLPolicy
 	// podIP is key and endpoint ID as value
 	// Will be populated by dataplane and policy manager
@@ -50,14 +51,14 @@ type ACLPolicy struct {
 // Included flag captures the negative or positive match
 // MatchType captures match flags
 type SetInfo struct {
-	IPSet     *ipsets.IPSet
+	IPSet     *ipsets.IPSetMetadata
 	Included  bool
 	MatchType string // match type can be “src”, “src,dst” or “dst,dst” etc
 }
 
 type Ports struct {
-	Port    int64
-	EndPort int64
+	Port    int32
+	EndPort int32
 }
 
 type Verdict string

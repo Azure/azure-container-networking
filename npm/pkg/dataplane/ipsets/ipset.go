@@ -38,13 +38,17 @@ type IPSetMetadata struct {
 	Type SetType
 }
 
+// TranslatedIPSet is created by translation engine and provides IPSets used in
+// network policy. Only 2 types of IPSets are generated with members:
+// 1. CIDRBlocks IPSet
+// 2. NestedLabelOfPod IPSet from multi value labels
+// Members field holds member ipset names for NestedLabelOfPod and ip address ranges
+// for CIDRBlocks IPSet
 type TranslatedIPSet struct {
 	Metadata *IPSetMetadata
-	// IpPodKey is used for setMaps to store Ips and ports as keys
-	// and podKey as value
-	IPPodKey map[string]string
-	// This is used for listMaps to store child IP Sets
-	MemberIPSets map[string]*TranslatedIPSet
+	// Members holds member ipset names for NestedLabelOfPod and ip address ranges
+	// for CIDRBlocks IPSet
+	Members []string
 }
 
 type SetProperties struct {

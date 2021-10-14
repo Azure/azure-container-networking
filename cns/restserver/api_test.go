@@ -925,7 +925,7 @@ func startService() error {
 		return err
 	}
 
-	svc.IPAMPoolMonitor = &fakes.IPAMPoolMonitorFake{}
+	svc.IPAMPoolMonitor = &fakes.MonitorFake{}
 
 	if service != nil {
 		// Create empty azure-cns.json. CNS should start successfully by deleting this file

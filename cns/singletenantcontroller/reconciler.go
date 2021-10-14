@@ -23,7 +23,7 @@ type cnsClient interface {
 }
 
 type ipamPoolMonitorClient interface {
-	Update(scalar v1alpha.Scaler, spec v1alpha.NodeNetworkConfigSpec)
+	Update(*v1alpha.NodeNetworkConfig)
 }
 
 type nncGetter interface {
@@ -81,7 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
 	}
 
-	r.ipampoolmonitorcli.Update(nnc.Status.Scaler, nnc.Spec)
+	r.ipampoolmonitorcli.Update(nnc)
 	// record assigned IPs metric
 	assignedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
 
@@ -103,7 +103,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, nodeName string) error {
 			return nodeName == object.GetName()
 		})).
 		WithEventFilter(predicate.Funcs{
-			// check that the generation is the same - status changes don't update generation.
+			// check that the generation is the same - status changes don't update generation.a
 			UpdateFunc: func(ue event.UpdateEvent) bool {
 				return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
 			},

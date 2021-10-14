@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package goldpinger
@@ -62,10 +63,10 @@ func (c ClusterStats) PrintStats() {
 	format := "cluster stats - " +
 		"nodes in use: %d, " +
 		"pod count: %d, " +
-		"pod health percentage: %2.2f, " +
-		"ping health percentage: %2.2f\n"
+		"pod health: %d/%d (%2.2f), " +
+		"ping health percentage: %d/%d (%2.2f)\n"
 
 	podHealthPct := (float64(len(healthyPods)) / float64(podCount)) * 100
 	pingHealthPct := (float64(healthyPingCount) / float64(pingCount)) * 100
-	fmt.Printf(format, len(nodes), podCount, podHealthPct, pingHealthPct)
+	fmt.Printf(format, len(nodes), podCount, len(healthyPods), podCount, podHealthPct, healthyPingCount, pingCount, pingHealthPct)
 }

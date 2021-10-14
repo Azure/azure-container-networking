@@ -13,42 +13,27 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
-	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 )
 
 type StringStack struct {
-	lock  sync.Mutex // you don't have to do this if you don't want thread safety
+	sync.Mutex
 	items []string
 }
 
-func NewFakeScalar(releaseThreshold, requestThreshold, batchSize int) v1alpha.Scaler {
-	return v1alpha.Scaler{
-		BatchSize:               int64(batchSize),
-		ReleaseThresholdPercent: int64(releaseThreshold),
-		RequestThresholdPercent: int64(requestThreshold),
-	}
-}
-
-func NewFakeNodeNetworkConfigSpec(requestedIPCount int) v1alpha.NodeNetworkConfigSpec {
-	return v1alpha.NodeNetworkConfigSpec{
-		RequestedIPCount: int64(requestedIPCount),
-	}
-}
-
 func NewStack() *StringStack {
-	return &StringStack{sync.Mutex{}, make([]string, 0)}
+	return &StringStack{items: make([]string, 0)}
 }
 
 func (stack *StringStack) Push(v string) {
-	stack.lock.Lock()
-	defer stack.lock.Unlock()
+	stack.Lock()
+	defer stack.Unlock()
 
 	stack.items = append(stack.items, v)
 }
 
 func (stack *StringStack) Pop() (string, error) {
-	stack.lock.Lock()
-	defer stack.lock.Unlock()
+	stack.Lock()
+	defer stack.Unlock()
 
 	length := len(stack.items)
 	if length == 0 {

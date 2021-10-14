@@ -36,7 +36,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	for _, policy := range network.Policies {
 		// TODO (vamsi) use NetPolicyType constant setpolicy for below check
 		// after updating HCSShim
-		if policy.Type != "SetPolicy" {
+		if policy.Type != hcn.SetPolicy {
 			policyNetworkRequest.Policies = append(policyNetworkRequest.Policies, policy)
 		}
 	}
@@ -49,7 +49,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 		policyNetworkRequest.Policies = append(
 			policyNetworkRequest.Policies,
 			hcn.NetworkPolicy{
-				Type:     "SetPolicy",
+				Type:     hcn.SetPolicy,
 				Settings: rawSettings,
 			},
 		)

@@ -180,7 +180,7 @@ func installCNIManagerDaemonset(ctx context.Context, clientset *kubernetes.Clien
 	cni.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
 	cniDaemonsetClient := clientset.AppsV1().DaemonSets(cni.Namespace)
 
-	log.Printf("Installing CNI with  image %s", cni.Spec.Template.Spec.Containers[0].Image)
+	log.Printf("Installing CNI with image %s", cni.Spec.Template.Spec.Containers[0].Image)
 
 	if err = mustCreateDaemonset(ctx, cniDaemonsetClient, cni); err != nil {
 		return nil, err
