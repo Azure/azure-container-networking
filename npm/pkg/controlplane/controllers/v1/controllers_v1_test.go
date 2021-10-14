@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -12,14 +13,16 @@ import (
 
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
-	exec := exec.New()
-	iptMgr := iptm.NewIptablesManager(exec, iptm.NewFakeIptOperationShim())
+	realexec := exec.New()
+	iptMgr := iptm.NewIptablesManager(realexec, iptm.NewFakeIptOperationShim())
 	iptMgr.UninitNpmChains()
 
-	ipsMgr := ipsm.NewIpsetManager(exec)
+	ipsMgr := ipsm.NewIpsetManager(realexec)
 	// Do not check returned error here to proceed all UTs.
 	// TODO(jungukcho): are there any side effect?
-	ipsMgr.DestroyNpmIpsets()
+	if err := ipsMgr.DestroyNpmIpsets(); err != nil {
+		fmt.Println("failed to destroy ipsets with error %w", err)
+	}
 
 	exitCode := m.Run()
 	os.Exit(exitCode)

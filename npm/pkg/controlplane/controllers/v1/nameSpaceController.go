@@ -31,7 +31,7 @@ const (
 	AppendToExistingLabels LabelAppendOperation = false
 )
 
-// Cache to store namespace struct in nameSpaceController.go.
+// NpmNamespaceCache to store namespace struct in nameSpaceController.go.
 // Since this cache is shared between podController and NameSpaceController,
 // it has mutex for avoiding racing condition between them.
 type NpmNamespaceCache struct {
