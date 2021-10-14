@@ -1,7 +1,6 @@
 package dataplane
 
 import (
-	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"k8s.io/klog"
 )
@@ -22,7 +21,7 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 }
 
 // updatePod is no-op in Linux
-func (dp *DataPlane) updatePod(pod *controllersv1.UpdateNPMPod) error {
+func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
 	return nil
 }
 

@@ -58,16 +58,16 @@ type SetType int8
 
 const (
 	// Unknown SetType
-	Unknown SetType = 0
-	// Namespace IPSet is created to hold
+	UnknownType SetType = 0
+	// NameSpace IPSet is created to hold
 	// ips of pods in a given NameSapce
 	Namespace SetType = 1
-	// KeyLabelOfNameSpace IPSet is a list kind ipset
+	// KeyLabelOfNamespace IPSet is a list kind ipset
 	// with members as ipsets of namespace with this Label Key
-	KeyLabelOfNameSpace SetType = 2
-	// KeyValueLabelOfNameSpace IPSet is a list kind ipset
+	KeyLabelOfNamespace SetType = 2
+	// KeyValueLabelOfNamespace IPSet is a list kind ipset
 	// with members as ipsets of namespace with this Label
-	KeyValueLabelOfNameSpace SetType = 3
+	KeyValueLabelOfNamespace SetType = 3
 	// KeyLabelOfPod IPSet contains IPs of Pods with this Label Key
 	KeyLabelOfPod SetType = 4
 	// KeyValueLabelOfPod IPSet contains IPs of Pods with this Label
@@ -84,10 +84,10 @@ const (
 
 var (
 	setTypeName = map[SetType]string{
-		Unknown:                  "Unknown",
-		Namespace:                "Namespace",
-		KeyLabelOfNameSpace:      "KeyLabelOfNameSpace",
-		KeyValueLabelOfNameSpace: "KeyValueLabelOfNameSpace",
+		UnknownType:              Unknown,
+		Namespace:                "NameSpace",
+		KeyLabelOfNamespace:      "KeyLabelOfNameSpace",
+		KeyValueLabelOfNamespace: "KeyValueLabelOfNameSpace",
 		KeyLabelOfPod:            "KeyLabelOfPod",
 		KeyValueLabelOfPod:       "KeyValueLabelOfPod",
 		NamedPorts:               "NamedPorts",
@@ -161,7 +161,7 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 	switch setMetadata.Type {
 	case CIDRBlocks:
 		return fmt.Sprintf("%s%s", util.CIDRPrefix, setMetadata.Name)
-	case NameSpace:
+	case Namespace:
 		return fmt.Sprintf("%s%s", util.NamespacePrefix, setMetadata.Name)
 	case NamedPorts:
 		return fmt.Sprintf("%s%s", util.NamedPortIPSetPrefix, setMetadata.Name)
@@ -169,9 +169,9 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 		return fmt.Sprintf("%s%s", util.PodLabelPrefix, setMetadata.Name)
 	case KeyValueLabelOfPod:
 		return fmt.Sprintf("%s%s", util.PodLabelPrefix, setMetadata.Name)
-	case KeyLabelOfNameSpace:
+	case KeyLabelOfNamespace:
 		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
-	case KeyValueLabelOfNameSpace:
+	case KeyValueLabelOfNamespace:
 		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
 	case NestedLabelOfPod:
 		return fmt.Sprintf("%s%s", util.NestedLabelPrefix, setMetadata.Name)
@@ -264,9 +264,9 @@ func GetSetKind(setType SetType) SetKind {
 		return HashSet
 	case KeyValueLabelOfPod:
 		return HashSet
-	case KeyLabelOfNameSpace:
+	case KeyLabelOfNamespace:
 		return ListSet
-	case KeyValueLabelOfNameSpace:
+	case KeyValueLabelOfNamespace:
 		return ListSet
 	case NestedLabelOfPod:
 		return ListSet
@@ -372,6 +372,6 @@ func (set *IPSet) getSetIntersection(existingIntersection map[string]struct{}) (
 func (set *IPSet) canSetBeSelectorIPSet() bool {
 	return (set.Type == KeyLabelOfPod ||
 		set.Type == KeyValueLabelOfPod ||
-		set.Type == NameSpace ||
+		set.Type == Namespace ||
 		set.Type == NestedLabelOfPod)
 }

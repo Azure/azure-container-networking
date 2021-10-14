@@ -8,11 +8,11 @@ import (
 type GenericDataplane interface {
 	InitializeDataPlane() error
 	ResetDataPlane() error
-	CreateIPSet(setMetadata *ipsets.IPSetMetadata)
+	CreateIPSet(setNames []*ipsets.IPSetMetadata)
 	DeleteIPSet(setMetadata *ipsets.IPSetMetadata)
 	AddToSet(setNames []*ipsets.IPSetMetadata, ip, podKey string) error
 	RemoveFromSet(setNames []*ipsets.IPSetMetadata, ip, podKey string) error
-	AddToList(listName *ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error
+	AddToLists(listName []*ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error
 	RemoveFromList(listName *ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error
 	UpdatePod(pod *UpdateNPMPod) error
 	ApplyDataPlane() error

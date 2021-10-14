@@ -80,7 +80,7 @@ type NetworkPolicyManager struct {
 }
 
 // NewNetworkPolicyManager creates a NetworkPolicyManager
-func NewNetworkPolicyManager(config npmconfig.Config, informerFactory informers.SharedInformerFactory, exec utilexec.Interface,
+func NewNetworkPolicyManager(config npmconfig.Config, informerFactory informers.SharedInformerFactory, dp dataplane.GenericDataplane, exec utilexec.Interface,
 	npmVersion string, k8sServerVersion *version.Info) *NetworkPolicyManager {
 	klog.Infof("API server version: %+v ai meta data %+v", k8sServerVersion, aiMetadata)
 
@@ -99,8 +99,6 @@ func NewNetworkPolicyManager(config npmconfig.Config, informerFactory informers.
 	}
 
 	if npMgr.config.Toggles.EnableV2Controllers {
-		dp := dataplane.NewDataPlane()
-
 		// create pod controller
 		npMgr.podControllerV2 = controllersv2.NewPodController(npMgr.podInformer, dp, npMgr.npmNamespaceCacheV2)
 		// create NameSpace controller

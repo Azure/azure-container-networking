@@ -15,7 +15,7 @@ import (
 var (
 	ioShim = common.NewMockIOShim([]testutils.TestCmd{})
 	ns1Set = &ipsets.TranslatedIPSet{
-		Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.NameSpace),
+		Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.Namespace),
 	}
 	testPolicyobj = &policies.NPMNetworkPolicy{
 		Name: "ns1/testpolicy",
@@ -36,7 +36,7 @@ var (
 		},
 		RuleIPSets: map[string]*ipsets.TranslatedIPSet{
 			"setns2": {
-				Metadata: ipsets.NewIPSetMetadata("setns2", ipsets.NameSpace),
+				Metadata: ipsets.NewIPSetMetadata("setns2", ipsets.Namespace),
 			},
 			"setpodkey2": {
 				Metadata: ipsets.NewIPSetMetadata("setpodkey2", ipsets.KeyLabelOfPod),
@@ -69,7 +69,7 @@ func TestNewDataPlane(t *testing.T) {
 		t.Error("NewDataPlane() returned nil")
 	}
 
-	setMetadata := ipsets.NewIPSetMetadata("test", ipsets.NameSpace)
+	setMetadata := ipsets.NewIPSetMetadata("test", ipsets.Namespace)
 	dp.CreateIPSet(setMetadata)
 }
 
@@ -100,11 +100,11 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
 			Name: "test",
-			Type: ipsets.NameSpace,
+			Type: ipsets.Namespace,
 		},
 		{
 			Name: "test1",
-			Type: ipsets.NameSpace,
+			Type: ipsets.Namespace,
 		},
 	}
 
@@ -141,11 +141,11 @@ func TestAddToSet(t *testing.T) {
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
 			Name: "test",
-			Type: ipsets.NameSpace,
+			Type: ipsets.Namespace,
 		},
 		{
 			Name: "test1",
-			Type: ipsets.NameSpace,
+			Type: ipsets.Namespace,
 		},
 	}
 
