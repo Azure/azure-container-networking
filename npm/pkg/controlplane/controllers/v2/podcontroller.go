@@ -313,6 +313,14 @@ func (c *PodController) syncPod(key string) error {
 	// Get the Pod resource with this namespace/name
 	pod, err := c.podLister.Pods(namespace).Get(name)
 
+	// apply dataplane after syncing
+	defer func() {
+		dperr := c.dp.ApplyDataPlane()
+		if dperr != nil {
+			err = fmt.Errorf("failed with error %w, apply failed with %v", err, dperr)
+		}
+	}()
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -365,10 +373,14 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 	var err error
 	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	podKey, _ := cache.MetaNamespaceKeyFunc(podObj)
+
+	podMetadata := dataplane.NewPodMetadata(podKey, podObj.Status.PodIP, podObj.Spec.NodeName)
+
 	// Add the pod ip information into namespace's ipset.
 	klog.Infof("Adding pod %s to ipset %s", podObj.Status.PodIP, podNs)
 	targetSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podNs, ipsets.Namespace)}
-	if err = c.dp.AddToSet(targetSet, podObj.Status.PodIP, podKey); err != nil {
+
+	if err = c.dp.AddToSet(targetSet, podMetadata); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to namespace ipset with err: %v", err)
 	}
 
@@ -381,14 +393,14 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 
 		klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, labelKey)
 		targetSetKey := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(labelKey, ipsets.KeyLabelOfPod)}
-		if err = c.dp.AddToSet(targetSetKey, npmPodObj.PodIP, podKey); err != nil {
+		if err = c.dp.AddToSet(targetSetKey, podMetadata); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %v", err)
 		}
 
 		podIPSetName := util.GetIpSetFromLabelKV(labelKey, labelVal)
 		targetSetKeyValue := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podIPSetName, ipsets.KeyValueLabelOfPod)}
 		klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, podIPSetName)
-		if err = c.dp.AddToSet(targetSetKeyValue, npmPodObj.PodIP, podKey); err != nil {
+		if err = c.dp.AddToSet(targetSetKeyValue, podMetadata); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %v", err)
 		}
 		npmPodObj.appendLabels(map[string]string{labelKey: labelVal}, AppendToExistingLabels)
@@ -408,6 +420,9 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 // syncAddAndUpdatePod handles updating pod ip in its label's ipset.
 func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	var err error
+	podKey, _ := cache.MetaNamespaceKeyFunc(newPodObj)
+
+	newPodMetadata := dataplane.NewPodMetadata(podKey, newPodObj.Status.PodIP, newPodObj.Spec.NodeName)
 
 	// lock before using nsMap since nsMap is shared with namespace controller
 	c.npmNamespaceCache.Lock()
@@ -417,7 +432,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		toBeAdded := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(newPodObj.Namespace, ipsets.Namespace)}
 		c.dp.CreateIPSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(newPodObj.Namespace, ipsets.Namespace)})
 
-		if err = c.dp.AddToLists([]*ipsets.IPSetMetadata{kubeAllNamespaces}, toBeAdded); err != nil {
+		if err = c.dp.AddToLists([]*ipsets.IPSetMetadata{kubeAllNamespaces}, toBeAdded, newPodMetadata); err != nil {
 			c.npmNamespaceCache.Unlock()
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add %s to all-namespace ipset list with err: %v", newPodObj.Namespace, err)
 		}
@@ -428,7 +443,6 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	}
 	c.npmNamespaceCache.Unlock()
 
-	podKey, _ := cache.MetaNamespaceKeyFunc(newPodObj)
 	cachedNpmPod, exists := c.podMap[podKey]
 	klog.Infof("[syncAddAndUpdatePod] updating Pod with key %s", podKey)
 	// No cached npmPod exists. start adding the pod in a cache
@@ -473,7 +487,10 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	for _, podIPSetName := range deleteFromIPSets {
 		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPod.PodIP, podIPSetName)
 
-		if err = c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podIPSetName, ipsets.KeyLabelOfPod)}, cachedNpmPod.PodIP, podKey); err != nil {
+		// todo: verify pulling nodename from newpod
+		cachedPodMetadata := dataplane.NewPodMetadata(podKey, cachedNpmPod.PodIP, newPodMetadata.NodeName)
+
+		if err = c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podIPSetName, ipsets.KeyLabelOfPod)}, cachedPodMetadata); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from label ipset with err: %v", err)
 		}
 		// {IMPORTANT} The order of compared list will be key and then key+val. NPM should only append after both key
@@ -493,7 +510,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 
 		klog.Infof("Adding pod %s to ipset %s", newPodObj.Status.PodIP, addIPSetName)
 
-		if err = c.dp.AddToSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(addIPSetName, ipsets.CIDRBlocks)}, newPodObj.Status.PodIP, podKey); err != nil {
+		if err = c.dp.AddToSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(addIPSetName, ipsets.CIDRBlocks)}, newPodMetadata); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to label ipset with err: %v", err)
 		}
 		// {IMPORTANT} Same as above order is assumed to be key and then key+val. NPM should only append to existing labels
@@ -544,20 +561,21 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 
 	var err error
 	// Delete the pod from its namespace's ipset.
-	if err = c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(cachedNpmPod.Namespace, ipsets.Namespace)}, cachedNpmPod.PodIP, cachedNpmPodKey); err != nil {
+	// note: NodeName empty is not going to call update pod
+	if err = c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(cachedNpmPod.Namespace, ipsets.Namespace)}, dataplane.NewPodMetadata(cachedNpmPod.PodIP, cachedNpmPodKey, "")); err != nil {
 		return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from namespace ipset with err: %w", err)
 	}
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start deleting them from ipsets
 	for labelKey, labelVal := range cachedNpmPod.Labels {
 		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPod.PodIP, labelKey)
-		if err = c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(labelKey, ipsets.KeyLabelOfPod)}, cachedNpmPod.PodIP, cachedNpmPodKey); err != nil {
+		if err = c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(labelKey, ipsets.KeyLabelOfPod)}, dataplane.NewPodMetadata(cachedNpmPod.PodIP, cachedNpmPodKey, "")); err != nil {
 			return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from label ipset with err: %w", err)
 		}
 
 		podIPSetName := util.GetIpSetFromLabelKV(labelKey, labelVal)
 		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPod.PodIP, podIPSetName)
-		if err = c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podIPSetName, ipsets.KeyValueLabelOfPod)}, cachedNpmPod.PodIP, cachedNpmPodKey); err != nil {
+		if err = c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podIPSetName, ipsets.KeyValueLabelOfPod)}, dataplane.NewPodMetadata(cachedNpmPod.PodIP, cachedNpmPodKey, "")); err != nil {
 			return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from label ipset with err: %w", err)
 		}
 		cachedNpmPod.removeLabelsWithKey(labelKey)
@@ -591,13 +609,16 @@ func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, p
 
 		namedPort := util.NamedPortIPSetPrefix + port.Name
 		namedPortIpsetEntry := fmt.Sprintf("%s,%s%d", podIP, protocol, port.ContainerPort)
+
+		// nodename in NewPodMetadata is nil so UpdatePod is ignored
+		podMetadata := dataplane.NewPodMetadata(podKey, namedPortIpsetEntry, "")
 		switch namedPortOperation {
 		case deleteNamedPort:
-			if err := c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(namedPort, ipsets.NamedPorts)}, namedPortIpsetEntry, podKey); err != nil {
+			if err := c.dp.RemoveFromSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(namedPort, ipsets.NamedPorts)}, podMetadata); err != nil {
 				return err
 			}
 		case addNamedPort:
-			if err := c.dp.AddToSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(namedPort, ipsets.NamedPorts)}, namedPortIpsetEntry, podKey); err != nil {
+			if err := c.dp.AddToSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(namedPort, ipsets.NamedPorts)}, podMetadata); err != nil {
 				return err
 			}
 		}

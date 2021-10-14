@@ -10,13 +10,28 @@ type GenericDataplane interface {
 	ResetDataPlane() error
 	CreateIPSet(setNames []*ipsets.IPSetMetadata)
 	DeleteIPSet(setMetadata *ipsets.IPSetMetadata)
-	AddToSet(setNames []*ipsets.IPSetMetadata, ip, podKey string) error
-	RemoveFromSet(setNames []*ipsets.IPSetMetadata, ip, podKey string) error
-	AddToLists(listName []*ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error
-	RemoveFromList(listName *ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error
-	UpdatePod(pod *UpdateNPMPod) error
+	AddToSet(setNames []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
+	RemoveFromSet(setNames []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
+	AddToLists(listName []*ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
+	RemoveFromList(listName *ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
 	ApplyDataPlane() error
 	AddPolicy(policies *policies.NPMNetworkPolicy) error
 	RemovePolicy(policyName string) error
 	UpdatePolicy(policies *policies.NPMNetworkPolicy) error
+}
+
+// todo definitely requires further optimization between the intersection
+// of types, PodMetadata, NpmPod and corev1.pod
+type PodMetadata struct {
+	PodKey   string
+	PodIP    string
+	NodeName string
+}
+
+func NewPodMetadata(podKey, podIP, nodeName string) *PodMetadata {
+	return &PodMetadata{
+		PodKey:   podKey,
+		PodIP:    podIP,
+		NodeName: nodeName,
+	}
 }
