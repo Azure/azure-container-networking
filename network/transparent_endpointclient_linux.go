@@ -261,7 +261,11 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		}
 	}
 
-	return client.setIPV6NeighEntry()
+	if epInfo.IPV6Mode != "" {
+		return client.setIPV6NeighEntry()
+	}
+
+	return nil
 }
 
 func (client *TransparentEndpointClient) setupIPV6Routes() error {
