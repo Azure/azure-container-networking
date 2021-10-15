@@ -182,15 +182,14 @@ func (c *Client) GetNCVersionList(ctx context.Context) (*NetworkContainerListRes
 		return nil, errors.Wrap(err, "failed to make nmagent request")
 	}
 	defer resp.Body.Close()
-	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %+v, latency is %d", resp, time.Since(now).Milliseconds())
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Wrap(err, "failed to GetNCVersionList")
-	}
-
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read response body")
+	}
+	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %s, latency is %d", string(b), time.Since(now).Milliseconds())
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.Wrap(err, "failed to GetNCVersionList")
 	}
 
 	var response NetworkContainerListResponse
