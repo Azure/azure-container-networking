@@ -14,7 +14,7 @@ type NPMNetworkPolicy struct {
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
 
-	// To reduce computation
+	// TODO(jungukcho): PodSelectorDstList is a cache for target pod information (Currently, they are duplicated with SrcList and DstList fields in ACLs)
 	PodSelectorDstList []SetInfo
 	PodSelectorSrcList []SetInfo
 

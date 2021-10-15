@@ -41,7 +41,6 @@ type networkPolicyController struct {
 	isAzureNpmChainCreated bool
 	ipsMgr                 *ipsm.IpsetManager
 	iptMgr                 *iptm.IptablesManager
-	*translator
 }
 
 func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, ipsMgr *ipsm.IpsetManager) *networkPolicyController {
@@ -53,7 +52,6 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 		isAzureNpmChainCreated: false,
 		ipsMgr:                 ipsMgr,
 		iptMgr:                 iptm.NewIptablesManager(exec.New(), iptm.NewIptOperationShim()),
-		translator:             &translator{},
 	}
 
 	npInformer.Informer().AddEventHandler(
@@ -405,7 +403,7 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 	}
 
 	// translate policy from "cachedNetPolObj"
-	_, _, lists, ingressIPCidrs, egressIPCidrs, iptEntries := c.translatePolicy(cachedNetPolObj)
+	_, _, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(cachedNetPolObj)
 
 	var err error
 	// delete iptables entries

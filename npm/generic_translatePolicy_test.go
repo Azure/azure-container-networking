@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -396,8 +395,8 @@ func TestOnlyNamedPorts(t *testing.T) {
 	translator := &translator{}
 
 	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
-	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
-	dstList := translator.createPodSelectorRule(ops, labelsForSpec)
+	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
+	dstList := translator.createPodSelectorRule(ops, labelsForSpec, policies.DstMatch)
 	for i, dst := range dstList {
 		fmt.Printf("%d %+v\n", i, dst)
 	}
@@ -527,7 +526,7 @@ func TestPodSelectorIPSets(t *testing.T) {
 			// for i, targetPodDst := range targetPodDstList {
 			// 	fmt.Printf("%d %+v\n", i, targetPodDst)
 			// }
-			ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.targetPodSelectorInfo("testnamespace", tt.srcSelector, util.IptablesDstFlag)
+			ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.targetPodSelectorInfo("testnamespace", tt.srcSelector)
 			iptEntry := translator.IptEntryForPodSelectorIPSets("testnamespace", ops, labelsForSpec, util.IptablesDstFlag)
 			fmt.Printf("ops : %v len : %d\n", ops, len(ops)) // (TODO): Need to fix it.. How? no ops -> ""? weird.. (TODO)
 			fmt.Printf("labelsForSpec : %v\n", labelsForSpec)
@@ -538,44 +537,6 @@ func TestPodSelectorIPSets(t *testing.T) {
 	}
 }
 
-func TestOnlyPortWithNPMv1(t *testing.T) {
-	// 	rules : 1, i: 0 rule: 2
-	policyFile := "testpolicies/only-ports.yaml"
-	netpol, err := readPolicyYaml(policyFile)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	translator := &translator{}
-	hashSets, _, listSets, _, _, iptEntries := translator.translatePolicy(netpol)
-	/*
-		ns-default : azure-npm-784554818
-		app:server : azure-npm-1519775445
-		hashSets: [ns- app:server] // ns- due to 'default' namespace
-		listSets: map[]
-		entry: &{Command: Name: Chain:AZURE-NPM-INGRESS-PORT Flag: LockWaitTimeInSeconds:
-			Specs:[
-				-p TCP --dport 80
-				-m set --match-set azure-npm-1519775445 dst -j MARK --set-mark 0x2000
-				-m comment --comment ALLOW-ALL-TCP-PORT-80-TO-app:server]}
-		entry: &{Command: Name: Chain:AZURE-NPM-INGRESS-PORT Flag: LockWaitTimeInSeconds:
-			Specs:[
-				-p UDP --dport 100 -m set --match-set azure-npm-1519775445 dst -j MARK --set-mark 0x2000
-				-m comment --comment ALLOW-ALL-UDP-PORT-100-TO-app:server]}
-		entry: &{Command: Name: Chain:AZURE-NPM-INGRESS-DROPS Flag: LockWaitTimeInSeconds:
-			Specs:[ // Drop all rules.
-				-m set --match-set azure-npm-1519775445 dst -j DROP
-				-m comment --comment DROP-ALL-TO-app:server]}
-
-	*/
-	fmt.Println("Finished translatePolicy")
-	fmt.Printf("hashSets: %v\n", hashSets)
-	fmt.Printf("listSets: %v\n", listSets)
-	for _, iptEntry := range iptEntries {
-		fmt.Printf("entry: %+v\n", iptEntry)
-	}
-}
 func TestOnlyPort(t *testing.T) {
 	policyFile := "testpolicies/only-ports.yaml"
 	netpol, err := readPolicyYaml(policyFile)
@@ -601,8 +562,8 @@ func TestOnlyPort(t *testing.T) {
 
 	// #1. Calculate podIPEntry
 	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
-	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
-	dstList := translator.createPodSelectorRule(ops, labelsForSpec)
+	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
+	dstList := translator.createPodSelectorRule(ops, labelsForSpec, policies.DstMatch)
 	for i, dst := range dstList {
 		fmt.Printf("%d %+v\n", i, dst)
 	}
@@ -630,111 +591,6 @@ func TestOnlyPort(t *testing.T) {
 }
 
 // To understand how iptm.IptEntry is created by using ACLPolicy (will be deleted)
-func TestSimpleIngress(t *testing.T) {
-	//policyFile := "testpolicies/deny-all-policy.yaml"
-	policyFile := "testpolicies/simple-ingress.yaml"
-	policy, err := readPolicyYaml(policyFile)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	translator := &translator{}
-	//sets, namedPort, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translator.translatePolicy(policy)
-	sets, _, lists, _, _, iptEntries := translator.translatePolicy(policy)
-	fmt.Printf("set %+v\n", sets)
-	fmt.Printf("lists %+v\n", lists)
-	for _, iptEntry := range iptEntries {
-		fmt.Printf("iptEntry %+v\n", iptEntry)
-	}
-
-	fmt.Println("******************************")
-	// TODO(junguk): where should I create this in translation logic?
-	podIPset := &ipsets.TranslatedIPSet{
-		Metadata: &ipsets.IPSetMetadata{
-			Name: "app:backend",
-			Type: ipsets.KeyValueLabelOfPod,
-		},
-		Members: []string{},
-	}
-
-	setInfo := policies.SetInfo{
-		IPSet:     podIPset.Metadata,
-		MatchType: policies.DstMatch,
-	}
-
-	srcList := []policies.SetInfo{setInfo}
-
-	nsIPset := &ipsets.TranslatedIPSet{
-		Metadata: &ipsets.IPSetMetadata{
-			Name: "ns-testnamespace",
-			Type: ipsets.KeyLabelOfNamespace,
-		},
-		Members: []string{},
-	}
-
-	setInfo = policies.SetInfo{
-		IPSet:     nsIPset.Metadata,
-		MatchType: policies.DstMatch,
-	}
-
-	srcList = append(srcList, setInfo)
-	// TODO(junguk): how to generate iptables with aclPolicy
-	// Check how current network policies does..
-	/*
-		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-DROPS Flag: LockWaitTimeInSeconds:
-			Specs:[
-				-m set --match-set azure-npm-2173871756 dst
-				-m set --match-set azure-npm-3038731686 dst
-				-j DROP
-				-m comment --comment DROP-ALL-TO-app:backend-IN-ns-testnamespace
-		]}
-	*/
-
-	// TODO(junguk): need to know chain type - "FROM", "PORT", "DROP"
-	// Target
-	// Direction
-	aclPolicy := policies.ACLPolicy{
-		PolicyID:  policy.Name,
-		SrcList:   srcList,
-		DstList:   []policies.SetInfo{},
-		Target:    policies.Dropped,
-		Direction: policies.Ingress,
-	}
-
-	// This is how to make tests
-	chain := ""
-	if aclPolicy.Target == policies.Dropped {
-		chain = util.IptablesAzureIngressDropsChain
-	}
-
-	entry := &iptm.IptEntry{
-		Chain: chain,
-		Specs: []string{},
-	}
-
-	for _, src := range aclPolicy.SrcList {
-		entry.Specs = append(
-			entry.Specs,
-			util.IptablesModuleFlag,
-			util.IptablesSetModuleFlag,
-			util.IptablesMatchSetFlag,
-			util.GetHashedName(src.IPSet.Name),
-			util.IptablesSrcFlag,
-		)
-	}
-	if aclPolicy.Target == policies.Dropped {
-		entry.Specs = append(
-			entry.Specs,
-			util.IptablesJumpFlag,
-			util.IptablesDrop,
-			util.IptablesModuleFlag,
-			util.IptablesCommentModuleFlag,
-			util.IptablesCommentFlag,
-		)
-	}
-	fmt.Printf("%+v\n", entry)
-}
 
 // Just to get hash values (will be deleted)
 func TestHashValues(t *testing.T) {
@@ -842,6 +698,20 @@ func TestAllowAll(t *testing.T) {
 				-j MARK --set-mark 0x2000
 				-m comment --comment ALLOW-ALL-TO-ns-testnamespace]}
 	*/
+
+	/*
+		set [ns-netpol-4537-x pod:a pod:x]
+
+		lists map[ns-ns:netpol-4537-x:[] ns-ns:netpol-4537-y:[] pod:a:x:[pod:a pod:x]]
+
+		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-FROM Flag: LockWaitTimeInSeconds:
+			Specs:[-m set ! --match-set azure-npm-1052046537 src -m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j MARK --set-mark 0x2000 -m comment --comment ALLOW-ns-!ns:netpol-4537-x-TO-pod:a:x-IN-ns-netpol-4537-x]}
+		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-FROM Flag: LockWaitTimeInSeconds:
+			Specs:[-m set ! --match-set azure-npm-1035268918 src -m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j MARK --set-mark 0x2000 -m comment --comment ALLOW-ns-!ns:netpol-4537-y-TO-pod:a:x-IN-ns-netpol-4537-x]}
+		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-DROPS Flag: LockWaitTimeInSeconds:
+			Specs:[-m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j DROP -m comment --comment DROP-ALL-TO-pod:a:x-IN-ns-netpol-4537-x]}
+
+	*/
 	tests := []struct {
 		name             string
 		netpolPolicyFile string
@@ -857,6 +727,14 @@ func TestAllowAll(t *testing.T) {
 		{
 			name:             "allow-all-from-all",
 			netpolPolicyFile: "testpolicies/testing/allow-all-from-all.yaml",
+		},
+		{
+			name:             "allow-ns-y-z-pod-b-c.yaml",
+			netpolPolicyFile: "testpolicies/allow-ns-y-z-pod-b-c.yaml",
+		},
+		{
+			name:             "allow only port",
+			netpolPolicyFile: "testpolicies/only-ports.yaml",
 		},
 	}
 
@@ -948,7 +826,7 @@ func TestTargetPodSelector(t *testing.T) {
 		label : [label:src]
 		listLabels : map[]
 	*/
-	podSelectorIPSets, targetPodDstList := translator.targetPodSelector("testnamespace", srcSelector, util.IptablesDstFlag)
+	podSelectorIPSets, targetPodDstList := translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
 	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
 	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
 
@@ -971,7 +849,7 @@ func TestTargetPodSelector(t *testing.T) {
 		},
 	}
 
-	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, util.IptablesDstFlag)
+	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
 	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
 	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
 
@@ -995,7 +873,7 @@ func TestTargetPodSelector(t *testing.T) {
 		label : [label:src labelIn:src]
 		listLabels : map[]
 	*/
-	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, util.IptablesDstFlag)
+	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
 	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
 	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
 
@@ -1019,7 +897,7 @@ func TestTargetPodSelector(t *testing.T) {
 		label : [label:src labelNotIn:src]
 		listLabels : map[]
 	*/
-	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, util.IptablesDstFlag)
+	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
 	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
 	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
 
@@ -1049,8 +927,115 @@ func TestTargetPodSelector(t *testing.T) {
 		label : [k0:v0 k2 k1:v10 k1:v11]
 		listLabels : map[k1:v10:v11:[k1:v10 k1:v11]]
 	*/
-	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, util.IptablesDstFlag)
+	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
 	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
 	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
 
 }
+
+// to check how to generate iptableEntry
+// func TestSimpleIngress(t *testing.T) {
+// 	//policyFile := "testpolicies/deny-all-policy.yaml"
+// 	policyFile := "testpolicies/simple-ingress.yaml"
+// 	policy, err := readPolicyYaml(policyFile)
+
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	translator := &translator{}
+// 	//sets, namedPort, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translator.translatePolicy(policy)
+// 	sets, _, lists, _, _, iptEntries := translator.translatePolicy(policy)
+// 	fmt.Printf("set %+v\n", sets)
+// 	fmt.Printf("lists %+v\n", lists)
+// 	for _, iptEntry := range iptEntries {
+// 		fmt.Printf("iptEntry %+v\n", iptEntry)
+// 	}
+
+// 	fmt.Println("******************************")
+// 	// TODO(junguk): where should I create this in translation logic?
+// 	podIPset := &ipsets.TranslatedIPSet{
+// 		Metadata: &ipsets.IPSetMetadata{
+// 			Name: "app:backend",
+// 			Type: ipsets.KeyValueLabelOfPod,
+// 		},
+// 		Members: []string{},
+// 	}
+
+// 	setInfo := policies.SetInfo{
+// 		IPSet:     podIPset.Metadata,
+// 		MatchType: util.IptablesDstFlag,
+// 	}
+
+// 	srcList := []policies.SetInfo{setInfo}
+
+// 	nsIPset := &ipsets.TranslatedIPSet{
+// 		Metadata: &ipsets.IPSetMetadata{
+// 			Name: "ns-testnamespace",
+// 			Type: ipsets.KeyLabelOfNameSpace,
+// 		},
+// 		Members: []string{},
+// 	}
+
+// 	setInfo = policies.SetInfo{
+// 		IPSet:     nsIPset.Metadata,
+// 		MatchType: util.IptablesDstFlag,
+// 	}
+
+// 	srcList = append(srcList, setInfo)
+// 	// TODO(junguk): how to generate iptables with aclPolicy
+// 	// Check how current network policies does..
+// 	/*
+// 		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-DROPS Flag: LockWaitTimeInSeconds:
+// 			Specs:[
+// 				-m set --match-set azure-npm-2173871756 dst
+// 				-m set --match-set azure-npm-3038731686 dst
+// 				-j DROP
+// 				-m comment --comment DROP-ALL-TO-app:backend-IN-ns-testnamespace
+// 		]}
+// 	*/
+
+// 	// TODO(junguk): need to know chain type - "FROM", "PORT", "DROP"
+// 	// Target
+// 	// Direction
+// 	aclPolicy := policies.ACLPolicy{
+// 		PolicyID:  policy.Name,
+// 		SrcList:   srcList,
+// 		DstList:   []policies.SetInfo{},
+// 		Target:    policies.Dropped,
+// 		Direction: policies.Ingress,
+// 	}
+
+// 	// This is how to make tests
+// 	chain := ""
+// 	if aclPolicy.Target == policies.Dropped {
+// 		chain = util.IptablesAzureIngressDropsChain
+// 	}
+
+// 	entry := &iptm.IptEntry{
+// 		Chain: chain,
+// 		Specs: []string{},
+// 	}
+
+// 	for _, src := range aclPolicy.SrcList {
+// 		entry.Specs = append(
+// 			entry.Specs,
+// 			util.IptablesModuleFlag,
+// 			util.IptablesSetModuleFlag,
+// 			util.IptablesMatchSetFlag,
+// 			util.GetHashedName(src.IPSet.Name),
+// 			src.MatchType,
+// 		)
+// 	}
+// 	if aclPolicy.Target == policies.Dropped {
+// 		entry.Specs = append(
+// 			entry.Specs,
+// 			util.IptablesJumpFlag,
+// 			util.IptablesDrop,
+// 			util.IptablesModuleFlag,
+// 			util.IptablesCommentModuleFlag,
+// 			util.IptablesCommentFlag,
+// 		)
+// 	}
+// 	fmt.Printf("%+v\n", entry)
+// }
