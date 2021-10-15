@@ -20,7 +20,7 @@ spec:
       hostNetwork: true
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns-win:v1.4.12-43-g21f203db8-dirty
+          image: acnpublic.azurecr.io/azure-cns-win:v1.4.13-13-gd5039ff8e-dirty
           imagePullPolicy: Always # Change to IfNotPresent after development
           command:
             ["%CONTAINER_SANDBOX_MOUNT_POINT%/usr/local/bin/azure-cns.exe"]
@@ -62,6 +62,8 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
+            - name: KUBECONFIG
+              value: "C:\\k\\config"
       volumes:
         - name: log
           hostPath:
