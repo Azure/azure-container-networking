@@ -5,11 +5,6 @@ import (
 )
 
 const (
-	// NcPrimaryIPKey indicates constant for the key string
-	NcPrimaryIPKey string = "NCPrimaryIPKey"
-)
-
-const (
 	NetworkPolicy     CNIPolicyType = "NetworkPolicy"
 	EndpointPolicy    CNIPolicyType = "EndpointPolicy"
 	OutBoundNatPolicy CNIPolicyType = "OutBoundNAT"
@@ -24,4 +19,10 @@ type CNIPolicyType string
 type Policy struct {
 	Type CNIPolicyType
 	Data json.RawMessage
+}
+
+// NATInfo contains information about NAT rules
+type NATInfo struct {
+	Destinations []string
+	VirtualIP    string
 }

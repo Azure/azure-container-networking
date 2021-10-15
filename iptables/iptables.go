@@ -77,12 +77,6 @@ const (
 	TCP = "tcp"
 )
 
-// known IP's
-const (
-	AzureDNS  = "168.63.129.16"
-	AzureIMDS = "169.254.169.254"
-)
-
 var DisableIPTableLock bool
 
 type IPTableEntry struct {

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 )
@@ -428,11 +428,9 @@ func GetHcnL4WFPProxyPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 }
 
 // GetHcnEndpointPolicies returns array of all endpoint policies.
-func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatForDns, enableMultiTenancy, isAksSwift bool) ([]hcn.EndpointPolicy, error) {
-	var (
-		hcnEndPointPolicies []hcn.EndpointPolicy
-		snatAndSerialize    = (enableMultiTenancy && enableSnatForDns) || isAksSwift
-	)
+func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatForDns, enableMultiTenancy bool, natInfo []NATInfo) ([]hcn.EndpointPolicy, error) {
+	var hcnEndPointPolicies []hcn.EndpointPolicy
+
 	for _, policy := range policies {
 		if policy.Type == policyType {
 			var err error
@@ -468,27 +466,17 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 		}
 	}
 
-	if snatAndSerialize && ValidWinVerForDnsNat {
-		var snatToIP string
-		if isAksSwift {
-			snatToIP = epInfoData[NcPrimaryIPKey].(string)
-
-			imdsNatPolicy, err := AddImdsNATPolicyV2()
+	if ValidWinVerForDnsNat {
+		for _, natRule := range natInfo {
+			natPolicy, err := AddNATPolicyV2(natRule.VirtualIP, natRule.Destinations)
 			if err != nil {
-				log.Printf("Failed to retrieve ImdsNAT endpoint policy due to error: %v", err)
+				log.Printf("Failed to retrieve NAT endpoint policy due to error: %v", err)
 				return hcnEndPointPolicies, err
 			}
 
-			hcnEndPointPolicies = append(hcnEndPointPolicies, imdsNatPolicy)
+			hcnEndPointPolicies = append(hcnEndPointPolicies, natPolicy)
+			log.Printf("Successfully set the policy: %+v", natPolicy)
 		}
-
-		dnsNatPolicy, err := AddDnsNATPolicyV2(snatToIP)
-		if err != nil {
-			log.Printf("Failed to retrieve DnsNAT endpoint policy due to error: %v", err)
-			return hcnEndPointPolicies, err
-		}
-
-		hcnEndPointPolicies = append(hcnEndPointPolicies, dnsNatPolicy)
 	}
 
 	return hcnEndPointPolicies, nil
@@ -498,26 +486,15 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 func AddDnsNATPolicyV1() (json.RawMessage, error) {
 	outBoundNatPolicy := hcsshim.OutboundNatPolicy{
 		Policy:       hcsshim.Policy{Type: hcsshim.OutboundNat},
-		Destinations: []string{iptables.AzureDNS},
+		Destinations: []string{networkutils.AzureDNS},
 	}
 	serializedPolicy, err := json.Marshal(outBoundNatPolicy)
 	return serializedPolicy, err
 }
 
-// AddDnsNATPolicyV2 returns DNS NAT endpoint policy for HNSv2
-func AddDnsNATPolicyV2(snatToIP string) (hcn.EndpointPolicy, error) {
-	outBoundNatPolicySettings := hcn.OutboundNatPolicySetting{VirtualIP: snatToIP, Destinations: []string{iptables.AzureDNS}}
-	outBoundNatPolicySettingsBytes, err := json.Marshal(outBoundNatPolicySettings)
-	endpointPolicy := hcn.EndpointPolicy{
-		Type:     hcn.OutBoundNAT,
-		Settings: outBoundNatPolicySettingsBytes,
-	}
-	return endpointPolicy, err
-}
-
-// AddImdsNATPolicyV2 returns IMDS NAT endpoint policy for HNSv2
-func AddImdsNATPolicyV2() (hcn.EndpointPolicy, error) {
-	outBoundNatPolicySettings := hcn.OutboundNatPolicySetting{Destinations: []string{iptables.AzureIMDS}}
+// AddNATPolicyV2 returns serialized endpoint policy based on vip (IP to snat to) and destination(s)
+func AddNATPolicyV2(vip string, destinations []string) (hcn.EndpointPolicy, error) {
+	outBoundNatPolicySettings := hcn.OutboundNatPolicySetting{VirtualIP: vip, Destinations: destinations}
 	outBoundNatPolicySettingsBytes, err := json.Marshal(outBoundNatPolicySettings)
 	endpointPolicy := hcn.EndpointPolicy{
 		Type:     hcn.OutBoundNAT,
