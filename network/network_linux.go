@@ -65,10 +65,6 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 
 	switch nwInfo.Mode {
 	case opModeTunnel:
-		err := nm.handleCommonOptions(extIf.Name, nwInfo)
-		if err != nil {
-			log.Printf("tunnel handleCommonOptions failed with error %s", err.Error())
-		}
 		fallthrough
 	case opModeBridge:
 		log.Printf("create bridge")
@@ -78,10 +74,6 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 
 		if opt != nil && opt[VlanIDKey] != nil {
 			vlanid, _ = strconv.Atoi(opt[VlanIDKey].(string))
-		}
-		err := nm.handleCommonOptions(extIf.BridgeName, nwInfo)
-		if err != nil {
-			log.Printf("bridge handleCommonOptions failed with error %s", err.Error())
 		}
 	case opModeTransparent:
 		log.Printf("Transparent mode")
@@ -93,6 +85,12 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		}
 	default:
 		return nil, errNetworkModeInvalid
+	}
+
+	err := nm.handleCommonOptions(extIf.BridgeName, nwInfo)
+	if err != nil {
+		log.Printf("handleCommonOptions failed with error %s", err.Error())
+		return nil, err
 	}
 
 	// Create the network object.
@@ -109,6 +107,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 	return nw, nil
 }
 
+// RoutesKey and IPTablesKey is set only in AKS swift
 func (nm *networkManager) handleCommonOptions(ifname string, nwInfo *NetworkInfo) error {
 	var err error
 	if routes, exists := nwInfo.Options[RoutesKey]; exists {
