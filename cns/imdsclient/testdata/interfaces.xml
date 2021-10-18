@@ -1,0 +1,7 @@
+<Interfaces>
+    <Interface MacAddress="002248263DBD" IsPrimary="true">
+        <IPSubnet Prefix="10.240.0.0/16">
+            <IPAddress Address="10.240.0.4" IsPrimary="true"/>
+        </IPSubnet>
+    </Interface>
+</Interfaces>
