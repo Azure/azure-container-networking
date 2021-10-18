@@ -20,6 +20,7 @@ type GenericDataplane interface {
 	UpdatePolicy(policies *policies.NPMNetworkPolicy) error
 }
 
+// PodMetadata is what is passed to dataplane to specify pod ipset
 // todo definitely requires further optimization between the intersection
 // of types, PodMetadata, NpmPod and corev1.pod
 type PodMetadata struct {

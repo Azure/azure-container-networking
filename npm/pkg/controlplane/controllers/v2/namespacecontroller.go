@@ -28,15 +28,13 @@ import (
 type LabelAppendOperation bool
 
 const (
-	ClearExistingLabels    LabelAppendOperation = true
-	AppendToExistingLabels LabelAppendOperation = false
+	clearExistingLabels    LabelAppendOperation = true
+	appendToExistingLabels LabelAppendOperation = false
 )
 
-var (
-	errWorkqueueFormatting = errors.New("error in formatting")
-)
+var errWorkqueueFormatting = errors.New("error in formatting")
 
-// Cache to store namespace struct in nameSpaceController.go.
+// NpmNamespaceCache to store namespace struct in nameSpaceController.go.
 // Since this cache is shared between podController and NamespaceController,
 // it has mutex for avoiding racing condition between them.
 type NpmNamespaceCache struct {
@@ -325,7 +323,7 @@ func (nsc *NamespaceController) syncAddNamespace(nsObj *corev1.Namespace) error 
 		setsToAddNamespaceTo = append(setsToAddNamespaceTo, labelIPSets...)
 
 		// Append succeeded labels to the cache NS obj
-		npmNs.appendLabels(map[string]string{nsLabelKey: nsLabelVal}, AppendToExistingLabels)
+		npmNs.appendLabels(map[string]string{nsLabelKey: nsLabelVal}, appendToExistingLabels)
 	}
 
 	nsc.dp.CreateIPSet(append(namespaceSets, setsToAddNamespaceTo...))
@@ -395,14 +393,14 @@ func (nsc *NamespaceController) syncUpdateNamespace(newNsObj *corev1.Namespace) 
 		// only after both ipsets for a given label's key value pair are added successfully
 		addedLabelKey, addedLabelValue := util.GetLabelKVFromSet(nsLabelVal)
 		if addedLabelValue != "" {
-			curNsObj.appendLabels(map[string]string{addedLabelKey: addedLabelValue}, AppendToExistingLabels)
+			curNsObj.appendLabels(map[string]string{addedLabelKey: addedLabelValue}, appendToExistingLabels)
 		}
 	}
 
 	// Append all labels to the cache NS obj
 	// If due to ordering issue the above deleted and added labels are not correct,
 	// this below appendLabels will help ensure correct state in cache for all successful ops.
-	curNsObj.appendLabels(newNsLabel, ClearExistingLabels)
+	curNsObj.appendLabels(newNsLabel, clearExistingLabels)
 	nsc.npmNamespaceCache.NsMap[newNsName] = curNsObj
 
 	return nil

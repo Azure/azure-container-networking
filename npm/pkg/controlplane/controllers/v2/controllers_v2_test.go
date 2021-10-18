@@ -15,7 +15,9 @@ func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	realexec := exec.New()
 	iptMgr := iptm.NewIptablesManager(realexec, iptm.NewFakeIptOperationShim())
-	iptMgr.UninitNpmChains()
+	if err := iptMgr.UninitNpmChains(); err != nil {
+		fmt.Println("uninit failed with err %w", err)
+	}
 
 	ipsMgr := ipsm.NewIpsetManager(realexec)
 	// Do not check returned error here to proceed all UTs.
