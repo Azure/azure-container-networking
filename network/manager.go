@@ -11,6 +11,7 @@ import (
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -58,6 +59,7 @@ type networkManager struct {
 	ExternalInterfaces map[string]*externalInterface
 	store              store.KeyValueStore
 	netlink            netlink.NetlinkInterface
+	netio              netio.NetIOInterface
 	plClient           platform.ExecClient
 	sync.Mutex
 }
@@ -86,11 +88,12 @@ type NetworkManager interface {
 }
 
 // Creates a new network manager.
-func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient) (NetworkManager, error) {
+func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
 		netlink:            nl,
 		plClient:           plc,
+		netio:              netioCli,
 	}
 
 	return nm, nil

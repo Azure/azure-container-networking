@@ -11,6 +11,7 @@ import (
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
@@ -148,7 +149,7 @@ func main() {
 		}
 
 		nl := netlink.NewNetlink()
-		nm, err := network.NewNetworkManager(nl, platform.NewExecClient())
+		nm, err := network.NewNetworkManager(nl, platform.NewExecClient(), &netio.NetIO{})
 		if err != nil {
 			log.Printf("[monitor] Failed while creating network manager")
 			return
