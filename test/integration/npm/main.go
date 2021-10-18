@@ -24,7 +24,7 @@ func createTestSet(name string, setType ipsets.SetType) *testSet {
 }
 
 var (
-	testNSSet        = createTestSet("test-ns-set", ipsets.NameSpace)
+	testNSSet        = createTestSet("test-ns-set", ipsets.Namespace)
 	testKeyPodSet    = createTestSet("test-keyPod-set", ipsets.KeyLabelOfPod)
 	testKVPodSet     = createTestSet("test-kvPod-set", ipsets.KeyValueLabelOfPod)
 	testNamedportSet = createTestSet("test-namedport-set", ipsets.NamedPorts)

@@ -355,11 +355,10 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 		podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
 	var err error
-	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	podKey, _ := cache.MetaNamespaceKeyFunc(podObj)
 	// Add the pod ip information into namespace's ipset.
-	klog.Infof("Adding pod %s to ipset %s", podObj.Status.PodIP, podNs)
-	if err = c.ipsMgr.AddToSet(podNs, podObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
+	klog.Infof("Adding pod %s to ipset %s", podObj.Status.PodIP, podObj.Namespace)
+	if err = c.ipsMgr.AddToSet(podObj.Namespace, podObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to namespace ipset with err: %v", err)
 	}
 

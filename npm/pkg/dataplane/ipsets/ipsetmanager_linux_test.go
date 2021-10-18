@@ -39,13 +39,13 @@ var (
 		ExitCode: 0,
 	}
 
-	testNSSet           = createTestSet("test-ns-set", NameSpace)
+	testNSSet           = createTestSet("test-ns-set", Namespace)
 	testKeyPodSet       = createTestSet("test-keyPod-set", KeyLabelOfPod)
 	testKVPodSet        = createTestSet("test-kvPod-set", KeyValueLabelOfPod)
 	testNamedportSet    = createTestSet("test-namedport-set", NamedPorts)
 	testCIDRSet         = createTestSet("test-cidr-set", CIDRBlocks)
-	testKeyNSList       = createTestSet("test-keyNS-list", KeyLabelOfNameSpace)
-	testKVNSList        = createTestSet("test-kvNS-list", KeyValueLabelOfNameSpace)
+	testKeyNSList       = createTestSet("test-keyNS-list", KeyLabelOfNamespace)
+	testKVNSList        = createTestSet("test-kvNS-list", KeyValueLabelOfNamespace)
 	testNestedLabelList = createTestSet("test-nestedlabel-list", NestedLabelOfPod)
 )
 

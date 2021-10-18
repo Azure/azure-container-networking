@@ -364,14 +364,13 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 		podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
 	var err error
-	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	podKey, _ := cache.MetaNamespaceKeyFunc(podObj)
 
 	podMetadata := dataplane.NewPodMetadata(podKey, podObj.Status.PodIP, podObj.Spec.NodeName)
 
 	// Add the pod ip information into namespace's ipset.
-	klog.Infof("Adding pod %s to ipset %s", podObj.Status.PodIP, podNs)
-	targetSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podNs, ipsets.Namespace)}
+	klog.Infof("Adding pod %s to ipset %s", podObj.Status.PodIP, podObj.Namespace)
+	targetSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podObj.Namespace, ipsets.Namespace)}
 
 	if err = c.dp.AddToSet(targetSet, podMetadata); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to namespace ipset with err: %w", err)
