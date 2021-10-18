@@ -176,15 +176,15 @@ func (c *PodController) addPod(obj interface{}) {
 	c.workqueue.Add(key)
 }
 
-func (c *PodController) updatePod(old, new interface{}) {
-	key, needSync := c.needSync("UPDATE", new)
+func (c *PodController) updatePod(old, newp interface{}) {
+	key, needSync := c.needSync("UPDATE", newp)
 	if !needSync {
 		klog.Infof("[POD UPDATE EVENT] No need to sync this pod")
 		return
 	}
 
 	// needSync checked validation of casting newPod.
-	newPod, _ := new.(*corev1.Pod)
+	newPod, _ := newp.(*corev1.Pod)
 	oldPod, ok := old.(*corev1.Pod)
 	if ok {
 		if oldPod.ResourceVersion == newPod.ResourceVersion {

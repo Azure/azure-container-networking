@@ -149,14 +149,14 @@ func (nsc *NamespaceController) addNamespace(obj interface{}) {
 	nsc.workqueue.Add(key)
 }
 
-func (nsc *NamespaceController) updateNamespace(old, new interface{}) {
-	key, needSync := nsc.needSync(new, "UPDATE")
+func (nsc *NamespaceController) updateNamespace(old, newns interface{}) {
+	key, needSync := nsc.needSync(newns, "UPDATE")
 	if !needSync {
 		klog.Infof("[NAMESPACE UPDATE EVENT] No need to sync this namespace [%s]", key)
 		return
 	}
 
-	nsObj, _ := new.(*corev1.Namespace)
+	nsObj, _ := newns.(*corev1.Namespace)
 	oldNsObj, ok := old.(*corev1.Namespace)
 	if ok {
 		if oldNsObj.ResourceVersion == nsObj.ResourceVersion {

@@ -8,7 +8,8 @@ import (
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/networkutils"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -26,6 +27,7 @@ type LinuxBridgeClient struct {
 	hostInterfaceName string
 	nwInfo            NetworkInfo
 	netlink           netlink.NetlinkInterface
+	nuClient          networkutils.NetworkUtils
 }
 
 func NewLinuxBridgeClient(
@@ -33,12 +35,14 @@ func NewLinuxBridgeClient(
 	hostInterfaceName string,
 	nwInfo NetworkInfo,
 	nl netlink.NetlinkInterface,
+	plc platform.ExecClient,
 ) *LinuxBridgeClient {
 	client := &LinuxBridgeClient{
 		bridgeName:        bridgeName,
 		nwInfo:            nwInfo,
 		hostInterfaceName: hostInterfaceName,
 		netlink:           nl,
+		nuClient:          networkutils.NewNetworkUtils(nl, plc),
 	}
 
 	return client
@@ -58,7 +62,11 @@ func (client *LinuxBridgeClient) CreateBridge() error {
 		return err
 	}
 
-	return epcommon.DisableRAForInterface(client.bridgeName)
+	if err := client.nuClient.DisableRAForInterface(client.bridgeName); err != nil {
+		return fmt.Errorf("CreateBridge:%w", err)
+	}
+
+	return nil
 }
 
 func (client *LinuxBridgeClient) DeleteBridge() error {
@@ -123,7 +131,7 @@ func (client *LinuxBridgeClient) AddL2Rules(extIf *externalInterface) error {
 			return err
 		}
 
-		if err := epcommon.EnableIPV6Forwarding(); err != nil {
+		if err := client.nuClient.EnableIPV6Forwarding(); err != nil {
 			return err
 		}
 	}

@@ -10,8 +10,9 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -29,13 +30,15 @@ type OVSInfraVnetClient struct {
 	ContainerInfraVethName string
 	containerInfraMac      string
 	netlink                netlink.NetlinkInterface
+	plClient               platform.ExecClient
 }
 
-func NewInfraVnetClient(hostIfName, contIfName string, nl netlink.NetlinkInterface) OVSInfraVnetClient {
+func NewInfraVnetClient(hostIfName, contIfName string, nl netlink.NetlinkInterface, plc platform.ExecClient) OVSInfraVnetClient {
 	infraVnetClient := OVSInfraVnetClient{
 		hostInfraVethName:      hostIfName,
 		ContainerInfraVethName: contIfName,
 		netlink:                nl,
+		plClient:               plc,
 	}
 
 	log.Printf("Initialize new infravnet client %+v", infraVnetClient)
@@ -45,7 +48,7 @@ func NewInfraVnetClient(hostIfName, contIfName string, nl netlink.NetlinkInterfa
 
 func (client *OVSInfraVnetClient) CreateInfraVnetEndpoint(bridgeName string) error {
 	ovs := ovsctl.NewOvsctl()
-	epc := epcommon.NewEPCommon(client.netlink)
+	epc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
 	if err := epc.CreateEndpoint(client.hostInfraVethName, client.ContainerInfraVethName); err != nil {
 		log.Printf("Creating infraep failed with error %v", err)
 		return err
@@ -107,7 +110,7 @@ func (client *OVSInfraVnetClient) MoveInfraEndpointToContainerNS(netnsPath strin
 }
 
 func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
-	epc := epcommon.NewEPCommon(client.netlink)
+	epc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
 	if err := epc.SetupContainerInterface(client.ContainerInfraVethName, azureInfraIfName); err != nil {
 		return newErrorOVSInfraVnetClient(err.Error())
 	}

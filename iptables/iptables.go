@@ -94,6 +94,7 @@ type IPTableEntry struct {
 func RunCmd(version, params string) error {
 	var cmd string
 
+	p := platform.NewExecClient()
 	iptCmd := iptables
 	if version == V6 {
 		iptCmd = ip6tables
@@ -105,7 +106,7 @@ func RunCmd(version, params string) error {
 		cmd = fmt.Sprintf("%s -w %d %s", iptCmd, lockTimeout, params)
 	}
 
-	if _, err := platform.ExecuteCommand(cmd); err != nil {
+	if _, err := p.ExecuteCommand(cmd); err != nil {
 		return err
 	}
 

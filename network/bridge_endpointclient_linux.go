@@ -6,8 +6,10 @@ import (
 
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/networkutils"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -26,6 +28,9 @@ type LinuxBridgeEndpointClient struct {
 	hostIPAddresses   []*net.IPNet
 	mode              string
 	netlink           netlink.NetlinkInterface
+	plClient          platform.ExecClient
+	netioshim         netio.NetIOInterface
+	nuc               networkutils.NetworkUtils
 }
 
 func NewLinuxBridgeEndpointClient(
@@ -34,6 +39,7 @@ func NewLinuxBridgeEndpointClient(
 	containerVethName string,
 	mode string,
 	nl netlink.NetlinkInterface,
+	plc platform.ExecClient,
 ) *LinuxBridgeEndpointClient {
 
 	client := &LinuxBridgeEndpointClient{
@@ -45,16 +51,17 @@ func NewLinuxBridgeEndpointClient(
 		hostIPAddresses:   []*net.IPNet{},
 		mode:              mode,
 		netlink:           nl,
+		plClient:          plc,
+		netioshim:         &netio.NetIO{},
 	}
 
 	client.hostIPAddresses = append(client.hostIPAddresses, extIf.IPAddresses...)
-
+	client.nuc = networkutils.NewNetworkUtils(nl, plc)
 	return client
 }
 
 func (client *LinuxBridgeEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
-	epc := epcommon.NewEPCommon(client.netlink)
-	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
+	if err := client.nuc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return err
 	}
 
@@ -164,8 +171,7 @@ func (client *LinuxBridgeEndpointClient) MoveEndpointsToContainerNS(epInfo *Endp
 }
 
 func (client *LinuxBridgeEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-	epc := epcommon.NewEPCommon(client.netlink)
-	if err := epc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
+	if err := client.nuc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
 		return err
 	}
 
@@ -175,19 +181,11 @@ func (client *LinuxBridgeEndpointClient) SetupContainerInterfaces(epInfo *Endpoi
 }
 
 func (client *LinuxBridgeEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
-	if epInfo.IPV6Mode != "" {
-		// Enable ipv6 setting in container
-		if err := epcommon.UpdateIPV6Setting(0); err != nil {
-			return err
-		}
-	}
-
-	epc := epcommon.NewEPCommon(client.netlink)
-	if err := epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
+	if err := client.nuc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
 		return err
 	}
 
-	if err := addRoutes(client.netlink, client.containerVethName, epInfo.Routes); err != nil {
+	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes); err != nil {
 		return err
 	}
 
@@ -280,7 +278,7 @@ func (client *LinuxBridgeEndpointClient) setupIPV6Routes(epInfo *EndpointInfo) e
 		routes = append(routes, defaultV6Route)
 
 		log.Printf("[net] Adding ipv6 routes in container %+v", routes)
-		if err := addRoutes(client.netlink, client.containerVethName, routes); err != nil {
+		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, routes); err != nil {
 			return nil
 		}
 	}

@@ -12,7 +12,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
-	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/google/uuid"
@@ -146,7 +145,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 	}()
 
 	// route entry for pod cidr
-	if err = appIPV6RouteEntry(nwInfo); err != nil {
+	if err = nm.appIPV6RouteEntry(nwInfo); err != nil {
 		return nil, err
 	}
 
@@ -173,7 +172,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 	return nw, nil
 }
 
-func appIPV6RouteEntry(nwInfo *NetworkInfo) error {
+func (nm *networkManager) appIPV6RouteEntry(nwInfo *NetworkInfo) error {
 	var (
 		err error
 		out string
@@ -192,13 +191,13 @@ func appIPV6RouteEntry(nwInfo *NetworkInfo) error {
 
 		cmd := fmt.Sprintf(routeCmd, "delete", nwInfo.Subnets[1].Prefix.String(),
 			ifName, ipv6DefaultHop)
-		if out, err = platform.ExecuteCommand(cmd); err != nil {
+		if out, err = nm.plClient.ExecuteCommand(cmd); err != nil {
 			log.Printf("[net] Deleting ipv6 route failed: %v:%v", out, err)
 		}
 
 		cmd = fmt.Sprintf(routeCmd, "add", nwInfo.Subnets[1].Prefix.String(),
 			ifName, ipv6DefaultHop)
-		if out, err = platform.ExecuteCommand(cmd); err != nil {
+		if out, err = nm.plClient.ExecuteCommand(cmd); err != nil {
 			log.Printf("[net] Adding ipv6 route failed: %v:%v", out, err)
 		}
 	}

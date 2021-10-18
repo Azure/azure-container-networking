@@ -87,7 +87,7 @@ func GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-func ExecuteCommand(command string) (string, error) {
+func (p *execClient) ExecuteCommand(command string) (string, error) {
 	log.Printf("[Azure-Utils] %s", command)
 
 	var stderr bytes.Buffer
@@ -124,8 +124,9 @@ func ClearNetworkConfiguration() (bool, error) {
 }
 
 func KillProcessByName(processName string) {
+	p := NewExecClient()
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
-	ExecuteCommand(cmd)
+	p.ExecuteCommand(cmd)
 }
 
 // ExecutePowershellCommand executes powershell command

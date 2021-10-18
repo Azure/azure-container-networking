@@ -7,11 +7,13 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/epcommon"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/ovsinfravnet"
 	"github.com/Azure/azure-container-networking/network/ovssnat"
 	"github.com/Azure/azure-container-networking/ovsctl"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 type OVSEndpointClient struct {
@@ -30,7 +32,9 @@ type OVSEndpointClient struct {
 	allowInboundFromNCToHost bool
 	enableSnatForDns         bool
 	netlink                  netlink.NetlinkInterface
+	netioshim                netio.NetIOInterface
 	ovsctlClient             ovsctl.OvsInterface
+	plClient                 platform.ExecClient
 }
 
 const (
@@ -46,7 +50,8 @@ func NewOVSEndpointClient(
 	vlanid int,
 	localIP string,
 	nl netlink.NetlinkInterface,
-	ovs ovsctl.OvsInterface) *OVSEndpointClient {
+	ovs ovsctl.OvsInterface,
+	plc platform.ExecClient) *OVSEndpointClient {
 
 	client := &OVSEndpointClient{
 		bridgeName:               nw.extIf.BridgeName,
@@ -62,6 +67,8 @@ func NewOVSEndpointClient(
 		enableSnatForDns:         epInfo.EnableSnatForDns,
 		netlink:                  nl,
 		ovsctlClient:             ovs,
+		plClient:                 plc,
+		netioshim:                &netio.NetIO{},
 	}
 
 	NewInfraVnetClient(client, epInfo.Id[:7])
@@ -71,7 +78,7 @@ func NewOVSEndpointClient(
 }
 
 func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
-	epc := epcommon.NewEPCommon(client.netlink)
+	epc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
 	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
 		return err
 	}
@@ -195,8 +202,8 @@ func (client *OVSEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo
 }
 
 func (client *OVSEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-	epc := epcommon.NewEPCommon(client.netlink)
-	if err := epc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
+	nuc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
+	if err := nuc.SetupContainerInterface(client.containerVethName, epInfo.IfName); err != nil {
 		return err
 	}
 
@@ -210,8 +217,8 @@ func (client *OVSEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) 
 }
 
 func (client *OVSEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
-	epc := epcommon.NewEPCommon(client.netlink)
-	if err := epc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
+	nuc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
+	if err := nuc.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
 		return err
 	}
 
@@ -223,7 +230,7 @@ func (client *OVSEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *E
 		return err
 	}
 
-	return addRoutes(client.netlink, client.containerVethName, epInfo.Routes)
+	return addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes)
 }
 
 func (client *OVSEndpointClient) DeleteEndpoints(ep *endpoint) error {

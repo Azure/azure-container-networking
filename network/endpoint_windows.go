@@ -93,7 +93,7 @@ func ConstructEndpointID(containerID string, netNsPath string, ifName string) (s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, _ platform.ExecClient, epInfo *EndpointInfo) (*endpoint, error) {
 	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
@@ -415,7 +415,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, _ platform.ExecClient, ep *endpoint) error {
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
 		if err != nil {
 			return err

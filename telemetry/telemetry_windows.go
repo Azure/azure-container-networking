@@ -4,10 +4,9 @@
 package telemetry
 
 import (
+	"github.com/Azure/azure-container-networking/platform"
 	"runtime"
 	"strings"
-
-	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -38,8 +37,9 @@ func (report *CNIReport) GetSystemDetails() {
 }
 
 func (report *CNIReport) GetOSDetails() {
+	p := platform.NewExecClient()
 	report.OSDetails = OSInfo{OSType: runtime.GOOS}
-	out, err := platform.ExecuteCommand(versionCmd)
+	out, err := p.ExecuteCommand(versionCmd)
 	if err == nil {
 		report.OSDetails.OSVersion = strings.Replace(out, delimiter, "", -1)
 	}

@@ -47,8 +47,9 @@ func GetOSInfo() string {
 }
 
 func GetProcessSupport() error {
+	p := &execClient{}
 	cmd := fmt.Sprintf("ps -p %v -o comm=", os.Getpid())
-	_, err := ExecuteCommand(cmd)
+	_, err := p.ExecuteCommand(cmd)
 	return err
 }
 
@@ -72,7 +73,7 @@ func GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-func ExecuteCommand(command string) (string, error) {
+func (p *execClient) ExecuteCommand(command string) (string, error) {
 	log.Printf("[Azure-Utils] %s", command)
 
 	var stderr bytes.Buffer
@@ -90,9 +91,10 @@ func ExecuteCommand(command string) (string, error) {
 }
 
 func SetOutboundSNAT(subnet string) error {
+	p := execClient{}
 	cmd := fmt.Sprintf("iptables -t nat -A POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",
 		subnet)
-	_, err := ExecuteCommand(cmd)
+	_, err := p.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("SNAT Iptable rule was not set")
 		return err
@@ -107,8 +109,9 @@ func ClearNetworkConfiguration() (bool, error) {
 }
 
 func KillProcessByName(processName string) error {
+	p := &execClient{}
 	cmd := fmt.Sprintf("pkill -f %v", processName)
-	_, err := ExecuteCommand(cmd)
+	_, err := p.ExecuteCommand(cmd)
 	return err
 }
 
@@ -137,9 +140,10 @@ func GetOSDetails() (map[string]string, error) {
 }
 
 func GetProcessNameByID(pidstr string) (string, error) {
+	p := &execClient{}
 	pidstr = strings.Trim(pidstr, "\n")
 	cmd := fmt.Sprintf("ps -p %s -o comm=", pidstr)
-	out, err := ExecuteCommand(cmd)
+	out, err := p.ExecuteCommand(cmd)
 	if err != nil {
 		log.Printf("GetProcessNameByID returned error: %v", err)
 		return "", err
@@ -152,10 +156,11 @@ func GetProcessNameByID(pidstr string) (string, error) {
 }
 
 func PrintDependencyPackageDetails() {
-	out, err := ExecuteCommand("iptables --version")
+	p := &execClient{}
+	out, err := p.ExecuteCommand("iptables --version")
 	out = strings.TrimSuffix(out, "\n")
 	log.Printf("[cni-net] iptable version:%s, err:%v", out, err)
-	out, err = ExecuteCommand("ebtables --version")
+	out, err = p.ExecuteCommand("ebtables --version")
 	out = strings.TrimSuffix(out, "\n")
 	log.Printf("[cni-net] ebtable version %s, err:%v", out, err)
 }

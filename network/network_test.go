@@ -4,6 +4,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/platform"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -156,6 +157,28 @@ var _ = Describe("Test Network", func() {
 				nw, err := nm.newNetwork(nwInfo)
 				Expect(err).To(Equal(errNetworkExists))
 				Expect(nw).To(BeNil())
+			})
+		})
+
+		Context("create new network in transparent mode", func() {
+			It("Should create new network", func() {
+				nm := &networkManager{
+					ExternalInterfaces: map[string]*externalInterface{},
+					plClient:           platform.NewMockExecClient(false),
+				}
+				nm.ExternalInterfaces["eth0"] = &externalInterface{
+					Networks: map[string]*network{},
+				}
+				nwInfo := &NetworkInfo{
+					Id:           "nw",
+					MasterIfName: "eth0",
+					Mode:         opModeTransparent,
+					IPV6Mode:     IPV6Nat,
+				}
+				nw, err := nm.newNetwork(nwInfo)
+				Expect(err).To(BeNil())
+				Expect(nw).NotTo(BeNil())
+				Expect(nw.Id).To(Equal(nwInfo.Id))
 			})
 		})
 	})

@@ -7,13 +7,20 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	ioShim     = common.NewMockIOShim([]testutils.TestCmd{})
+	fakeIPSetRestoreSuccess = testutils.TestCmd{
+		Cmd:      []string{util.Ipset, util.IpsetRestoreFlag},
+		ExitCode: 0,
+	}
+
+	emptyMockIOShim = common.NewMockIOShim([]testutils.TestCmd{})
+
 	setPodKey1 = &ipsets.TranslatedIPSet{
 		Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
 	}
@@ -60,7 +67,7 @@ var (
 
 func TestNewDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", ioShim)
+	dp := NewDataPlane("testnode", emptyMockIOShim)
 
 	if dp == nil {
 		t.Error("NewDataPlane() returned nil")
@@ -72,7 +79,7 @@ func TestNewDataPlane(t *testing.T) {
 
 func TestInitializeDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", ioShim)
+	dp := NewDataPlane("testnode", emptyMockIOShim)
 
 	assert.NotNil(t, dp)
 	err := dp.InitializeDataPlane()
@@ -81,7 +88,7 @@ func TestInitializeDataPlane(t *testing.T) {
 
 func TestResetDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", ioShim)
+	dp := NewDataPlane("testnode", emptyMockIOShim)
 
 	assert.NotNil(t, dp)
 	err := dp.InitializeDataPlane()
@@ -92,7 +99,7 @@ func TestResetDataPlane(t *testing.T) {
 
 func TestCreateAndDeleteIpSets(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", ioShim)
+	dp := NewDataPlane("testnode", emptyMockIOShim)
 	assert.NotNil(t, dp)
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
@@ -133,7 +140,7 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 
 func TestAddToSet(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", ioShim)
+	dp := NewDataPlane("testnode", emptyMockIOShim)
 
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
@@ -192,6 +199,8 @@ func TestAddToSet(t *testing.T) {
 
 func TestApplyPolicy(t *testing.T) {
 	metrics.InitializeAll()
+	calls := []testutils.TestCmd{fakeIPSetRestoreSuccess}
+	ioShim := common.NewMockIOShim(calls)
 	dp := NewDataPlane("testnode", ioShim)
 
 	err := dp.AddPolicy(testPolicyobj)
@@ -200,6 +209,8 @@ func TestApplyPolicy(t *testing.T) {
 
 func TestRemovePolicy(t *testing.T) {
 	metrics.InitializeAll()
+	calls := []testutils.TestCmd{fakeIPSetRestoreSuccess, fakeIPSetRestoreSuccess}
+	ioShim := common.NewMockIOShim(calls)
 	dp := NewDataPlane("testnode", ioShim)
 
 	err := dp.AddPolicy(testPolicyobj)
@@ -211,6 +222,8 @@ func TestRemovePolicy(t *testing.T) {
 
 func TestUpdatePolicy(t *testing.T) {
 	metrics.InitializeAll()
+	calls := []testutils.TestCmd{fakeIPSetRestoreSuccess, fakeIPSetRestoreSuccess}
+	ioShim := common.NewMockIOShim(calls)
 	dp := NewDataPlane("testnode", ioShim)
 
 	err := dp.AddPolicy(testPolicyobj)

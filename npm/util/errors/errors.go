@@ -54,6 +54,7 @@ const (
 	DeleteSelectorReference = "DeleteSelectorReference"
 	AddNetPolReference      = "AddNetPolReference"
 	DeleteNetPolReference   = "DeleteNetPolReference"
+	RunFileCreator          = "RunCommandWithFile"
 )
 
 // Error codes for ipsetmanager

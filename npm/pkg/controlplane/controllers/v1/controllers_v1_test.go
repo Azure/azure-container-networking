@@ -15,8 +15,9 @@ func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	realexec := exec.New()
 	iptMgr := iptm.NewIptablesManager(realexec, iptm.NewFakeIptOperationShim())
-	err := iptMgr.UninitNpmChains(); if err != nil {
-		
+	err := iptMgr.UninitNpmChains()
+	if err != nil {
+		fmt.Println("uninitnpmchains failed with %w", err)
 	}
 
 	ipsMgr := ipsm.NewIpsetManager(realexec)

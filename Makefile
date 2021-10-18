@@ -257,6 +257,21 @@ ifeq ($(GOOS),linux)
 	echo $(AZURE_CNS_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
 endif
 
+# Build the Azure CNS image windows
+.PHONY: azure-cns-image-windows
+azure-cns-image-windows:
+	$(MKDIR) $(IMAGE_DIR)
+	docker build \
+	--no-cache \
+	-f cns/windows.Dockerfile \
+	-t $(AZURE_CNS_IMAGE)-win:$(VERSION) \
+	--build-arg VERSION=$(VERSION) \
+	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
+	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	.
+
+	echo $(AZURE_CNS_IMAGE)-win:$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
+
 ########################### Archives ################################
 
 # Create a CNI archive for the target platform.

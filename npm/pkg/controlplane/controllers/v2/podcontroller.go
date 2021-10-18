@@ -440,10 +440,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	klog.Infof("[syncAddAndUpdatePod] updating Pod with key %s", podKey)
 	// No cached npmPod exists. start adding the pod in a cache
 	if !exists {
-		if er := c.syncAddedPod(newPodObj); er != nil {
-			return er
-		}
-		return nil
+		return c.syncAddedPod(newPodObj)
 	}
 
 	// Dealing with "updatePod" event - Compare last applied states against current Pod states
@@ -464,11 +461,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 		}
 
 		klog.Infof("Adding back Pod with key:%s after IP Mistmatch", podKey)
-		if er := c.syncAddedPod(newPodObj); er != nil {
-			return er
-		}
-
-		return nil
+		return c.syncAddedPod(newPodObj)
 	}
 
 	// Dealing with #1 pod update event, the IP addresses of cached npmPod and newPodObj are same

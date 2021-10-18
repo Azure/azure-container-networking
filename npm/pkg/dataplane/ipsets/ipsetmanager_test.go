@@ -19,8 +19,13 @@ const (
 	testPodIP    = "10.0.0.0"
 )
 
+var iMgrApplyOnNeedCfg = &IPSetManagerCfg{
+	IPSetMode:   ApplyOnNeed,
+	NetworkName: "azure",
+}
+
 func TestCreateIPSet(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSet(setMetadata)
@@ -36,7 +41,7 @@ func TestCreateIPSet(t *testing.T) {
 }
 
 func TestAddToSet(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSet(setMetadata)
@@ -58,7 +63,7 @@ func TestAddToSet(t *testing.T) {
 }
 
 func TestRemoveFromSet(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSet(setMetadata)
@@ -69,14 +74,14 @@ func TestRemoveFromSet(t *testing.T) {
 }
 
 func TestRemoveFromSetMissing(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	err := iMgr.RemoveFromSet([]*IPSetMetadata{setMetadata}, testPodIP, testPodKey)
 	require.Error(t, err)
 }
 
 func TestAddToListMissing(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata("testlabel", KeyLabelOfNamespace)
 	err := iMgr.AddToList(listMetadata, []*IPSetMetadata{setMetadata})
@@ -84,7 +89,7 @@ func TestAddToListMissing(t *testing.T) {
 }
 
 func TestAddToList(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata(testListName, KeyLabelOfNamespace)
 	iMgr.CreateIPSet(setMetadata)
@@ -102,7 +107,7 @@ func TestAddToList(t *testing.T) {
 }
 
 func TestRemoveFromList(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata(testListName, KeyLabelOfNamespace)
 	iMgr.CreateIPSet(setMetadata)
@@ -127,7 +132,7 @@ func TestRemoveFromList(t *testing.T) {
 }
 
 func TestRemoveFromListMissing(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata(testListName, KeyLabelOfNamespace)
@@ -138,7 +143,7 @@ func TestRemoveFromListMissing(t *testing.T) {
 }
 
 func TestDeleteIPSet(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSet(setMetadata)
 
@@ -147,7 +152,7 @@ func TestDeleteIPSet(t *testing.T) {
 }
 
 func TestGetIPsFromSelectorIPSets(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setsTocreate := []*IPSetMetadata{
 		{
 			Name: "setNs1",
@@ -198,7 +203,7 @@ func TestGetIPsFromSelectorIPSets(t *testing.T) {
 }
 
 func TestAddDeleteSelectorReferences(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setsTocreate := []*IPSetMetadata{
 		{
 			Name: "setNs1",
@@ -274,7 +279,7 @@ func TestAddDeleteSelectorReferences(t *testing.T) {
 }
 
 func TestAddDeleteNetPolReferences(t *testing.T) {
-	iMgr := NewIPSetManager("azure", common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setsTocreate := []*IPSetMetadata{
 		{
 			Name: "setNs1",

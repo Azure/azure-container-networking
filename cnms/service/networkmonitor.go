@@ -148,7 +148,7 @@ func main() {
 		}
 
 		nl := netlink.NewNetlink()
-		nm, err := network.NewNetworkManager(nl)
+		nm, err := network.NewNetworkManager(nl, platform.NewExecClient())
 		if err != nil {
 			log.Printf("[monitor] Failed while creating network manager")
 			return

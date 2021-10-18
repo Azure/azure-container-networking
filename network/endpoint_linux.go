@@ -11,8 +11,11 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
+	"github.com/Azure/azure-container-networking/platform"
 )
 
 const (
@@ -45,7 +48,7 @@ func ConstructEndpointID(containerID string, _ string, ifName string) (string, s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, plc platform.ExecClient, epInfo *EndpointInfo) (*endpoint, error) {
 	var containerIf *net.Interface
 	var ns *Namespace
 	var ep *endpoint
@@ -99,13 +102,14 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, e
 			vlanid,
 			localIP,
 			nl,
-			ovsctl.NewOvsctl())
+			ovsctl.NewOvsctl(),
+			plc)
 	} else if nw.Mode != opModeTransparent {
 		log.Printf("Bridge client")
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl)
+		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 	} else {
 		log.Printf("Transparent client")
-		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl)
+		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 	}
 
 	// Cleanup on failure.
@@ -179,6 +183,15 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, e
 		}()
 	}
 
+	if epInfo.IPV6Mode != "" {
+		// Enable ipv6 setting in container
+		log.Printf("Enable ipv6 setting in container.")
+		nuc := networkutils.NewNetworkUtils(nl, plc)
+		if err = nuc.UpdateIPV6Setting(0); err != nil {
+			return nil, fmt.Errorf("Enable ipv6 in container failed:%w", err)
+		}
+	}
+
 	// If a name for the container interface is specified...
 	if epInfo.IfName != "" {
 		if err = epClient.SetupContainerInterfaces(epInfo); err != nil {
@@ -218,7 +231,7 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, e
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, plc platform.ExecClient, ep *endpoint) error {
 	var epClient EndpointClient
 
 	// Delete the veth pair by deleting one of the peer interfaces.
@@ -226,11 +239,11 @@ func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface
 	// entering the container netns and hence works both for CNI and CNM.
 	if ep.VlanID != 0 {
 		epInfo := ep.getInfo()
-		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl())
+		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc)
 	} else if nw.Mode != opModeTransparent {
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl)
+		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 	} else {
-		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl)
+		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 	}
 
 	epClient.DeleteEndpointRules(ep)
@@ -243,17 +256,21 @@ func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface
 func (ep *endpoint) getInfoImpl(epInfo *EndpointInfo) {
 }
 
-func addRoutes(nl netlink.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
+func addRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
-	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
 	for _, route := range routes {
 		log.Printf("[net] Adding IP route %+v to link %v.", route, interfaceName)
 
 		if route.DevName != "" {
-			devIf, _ := net.InterfaceByName(route.DevName)
+			devIf, _ := netioshim.GetNetworkInterfaceByName(route.DevName)
 			ifIndex = devIf.Index
 		} else {
+			interfaceIf, err := netioshim.GetNetworkInterfaceByName(interfaceName)
+			if err != nil {
+				log.Errorf("Interface not found:%v", err)
+				return fmt.Errorf("addRoutes failed: %w", err)
+			}
 			ifIndex = interfaceIf.Index
 		}
 
@@ -284,15 +301,14 @@ func addRoutes(nl netlink.NetlinkInterface, interfaceName string, routes []Route
 	return nil
 }
 
-func deleteRoutes(nl netlink.NetlinkInterface, interfaceName string, routes []RouteInfo) error {
+func deleteRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
-	interfaceIf, _ := net.InterfaceByName(interfaceName)
 
 	for _, route := range routes {
 		log.Printf("[net] Deleting IP route %+v from link %v.", route, interfaceName)
 
 		if route.DevName != "" {
-			devIf, _ := net.InterfaceByName(route.DevName)
+			devIf, _ := netioshim.GetNetworkInterfaceByName(route.DevName)
 			if devIf == nil {
 				log.Printf("[net] Not deleting route. Interface %v doesn't exist", interfaceName)
 				continue
@@ -300,6 +316,7 @@ func deleteRoutes(nl netlink.NetlinkInterface, interfaceName string, routes []Ro
 
 			ifIndex = devIf.Index
 		} else {
+			interfaceIf, _ := netioshim.GetNetworkInterfaceByName(interfaceName)
 			if interfaceIf == nil {
 				log.Printf("[net] Not deleting route. Interface %v doesn't exist", interfaceName)
 				continue
@@ -307,9 +324,13 @@ func deleteRoutes(nl netlink.NetlinkInterface, interfaceName string, routes []Ro
 
 			ifIndex = interfaceIf.Index
 		}
+		family := netlink.GetIPAddressFamily(route.Gw)
+		if route.Gw == nil {
+			family = netlink.GetIPAddressFamily(route.Dst.IP)
+		}
 
 		nlRoute := &netlink.Route{
-			Family:    netlink.GetIPAddressFamily(route.Gw),
+			Family:    family,
 			Dst:       &route.Dst,
 			Gw:        route.Gw,
 			LinkIndex: ifIndex,
@@ -442,12 +463,12 @@ func (nm *networkManager) updateRoutes(existingEp *EndpointInfo, targetEp *Endpo
 
 	}
 
-	err := deleteRoutes(nm.netlink, existingEp.IfName, tobeDeletedRoutes)
+	err := deleteRoutes(nm.netlink, &netio.NetIO{}, existingEp.IfName, tobeDeletedRoutes)
 	if err != nil {
 		return err
 	}
 
-	err = addRoutes(nm.netlink, existingEp.IfName, tobeAddedRoutes)
+	err = addRoutes(nm.netlink, &netio.NetIO{}, existingEp.IfName, tobeAddedRoutes)
 	if err != nil {
 		return err
 	}

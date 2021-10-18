@@ -16,6 +16,11 @@ const (
 	SetPolicyTypeNestedIPSet hcn.SetPolicyType = "NESTEDIPSET"
 )
 
+func (iMgr *IPSetManager) resetIPSets() error {
+	// TODO
+	return nil
+}
+
 func (iMgr *IPSetManager) applyIPSets() error {
 	network, err := iMgr.getHCnNetwork()
 	if err != nil {
