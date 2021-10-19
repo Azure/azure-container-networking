@@ -1,4 +1,4 @@
-package imdsclient
+package imds
 
 import (
 	"net"

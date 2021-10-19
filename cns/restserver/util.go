@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
@@ -22,6 +23,7 @@ import (
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
 )
 
 // This file contains the utility/helper functions called by either HTTP APIs or Exported/Internal APIs on HTTPRestService
@@ -705,34 +707,46 @@ func (service *HTTPRestService) validateIPConfigRequest(
 	return podInfo, types.Success, ""
 }
 
-func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIpInfo *cns.PodIpInfo) error {
-	var (
-		ncStatus               containerstatus
-		exists                 bool
-		primaryIpConfiguration cns.IPConfiguration
-	)
+// getPrimaryHostInterface returns the cached InterfaceInfo, if available, otherwise
+// queries the IMDS to get the primary interface info and caches it in the server state
+// before returning the result.
+func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*imds.InterfaceInfo, error) {
+	if service.state.primaryInterface == nil {
+		res, err := service.imdsClient.GetInterfaces(ctx)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
+		}
+		service.state.primaryInterface, err = imds.GetPrimaryInterfaceFromResult(res)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
+		}
+	}
+	return service.state.primaryInterface, nil
+}
 
-	if ncStatus, exists = service.state.ContainerStatus[ipConfigStatus.NCID]; !exists {
+//nolint:gocritic // ignore hugeParam pls
+func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIPInfo *cns.PodIpInfo) error {
+	ncStatus, exists := service.state.ContainerStatus[ipConfigStatus.NCID]
+	if !exists {
 		return fmt.Errorf("Failed to get NC Configuration for NcId: %s", ipConfigStatus.NCID)
 	}
 
-	primaryIpConfiguration = ncStatus.CreateNetworkContainerRequest.IPConfiguration
+	primaryIPCfg := ncStatus.CreateNetworkContainerRequest.IPConfiguration
 
-	podIpInfo.PodIPConfig = cns.IPSubnet{
+	podIPInfo.PodIPConfig = cns.IPSubnet{
 		IPAddress:    ipConfigStatus.IPAddress,
-		PrefixLength: primaryIpConfiguration.IPSubnet.PrefixLength,
+		PrefixLength: primaryIPCfg.IPSubnet.PrefixLength,
 	}
 
-	podIpInfo.NetworkContainerPrimaryIPConfig = primaryIpConfiguration
-
-	hostInterfaceInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+	podIPInfo.NetworkContainerPrimaryIPConfig = primaryIPCfg
+	primaryHostInterface, err := service.getPrimaryHostInterface(context.TODO())
 	if err != nil {
-		return fmt.Errorf("Failed to get the HostInterfaceInfo %s", err)
+		return err
 	}
 
-	podIpInfo.HostPrimaryIPInfo.PrimaryIP = hostInterfaceInfo.PrimaryIP
-	podIpInfo.HostPrimaryIPInfo.Subnet = hostInterfaceInfo.Subnet
-	podIpInfo.HostPrimaryIPInfo.Gateway = hostInterfaceInfo.Gateway
+	podIPInfo.HostPrimaryIPInfo.PrimaryIP = primaryHostInterface.PrimaryIP
+	podIPInfo.HostPrimaryIPInfo.Subnet = primaryHostInterface.Subnet
+	podIPInfo.HostPrimaryIPInfo.Gateway = primaryHostInterface.Gateway
 
 	return nil
 }

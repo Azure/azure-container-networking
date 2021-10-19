@@ -4,13 +4,14 @@
 package restserver
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
-	"github.com/Azure/azure-container-networking/cns/imdsclient"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
@@ -20,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
 )
 
 // This file contains the initialization of RestServer.
@@ -35,11 +37,15 @@ var (
 	ncVersionURLs sync.Map
 )
 
+type imdscli interface {
+	GetInterfaces(ctx context.Context) (*imds.GetInterfacesResult, error)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
-	dockerClient             *dockerclient.DockerClient
-	imdsClient               imdsclient.ImdsClientInterface
+	dockerClient             *dockerclient.Client
+	imdsClient               imdscli
 	ipamClient               *ipamclient.IpamClient
 	nmagentClient            nmagentclient.NMAgentClientInterface
 	networkContainer         *networkcontainers.NetworkContainers
@@ -92,25 +98,25 @@ type httpRestServiceState struct {
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
 	joinedNetworks                   map[string]struct{}
+	primaryInterface                 *imds.InterfaceInfo
 }
 
 type networkInfo struct {
 	NetworkName string
-	NicInfo     *imdsclient.InterfaceInfo
+	NicInfo     *imds.InterfaceInfo
 	Options     map[string]interface{}
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdsclient.ImdsClientInterface, nmagentClient nmagentclient.NMAgentClientInterface) (cns.HTTPService, error) {
+func NewHTTPRestService(config *common.ServiceConfig, imdscli imdscli, nmagentClient nmagentclient.NMAgentClientInterface) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
 	}
 
-	imdsClient := imdsClientInterface
 	routingTable := &routes.RoutingTable{}
 	nc := &networkcontainers.NetworkContainers{}
-	dc, err := dockerclient.NewDefaultDockerClient(imdsClientInterface)
+	dc, err := dockerclient.NewDefaultClient(imdscli)
 	if err != nil {
 		return nil, err
 	}
@@ -120,9 +126,20 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		return nil, err
 	}
 
-	serviceState := &httpRestServiceState{}
-	serviceState.Networks = make(map[string]*networkInfo)
-	serviceState.joinedNetworks = make(map[string]struct{})
+	res, err := imdscli.GetInterfaces(context.TODO()) // TODO(rbtr): thread context through this client
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
+	}
+	primaryInterface, err := imds.GetPrimaryInterfaceFromResult(res)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
+	}
+
+	serviceState := &httpRestServiceState{
+		Networks:         make(map[string]*networkInfo),
+		joinedNetworks:   make(map[string]struct{}),
+		primaryInterface: primaryInterface,
+	}
 
 	podIPIDByPodInterfaceKey := make(map[string]string)
 	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
@@ -131,7 +148,7 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		Service:                  service,
 		store:                    service.Service.Store,
 		dockerClient:             dc,
-		imdsClient:               imdsClient,
+		imdsClient:               imdscli,
 		ipamClient:               ic,
 		nmagentClient:            nmagentClient,
 		networkContainer:         nc,

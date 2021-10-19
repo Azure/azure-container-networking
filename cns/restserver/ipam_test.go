@@ -35,7 +35,7 @@ var (
 
 func getTestService() *HTTPRestService {
 	var config common.ServiceConfig
-	httpsvc, _ := NewHTTPRestService(&config, fakes.NewFakeImdsClient(), fakes.NewFakeNMAgentClient())
+	httpsvc, _ := NewHTTPRestService(&config, &fakes.IMDSFake{}, fakes.NewFakeNMAgentClient())
 	svc = httpsvc.(*HTTPRestService)
 	svc.IPAMPoolMonitor = &fakes.MonitorFake{}
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
@@ -94,12 +94,12 @@ func requestIpAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPC
 		t.Fatalf("Pod IP Prefix length is not added as expected ipConfig %+v, expected: %+v", PodIpInfo.PodIPConfig, subnetPrfixLength)
 	}
 
-	if reflect.DeepEqual(PodIpInfo.HostPrimaryIPInfo.PrimaryIP, fakes.HostPrimaryIpTest) != true {
-		t.Fatalf("Host PrimaryIP is not added as expected ipConfig %+v, expected primaryIP: %+v", PodIpInfo.HostPrimaryIPInfo, fakes.HostPrimaryIpTest)
+	if reflect.DeepEqual(PodIpInfo.HostPrimaryIPInfo.PrimaryIP, fakes.HostPrimaryIP) != true {
+		t.Fatalf("Host PrimaryIP is not added as expected ipConfig %+v, expected primaryIP: %+v", PodIpInfo.HostPrimaryIPInfo, fakes.HostPrimaryIP)
 	}
 
-	if reflect.DeepEqual(PodIpInfo.HostPrimaryIPInfo.Subnet, fakes.HostSubnetTest) != true {
-		t.Fatalf("Host Subnet is not added as expected ipConfig %+v, expected Host subnet: %+v", PodIpInfo.HostPrimaryIPInfo, fakes.HostSubnetTest)
+	if reflect.DeepEqual(PodIpInfo.HostPrimaryIPInfo.Subnet, fakes.HostSubnet) != true {
+		t.Fatalf("Host Subnet is not added as expected ipConfig %+v, expected Host subnet: %+v", PodIpInfo.HostPrimaryIPInfo, fakes.HostSubnet)
 	}
 
 	// retrieve podinfo from orchestrator context

@@ -4,6 +4,7 @@
 package restserver
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -66,7 +68,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 		logger.Request(service.Name, &req, err)
 
 		if err != nil {
-			//nolint:goconst
+			//nolint:goconst // ignore const string
 			returnMessage = "[Azure CNS] Error. Unable to decode input request."
 			returnCode = types.InvalidParameter
 		} else {
@@ -93,7 +95,8 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 								logger.Printf("[Azure CNS] Unable to get routing table from node, %+v.", err.Error())
 							}
 
-							nicInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromHost()
+							var nicInfo *imds.InterfaceInfo
+							nicInfo, err = service.getPrimaryHostInterface(context.TODO())
 							if err != nil {
 								returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryInterfaceInfoFromHost failed %v.", err.Error())
 								returnCode = types.UnexpectedError
@@ -342,7 +345,8 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 	case "POST":
 		ic := service.ipamClient
 
-		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+		var ifInfo *imds.InterfaceInfo
+		ifInfo, err = service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
 			returnCode = types.UnexpectedError
@@ -418,7 +422,8 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	case "POST":
 		ic := service.ipamClient
 
-		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+		var ifInfo *imds.InterfaceInfo
+		ifInfo, err = service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
 			returnCode = types.UnexpectedError
@@ -474,7 +479,7 @@ func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 			switch service.state.NetworkType {
 			case "Underlay":
 				if service.imdsClient != nil {
-					piface, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+					piface, err := service.getPrimaryHostInterface(context.TODO())
 					if err == nil {
 						hostLocalIP = piface.PrimaryIP
 						found = true
@@ -526,7 +531,7 @@ func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r
 	case "GET":
 		ic := service.ipamClient
 
-		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+		ifInfo, err := service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
 			returnCode = types.UnexpectedError
@@ -625,7 +630,7 @@ func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 	case "GET":
 		ic := service.ipamClient
 
-		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+		ifInfo, err := service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
 			returnCode = types.UnexpectedError
