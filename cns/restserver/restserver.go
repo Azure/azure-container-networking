@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
-	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
@@ -19,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -37,15 +37,15 @@ var (
 	ncVersionURLs sync.Map
 )
 
-type imdscli interface {
-	GetInterfaces(ctx context.Context) (*imds.GetInterfacesResult, error)
+type interfaceGetter interface {
+	GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
-	imdsClient               imdscli
+	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
 	nmagentClient            nmagentclient.NMAgentClientInterface
 	networkContainer         *networkcontainers.NetworkContainers
@@ -98,17 +98,17 @@ type httpRestServiceState struct {
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
 	joinedNetworks                   map[string]struct{}
-	primaryInterface                 *imds.InterfaceInfo
+	primaryInterface                 *wireserver.InterfaceInfo
 }
 
 type networkInfo struct {
 	NetworkName string
-	NicInfo     *imds.InterfaceInfo
+	NicInfo     *wireserver.InterfaceInfo
 	Options     map[string]interface{}
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, imdscli imdscli, nmagentClient nmagentclient.NMAgentClientInterface) (cns.HTTPService, error) {
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentclient.NMAgentClientInterface) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func NewHTTPRestService(config *common.ServiceConfig, imdscli imdscli, nmagentCl
 
 	routingTable := &routes.RoutingTable{}
 	nc := &networkcontainers.NetworkContainers{}
-	dc, err := dockerclient.NewDefaultClient(imdscli)
+	dc, err := dockerclient.NewDefaultClient(wscli)
 	if err != nil {
 		return nil, err
 	}
@@ -126,11 +126,11 @@ func NewHTTPRestService(config *common.ServiceConfig, imdscli imdscli, nmagentCl
 		return nil, err
 	}
 
-	res, err := imdscli.GetInterfaces(context.TODO()) // TODO(rbtr): thread context through this client
+	res, err := wscli.GetInterfaces(context.TODO()) // TODO(rbtr): thread context through this client
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
 	}
-	primaryInterface, err := imds.GetPrimaryInterfaceFromResult(res)
+	primaryInterface, err := wireserver.GetPrimaryInterfaceFromResult(res)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
 	}
@@ -148,7 +148,7 @@ func NewHTTPRestService(config *common.ServiceConfig, imdscli imdscli, nmagentCl
 		Service:                  service,
 		store:                    service.Service.Store,
 		dockerClient:             dc,
-		imdsClient:               imdscli,
+		wscli:                    wscli,
 		ipamClient:               ic,
 		nmagentClient:            nmagentClient,
 		networkContainer:         nc,

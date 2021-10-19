@@ -9,7 +9,7 @@ package fakes
 import (
 	"context"
 
-	"github.com/Azure/azure-container-networking/cns/imds"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 )
 
 var (
@@ -19,17 +19,17 @@ var (
 	HostSubnet = "10.0.0.0/24"
 )
 
-type IMDSFake struct{}
+type WireserverClientFake struct{}
 
-func (imdsClient *IMDSFake) GetInterfaces(ctx context.Context) (*imds.GetInterfacesResult, error) {
-	return &imds.GetInterfacesResult{
-		Interface: []imds.Interface{
+func (c *WireserverClientFake) GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error) {
+	return &wireserver.GetInterfacesResult{
+		Interface: []wireserver.Interface{
 			{
 				IsPrimary: true,
-				IPSubnet: []imds.Subnet{
+				IPSubnet: []wireserver.Subnet{
 					{
 						Prefix: HostSubnet,
-						IPAddress: []imds.Address{
+						IPAddress: []wireserver.Address{
 							{
 								Address:   HostPrimaryIP,
 								IsPrimary: true,

@@ -1,4 +1,4 @@
-package imds
+package wireserver
 
 import (
 	"net"
@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	// ErrNoPrimaryInterface indicates the imds respnose does not have a primary interface indicated.
+	// ErrNoPrimaryInterface indicates the wireserver respnose does not have a primary interface indicated.
 	ErrNoPrimaryInterface = errors.New("no primary interface found")
 	// ErrInsufficientAddressSpace indicates that the CIDR space is too small to include a gateway IP; it is 1 IP.
 	ErrInsufficientAddressSpace = errors.New("insufficient address space to generate gateway IP")

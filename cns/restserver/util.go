@@ -15,11 +15,11 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
-	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -710,13 +710,13 @@ func (service *HTTPRestService) validateIPConfigRequest(
 // getPrimaryHostInterface returns the cached InterfaceInfo, if available, otherwise
 // queries the IMDS to get the primary interface info and caches it in the server state
 // before returning the result.
-func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*imds.InterfaceInfo, error) {
+func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*wireserver.InterfaceInfo, error) {
 	if service.state.primaryInterface == nil {
-		res, err := service.imdsClient.GetInterfaces(ctx)
+		res, err := service.wscli.GetInterfaces(ctx)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
 		}
-		service.state.primaryInterface, err = imds.GetPrimaryInterfaceFromResult(res)
+		service.state.primaryInterface, err = wireserver.GetPrimaryInterfaceFromResult(res)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
 		}

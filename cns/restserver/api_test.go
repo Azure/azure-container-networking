@@ -914,7 +914,7 @@ func startService() error {
 		return err
 	}
 
-	service, err = NewHTTPRestService(&config, &fakes.IMDSFake{}, fakes.NewFakeNMAgentClient())
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, fakes.NewFakeNMAgentClient())
 	if err != nil {
 		return err
 	}

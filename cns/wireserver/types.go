@@ -1,4 +1,4 @@
-package imds
+package wireserver
 
 // InterfaceInfo specifies the information about an interface as returned by Host Agent.
 type InterfaceInfo struct {

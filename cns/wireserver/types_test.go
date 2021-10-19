@@ -1,4 +1,4 @@
-package imds
+package wireserver
 
 import (
 	"bytes"

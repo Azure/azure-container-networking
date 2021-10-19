@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
@@ -25,28 +25,20 @@ const (
 )
 
 type interfaceGetter interface {
-	GetInterfaces(ctx context.Context) (*imds.GetInterfacesResult, error)
+	GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error)
 }
 
 // Client specifies a client to connect to docker.
 type Client struct {
 	connectionURL string
-	imdscli       interfaceGetter
-}
-
-// NewClient create a new docker client.
-func NewClient(url string) (*Client, error) {
-	return &Client{
-		connectionURL: url,
-		imdscli:       new(imds.Client),
-	}, nil
+	wscli         interfaceGetter
 }
 
 // NewDefaultClient create a new docker client.
-func NewDefaultClient(imdscli interfaceGetter) (*Client, error) {
+func NewDefaultClient(wscli interfaceGetter) (*Client, error) {
 	return &Client{
 		connectionURL: defaultDockerConnectionURL,
-		imdscli:       imdscli,
+		wscli:         wscli,
 	}, nil
 }
 
@@ -79,7 +71,7 @@ func (c *Client) NetworkExists(networkName string) error {
 }
 
 // CreateNetwork creates a network using docker network create.
-func (c *Client) CreateNetwork(networkName string, nicInfo *imds.InterfaceInfo, options map[string]interface{}) error {
+func (c *Client) CreateNetwork(networkName string, nicInfo *wireserver.InterfaceInfo, options map[string]interface{}) error {
 	logger.Printf("[Azure CNS] CreateNetwork")
 
 	enableSnat := true
@@ -178,11 +170,11 @@ func (c *Client) DeleteNetwork(networkName string) error {
 
 	// network successfully deleted.
 	if res.StatusCode == 204 {
-		res, err := c.imdscli.GetInterfaces(context.TODO()) // TODO(rbtr): thread context through this client
+		res, err := c.wscli.GetInterfaces(context.TODO()) // TODO(rbtr): thread context through this client
 		if err != nil {
 			return errors.Wrap(err, "failed to get interfaces from IMDS")
 		}
-		primaryNic, err := imds.GetPrimaryInterfaceFromResult(res)
+		primaryNic, err := wireserver.GetPrimaryInterfaceFromResult(res)
 		if err != nil {
 			return errors.Wrap(err, "failed to get primary interface from IMDS response")
 		}

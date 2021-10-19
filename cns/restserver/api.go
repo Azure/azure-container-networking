@@ -15,10 +15,10 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
-	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nmagentclient"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 )
@@ -95,7 +95,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 								logger.Printf("[Azure CNS] Unable to get routing table from node, %+v.", err.Error())
 							}
 
-							var nicInfo *imds.InterfaceInfo
+							var nicInfo *wireserver.InterfaceInfo
 							nicInfo, err = service.getPrimaryHostInterface(context.TODO())
 							if err != nil {
 								returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryInterfaceInfoFromHost failed %v.", err.Error())
@@ -345,7 +345,7 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 	case "POST":
 		ic := service.ipamClient
 
-		var ifInfo *imds.InterfaceInfo
+		var ifInfo *wireserver.InterfaceInfo
 		ifInfo, err = service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
@@ -422,7 +422,7 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	case "POST":
 		ic := service.ipamClient
 
-		var ifInfo *imds.InterfaceInfo
+		var ifInfo *wireserver.InterfaceInfo
 		ifInfo, err = service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
@@ -478,7 +478,7 @@ func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 		case "GET":
 			switch service.state.NetworkType {
 			case "Underlay":
-				if service.imdsClient != nil {
+				if service.wscli != nil {
 					piface, err := service.getPrimaryHostInterface(context.TODO())
 					if err == nil {
 						hostLocalIP = piface.PrimaryIP
