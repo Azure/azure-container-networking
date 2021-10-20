@@ -766,7 +766,7 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond)
+		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs)
 		for {
 			select {
 			case <-tickerChannel:
