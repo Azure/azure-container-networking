@@ -3,7 +3,7 @@
    "properties": {
       "orchestratorProfile": {
          "orchestratorType": "Kubernetes",
-         "orchestratorRelease": "1.17",
+         "orchestratorRelease": "1.22",
          "kubernetesConfig": {
             "networkPlugin": "azure",
             "networkPolicy": "azure",
@@ -39,7 +39,7 @@
             "vmSize": "Standard_D2_v2",
             "availabilityProfile": "AvailabilitySet",
             "osType": "Linux",
-            "distro": "aks-ubuntu-16.04"
+            "distro": "aks-ubuntu-20.04"
          }
       ],
       "linuxProfile": {

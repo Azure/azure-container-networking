@@ -208,10 +208,10 @@ stages:
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
-      name: "ubuntu_16_04_linux_e2e"
-      displayName: Ubuntu 16.04
+      name: "ubuntu_20_04_linux_e2e"
+      displayName: Ubuntu 20.04
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1604.json"
+      clusterDefinition: "cniLinux2004.json"
       clusterDefinitionCniTypeKey: "azureCNIURLLinux"
       clusterDefinitionCniBuildOS: "linux"
       clusterDefinitionCniBuildExt: ".tgz"
@@ -240,7 +240,7 @@ stages:
     displayName: Cleanup
     dependsOn:
       - "aks_swift_e2e"
-      - "ubuntu_16_04_linux_e2e"
+      - "ubuntu_20_04_linux_e2e"
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
     jobs:
