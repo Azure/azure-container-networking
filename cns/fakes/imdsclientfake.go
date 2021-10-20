@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 )
 
-var (
+const (
 	// HostPrimaryIP 10.0.0.4
 	HostPrimaryIP = "10.0.0.4"
 	// HostSubnet 10.0.0.0/24

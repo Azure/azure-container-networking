@@ -713,10 +713,11 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
 		}
-		service.state.primaryInterface, err = wireserver.GetPrimaryInterfaceFromResult(res)
+		primary, err := wireserver.GetPrimaryInterfaceFromResult(res)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
 		}
+		service.state.primaryInterface = primary
 	}
 	return service.state.primaryInterface, nil
 }
