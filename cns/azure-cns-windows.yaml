@@ -35,7 +35,7 @@ spec:
               "-store-file-path",
               "$(CNSStoreFilePath)",
               "-config-path",
-              "%CONTAINER_SANDBOX_MOUNT_POINT%$(CNS_CONFIGURATION_PATH)",
+              "%CONTAINER_SANDBOX_MOUNT_POINT%\\$(CNS_CONFIGURATION_PATH)",
             ]
           volumeMounts:
             - name: log
