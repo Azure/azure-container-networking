@@ -368,11 +368,14 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 
 	podMetadata := dataplane.NewPodMetadata(podKey, podObj.Status.PodIP, podObj.Spec.NodeName)
 
+	namespaceSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podObj.Namespace, ipsets.Namespace)}
+
+	klog.Infof("Creating ipset %s for namespace if it doesn't already exist", podObj.Namespace)
+	c.dp.CreateIPSet(namespaceSet)
+
 	// Add the pod ip information into namespace's ipset.
 	klog.Infof("Adding pod %s to ipset %s", podObj.Status.PodIP, podObj.Namespace)
-	targetSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podObj.Namespace, ipsets.Namespace)}
-
-	if err = c.dp.AddToSet(targetSet, podMetadata); err != nil {
+	if err = c.dp.AddToSet(namespaceSet, podMetadata); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to namespace ipset with err: %w", err)
 	}
 
@@ -382,17 +385,22 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start adding them to ipsets.
 	for labelKey, labelVal := range podObj.Labels {
+		podIPSetName := util.GetIpSetFromLabelKV(labelKey, labelVal)
+
+		targetSetKey := ipsets.NewIPSetMetadata(labelKey, ipsets.KeyLabelOfPod)
+		targetSetKeyValue := ipsets.NewIPSetMetadata(podIPSetName, ipsets.KeyValueLabelOfPod)
+		allSets := []*ipsets.IPSetMetadata{targetSetKey, targetSetKeyValue}
+
+		klog.Infof("Creating ipsets %v if it does not already exist", allSets)
+		c.dp.CreateIPSet(allSets)
 
 		klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, labelKey)
-		targetSetKey := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(labelKey, ipsets.KeyLabelOfPod)}
-		if err = c.dp.AddToSet(targetSetKey, podMetadata); err != nil {
+		if err = c.dp.AddToSet([]*ipsets.IPSetMetadata{targetSetKey}, podMetadata); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %w", err)
 		}
 
-		podIPSetName := util.GetIpSetFromLabelKV(labelKey, labelVal)
-		targetSetKeyValue := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podIPSetName, ipsets.KeyValueLabelOfPod)}
 		klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, podIPSetName)
-		if err = c.dp.AddToSet(targetSetKeyValue, podMetadata); err != nil {
+		if err = c.dp.AddToSet([]*ipsets.IPSetMetadata{targetSetKeyValue}, podMetadata); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %w", err)
 		}
 		npmPodObj.appendLabels(map[string]string{labelKey: labelVal}, appendToExistingLabels)
@@ -489,12 +497,11 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) error {
 	// Add the pod to its label's ipset.
 	for _, addIPSetName := range addToIPSets {
 
-		klog.Infof("Adding pod %s to ipset %s", newPodObj.Status.PodIP, addIPSetName)
+		klog.Infof("Creating ipset %s if it doesn't already exist", addIPSetName)
 
 		c.dp.CreateIPSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(addIPSetName, ipsets.CIDRBlocks)})
 
 		klog.Infof("Adding pod %s to ipset %s", newPodObj.Status.PodIP, addIPSetName)
-
 		if err = c.dp.AddToSet([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(addIPSetName, ipsets.CIDRBlocks)}, newPodMetadata); err != nil {
 			return fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to label ipset with err: %w", err)
 		}
