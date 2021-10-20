@@ -131,7 +131,12 @@ func GetNmAgentSupportedApis(httpc *http.Client, getNmAgentSupportedApisURL stri
 			GetNmAgentSupportedApiURLFmt, WireserverIP)
 	}
 
-	response, err := httpc.Get(getNmAgentSupportedApisURL)
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, getNmAgentSupportedApisURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build request")
+	}
+
+	resp, err := httpc.Do(req)
 	if err != nil {
 		returnErr = fmt.Errorf(
 			"Failed to retrieve Supported Apis from NMAgent with error %v",
@@ -139,25 +144,27 @@ func GetNmAgentSupportedApis(httpc *http.Client, getNmAgentSupportedApisURL stri
 		logger.Errorf("[Azure-CNS] %s", returnErr)
 		return nil, returnErr
 	}
-	if response == nil {
+	if resp == nil {
 		returnErr = fmt.Errorf(
 			"Response from getNmAgentSupportedApis call is <nil>")
 		logger.Errorf("[Azure-CNS] %s", returnErr)
 		return nil, returnErr
 	}
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read response body")
+	}
+	if resp.StatusCode != http.StatusOK {
 		returnErr = fmt.Errorf(
 			"Failed to retrieve Supported Apis from NMAgent with StatusCode: %d",
-			response.StatusCode)
+			resp.StatusCode)
 		logger.Errorf("[Azure-CNS] %s", returnErr)
 		return nil, returnErr
 	}
 
 	var xmlDoc SupportedAPIsResponseXML
-	decoder := xml.NewDecoder(response.Body)
-	err = decoder.Decode(&xmlDoc)
+	err = xml.NewDecoder(bytes.NewReader(b)).Decode(&xmlDoc)
 	if err != nil {
 		returnErr = fmt.Errorf(
 			"Failed to decode XML response of Supported Apis from NMAgent with error %v",
@@ -166,7 +173,7 @@ func GetNmAgentSupportedApis(httpc *http.Client, getNmAgentSupportedApisURL stri
 		return nil, returnErr
 	}
 
-	logger.Printf("[NMAgentClient][Response] GetNmAgentSupportedApis. Response: %+v.", response)
+	logger.Printf("[NMAgentClient][Response] GetNmAgentSupportedApis. Response: %+v.", resp)
 	return xmlDoc.SupportedApis, nil
 }
 
