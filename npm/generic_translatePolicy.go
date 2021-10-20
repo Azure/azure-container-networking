@@ -24,8 +24,29 @@ TODO (jungukcho)
 2. Add 	PodSelectorDstList []SetInfo and PodSelectorSrcList []SetInfo in NPMNetworkPolicy to reduce computation
 3. Add NameSapce in NPMNetworkPolicy
 */
-
 type translator struct{}
+
+// Below codes will be moved to policy.go
+const (
+	policyIDPrefix = "azure-acl-"
+)
+
+// TODO(jungukcho) : check input for util.Hash() function.
+func createUniquePolicyID(policyID string) string {
+	// Anymore information for hash?
+	// From Vamsi's suggestion - PolicyID: fmt.Sprintf("azure-acl-%s", hash(npmNetpol.Name+ comment)),
+	// What is comment?
+	return fmt.Sprintf("%s%s", policyIDPrefix, util.Hash(policyID))
+}
+
+func createACLPolicy(policyID string, target policies.Verdict, direction policies.Direction) *policies.ACLPolicy {
+	acl := &policies.ACLPolicy{
+		PolicyID:  policyID,
+		Target:    target,
+		Direction: direction,
+	}
+	return acl
+}
 
 // getPortRange returns a specific port (only portRule.Port exist) or port ranges (when EndPort exists as well) based on portRule
 func (t *translator) getPortRange(portRule networkingv1.NetworkPolicyPort) (string, bool) {
@@ -93,22 +114,20 @@ func (t *translator) namedPortRuleInfo(portRule *networkingv1.NetworkPolicyPort)
 	return namedPortIPSet, protocol
 }
 
-func (t *translator) namedPortRule(portRule *networkingv1.NetworkPolicyPort) ([]*ipsets.TranslatedIPSet, []policies.SetInfo, string) {
+func (t *translator) namedPortRule(portRule *networkingv1.NetworkPolicyPort) (*ipsets.TranslatedIPSet, policies.SetInfo, string) {
 	if portRule == nil {
-		return []*ipsets.TranslatedIPSet{}, []policies.SetInfo{}, ""
+		return nil, policies.SetInfo{}, ""
 	}
 
 	namedPortIPSet, protocol := t.namedPortRuleInfo(portRule)
-	setInfo := []policies.SetInfo{
-		{
-			IPSet: &ipsets.IPSetMetadata{
-				Name: util.NamedPortIPSetPrefix + portRule.Port.String(),
-				Type: ipsets.NamedPorts,
-			},
-			MatchType: policies.DstDstMatch,
+	setInfo := policies.SetInfo{
+		IPSet: &ipsets.IPSetMetadata{
+			Name: util.NamedPortIPSetPrefix + portRule.Port.String(),
+			Type: ipsets.NamedPorts,
 		},
+		MatchType: policies.DstDstMatch,
 	}
-	return []*ipsets.TranslatedIPSet{namedPortIPSet}, setInfo, protocol
+	return namedPortIPSet, setInfo, protocol
 }
 
 func createCidrSetName(policyName, ns, direction string, ipBlockSetIndex int) string {
@@ -144,24 +163,22 @@ func (t *translator) IPBlockIPSet(policyName, ns, direction string, ipBlockSetIn
 	return ipBlockIPSet
 }
 
-func (t *translator) IPBlockRule(policyName, ns, direction string, ipBlockSetIndex int, IPBlockRule *networkingv1.IPBlock) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
+func (t *translator) IPBlockRule(policyName, ns, direction string, ipBlockSetIndex int, IPBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo) {
 	if IPBlockRule == nil || len(IPBlockRule.CIDR) <= 0 {
-		return []*ipsets.TranslatedIPSet{}, []policies.SetInfo{}
+		return nil, policies.SetInfo{}
 	}
 
 	ipBlockIPSet := t.IPBlockIPSet(policyName, ns, direction, ipBlockSetIndex, IPBlockRule)
-	setInfo := []policies.SetInfo{
-		{
-			IPSet: &ipsets.IPSetMetadata{
-				Name: ipBlockIPSet.Metadata.Name,
-				Type: ipsets.CIDRBlocks, // need to change name
-			},
-			Included:  false,
-			MatchType: policies.SrcMatch,
+	setInfo := policies.SetInfo{
+		IPSet: &ipsets.IPSetMetadata{
+			Name: ipBlockIPSet.Metadata.Name,
+			Type: ipsets.CIDRBlocks, // need to change name
 		},
+		Included:  false,
+		MatchType: policies.SrcMatch,
 	}
 
-	return []*ipsets.TranslatedIPSet{ipBlockIPSet}, setInfo
+	return ipBlockIPSet, setInfo
 }
 
 // createPodSelectorRule return srcList for ACL by using ops and labelsForSpec
@@ -387,47 +404,35 @@ func (t *translator) nameSpaceSelector(selector *metav1.LabelSelector, matchType
 }
 
 // TODO(jungukcho): get parameter for MatchType - direction?
-func (t *translator) allowAllTraffic() ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
-	allowAllIPSets := []*ipsets.TranslatedIPSet{
-		{
-			Metadata: &ipsets.IPSetMetadata{
-				Name: util.KubeAllNamespacesFlag,
-				Type: ipsets.KeyLabelOfNamespace,
-			},
+func (t *translator) allowAllTraffic() (*ipsets.TranslatedIPSet, policies.SetInfo) {
+	allowAllIPSets := &ipsets.TranslatedIPSet{
+		Metadata: &ipsets.IPSetMetadata{
+			Name: util.KubeAllNamespacesFlag,
+			Type: ipsets.KeyLabelOfNamespace,
 		},
 	}
 
-	setInfo := []policies.SetInfo{
-		{
-			//TODO(jungukcho): this is confusion IPSet -> Metadata
-			IPSet: &ipsets.IPSetMetadata{
-				Name: util.KubeAllNamespacesFlag,
-				Type: ipsets.KeyLabelOfNamespace,
-			},
-			MatchType: policies.SrcMatch,
+	setInfo := policies.SetInfo{
+		//TODO(jungukcho): this is confusion IPSet -> Metadata
+		IPSet: &ipsets.IPSetMetadata{
+			Name: util.KubeAllNamespacesFlag,
+			Type: ipsets.KeyLabelOfNamespace,
 		},
+		MatchType: policies.SrcMatch,
 	}
 	return allowAllIPSets, setInfo
 }
 
 func (t *translator) defaultDropACL(npmNetpol *policies.NPMNetworkPolicy, hasIngress, hasEgress bool) {
 	if hasIngress {
-		ingressDropACL := &policies.ACLPolicy{
-			PolicyID:  npmNetpol.Name,
-			Target:    policies.Dropped,
-			Direction: policies.Ingress,
-			DstList:   npmNetpol.PodSelectorDstList,
-		}
+		ingressDropACL := createACLPolicy(npmNetpol.Name, policies.Dropped, policies.Ingress)
+		ingressDropACL.DstList = npmNetpol.PodSelectorDstList
 		npmNetpol.ACLs = append(npmNetpol.ACLs, ingressDropACL)
 	}
 
 	if hasEgress {
-		egressDropACL := &policies.ACLPolicy{
-			PolicyID:  npmNetpol.Name,
-			Target:    policies.Dropped,
-			Direction: policies.Egress,
-			DstList:   npmNetpol.PodSelectorSrcList,
-		}
+		egressDropACL := createACLPolicy(npmNetpol.Name, policies.Dropped, policies.Egress)
+		egressDropACL.DstList = npmNetpol.PodSelectorSrcList
 		npmNetpol.ACLs = append(npmNetpol.ACLs, egressDropACL)
 	}
 }
@@ -437,9 +442,7 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 	// TODO(jungukcho): addedPortEntry is not used.. Why?
 	var addedPortEntry bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 
-	podSelectorIPSets, targetPodDstList := t.targetPodSelector(npmNetpol.NameSpace, &targetSelector, policies.DstMatch)
-	npmNetpol.PodSelectorDstList = targetPodDstList
-	npmNetpol.PodSelectorIPSets = podSelectorIPSets
+	npmNetpol.PodSelectorIPSets, npmNetpol.PodSelectorDstList = t.targetPodSelector(npmNetpol.NameSpace, &targetSelector, policies.DstMatch)
 
 	for i, rule := range rules {
 		fmt.Printf("i: %d rule: %d\n", i, len(rule.Ports))
@@ -466,18 +469,15 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 			allowExternal = true
 		}
 
+		// TODO(jungukcho): cannot come up when this condition is met.
 		if !portRuleExists && !fromRuleExists && !allowExternal {
-			// TODO(jungukcho): make it function
-			acl := &policies.ACLPolicy{
-				PolicyID:  npmNetpol.Name,
-				Target:    policies.Allowed,
-				Direction: policies.Ingress,
-				DstList:   targetPodDstList,
-			}
-			ruleIPSets, srcList := t.allowAllTraffic()
-			acl.SrcList = srcList
+			acl := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+			acl.DstList = npmNetpol.PodSelectorDstList
+			ruleIPSets, setInfo := t.allowAllTraffic()
+			npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, ruleIPSets)
+			acl.SrcList = append(acl.SrcList, setInfo)
+
 			npmNetpol.ACLs = append(npmNetpol.ACLs, acl)
-			npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, ruleIPSets...)
 			continue
 		}
 
@@ -491,18 +491,14 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 					klog.Info("Invalid NetworkPolicyPort")
 					continue
 				}
-				// TODO(jungukcho): make it function
-				portACL := &policies.ACLPolicy{
-					PolicyID:  npmNetpol.Name,
-					Target:    policies.Allowed,
-					Direction: policies.Ingress,
-					DstList:   targetPodDstList,
-				}
+				portACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+				// TODO(jungukcho): repeat this. Think how to remove this repeat
+				portACL.DstList = npmNetpol.PodSelectorDstList
 				if portType == "namedport" {
 					namedPortIPSet, namedPortRuleDstList, protocol := t.namedPortRule(&portRule)
-					portACL.DstList = append(portACL.DstList, namedPortRuleDstList...)
+					portACL.DstList = append(portACL.DstList, namedPortRuleDstList)
 					portACL.Protocol = policies.Protocol(protocol)
-					npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet...)
+					npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet)
 				} else if portType == "validport" { // TODO (jungukcho): change validport -> numberPort
 					portInfo, protocol := t.portRule(&portRule)
 					portACL.DstPorts = portInfo
@@ -520,30 +516,22 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 				if len(fromRule.IPBlock.CIDR) > 0 {
 					// TODO(jungukcho): check this - need UTs
 					// TODO(jungukcho): need a const for "in"
-					ipBlockIPSet, ipBlockSrcList := t.IPBlockRule(npmNetpol.Name, npmNetpol.NameSpace, "in", i, fromRule.IPBlock)
-					npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, ipBlockIPSet...)
+					ipBlockIPSet, ipBlockSetInfo := t.IPBlockRule(npmNetpol.Name, npmNetpol.NameSpace, "in", i, fromRule.IPBlock)
+					npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, ipBlockIPSet)
 					if j != 0 && addedCidrEntry {
 						continue
 					}
 
 					if !portRuleExists {
-						fromRuleACL := &policies.ACLPolicy{
-							PolicyID:  npmNetpol.Name,
-							Target:    policies.Allowed,
-							Direction: policies.Ingress,
-							DstList:   targetPodDstList,
-						}
-						fromRuleACL.SrcList = append(fromRuleACL.SrcList, ipBlockSrcList...)
+						fromRuleACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+						fromRuleACL.DstList = npmNetpol.PodSelectorDstList
+						fromRuleACL.SrcList = append(fromRuleACL.SrcList, ipBlockSetInfo)
 						npmNetpol.ACLs = append(npmNetpol.ACLs, fromRuleACL)
 					} else {
 						for _, portRule := range rule.Ports {
-							ipBlockAndPortRuleACL := &policies.ACLPolicy{
-								PolicyID:  npmNetpol.Name,
-								Target:    policies.Allowed,
-								Direction: policies.Ingress,
-								DstList:   targetPodDstList,
-								SrcList:   ipBlockSrcList,
-							}
+							ipBlockAndPortRuleACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+							ipBlockAndPortRuleACL.DstList = npmNetpol.PodSelectorDstList
+							ipBlockAndPortRuleACL.SrcList = append(ipBlockAndPortRuleACL.SrcList, ipBlockSetInfo)
 
 							portType := getPortType(portRule)
 							if portType == "invalid" {
@@ -553,10 +541,11 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 							}
 
 							if portType == "namedport" {
+								// (TODO): check whether we need to check nil
 								namedPortIPSet, namedPortRuleDstList, protocol := t.namedPortRule(&portRule)
-								ipBlockAndPortRuleACL.DstList = append(ipBlockAndPortRuleACL.DstList, namedPortRuleDstList...)
+								ipBlockAndPortRuleACL.DstList = append(ipBlockAndPortRuleACL.DstList, namedPortRuleDstList)
 								ipBlockAndPortRuleACL.Protocol = policies.Protocol(protocol)
-								npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet...)
+								npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet)
 							} else if portType == "validport" { // TODO (jungukcho): change validport -> numberPort
 								portInfo, protocol := t.portRule(&portRule)
 								ipBlockAndPortRuleACL.DstPorts = portInfo
@@ -583,13 +572,9 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 
 					// no port rule exists
 					if !portRuleExists {
-						nsACL := &policies.ACLPolicy{
-							PolicyID:  npmNetpol.Name,
-							Target:    policies.Allowed,
-							Direction: policies.Ingress,
-							DstList:   targetPodDstList,
-							SrcList:   nsSrcList,
-						}
+						nsACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+						nsACL.DstList = npmNetpol.PodSelectorDstList
+						nsACL.SrcList = nsSrcList
 						npmNetpol.ACLs = append(npmNetpol.ACLs, nsACL)
 						continue
 					}
@@ -602,19 +587,15 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 							klog.Info("Invalid NetworkPolicyPort")
 							continue
 						}
-						// TODO(jungukcho): make it function
-						nsAndPortACL := &policies.ACLPolicy{
-							PolicyID:  npmNetpol.Name,
-							Target:    policies.Allowed,
-							Direction: policies.Ingress,
-							DstList:   targetPodDstList,
-							SrcList:   nsSrcList,
-						}
+						nsAndPortACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+						nsAndPortACL.DstList = npmNetpol.PodSelectorDstList
+						nsAndPortACL.SrcList = nsSrcList
+
 						if portType == "namedport" {
 							namedPortIPSet, namedPortRuleDstList, protocol := t.namedPortRule(&portRule)
-							nsAndPortACL.DstList = append(nsAndPortACL.DstList, namedPortRuleDstList...)
+							nsAndPortACL.DstList = append(nsAndPortACL.DstList, namedPortRuleDstList)
 							nsAndPortACL.Protocol = policies.Protocol(protocol)
-							npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet...)
+							npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet)
 						} else if portType == "validport" { // TODO (jungukcho): change validport -> numberPort
 							portInfo, protocol := t.portRule(&portRule)
 							nsAndPortACL.DstPorts = portInfo
@@ -632,13 +613,9 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 				podSelectorIPSets, podSelectorSrcList := t.targetPodSelector(npmNetpol.NameSpace, fromRule.PodSelector, policies.SrcMatch)
 				npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, podSelectorIPSets...)
 				if !portRuleExists {
-					nsACL := &policies.ACLPolicy{
-						PolicyID:  npmNetpol.Name,
-						Target:    policies.Allowed,
-						Direction: policies.Ingress,
-						DstList:   targetPodDstList,
-						SrcList:   podSelectorSrcList,
-					}
+					nsACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+					nsACL.DstList = npmNetpol.PodSelectorDstList
+					nsACL.SrcList = podSelectorSrcList
 					npmNetpol.ACLs = append(npmNetpol.ACLs, nsACL)
 					continue
 				}
@@ -649,19 +626,15 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 						klog.Info("Invalid NetworkPolicyPort")
 						continue
 					}
-					// TODO(jungukcho): make it function
-					podAndPortACL := &policies.ACLPolicy{
-						PolicyID:  npmNetpol.Name,
-						Target:    policies.Allowed,
-						Direction: policies.Ingress,
-						DstList:   targetPodDstList,
-						SrcList:   podSelectorSrcList,
-					}
+					podAndPortACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+					podAndPortACL.DstList = npmNetpol.PodSelectorDstList
+					podAndPortACL.SrcList = podSelectorSrcList
+
 					if portType == "namedport" {
 						namedPortIPSet, namedPortRuleDstList, protocol := t.namedPortRule(&portRule)
-						podAndPortACL.DstList = append(podAndPortACL.DstList, namedPortRuleDstList...)
+						podAndPortACL.DstList = append(podAndPortACL.DstList, namedPortRuleDstList)
 						podAndPortACL.Protocol = policies.Protocol(protocol)
-						npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet...)
+						npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet)
 					} else if portType == "validport" { // TODO (jungukcho): change validport -> numberPort
 						portInfo, protocol := t.portRule(&portRule)
 						podAndPortACL.DstPorts = portInfo
@@ -692,13 +665,9 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 				nsSrcList = append(nsSrcList, podSelectorSrcList...)
 
 				if !portRuleExists {
-					nsACL := &policies.ACLPolicy{
-						PolicyID:  npmNetpol.Name,
-						Target:    policies.Allowed,
-						Direction: policies.Ingress,
-						DstList:   targetPodDstList,
-						SrcList:   nsSrcList,
-					}
+					nsACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+					nsACL.DstList = npmNetpol.PodSelectorDstList
+					nsACL.SrcList = nsSrcList
 					npmNetpol.ACLs = append(npmNetpol.ACLs, nsACL)
 					continue
 				}
@@ -709,19 +678,16 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 						klog.Info("Invalid NetworkPolicyPort")
 						continue
 					}
-					// TODO(jungukcho): make it function
-					aclWithAllFields := &policies.ACLPolicy{
-						PolicyID:  npmNetpol.Name,
-						Target:    policies.Allowed,
-						Direction: policies.Ingress,
-						DstList:   targetPodDstList,
-						SrcList:   nsSrcList,
-					}
+
+					aclWithAllFields := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+					aclWithAllFields.DstList = npmNetpol.PodSelectorDstList
+					aclWithAllFields.SrcList = nsSrcList
+
 					if portType == "namedport" {
 						namedPortIPSet, namedPortRuleDstList, protocol := t.namedPortRule(&portRule)
-						aclWithAllFields.DstList = append(aclWithAllFields.DstList, namedPortRuleDstList...)
+						aclWithAllFields.DstList = append(aclWithAllFields.DstList, namedPortRuleDstList)
 						aclWithAllFields.Protocol = policies.Protocol(protocol)
-						npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet...)
+						npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, namedPortIPSet)
 					} else if portType == "validport" { // TODO (jungukcho): change validport -> numberPort
 						portInfo, protocol := t.portRule(&portRule)
 						aclWithAllFields.DstPorts = portInfo
@@ -734,12 +700,8 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 
 		// TODO(jungukcho): move this code in entry point of this function?
 		if allowExternal {
-			allowExternalACL := &policies.ACLPolicy{
-				PolicyID:  npmNetpol.Name,
-				Target:    policies.Allowed,
-				Direction: policies.Ingress,
-				DstList:   targetPodDstList,
-			}
+			allowExternalACL := createACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+			allowExternalACL.DstList = npmNetpol.PodSelectorDstList
 			npmNetpol.ACLs = append(npmNetpol.ACLs, allowExternalACL)
 		}
 	}
