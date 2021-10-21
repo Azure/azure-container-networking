@@ -411,8 +411,8 @@ func TestOnlyNamedPorts(t *testing.T) {
 				Direction: policies.Ingress,
 				DstList:   dstList,
 			}
-			_, dstSetInfo, protocol := translator.namedPortRule(&port)
-			acl.DstList = append(acl.DstList, dstSetInfo)
+			_, dstPortIPSet, protocol := translator.namedPortRule(&port)
+			acl.DstList = append(acl.DstList, dstPortIPSet)
 			acl.Protocol = policies.Protocol(protocol)
 			npPolicy.ACLs = append(npPolicy.ACLs, acl)
 		}
