@@ -14,9 +14,8 @@ type NPMNetworkPolicy struct {
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
 
-	// TODO(jungukcho): PodSelectorDstList is a cache for target pod information (Currently, they are duplicated with SrcList and DstList fields in ACLs)
-	PodSelectorDstList []SetInfo
-	PodSelectorSrcList []SetInfo
+	// PodSelectorList holds target pod information to avoid duplicatoin in SrcList and DstList fields in ACLs
+	PodSelectorList []SetInfo
 
 	// RuleIPSets holds all IPSets generated from policy's rules
 	// and not from pod selector IPSets
@@ -98,6 +97,16 @@ type SetInfo struct {
 // To specify one port, set Port and EndPort to the same value.
 // uint16 is used since there are 2^16 - 1 TCP/UDP ports (0 is invalid)
 // and 2^16 SCTP ports. ICMP is connectionless and doesn't use ports.
+// NewSetInfo creates SetInfo.
+func NewSetInfo(name string, setType ipsets.SetType, included bool, matchType MatchType) SetInfo {
+	return SetInfo{
+		IPSet:     ipsets.NewIPSetMetadata(name, setType),
+		Included:  included,
+		MatchType: matchType,
+	}
+
+}
+
 type Ports struct {
 	Port    int32
 	EndPort int32

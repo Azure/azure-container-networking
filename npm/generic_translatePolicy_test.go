@@ -339,7 +339,7 @@ func TestOnlyNamedPorts(t *testing.T) {
 
 	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
 	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
-	dstList := translator.createPodSelectorRule(ops, labelsForSpec, policies.DstMatch)
+	dstList := translator.createPodSelectorRule(ops, labelsForSpec)
 	for i, dst := range dstList {
 		fmt.Printf("%d %+v\n", i, dst)
 	}
@@ -506,7 +506,7 @@ func TestOnlyPort(t *testing.T) {
 	// #1. Calculate podIPEntry
 	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
 	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
-	dstList := translator.createPodSelectorRule(ops, labelsForSpec, policies.DstMatch)
+	dstList := translator.createPodSelectorRule(ops, labelsForSpec)
 	for i, dst := range dstList {
 		fmt.Printf("%d %+v\n", i, dst)
 	}
