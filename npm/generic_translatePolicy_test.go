@@ -84,7 +84,7 @@ func TestPortRule(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			portRule, protocol := translator.portRule(&tt.portRule)
+			portRule, protocol := translator.numericPortRule(&tt.portRule)
 			require.Equal(t, tt.want, portRule)
 			require.Equal(t, tt.wantProtocol, protocol)
 		})
@@ -144,8 +144,8 @@ func TestCidrField(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			policyName, namemspace, direction, ipBlockSetIndex := "test", "test", "in", 0
-			got := translator.IPBlockIPSet(policyName, namemspace, direction, ipBlockSetIndex, &tt.IPBlockRule)
+			policyName, namemspace, direction, ipBlockSetIndex := "test", "test", policies.Ingress, 0
+			got := translator.ipBlockIPSet(policyName, namemspace, direction, ipBlockSetIndex, &tt.IPBlockRule)
 			if tt.wantErr {
 				t.Error("Something wrong")
 				return
@@ -239,8 +239,8 @@ func TestCidr(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			policyName, namemspace, direction, ipBlockSetIndex := "test", "test", "in", 0
-			ipBlockIPSets := translator.IPBlockIPSet(policyName, namemspace, direction, ipBlockSetIndex, &tt.IPBlockRule)
+			policyName, namemspace, direction, ipBlockSetIndex := "test", "test", policies.Ingress, 0
+			ipBlockIPSets := translator.ipBlockIPSet(policyName, namemspace, direction, ipBlockSetIndex, &tt.IPBlockRule)
 			require.Equal(t, tt.want, ipBlockIPSets)
 		})
 	}
@@ -339,7 +339,7 @@ func TestOnlyNamedPorts(t *testing.T) {
 
 	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
 	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
-	dstList := translator.createPodSelectorRule(ops, labelsForSpec)
+	dstList := translator.podSelectorRule(ops, labelsForSpec)
 	for i, dst := range dstList {
 		fmt.Printf("%d %+v\n", i, dst)
 	}
@@ -506,7 +506,7 @@ func TestOnlyPort(t *testing.T) {
 	// #1. Calculate podIPEntry
 	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
 	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
-	dstList := translator.createPodSelectorRule(ops, labelsForSpec)
+	dstList := translator.podSelectorRule(ops, labelsForSpec)
 	for i, dst := range dstList {
 		fmt.Printf("%d %+v\n", i, dst)
 	}
@@ -521,7 +521,7 @@ func TestOnlyPort(t *testing.T) {
 				Direction: policies.Ingress,
 				DstList:   dstList,
 			}
-			portInfo, protocol := translator.portRule(&port)
+			portInfo, protocol := translator.numericPortRule(&port)
 			acl.DstPorts = portInfo
 			acl.Protocol = policies.Protocol(protocol)
 			npPolicy.ACLs = append(npPolicy.ACLs, acl)

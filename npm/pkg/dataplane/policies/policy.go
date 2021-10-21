@@ -1,6 +1,7 @@
 package policies
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
@@ -49,6 +50,25 @@ type ACLPolicy struct {
 	DstPorts Ports
 	// Protocol is the value of traffic protocol
 	Protocol Protocol
+}
+
+const policyIDPrefix = "azure-acl-"
+
+// TODO(jungukcho) : check why we need uniquePolicyID and extra input for util.Hash() function
+func uniquePolicyID(policyID string) string {
+	// Anymore information for hash?
+	// From Vamsi's suggestion - PolicyID: fmt.Sprintf("azure-acl-%s", hash(npmNetpol.Name+ comment)),
+	// What is comment?
+	return fmt.Sprintf("%s%s", policyIDPrefix, util.Hash(policyID))
+}
+
+func NewACLPolicy(policyID string, target Verdict, direction Direction) *ACLPolicy {
+	acl := &ACLPolicy{
+		PolicyID:  policyID,
+		Target:    target,
+		Direction: direction,
+	}
+	return acl
 }
 
 func (aclPolicy *ACLPolicy) hasKnownDirection() bool {
@@ -104,7 +124,6 @@ func NewSetInfo(name string, setType ipsets.SetType, included bool, matchType Ma
 		Included:  included,
 		MatchType: matchType,
 	}
-
 }
 
 type Ports struct {
