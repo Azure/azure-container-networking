@@ -15,63 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func TestPortField(t *testing.T) {
-	tcp := v1.ProtocolTCP
-	port8000 := intstr.FromInt(8000)
-	tests := []struct {
-		name     string
-		portRule networkingv1.NetworkPolicyPort
-		want     []string
-	}{
-		{
-			name:     "empty",
-			portRule: networkingv1.NetworkPolicyPort{},
-			want:     []string{},
-		},
-		{
-			name: "tcp",
-			portRule: networkingv1.NetworkPolicyPort{
-				Protocol: &tcp,
-			},
-			want: []string{
-				util.IptablesProtFlag,
-				"TCP",
-			},
-		},
-		{
-			name: "port 8000",
-			portRule: networkingv1.NetworkPolicyPort{
-				Port: &port8000,
-			},
-			want: []string{
-				util.IptablesDstPortFlag,
-				"8000",
-			},
-		},
-		{
-			name: "tcp port 8000",
-			portRule: networkingv1.NetworkPolicyPort{
-				Protocol: &tcp,
-				Port:     &port8000,
-			},
-			want: []string{
-				util.IptablesProtFlag,
-				"TCP",
-				util.IptablesDstPortFlag,
-				"8000",
-			},
-		},
-	}
-
-	translator := &translator{}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			got := translator.craftPartialIptEntrySpecFromPort(tt.portRule)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
 func TestPortRule(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	port8000 := intstr.FromInt(8000)
@@ -742,13 +685,12 @@ func TestAllowAll(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			multiPodSlector, err := readPolicyYaml(tt.netpolPolicyFile)
-			translator := &translator{}
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			util.IsNewNwPolicyVerFlag = true
-			sets, _, lists, _, _, iptEntries := translator.translatePolicyV1(multiPodSlector)
+			sets, _, lists, _, _, iptEntries := translatePolicy(multiPodSlector)
 			fmt.Println(tt.name)
 			fmt.Printf("set %+v\n", sets)
 			fmt.Printf("lists %+v\n", lists)

@@ -4,11 +4,7 @@ package npm
 
 import (
 	"fmt"
-	"sort"
-	"strings"
 
-	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 
@@ -46,19 +42,6 @@ func createACLPolicy(policyID string, target policies.Verdict, direction policie
 		Direction: direction,
 	}
 	return acl
-}
-
-// getPortRange returns a specific port (only portRule.Port exist) or port ranges (when EndPort exists as well) based on portRule
-func (t *translator) getPortRange(portRule networkingv1.NetworkPolicyPort) (string, bool) {
-	if portRule.Port == nil {
-		return "", false
-	}
-
-	portRange := portRule.Port.String()
-	if portRule.EndPort != nil {
-		portRange = fmt.Sprintf("%s:%d", portRange, *portRule.EndPort)
-	}
-	return portRange, true
 }
 
 func (t *translator) portRule(portRule *networkingv1.NetworkPolicyPort) (policies.Ports, string) {
@@ -423,18 +406,15 @@ func (t *translator) allowAllTraffic() (*ipsets.TranslatedIPSet, policies.SetInf
 	return allowAllIPSets, setInfo
 }
 
-func (t *translator) defaultDropACL(npmNetpol *policies.NPMNetworkPolicy, hasIngress, hasEgress bool) {
-	if hasIngress {
-		ingressDropACL := createACLPolicy(npmNetpol.Name, policies.Dropped, policies.Ingress)
-		ingressDropACL.DstList = npmNetpol.PodSelectorDstList
-		npmNetpol.ACLs = append(npmNetpol.ACLs, ingressDropACL)
+func (t *translator) defaultDropACL(npmNetpol *policies.NPMNetworkPolicy, direction policies.Direction) {
+	dropACL := createACLPolicy(npmNetpol.Name, policies.Dropped, direction)
+	if direction == policies.Ingress {
+		dropACL.DstList = npmNetpol.PodSelectorDstList
+	} else if direction == policies.Egress {
+		dropACL.SrcList = npmNetpol.PodSelectorSrcList
 	}
 
-	if hasEgress {
-		egressDropACL := createACLPolicy(npmNetpol.Name, policies.Dropped, policies.Egress)
-		egressDropACL.DstList = npmNetpol.PodSelectorSrcList
-		npmNetpol.ACLs = append(npmNetpol.ACLs, egressDropACL)
-	}
+	npmNetpol.ACLs = append(npmNetpol.ACLs, dropACL)
 }
 
 func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) error {
@@ -710,15 +690,10 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 	return nil
 }
 
-// TODO(jungukcho): need to complete this function
 func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) (*policies.NPMNetworkPolicy, error) {
-	npNs := npObj.ObjectMeta.Namespace
-	policyName := npObj.ObjectMeta.Name
-
-	// TODO(jungukcho): craete this before calling translateIngress function
 	npmNetpol := &policies.NPMNetworkPolicy{
-		Name:      policyName,
-		NameSpace: npNs,
+		Name:      npObj.ObjectMeta.Name,
+		NameSpace: npObj.ObjectMeta.Namespace,
 	}
 
 	if len(npObj.Spec.PolicyTypes) == 0 {
@@ -726,385 +701,28 @@ func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) (*polici
 			klog.Info("Cannot translate ingress rules")
 			return nil, fmt.Errorf("Cannot translate ingress rules")
 		}
-
-		// egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
-		// resultSets = append(resultSets, egressSets...)
-		// resultNamedPorts = append(resultNamedPorts, egressNamedPorts...)
-		// for resultListKey, resultLists := range egressLists {
-		// 	resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
-		// }
-		// entries = append(entries, egressEntries...)
-
-		var hasIngress, hasEgress bool
-		if npObj.Spec.Ingress != nil &&
-			len(npObj.Spec.Ingress) == 1 &&
-			len(npObj.Spec.Ingress[0].Ports) == 0 &&
-			len(npObj.Spec.Ingress[0].From) == 0 {
-			hasIngress = false
-		} else {
-			hasIngress = true
-		}
-
-		t.defaultDropACL(npmNetpol, hasIngress, hasEgress)
-
-		return npmNetpol, nil
-	}
-
-	// for _, ptype := range npObj.Spec.PolicyTypes {
-	// 	if ptype == networkingv1.PolicyTypeIngress {
-	// 		ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := t.translateIngress(npmNetpol, npObj.Spec.PodSelector, npObj.Spec.Ingress)
-	// 		resultSets = append(resultSets, ingressSets...)
-	// 		resultNamedPorts = append(resultNamedPorts, ingressNamedPorts...)
-	// 		for resultListKey, resultLists := range ingressLists {
-	// 			resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
-	// 		}
-	// 		resultIngressIPCidrs = ingressIPCidrs
-	// 		entries = append(entries, ingressEntries...)
-
-	// 		if npObj.Spec.Ingress != nil &&
-	// 			len(npObj.Spec.Ingress) == 1 &&
-	// 			len(npObj.Spec.Ingress[0].Ports) == 0 &&
-	// 			len(npObj.Spec.Ingress[0].From) == 0 {
-	// 			hasIngress = false
-	// 		} else {
-	// 			hasIngress = true
-	// 		}
-	// 	}
-
-	// 	if ptype == networkingv1.PolicyTypeEgress {
-	// 		egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
-	// 		resultSets = append(resultSets, egressSets...)
-	// 		resultNamedPorts = append(resultNamedPorts, egressNamedPorts...)
-	// 		for resultListKey, resultLists := range egressLists {
-	// 			resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
-	// 		}
-	// 		resultEgressIPCidrs = egressIPCidrs
-	// 		entries = append(entries, egressEntries...)
-
-	// 		if npObj.Spec.Egress != nil &&
-	// 			len(npObj.Spec.Egress) == 1 &&
-	// 			len(npObj.Spec.Egress[0].Ports) == 0 &&
-	// 			len(npObj.Spec.Egress[0].To) == 0 {
-	// 			hasEgress = false
-	// 		} else {
-	// 			hasEgress = true
-	// 		}
-	// 	}
-	// }
-
-	// //entries = append(entries, t.getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
-	// t.defaultDropACL(npmNetpol, hasIngress, hasEgress)
-	// for resultListKey, resultLists := range resultListMap {
-	// 	resultListMap[resultListKey] = util.UniqueStrSlice(resultLists)
-	// }
-
-	// return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultNamedPorts), resultListMap, resultIngressIPCidrs, resultEgressIPCidrs, entries
-	// TODO(jungukcho): temporarily return value
-	return nil, fmt.Errorf("Still working on this function and it is just to avoid errors ")
-
-}
-
-/*
-	Just for testing now
-*/
-func (t *translator) appendSelectorLabelsToLists(lists, listLabelsWithMembers map[string][]string, isNamespaceSelector bool) {
-	for parsedListName, parsedListMembers := range listLabelsWithMembers {
-		if isNamespaceSelector {
-			parsedListName = util.GetNSNameWithPrefix(parsedListName)
-		}
-		for _, member := range parsedListMembers {
-			if isNamespaceSelector {
-				member = util.GetNSNameWithPrefix(member)
-			}
-			lists[parsedListName] = append(lists[parsedListName], member)
-		}
-	}
-}
-
-func (t *translator) craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort) []string {
-	partialSpec := []string{}
-	if portRule.Protocol != nil {
-		partialSpec = append(
-			partialSpec,
-			util.IptablesProtFlag,
-			string(*portRule.Protocol),
-		)
-	}
-
-	if portRange, exist := t.getPortRange(portRule); exist {
-		partialSpec = append(
-			partialSpec,
-			util.IptablesDstPortFlag,
-			portRange,
-		)
-	}
-	return partialSpec
-}
-
-func (t *translator) craftPartialIptEntrySpecFromOpAndLabel(op, label, srcOrDstFlag string, isNamespaceSelector bool) []string {
-	if isNamespaceSelector {
-		label = "ns-" + label
-	}
-	partialSpec := []string{
-		util.IptablesModuleFlag,
-		util.IptablesSetModuleFlag,
-		op,
-		util.IptablesMatchSetFlag,
-		util.GetHashedName(label),
-		srcOrDstFlag,
-	}
-
-	return util.DropEmptyFields(partialSpec)
-}
-
-// TODO check this func references and change the label and op logic
-// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
-func (t *translator) craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, srcOrDstFlag string, isNamespaceSelector bool) []string {
-	var spec []string
-
-	fmt.Println("ns : ", ns)
-	if ns != "" {
-		spec = []string{
-			util.IptablesModuleFlag,
-			util.IptablesSetModuleFlag,
-			util.IptablesMatchSetFlag,
-			util.GetHashedName("ns-" + ns),
-			srcOrDstFlag,
-		}
-	}
-
-	if len(ops) == 1 && len(labels) == 1 {
-		if ops[0] == "" && labels[0] == "" {
-			if isNamespaceSelector {
-				// This is an empty namespaceSelector,
-				// selecting all namespaces.
-				spec = []string{
-					util.IptablesModuleFlag,
-					util.IptablesSetModuleFlag,
-					util.IptablesMatchSetFlag,
-					util.GetHashedName(util.KubeAllNamespacesFlag),
-					srcOrDstFlag,
-				}
-			}
-
-			return spec
-		}
-	}
-	for i := range ops {
-		// TODO need to change this logic, create a list of lsts here and have a single match against it
-		spec = append(spec, t.craftPartialIptEntrySpecFromOpAndLabel(ops[i], labels[i], srcOrDstFlag, isNamespaceSelector)...)
-	}
-	return spec
-}
-
-// craftPartialIptEntrySpecFromSelector :- ns must be "" for namespace selectors
-// func helps in taking a labelSelector and converts it into corresponding matchSets
-// to be a used in full iptable rules
-//  selector *metav1.LabelSelector: is used to create matchSets
-//  ns string: helps with adding a namespace name in case of empty (or all) selector
-//  srcOrDstFlag string: helps with determining if the src flag is to used in matchsets or dst flag,
-// depending on ingress or egress translate policy
-//  isNamespaceSelector bool: helps in adding prefix for nameSpace ipsets
-func (t *translator) craftPartialIptEntrySpecFromSelector(ns string, selector *metav1.LabelSelector, srcOrDstFlag string, isNamespaceSelector bool) ([]string, []string, map[string][]string) {
-	// parse the sector into labels and maps of multiVal match Exprs
-	labelsWithOps, nsLabelListKVs := parseSelector(selector)
-	ops, labels := GetOperatorsAndLabels(labelsWithOps)
-
-	valueLabels := []string{}
-	listLabelsWithMembers := make(map[string][]string)
-	labelsForSpec := labels
-	// parseSelector returns a slice of processed label and a map of lists with members.
-	// now we need to compute the 2nd-level ipset names from lists and its members
-	// add use those 2nd level ipsets to be used to create the partial match set
-	for labelKeyWithOps, labelValueList := range nsLabelListKVs {
-		// look at each list and its members
-		op, labelKey := GetOperatorAndLabel(labelKeyWithOps)
-		// get the new 2nd level IpSet name
-		labelKVIpsetName := getSetNameForMultiValueSelector(labelKey, labelValueList)
-		if !util.StrExistsInSlice(labels, labelKVIpsetName) {
-			// Important: make sure length andordering of ops and labelsForSpec are same
-			// because craftPartialEntry loops over both of them at once and assumes
-			// a given position ops is to be applied on the same position label in labelsForSpec
-			ops = append(ops, op)
-			// TODO doubt check if this 2nd level needs to be added to the labels when labels are added to lists
-			// check if the 2nd level is already part of labels
-			labelsForSpec = append(labelsForSpec, labelKVIpsetName)
-		}
-		for _, labelValue := range labelValueList {
-			ipsetName := util.GetIpSetFromLabelKV(labelKey, labelValue)
-			valueLabels = append(valueLabels, ipsetName)
-			listLabelsWithMembers[labelKVIpsetName] = append(listLabelsWithMembers[labelKVIpsetName], ipsetName)
-		}
-	}
-	iptEntrySpecs := t.craftPartialIptEntrySpecFromOpsAndLabels(ns, ops, labelsForSpec, srcOrDstFlag, isNamespaceSelector)
-	// only append valueLabels to labels after creating the Ipt Spec with valueLabels
-	// as 1D valueLabels are included in 2nd level labelKVIpsetName
-	labels = append(labels, valueLabels...)
-	return iptEntrySpecs, labels, listLabelsWithMembers
-}
-
-func (t *translator) craftPartialIptablesCommentFromPort(portRule networkingv1.NetworkPolicyPort) string {
-	partialComment := ""
-	if portRule.Protocol != nil {
-		partialComment += string(*portRule.Protocol)
-		if portRule.Port != nil {
-			partialComment += "-"
-		}
-	}
-
-	if portRule.Port != nil {
-		partialComment += "PORT-"
-		partialComment += portRule.Port.String()
-	}
-
-	return partialComment
-}
-
-// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
-func (t *translator) craftPartialIptablesCommentFromSelector(ns string, selector *metav1.LabelSelector, isNamespaceSelector bool) string {
-	if selector == nil {
-		return "none"
-	}
-
-	if len(selector.MatchExpressions) == 0 && len(selector.MatchLabels) == 0 {
-		if isNamespaceSelector {
-			return util.KubeAllNamespacesFlag
-		}
-
-		return "ns-" + ns
-	}
-
-	// TODO check if we are missing any crucial comment
-	labelsWithOps, labelKVs := parseSelector(selector)
-	ops, labelsWithoutOps := GetOperatorsAndLabels(labelsWithOps)
-	for labelKeyWithOps, labelValueList := range labelKVs {
-		op, labelKey := GetOperatorAndLabel(labelKeyWithOps)
-		labelKVIpsetName := getSetNameForMultiValueSelector(labelKey, labelValueList)
-		labelsWithoutOps = append(labelsWithoutOps, labelKVIpsetName)
-		ops = append(ops, op)
-	}
-
-	var prefix, postfix string
-	if isNamespaceSelector {
-		prefix = "ns-"
-	} else {
-		if ns != "" {
-			postfix = "-IN-ns-" + ns
-		}
-	}
-
-	comments := []string{}
-	for i := range labelsWithoutOps {
-		comments = append(comments, prefix+ops[i]+labelsWithoutOps[i])
-	}
-
-	sort.Strings(comments)
-	return strings.Join(comments, "-AND-") + postfix
-}
-
-func (t *translator) translatePolicyV1(npObj *networkingv1.NetworkPolicy) ([]string, []string, map[string][]string, [][]string, [][]string, []*iptm.IptEntry) {
-	var (
-		resultSets            []string
-		resultNamedPorts      []string
-		resultListMap         map[string][]string
-		resultIngressIPCidrs  [][]string
-		resultEgressIPCidrs   [][]string
-		entries               []*iptm.IptEntry
-		hasIngress, hasEgress bool
-	)
-
-	defer func() {
-		log.Logf("Finished translatePolicy")
-		log.Logf("sets: %v", resultSets)
-		log.Logf("lists: %v", resultListMap)
-		log.Logf("entries: ")
-		for _, entry := range entries {
-			log.Logf("entry: %+v", entry)
-		}
-	}()
-
-	npNs := npObj.ObjectMeta.Namespace
-	policyName := npObj.ObjectMeta.Name
-	resultListMap = make(map[string][]string)
-
-	//targetSelectorIptEntrySpec, targetSelectorLabels, listLabelsWithMembers := t.craftPartialIptEntrySpecFromSelector(npNs, &npObj.Spec.PodSelector, util.IptablesDstFlag, false)
-
-	// Since nested ipset list:sets are not allowed. We cannot use 2nd level Ipsets
-	// for NameSpaceSelectors with multiple values
-	// NPM will need to duplicate rules for each value in NSSelector
-	if len(npObj.Spec.PolicyTypes) == 0 {
-		ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := translateIngress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Ingress)
-		resultSets = append(resultSets, ingressSets...)
-		resultNamedPorts = append(resultNamedPorts, ingressNamedPorts...)
-		for resultListKey, resultLists := range ingressLists {
-			resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
-		}
-		entries = append(entries, ingressEntries...)
-
-		egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
-		resultSets = append(resultSets, egressSets...)
-		resultNamedPorts = append(resultNamedPorts, egressNamedPorts...)
-		for resultListKey, resultLists := range egressLists {
-			resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
-		}
-		entries = append(entries, egressEntries...)
-
-		hasIngress = len(ingressSets) > 0
-		hasEgress = len(egressSets) > 0
-		entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
-		for resultListKey, resultLists := range resultListMap {
-			resultListMap[resultListKey] = util.UniqueStrSlice(resultLists)
-		}
-
-		return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultNamedPorts), resultListMap, ingressIPCidrs, egressIPCidrs, entries
 	}
 
 	for _, ptype := range npObj.Spec.PolicyTypes {
 		if ptype == networkingv1.PolicyTypeIngress {
-			ingressSets, ingressNamedPorts, ingressLists, ingressIPCidrs, ingressEntries := translateIngress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Ingress)
-			resultSets = append(resultSets, ingressSets...)
-			resultNamedPorts = append(resultNamedPorts, ingressNamedPorts...)
-			for resultListKey, resultLists := range ingressLists {
-				resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
-			}
-			resultIngressIPCidrs = ingressIPCidrs
-			entries = append(entries, ingressEntries...)
-
-			if npObj.Spec.Ingress != nil &&
-				len(npObj.Spec.Ingress) == 1 &&
-				len(npObj.Spec.Ingress[0].Ports) == 0 &&
-				len(npObj.Spec.Ingress[0].From) == 0 {
-				hasIngress = false
-			} else {
-				hasIngress = true
-			}
-		}
-
-		if ptype == networkingv1.PolicyTypeEgress {
-			egressSets, egressNamedPorts, egressLists, egressIPCidrs, egressEntries := translateEgress(npNs, policyName, npObj.Spec.PodSelector, npObj.Spec.Egress)
-			resultSets = append(resultSets, egressSets...)
-			resultNamedPorts = append(resultNamedPorts, egressNamedPorts...)
-			for resultListKey, resultLists := range egressLists {
-				resultListMap[resultListKey] = append(resultListMap[resultListKey], resultLists...)
-			}
-			resultEgressIPCidrs = egressIPCidrs
-			entries = append(entries, egressEntries...)
-
-			if npObj.Spec.Egress != nil &&
-				len(npObj.Spec.Egress) == 1 &&
-				len(npObj.Spec.Egress[0].Ports) == 0 &&
-				len(npObj.Spec.Egress[0].To) == 0 {
-				hasEgress = false
-			} else {
-				hasEgress = true
+			if err := t.translateIngress(npmNetpol, npObj.Spec.PodSelector, npObj.Spec.Ingress); err != nil {
+				klog.Info("Cannot translate ingress rules")
+				return nil, fmt.Errorf("Cannot translate ingress rules")
 			}
 		}
 	}
 
-	entries = append(entries, getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...)
-	for resultListKey, resultLists := range resultListMap {
-		resultListMap[resultListKey] = util.UniqueStrSlice(resultLists)
+	hasIngress := true
+	if npObj.Spec.Ingress != nil &&
+		len(npObj.Spec.Ingress) == 1 &&
+		len(npObj.Spec.Ingress[0].Ports) == 0 &&
+		len(npObj.Spec.Ingress[0].From) == 0 {
+		hasIngress = false
 	}
 
-	return util.UniqueStrSlice(resultSets), util.UniqueStrSlice(resultNamedPorts), resultListMap, resultIngressIPCidrs, resultEgressIPCidrs, entries
+	if hasIngress {
+		t.defaultDropACL(npmNetpol, policies.Ingress)
+	}
+
+	return npmNetpol, nil
 }
