@@ -1,71 +1,10 @@
 package translation
 
 import (
-	"container/heap"
-	"fmt"
-	"sort"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// An ReqHeap is a min-heap of labelSelectorRequirements.
-type ReqHeap []metav1.LabelSelectorRequirement
-
-func (h ReqHeap) Len() int {
-	return len(h)
-}
-
-func (h ReqHeap) Less(i, j int) bool {
-	sort.Strings(h[i].Values)
-	sort.Strings(h[j].Values)
-
-	if int(h[i].Key[0]) < int(h[j].Key[0]) {
-		return true
-	}
-
-	if int(h[i].Key[0]) > int(h[j].Key[0]) {
-		return false
-	}
-
-	if len(h[i].Values) == 0 {
-		return true
-	}
-
-	if len(h[j].Values) == 0 {
-		return false
-	}
-
-	if len(h[i].Values[0]) == 0 {
-		return true
-	}
-
-	if len(h[j].Values[0]) == 0 {
-		return false
-	}
-
-	return int(h[i].Values[0][0]) < int(h[j].Values[0][0])
-}
-
-func (h ReqHeap) Swap(i, j int) {
-	h[i], h[j] = h[j], h[i]
-}
-
-func (h *ReqHeap) Push(x interface{}) {
-	sort.Strings(x.(metav1.LabelSelectorRequirement).Values)
-	*h = append(*h, x.(metav1.LabelSelectorRequirement))
-}
-
-func (h *ReqHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-
-	return x
-}
 
 // ParseLabel takes a Azure-NPM processed label then returns if it's referring to complement set,
 // and if so, returns the original set as well.
@@ -80,7 +19,8 @@ func ParseLabel(label string) (string, bool) {
 
 // GetOperatorAndLabel returns the operator associated with the label and the label without operator.
 func GetOperatorAndLabel(label string) (string, string) {
-	if len(label) == 0 {
+	// TODO(jungukcho): check whether this is possible
+	if label == "" {
 		return "", ""
 	}
 
@@ -93,55 +33,33 @@ func GetOperatorAndLabel(label string) (string, string) {
 
 // GetOperatorsAndLabels returns the operators along with the associated labels.
 func GetOperatorsAndLabels(labelsWithOps []string) ([]string, []string) {
-	var ops, labelsWithoutOps []string
-	for _, labelWithOp := range labelsWithOps {
+	ops := make([]string, len(labelsWithOps))
+	labelsWithoutOps := make([]string, len(labelsWithOps))
+	for i, labelWithOp := range labelsWithOps {
 		op, labelWithoutOp := GetOperatorAndLabel(labelWithOp)
-		ops = append(ops, op)
-		labelsWithoutOps = append(labelsWithoutOps, labelWithoutOp)
+		ops[i] = op
+		labelsWithoutOps[i] = labelWithoutOp
 	}
 
 	return ops, labelsWithoutOps
 }
 
-// sortSelector sorts the member fields of the selector in an alphebatical order.
-func sortSelector(selector *metav1.LabelSelector) {
-	_, _ = util.SortMap(&selector.MatchLabels)
-
-	reqHeap := &ReqHeap{}
-	heap.Init(reqHeap)
-	for _, req := range selector.MatchExpressions {
-		heap.Push(reqHeap, req)
-	}
-
-	var sortedReqs []metav1.LabelSelectorRequirement
-	for reqHeap.Len() > 0 {
-		sortedReqs = append(sortedReqs, heap.Pop(reqHeap).(metav1.LabelSelectorRequirement))
-	}
-	selector.MatchExpressions = sortedReqs
-}
-
 // getSetNameForMultiValueSelector takes in label with multiple values without operator
 // and returns a new 2nd level ipset name
 func getSetNameForMultiValueSelector(key string, vals []string) string {
-	newIpSet := key
+	newIPSet := key
 	for _, val := range vals {
-		newIpSet = util.GetIpSetFromLabelKV(newIpSet, val)
+		newIPSet = util.GetIpSetFromLabelKV(newIPSet, val)
 	}
-	return newIpSet
+	return newIPSet
 }
 
-// HashSelector returns the hash value of the selector.
-func HashSelector(selector *metav1.LabelSelector) string {
-	sortSelector(selector)
-	return util.Hash(fmt.Sprintf("%v", selector))
-}
-
-// flattenNameSpaceSelector will help flatten multiple NameSpace selector match Expressions values
+// FlattenNameSpaceSelector will help flatten multiple NameSpace selector match Expressions values
 // into multiple label selectors helping with the OR condition.
 func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSelector {
 	/*
 			This function helps to create multiple labelSelectors when given a single multivalue nsSelector
-			Take below exmaple: this nsSelector has 2 values in a matchSelector.
+			Take below example: this nsSelector has 2 values in a matchSelector.
 			- namespaceSelector:
 		        matchExpressions:
 		        - key: ns
@@ -261,23 +179,18 @@ func zipMatchExprs(baseSelectors []metav1.LabelSelector, matchExpr metav1.LabelS
 // higher level functions will need to compute what sets or ipsets should be
 // used from this map
 func parseSelector(selector *metav1.LabelSelector) ([]string, map[string][]string) {
-	var (
-		labels []string
-		vals   map[string][]string
-	)
-
-	vals = make(map[string][]string)
 	if selector == nil {
-		return labels, vals
+		return []string{}, map[string][]string{}
 	}
 
+	labels := []string{}
+	vals := make(map[string][]string)
 	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
 		labels = append(labels, "")
 		return labels, vals
 	}
 
 	sortedKeys, sortedVals := util.SortMap(&selector.MatchLabels)
-
 	for i := range sortedKeys {
 		labels = append(labels, sortedKeys[i]+":"+sortedVals[i])
 	}
@@ -291,7 +204,7 @@ func parseSelector(selector *metav1.LabelSelector) ([]string, map[string][]strin
 				labels = append(labels, k+":"+req.Values[0])
 			} else {
 				// We are not adding the k:v to labels for multiple values, because, labels are used
-				// to contruct partial IptEntries and if these below labels are added then we are inducing
+				// to construct partial IptEntries and if these below labels are added then we are inducing
 				// AND condition on values of a match expression instead of OR
 				vals[k] = append(vals[k], req.Values...)
 			}
