@@ -1,7 +1,8 @@
-package npm
+package translation
 
 import (
 	"fmt"
+	"io/ioutil"
 	"strconv"
 	"testing"
 
@@ -13,7 +14,21 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes/scheme"
 )
+
+func readPolicyYaml(policyYaml string) (*networkingv1.NetworkPolicy, error) {
+	decode := scheme.Codecs.UniversalDeserializer().Decode
+	b, err := ioutil.ReadFile(policyYaml)
+	if err != nil {
+		return nil, err
+	}
+	obj, _, err := decode([]byte(b), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return obj.(*networkingv1.NetworkPolicy), nil
+}
 
 func TestPortRule(t *testing.T) {
 	tcp := v1.ProtocolTCP
@@ -620,41 +635,39 @@ func TestHashValues(t *testing.T) {
 }
 
 // Just play with network policy (will be deleted)
+/*
 func TestAllowAll(t *testing.T) {
-	/*
-		set [ns-testnamespace]
-		lists map[]
-		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-DROPS Flag: LockWaitTimeInSeconds:
-			Specs:[
-				-m set --match-set azure-npm-2173871756 dst
-				-j DROP
-				-m comment --comment DROP-ALL-TO-ns-testnamespace]}
-	*/
-	/*
-		// Does not run getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...) function
-		// allowExternal
-		set [ns-testnamespace]
-		lists map[]
-		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-PORT Flag: LockWaitTimeInSeconds:
-			Specs:[
-				-m set --match-set azure-npm-2173871756 dst
-				-j MARK --set-mark 0x2000
-				-m comment --comment ALLOW-ALL-TO-ns-testnamespace]}
-	*/
+	// set [ns-testnamespace]
+	// lists map[]
+	// iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-DROPS Flag: LockWaitTimeInSeconds:
+	// 	Specs:[
+	// 		-m set --match-set azure-npm-2173871756 dst
+	// 		-j DROP
+	// 		-m comment --comment DROP-ALL-TO-ns-testnamespace]}
 
-	/*
-		set [ns-netpol-4537-x pod:a pod:x]
+	// // Does not run getDefaultDropEntries(npNs, npObj.Spec.PodSelector, hasIngress, hasEgress)...) function
+	// // allowExternal
+	// set [ns-testnamespace]
+	// lists map[]
+	// iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-PORT Flag: LockWaitTimeInSeconds:
+	// 	Specs:[
+	// 		-m set --match-set azure-npm-2173871756 dst
+	// 		-j MARK --set-mark 0x2000
+	// 		-m comment --comment ALLOW-ALL-TO-ns-testnamespace]}
 
-		lists map[ns-ns:netpol-4537-x:[] ns-ns:netpol-4537-y:[] pod:a:x:[pod:a pod:x]]
 
-		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-FROM Flag: LockWaitTimeInSeconds:
-			Specs:[-m set ! --match-set azure-npm-1052046537 src -m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j MARK --set-mark 0x2000 -m comment --comment ALLOW-ns-!ns:netpol-4537-x-TO-pod:a:x-IN-ns-netpol-4537-x]}
-		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-FROM Flag: LockWaitTimeInSeconds:
-			Specs:[-m set ! --match-set azure-npm-1035268918 src -m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j MARK --set-mark 0x2000 -m comment --comment ALLOW-ns-!ns:netpol-4537-y-TO-pod:a:x-IN-ns-netpol-4537-x]}
-		iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-DROPS Flag: LockWaitTimeInSeconds:
-			Specs:[-m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j DROP -m comment --comment DROP-ALL-TO-pod:a:x-IN-ns-netpol-4537-x]}
 
-	*/
+	// set [ns-netpol-4537-x pod:a pod:x]
+
+	// lists map[ns-ns:netpol-4537-x:[] ns-ns:netpol-4537-y:[] pod:a:x:[pod:a pod:x]]
+
+	// iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-FROM Flag: LockWaitTimeInSeconds:
+	// 	Specs:[-m set ! --match-set azure-npm-1052046537 src -m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j MARK --set-mark 0x2000 -m comment --comment ALLOW-ns-!ns:netpol-4537-x-TO-pod:a:x-IN-ns-netpol-4537-x]}
+	// iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-FROM Flag: LockWaitTimeInSeconds:
+	// 	Specs:[-m set ! --match-set azure-npm-1035268918 src -m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j MARK --set-mark 0x2000 -m comment --comment ALLOW-ns-!ns:netpol-4537-y-TO-pod:a:x-IN-ns-netpol-4537-x]}
+	// iptEntry &{Command: Name: Chain:AZURE-NPM-INGRESS-DROPS Flag: LockWaitTimeInSeconds:
+	// 	Specs:[-m set --match-set azure-npm-3024785582 dst -m set --match-set azure-npm-4176901587 dst -j DROP -m comment --comment DROP-ALL-TO-pod:a:x-IN-ns-netpol-4537-x]}
+
 	tests := []struct {
 		name             string
 		netpolPolicyFile string
@@ -700,6 +713,7 @@ func TestAllowAll(t *testing.T) {
 		})
 	}
 }
+*/
 
 /*
 // Just play with network policy (will be deleted)
