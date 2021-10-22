@@ -1,4 +1,4 @@
-package translate
+package translation
 
 import (
 	"container/heap"

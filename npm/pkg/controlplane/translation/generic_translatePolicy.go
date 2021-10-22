@@ -1,13 +1,11 @@
-// Copyright 2018 Microsoft. All rights reserved.
-// MIT License
 package translation
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
-
 	"github.com/Azure/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,10 +16,14 @@ type translator struct{}
 
 type netpolPortType string
 
+var (
+	errIngressTranslation = errors.New("failed to translate ingress rules")
+	errUnknownPortType    = errors.New("unknown port Type")
+)
+
 const (
 	numericPort          netpolPortType = "validport"
 	namedPort            netpolPortType = "namedport"
-	invalidPort          netpolPortType = "invalid"
 	ipBlocksetNameFormat                = "%s-in-ns-%s-%d%s"
 )
 
@@ -32,7 +34,7 @@ func (t *translator) portType(portRule networkingv1.NetworkPolicyPort) (netpolPo
 		return namedPort, nil
 	}
 	// TODO (jungukcho): check whether this can be possible or not.
-	return "", fmt.Errorf("Unknown port Type")
+	return "", errUnknownPortType
 }
 
 func (t *translator) numericPortRule(portRule *networkingv1.NetworkPolicyPort) (policies.Ports, string) {
@@ -87,8 +89,8 @@ func ipBlockSetName(policyName, ns string, direction policies.Direction, ipBlock
 	return fmt.Sprintf(ipBlocksetNameFormat, policyName, ns, ipBlockSetIndex, direction)
 }
 
-func (t *translator) ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex int, IPBlockRule *networkingv1.IPBlock) *ipsets.TranslatedIPSet {
-	if IPBlockRule == nil || len(IPBlockRule.CIDR) <= 0 {
+func (t *translator) ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex int, ipBlockRule *networkingv1.IPBlock) *ipsets.TranslatedIPSet {
+	if ipBlockRule == nil || len(ipBlockRule.CIDR) == 0 {
 		return nil
 	}
 
@@ -99,32 +101,32 @@ func (t *translator) ipBlockIPSet(policyName, ns string, direction policies.Dire
 		Ipset doesn't allow 0.0.0.0/0 to be added. A general solution is split 0.0.0.0/1 in half which convert to
 		1.0.0.0/1 and 128.0.0.0/1
 	*/
-	ipBlockIPSet.Members = append(ipBlockIPSet.Members, IPBlockRule.CIDR)
-	if len(IPBlockRule.Except) > 0 {
-		for _, except := range IPBlockRule.Except {
+	ipBlockIPSet.Members = append(ipBlockIPSet.Members, ipBlockRule.CIDR)
+	if len(ipBlockRule.Except) > 0 {
+		for _, except := range ipBlockRule.Except {
 			ipBlockIPSet.Members = append(ipBlockIPSet.Members, except+util.IpsetNomatch)
 		}
 	}
 	return ipBlockIPSet
 }
 
-func (t *translator) IPBlockRule(policyName, ns string, direction policies.Direction, ipBlockSetIndex int, IPBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo) {
-	if IPBlockRule == nil || len(IPBlockRule.CIDR) <= 0 {
+func (t *translator) ipBlockRule(policyName, ns string, direction policies.Direction, ipBlockSetIndex int, ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo) {
+	if ipBlockRule == nil || len(ipBlockRule.CIDR) == 0 {
 		return nil, policies.SetInfo{}
 	}
 
-	ipBlockIPSet := t.ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, IPBlockRule)
+	ipBlockIPSet := t.ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockRule)
 	setInfo := policies.NewSetInfo(ipBlockIPSet.Metadata.Name, ipsets.CIDRBlocks, false, policies.SrcMatch)
 	return ipBlockIPSet, setInfo
 }
 
 // createPodSelectorRule return srcList for ACL by using ops and labelsForSpec
-func (t *translator) podSelectorRule(ops []string, ipSetForAcl []string) []policies.SetInfo {
+func (t *translator) podSelectorRule(ops, ipSetForACL []string) []policies.SetInfo {
 	setInfos := []policies.SetInfo{}
-	for i := 0; i < len(ipSetForAcl); i++ {
+	for i := 0; i < len(ipSetForACL); i++ {
 		included := ops[i] == ""
 		// (TODO): need to clarify all types for Pods - ipsets.KeyValueLabelOfPod
-		setInfo := policies.NewSetInfo(ipSetForAcl[i], ipsets.KeyValueLabelOfPod, included, policies.SrcMatch)
+		setInfo := policies.NewSetInfo(ipSetForACL[i], ipsets.KeyValueLabelOfPod, included, policies.SrcMatch)
 		setInfos = append(setInfos, setInfo)
 	}
 	return setInfos
@@ -173,7 +175,6 @@ func (t *translator) targetPodSelectorInfo(ns string, selector *metav1.LabelSele
 	return ops, ipSetForAcl, ipSetForSingleVal, ipSetNameForMultiVal
 }
 
-// be consistent to use "namespace" or "ns"
 func (t *translator) allPodsSelectorInNs(ns string, matchType policies.MatchType) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
 	// TODO(jungukcho): important this is common component - double-check whether it has duplicated one or not
 	ipset := ipsets.NewTranslatedIPSet(ns, ipsets.KeyLabelOfNamespace, []string{})
@@ -182,7 +183,6 @@ func (t *translator) allPodsSelectorInNs(ns string, matchType policies.MatchType
 	setInfo := policies.NewSetInfo(ns, ipsets.KeyLabelOfNamespace, false, matchType)
 	dstList := []policies.SetInfo{setInfo}
 	return podSelectorIPSets, dstList
-
 }
 func (t *translator) targetPodSelector(ns string, selector *metav1.LabelSelector, matchType policies.MatchType) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
 	/* ex)
@@ -193,7 +193,7 @@ func (t *translator) targetPodSelector(ns string, selector *metav1.LabelSelector
 	*/
 
 	// (TODO): some data in singleValueLabels and multiValuesLabels are duplicated
-	ops, ipSetForAcl, ipSetForSingleVal, ipSetNameForMultiVal := t.targetPodSelectorInfo(ns, selector)
+	ops, ipSetForACL, ipSetForSingleVal, ipSetNameForMultiVal := t.targetPodSelectorInfo(ns, selector)
 	// select all pods in a namespace
 	if len(ops) == 1 && len(ipSetForSingleVal) == 1 && ops[0] == "" && ipSetForSingleVal[0] == "" {
 		podSelectorIPSets, dstList := t.allPodsSelectorInNs(ns, matchType)
@@ -201,7 +201,7 @@ func (t *translator) targetPodSelector(ns string, selector *metav1.LabelSelector
 	}
 
 	podSelectorIPSets := t.podSelectorIPSets(ipSetForSingleVal, ipSetNameForMultiVal)
-	setInfos := t.podSelectorRule(ops, ipSetForAcl)
+	setInfos := t.podSelectorRule(ops, ipSetForACL)
 
 	return podSelectorIPSets, setInfos
 }
@@ -256,7 +256,6 @@ func (t *translator) nameSpaceSelector(selector *metav1.LabelSelector, matchType
 	nsSelectorIPSets := t.nameSpaceSelectorIPSets(singleValueLabels)
 	srcList := t.nameSpaceSelectorRule(ops, singleValueLabels, matchType)
 	return nsSelectorIPSets, srcList
-
 }
 
 // TODO(jungukcho): get parameter for MatchType - direction?
@@ -310,6 +309,30 @@ func (t *translator) portRule(npmNetpol *policies.NPMNetworkPolicy, acl *policie
 		acl.Protocol = policies.Protocol(protocol)
 	}
 }
+
+func (t *translator) peerAndPortRule(npmNetpol *policies.NPMNetworkPolicy, ports []networkingv1.NetworkPolicyPort, setInfo []policies.SetInfo) {
+	if ports == nil || len(ports) == 0 {
+		acl := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+		acl.SrcList = setInfo
+		npmNetpol.ACLs = append(npmNetpol.ACLs, acl)
+		return
+	}
+
+	for _, portRule := range ports {
+		portType, err := t.portType(portRule)
+		if err != nil {
+			// TODO(jungukcho): handle error
+			klog.Infof("Invalid NetworkPolicyPort %s", err)
+			continue
+		}
+
+		acl := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
+		acl.SrcList = setInfo
+		t.portRule(npmNetpol, acl, &portRule, portType)
+		npmNetpol.ACLs = append(npmNetpol.ACLs, acl)
+	}
+}
+
 func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targetSelector metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) error {
 	// TODO(jungukcho) : Double-check addedCidrEntry.
 	var addedCidrEntry bool // all cidr entry will be added in one set per from/to rule
@@ -351,30 +374,12 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 				if len(fromRule.IPBlock.CIDR) > 0 {
 					// TODO(jungukcho): check this - need UTs
 					// TODO(jungukcho): need a const for "in"
-					ipBlockIPSet, ipBlockSetInfo := t.IPBlockRule(npmNetpol.Name, npmNetpol.NameSpace, policies.Ingress, i, fromRule.IPBlock)
+					ipBlockIPSet, ipBlockSetInfo := t.ipBlockRule(npmNetpol.Name, npmNetpol.NameSpace, policies.Ingress, i, fromRule.IPBlock)
 					npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, ipBlockIPSet)
 					if j != 0 && addedCidrEntry {
 						continue
 					}
-
-					if !portRuleExists {
-						fromRuleACL := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
-						fromRuleACL.SrcList = append(fromRuleACL.SrcList, ipBlockSetInfo)
-						npmNetpol.ACLs = append(npmNetpol.ACLs, fromRuleACL)
-					} else {
-						for _, portRule := range rule.Ports {
-							ipBlockAndPortRuleACL := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
-							ipBlockAndPortRuleACL.SrcList = append(ipBlockAndPortRuleACL.SrcList, ipBlockSetInfo)
-
-							portType, err := t.portType(portRule)
-							if err != nil {
-								klog.Infof("Invalid NetworkPolicyPort %s", err)
-								continue
-							}
-							t.portRule(npmNetpol, ipBlockAndPortRuleACL, &portRule, portType)
-							npmNetpol.ACLs = append(npmNetpol.ACLs, ipBlockAndPortRuleACL)
-						}
-					}
+					t.peerAndPortRule(npmNetpol, rule.Ports, []policies.SetInfo{ipBlockSetInfo})
 					addedCidrEntry = true
 				}
 				// Do not check further since IPBlock filed is exclusive field.
@@ -391,26 +396,7 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 				for _, nsSelector := range FlattenNameSpaceSelector(fromRule.NamespaceSelector) {
 					nsSelectorIPSets, nsSrcList := t.nameSpaceSelector(&nsSelector, policies.SrcMatch)
 					npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, nsSelectorIPSets...)
-
-					if !portRuleExists {
-						nsACL := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
-						nsACL.SrcList = nsSrcList
-						npmNetpol.ACLs = append(npmNetpol.ACLs, nsACL)
-						continue
-					}
-
-					for _, portRule := range rule.Ports {
-						portType, err := t.portType(portRule)
-						if err != nil {
-							klog.Infof("Invalid NetworkPolicyPort %s", err)
-							continue
-						}
-
-						nsAndPortACL := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
-						nsAndPortACL.SrcList = nsSrcList
-						t.portRule(npmNetpol, nsAndPortACL, &portRule, portType)
-						npmNetpol.ACLs = append(npmNetpol.ACLs, nsAndPortACL)
-					}
+					t.peerAndPortRule(npmNetpol, rule.Ports, nsSrcList)
 				}
 				continue
 			}
@@ -420,25 +406,7 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 				// TODO check old code if we need any ns- prefix for pod selectors
 				podSelectorIPSets, podSelectorSrcList := t.targetPodSelector(npmNetpol.NameSpace, fromRule.PodSelector, policies.SrcMatch)
 				npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, podSelectorIPSets...)
-				if !portRuleExists {
-					nsACL := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
-					nsACL.SrcList = podSelectorSrcList
-					npmNetpol.ACLs = append(npmNetpol.ACLs, nsACL)
-					continue
-				}
-
-				for _, portRule := range rule.Ports {
-					portType, err := t.portType(portRule)
-					if err != nil {
-						klog.Infof("Invalid NetworkPolicyPort %s", err)
-						continue
-					}
-
-					podAndPortACL := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
-					podAndPortACL.SrcList = podSelectorSrcList
-					t.portRule(npmNetpol, podAndPortACL, &portRule, portType)
-					npmNetpol.ACLs = append(npmNetpol.ACLs, podAndPortACL)
-				}
+				t.peerAndPortRule(npmNetpol, rule.Ports, podSelectorSrcList)
 				continue
 			}
 
@@ -458,25 +426,7 @@ func (t *translator) translateIngress(npmNetpol *policies.NPMNetworkPolicy, targ
 				nsSelectorIPSets, nsSrcList := t.nameSpaceSelector(&nsSelector, policies.SrcMatch)
 				npmNetpol.RuleIPSets = append(npmNetpol.RuleIPSets, nsSelectorIPSets...)
 				nsSrcList = append(nsSrcList, podSelectorSrcList...)
-
-				if !portRuleExists {
-					nsACL := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
-					nsACL.SrcList = nsSrcList
-					npmNetpol.ACLs = append(npmNetpol.ACLs, nsACL)
-					continue
-				}
-
-				for _, portRule := range rule.Ports {
-					portType, err := t.portType(portRule)
-					if err != nil {
-						klog.Infof("Invalid NetworkPolicyPort %s", err)
-						continue
-					}
-					aclWithAllFields := policies.NewACLPolicy(npmNetpol.Name, policies.Allowed, policies.Ingress)
-					aclWithAllFields.SrcList = nsSrcList
-					t.portRule(npmNetpol, aclWithAllFields, &portRule, portType)
-					npmNetpol.ACLs = append(npmNetpol.ACLs, aclWithAllFields)
-				}
+				t.peerAndPortRule(npmNetpol, rule.Ports, nsSrcList)
 			}
 		}
 
@@ -499,9 +449,7 @@ func (t *translator) existIngress(npObj *networkingv1.NetworkPolicy) bool {
 		len(npObj.Spec.Ingress[0].From) == 0 {
 		hasIngress = false
 	}
-
 	return hasIngress
-
 }
 
 func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) (*policies.NPMNetworkPolicy, error) {
@@ -512,16 +460,16 @@ func (t *translator) translatePolicy(npObj *networkingv1.NetworkPolicy) (*polici
 
 	if len(npObj.Spec.PolicyTypes) == 0 {
 		if err := t.translateIngress(npmNetpol, npObj.Spec.PodSelector, npObj.Spec.Ingress); err != nil {
-			klog.Info("Cannot translate ingress rules")
-			return nil, fmt.Errorf("Cannot translate ingress rules")
+			klog.Infof("Cannot translate ingress rules due to %s", err)
+			return nil, errIngressTranslation
 		}
 	}
 
 	for _, ptype := range npObj.Spec.PolicyTypes {
 		if ptype == networkingv1.PolicyTypeIngress {
 			if err := t.translateIngress(npmNetpol, npObj.Spec.PodSelector, npObj.Spec.Ingress); err != nil {
-				klog.Info("Cannot translate ingress rules")
-				return nil, fmt.Errorf("Cannot translate ingress rules")
+				klog.Infof("Cannot translate ingress rules due to %s", err)
+				return nil, errIngressTranslation
 			}
 		}
 	}
