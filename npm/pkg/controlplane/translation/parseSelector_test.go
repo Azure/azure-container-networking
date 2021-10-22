@@ -121,6 +121,7 @@ func TestGetOperatorsAndLabels(t *testing.T) {
 	}
 }
 
+// TODO(jungukcho): check UT results.
 func TestParseSelector(t *testing.T) {
 	var selector, expectedSelector *metav1.LabelSelector
 	selector, expectedSelector = nil, nil

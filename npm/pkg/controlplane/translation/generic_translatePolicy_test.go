@@ -1,9 +1,7 @@
 package translation
 
 import (
-	"fmt"
 	"io/ioutil"
-	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
@@ -17,20 +15,77 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-func readPolicyYaml(policyYaml string) (*networkingv1.NetworkPolicy, error) {
-	decode := scheme.Codecs.UniversalDeserializer().Decode
-	b, err := ioutil.ReadFile(policyYaml)
-	if err != nil {
-		return nil, err
+func TestPortType(t *testing.T) {
+	tcp := v1.ProtocolTCP
+	port8000 := intstr.FromInt(8000)
+	var endPort int32 = 8100
+	namedPortStr := "serve-tcp"
+	namedPortName := intstr.FromString(namedPortStr)
+
+	tests := []struct {
+		name     string
+		portRule networkingv1.NetworkPolicyPort
+		want     netpolPortType
+		wantErr  bool
+	}{
+		{
+			name:     "empty",
+			portRule: networkingv1.NetworkPolicyPort{},
+			want:     numericPort,
+		},
+		{
+			name: "tcp",
+			portRule: networkingv1.NetworkPolicyPort{
+				Protocol: &tcp,
+			},
+			want: numericPort,
+		},
+		{
+			name: "port 8000",
+			portRule: networkingv1.NetworkPolicyPort{
+				Port: &port8000,
+			},
+			want: numericPort,
+		},
+		{
+			name: "tcp port 8000",
+			portRule: networkingv1.NetworkPolicyPort{
+				Protocol: &tcp,
+				Port:     &port8000,
+			},
+			want: numericPort,
+		},
+		{
+			name: "tcp port 8000-81000",
+			portRule: networkingv1.NetworkPolicyPort{
+				Protocol: &tcp,
+				Port:     &port8000,
+				EndPort:  &endPort,
+			},
+			want: numericPort,
+		},
+		{
+			name: "serve-tcp",
+			portRule: networkingv1.NetworkPolicyPort{
+				Protocol: &tcp,
+				Port:     &namedPortName,
+			},
+			want: namedPort,
+		},
 	}
-	obj, _, err := decode([]byte(b), nil, nil)
-	if err != nil {
-		return nil, err
+
+	translator := &translator{}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := translator.portType(tt.portRule)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
 	}
-	return obj.(*networkingv1.NetworkPolicy), nil
 }
 
-func TestPortRule(t *testing.T) {
+func TestNumericPortRule(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	port8000 := intstr.FromInt(8000)
 	var endPort int32 = 8100
@@ -106,164 +161,8 @@ func TestPortRule(t *testing.T) {
 	}
 }
 
-// TODO(junguk): move to Policy code
-func TestCidrField(t *testing.T) {
-	cidr := "172.17.0.0/16"
-	except := "172.17.1.0/24"
-	excepts := []string{"172.17.1.0/24", "172.17.1.0/32"}
-	exceptsWithSurfix := []string{"172.17.1.0/24" + util.IpsetNomatch, "172.17.1.0/32" + util.IpsetNomatch}
-	tests := []struct {
-		name        string
-		IPBlockRule networkingv1.IPBlock
-		want        []string
-		wantErr     bool
-	}{
-		{
-			name:        "empty",
-			IPBlockRule: networkingv1.IPBlock{},
-			want:        []string{},
-		},
-		{
-			name: "one cidr",
-			IPBlockRule: networkingv1.IPBlock{
-				CIDR: cidr,
-			},
-			want: []string{cidr},
-		},
-		{
-			name: "one cidr and one except",
-			IPBlockRule: networkingv1.IPBlock{
-				CIDR:   cidr,
-				Except: []string{except},
-			},
-			want: []string{cidr, except + util.IpsetNomatch},
-		},
-		{
-			name: "one cidr and multiple excepts",
-			IPBlockRule: networkingv1.IPBlock{
-				CIDR:   cidr,
-				Except: excepts,
-			},
-			want: append([]string{cidr}, exceptsWithSurfix...),
-		},
-		{
-			name: "only multiple excepts - invalid - (need to check it)",
-			IPBlockRule: networkingv1.IPBlock{
-				Except: []string{except},
-			},
-			wantErr: true,
-		},
-	}
-
-	translator := &translator{}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			policyName, namemspace, direction, ipBlockSetIndex := "test", "test", policies.Ingress, 0
-			got := translator.ipBlockIPSet(policyName, namemspace, direction, ipBlockSetIndex, &tt.IPBlockRule)
-			if tt.wantErr {
-				t.Error("Something wrong")
-				return
-			}
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestCidr(t *testing.T) {
-	cidr := "172.17.0.0/16"
-	except := "172.17.1.0/24"
-	// excepts := []string{"172.17.1.0/24", "172.17.1.0/32"}
-	// exceptsWithSurfix := []string{"172.17.1.0/24" + util.IpsetNomatch, "172.17.1.0/32" + util.IpsetNomatch}
-	policyName, ns, index := "test", "test", 0
-	ipsetName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(index) + "in"
-
-	tests := []struct {
-		name        string
-		IPBlockRule networkingv1.IPBlock
-		want        *ipsets.IPSet
-		wantErr     bool
-	}{
-		{
-			name:        "empty",
-			IPBlockRule: networkingv1.IPBlock{},
-			want:        nil,
-		},
-		{
-			name: "one cidr",
-			IPBlockRule: networkingv1.IPBlock{
-				CIDR: cidr,
-			},
-			want: &ipsets.IPSet{
-				Name: ipsetName,
-				SetProperties: ipsets.SetProperties{
-					Type: ipsets.CIDRBlocks,
-					Kind: ipsets.HashSet,
-				},
-				IPPodKey: map[string]string{
-					cidr: ipsetName,
-				},
-			},
-		},
-		{
-			name: "one cidr and one except",
-			IPBlockRule: networkingv1.IPBlock{
-				CIDR:   cidr,
-				Except: []string{except},
-			},
-			want: &ipsets.IPSet{
-				Name: ipsetName,
-				SetProperties: ipsets.SetProperties{
-					Type: ipsets.CIDRBlocks,
-					Kind: ipsets.HashSet,
-				},
-				IPPodKey: map[string]string{
-					cidr:                       ipsetName,
-					except + util.IpsetNomatch: ipsetName,
-				},
-			},
-		},
-		// {
-		// 	name: "one cidr and multiple excepts",
-		// 	IPBlockRule: networkingv1.IPBlock{
-		// 		CIDR:   cidr,
-		// 		Except: []string{except},
-		// 	},
-		// 	want: &ipsets.IPSet{
-		// 		Name: ipsetName,
-		// 		SetProperties: ipsets.SetProperties{
-		// 			Type: ipsets.CIDRBlocks,
-		// 			Kind: ipsets.HashSet,
-		// 		},
-		// 		IPPodKey: map[string]string{
-		// 			cidr:                       ipsetName,
-		// 			except + util.IpsetNomatch: ipsetName,
-		// 		},
-		// 	},
-		// },
-		{
-			name: "only multiple excepts - invalid - (need to check it)",
-			IPBlockRule: networkingv1.IPBlock{
-				Except: []string{except},
-			},
-			want: nil,
-		},
-	}
-
-	translator := &translator{}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			policyName, namemspace, direction, ipBlockSetIndex := "test", "test", policies.Ingress, 0
-			ipBlockIPSets := translator.ipBlockIPSet(policyName, namemspace, direction, ipBlockSetIndex, &tt.IPBlockRule)
-			require.Equal(t, tt.want, ipBlockIPSets)
-		})
-	}
-}
-
-func TestNamedPortRule(t *testing.T) {
+func TestNamedPortRuleInfo(t *testing.T) {
 	namedPortStr := "serve-tcp"
-	// TODO(junguk) Why it shows error
 	namedPort := intstr.FromString(namedPortStr)
 	type namedPortOutput struct {
 		translatedIPSet *ipsets.TranslatedIPSet
@@ -272,20 +171,20 @@ func TestNamedPortRule(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	tests := []struct {
 		name     string
-		portRule networkingv1.NetworkPolicyPort
+		portRule *networkingv1.NetworkPolicyPort
 		want     *namedPortOutput
 		wantErr  bool
 	}{
 		{
 			name:     "empty",
-			portRule: networkingv1.NetworkPolicyPort{},
+			portRule: nil,
 			want: &namedPortOutput{
 				translatedIPSet: nil, // (TODO): Need to check it
-				protocol:        "TCP"},
+				protocol:        ""},
 		},
 		{
 			name: "serve-tcp",
-			portRule: networkingv1.NetworkPolicyPort{
+			portRule: &networkingv1.NetworkPolicyPort{
 				Protocol: &tcp,
 				Port:     &namedPort,
 			},
@@ -296,12 +195,13 @@ func TestNamedPortRule(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
+					Members: []string{},
 				},
 				protocol: "TCP"},
 		},
 		{
 			name: "serve-tcp without protocol field",
-			portRule: networkingv1.NetworkPolicyPort{
+			portRule: &networkingv1.NetworkPolicyPort{
 				Port: &namedPort,
 			},
 			want: &namedPortOutput{
@@ -310,6 +210,7 @@ func TestNamedPortRule(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
+					Members: []string{},
 				},
 				protocol: "TCP",
 			},
@@ -320,7 +221,7 @@ func TestNamedPortRule(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			translatedIPSet, protocol := translator.namedPortRuleInfo(&tt.portRule)
+			translatedIPSet, protocol := translator.namedPortRuleInfo(tt.portRule)
 			got := &namedPortOutput{
 				translatedIPSet: translatedIPSet,
 				protocol:        protocol,
@@ -330,81 +231,387 @@ func TestNamedPortRule(t *testing.T) {
 	}
 }
 
-func TestOnlyNamedPorts(t *testing.T) {
-	policyFile := "testpolicies/named-port.yaml"
-	netpol, err := readPolicyYaml(policyFile)
-	if err != nil {
-		t.Fatal(err)
+func TestNamedPortRule(t *testing.T) {
+	namedPortStr := "serve-tcp"
+	namedPort := intstr.FromString(namedPortStr)
+	type namedPortRuleOutput struct {
+		translatedIPSet *ipsets.TranslatedIPSet
+		setInfo         policies.SetInfo
+		protocol        string
 	}
+	tcp := v1.ProtocolTCP
+	tests := []struct {
+		name     string
+		portRule *networkingv1.NetworkPolicyPort
+		want     *namedPortRuleOutput
+		wantErr  bool
+	}{
+		{
+			name:     "empty",
+			portRule: nil,
+			want: &namedPortRuleOutput{
+				translatedIPSet: nil,
+				setInfo:         policies.SetInfo{},
+				protocol:        ""},
+			wantErr: false,
+		},
+		{
+			name: "serve-tcp",
+			portRule: &networkingv1.NetworkPolicyPort{
+				Protocol: &tcp,
+				Port:     &namedPort,
+			},
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	npPolicy := policies.NPMNetworkPolicy{
-		Name:              netpol.Name,
-		NameSpace:         netpol.Namespace,
-		PodSelectorIPSets: []*ipsets.TranslatedIPSet{},
-		RuleIPSets:        []*ipsets.TranslatedIPSet{},
-		ACLs:              []*policies.ACLPolicy{},
-		RawNP:             &networkingv1.NetworkPolicy{},
+			want: &namedPortRuleOutput{
+				translatedIPSet: &ipsets.TranslatedIPSet{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: util.NamedPortIPSetPrefix + "serve-tcp",
+						Type: ipsets.NamedPorts,
+					},
+					Members: []string{},
+				},
+				setInfo: policies.SetInfo{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: util.NamedPortIPSetPrefix + "serve-tcp",
+						Type: ipsets.NamedPorts,
+					},
+					Included:  false,
+					MatchType: policies.DstDstMatch,
+				},
+				protocol: "TCP"},
+		},
+		{
+			name: "serve-tcp without protocol field",
+			portRule: &networkingv1.NetworkPolicyPort{
+				Port: &namedPort,
+			},
+			want: &namedPortRuleOutput{
+				translatedIPSet: &ipsets.TranslatedIPSet{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: util.NamedPortIPSetPrefix + "serve-tcp",
+						Type: ipsets.NamedPorts,
+					},
+					Members: []string{},
+				},
+				setInfo: policies.SetInfo{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: util.NamedPortIPSetPrefix + "serve-tcp",
+						Type: ipsets.NamedPorts,
+					},
+					Included:  false,
+					MatchType: policies.DstDstMatch,
+				},
+				protocol: "TCP",
+			},
+		},
 	}
 
 	translator := &translator{}
-
-	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
-	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
-	dstList := translator.podSelectorRule(ops, labelsForSpec)
-	for i, dst := range dstList {
-		fmt.Printf("%d %+v\n", i, dst)
-	}
-
-	// #2. Get Port Information
-	// only port case
-	for _, rule := range netpol.Spec.Ingress {
-		for _, port := range rule.Ports {
-			acl := &policies.ACLPolicy{
-				PolicyID:  netpol.Name, // redundant
-				Target:    policies.Allowed,
-				Direction: policies.Ingress,
-				DstList:   dstList,
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			namedPortIPSet, setInfo, protocol := translator.namedPortRule(tt.portRule)
+			got := &namedPortRuleOutput{
+				translatedIPSet: namedPortIPSet,
+				setInfo:         setInfo,
+				protocol:        protocol,
 			}
-			_, dstPortIPSet, protocol := translator.namedPortRule(&port)
-			acl.DstList = append(acl.DstList, dstPortIPSet)
-			acl.Protocol = policies.Protocol(protocol)
-			npPolicy.ACLs = append(npPolicy.ACLs, acl)
-		}
+			require.Equal(t, tt.want, got)
+		})
 	}
 
-	for _, acl := range npPolicy.ACLs {
-		for i, src := range acl.SrcList {
-			fmt.Printf("src %d %+v\n", i, src)
-		}
+}
 
-		for i, src := range acl.SrcList {
-			fmt.Printf("dst %d %+v\n", i, src)
-		}
+func TestIPBlockSetName(t *testing.T) {
+	tests := []struct {
+		name            string
+		policyName      string
+		namemspace      string
+		direction       policies.Direction
+		ipBlockSetIndex int
+		want            string
+	}{
+		{
+			name:            "default/test",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			want:            "test-in-ns-default-0IN",
+		},
+		{
+			name:            "testns/test",
+			policyName:      "test",
+			namemspace:      "testns",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			want:            "test-in-ns-testns-0IN",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got := ipBlockSetName(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex)
+			require.Equal(t, tt.want, got)
+		})
 	}
 }
 
-// TODO(junguk): need to check expected values
-func TestPodSelectorIPSets(t *testing.T) {
+func TestIPBlockIPSet(t *testing.T) {
 	tests := []struct {
-		name        string
-		srcSelector *metav1.LabelSelector
-		wantErr     bool
+		name            string
+		policyName      string
+		namemspace      string
+		direction       policies.Direction
+		ipBlockSetIndex int
+		ipBlockRule     *networkingv1.IPBlock
+		translatedIPSet *ipsets.TranslatedIPSet
 	}{
 		{
+			name:            "empty ipblock rule",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule:     nil,
+			translatedIPSet: nil,
+		},
+		{
+			name:            "incorrect ipblock rule with only except",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "",
+				Except: []string{"172.17.1.0/24"},
+			},
+			translatedIPSet: nil,
+		},
+		{
+			name:            "only cidr",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR: "172.17.0.0/16",
+			},
+			translatedIPSet: &ipsets.TranslatedIPSet{
+				Metadata: &ipsets.IPSetMetadata{
+					Name: "test-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Members: []string{"172.17.0.0/16"},
+			},
+		},
+		{
+			name:            "one cidr and one except",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "172.17.0.0/16",
+				Except: []string{"172.17.1.0/24"},
+			},
+			translatedIPSet: &ipsets.TranslatedIPSet{
+				Metadata: &ipsets.IPSetMetadata{
+					Name: "test-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Members: []string{"172.17.0.0/16", "172.17.1.0/24nomatch"},
+			},
+		},
+		{
+			name:            "one cidr and multiple except",
+			policyName:      "test-network-policy",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "172.17.0.0/16",
+				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+			},
+			translatedIPSet: &ipsets.TranslatedIPSet{
+				Metadata: &ipsets.IPSetMetadata{
+					Name: "test-network-policy-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Members: []string{"172.17.0.0/16", "172.17.1.0/24nomatch", "172.17.2.0/24nomatch"},
+			},
+		},
+	}
+
+	translator := &translator{}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got := translator.ipBlockIPSet(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockRule)
+			require.Equal(t, tt.translatedIPSet, got)
+		})
+	}
+}
+
+func TestIPBlockRule(t *testing.T) {
+	tests := []struct {
+		name            string
+		policyName      string
+		namemspace      string
+		direction       policies.Direction
+		ipBlockSetIndex int
+		ipBlockRule     *networkingv1.IPBlock
+		translatedIPSet *ipsets.TranslatedIPSet
+		setInfo         policies.SetInfo
+	}{
+		{
+			name:            "empty ipblock rule",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule:     nil,
+			translatedIPSet: nil,
+			setInfo:         policies.SetInfo{},
+		},
+		{
+			name:            "incorrect ipblock rule with only except",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "",
+				Except: []string{"172.17.1.0/24"},
+			},
+			translatedIPSet: nil,
+			setInfo:         policies.SetInfo{},
+		},
+		{
+			name:            "only cidr",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR: "172.17.0.0/16",
+			},
+			translatedIPSet: &ipsets.TranslatedIPSet{
+				Metadata: &ipsets.IPSetMetadata{
+					Name: "test-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Members: []string{"172.17.0.0/16"},
+			},
+			setInfo: policies.SetInfo{
+				IPSet: &ipsets.IPSetMetadata{
+					Name: "test-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Included:  false,
+				MatchType: policies.SrcMatch,
+			},
+		},
+		{
+			name:            "one cidr and one except",
+			policyName:      "test",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "172.17.0.0/16",
+				Except: []string{"172.17.1.0/24"},
+			},
+			translatedIPSet: &ipsets.TranslatedIPSet{
+				Metadata: &ipsets.IPSetMetadata{
+					Name: "test-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Members: []string{"172.17.0.0/16", "172.17.1.0/24nomatch"},
+			},
+			setInfo: policies.SetInfo{
+				IPSet: &ipsets.IPSetMetadata{
+					Name: "test-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Included:  false,
+				MatchType: policies.SrcMatch,
+			},
+		},
+		{
+			name:            "one cidr and multiple except",
+			policyName:      "test-network-policy",
+			namemspace:      "default",
+			direction:       policies.Ingress,
+			ipBlockSetIndex: 0,
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "172.17.0.0/16",
+				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+			},
+			translatedIPSet: &ipsets.TranslatedIPSet{
+				Metadata: &ipsets.IPSetMetadata{
+					Name: "test-network-policy-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Members: []string{"172.17.0.0/16", "172.17.1.0/24nomatch", "172.17.2.0/24nomatch"},
+			},
+			setInfo: policies.SetInfo{
+				IPSet: &ipsets.IPSetMetadata{
+					Name: "test-network-policy-in-ns-default-0IN",
+					Type: ipsets.CIDRBlocks,
+				},
+				Included:  false,
+				MatchType: policies.SrcMatch,
+			},
+		},
+	}
+
+	translator := &translator{}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			translatedIPSet, setInfo := translator.ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockRule)
+			require.Equal(t, tt.translatedIPSet, translatedIPSet)
+			require.Equal(t, tt.setInfo, setInfo)
+		})
+	}
+}
+
+func TestTargetPodSelectorInfo(t *testing.T) {
+	tests := []struct {
+		name                 string
+		labelSelector        *metav1.LabelSelector
+		ops                  []string
+		ipSetForAcl          []string
+		ipSetForSingleVal    []string
+		ipSetNameForMultiVal map[string][]string
+	}{
+		{
+			name: "all pods match",
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			ops:                  []string{""},
+			ipSetForAcl:          []string{""},
+			ipSetForSingleVal:    []string{""},
+			ipSetNameForMultiVal: map[string][]string{},
+		},
+		{
 			name: "only match labels",
-			srcSelector: &metav1.LabelSelector{
+			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
 				},
 			},
+			ops:                  []string{""},
+			ipSetForAcl:          []string{"label:src"},
+			ipSetForSingleVal:    []string{"label:src"},
+			ipSetNameForMultiVal: map[string][]string{},
 		},
 		{
 			name: "match labels and match expression with with Exists OP",
-			srcSelector: &metav1.LabelSelector{
+			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
 				},
@@ -415,10 +622,14 @@ func TestPodSelectorIPSets(t *testing.T) {
 					},
 				},
 			},
+			ops:                  []string{"", ""},
+			ipSetForAcl:          []string{"label:src", "label"},
+			ipSetForSingleVal:    []string{"label:src", "label"},
+			ipSetNameForMultiVal: map[string][]string{},
 		},
 		{
 			name: "match labels and match expression with single value and In OP",
-			srcSelector: &metav1.LabelSelector{
+			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
 				},
@@ -432,10 +643,14 @@ func TestPodSelectorIPSets(t *testing.T) {
 					},
 				},
 			},
+			ops:                  []string{"", ""},
+			ipSetForAcl:          []string{"label:src", "labelIn:src"},
+			ipSetForSingleVal:    []string{"label:src", "labelIn:src"},
+			ipSetNameForMultiVal: map[string][]string{},
 		},
 		{
 			name: "match labels and match expression with single value and NotIn OP",
-			srcSelector: &metav1.LabelSelector{
+			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
 				},
@@ -449,10 +664,14 @@ func TestPodSelectorIPSets(t *testing.T) {
 					},
 				},
 			},
+			ops:                  []string{"", "!"},
+			ipSetForAcl:          []string{"label:src", "labelNotIn:src"},
+			ipSetForSingleVal:    []string{"label:src", "labelNotIn:src"},
+			ipSetNameForMultiVal: map[string][]string{},
 		},
 		{
 			name: "match labels and match expression with multi values and In and NotExist",
-			srcSelector: &metav1.LabelSelector{
+			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
 				},
@@ -472,6 +691,12 @@ func TestPodSelectorIPSets(t *testing.T) {
 					},
 				},
 			},
+			ops:               []string{"", "!", ""},
+			ipSetForAcl:       []string{"k0:v0", "k2", "k1:v10:v11"},
+			ipSetForSingleVal: []string{"k0:v0", "k2", "k1:v10", "k1:v11"},
+			ipSetNameForMultiVal: map[string][]string{
+				"k1:v10:v11": {"k1:v10", "k1:v11"},
+			},
 		},
 	}
 
@@ -479,108 +704,844 @@ func TestPodSelectorIPSets(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			// TODO(jungukcho) need to test this function
-			//podSelectorIPSets, targetPodDstList := translator.targetPodSelector("testnamespace", tt.srcSelector, util.IptablesDstFlag)
-			// for i, targetPodDst := range targetPodDstList {
-			// 	fmt.Printf("%d %+v\n", i, targetPodDst)
-			// }
-			ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.targetPodSelectorInfo("testnamespace", tt.srcSelector)
-			iptEntry := translator.IptEntryForPodSelectorIPSets("testnamespace", ops, labelsForSpec, util.IptablesDstFlag)
-			fmt.Printf("ops : %v len : %d\n", ops, len(ops)) // (TODO): Need to fix it.. How? no ops -> ""? weird.. (TODO)
-			fmt.Printf("labelsForSpec : %v\n", labelsForSpec)
-			fmt.Printf("singleValueLabels : %v\n", singleValueLabels)
-			fmt.Printf("multiValuesLabels : %v\n", multiValuesLabels)
-			fmt.Printf("iptEntry: %v\n", iptEntry)
+			ops, ipSetForAcl, ipSetForSingleVal, ipSetNameForMultiVal := translator.targetPodSelectorInfo(tt.labelSelector)
+			require.Equal(t, tt.ops, ops)
+			require.Equal(t, tt.ipSetForAcl, ipSetForAcl)
+			require.Equal(t, tt.ipSetForSingleVal, ipSetForSingleVal)
+			require.Equal(t, tt.ipSetNameForMultiVal, ipSetNameForMultiVal)
 		})
 	}
 }
 
-func TestOnlyPort(t *testing.T) {
-	policyFile := "testpolicies/only-ports.yaml"
-	netpol, err := readPolicyYaml(policyFile)
-
-	if err != nil {
-		t.Fatal(err)
+func TestAllPodsSelectorInNs(t *testing.T) {
+	tests := []struct {
+		name             string
+		namespace        string
+		matchType        policies.MatchType
+		podSelectorIPSets []*ipsets.TranslatedIPSet
+		podSelectorSetInfos         []policies.SetInfo
+	}{
+		{
+			name:      "all pods selector in default namespace in ingress",
+			namespace: "default",
+			matchType: policies.DstMatch,
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "default",
+						Type: ipsets.Namespace,
+					},
+					Members: []string{},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "default",
+						Type: ipsets.Namespace,
+					},
+					Included:  false,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:      "all pods selector in test namespace in ingress",
+			namespace: "test",
+			matchType: policies.DstMatch,
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "test",
+						Type: ipsets.Namespace,
+					},
+					Members: []string{},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "test",
+						Type: ipsets.Namespace,
+					},
+					Included:  false,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
 	}
 
-	npPolicy := policies.NPMNetworkPolicy{
-		Name:              netpol.Name,
-		NameSpace:         netpol.Namespace,
-		PodSelectorIPSets: []*ipsets.TranslatedIPSet{},
-		RuleIPSets:        []*ipsets.TranslatedIPSet{},
-		ACLs:              []*policies.ACLPolicy{},
-		RawNP:             &networkingv1.NetworkPolicy{},
-	}
-
-	// Just need PodSelectorIPSets Information
-	// 0     0 MARK       udp  --  *      *       0.0.0.0/0            0.0.0.0/0
-	// udp dpt:100 match-set azure-npm-784554818 dst match-set azure-npm-1519775445 dst
-	// /* ALLOW-ALL-UDP-PORT-100-TO-app:server-IN-ns-default */ MARK set 0x2000
 	translator := &translator{}
-
-	// #1. Calculate podIPEntry
-	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
-	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
-	dstList := translator.podSelectorRule(ops, labelsForSpec)
-	for i, dst := range dstList {
-		fmt.Printf("%d %+v\n", i, dst)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			podSelectorIPSets, podSelectorSetInfos := translator.allPodsSelectorInNs(tt.namespace, tt.matchType)
+			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
+			require.Equal(t, tt.podSelectorSetInfos, podSelectorSetInfos)
+		})
 	}
 
-	// #2. Get Port Information
-	// only port case
-	for _, rule := range netpol.Spec.Ingress {
-		for _, port := range rule.Ports {
-			acl := &policies.ACLPolicy{
-				PolicyID:  netpol.Name, // redundant
-				Target:    policies.Allowed,
-				Direction: policies.Ingress,
-				DstList:   dstList,
-			}
-			portInfo, protocol := translator.numericPortRule(&port)
-			acl.DstPorts = portInfo
-			acl.Protocol = policies.Protocol(protocol)
-			npPolicy.ACLs = append(npPolicy.ACLs, acl)
-		}
+}
+
+func TestPodSelectorIPSets(t *testing.T) {
+	tests := []struct {
+		name                 string
+		ipSetForSingleVal    []string
+		ipSetNameForMultiVal map[string][]string
+		podSelectorIPSets    []*ipsets.TranslatedIPSet
+	}{
+		{
+			name:                 "one single value ipset (keyValueLabel)",
+			ipSetForSingleVal:    []string{"label:src"},
+			ipSetNameForMultiVal: map[string][]string{},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+			},
+		},
+		{
+			name:                 "two single value ipsets (KeyValueLabel and keyLable) ",
+			ipSetForSingleVal:    []string{"label:src", "label"},
+			ipSetNameForMultiVal: map[string][]string{},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Members: []string{},
+				},
+			},
+		},
+		{
+			name:                 "two single value ipsets (two KeyValueLabel)",
+			ipSetForSingleVal:    []string{"label:src", "labelIn:src"},
+			ipSetNameForMultiVal: map[string][]string{},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "labelIn:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+			},
+		},
+		{
+			name:              "four single value ipsets and one multi value ipset (four KeyValueLabel, one KeyLabel, and one nestedKeyValueLabel)",
+			ipSetForSingleVal: []string{"k0:v0", "k2", "k1:v10", "k1:v11"},
+			ipSetNameForMultiVal: map[string][]string{
+				"k1:v10:v11": {"k1:v10", "k1:v11"},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k0:v0",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k2",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v10",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v11",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v10:v11",
+						Type: ipsets.NestedLabelOfPod,
+					},
+					Members: []string{"k1:v10", "k1:v11"},
+				},
+			},
+		},
 	}
 
-	for _, acl := range npPolicy.ACLs {
-		fmt.Printf("%+v\n", acl.SrcList)
+	translator := &translator{}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			podSelectorIPSets := translator.podSelectorIPSets(tt.ipSetForSingleVal, tt.ipSetNameForMultiVal)
+			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
+		})
 	}
 }
 
-// To understand how iptm.IptEntry is created by using ACLPolicy (will be deleted)
+func TestPodSelectorRule(t *testing.T) {
+	tests := []struct {
+		name                string
+		matchType           policies.MatchType
+		ops                 []string
+		ipSetForAcl         []string
+		podSelectorSetInfos []policies.SetInfo
+	}{
+		{
+			name:        "one ipset of podSelector for acl in ingress",
+			matchType:   policies.DstMatch,
+			ops:         []string{""},
+			ipSetForAcl: []string{"label:src"},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:        "two ipsets of podSelector (one keyvalue and one only key) for acl in ingress",
+			matchType:   policies.DstMatch,
+			ops:         []string{"", ""},
+			ipSetForAcl: []string{"label:src", "label"},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:        "two ipsets of podSelector (two keyvalue) for acl in ingress",
+			matchType:   policies.DstMatch,
+			ops:         []string{"", ""},
+			ipSetForAcl: []string{"label:src", "labelIn:src"},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "labelIn:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:        "two ipsets of podSelector (one included and one non-included ipset) for acl in ingress",
+			matchType:   policies.DstMatch,
+			ops:         []string{"", "!"},
+			ipSetForAcl: []string{"label:src", "labelNotIn:src"},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "labelNotIn:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  false,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:        "three ipsets of podSelector (one included value, one non-included value, and one included netest value) for acl in ingress",
+			matchType:   policies.DstMatch,
+			ops:         []string{"", "!", ""},
+			ipSetForAcl: []string{"k0:v0", "k2", "k1:v10:v11"},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "k0:v0",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "k2",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Included:  false,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "k1:v10:v11",
+						Type: ipsets.NestedLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+	}
 
-// Just to get hash values (will be deleted)
+	translator := &translator{}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			podSelectorSetInfos := translator.podSelectorRule(tt.matchType, tt.ops, tt.ipSetForAcl)
+			require.Equal(t, tt.podSelectorSetInfos, podSelectorSetInfos)
+		})
+	}
+}
+
+func TestTargetPodSelector(t *testing.T) {
+	tests := []struct {
+		name                string
+		namespace           string
+		labelSelector       *metav1.LabelSelector
+		matchType           policies.MatchType
+		podSelectorIPSets   []*ipsets.TranslatedIPSet
+		podSelectorSetInfos []policies.SetInfo
+	}{
+		{
+			name:      "all pods selector in default namespace in ingress",
+			namespace: "default",
+			matchType: policies.DstMatch,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "default",
+						Type: ipsets.Namespace,
+					},
+					Members: []string{},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "default",
+						Type: ipsets.Namespace,
+					},
+					Included:  false,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:      "all pods selector in test namespace in ingress",
+			namespace: "test",
+			matchType: policies.DstMatch,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "test",
+						Type: ipsets.Namespace,
+					},
+					Members: []string{},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "test",
+						Type: ipsets.Namespace,
+					},
+					Included:  false,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:      "target pod selector with one label in ingress",
+			matchType: policies.DstMatch,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:      "target pod selector with two labels (one keyvalue and one only key) in ingress",
+			matchType: policies.DstMatch,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "label",
+						Operator: metav1.LabelSelectorOpExists,
+					},
+				},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Members: []string{},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstDstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:      "target pod selector with two labels (two keyvalue) in ingress",
+			matchType: policies.DstMatch,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "labelIn",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"src",
+						},
+					},
+				},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "labelIn:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "labelIn:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:      "target pod Selector with two labels (one included and one non-included ipset) for acl in ingress",
+			matchType: policies.DstMatch,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "labelNotIn",
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values: []string{
+							"src",
+						},
+					},
+				},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "labelNotIn:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "label:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "labelNotIn:src",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  false,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+		{
+			name:      "target pod Selector with three labels (one included value, one non-included value, and one included netest value) for acl in ingress",
+			matchType: policies.DstMatch,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "k1",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"v10",
+							"v11",
+						},
+					},
+					{
+						Key:      "k2",
+						Operator: metav1.LabelSelectorOpDoesNotExist,
+						Values:   []string{},
+					},
+				},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k0:v0",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k2",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v10",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v11",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v10:v11",
+						Type: ipsets.NestedLabelOfPod,
+					},
+					Members: []string{"k1:v10", "k1:v11"},
+				},
+			},
+			podSelectorSetInfos: []policies.SetInfo{
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "k0:v0",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "k2",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Included:  false,
+					MatchType: policies.DstMatch,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "k1:v10:v11",
+						Type: ipsets.NestedLabelOfPod,
+					},
+					Included:  true,
+					MatchType: policies.DstMatch,
+				},
+			},
+		},
+	}
+
+	translator := &translator{}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			podSelectorIPSets, targetPodDstList := translator.targetPodSelector(tt.namespace, tt.matchType, tt.labelSelector)
+			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
+			require.Equal(t, tt.podSelectorSetInfos, targetPodDstList)
+		})
+	}
+}
+
+// Unit tests with network policy yaml files
+func readPolicyYaml(policyYaml string) (*networkingv1.NetworkPolicy, error) {
+	decode := scheme.Codecs.UniversalDeserializer().Decode
+	b, err := ioutil.ReadFile(policyYaml)
+	if err != nil {
+		return nil, err
+	}
+	obj, _, err := decode([]byte(b), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return obj.(*networkingv1.NetworkPolicy), nil
+}
+
+// func TestOnlyNamedPorts(t *testing.T) {
+// 	policyFile := "testpolicies/named-port.yaml"
+// 	netpol, err := readPolicyYaml(policyFile)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	npPolicy := policies.NPMNetworkPolicy{
+// 		Name:              netpol.Name,
+// 		NameSpace:         netpol.Namespace,
+// 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{},
+// 		RuleIPSets:        []*ipsets.TranslatedIPSet{},
+// 		ACLs:              []*policies.ACLPolicy{},
+// 		RawNP:             &networkingv1.NetworkPolicy{},
+// 	}
+
+// 	translator := &translator{}
+
+// 	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
+// 	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
+// 	dstList := translator.podSelectorRule(ops, labelsForSpec)
+// 	for i, dst := range dstList {
+// 		fmt.Printf("%d %+v\n", i, dst)
+// 	}
+
+// 	// #2. Get Port Information
+// 	// only port case
+// 	for _, rule := range netpol.Spec.Ingress {
+// 		for _, port := range rule.Ports {
+// 			acl := &policies.ACLPolicy{
+// 				PolicyID:  netpol.Name, // redundant
+// 				Target:    policies.Allowed,
+// 				Direction: policies.Ingress,
+// 				DstList:   dstList,
+// 			}
+// 			_, dstPortIPSet, protocol := translator.namedPortRule(&port)
+// 			acl.DstList = append(acl.DstList, dstPortIPSet)
+// 			acl.Protocol = policies.Protocol(protocol)
+// 			npPolicy.ACLs = append(npPolicy.ACLs, acl)
+// 		}
+// 	}
+
+// 	for _, acl := range npPolicy.ACLs {
+// 		for i, src := range acl.SrcList {
+// 			fmt.Printf("src %d %+v\n", i, src)
+// 		}
+
+// 		for i, src := range acl.SrcList {
+// 			fmt.Printf("dst %d %+v\n", i, src)
+// 		}
+// 	}
+// }
+
+// func TestOnlyPort(t *testing.T) {
+// 	policyFile := "testpolicies/only-ports.yaml"
+// 	netpol, err := readPolicyYaml(policyFile)
+
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	npPolicy := policies.NPMNetworkPolicy{
+// 		Name:              netpol.Name,
+// 		NameSpace:         netpol.Namespace,
+// 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{},
+// 		RuleIPSets:        []*ipsets.TranslatedIPSet{},
+// 		ACLs:              []*policies.ACLPolicy{},
+// 		RawNP:             &networkingv1.NetworkPolicy{},
+// 	}
+
+// 	// Just need PodSelectorIPSets Information
+// 	// 0     0 MARK       udp  --  *      *       0.0.0.0/0            0.0.0.0/0
+// 	// udp dpt:100 match-set azure-npm-784554818 dst match-set azure-npm-1519775445 dst
+// 	// /* ALLOW-ALL-UDP-PORT-100-TO-app:server-IN-ns-default */ MARK set 0x2000
+// 	translator := &translator{}
+
+// 	// #1. Calculate podIPEntry
+// 	// ops, labelsForSpec, singleValueLabels, multiValuesLabels := translator.podSelectorIPSets(netpol.Namespace, &netpol.Spec.PodSelector, util.IptablesDstFlag)
+// 	ops, labelsForSpec, _, _ := translator.targetPodSelectorInfo(netpol.Namespace, &netpol.Spec.PodSelector)
+// 	dstList := translator.podSelectorRule(ops, labelsForSpec)
+// 	for i, dst := range dstList {
+// 		fmt.Printf("%d %+v\n", i, dst)
+// 	}
+
+// 	// #2. Get Port Information
+// 	// only port case
+// 	for _, rule := range netpol.Spec.Ingress {
+// 		for _, port := range rule.Ports {
+// 			acl := &policies.ACLPolicy{
+// 				PolicyID:  netpol.Name, // redundant
+// 				Target:    policies.Allowed,
+// 				Direction: policies.Ingress,
+// 				DstList:   dstList,
+// 			}
+// 			portInfo, protocol := translator.numericPortRule(&port)
+// 			acl.DstPorts = portInfo
+// 			acl.Protocol = policies.Protocol(protocol)
+// 			npPolicy.ACLs = append(npPolicy.ACLs, acl)
+// 		}
+// 	}
+
+// 	for _, acl := range npPolicy.ACLs {
+// 		fmt.Printf("%+v %+v\n", acl.SrcPorts, acl.SrcList)
+// 	}
+// }
+
+// Just play with network policy and  get hash values
+// to understand how iptm.IptEntry is created by using ACLPolicy (will be deleted)
+/*
 func TestHashValues(t *testing.T) {
-	/*
-		ns-testnamespace : azure-npm-2173871756
-		k0:v0 : azure-npm-901539978
-		k2 : azure-npm-2503834632
-		k1:v10:v11 : azure-npm-992793578
-		label : azure-npm-4137097213
-		label:src : azure-npm-1570928457
-		app:backend : azure-npm-3038731686
-		role:frontend : azure-npm-2574419033
-		namedport:serve-80 : azure-npm-3050895063
-		ns-netpol-4537-x : azure-npm-3024785582
-		pod:a : azure-npm-3545492025
-		pod:x : azure-npm-3931377262
-		pod:b : azure-npm-3495159168
-		pod:c : azure-npm-3511936787
-		app:test : azure-npm-2817129730
-		app:server : azure-npm-1519775445
+	// ns-testnamespace : azure-npm-2173871756
+	// k0:v0 : azure-npm-901539978
+	// k2 : azure-npm-2503834632
+	// k1:v10:v11 : azure-npm-992793578
+	// label : azure-npm-4137097213
+	// label:src : azure-npm-1570928457
+	// app:backend : azure-npm-3038731686
+	// role:frontend : azure-npm-2574419033
+	// namedport:serve-80 : azure-npm-3050895063
+	// ns-netpol-4537-x : azure-npm-3024785582
+	// pod:a : azure-npm-3545492025
+	// pod:x : azure-npm-3931377262
+	// pod:b : azure-npm-3495159168
+	// pod:c : azure-npm-3511936787
+	// app:test : azure-npm-2817129730
+	// app:server : azure-npm-1519775445
 
-		ns-ns:netpol-4537-x : azure-npm-1052046537
-		ns-ns:netpol-4537-y : azure-npm-1035268918
-		app:test : azure-npm-2817129730
-		app:int : azure-npm-3357534811
-		pod:a:x : azure-npm-4176901587 pod:a : azure-npm-3545492025
-		pod:a:x : azure-npm-4176901587 pod:x : azure-npm-3931377262
-		pod:b:c : azure-npm-3025643863 pod:b : azure-npm-3495159168
-		pod:b:c : azure-npm-3025643863 pod:c : azure-npm-3511936787
-		app:test:int : azure-npm-231489545 app:test : azure-npm-2817129730
-		app:test:int : azure-npm-231489545 app:int : azure-npm-3357534811
-	*/
+	// ns-ns:netpol-4537-x : azure-npm-1052046537
+	// ns-ns:netpol-4537-y : azure-npm-1035268918
+	// app:test : azure-npm-2817129730
+	// app:int : azure-npm-3357534811
+	// pod:a:x : azure-npm-4176901587 pod:a : azure-npm-3545492025
+	// pod:a:x : azure-npm-4176901587 pod:x : azure-npm-3931377262
+	// pod:b:c : azure-npm-3025643863 pod:b : azure-npm-3495159168
+	// pod:b:c : azure-npm-3025643863 pod:c : azure-npm-3511936787
+	// app:test:int : azure-npm-231489545 app:test : azure-npm-2817129730
+	// app:test:int : azure-npm-231489545 app:int : azure-npm-3357534811
+
 	labels := []string{
 		"ns-testnamespace",
 		"label",
@@ -634,8 +1595,6 @@ func TestHashValues(t *testing.T) {
 	}
 }
 
-// Just play with network policy (will be deleted)
-/*
 func TestAllowAll(t *testing.T) {
 	// set [ns-testnamespace]
 	// lists map[]
@@ -713,11 +1672,8 @@ func TestAllowAll(t *testing.T) {
 		})
 	}
 }
-*/
 
-/*
-// Just play with network policy (will be deleted)
-*/
+
 func IptEntrySpecFromOpAndLabel(op, label, srcOrDstFlag string) []string {
 	partialSpec := []string{
 		util.IptablesModuleFlag,
@@ -731,8 +1687,6 @@ func IptEntrySpecFromOpAndLabel(op, label, srcOrDstFlag string) []string {
 	return util.DropEmptyFields(partialSpec)
 }
 
-// TODO check this func references and change the label and op logic
-// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
 func IptEntryForNamedPortRule(ns string, ops, labels []string, srcOrDstFlag string) []string {
 	spec := []string{
 		util.IptablesModuleFlag,
@@ -750,8 +1704,6 @@ func IptEntryForNamedPortRule(ns string, ops, labels []string, srcOrDstFlag stri
 	return spec
 }
 
-// TODO check this func references and change the label and op logic
-// craftPartialIptablesCommentFromSelector :- ns must be "" for namespace selectors
 func (t *translator) IptEntryForPodSelectorIPSets(ns string, ops, labels []string, srcOrDstFlag string) []string {
 	spec := []string{
 		util.IptablesModuleFlag,
@@ -768,127 +1720,7 @@ func (t *translator) IptEntryForPodSelectorIPSets(ns string, ops, labels []strin
 
 	return spec
 }
-
-func TestTargetPodSelector(t *testing.T) {
-	translator := &translator{}
-
-	srcSelector := &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"label": "src",
-		},
-	}
-	/*
-		targetEntry : [-m set --match-set azure-npm-2173871756 dst -m set --match-set azure-npm-1570928457 dst]
-		label : [label:src]
-		listLabels : map[]
-	*/
-	podSelectorIPSets, targetPodDstList := translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
-	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
-	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
-
-	/*
-		targetEntry : [-m set --match-set azure-npm-2173871756 dst
-		-m set --match-set azure-npm-1570928457 dst
-		-m set --match-set azure-npm-4137097213 dst]
-		label : [label:src label]
-		listLabels : map[]
-	*/
-	srcSelector = &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"label": "src",
-		},
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{
-				Key:      "label",
-				Operator: metav1.LabelSelectorOpExists,
-			},
-		},
-	}
-
-	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
-	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
-	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
-
-	srcSelector = &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"label": "src",
-		},
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{
-				Key:      "labelIn",
-				Operator: metav1.LabelSelectorOpIn,
-				Values: []string{
-					"src",
-				},
-			},
-		},
-	}
-
-	/*
-		targetEntry : [-m set --match-set azure-npm-2173871756 dst -m set --match-set azure-npm-1570928457 dst -m set --match-set azure-npm-2460817490 dst]
-		label : [label:src labelIn:src]
-		listLabels : map[]
-	*/
-	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
-	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
-	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
-
-	srcSelector = &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"label": "src",
-		},
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{
-				Key:      "labelNotIn",
-				Operator: metav1.LabelSelectorOpNotIn,
-				Values: []string{
-					"src",
-				},
-			},
-		},
-	}
-
-	/*
-		targetEntry : [-m set --match-set azure-npm-2173871756 dst -m set --match-set azure-npm-1570928457 dst -m set ! --match-set azure-npm-340404361 dst]
-		label : [label:src labelNotIn:src]
-		listLabels : map[]
-	*/
-	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
-	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
-	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
-
-	srcSelector = &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"k0": "v0",
-		},
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{
-				Key:      "k1",
-				Operator: metav1.LabelSelectorOpIn,
-				Values: []string{
-					"v10",
-					"v11",
-				},
-			},
-			{
-				Key:      "k2",
-				Operator: metav1.LabelSelectorOpDoesNotExist,
-				Values:   []string{},
-			},
-		},
-	}
-
-	/*
-		targetEntry : [-m set --match-set azure-npm-2173871756 dst -m set --match-set azure-npm-901539978 dst -m set ! --match-set azure-npm-2503834632 dst -m set --match-set azure-npm-992793578 dst]
-		label : [k0:v0 k2 k1:v10 k1:v11]
-		listLabels : map[k1:v10:v11:[k1:v10 k1:v11]]
-	*/
-	podSelectorIPSets, targetPodDstList = translator.targetPodSelector("testnamespace", srcSelector, policies.DstMatch)
-	fmt.Printf("podSelectorIPSets : %v\n", podSelectorIPSets)
-	fmt.Printf("targetPodDstList : %v\n", targetPodDstList)
-
-}
-
+*/
 // to check how to generate iptableEntry
 // func TestSimpleIngress(t *testing.T) {
 // 	//policyFile := "testpolicies/deny-all-policy.yaml"

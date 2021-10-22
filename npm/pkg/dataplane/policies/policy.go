@@ -52,19 +52,18 @@ type ACLPolicy struct {
 	Protocol Protocol
 }
 
-const policyIDPrefix = "azure-acl-"
+const policyIDPrefix = "azure-acl"
 
-// TODO(jungukcho) : check why we need uniquePolicyID and extra input for util.Hash() function
-func uniquePolicyID(policyID string) string {
-	// Anymore information for hash?
-	// From Vamsi's suggestion - PolicyID: fmt.Sprintf("azure-acl-%s", hash(npmNetpol.Name+ comment)),
-	// What is comment?
-	return fmt.Sprintf("%s%s", policyIDPrefix, util.Hash(policyID))
+// aclPolicyID returns azure-acl-<network policy namespace>-<network policy name> format
+// to differentiate ACLs among different network policies,
+// but aclPolicy in the same network policy has the same aclPolicyID.
+func aclPolicyID(policyNS string, policyName string) string {
+	return fmt.Sprintf("%s-%s-%s", policyIDPrefix, policyNS, policyName)
 }
 
-func NewACLPolicy(policyID string, target Verdict, direction Direction) *ACLPolicy {
+func NewACLPolicy(policyName string, policyNS string, target Verdict, direction Direction) *ACLPolicy {
 	acl := &ACLPolicy{
-		PolicyID:  policyID,
+		PolicyID:  aclPolicyID(policyNS, policyName),
 		Target:    target,
 		Direction: direction,
 	}
