@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: azure-cns
+  name: azure-cns-win
   labels:
-    app: azure-cns
+    app: azure-cns-win
 spec:
   selector:
     matchLabels:
-      k8s-app: azure-cns
+      k8s-app: azure-cns-win
   template:
     metadata:
       labels:
-        k8s-app: azure-cns
+        k8s-app: azure-cns-win
     spec:
       securityContext:
         windowsOptions:
