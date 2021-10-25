@@ -11,9 +11,11 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 	hnsv2 "github.com/Microsoft/hcsshim/hcn"
@@ -347,4 +349,19 @@ func determineWinVer() {
 	if err != nil {
 		log.Errorf(err.Error())
 	}
+}
+
+func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
+	if executionMode == string(util.AKSSwift) {
+		ncPrimaryIP := ""
+		if ncPrimaryIPIface != nil {
+			ncPrimaryIP = ncPrimaryIPIface.(string)
+		}
+
+		natInfo = append(natInfo, []policy.NATInfo{{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
+	} else if multitenancy && enableSnatForDNS {
+		natInfo = append(natInfo, policy.NATInfo{Destinations: []string{networkutils.AzureDNS}})
+	}
+
+	return natInfo
 }

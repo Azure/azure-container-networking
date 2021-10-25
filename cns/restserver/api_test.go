@@ -5,6 +5,7 @@ package restserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -21,7 +23,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
 )
@@ -149,7 +151,7 @@ func TestMain(m *testing.M) {
 
 	nmAgentServer.AddHandler("/getInterface", getInterfaceInfo)
 	nmAgentServer.AddHandler("/", nmagentHandler)
-	nmagentclient.WireserverIP = nmagentEndpoint
+	nmagent.WireserverIP = nmagentEndpoint
 
 	err = nmAgentServer.Start(make(chan error, 1))
 	if err != nil {
@@ -914,7 +916,8 @@ func startService() error {
 		return err
 	}
 
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, fakes.NewFakeNMAgentClient())
+	nmagentClient := &fakes.NMAgentClientFake{}
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, nmagentClient)
 	if err != nil {
 		return err
 	}
@@ -926,6 +929,34 @@ func startService() error {
 	}
 
 	svc.IPAMPoolMonitor = &fakes.MonitorFake{}
+	nmagentClient.GetNCVersionListFunc = func(context.Context) (*nmagent.NetworkContainerListResponse, error) {
+		var hostVersionNeedsUpdateContainers []string
+		for idx := range svc.state.ContainerStatus {
+			hostVersion, err := strconv.Atoi(svc.state.ContainerStatus[idx].HostVersion) //nolint:govet // intentional shadowing
+			if err != nil {
+				logger.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", svc.state.ContainerStatus[idx].HostVersion, err)
+				continue
+			}
+			dncNcVersion, err := strconv.Atoi(svc.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version)
+			if err != nil {
+				logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", svc.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version, err)
+				continue
+			}
+			// host NC version is the NC version from NMAgent, if it's smaller than NC version from DNC, then append it to indicate it needs update.
+			if hostVersion < dncNcVersion {
+				hostVersionNeedsUpdateContainers = append(hostVersionNeedsUpdateContainers, svc.state.ContainerStatus[idx].ID)
+			} else if hostVersion > dncNcVersion {
+				logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", hostVersion, dncNcVersion)
+			}
+		}
+		resp := &nmagent.NetworkContainerListResponse{
+			Containers: []nmagent.ContainerInfo{},
+		}
+		for _, cs := range hostVersionNeedsUpdateContainers {
+			resp.Containers = append(resp.Containers, nmagent.ContainerInfo{Version: "0", NetworkContainerID: cs})
+		}
+		return resp, nil
+	}
 
 	if service != nil {
 		// Create empty azure-cns.json. CNS should start successfully by deleting this file

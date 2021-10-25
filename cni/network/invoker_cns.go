@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
@@ -176,8 +177,8 @@ func setHostOptions(hostSubnetPrefix, ncSubnetPrefix *net.IPNet, options map[str
 		},
 	}
 
-	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), iptables.AzureDNS, iptables.UDP, iptables.DNSPort)
-	azureIMDSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), iptables.AzureIMDS, iptables.TCP, iptables.HTTPPort)
+	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureDNS, iptables.UDP, iptables.DNSPort)
+	azureIMDSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureIMDS, iptables.TCP, iptables.HTTPPort)
 
 	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
 	// we need to snat IMDS traffic to node IP, this sets up snat '--to'

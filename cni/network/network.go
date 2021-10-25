@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
@@ -61,13 +62,6 @@ const (
 // a baking period with newest NMAgent changes
 const (
 	jsonFileExtension = ".json"
-)
-
-type ExecutionMode string
-
-const (
-	Default   ExecutionMode = "default"
-	Baremetal ExecutionMode = "baremetal"
 )
 
 // NetPlugin represents the CNI network plugin.
@@ -402,7 +396,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	log.Printf("Execution mode :%s", nwCfg.ExecutionMode)
-	if nwCfg.ExecutionMode == string(Baremetal) {
+	if nwCfg.ExecutionMode == string(util.Baremetal) {
 		var res *nnscontracts.ConfigureContainerNetworkingResponse
 		log.Printf("Baremetal mode. Calling vnet agent for ADD")
 		res, err = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
@@ -529,8 +523,25 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		log.Printf("[cni-net] Created network %v with subnet %v.", networkID, subnetPrefix.String())
 	}
 
-	epInfo, err := plugin.createEndpointInternal(nwCfg, cnsNetworkConfig, result, resultV6, azIpamResult, args, &nwInfo,
-		policies, endpointId, k8sPodName, k8sNamespace, enableInfraVnet, enableSnatForDns)
+	natInfo := getNATInfo(nwCfg.ExecutionMode, options[network.SNATIPKey], nwCfg.MultiTenancy, enableSnatForDns)
+
+	createEndpointInternalOpt := createEndpointInternalOpt{
+		nwCfg:            nwCfg,
+		cnsNetworkConfig: cnsNetworkConfig,
+		result:           result,
+		resultV6:         resultV6,
+		azIpamResult:     azIpamResult,
+		args:             args,
+		nwInfo:           &nwInfo,
+		policies:         policies,
+		endpointID:       endpointId,
+		k8sPodName:       k8sPodName,
+		k8sNamespace:     k8sNamespace,
+		enableInfraVnet:  enableInfraVnet,
+		enableSnatForDNS: enableSnatForDns,
+		natInfo:          natInfo,
+	}
+	epInfo, err := plugin.createEndpointInternal(&createEndpointInternalOpt)
 	if err != nil {
 		log.Errorf("Endpoint creation failed:%w", err)
 		return err
@@ -656,108 +667,112 @@ func (plugin *NetPlugin) createNetworkInternal(
 	return nwInfo, err
 }
 
-func (plugin *NetPlugin) createEndpointInternal(
-	nwCfg *cni.NetworkConfig,
-	cnsNetworkConfig *cns.GetNetworkContainerResponse,
-	result *cniTypesCurr.Result,
-	resultV6 *cniTypesCurr.Result,
-	azIpamResult *cniTypesCurr.Result,
-	args *cniSkel.CmdArgs,
-	nwInfo *network.NetworkInfo,
-	policies []policy.Policy,
-	endpointID string,
-	k8sPodName string,
-	k8sNamespace string,
-	enableInfraVnet bool,
-	enableSnatForDNS bool,
-) (network.EndpointInfo, error) {
+type createEndpointInternalOpt struct {
+	nwCfg            *cni.NetworkConfig
+	cnsNetworkConfig *cns.GetNetworkContainerResponse
+	result           *cniTypesCurr.Result
+	resultV6         *cniTypesCurr.Result
+	azIpamResult     *cniTypesCurr.Result
+	args             *cniSkel.CmdArgs
+	nwInfo           *network.NetworkInfo
+	policies         []policy.Policy
+	endpointID       string
+	k8sPodName       string
+	k8sNamespace     string
+	enableInfraVnet  bool
+	enableSnatForDNS bool
+	natInfo          []policy.NATInfo
+}
+
+func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) (network.EndpointInfo, error) {
 	epInfo := network.EndpointInfo{}
-	epDNSInfo, err := getEndpointDNSSettings(nwCfg, result, k8sNamespace)
+
+	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, opt.result, opt.k8sNamespace)
 	if err != nil {
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return epInfo, err
 	}
 
-	if nwCfg.IPV6Mode == network.IPV6Nat {
+	if opt.nwCfg.IPV6Mode == network.IPV6Nat {
 		var ipv6Policy policy.Policy
 
-		ipv6Policy, err = addIPV6EndpointPolicy(*nwInfo)
+		ipv6Policy, err = addIPV6EndpointPolicy(*opt.nwInfo)
 		if err != nil {
 			err = plugin.Errorf("Failed to set ipv6 endpoint policy: %v", err)
 			return epInfo, err
 		}
 
-		policies = append(policies, ipv6Policy)
+		opt.policies = append(opt.policies, ipv6Policy)
 	}
 
-	vethName := fmt.Sprintf("%s.%s", k8sNamespace, k8sPodName)
-	if nwCfg.Mode != opModeTransparent {
+	vethName := fmt.Sprintf("%s.%s", opt.k8sNamespace, opt.k8sPodName)
+	if opt.nwCfg.Mode != opModeTransparent {
 		// this mechanism of using only namespace and name is not unique for different incarnations of POD/container.
 		// IT will result in unpredictable behavior if API server decides to
 		// reorder DELETE and ADD call for new incarnation of same POD.
-		vethName = fmt.Sprintf("%s%s%s", nwInfo.Id, args.ContainerID, args.IfName)
+		vethName = fmt.Sprintf("%s%s%s", opt.nwInfo.Id, opt.args.ContainerID, opt.args.IfName)
 	}
 
 	epInfo = network.EndpointInfo{
-		Id:                 endpointID,
-		ContainerID:        args.ContainerID,
-		NetNsPath:          args.Netns,
-		IfName:             args.IfName,
+		Id:                 opt.endpointID,
+		ContainerID:        opt.args.ContainerID,
+		NetNsPath:          opt.args.Netns,
+		IfName:             opt.args.IfName,
 		Data:               make(map[string]interface{}),
 		DNS:                epDNSInfo,
-		Policies:           policies,
-		IPsToRouteViaHost:  nwCfg.IPsToRouteViaHost,
-		EnableSnatOnHost:   nwCfg.EnableSnatOnHost,
-		EnableMultiTenancy: nwCfg.MultiTenancy,
-		EnableInfraVnet:    enableInfraVnet,
-		EnableSnatForDns:   enableSnatForDNS,
-		PODName:            k8sPodName,
-		PODNameSpace:       k8sNamespace,
+		Policies:           opt.policies,
+		IPsToRouteViaHost:  opt.nwCfg.IPsToRouteViaHost,
+		EnableSnatOnHost:   opt.nwCfg.EnableSnatOnHost,
+		EnableMultiTenancy: opt.nwCfg.MultiTenancy,
+		EnableInfraVnet:    opt.enableInfraVnet,
+		EnableSnatForDns:   opt.enableSnatForDNS,
+		PODName:            opt.k8sPodName,
+		PODNameSpace:       opt.k8sNamespace,
 		SkipHotAttachEp:    false, // Hot attach at the time of endpoint creation
-		IPV6Mode:           nwCfg.IPV6Mode,
-		VnetCidrs:          nwCfg.VnetCidrs,
-		ServiceCidrs:       nwCfg.ServiceCidrs,
+		IPV6Mode:           opt.nwCfg.IPV6Mode,
+		VnetCidrs:          opt.nwCfg.VnetCidrs,
+		ServiceCidrs:       opt.nwCfg.ServiceCidrs,
+		NATInfo:            opt.natInfo,
 	}
 
-	epPolicies := getPoliciesFromRuntimeCfg(nwCfg)
-
+	epPolicies := getPoliciesFromRuntimeCfg(opt.nwCfg)
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.
-	for _, ipconfig := range result.IPs {
+	for _, ipconfig := range opt.result.IPs {
 		epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 	}
 
-	if resultV6 != nil {
-		for _, ipconfig := range resultV6.IPs {
+	if opt.resultV6 != nil {
+		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}
 	}
 
 	// Populate routes.
-	for _, route := range result.Routes {
+	for _, route := range opt.result.Routes {
 		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: route.Dst, Gw: route.GW})
 	}
 
-	if azIpamResult != nil && azIpamResult.IPs != nil {
-		epInfo.InfraVnetIP = azIpamResult.IPs[0].Address
+	if opt.azIpamResult != nil && opt.azIpamResult.IPs != nil {
+		epInfo.InfraVnetIP = opt.azIpamResult.IPs[0].Address
 	}
 
-	if nwCfg.MultiTenancy {
-		plugin.multitenancyClient.SetupRoutingForMultitenancy(nwCfg, cnsNetworkConfig, azIpamResult, &epInfo, result)
+	if opt.nwCfg.MultiTenancy {
+		plugin.multitenancyClient.SetupRoutingForMultitenancy(opt.nwCfg, opt.cnsNetworkConfig, opt.azIpamResult, &epInfo, opt.result)
 	}
 
-	setEndpointOptions(cnsNetworkConfig, &epInfo, vethName)
+	setEndpointOptions(opt.cnsNetworkConfig, &epInfo, vethName)
 
-	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	cnsclient, err := cnscli.New(opt.nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
-		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
+		log.Printf("failed to initialized cns client with URL %s: %v", opt.nwCfg.CNSUrl, err.Error())
 		return epInfo, plugin.Errorf(err.Error())
 	}
 
 	// Create the endpoint.
 	log.Printf("[cni-net] Creating endpoint %v.", epInfo.Id)
-	err = plugin.nm.CreateEndpoint(cnsclient, nwInfo.Id, &epInfo)
+	err = plugin.nm.CreateEndpoint(cnsclient, opt.nwInfo.Id, &epInfo)
 	if err != nil {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
 	}
@@ -913,7 +928,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	log.Printf("Execution mode :%s", nwCfg.ExecutionMode)
-	if nwCfg.ExecutionMode == string(Baremetal) {
+	if nwCfg.ExecutionMode == string(util.Baremetal) {
 
 		log.Printf("Baremetal mode. Calling vnet agent for delete container")
 

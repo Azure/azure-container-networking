@@ -206,15 +206,6 @@ stages:
       displayName: AKS Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "ubuntu_16_04_linux_e2e"
-      displayName: Ubuntu 16.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1604.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
@@ -236,13 +227,24 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
+      
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
+    parameters:
+      name: "windows_20_04_e2e"
+      displayName: "Windows 2004"
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      clusterDefinition: "cniWindows2004.json"
+      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+      clusterDefinitionCniBuildOS: "windows"
+      clusterDefinitionCniBuildExt: ".zip"
+
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
       - "aks_swift_e2e"
-      - "ubuntu_16_04_linux_e2e"
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
+      - "windows_20_04_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

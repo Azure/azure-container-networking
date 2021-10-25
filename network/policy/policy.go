@@ -20,3 +20,9 @@ type Policy struct {
 	Type CNIPolicyType
 	Data json.RawMessage
 }
+
+// NATInfo contains information about NAT rules
+type NATInfo struct {
+	Destinations []string
+	VirtualIP    string
+}

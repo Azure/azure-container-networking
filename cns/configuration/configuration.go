@@ -151,9 +151,9 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 		config.MetricsBindAddress = ":9090"
 	}
 	if config.SyncHostNCVersionIntervalMs == 0 {
-		config.SyncHostNCVersionIntervalMs = 1000
+		config.SyncHostNCVersionIntervalMs = 1000 * time.Millisecond //nolint:gomnd // default times
 	}
 	if config.SyncHostNCTimeoutMs == 0 {
-		config.SyncHostNCTimeoutMs = 500
+		config.SyncHostNCTimeoutMs = 500 * time.Millisecond //nolint:gomnd // default times
 	}
 }

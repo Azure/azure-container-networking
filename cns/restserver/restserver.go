@@ -1,6 +1,3 @@
-// Copyright 2017 Microsoft. All rights reserved.
-// MIT License
-
 package restserver
 
 import (
@@ -14,7 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
-	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
@@ -41,13 +38,17 @@ type interfaceGetter interface {
 	GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error)
 }
 
+type nmagentClient interface {
+	GetNCVersionList(ctx context.Context) (*nmagent.NetworkContainerListResponse, error)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
-	nmagentClient            nmagentclient.NMAgentClientInterface
+	nmagentClient            nmagentClient
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -108,7 +109,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentclient.NMAgentClientInterface) (cns.HTTPService, error) {
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
