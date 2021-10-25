@@ -24,10 +24,14 @@ type dataplaneCfg struct {
 	policyMode policyMode
 }
 
-var iMgrDefaultCfg = &ipsets.IPSetManagerCfg{
-	IPSetMode:   ipsets.ApplyAllIPSets,
-	NetworkName: AzureNetworkName,
-}
+var (
+	iMgrDefaultCfg = &ipsets.IPSetManagerCfg{
+		IPSetMode:   ipsets.ApplyAllIPSets,
+		NetworkName: AzureNetworkName,
+	}
+
+	ErrResetDataPlane = fmt.Errorf("Failed to reset dataplane")
+)
 
 type DataPlane struct {
 	policyMgr *policies.PolicyManager
@@ -93,7 +97,7 @@ func (dp *DataPlane) InitializeDataPlane() error {
 func (dp *DataPlane) ResetDataPlane() error {
 	err := dp.ipsetMgr.ResetIPSets()
 	if err != nil {
-		return err
+		return ErrResetDataPlane
 	}
 	return dp.resetDataPlane()
 }
