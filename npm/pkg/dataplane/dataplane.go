@@ -29,7 +29,7 @@ var (
 		IPSetMode:   ipsets.ApplyAllIPSets,
 		NetworkName: AzureNetworkName,
 	}
-
+	// ErrResetDataPlane  error while resetting dataplane
 	ErrResetDataPlane = fmt.Errorf("Failed to reset dataplane")
 )
 

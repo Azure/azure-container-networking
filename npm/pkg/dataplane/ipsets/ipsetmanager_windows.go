@@ -92,6 +92,16 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	return nil
 }
 
+// calculateNewSetPolicies will take in existing setPolicies on network in HNS and the dirty cache, will return back
+// networkPolicyBuild which contains the new setPolicies to be added, updated and deleted
+// TODO: This function is not thread safe.
+// toAddSets:
+//      this function will loop through the dirty cache and adds non-existing sets to toAddSets
+// toUpdateSets:
+//      this function will loop through the dirty cache and adds existing sets in HNS to toUpdateSets
+//      this function will update all existing sets in HNS with their latest goal state irrespective of any change to the object
+// toDeleteSets:
+//      this function will loop through the dirty delete cache and adds existing set obj in HNS to toDeleteSets
 func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkPolicy) (*networkPolicyBuilder, error) {
 	setPolicyBuilder := &networkPolicyBuilder{
 		toAddSets:    map[string]*hcn.SetPolicySetting{},
@@ -101,18 +111,16 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 	existingSets, toDeleteSets := iMgr.segregateSetPolicies(networkPolicies, donotResetIPSets)
 	// some of this below logic can be abstracted a step above
 	toAddUpdateSetNames := iMgr.toAddOrUpdateCache
-	// for faster look up changing a slice to map
-	toUpdateSetNames := make(map[string]struct{}, len(existingSets))
 	setPolicyBuilder.toDeleteSets = toDeleteSets
 
+	// for faster look up changing a slice to map
+	existingSetNames := make(map[string]struct{})
 	for _, setName := range existingSets {
-		// existing sets should be only of NPM setPolicies and not externally added
-		toAddUpdateSetNames[setName] = struct{}{}
-		toUpdateSetNames[setName] = struct{}{}
+		existingSetNames[setName] = struct{}{}
 	}
 	// (TODO) remove this log line later
 	klog.Infof("toAddUpdateSetNames %+v \n ", toAddUpdateSetNames)
-	klog.Infof("toUpdateSetNames %+v \n ", toUpdateSetNames)
+	klog.Infof("existingSetNames %+v \n ", existingSetNames)
 	for setName := range toAddUpdateSetNames {
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
@@ -124,7 +132,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 			return nil, err
 		}
 		// TODO we should add members first and then the Lists
-		_, ok := toUpdateSetNames[setName]
+		_, ok := existingSetNames[setName]
 		if ok {
 			setPolicyBuilder.toUpdateSets[setName] = setPol
 		} else {
@@ -132,7 +140,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 		}
 		if set.Kind == ListSet {
 			for _, memberSet := range set.MemberIPSets {
-				// TODO check whats the name here, hashed or normal
+				// Always use prefixed name because we read setpolicy Name from HNS
 				if setPolicyBuilder.setNameExists(memberSet.Name) {
 					continue
 				}
@@ -140,10 +148,8 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 				if err != nil {
 					return nil, err
 				}
-				_, ok := toUpdateSetNames[memberSet.Name]
-				if ok {
-					setPolicyBuilder.toUpdateSets[memberSet.Name] = setPol
-				} else {
+				_, ok := existingSetNames[memberSet.Name]
+				if !ok {
 					setPolicyBuilder.toAddSets[memberSet.Name] = setPol
 				}
 			}
