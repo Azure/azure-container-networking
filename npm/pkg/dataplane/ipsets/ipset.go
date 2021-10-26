@@ -186,6 +186,14 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 	}
 }
 
+func (setMetadata *IPSetMetadata) GetHashedName() string {
+	prefixedName := setMetadata.GetPrefixName()
+	if prefixedName == Unknown {
+		return Unknown
+	}
+	return util.GetHashedName(prefixedName)
+}
+
 func (set *IPSet) GetSetContents() ([]string, error) {
 	switch set.Kind {
 	case HashSet:

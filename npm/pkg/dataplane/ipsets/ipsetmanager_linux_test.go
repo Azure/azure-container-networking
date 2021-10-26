@@ -294,6 +294,7 @@ func TestFailureOnFlush(t *testing.T) {
 	require.True(t, wasFileAltered)
 
 	lines := []string{
+		fmt.Sprintf("-F %s", TestCIDRSet.HashedName),
 		fmt.Sprintf("-X %s", TestCIDRSet.HashedName),
 		fmt.Sprintf("-N %s -exist nethash", TestNSSet.HashedName),
 	}

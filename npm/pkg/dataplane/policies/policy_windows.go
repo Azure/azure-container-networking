@@ -143,9 +143,9 @@ func getAddrListFromSetInfo(setInfoList []SetInfo) string {
 	setInfoLen := len(setInfoList)
 	for i, setInfo := range setInfoList {
 		if i < setInfoLen-1 {
-			setInfoStr += setInfo.IPSet.GetPrefixName() + ","
+			setInfoStr += setInfo.IPSet.GetHashedName() + ","
 		} else {
-			setInfoStr += setInfo.IPSet.GetPrefixName()
+			setInfoStr += setInfo.IPSet.GetHashedName()
 		}
 	}
 	return setInfoStr

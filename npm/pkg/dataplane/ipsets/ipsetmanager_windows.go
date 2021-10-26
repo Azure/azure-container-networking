@@ -15,6 +15,8 @@ const (
 	// SetPolicyTypeNestedIPSet as a temporary measure adding it here
 	// update HCSShim to version 0.9.23 or above to support nestedIPSets
 	SetPolicyTypeNestedIPSet hcn.SetPolicyType = "NESTEDIPSET"
+	resetIPSetsTrue                            = true
+	donotResetIPSets                           = false
 )
 
 type networkPolicyBuilder struct {
@@ -31,9 +33,14 @@ func (iMgr *IPSetManager) resetIPSets() error {
 	}
 
 	// TODO delete 2nd level sets first and then 1st level sets
-	_, toDeleteSets := iMgr.segregateSetPolicies(network.Policies, true)
+	_, toDeleteSets := iMgr.segregateSetPolicies(network.Policies, resetIPSetsTrue)
 
-	klog.Infof("[IPSetManager Windows] Deleteing %d Set Policies", len(toDeleteSets))
+	if len(toDeleteSets) == 0 {
+		klog.Infof("[IPSetManager Windows] No IPSets to delete")
+		return nil
+	}
+
+	klog.Infof("[IPSetManager Windows] Deleting %d Set Policies", len(toDeleteSets))
 	err = iMgr.modifySetPolicies(network, hcn.RequestTypeRemove, toDeleteSets)
 	if err != nil {
 		klog.Infof("[IPSetManager Windows] Update set policies failed with error %s", err.Error())
@@ -75,7 +82,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	if len(setPolicyBuilder.toDeleteSets) > 0 {
 		err = iMgr.modifySetPolicies(network, hcn.RequestTypeRemove, setPolicyBuilder.toDeleteSets)
 		if err != nil {
-			klog.Infof("[IPSetManager Windows] Update set policies failed with error %s", err.Error())
+			klog.Infof("[IPSetManager Windows] Delete set policies failed with error %s", err.Error())
 			return err
 		}
 	}
@@ -91,7 +98,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 		toUpdateSets: map[string]*hcn.SetPolicySetting{},
 		toDeleteSets: map[string]*hcn.SetPolicySetting{},
 	}
-	existingSets, toDeleteSets := iMgr.segregateSetPolicies(networkPolicies, false)
+	existingSets, toDeleteSets := iMgr.segregateSetPolicies(networkPolicies, donotResetIPSets)
 	// some of this below logic can be abstracted a step above
 	toAddUpdateSetNames := iMgr.toAddOrUpdateCache
 	// for faster look up changing a slice to map
@@ -109,7 +116,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 	for setName := range toAddUpdateSetNames {
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
-			return nil, errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("member ipset %s does not exist", setName))
+			return nil, errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
 		}
 
 		setPol, err := convertToSetPolicy(set)
@@ -159,10 +166,15 @@ func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
 
 func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, operation hcn.RequestType, setPolicies map[string]*hcn.SetPolicySetting) error {
 	klog.Infof("[IPSetManager Windows] %s operation on set policies is called", operation)
-	policyRequest, err := getPolicyNetworkRequestMarshal(setPolicies)
+	policyRequest, err := getPolicyNetworkRequestMarshal(setPolicies, operation)
 	if err != nil {
-		klog.Infof("[IPSetManager Windows] Failed to marshal toAddSets with error %s", err.Error())
+		klog.Infof("[IPSetManager Windows] Failed to marshal %s operations sets with error %s", operation, err.Error())
 		return err
+	}
+
+	if policyRequest == nil {
+		klog.Infof("[IPSetManager Windows] No Policies to apply")
+		return nil
 	}
 
 	requestMessage := &hcn.ModifyNetworkSettingRequest{
@@ -181,6 +193,7 @@ func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, ope
 
 func (iMgr *IPSetManager) segregateSetPolicies(networkPolicies []hcn.NetworkPolicy, reset bool) (toUpdateSets []string, toDeleteSets map[string]*hcn.SetPolicySetting) {
 	toDeleteSets = make(map[string]*hcn.SetPolicySetting)
+	toUpdateSets = make([]string, 0)
 	for _, netpol := range networkPolicies {
 		if netpol.Type != hcn.SetPolicy {
 			continue
@@ -215,29 +228,37 @@ func (setPolicyBuilder *networkPolicyBuilder) setNameExists(setName string) bool
 	return ok
 }
 
-func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicySetting) ([]byte, error) {
+func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicySetting, operation hcn.RequestType) ([]byte, error) {
 	policyNetworkRequest := &hcn.PolicyNetworkRequest{
-		Policies: []hcn.NetworkPolicy{},
+		Policies: make([]hcn.NetworkPolicy, len(setPolicySettings)),
 	}
 
-	for setPol := range setPolicySettings {
-		klog.Infof("Adding set pol %+v", setPolicySettings[setPol])
-		rawSettings, err := json.Marshal(setPolicySettings[setPol])
-		if err != nil {
-			return nil, err
-		}
-		policyNetworkRequest.Policies = append(
-			policyNetworkRequest.Policies,
-			hcn.NetworkPolicy{
-				Type:     hcn.SetPolicy,
-				Settings: rawSettings,
-			},
-		)
-	}
-
-	if len(policyNetworkRequest.Policies) == 0 {
+	if len(setPolicySettings) == 0 {
 		klog.Info("[Dataplane Windows] no set policies to apply on network")
 		return nil, nil
+	}
+
+	idx := 0
+	policySettingsOrder := []hcn.SetPolicyType{SetPolicyTypeNestedIPSet, hcn.SetPolicyTypeIpSet}
+	if operation == hcn.RequestTypeRemove {
+		policySettingsOrder = []hcn.SetPolicyType{hcn.SetPolicyTypeIpSet, SetPolicyTypeNestedIPSet}
+	}
+	for _, policyType := range policySettingsOrder {
+		for setPol := range setPolicySettings {
+			if setPolicySettings[setPol].PolicyType != policyType {
+				continue
+			}
+			klog.Infof("Found set pol %+v", setPolicySettings[setPol])
+			rawSettings, err := json.Marshal(setPolicySettings[setPol])
+			if err != nil {
+				return nil, err
+			}
+			policyNetworkRequest.Policies[idx] = hcn.NetworkPolicy{
+				Type:     hcn.SetPolicy,
+				Settings: rawSettings,
+			}
+			idx++
+		}
 	}
 
 	policyReqSettings, err := json.Marshal(policyNetworkRequest)

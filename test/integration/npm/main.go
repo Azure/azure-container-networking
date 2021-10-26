@@ -117,7 +117,7 @@ func main() {
 		PodIP:    "10.240.0.24",
 		NodeName: nodeName,
 	}
-	if err := dp.AddToSets([]*ipsets.IPSetMetadata{testKeyPodSet.metadata}, podMetadataC); err != nil {
+	if err := dp.AddToSets([]*ipsets.IPSetMetadata{testKeyPodSet.metadata, testNSSet.metadata}, podMetadataC); err != nil {
 		panic(err)
 	}
 	dp.CreateIPSets([]*ipsets.IPSetMetadata{testKVPodSet.metadata, testNamedportSet.metadata, testCIDRSet.metadata})

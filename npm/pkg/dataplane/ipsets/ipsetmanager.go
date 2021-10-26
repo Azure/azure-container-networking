@@ -227,11 +227,11 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
-	for _, listMetadata := range listMetadatas {
-		if err := iMgr.checkForListMemberUpdateErrors(listMetadata, setMetadatas, npmerrors.AppendIPSet); err != nil {
-			return err
-		}
+	if err := iMgr.checkForListMemberUpdateErrors(listMetadatas, setMetadatas, npmerrors.AppendIPSet); err != nil {
+		return err
+	}
 
+	for _, listMetadata := range listMetadatas {
 		listName := listMetadata.GetPrefixName()
 		for _, setMetadata := range setMetadatas {
 			setName := setMetadata.GetPrefixName()
@@ -247,7 +247,7 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
-	if err := iMgr.checkForListMemberUpdateErrors(listMetadata, setMetadatas, npmerrors.DeleteIPSet); err != nil {
+	if err := iMgr.checkForListMemberUpdateErrors([]*IPSetMetadata{listMetadata}, setMetadatas, npmerrors.DeleteIPSet); err != nil {
 		return err
 	}
 
@@ -411,22 +411,27 @@ func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(setName string) {
 	}
 }
 
-func (iMgr *IPSetManager) checkForListMemberUpdateErrors(listMetadata *IPSetMetadata, memberMetadatas []*IPSetMetadata, npmErrorString string) error {
-	prefixedListName := listMetadata.GetPrefixName()
-	if !iMgr.exists(prefixedListName) {
-		iMgr.createIPSet(listMetadata)
-	}
+func (iMgr *IPSetManager) checkForListMemberUpdateErrors(listMetadata, memberMetadatas []*IPSetMetadata, npmErrorString string) error {
+	for _, listMetadata := range listMetadata {
+		prefixedListName := listMetadata.GetPrefixName()
+		if !iMgr.exists(prefixedListName) {
+			iMgr.createIPSet(listMetadata)
+		}
 
-	list := iMgr.setMap[prefixedListName]
-	if list.Kind != ListSet {
-		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a list set", prefixedListName))
+		list := iMgr.setMap[prefixedListName]
+		if list.Kind != ListSet {
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a list set", prefixedListName))
+		}
+		for _, memberMetadata := range memberMetadatas {
+			memberName := memberMetadata.GetPrefixName()
+			if prefixedListName == memberName {
+				return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s cannot be added to itself", prefixedListName))
+			}
+		}
 	}
 
 	for _, memberMetadata := range memberMetadatas {
 		memberName := memberMetadata.GetPrefixName()
-		if prefixedListName == memberName {
-			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s cannot be added to itself", prefixedListName))
-		}
 		if !iMgr.exists(memberName) {
 			iMgr.createIPSet(memberMetadata)
 		}

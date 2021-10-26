@@ -21,6 +21,7 @@ type endpointPolicyBuilder struct {
 }
 
 func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
+	klog.Infof("[DataPlane Windows] adding policy %s on %+v", policy.Name, endpointList)
 	if endpointList == nil {
 		klog.Infof("[DataPlane Windows] No Endpoints to apply policy %s on", policy.Name)
 		return nil
@@ -190,6 +191,7 @@ func getEPPolicyReqFromACLSettings(settings []*NPMACLPolSettings) (hcn.PolicyEnd
 	}
 
 	for i, acl := range settings {
+		klog.Infof("Acl settings: %+v", acl)
 		byteACL, err := json.Marshal(acl)
 		if err != nil {
 			klog.Infof("[DataPlane Windows] Failed to marshall ACL settings %+v", acl)
@@ -201,6 +203,12 @@ func getEPPolicyReqFromACLSettings(settings []*NPMACLPolSettings) (hcn.PolicyEnd
 			Settings: byteACL,
 		}
 		policyToAdd.Policies[i] = epPolicy
+
+		var aclSettings *NPMACLPolSettings
+		err = json.Unmarshal(byteACL, &aclSettings)
+		if err == nil {
+			klog.Infof("unmarshalled Acl settings: %+v", aclSettings)
+		}
 	}
 	return policyToAdd, nil
 }

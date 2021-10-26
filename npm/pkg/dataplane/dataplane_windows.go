@@ -159,7 +159,7 @@ func (dp *DataPlane) getSelectorIPsByPolicyName(policyName string) (map[string]s
 }
 
 func (dp *DataPlane) getSelectorIPsByPolicy(policy *policies.NPMNetworkPolicy) (map[string]struct{}, error) {
-	var selectorIpSets map[string]struct{}
+	selectorIpSets := make(map[string]struct{})
 	for _, ipset := range policy.PodSelectorIPSets {
 		selectorIpSets[ipset.Metadata.GetPrefixName()] = struct{}{}
 	}
@@ -215,7 +215,7 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 		return err
 	}
 	for _, endpoint := range endpoints {
-		klog.Infof("Endpoints info %+v", endpoint.Policies)
+		klog.Infof("Endpoints info %+v", endpoint.Id)
 		if len(endpoint.IpConfigurations) == 0 {
 			klog.Infof("Endpoint ID %s has no IPAddreses", endpoint.Id)
 			continue
