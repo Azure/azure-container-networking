@@ -79,3 +79,12 @@ func (m *MockMultitenancy) GetContainerNetworkConfiguration(
 
 	return result, cnsResponse, *ipnet, nil
 }
+
+func (m *MockMultitenancy) GetMultiTenancyCNIResult(
+	ctx context.Context,
+	nwCfg *cni.NetworkConfig,
+	k8sPodName string,
+	k8sNamespace string,
+	ifName string) (*current.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+	return m.GetContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
+}

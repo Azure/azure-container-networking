@@ -21,6 +21,7 @@ import (
 var (
 	errEmtpyHostSubnetPrefix = errors.New("empty host subnet prefix not allowed")
 	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs           = errors.New("invalid arg(s)")
 )
 
 const (
@@ -28,9 +29,10 @@ const (
 )
 
 type CNSIPAMInvoker struct {
-	podName      string
-	podNamespace string
-	cnsClient    cnsclient
+	podName            string
+	podNamespace       string
+	cnsClient          cnsclient
+	multitenancyClient MultitenancyClient
 }
 
 type IPv4ResultInfo struct {
@@ -43,20 +45,17 @@ type IPv4ResultInfo struct {
 	hostGateway        string
 }
 
-func NewCNSInvoker(podName, namespace string, cnsClient cnsclient) *CNSIPAMInvoker {
+func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, multitenancyClient MultitenancyClient) *CNSIPAMInvoker {
 	return &CNSIPAMInvoker{
-		podName:      podName,
-		podNamespace: namespace,
-		cnsClient:    cnsClient,
+		podName:            podName,
+		podNamespace:       namespace,
+		cnsClient:          cnsClient,
+		multitenancyClient: multitenancyClient,
 	}
 }
 
 // Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
-func (invoker *CNSIPAMInvoker) Add( //nolint don't consider unnamedResult
-	_ *cni.NetworkConfig,
-	args *cniSkel.CmdArgs,
-	hostSubnetPrefix *net.IPNet,
-	options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error) {
+func (invoker *CNSIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
@@ -66,24 +65,44 @@ func (invoker *CNSIPAMInvoker) Add( //nolint don't consider unnamedResult
 	log.Printf(podInfo.PodName)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to unmarshal orchestrator context during add: %w", err)
+		return IPAMAddResult{}, fmt.Errorf("Failed to unmarshal orchestrator context during add: %w", err)
 	}
 
-	if args == nil {
-		return nil, nil, errEmptyCNIArgs
+	if opt.args == nil {
+		return IPAMAddResult{}, errEmptyCNIArgs
+	}
+
+	addResult := IPAMAddResult{hostSubnetPrefix: &net.IPNet{}}
+
+	if opt.nwCfg.MultiTenancy {
+		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
+		if addResult.enableSnatForDNS, opt.nwCfg.EnableSnatOnHost, err = invoker.multitenancyClient.DetermineSnatFeatureOnHost(
+			snatConfigFileName, nmAgentSupportedApisURL); err != nil {
+			return IPAMAddResult{}, fmt.Errorf("%w", err)
+		}
+
+		addResult.ipv4Result, addResult.ncResponse, *addResult.hostSubnetPrefix, err = invoker.multitenancyClient.GetMultiTenancyCNIResult(
+			context.TODO(), opt.nwCfg, invoker.podName, invoker.podNamespace, opt.args.IfName)
+		if err != nil {
+			log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
+			return IPAMAddResult{}, fmt.Errorf("GetMultiTenancyCNIResult failed:%w", err)
+		}
+
+		log.Printf("Result from multitenancy %+v", addResult.ipv4Result)
+		return addResult, nil
 	}
 
 	ipconfig := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
-		PodInterfaceID:      GetEndpointID(args),
-		InfraContainerID:    args.ContainerID,
+		PodInterfaceID:      GetEndpointID(opt.args),
+		InfraContainerID:    opt.args.ContainerID,
 	}
 
 	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
 	response, err := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfig)
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
-		return nil, nil, err
+		return IPAMAddResult{}, fmt.Errorf("Failed to get IP address from CNS with error: %w", err)
 	}
 
 	info := IPv4ResultInfo{
@@ -97,19 +116,19 @@ func (invoker *CNSIPAMInvoker) Add( //nolint don't consider unnamedResult
 	}
 
 	// set the NC Primary IP in options
-	options[network.SNATIPKey] = info.ncPrimaryIP
+	opt.options[network.SNATIPKey] = info.ncPrimaryIP
 
 	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
 	ncgw := net.ParseIP(info.ncGatewayIPAddress)
 	if ncgw == nil {
-		return nil, nil, fmt.Errorf("Gateway address %v from response is invalid", info.ncGatewayIPAddress)
+		return IPAMAddResult{}, fmt.Errorf("%w: Gateway address %v from response is invalid", errInvalidArgs, info.ncGatewayIPAddress)
 	}
 
 	// set result ipconfigArgument from CNS Response Body
 	ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
 	if ip == nil {
-		return nil, nil, fmt.Errorf("Unable to parse IP from response: %v with err %v", info.podIPAddress, err)
+		return IPAMAddResult{}, fmt.Errorf("Unable to parse IP from response: %v with err %w", info.podIPAddress, err)
 	}
 
 	// construct ipnet for result
@@ -118,7 +137,7 @@ func (invoker *CNSIPAMInvoker) Add( //nolint don't consider unnamedResult
 		Mask: ncipnet.Mask,
 	}
 
-	result := &cniTypesCurr.Result{
+	addResult.ipv4Result = &cniTypesCurr.Result{
 		IPs: []*cniTypesCurr.IPConfig{
 			{
 				Version: "4",
@@ -135,13 +154,13 @@ func (invoker *CNSIPAMInvoker) Add( //nolint don't consider unnamedResult
 	}
 
 	// set subnet prefix for host vm
-	err = setHostOptions(hostSubnetPrefix, ncipnet, options, &info)
+	err = setHostOptions(addResult.hostSubnetPrefix, ncipnet, opt.options, &info)
 	if err != nil {
-		return nil, nil, err
+		return IPAMAddResult{}, err
 	}
 
 	// first result is ipv4, second is ipv6, SWIFT doesn't currently support IPv6
-	return result, nil, nil
+	return addResult, nil
 }
 
 func setHostOptions(hostSubnetPrefix, ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {

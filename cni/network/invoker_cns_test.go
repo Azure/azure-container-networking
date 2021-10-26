@@ -85,7 +85,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				},
 			},
 			args: args{
-				nwCfg: nil,
+				nwCfg: &cni.NetworkConfig{},
 				args: &cniSkel.CmdArgs{
 					ContainerID: "testcontainerid",
 					Netns:       "testnetns",
@@ -137,15 +137,15 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				podNamespace: tt.fields.podNamespace,
 				cnsClient:    tt.fields.cnsClient,
 			}
-			got, got1, err := invoker.Add(tt.args.nwCfg, tt.args.args, tt.args.hostSubnetPrefix, tt.args.options)
+			ipamAddResult, err := invoker.Add(IPAMAddOpt{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {
 				require.Error(err)
 			} else {
 				require.NoError(err)
 			}
 
-			require.Equalf(tt.want, got, "incorrect ipv4 response")
-			require.Equalf(tt.want1, got1, "incorrect ipv6 response")
+			require.Equalf(tt.want, ipamAddResult.ipv4Result, "incorrect ipv4 response")
+			require.Equalf(tt.want1, ipamAddResult.ipv6Result, "incorrect ipv6 response")
 		})
 	}
 }

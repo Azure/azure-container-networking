@@ -46,6 +46,13 @@ type MultitenancyClient interface {
 		podNamespace string,
 		ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error)
 
+	GetMultiTenancyCNIResult(
+		ctx context.Context,
+		nwCfg *cni.NetworkConfig,
+		k8sPodName string,
+		k8sNamespace string,
+		ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error)
+
 	Init(cnsclient cnsclient, netioshim netioshim)
 }
 
@@ -284,15 +291,14 @@ func getInfraVnetIP(
 		nwCfg.Ipam.Subnet = ipNet.String()
 
 		log.Printf("call ipam to allocate ip from subnet %v", nwCfg.Ipam.Subnet)
-		subnetPrefix := &net.IPNet{}
-		options := make(map[string]interface{})
-		azIpamResult, _, err := plugin.ipamInvoker.Add(nwCfg, nil, subnetPrefix, options)
+		ipamAddOpt := IPAMAddOpt{nwCfg: nwCfg, options: make(map[string]interface{})}
+		ipamAddResult, err := plugin.ipamInvoker.Add(ipamAddOpt)
 		if err != nil {
 			err = plugin.Errorf("Failed to allocate address: %v", err)
 			return nil, err
 		}
 
-		return azIpamResult, nil
+		return ipamAddResult.ipv4Result, nil
 	}
 
 	return nil, nil
@@ -341,49 +347,29 @@ var (
 )
 
 // GetMultiTenancyCNIResult retrieves network goal state of a container from CNS
-func (plugin *NetPlugin) GetMultiTenancyCNIResult(
+func (m *Multitenancy) GetMultiTenancyCNIResult(
 	ctx context.Context,
-	enableInfraVnet bool,
 	nwCfg *cni.NetworkConfig,
 	k8sPodName string,
 	k8sNamespace string,
-	ifName string) (res *cniTypesCurr.Result, resp *cns.GetNetworkContainerResponse, prefix net.IPNet, infraRes *cniTypesCurr.Result, err error) {
+	ifName string) (res *cniTypesCurr.Result, resp *cns.GetNetworkContainerResponse, prefix net.IPNet, err error) {
 
-	result, cnsNetworkConfig, subnetPrefix, err := plugin.multitenancyClient.GetContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
+	result, cnsNetworkConfig, subnetPrefix, err := m.GetContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
 	if err != nil {
 		log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
-		return nil, nil, net.IPNet{}, nil, fmt.Errorf("GetContainerNetworkConfiguration failed:%w", err)
+		return nil, nil, net.IPNet{}, fmt.Errorf("GetContainerNetworkConfiguration failed:%w", err)
 	}
 
 	log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
 
-	if checkIfSubnetOverlaps(enableInfraVnet, nwCfg, cnsNetworkConfig) {
-		buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", nwCfg.InfraVnetAddressSpace, cnsNetworkConfig.CnetAddressSpace)
-		log.Printf(buf)
-		return nil, nil, net.IPNet{}, nil, errSubnetOverlap
-	}
-
 	if nwCfg.EnableSnatOnHost {
 		if cnsNetworkConfig.LocalIPConfiguration.IPSubnet.IPAddress == "" {
 			log.Printf("Snat IP is not populated. Got empty string")
-			return nil, nil, net.IPNet{}, nil, errSnatIP
+			return nil, nil, net.IPNet{}, errSnatIP
 		}
 	}
 
-	if enableInfraVnet {
-		if nwCfg.InfraVnetAddressSpace == "" {
-			log.Printf("InfraVnetAddressSpace is not populated. Got empty string")
-			return nil, nil, net.IPNet{}, nil, errInfraVnet
-		}
-	}
-
-	azIpamResult, err := getInfraVnetIP(enableInfraVnet, subnetPrefix.String(), nwCfg, plugin)
-	if err != nil {
-		log.Printf("GetInfraVnetIP failed with error %v", err)
-		return nil, nil, net.IPNet{}, nil, err
-	}
-
-	return result, cnsNetworkConfig, subnetPrefix, azIpamResult, nil
+	return result, cnsNetworkConfig, subnetPrefix, nil
 }
 
 func CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig, azIpamResult *cniTypesCurr.Result, plugin *NetPlugin) {

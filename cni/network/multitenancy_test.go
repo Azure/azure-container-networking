@@ -371,9 +371,8 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, got2, got3, err := tt.args.plugin.GetMultiTenancyCNIResult(
+			got, got1, got2, err := tt.args.plugin.multitenancyClient.GetMultiTenancyCNIResult(
 				tt.args.ctx,
-				tt.args.enableInfraVnet,
 				tt.args.nwCfg,
 				tt.args.k8sPodName,
 				tt.args.k8sNamespace,
@@ -389,7 +388,6 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 			require.Exactly(tt.want, got)
 			require.Exactly(tt.want1, got1)
 			require.Exactly(tt.want2, got2)
-			require.Exactly(tt.want3, got3)
 		})
 	}
 }
