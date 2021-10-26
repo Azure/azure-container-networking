@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
-	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +19,7 @@ var (
 		NetworkName: "",
 	}
 
-	ipsetRestoreStringSlice   = []string{util.Ipset, util.IpsetRestoreFlag}
+	ipsetRestoreStringSlice   = []string{"ipset", "restore"}
 	fakeRestoreSuccessCommand = testutils.TestCmd{
 		Cmd:      ipsetRestoreStringSlice,
 		Stdout:   "success",
@@ -111,7 +110,7 @@ func TestApplyCreationsAndAdds(t *testing.T) {
 	actualFileString := getSortedFileString(creator)
 
 	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
-	wasFileAltered, err := creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
 }
@@ -156,7 +155,7 @@ func TestApplyDeletions(t *testing.T) {
 	expectedFileString := strings.Join(lines, "\n") + "\n"
 
 	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
-	wasFileAltered, err := creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
 }
@@ -184,7 +183,7 @@ func TestFailureOnCreation(t *testing.T) {
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
 	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
 	creator := iMgr.getFileCreator(2, toDeleteSetNames, toAddOrUpdateSetNames)
-	wasFileAltered, err := creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.Error(t, err)
 	require.True(t, wasFileAltered)
 
@@ -198,7 +197,7 @@ func TestFailureOnCreation(t *testing.T) {
 
 	actualFileString := getSortedFileString(creator)
 	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
-	wasFileAltered, err = creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err = creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
 }
@@ -235,7 +234,7 @@ func TestFailureOnAddToList(t *testing.T) {
 	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
 	creator := iMgr.getFileCreator(2, toDeleteSetNames, toAddOrUpdateSetNames)
 	originalFileString := creator.ToString()
-	wasFileAltered, err := creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.Error(t, err)
 	require.True(t, wasFileAltered)
 
@@ -262,7 +261,7 @@ func TestFailureOnAddToList(t *testing.T) {
 
 	actualFileString := getSortedFileString(creator)
 	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
-	wasFileAltered, err = creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err = creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
 }
@@ -290,7 +289,7 @@ func TestFailureOnFlush(t *testing.T) {
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
 	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
 	creator := iMgr.getFileCreator(2, toDeleteSetNames, toAddOrUpdateSetNames)
-	wasFileAltered, err := creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.Error(t, err)
 	require.True(t, wasFileAltered)
 
@@ -304,7 +303,7 @@ func TestFailureOnFlush(t *testing.T) {
 
 	actualFileString := getSortedFileString(creator)
 	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
-	wasFileAltered, err = creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err = creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
 }
@@ -331,7 +330,7 @@ func TestFailureOnDeletion(t *testing.T) {
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
 	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
 	creator := iMgr.getFileCreator(2, toDeleteSetNames, toAddOrUpdateSetNames)
-	wasFileAltered, err := creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.Error(t, err)
 	require.True(t, wasFileAltered)
 
@@ -346,7 +345,7 @@ func TestFailureOnDeletion(t *testing.T) {
 
 	actualFileString := getSortedFileString(creator)
 	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
-	wasFileAltered, err = creator.RunCommandOnceWithFile(util.Ipset, util.IpsetRestoreFlag)
+	wasFileAltered, err = creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
 }
