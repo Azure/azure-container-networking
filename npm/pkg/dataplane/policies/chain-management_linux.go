@@ -101,17 +101,17 @@ func (pMgr *PolicyManager) removeNPMChains() error {
 		return npmerrors.SimpleErrorf("failed to flush chains: %w", restoreError)
 	}
 
-	var err error
-	var errCode int
+	var anyDeleteErr error
 	for _, chainName := range chainsToFlush {
-		errCode, err = pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chainName)
+		errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chainName)
 		if err != nil {
 			log.Logf("couldn't delete chain %s with error [%w] and exit code [%d]", chainName, err, errCode)
+			anyDeleteErr = err
 		}
 	}
 
-	if err != nil {
-		return npmerrors.SimpleErrorf("couldn't delete all chains: %w", err)
+	if anyDeleteErr != nil {
+		return npmerrors.SimpleErrorf("couldn't delete all chains: %w", anyDeleteErr)
 	}
 	return nil
 }
@@ -214,6 +214,7 @@ func (pMgr *PolicyManager) getCreatorForInitChains() *ioutil.FileCreator {
 func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 	kubeServicesLine, kubeServicesLineNumErr := pMgr.getChainLineNumber(util.IptablesKubeServicesChain)
 	if kubeServicesLineNumErr != nil {
+		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
 		baseErrString := "failed to get index of jump from KUBE-SERVICES chain to FORWARD chain with error"
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s: %s", baseErrString, kubeServicesLineNumErr.Error())
 		return npmerrors.SimpleErrorf("%s: %w", baseErrString, kubeServicesLineNumErr)
@@ -250,6 +251,7 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 
 	npmChainLine, npmLineNumErr := pMgr.getChainLineNumber(util.IptablesAzureChain)
 	if npmLineNumErr != nil {
+		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
 		baseErrString := "failed to get index of jump from FORWARD chain to AZURE-NPM chain"
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s: %s", baseErrString, npmLineNumErr.Error())
 		// FIXME update ID
@@ -297,6 +299,7 @@ func (pMgr *PolicyManager) getChainLineNumber(chain string) (int, error) {
 	grepCommand := pMgr.ioShim.Exec.Command("grep", chain)
 	searchResults, gotMatches, err := pipeCommandToGrep(listForwardEntriesCommand, grepCommand)
 	if err != nil {
+		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
 		return 0, npmerrors.SimpleErrorf("failed to determine line number for jump from FORWARD chain to %s chain: %w", chain, err)
 	}
 	if !gotMatches {
@@ -341,6 +344,7 @@ func pipeCommandToGrep(command, grepCommand utilexec.Cmd) (searchResults []byte,
 func (pMgr *PolicyManager) getCreatorAndChainsForReset() (creator *ioutil.FileCreator, chainsToFlush []string) {
 	oldPolicyChains, err := pMgr.getPolicyChainNames()
 	if err != nil {
+		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to determine NPM ingress/egress policy chains to delete")
 	}
 	chainsToFlush = iptablesOldAndNewChains
@@ -358,6 +362,7 @@ func (pMgr *PolicyManager) getPolicyChainNames() ([]string, error) {
 	grepCommand := pMgr.ioShim.Exec.Command("grep", ingressOrEgressPolicyChainPattern)
 	searchResults, gotMatches, err := pipeCommandToGrep(iptablesListCommand, grepCommand)
 	if err != nil {
+		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
 		return nil, npmerrors.SimpleErrorf("failed to get policy chain names: %w", err)
 	}
 	if !gotMatches {
