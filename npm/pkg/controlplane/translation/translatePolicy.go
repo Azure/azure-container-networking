@@ -146,16 +146,15 @@ func (t *translator) podLabelType(label string) ipsets.SetType {
 	return ipsets.UnknownType
 }
 
-// podSelectorRule return srcList for ACL by using ops and labelsForSpec
 func (t *translator) podSelectorRule(matchType policies.MatchType, ops, ipSetForACL []string) []policies.SetInfo {
-	setInfos := []policies.SetInfo{}
+	podSelectorList := []policies.SetInfo{}
 	for i := 0; i < len(ipSetForACL); i++ {
 		included := ops[i] == ""
 		labelType := t.podLabelType(ipSetForACL[i])
 		setInfo := policies.NewSetInfo(ipSetForACL[i], labelType, included, matchType)
-		setInfos = append(setInfos, setInfo)
+		podSelectorList = append(podSelectorList, setInfo)
 	}
-	return setInfos
+	return podSelectorList
 }
 
 func (t *translator) podSelectorIPSets(ipSetForSingleVal []string, ipSetNameForMultiVal map[string][]string) []*ipsets.TranslatedIPSet {

@@ -719,11 +719,11 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 
 func TestAllPodsSelectorInNs(t *testing.T) {
 	tests := []struct {
-		name                string
-		namespace           string
-		matchType           policies.MatchType
-		podSelectorIPSets   []*ipsets.TranslatedIPSet
-		podSelectorSetInfos []policies.SetInfo
+		name              string
+		namespace         string
+		matchType         policies.MatchType
+		podSelectorIPSets []*ipsets.TranslatedIPSet
+		podSelectorList   []policies.SetInfo
 	}{
 		{
 			name:      "all pods selector in default namespace in ingress",
@@ -738,7 +738,7 @@ func TestAllPodsSelectorInNs(t *testing.T) {
 					Members: []string{},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "default",
@@ -762,7 +762,7 @@ func TestAllPodsSelectorInNs(t *testing.T) {
 					Members: []string{},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "test",
@@ -779,9 +779,9 @@ func TestAllPodsSelectorInNs(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			podSelectorIPSets, podSelectorSetInfos := translator.allPodsSelectorInNs(tt.namespace, tt.matchType)
+			podSelectorIPSets, podSelectorList := translator.allPodsSelectorInNs(tt.namespace, tt.matchType)
 			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
-			require.Equal(t, tt.podSelectorSetInfos, podSelectorSetInfos)
+			require.Equal(t, tt.podSelectorList, podSelectorList)
 		})
 	}
 }
@@ -906,26 +906,27 @@ func TestPodSelectorIPSets(t *testing.T) {
 }
 
 func TestPodSelectorRule(t *testing.T) {
+	matchType := policies.DstMatch
 	tests := []struct {
-		name                string
-		matchType           policies.MatchType
-		ops                 []string
-		ipSetForAcl         []string
-		podSelectorSetInfos []policies.SetInfo
+		name            string
+		matchType       policies.MatchType
+		ops             []string
+		ipSetForAcl     []string
+		podSelectorList []policies.SetInfo
 	}{
 		{
 			name:        "one ipset of podSelector for acl in ingress",
-			matchType:   policies.DstMatch,
+			matchType:   matchType,
 			ops:         []string{""},
 			ipSetForAcl: []string{"label:src"},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
@@ -934,14 +935,14 @@ func TestPodSelectorRule(t *testing.T) {
 			matchType:   policies.DstMatch,
 			ops:         []string{"", ""},
 			ipSetForAcl: []string{"label:src", "label"},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -949,16 +950,16 @@ func TestPodSelectorRule(t *testing.T) {
 						Type: ipsets.KeyLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:        "two ipsets of podSelector (two keyvalue) for acl in ingress",
-			matchType:   policies.DstMatch,
+			matchType:   matchType,
 			ops:         []string{"", ""},
 			ipSetForAcl: []string{"label:src", "labelIn:src"},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
@@ -979,17 +980,17 @@ func TestPodSelectorRule(t *testing.T) {
 		},
 		{
 			name:        "two ipsets of podSelector (one included and one non-included ipset) for acl in ingress",
-			matchType:   policies.DstMatch,
+			matchType:   matchType,
 			ops:         []string{"", "!"},
 			ipSetForAcl: []string{"label:src", "labelNotIn:src"},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -997,23 +998,23 @@ func TestPodSelectorRule(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  false,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:        "three ipsets of podSelector (one included value, one non-included value, and one included netest value) for acl in ingress",
-			matchType:   policies.DstMatch,
+			matchType:   matchType,
 			ops:         []string{"", "!", ""},
 			ipSetForAcl: []string{"k0:v0", "k2", "k1:v10:v11"},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1021,7 +1022,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Type: ipsets.KeyLabelOfPod,
 					},
 					Included:  false,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1029,7 +1030,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Type: ipsets.NestedLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
@@ -1039,25 +1040,26 @@ func TestPodSelectorRule(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			podSelectorSetInfos := translator.podSelectorRule(tt.matchType, tt.ops, tt.ipSetForAcl)
-			require.Equal(t, tt.podSelectorSetInfos, podSelectorSetInfos)
+			podSelectorList := translator.podSelectorRule(tt.matchType, tt.ops, tt.ipSetForAcl)
+			require.Equal(t, tt.podSelectorList, podSelectorList)
 		})
 	}
 }
 
 func TestTargetPodSelector(t *testing.T) {
+	matchType := policies.DstMatch
 	tests := []struct {
-		name                string
-		namespace           string
-		labelSelector       *metav1.LabelSelector
-		matchType           policies.MatchType
-		podSelectorIPSets   []*ipsets.TranslatedIPSet
-		podSelectorSetInfos []policies.SetInfo
+		name              string
+		namespace         string
+		matchType         policies.MatchType
+		labelSelector     *metav1.LabelSelector
+		podSelectorIPSets []*ipsets.TranslatedIPSet
+		podSelectorList   []policies.SetInfo
 	}{
 		{
 			name:      "all pods selector in default namespace in ingress",
 			namespace: "default",
-			matchType: policies.DstMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{},
 			},
@@ -1070,21 +1072,21 @@ func TestTargetPodSelector(t *testing.T) {
 					Members: []string{},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "default",
 						Type: ipsets.Namespace,
 					},
 					Included:  false,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "all pods selector in test namespace in ingress",
 			namespace: "test",
-			matchType: policies.DstMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{},
 			},
@@ -1097,20 +1099,20 @@ func TestTargetPodSelector(t *testing.T) {
 					Members: []string{},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "test",
 						Type: ipsets.Namespace,
 					},
 					Included:  false,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "target pod selector with one label in ingress",
-			matchType: policies.DstMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1125,20 +1127,20 @@ func TestTargetPodSelector(t *testing.T) {
 					Members: []string{},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "target pod selector with two labels (one keyvalue and one only key) in ingress",
-			matchType: policies.DstMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1166,14 +1168,14 @@ func TestTargetPodSelector(t *testing.T) {
 					Members: []string{},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstDstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1181,13 +1183,13 @@ func TestTargetPodSelector(t *testing.T) {
 						Type: ipsets.KeyLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "target pod selector with two labels (two keyvalue) in ingress",
-			matchType: policies.DstMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1218,14 +1220,14 @@ func TestTargetPodSelector(t *testing.T) {
 					Members: []string{},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1233,13 +1235,13 @@ func TestTargetPodSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "target pod Selector with two labels (one included and one non-included ipset) for acl in ingress",
-			matchType: policies.DstMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1270,14 +1272,14 @@ func TestTargetPodSelector(t *testing.T) {
 					Members: []string{},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1285,13 +1287,13 @@ func TestTargetPodSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  false,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "target pod Selector with three labels (one included value, one non-included value, and one included netest value) for acl in ingress",
-			matchType: policies.DstMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
@@ -1349,14 +1351,14 @@ func TestTargetPodSelector(t *testing.T) {
 					Members: []string{"k1:v10", "k1:v11"},
 				},
 			},
-			podSelectorSetInfos: []policies.SetInfo{
+			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1364,7 +1366,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Type: ipsets.KeyLabelOfPod,
 					},
 					Included:  false,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1372,7 +1374,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Type: ipsets.NestedLabelOfPod,
 					},
 					Included:  true,
-					MatchType: policies.DstMatch,
+					MatchType: matchType,
 				},
 			},
 		},
@@ -1384,7 +1386,7 @@ func TestTargetPodSelector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			podSelectorIPSets, podSelectorList := translator.targetPodSelector(tt.namespace, tt.matchType, tt.labelSelector)
 			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
-			require.Equal(t, tt.podSelectorSetInfos, podSelectorList)
+			require.Equal(t, tt.podSelectorList, podSelectorList)
 		})
 	}
 }
@@ -1509,6 +1511,7 @@ func TestNameSpaceSelectorInfo(t *testing.T) {
 }
 
 func TestAllNameSpaceRule(t *testing.T) {
+	matchType := policies.SrcMatch
 	tests := []struct {
 		name             string
 		matchType        policies.MatchType
@@ -1517,7 +1520,7 @@ func TestAllNameSpaceRule(t *testing.T) {
 	}{
 		{
 			name:      "pods from all namespaces in ingress",
-			matchType: policies.SrcMatch,
+			matchType: matchType,
 			nsSelectorIPSets: []*ipsets.TranslatedIPSet{
 				{
 					Metadata: &ipsets.IPSetMetadata{
@@ -1534,7 +1537,7 @@ func TestAllNameSpaceRule(t *testing.T) {
 						Type: ipsets.Namespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
@@ -1657,42 +1660,43 @@ func TestNameSpaceSelectorIPSets(t *testing.T) {
 }
 
 func TestNameSpaceSelectorRule(t *testing.T) {
+	matchType := policies.SrcMatch
 	tests := []struct {
-		name               string
-		matchType          policies.MatchType
-		ops                []string
-		singleValueLabels  []string
-		nsSelectorSetInfos []policies.SetInfo
+		name              string
+		matchType         policies.MatchType
+		ops               []string
+		singleValueLabels []string
+		nsSelectorList    []policies.SetInfo
 	}{
 		{
 			name:              "one ipset of namespaceSelector for acl in ingress",
-			matchType:         policies.SrcMatch,
+			matchType:         matchType,
 			ops:               []string{""},
 			singleValueLabels: []string{"label:src"},
-			nsSelectorSetInfos: []policies.SetInfo{
+			nsSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:              "two ipsets of namespaceSelector (one keyvalue and one only key) for acl in ingress",
-			matchType:         policies.SrcMatch,
+			matchType:         matchType,
 			ops:               []string{"", ""},
 			singleValueLabels: []string{"label:src", "label"},
-			nsSelectorSetInfos: []policies.SetInfo{
+			nsSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1700,23 +1704,23 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Type: ipsets.KeyLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:              "two ipsets of namespaceSelector (two keyvalue) for acl in ingress",
-			matchType:         policies.SrcMatch,
+			matchType:         matchType,
 			ops:               []string{"", ""},
 			singleValueLabels: []string{"label:src", "labelIn:src"},
-			nsSelectorSetInfos: []policies.SetInfo{
+			nsSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1724,23 +1728,23 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:              "two ipsets of namespaceSelector (one included and one non-included ipset) for acl in ingress",
-			matchType:         policies.SrcMatch,
+			matchType:         matchType,
 			ops:               []string{"", "!"},
 			singleValueLabels: []string{"label:src", "labelNotIn:src"},
-			nsSelectorSetInfos: []policies.SetInfo{
+			nsSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1748,23 +1752,23 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  false,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:              "two ipsets of namespaceSelector (one included keyValue and one non-included key) for acl in ingress",
-			matchType:         policies.SrcMatch,
+			matchType:         matchType,
 			ops:               []string{"", "!"},
 			singleValueLabels: []string{"k0:v0", "k2"},
-			nsSelectorSetInfos: []policies.SetInfo{
+			nsSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1772,7 +1776,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Type: ipsets.KeyLabelOfNamespace,
 					},
 					Included:  false,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
@@ -1782,13 +1786,14 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			nsSelectorSetInfos := translator.nameSpaceSelectorRule(tt.matchType, tt.ops, tt.singleValueLabels)
-			require.Equal(t, tt.nsSelectorSetInfos, nsSelectorSetInfos)
+			nsSelectorList := translator.nameSpaceSelectorRule(tt.matchType, tt.ops, tt.singleValueLabels)
+			require.Equal(t, tt.nsSelectorList, nsSelectorList)
 		})
 	}
 }
 
 func TestNameSpaceSelector(t *testing.T) {
+	matchType := policies.SrcMatch
 	tests := []struct {
 		name             string
 		matchType        policies.MatchType
@@ -1798,7 +1803,7 @@ func TestNameSpaceSelector(t *testing.T) {
 	}{
 		{
 			name:      "namespaceSelector for all namespaces in ingress",
-			matchType: policies.SrcMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{},
 			},
@@ -1818,13 +1823,13 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.Namespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "namespaceSelector with one label in ingress",
-			matchType: policies.SrcMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				// TODO(jungukcho): check this one
 				MatchLabels: map[string]string{
@@ -1847,13 +1852,13 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "namespaceSelector with one label in ingress",
-			matchType: policies.SrcMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1875,13 +1880,13 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "namespaceSelector with two labels (one keyvalue and one only key) in ingress",
-			matchType: policies.SrcMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1916,7 +1921,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1924,13 +1929,13 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "namespaceSelector with two labels (two keyvalue) in ingress",
-			matchType: policies.SrcMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1968,7 +1973,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1976,13 +1981,13 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "namespaceSelector with two labels (one included and one non-included ipset) for acl in ingress",
-			matchType: policies.SrcMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -2020,7 +2025,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -2028,13 +2033,13 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  false,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
 		{
 			name:      "namespaceSelector with two labels (one included value and one non-included value) for acl in ingress",
-			matchType: policies.SrcMatch,
+			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
@@ -2080,7 +2085,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  true,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -2088,7 +2093,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Type: ipsets.KeyLabelOfNamespace,
 					},
 					Included:  false,
-					MatchType: policies.SrcMatch,
+					MatchType: matchType,
 				},
 			},
 		},
