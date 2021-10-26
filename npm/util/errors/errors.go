@@ -169,3 +169,16 @@ type npmErrorRetrySettings struct {
 func (n *NPMError) Error() string {
 	return fmt.Sprintf("Operation [%s] failed with error code [%v], full cmd %v, full error %v", n.OperationAction, n.ErrID, n.FullCmd, n.Err)
 }
+
+// NPMSimpleError and its methods are used to appease go lint
+type NPMSimpleError struct {
+	Err error
+}
+
+func SimpleErrorf(messageFormat string, args ...interface{}) *NPMSimpleError {
+	return &NPMSimpleError{fmt.Errorf(messageFormat, args...)}
+}
+
+func (n *NPMSimpleError) Error() string {
+	return n.Err.Error()
+}

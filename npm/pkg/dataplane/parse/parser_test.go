@@ -84,7 +84,7 @@ func TestParseChainNameFromRuleLine(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
-			actualName, _ := ParseChainNameFromRuleLine([]byte(tc.input))
+			actualName, _ := GetChainNameFromRuleLine([]byte(tc.input))
 			if equal := strings.Compare(actualName, tc.expected); equal != 0 {
 				t.Errorf("got '%+v', expected '%+v'", actualName, tc.expected)
 			}

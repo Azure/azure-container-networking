@@ -15,7 +15,8 @@ const (
 	unknownLineErrorPattern = "line (\\d+) failed" // TODO this could happen if syntax is off or AZURE-NPM-INGRESS doesn't exist for -A AZURE-NPM-INGRESS -j hash(NP1) ...
 	knownLineErrorPattern   = "Error occurred at line: (\\d+)"
 
-	chainSectionPrefix = "chain" // TODO is this necessary?
+	chainSectionPrefix        = "chain" // TODO are sections necessary for error handling?
+	maxLengthForMatchSetSpecs = 6       // 5-6 elements depending on Included boolean
 )
 
 // shouldn't call this if the np has no ACLs (check in generic)
@@ -41,7 +42,11 @@ func (pMgr *PolicyManager) removePolicy(name string, _ []string) error {
 }
 
 func restore(creator *ioutil.FileCreator) error {
-	return creator.RunCommandWithFile(util.IptablesRestore, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
+	err := creator.RunCommandWithFile(util.IptablesRestore, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
+	if err != nil {
+		return npmerrors.SimpleErrorf("failed to restore iptables file: %w", err)
+	}
+	return nil
 }
 
 func (pMgr *PolicyManager) getCreatorForRemovingPolicies(networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
@@ -68,14 +73,14 @@ func getAllChainNames(networkPolicies []*NPMNetworkPolicy) []string {
 }
 
 // returns two booleans indicating whether the network policy has ingress and egress respectively
-func (networkPolicy *NPMNetworkPolicy) hasIngressAndEgress() (bool, bool) {
-	hasIngress := false
-	hasEgress := false
+func (networkPolicy *NPMNetworkPolicy) hasIngressAndEgress() (hasIngress, hasEgress bool) {
+	hasIngress = false
+	hasEgress = false
 	for _, aclPolicy := range networkPolicy.ACLs {
 		hasIngress = hasIngress || aclPolicy.hasIngress()
 		hasEgress = hasEgress || aclPolicy.hasEgress()
 	}
-	return hasIngress, hasEgress
+	return
 }
 
 func (networkPolicy *NPMNetworkPolicy) getEgressChainName() string {
@@ -237,7 +242,7 @@ func getPortSpecs(portRanges []Ports, isDst bool) []string {
 
 func getMatchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType MatchType) []string {
 	// TODO update to use included boolean/new data structure from Junguk's PR
-	specs := make([]string, 0, 5*len(networkPolicy.PodSelectorIPSets)) // 5 elements per ipset
+	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(networkPolicy.PodSelectorIPSets))
 	for _, translatedIPSet := range networkPolicy.PodSelectorIPSets {
 		matchString := matchType.toIPTablesString()
 		hashedSetName := util.GetHashedName(translatedIPSet.Metadata.GetPrefixName())
@@ -247,7 +252,7 @@ func getMatchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType
 }
 
 func getMatchSetSpecsFromSetInfo(setInfoList []SetInfo) []string {
-	specs := make([]string, 0, 6*len(setInfoList)) // 5-6 elements per setInfo
+	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(setInfoList))
 	for _, setInfo := range setInfoList {
 		matchString := setInfo.MatchType.toIPTablesString()
 		specs = append(specs, util.IptablesModuleFlag, util.IptablesSetModuleFlag)
