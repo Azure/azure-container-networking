@@ -100,12 +100,15 @@ func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
 	return (aclPolicy.Protocol != AnyProtocol)
 }
 
-// SetInfo helps capture additional details in a matchSet
-// example match set in linux:
-//             ! azure-npm-123 src,src
-// "!" this indicates a negative match of an IPset for src,src
-// Included flag captures the negative or positive match
-// MatchType captures match flags
+// SetInfo helps capture additional details in a matchSet.
+// Included flag captures the negative or positive match.
+// Included is true when match set does not have "!".
+// Included is false when match set have "!".
+// MatchType captures match direction flags.
+// For example match set in linux:
+//             ! azure-npm-123 src
+// "!" this indicates a negative match (Included is false) of an azure-npm-123
+// MatchType is "src"
 type SetInfo struct {
 	IPSet     *ipsets.IPSetMetadata
 	Included  bool
