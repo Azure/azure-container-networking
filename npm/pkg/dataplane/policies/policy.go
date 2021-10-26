@@ -57,11 +57,11 @@ const policyIDPrefix = "azure-acl"
 // aclPolicyID returns azure-acl-<network policy namespace>-<network policy name> format
 // to differentiate ACLs among different network policies,
 // but aclPolicy in the same network policy has the same aclPolicyID.
-func aclPolicyID(policyNS string, policyName string) string {
+func aclPolicyID(policyNS, policyName string) string {
 	return fmt.Sprintf("%s-%s-%s", policyIDPrefix, policyNS, policyName)
 }
 
-func NewACLPolicy(policyName string, policyNS string, target Verdict, direction Direction) *ACLPolicy {
+func NewACLPolicy(policyNS, policyName string, target Verdict, direction Direction) *ACLPolicy {
 	acl := &ACLPolicy{
 		PolicyID:  aclPolicyID(policyNS, policyName),
 		Target:    target,

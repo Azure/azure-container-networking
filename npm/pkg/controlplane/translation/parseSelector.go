@@ -179,6 +179,8 @@ func zipMatchExprs(baseSelectors []metav1.LabelSelector, matchExpr metav1.LabelS
 // higher level functions will need to compute what sets or ipsets should be
 // used from this map
 func parseSelector(selector *metav1.LabelSelector) ([]string, map[string][]string) {
+	// TODO(jungukcho): check return values
+	// labels []string and []string{}
 	if selector == nil {
 		return []string{}, map[string][]string{}
 	}

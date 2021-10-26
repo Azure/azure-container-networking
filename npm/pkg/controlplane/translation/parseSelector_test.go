@@ -181,7 +181,7 @@ func TestParseSelector(t *testing.T) {
 		t.Errorf("TestparseSelector failed @ vals length comparison")
 	}
 
-	if labels != nil {
+	if len(labels) != 0 {
 		t.Errorf("TestparseSelector failed @ label comparison")
 	}
 	if !reflect.DeepEqual(vals, expectedVals) {
@@ -222,7 +222,7 @@ func TestParseSelector(t *testing.T) {
 		t.Errorf("TestparseSelector failed @ vals length comparison")
 	}
 
-	if labels != nil {
+	if len(labels) != 0 {
 		t.Errorf("TestparseSelector failed @ label comparison")
 	}
 	if !reflect.DeepEqual(vals, expectedVals) {
