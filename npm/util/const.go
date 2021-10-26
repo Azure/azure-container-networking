@@ -61,6 +61,7 @@ const (
 	IptablesMarkVerb           string = "mark"
 	IptablesStateModuleFlag    string = "state"
 	IptablesStateFlag          string = "--state"
+	IptablesCtstateModuleFlag  string = "conntrack" // state module is obsolete: https://unix.stackexchange.com/questions/108169/what-is-the-difference-between-m-conntrack-ctstate-and-m-state-state
 	IptablesCtstateFlag        string = "--ctstate"
 	IptablesMultiportFlag      string = "multiport"
 	IptablesMultiDstPortFlag   string = "--dports"
@@ -78,14 +79,15 @@ const (
 	IptablesNumericFlag     string = "-n"
 	IptablesLineNumbersFlag string = "--line-numbers"
 
-	IptablesKubeServicesChain    string = "KUBE-SERVICES"
-	IptablesForwardChain         string = "FORWARD"
-	IptablesInputChain           string = "INPUT"
-	IptablesAzureChain           string = "AZURE-NPM"
-	IptablesAzureAcceptChain     string = "AZURE-NPM-ACCEPT"
-	IptablesAzureKubeSystemChain string = "AZURE-NPM-KUBE-SYSTEM"
-	IptablesAzureIngressChain    string = "AZURE-NPM-INGRESS"
-	IptablesAzureEgressChain     string = "AZURE-NPM-EGRESS"
+	IptablesKubeServicesChain          string = "KUBE-SERVICES"
+	IptablesForwardChain               string = "FORWARD"
+	IptablesInputChain                 string = "INPUT"
+	IptablesAzureChain                 string = "AZURE-NPM"
+	IptablesAzureAcceptChain           string = "AZURE-NPM-ACCEPT"
+	IptablesAzureKubeSystemChain       string = "AZURE-NPM-KUBE-SYSTEM"
+	IptablesAzureIngressChain          string = "AZURE-NPM-INGRESS"
+	IptablesAzureIngressAllowMarkChain string = "AZURE-NPM-INGRESS-ALLOW-MARK"
+	IptablesAzureEgressChain           string = "AZURE-NPM-EGRESS"
 
 	// Chains used in NPM v1
 	IptablesAzureIngressPortChain  string = "AZURE-NPM-INGRESS-PORT"
@@ -115,8 +117,9 @@ const (
 	IptablesAzureClearMarkHex string = "0x0"
 
 	// marks in NPM v2
-	IptablesAzureIngressDropMarkHex string = "0x4000"
-	IptablesAzureEgressDropMarkHex  string = "0x5000"
+	IptablesAzureIngressAllowMarkHex string = "0x2000" // same as old IptablesAzureIngressMarkHex
+	IptablesAzureIngressDropMarkHex  string = "0x4000"
+	IptablesAzureEgressDropMarkHex   string = "0x5000"
 
 	// marks in NPM v1
 	IptablesAzureIngressMarkHex string = "0x2000"

@@ -21,7 +21,7 @@ const (
 // shouldn't call this if the np has no ACLs (check in generic)
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ []string) error {
 	// TODO check for newPolicy errors
-	creator := pMgr.getCreatorForNewNetworkPolicies([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.getCreatorForNewNetworkPolicies(networkPolicy)
 	err := restore(creator)
 	if err != nil {
 		return npmerrors.Errorf("AddPolicy", false, fmt.Sprintf("failed to restore iptables with updated policies: %v", err))
@@ -32,7 +32,7 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ []string
 func (pMgr *PolicyManager) removePolicy(name string, _ []string) error {
 	networkPolicy := pMgr.policyMap.cache[name]
 	pMgr.deleteOldJumpRulesOnRemove(networkPolicy) // TODO get error
-	creator := pMgr.getCreatorForRemovingPolicies([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.getCreatorForRemovingPolicies(networkPolicy)
 	err := restore(creator)
 	if err != nil {
 		return npmerrors.Errorf("RemovePolicy", false, fmt.Sprintf("failed to flush policies: %v", err))
@@ -44,7 +44,7 @@ func restore(creator *ioutil.FileCreator) error {
 	return creator.RunCommandWithFile(util.IptablesRestore, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
 }
 
-func (pMgr *PolicyManager) getCreatorForRemovingPolicies(networkPolicies []*NPMNetworkPolicy) *ioutil.FileCreator {
+func (pMgr *PolicyManager) getCreatorForRemovingPolicies(networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
 	allChainNames := getAllChainNames(networkPolicies)
 	creator := pMgr.getNewCreatorWithChains(allChainNames)
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
@@ -53,7 +53,7 @@ func (pMgr *PolicyManager) getCreatorForRemovingPolicies(networkPolicies []*NPMN
 
 // returns all chain names (ingress and egress policy chain names)
 func getAllChainNames(networkPolicies []*NPMNetworkPolicy) []string {
-	chainNames := make([]string, 0, 2*len(networkPolicies)) // 1-2 elements per np
+	chainNames := make([]string, 0)
 	for _, networkPolicy := range networkPolicies {
 		hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()
 
@@ -117,14 +117,16 @@ func (pMgr *PolicyManager) deleteOldJumpRulesOnRemove(policy *NPMNetworkPolicy) 
 }
 
 func (pMgr *PolicyManager) deleteIngressJumpRule(policy *NPMNetworkPolicy) {
-	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, getIngressJumpSpecs(policy)...)
+	specs := append([]string{util.IptablesAzureIngressChain}, getIngressJumpSpecs(policy)...)
+	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
 	if err != nil {
 		log.Errorf("failed to delete jump to ingress rule for policy %s with error [%w] and exit code %d", policy.Name, err, errCode)
 	}
 }
 
 func (pMgr *PolicyManager) deleteEgressJumpRule(policy *NPMNetworkPolicy) {
-	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, getEgressJumpSpecs(policy)...)
+	specs := append([]string{util.IptablesAzureEgressChain}, getEgressJumpSpecs(policy)...)
+	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
 	if err != nil {
 		log.Errorf("failed to delete jump to egress rule for policy %s with error [%w] and exit code %d", policy.Name, err, errCode)
 	}
@@ -132,33 +134,37 @@ func (pMgr *PolicyManager) deleteEgressJumpRule(policy *NPMNetworkPolicy) {
 
 func getIngressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
 	chainName := networkPolicy.getIngressChainName()
-	specs := []string{util.IptablesAzureIngressChain, util.IptablesJumpFlag, chainName}
+	specs := []string{util.IptablesJumpFlag, chainName}
 	return append(specs, getMatchSetSpecsForNetworkPolicy(networkPolicy, DstMatch)...)
 }
 
 func getEgressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
 	chainName := networkPolicy.getEgressChainName()
-	specs := []string{util.IptablesAzureEgressChain, util.IptablesJumpFlag, chainName}
+	specs := []string{util.IptablesJumpFlag, chainName}
 	return append(specs, getMatchSetSpecsForNetworkPolicy(networkPolicy, SrcMatch)...)
 }
 
 // noflush add to chains impacted
-func (pMgr *PolicyManager) getCreatorForNewNetworkPolicies(networkPolicies []*NPMNetworkPolicy) *ioutil.FileCreator {
+func (pMgr *PolicyManager) getCreatorForNewNetworkPolicies(networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
 	allChainNames := getAllChainNames(networkPolicies)
 	creator := pMgr.getNewCreatorWithChains(allChainNames)
 
+	ingressJumpLineNumber := 1
+	egressJumpLineNumber := 1
 	for _, networkPolicy := range networkPolicies {
 		writeNetworkPolicyRules(creator, networkPolicy)
 
 		// add jump rule(s) to policy chain(s)
 		hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()
 		if hasIngress {
-			ingressJumpSpecs := append([]string{"-A"}, getIngressJumpSpecs(networkPolicy)...)
+			ingressJumpSpecs := getInsertSpecs(util.IptablesAzureIngressChain, ingressJumpLineNumber, getIngressJumpSpecs(networkPolicy))
 			creator.AddLine("", nil, ingressJumpSpecs...) // TODO error handler
+			ingressJumpLineNumber++
 		}
 		if hasEgress {
-			egressJumpSpecs := append([]string{"-A"}, getEgressJumpSpecs(networkPolicy)...)
-			creator.AddLine("", nil, egressJumpSpecs...) // TODO error networkPolicy
+			egressJumpSpecs := getInsertSpecs(util.IptablesAzureEgressChain, egressJumpLineNumber, getEgressJumpSpecs(networkPolicy))
+			creator.AddLine("", nil, egressJumpSpecs...) // TODO error handler
+			egressJumpLineNumber++
 		}
 	}
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
@@ -170,7 +176,7 @@ func writeNetworkPolicyRules(creator *ioutil.FileCreator, networkPolicy *NPMNetw
 	for _, aclPolicy := range networkPolicy.ACLs {
 		var chainName string
 		var actionSpecs []string
-		if aclPolicy.Direction == Ingress {
+		if aclPolicy.hasIngress() {
 			chainName = networkPolicy.getIngressChainName()
 			if aclPolicy.Target == Allowed {
 				actionSpecs = []string{util.IptablesJumpFlag, util.IptablesAzureEgressChain}
@@ -230,6 +236,7 @@ func getPortSpecs(portRanges []Ports, isDst bool) []string {
 }
 
 func getMatchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType MatchType) []string {
+	// TODO update to use included boolean/new data structure from Junguk's PR
 	specs := make([]string, 0, 5*len(networkPolicy.PodSelectorIPSets)) // 5 elements per ipset
 	for _, translatedIPSet := range networkPolicy.PodSelectorIPSets {
 		matchString := matchType.toIPTablesString()
@@ -271,47 +278,12 @@ func getCommentSpecs(comment string) []string {
 	}
 }
 
-func joinWithDash(prefix, item string) string {
-	return fmt.Sprintf("%s-%s", prefix, item)
+func getInsertSpecs(chainName string, index int, specs []string) []string {
+	indexString := fmt.Sprint(index)
+	insertSpecs := []string{util.IptablesInsertionFlag, chainName, indexString}
+	return append(insertSpecs, specs...)
 }
 
-func checkForErrors(networkPolicies []*NPMNetworkPolicy) error {
-	// TODO make sure comment doesn't have any whitespace??
-	for _, networkPolicy := range networkPolicies {
-		for _, aclPolicy := range networkPolicy.ACLs {
-			if !aclPolicy.hasKnownTarget() {
-				return fmt.Errorf("ACL policy %s has unknown target", aclPolicy.PolicyID)
-			}
-			if !aclPolicy.hasKnownDirection() {
-				return fmt.Errorf("ACL policy %s has unknown direction", aclPolicy.PolicyID)
-			}
-			if !aclPolicy.hasKnownProtocol() {
-				return fmt.Errorf("ACL policy %s has unknown protocol (set to All if desired)", aclPolicy.PolicyID)
-			}
-			if !aclPolicy.satisifiesPortAndProtocolConstraints() {
-				return fmt.Errorf("ACL policy %s has multiple src or dst ports, so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s", aclPolicy.PolicyID, string(aclPolicy.Protocol))
-			}
-			for _, portRange := range aclPolicy.DstPorts {
-				if !portRange.isValidRange() {
-					return fmt.Errorf("ACL policy %s has invalid port range in DstPorts (start: %d, end: %d)", aclPolicy.PolicyID, portRange.Port, portRange.EndPort)
-				}
-			}
-			for _, portRange := range aclPolicy.DstPorts {
-				if !portRange.isValidRange() {
-					return fmt.Errorf("ACL policy %s has invalid port range in SrcPorts (start: %d, end: %d)", aclPolicy.PolicyID, portRange.Port, portRange.EndPort)
-				}
-			}
-			for _, setInfo := range aclPolicy.SrcList {
-				if !setInfo.hasKnownMatchType() {
-					return fmt.Errorf("ACL policy %s has set %s in SrcList with unknown Match Type", aclPolicy.PolicyID, setInfo.IPSet.Name)
-				}
-			}
-			for _, setInfo := range aclPolicy.DstList {
-				if !setInfo.hasKnownMatchType() {
-					return fmt.Errorf("ACL policy %s has set %s in DstList with unknown Match Type", aclPolicy.PolicyID, setInfo.IPSet.Name)
-				}
-			}
-		}
-	}
-	return nil
+func joinWithDash(prefix, item string) string {
+	return fmt.Sprintf("%s-%s", prefix, item)
 }

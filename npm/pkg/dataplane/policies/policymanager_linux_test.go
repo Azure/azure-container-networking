@@ -8,13 +8,13 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
-	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	fakeIPTablesRestoreCommand = testutils.TestCmd{Cmd: []string{util.IptablesRestore, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag}}
+	fakeIPTablesRestoreCommand        = testutils.TestCmd{Cmd: []string{"iptables-restore", "-T", "filter", "--noflush"}}
+	fakeIPTablesRestoreFailureCommand = testutils.TestCmd{Cmd: []string{"iptables-restore", "-T", "filter", "--noflush"}, ExitCode: 1}
 
 	testACLs = []*ACLPolicy{
 		{
@@ -74,7 +74,10 @@ var (
 			},
 			Target:    Dropped,
 			Direction: Egress,
-			Protocol:  AnyProtocol,
+			DstPorts: []Ports{
+				{144, 144},
+			},
+			Protocol: UDP,
 		},
 		{
 			PolicyID: "test4",
@@ -123,44 +126,25 @@ var (
 	testPolicy2IngressChain = testNetworkPolicies[1].getIngressChainName()
 	testPolicy3EgressChain  = testNetworkPolicies[2].getEgressChainName()
 
-	testPolicy1IngressJump = fmt.Sprintf("%s -j %s -m set --match-set %s dst", util.IptablesAzureIngressChain, testPolicy1IngressChain, ipsets.TestKVNSList.HashedName)
-	testPolicy1EgressJump  = fmt.Sprintf("%s -j %s -m set --match-set %s src", util.IptablesAzureEgressChain, testPolicy1EgressChain, ipsets.TestKVNSList.HashedName)
-	testPolicy2IngressJump = fmt.Sprintf(
-		"%s -j %s -m set --match-set %s dst -m set --match-set %s dst",
-		util.IptablesAzureIngressChain,
-		testPolicy2IngressChain,
-		ipsets.TestKVNSList.HashedName,
-		ipsets.TestKeyPodSet.HashedName,
-	)
-	testPolicy3EgressJump = fmt.Sprintf("%s -j %s", util.IptablesAzureEgressChain, testPolicy3EgressChain)
+	testPolicy1IngressJump = fmt.Sprintf("-j %s -m set --match-set %s dst", testPolicy1IngressChain, ipsets.TestKVNSList.HashedName)
+	testPolicy1EgressJump  = fmt.Sprintf("-j %s -m set --match-set %s src", testPolicy1EgressChain, ipsets.TestKVNSList.HashedName)
+	testPolicy2IngressJump = fmt.Sprintf("-j %s -m set --match-set %s dst -m set --match-set %s dst", testPolicy2IngressChain, ipsets.TestKVNSList.HashedName, ipsets.TestKeyPodSet.HashedName)
+	testPolicy3EgressJump  = fmt.Sprintf("-j %s", testPolicy3EgressChain)
 
 	testACLRule1 = fmt.Sprintf(
-		"-j MARK --set-mark %s -p tcp --sport 144:255 -m multiport --dports 222:333,456 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment comment1",
-		util.IptablesAzureIngressDropMarkHex,
+		"-j MARK --set-mark 0x4000 -p tcp --sport 144:255 -m multiport --dports 222:333,456 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment comment1",
 		ipsets.TestCIDRSet.HashedName,
 		ipsets.TestKeyPodSet.HashedName,
 	)
-	testACLRule2 = fmt.Sprintf(
-		"-j %s -p udp --sport 144 -m set --match-set %s src -m comment --comment comment2",
-		util.IptablesAzureEgressChain,
-		ipsets.TestCIDRSet.HashedName,
-	)
-	testACLRule3 = fmt.Sprintf(
-		"-j MARK --set-mark %s -p all -m set --match-set %s src -m comment --comment comment3",
-		util.IptablesAzureEgressDropMarkHex,
-		ipsets.TestCIDRSet.HashedName,
-	)
-	testACLRule4 = fmt.Sprintf(
-		"-j %s -p all -m set --match-set %s src -m comment --comment comment4",
-		util.IptablesAzureAcceptChain,
-		ipsets.TestCIDRSet.HashedName,
-	)
+	testACLRule2 = fmt.Sprintf("-j AZURE-NPM-EGRESS -p udp --sport 144 -m set --match-set %s src -m comment --comment comment2", ipsets.TestCIDRSet.HashedName)
+	testACLRule3 = fmt.Sprintf("-j MARK --set-mark 0x5000 -p udp --dport 144 -m set --match-set %s src -m comment --comment comment3", ipsets.TestCIDRSet.HashedName)
+	testACLRule4 = fmt.Sprintf("-j AZURE-NPM-ACCEPT -p all -m set --match-set %s src -m comment --comment comment4", ipsets.TestCIDRSet.HashedName)
 )
 
 func TestAddPolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	creator := pMgr.getCreatorForNewNetworkPolicies(testNetworkPolicies)
+	creator := pMgr.getCreatorForNewNetworkPolicies(testNetworkPolicies...)
 	fileString := creator.ToString()
 	expectedLines := []string{
 		"*filter",
@@ -174,14 +158,14 @@ func TestAddPolicies(t *testing.T) {
 		fmt.Sprintf("-A %s %s", testPolicy1IngressChain, testACLRule2),
 		fmt.Sprintf("-A %s %s", testPolicy1EgressChain, testACLRule3),
 		fmt.Sprintf("-A %s %s", testPolicy1EgressChain, testACLRule4),
-		fmt.Sprintf("-A %s", testPolicy1IngressJump),
-		fmt.Sprintf("-A %s", testPolicy1EgressJump),
+		fmt.Sprintf("-I AZURE-NPM-INGRESS 1 %s", testPolicy1IngressJump),
+		fmt.Sprintf("-I AZURE-NPM-EGRESS 1 %s", testPolicy1EgressJump),
 		// policy 2
 		fmt.Sprintf("-A %s %s", testPolicy2IngressChain, testACLRule1),
-		fmt.Sprintf("-A %s", testPolicy2IngressJump),
+		fmt.Sprintf("-I AZURE-NPM-INGRESS 2 %s", testPolicy2IngressJump),
 		// policy 3
 		fmt.Sprintf("-A %s %s", testPolicy3EgressChain, testACLRule4),
-		fmt.Sprintf("-A %s", testPolicy3EgressJump),
+		fmt.Sprintf("-I AZURE-NPM-EGRESS 2 %s", testPolicy3EgressJump),
 		"COMMIT\n",
 	}
 	expectedFileString := strings.Join(expectedLines, "\n")
@@ -189,19 +173,24 @@ func TestAddPolicies(t *testing.T) {
 
 	err := pMgr.addPolicy(testNetworkPolicies[0], nil)
 	require.NoError(t, err)
+}
 
-	// TODO test all MatchTypes
+func TestAddPoliciesError(t *testing.T) {
+	calls := []testutils.TestCmd{fakeIPTablesRestoreFailureCommand}
+	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
+	err := pMgr.addPolicy(testNetworkPolicies[0], nil)
+	require.Error(t, err)
 }
 
 func TestRemovePolicies(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
-		getFakeDeleteJumpCommand(testPolicy1IngressJump),
-		getFakeDeleteJumpCommand(testPolicy1EgressJump),
+		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
+		getFakeDeleteJumpCommand("AZURE-NPM-EGRESS", testPolicy1EgressJump),
 		fakeIPTablesRestoreCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	creator := pMgr.getCreatorForRemovingPolicies(testNetworkPolicies)
+	creator := pMgr.getCreatorForRemovingPolicies(testNetworkPolicies...)
 	fileString := creator.ToString()
 	expectedLines := []string{
 		"*filter",
@@ -220,8 +209,22 @@ func TestRemovePolicies(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func getFakeDeleteJumpCommand(jumpRule string) testutils.TestCmd {
-	args := []string{util.Iptables, util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesDeletionFlag} // TODO use variable for wait time
+func TestRemovePoliciesError(t *testing.T) {
+	calls := []testutils.TestCmd{
+		fakeIPTablesRestoreCommand,
+		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
+		getFakeDeleteJumpCommand("AZURE-NPM-EGRESS", testPolicy1EgressJump),
+		fakeIPTablesRestoreFailureCommand,
+	}
+	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
+	err := pMgr.AddPolicy(testNetworkPolicies[0], nil)
+	require.NoError(t, err)
+	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
+	require.Error(t, err)
+}
+
+func getFakeDeleteJumpCommand(chainName, jumpRule string) testutils.TestCmd {
+	args := []string{"iptables", "-w", "60", "-D", chainName}
 	args = append(args, strings.Split(jumpRule, " ")...)
 	return testutils.TestCmd{Cmd: args}
 }
