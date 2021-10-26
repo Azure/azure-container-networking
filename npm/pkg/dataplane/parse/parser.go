@@ -146,7 +146,7 @@ func Line(readIndex int, iptableBuffer []byte) ([]byte, int) {
 }
 
 // ParseChainNameFromRuleLine gets the chain name from given rule line.
-func ParseChainNameFromRuleLine(ruleLine []byte) (string, int) {
+func ParseChainNameFromRuleLine(ruleLine []byte) (chainName string, ruleReadIndex int) {
 	spaceIndex := bytes.Index(ruleLine, SpaceBytes)
 	if spaceIndex == -1 {
 		panic(fmt.Sprintf("Unexpected chain line in iptables-save output: %v", string(ruleLine)))
@@ -157,7 +157,10 @@ func ParseChainNameFromRuleLine(ruleLine []byte) (string, int) {
 		panic(fmt.Sprintf("Unexpected chain line in iptables-save output: %v", string(ruleLine)))
 	}
 	chainNameEnd := chainNameStart + spaceIndex
-	return string(ruleLine[chainNameStart:chainNameEnd]), chainNameEnd + 1
+
+	chainName = string(ruleLine[chainNameStart:chainNameEnd])
+	ruleReadIndex = chainNameEnd + 1
+	return
 }
 
 // parseRuleFromLine creates an iptable rule object from rule line with chain name excluded from the byte array.
