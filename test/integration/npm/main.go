@@ -4,6 +4,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
@@ -32,6 +33,8 @@ var (
 	// testKeyNSList       = createTestSet("test-keyNS-list", ipsets.KeyLabelOfNameSpace)
 	// testKVNSList        = createTestSet("test-kvNS-list", ipsets.KeyValueLabelOfNameSpace)
 	// testNestedLabelList = createTestSet("test-nestedlabel-list", ipsets.NestedLabelOfPod)
+
+	testNetworkPolicies = policies.GetTestNetworkPolicies()
 )
 
 func main() {
@@ -68,49 +71,34 @@ func main() {
 		panic(err)
 	}
 
-	// NOTE for Linux
-	/*
-		ipset test SETNAME ENTRYNAME:
-			Warning: 10.0.0.5 is in set azure-npm-2031808719.
-			10.0.0.4 is NOT in set azure-npm-2031808719.
+	testPolicyManager()
+}
 
-		ipset list (references are from setlist or iptables):
-			Name: azure-npm-3382169694
-			Type: hash:net
-			Revision: 6
-			Header: family inet hashsize 1024 maxelem 65536
-			Size in memory: 512
-			References: 0
-			Number of entries: 1
-			Members:
-			10.0.0.0
+func testPolicyManager() {
+	pMgr := policies.NewPolicyManager(common.NewIOShim())
 
-			Name: azure-npm-2031808719
-			Type: hash:net
-			Revision: 6
-			Header: family inet hashsize 1024 maxelem 65536
-			Size in memory: 512
-			References: 0
-			Number of entries: 1
-			Members:
-			10.0.0.5
+	panicOnError(pMgr.Reset())
+	// printAndWait()
 
-			Name: azure-npm-164288419
-			Type: hash:ip,port
-			Revision: 5
-			Header: family inet hashsize 1024 maxelem 65536
-			Size in memory: 192
-			References: 0
-			Number of entries: 0
-			Members:
+	panicOnError(pMgr.AddPolicy(testNetworkPolicies[0], nil))
+	// printAndWait()
 
-			Name: azure-npm-3216600258
-			Type: hash:net
-			Revision: 6
-			Header: family inet hashsize 1024 maxelem 4294967295
-			Size in memory: 448
-			References: 0
-			Number of entries: 0
-			Members:
-	*/
+	panicOnError(pMgr.AddPolicy(testNetworkPolicies[1], nil))
+	// printAndWait()
+
+	// remove something that doesn't exist
+	panicOnError(pMgr.RemovePolicy(testNetworkPolicies[2].Name, nil))
+	// printAndWait()
+
+	panicOnError(pMgr.AddPolicy(testNetworkPolicies[2], nil))
+	// printAndWait()
+
+	// remove something that exists
+	panicOnError(pMgr.RemovePolicy(testNetworkPolicies[1].Name, nil))
+}
+
+func panicOnError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
