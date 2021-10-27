@@ -15,6 +15,17 @@ type IPSetMetadata struct {
 	Type SetType
 }
 
+type SetKind string
+
+const (
+	// ListSet is of kind list with members as other IPSets
+	ListSet SetKind = "list"
+	// HashSet is of kind hashset with members as IPs and/or port
+	HashSet SetKind = "set"
+	// UnknownKind is returned when kind is unknown
+	UnknownKind SetKind = "unknown"
+)
+
 // NewIPSetMetadata is used for controllers to send in skeleton ipsets to DP
 func NewIPSetMetadata(name string, setType SetType) *IPSetMetadata {
 	set := &IPSetMetadata{
@@ -58,9 +69,8 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 	}
 }
 
-func GetSetKind(setType SetType) SetKind {
-	// TODO(jungukcho): Can we just make this as receiver for IPSetMetadata
-	switch setType {
+func (setMetadata *IPSetMetadata) GetSetKind() SetKind {
+	switch setMetadata.Type {
 	case CIDRBlocks:
 		return HashSet
 	case Namespace:
@@ -161,17 +171,6 @@ func (x SetType) String() string {
 	return setTypeName[x]
 }
 
-type SetKind string
-
-const (
-	// ListSet is of kind list with members as other IPSets
-	ListSet SetKind = "list"
-	// HashSet is of kind hashset with members as IPs and/or port
-	HashSet SetKind = "set"
-	// UnknownKind is returned when kind is unknown
-	UnknownKind SetKind = "unknown"
-)
-
 // ReferenceType specifies the kind of reference for an IPSet
 type ReferenceType string
 
@@ -212,7 +211,7 @@ func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 		HashedName: util.GetHashedName(prefixedName),
 		SetProperties: SetProperties{
 			Type: setMetadata.Type,
-			Kind: GetSetKind(setMetadata.Type),
+			Kind: setMetadata.GetSetKind(),
 		},
 		// Map with Key as Network Policy name to to emulate set
 		// and value as struct{} for minimal memory consumption

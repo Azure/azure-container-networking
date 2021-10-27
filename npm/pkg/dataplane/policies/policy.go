@@ -6,7 +6,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
-	networkingv1 "k8s.io/api/networking/v1"
 )
 
 type NPMNetworkPolicy struct {
@@ -25,7 +24,6 @@ type NPMNetworkPolicy struct {
 	// podIP is key and endpoint ID as value
 	// Will be populated by dataplane and policy manager
 	PodEndpoints map[string]string
-	RawNP        *networkingv1.NetworkPolicy
 }
 
 // ACLPolicy equivalent to a single iptable rule in linux

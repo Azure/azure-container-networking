@@ -104,12 +104,6 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 		return nil
 	}
 
-	/*
-		TODO(jungukcho): need to deal with "0.0.0.0/0" here, networkpolicy controller, or ipsetManager?
-		Ipset doesn't allow 0.0.0.0/0 to be added. A general solution is split 0.0.0.0/1 in half which convert to
-		1.0.0.0/1 and 128.0.0.0/1
-	*/
-
 	ipBlockIPSetName := ipBlockSetName(policyName, ns, direction, ipBlockSetIndex)
 	members := make([]string, len(ipBlockRule.Except)+1) // except + cidr
 	cidrIndex := 0
