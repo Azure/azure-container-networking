@@ -58,8 +58,8 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 	}
 }
 
-// TODO(jungukcho): Can we just make this as receiver for IPSetMetadata
 func GetSetKind(setType SetType) SetKind {
+	// TODO(jungukcho): Can we just make this as receiver for IPSetMetadata
 	switch setType {
 	case CIDRBlocks:
 		return HashSet
@@ -181,7 +181,6 @@ const (
 	NetPolType   ReferenceType = "NetPol"
 )
 
-// (Jungukc) It may need to have "NameSpace" in IPSet
 type IPSet struct {
 	Name       string
 	HashedName string

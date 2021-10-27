@@ -182,7 +182,8 @@ func TestNamedPortRuleInfo(t *testing.T) {
 			portRule: nil,
 			want: &namedPortOutput{
 				translatedIPSet: nil, // (TODO): Need to check it
-				protocol:        ""},
+				protocol:        "",
+			},
 		},
 		{
 			name: "serve-tcp",
@@ -199,7 +200,8 @@ func TestNamedPortRuleInfo(t *testing.T) {
 					},
 					Members: []string{},
 				},
-				protocol: "TCP"},
+				protocol: "TCP",
+			},
 		},
 		{
 			name: "serve-tcp without protocol field",
@@ -253,7 +255,8 @@ func TestNamedPortRule(t *testing.T) {
 			want: &namedPortRuleOutput{
 				translatedIPSet: nil,
 				setInfo:         policies.SetInfo{},
-				protocol:        ""},
+				protocol:        "",
+			},
 			wantErr: false,
 		},
 		{
@@ -279,7 +282,8 @@ func TestNamedPortRule(t *testing.T) {
 					Included:  nonInversion,
 					MatchType: policies.DstDstMatch,
 				},
-				protocol: "TCP"},
+				protocol: "TCP",
+			},
 		},
 		{
 			name: "serve-tcp without protocol field",
@@ -581,7 +585,7 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 		name                 string
 		labelSelector        *metav1.LabelSelector
 		ops                  []string
-		ipSetForAcl          []string
+		ipSetForACL          []string
 		ipSetForSingleVal    []string
 		ipSetNameForMultiVal map[string][]string
 	}{
@@ -591,7 +595,7 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 				MatchLabels: map[string]string{},
 			},
 			ops:                  []string{""},
-			ipSetForAcl:          []string{""},
+			ipSetForACL:          []string{""},
 			ipSetForSingleVal:    []string{""},
 			ipSetNameForMultiVal: map[string][]string{},
 		},
@@ -603,7 +607,7 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 				},
 			},
 			ops:                  []string{""},
-			ipSetForAcl:          []string{"label:src"},
+			ipSetForACL:          []string{"label:src"},
 			ipSetForSingleVal:    []string{"label:src"},
 			ipSetNameForMultiVal: map[string][]string{},
 		},
@@ -621,7 +625,7 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 				},
 			},
 			ops:                  []string{"", ""},
-			ipSetForAcl:          []string{"label:src", "label"},
+			ipSetForACL:          []string{"label:src", "label"},
 			ipSetForSingleVal:    []string{"label:src", "label"},
 			ipSetNameForMultiVal: map[string][]string{},
 		},
@@ -642,7 +646,7 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 				},
 			},
 			ops:                  []string{"", ""},
-			ipSetForAcl:          []string{"label:src", "labelIn:src"},
+			ipSetForACL:          []string{"label:src", "labelIn:src"},
 			ipSetForSingleVal:    []string{"label:src", "labelIn:src"},
 			ipSetNameForMultiVal: map[string][]string{},
 		},
@@ -663,7 +667,7 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 				},
 			},
 			ops:                  []string{"", "!"},
-			ipSetForAcl:          []string{"label:src", "labelNotIn:src"},
+			ipSetForACL:          []string{"label:src", "labelNotIn:src"},
 			ipSetForSingleVal:    []string{"label:src", "labelNotIn:src"},
 			ipSetNameForMultiVal: map[string][]string{},
 		},
@@ -690,7 +694,7 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 				},
 			},
 			ops:               []string{"", "!", ""},
-			ipSetForAcl:       []string{"k0:v0", "k2", "k1:v10:v11"},
+			ipSetForACL:       []string{"k0:v0", "k2", "k1:v10:v11"},
 			ipSetForSingleVal: []string{"k0:v0", "k2", "k1:v10", "k1:v11"},
 			ipSetNameForMultiVal: map[string][]string{
 				"k1:v10:v11": {"k1:v10", "k1:v11"},
@@ -701,9 +705,9 @@ func TestTargetPodSelectorInfo(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ops, ipSetForAcl, ipSetForSingleVal, ipSetNameForMultiVal := targetPodSelectorInfo(tt.labelSelector)
+			ops, ipSetForACL, ipSetForSingleVal, ipSetNameForMultiVal := targetPodSelectorInfo(tt.labelSelector)
 			require.Equal(t, tt.ops, ops)
-			require.Equal(t, tt.ipSetForAcl, ipSetForAcl)
+			require.Equal(t, tt.ipSetForACL, ipSetForACL)
 			require.Equal(t, tt.ipSetForSingleVal, ipSetForSingleVal)
 			require.Equal(t, tt.ipSetNameForMultiVal, ipSetNameForMultiVal)
 		})
@@ -903,14 +907,14 @@ func TestPodSelectorRule(t *testing.T) {
 		name            string
 		matchType       policies.MatchType
 		ops             []string
-		ipSetForAcl     []string
+		ipSetForACL     []string
 		podSelectorList []policies.SetInfo
 	}{
 		{
 			name:        "one ipset of podSelector for acl in ingress",
 			matchType:   matchType,
 			ops:         []string{""},
-			ipSetForAcl: []string{"label:src"},
+			ipSetForACL: []string{"label:src"},
 			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -926,7 +930,7 @@ func TestPodSelectorRule(t *testing.T) {
 			name:        "two ipsets of podSelector (one keyvalue and one only key) for acl in ingress",
 			matchType:   policies.DstMatch,
 			ops:         []string{"", ""},
-			ipSetForAcl: []string{"label:src", "label"},
+			ipSetForACL: []string{"label:src", "label"},
 			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -950,7 +954,7 @@ func TestPodSelectorRule(t *testing.T) {
 			name:        "two ipsets of podSelector (two keyvalue) for acl in ingress",
 			matchType:   matchType,
 			ops:         []string{"", ""},
-			ipSetForAcl: []string{"label:src", "labelIn:src"},
+			ipSetForACL: []string{"label:src", "labelIn:src"},
 			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -974,7 +978,7 @@ func TestPodSelectorRule(t *testing.T) {
 			name:        "two ipsets of podSelector (one included and one non-included ipset) for acl in ingress",
 			matchType:   matchType,
 			ops:         []string{"", "!"},
-			ipSetForAcl: []string{"label:src", "labelNotIn:src"},
+			ipSetForACL: []string{"label:src", "labelNotIn:src"},
 			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -998,7 +1002,7 @@ func TestPodSelectorRule(t *testing.T) {
 			name:        "three ipsets of podSelector (one included value, one non-included value, and one included netest value) for acl in ingress",
 			matchType:   matchType,
 			ops:         []string{"", "!", ""},
-			ipSetForAcl: []string{"k0:v0", "k2", "k1:v10:v11"},
+			ipSetForACL: []string{"k0:v0", "k2", "k1:v10:v11"},
 			podSelectorList: []policies.SetInfo{
 				{
 					IPSet: &ipsets.IPSetMetadata{
@@ -1031,7 +1035,7 @@ func TestPodSelectorRule(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			podSelectorList := podSelectorRule(tt.matchType, tt.ops, tt.ipSetForAcl)
+			podSelectorList := podSelectorRule(tt.matchType, tt.ops, tt.ipSetForACL)
 			require.Equal(t, tt.podSelectorList, podSelectorList)
 		})
 	}
@@ -2151,7 +2155,8 @@ func TestDefaultDropACL(t *testing.T) {
 			dropACL: &policies.ACLPolicy{
 				PolicyID:  "azure-acl-default-test",
 				Target:    policies.Dropped,
-				Direction: direction},
+				Direction: direction,
+			},
 		},
 		{
 			name:       "Default drop acl for testns/test",
@@ -2161,7 +2166,8 @@ func TestDefaultDropACL(t *testing.T) {
 			dropACL: &policies.ACLPolicy{
 				PolicyID:  "azure-acl-testns-test",
 				Target:    policies.Dropped,
-				Direction: direction},
+				Direction: direction,
+			},
 		},
 	}
 
@@ -2613,8 +2619,8 @@ func TestPeerAndPortRule(t *testing.T) {
 
 	for i, tt := range tests {
 		tt := tt
+		setInfo := setInfos[i]
 		t.Run(tt.name, func(t *testing.T) {
-			setInfo := setInfos[i]
 			for _, acl := range tt.npmNetPol.ACLs {
 				acl.SrcList = setInfo
 			}
@@ -2629,10 +2635,6 @@ func TestPeerAndPortRule(t *testing.T) {
 }
 
 func TestTranslateIngress(t *testing.T) {
-	// namedPortStr := "serve-tcp"
-	// namedPort := intstr.FromString(namedPortStr)
-	// port8000 := intstr.FromInt(8000)
-	// var endPort int32 = 8100
 	tcp := v1.ProtocolTCP
 	targetPodMatchType := policies.DstMatch
 	peerMatchType := policies.SrcMatch

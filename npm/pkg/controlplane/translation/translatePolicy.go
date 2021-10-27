@@ -18,6 +18,7 @@ TODO
 1. namespace is default in label in K8s. Need to check whether I missed something.
 - Targeting a Namespace by its name
 (https://kubernetes.io/docs/concepts/services-networking/network-policies/#targeting-a-namespace-by-its-name)
+2. Check possible error - first check see how K8s guarantees correctness of the submitted network policy
 */
 
 var (
@@ -32,6 +33,9 @@ const (
 	namedPortType        netpolPortType = "namedport"
 	nonInversion         bool           = true
 	ipBlocksetNameFormat                = "%s-in-ns-%s-%d%s"
+	onlyKeyLabel                        = 1
+	keyValueLabel                       = 2
+	keyNestedLabel                      = 3
 )
 
 func portType(portRule networkingv1.NetworkPolicyPort) (netpolPortType, error) {
@@ -96,7 +100,7 @@ func ipBlockSetName(policyName, ns string, direction policies.Direction, ipBlock
 }
 
 func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex int, ipBlockRule *networkingv1.IPBlock) *ipsets.TranslatedIPSet {
-	if ipBlockRule == nil || len(ipBlockRule.CIDR) == 0 {
+	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil
 	}
 
@@ -119,7 +123,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 }
 
 func ipBlockRule(policyName, ns string, direction policies.Direction, ipBlockSetIndex int, ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo) {
-	if ipBlockRule == nil || len(ipBlockRule.CIDR) == 0 {
+	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, policies.SetInfo{}
 	}
 
@@ -132,11 +136,11 @@ func podLabelType(label string) ipsets.SetType {
 	// TODO(jungukcho): this is unnecessary function which has extra computation
 	// will be removed after optimizing parseSelector function
 	labels := strings.Split(label, ":")
-	if len(labels) == 1 {
+	if len(labels) == onlyKeyLabel {
 		return ipsets.KeyLabelOfPod
-	} else if len(labels) == 2 {
+	} else if len(labels) == keyValueLabel {
 		return ipsets.KeyValueLabelOfPod
-	} else if len(labels) >= 3 {
+	} else if len(labels) >= keyNestedLabel {
 		return ipsets.NestedLabelOfPod
 	}
 
@@ -179,8 +183,8 @@ func targetPodSelectorInfo(selector *metav1.LabelSelector) ([]string, []string, 
 	singleValueLabelsWithOps, multiValuesLabelsWithOps := parseSelector(selector)
 	ops, ipSetForSingleVal := GetOperatorsAndLabels(singleValueLabelsWithOps)
 
-	ipSetForAcl := make([]string, len(ipSetForSingleVal))
-	copy(ipSetForAcl, ipSetForSingleVal)
+	ipSetForACL := make([]string, len(ipSetForSingleVal))
+	copy(ipSetForACL, ipSetForSingleVal)
 
 	listSetMembers := []string{}
 	ipSetNameForMultiVal := make(map[string][]string)
@@ -190,7 +194,7 @@ func targetPodSelectorInfo(selector *metav1.LabelSelector) ([]string, []string, 
 		ops = append(ops, op)
 
 		ipSetNameForMultiValueLabel := getSetNameForMultiValueSelector(multiValueLabelKey, multiValueLabelList)
-		ipSetForAcl = append(ipSetForAcl, ipSetNameForMultiValueLabel)
+		ipSetForACL = append(ipSetForACL, ipSetNameForMultiValueLabel)
 
 		for _, labelValue := range multiValueLabelList {
 			ipsetName := util.GetIpSetFromLabelKV(multiValueLabelKey, labelValue)
@@ -199,7 +203,7 @@ func targetPodSelectorInfo(selector *metav1.LabelSelector) ([]string, []string, 
 		}
 	}
 	ipSetForSingleVal = append(ipSetForSingleVal, listSetMembers...)
-	return ops, ipSetForAcl, ipSetForSingleVal, ipSetNameForMultiVal
+	return ops, ipSetForACL, ipSetForSingleVal, ipSetNameForMultiVal
 }
 
 func allPodsSelectorInNs(ns string, matchType policies.MatchType) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
@@ -232,15 +236,16 @@ func nsLabelType(label string) ipsets.SetType {
 	// TODO(jungukcho): this is unnecessary function which has extra computation
 	// will be removed after optimizing parseSelector function
 	labels := strings.Split(label, ":")
-	if len(labels) == 1 {
+	if len(labels) == onlyKeyLabel {
 		return ipsets.KeyLabelOfNamespace
-	} else if len(labels) == 2 {
+	} else if len(labels) == keyValueLabel {
 		return ipsets.KeyValueLabelOfNamespace
 	}
 
 	// (TODO): check whether this is possible
 	return ipsets.UnknownType
 }
+
 func nameSpaceSelectorRule(matchType policies.MatchType, ops, nsSelectorInfo []string) []policies.SetInfo {
 	nsSelectorList := []policies.SetInfo{}
 	for i := 0; i < len(nsSelectorInfo); i++ {
@@ -308,7 +313,7 @@ func defaultDropACL(policyNS, policyName string, direction policies.Direction) *
 func ruleExists(ports []networkingv1.NetworkPolicyPort, peer []networkingv1.NetworkPolicyPeer) (bool, bool, bool) {
 	// TODO(jungukcho): need to clarify and summarize below flags
 	allowExternal := false
-	portRuleExists := ports != nil && len(ports) > 0
+	portRuleExists := len(ports) > 0
 	peerRuleExists := false
 	if peer != nil {
 		if len(peer) == 0 {
@@ -347,7 +352,7 @@ func portRule(ruleIPSets []*ipsets.TranslatedIPSet, acl *policies.ACLPolicy, por
 }
 
 func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, ports []networkingv1.NetworkPolicyPort, setInfo []policies.SetInfo) {
-	if ports == nil || len(ports) == 0 {
+	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(npmNetPol.NameSpace, npmNetPol.Name, policies.Allowed, policies.Ingress)
 		acl.SrcList = setInfo
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
