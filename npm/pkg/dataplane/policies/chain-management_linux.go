@@ -150,7 +150,7 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 	command := pMgr.ioShim.Exec.Command(util.Iptables, allArgs...)
 	output, err := command.CombinedOutput()
 
-	if msg, failed := err.(utilexec.ExitError); failed {
+	if msg, ok := err.(utilexec.ExitError); ok {
 		errCode := msg.ExitStatus()
 		allArgsString := strings.Join(allArgs, " ")
 		msgStr := strings.TrimSuffix(string(output), "\n")
