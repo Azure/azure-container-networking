@@ -65,15 +65,15 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 
 	// Check if pod is already present in cache
 	endpoint, ok := dp.endpointCache[pod.PodIP]
-	if (!ok) || (endpoint.IP != pod.PodIP) {
+	if !ok {
+		return fmt.Errorf("[DataPlane] did not find endpoint with IPaddress %s", pod.PodIP)
+	}
+
+	if endpoint.IP != pod.PodIP {
 		// If the existing endpoint ID has changed, it means that the Pod has been recreated
 		// this results in old endpoint to be deleted, so we can safely ignore cleaning up policies
-		// Get endpoint for this pod
-		endpoint, ok := dp.endpointCache[pod.PodIP]
-		if !ok {
-			return fmt.Errorf("[DataPlane] did not find endpoint with IPaddress %s", pod.PodIP)
-		}
-		dp.endpointCache[pod.PodIP] = endpoint
+		// and delete it from the cache.
+		delete(dp.endpointCache, pod.PodIP)
 	}
 	// Check if the removed IPSets have any network policy references
 	for _, setName := range pod.IPSetsToRemove {

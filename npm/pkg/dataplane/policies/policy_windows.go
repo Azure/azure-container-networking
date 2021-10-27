@@ -41,7 +41,7 @@ type NPMACLPolSettings struct {
 }
 
 func (orig NPMACLPolSettings) compare(new *NPMACLPolSettings) bool {
-	if orig.Id == new.Id &&
+	return orig.Id == new.Id &&
 		orig.Protocols == new.Protocols &&
 		orig.Action == new.Action &&
 		orig.Direction == new.Direction &&
@@ -50,10 +50,7 @@ func (orig NPMACLPolSettings) compare(new *NPMACLPolSettings) bool {
 		orig.LocalPorts == new.LocalPorts &&
 		orig.RemotePorts == new.RemotePorts &&
 		orig.RuleType == new.RuleType &&
-		orig.Priority == new.Priority {
-		return true
-	}
-	return false
+		orig.Priority == new.Priority
 }
 
 func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {

@@ -258,8 +258,5 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 
 func GetNodeName() string {
 	nodeName := os.Getenv(EnvNodeName)
-	if nodeName == "" {
-		return ""
-	}
 	return nodeName
 }
