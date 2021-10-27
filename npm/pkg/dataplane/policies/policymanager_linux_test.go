@@ -83,7 +83,7 @@ func TestRemovePolicies(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
 		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
-		getFakeDeleteJumpCommand("AZURE-NPM-EGRESS", testPolicy1EgressJump),
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", testPolicy1EgressJump, 2), // if the policy chain doesn't exist, we shouldn't error
 		fakeIPTablesRestoreCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
@@ -106,7 +106,7 @@ func TestRemovePolicies(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestRemovePoliciesError(t *testing.T) {
+func TestRemovePoliciesErrorOnRestore(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
 		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
@@ -120,8 +120,39 @@ func TestRemovePoliciesError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestRemovePoliciesErrorOnIngressRule(t *testing.T) {
+	calls := []testutils.TestCmd{
+		fakeIPTablesRestoreCommand,
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", testPolicy1IngressJump, 1), // anything but 0 or 2
+	}
+	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
+	err := pMgr.AddPolicy(testNetworkPolicies[0], nil)
+	require.NoError(t, err)
+	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
+	require.Error(t, err)
+}
+
+func TestRemovePoliciesErrorOnEgressRule(t *testing.T) {
+	calls := []testutils.TestCmd{
+		fakeIPTablesRestoreCommand,
+		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", testPolicy1EgressJump, 1), // anything but 0 or 2
+	}
+	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
+	err := pMgr.AddPolicy(testNetworkPolicies[0], nil)
+	require.NoError(t, err)
+	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
+	require.Error(t, err)
+}
+
 func getFakeDeleteJumpCommand(chainName, jumpRule string) testutils.TestCmd {
 	args := []string{"iptables", "-w", "60", "-D", chainName}
 	args = append(args, strings.Split(jumpRule, " ")...)
 	return testutils.TestCmd{Cmd: args}
+}
+
+func getFakeDeleteJumpCommandWithCode(chainName, jumpRule string, exitCode int) testutils.TestCmd {
+	command := getFakeDeleteJumpCommand(chainName, jumpRule)
+	command.ExitCode = exitCode
+	return command
 }

@@ -42,7 +42,7 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList []st
 	// Call actual dataplane function to apply changes
 	err := pMgr.addPolicy(policy, endpointList)
 	if err != nil {
-		return err
+		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to add policy: %v", err))
 	}
 
 	pMgr.policyMap.cache[policy.Name] = policy
@@ -56,7 +56,7 @@ func (pMgr *PolicyManager) RemovePolicy(name string, endpointList []string) erro
 	// Call actual dataplane function to apply changes
 	err := pMgr.removePolicy(name, endpointList)
 	if err != nil {
-		return err
+		return npmerrors.Errorf(npmerrors.RemovePolicy, false, fmt.Sprintf("failed to remove policy: %v", err))
 	}
 
 	delete(pMgr.policyMap.cache, name)

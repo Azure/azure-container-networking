@@ -49,6 +49,7 @@ const (
 	TestIPSet               = "TestIPSet"
 	IPSetIntersection       = "IPSetIntersection"
 	AddPolicy               = "AddNetworkPolicy"
+	RemovePolicy            = "RemovePolicy"
 	GetSelectorReference    = "GetSelectorReference"
 	AddSelectorReference    = "AddSelectorReference"
 	DeleteSelectorReference = "DeleteSelectorReference"

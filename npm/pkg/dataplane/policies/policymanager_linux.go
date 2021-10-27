@@ -25,18 +25,21 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ []string
 	creator := pMgr.getCreatorForNewNetworkPolicies(networkPolicy)
 	err := restore(creator)
 	if err != nil {
-		return npmerrors.Errorf("AddPolicy", false, fmt.Sprintf("failed to restore iptables with updated policies: %v", err))
+		return npmerrors.SimpleErrorf("failed to restore iptables with updated policies: %w", err)
 	}
 	return nil
 }
 
 func (pMgr *PolicyManager) removePolicy(name string, _ []string) error {
 	networkPolicy := pMgr.policyMap.cache[name]
-	pMgr.deleteOldJumpRulesOnRemove(networkPolicy) // TODO get error
+	deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
+	if deleteErr != nil {
+		return npmerrors.SimpleErrorf("failed to delete jumps to policy chains: %w", deleteErr)
+	}
 	creator := pMgr.getCreatorForRemovingPolicies(networkPolicy)
-	err := restore(creator)
-	if err != nil {
-		return npmerrors.Errorf("RemovePolicy", false, fmt.Sprintf("failed to flush policies: %v", err))
+	restoreErr := restore(creator)
+	if restoreErr != nil {
+		return npmerrors.SimpleErrorf("failed to flush policies:  %w", restoreErr)
 	}
 	return nil
 }
@@ -111,30 +114,43 @@ func (pMgr *PolicyManager) getNewCreatorWithChains(chainNames []string) *ioutil.
 }
 
 // will make a similar func for on update eventually
-func (pMgr *PolicyManager) deleteOldJumpRulesOnRemove(policy *NPMNetworkPolicy) {
+func (pMgr *PolicyManager) deleteOldJumpRulesOnRemove(policy *NPMNetworkPolicy) error {
 	shouldDeleteIngress, shouldDeleteEgress := policy.hasIngressAndEgress()
 	if shouldDeleteIngress {
-		pMgr.deleteIngressJumpRule(policy)
+		if err := pMgr.deleteJumpRule(policy, true); err != nil {
+			return err
+		}
 	}
 	if shouldDeleteEgress {
-		pMgr.deleteEgressJumpRule(policy)
+		if err := pMgr.deleteJumpRule(policy, false); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (pMgr *PolicyManager) deleteIngressJumpRule(policy *NPMNetworkPolicy) {
-	specs := append([]string{util.IptablesAzureIngressChain}, getIngressJumpSpecs(policy)...)
-	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
-	if err != nil {
-		log.Errorf("failed to delete jump to ingress rule for policy %s with error [%w] and exit code %d", policy.Name, err, errCode)
+func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, isIngress bool) error {
+	var specs []string
+	var baseChainName string
+	var chainName string
+	if isIngress {
+		specs = getIngressJumpSpecs(policy)
+		baseChainName = util.IptablesAzureIngressChain
+		chainName = policy.getIngressChainName()
+	} else {
+		specs = getEgressJumpSpecs(policy)
+		baseChainName = util.IptablesAzureEgressChain
+		chainName = policy.getEgressChainName()
 	}
-}
 
-func (pMgr *PolicyManager) deleteEgressJumpRule(policy *NPMNetworkPolicy) {
-	specs := append([]string{util.IptablesAzureEgressChain}, getEgressJumpSpecs(policy)...)
+	specs = append([]string{baseChainName}, specs...)
 	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
-	if err != nil {
-		log.Errorf("failed to delete jump to egress rule for policy %s with error [%w] and exit code %d", policy.Name, err, errCode)
+	if err != nil && errCode != couldntLoadTargetErrorCode {
+		errorFormat := "failed to delete jump from %s chain to %s chain for policy %s with error [%w] and exit code %d"
+		log.Errorf(errorFormat, baseChainName, chainName, policy.Name, err, errCode)
+		return npmerrors.SimpleErrorf(errorFormat, chainName, policy.Name, err, errCode)
 	}
+	return nil
 }
 
 func getIngressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
