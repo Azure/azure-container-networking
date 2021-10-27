@@ -86,7 +86,6 @@ func TestInitChainsFailureOnPosition(t *testing.T) {
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 	require.Error(t, pMgr.initializeNPMChains())
-
 }
 
 func TestRemoveChainsCreator(t *testing.T) {
