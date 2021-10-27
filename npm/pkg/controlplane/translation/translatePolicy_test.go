@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const inversion bool = false
+const nonIncluded bool = false
 
 // TODO(jungukcho)
 // 1. will use variables in UTs instead of constant "src",  and "dst" for better managements
@@ -279,7 +279,7 @@ func TestNamedPortRule(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: policies.DstDstMatch,
 				},
 				protocol: "TCP",
@@ -303,7 +303,7 @@ func TestNamedPortRule(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: policies.DstDstMatch,
 				},
 				protocol: "TCP",
@@ -512,7 +512,7 @@ func TestIPBlockRule(t *testing.T) {
 					Name: "test-in-ns-default-0IN",
 					Type: ipsets.CIDRBlocks,
 				},
-				Included:  nonInversion,
+				Included:  included,
 				MatchType: matchType,
 			},
 		},
@@ -538,7 +538,7 @@ func TestIPBlockRule(t *testing.T) {
 					Name: "test-in-ns-default-0IN",
 					Type: ipsets.CIDRBlocks,
 				},
-				Included:  nonInversion,
+				Included:  included,
 				MatchType: matchType,
 			},
 		},
@@ -564,7 +564,7 @@ func TestIPBlockRule(t *testing.T) {
 					Name: "test-network-policy-in-ns-default-0IN",
 					Type: ipsets.CIDRBlocks,
 				},
-				Included:  nonInversion,
+				Included:  included,
 				MatchType: matchType,
 			},
 		},
@@ -742,7 +742,7 @@ func TestAllPodsSelectorInNs(t *testing.T) {
 						Name: "default",
 						Type: ipsets.Namespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -766,7 +766,7 @@ func TestAllPodsSelectorInNs(t *testing.T) {
 						Name: "test",
 						Type: ipsets.Namespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -921,7 +921,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -937,7 +937,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -945,7 +945,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "label",
 						Type: ipsets.KeyLabelOfPod,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -961,16 +961,16 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  true,
-					MatchType: policies.DstMatch,
+					Included:  included,
+					MatchType: matchType,
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "labelIn:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  true,
-					MatchType: policies.DstMatch,
+					Included:  included,
+					MatchType: matchType,
 				},
 			},
 		},
@@ -985,7 +985,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -993,7 +993,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "labelNotIn:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  inversion,
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 			},
@@ -1009,7 +1009,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1017,7 +1017,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "k2",
 						Type: ipsets.KeyLabelOfPod,
 					},
-					Included:  inversion,
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 				{
@@ -1025,7 +1025,7 @@ func TestPodSelectorRule(t *testing.T) {
 						Name: "k1:v10:v11",
 						Type: ipsets.NestedLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1073,7 +1073,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "default",
 						Type: ipsets.Namespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1100,7 +1100,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "test",
 						Type: ipsets.Namespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1128,7 +1128,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1169,7 +1169,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1177,7 +1177,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label",
 						Type: ipsets.KeyLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1221,7 +1221,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1229,7 +1229,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "labelIn:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1273,7 +1273,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1281,7 +1281,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "labelNotIn:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  inversion,
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 			},
@@ -1352,7 +1352,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1360,7 +1360,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "k2",
 						Type: ipsets.KeyLabelOfPod,
 					},
-					Included:  inversion,
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 				{
@@ -1368,7 +1368,7 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "k1:v10:v11",
 						Type: ipsets.NestedLabelOfPod,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1529,7 +1529,7 @@ func TestAllNameSpaceRule(t *testing.T) {
 						Name: util.KubeAllNamespacesFlag,
 						Type: ipsets.Namespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1670,7 +1670,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1686,7 +1686,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1694,7 +1694,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "label",
 						Type: ipsets.KeyLabelOfNamespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1710,7 +1710,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1718,7 +1718,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "labelIn:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1734,7 +1734,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1742,7 +1742,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "labelNotIn:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  inversion,
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 			},
@@ -1758,7 +1758,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  nonInversion,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1766,7 +1766,7 @@ func TestNameSpaceSelectorRule(t *testing.T) {
 						Name: "k2",
 						Type: ipsets.KeyLabelOfNamespace,
 					},
-					Included:  inversion,
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 			},
@@ -1812,7 +1812,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: util.KubeAllNamespacesFlag,
 						Type: ipsets.Namespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1841,7 +1841,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "test:",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1869,7 +1869,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1910,7 +1910,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1918,7 +1918,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label",
 						Type: ipsets.KeyLabelOfNamespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -1962,7 +1962,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -1970,7 +1970,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "labelIn:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 			},
@@ -2014,7 +2014,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -2022,7 +2022,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "labelNotIn:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  false,
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 			},
@@ -2074,7 +2074,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Included:  true,
+					Included:  included,
 					MatchType: matchType,
 				},
 				{
@@ -2082,7 +2082,7 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "k2",
 						Type: ipsets.KeyLabelOfNamespace,
 					},
-					Included:  false,
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 			},
@@ -2122,7 +2122,7 @@ func TestAllowAllTraffic(t *testing.T) {
 					Name: util.KubeAllNamespacesFlag,
 					Type: ipsets.Namespace,
 				},
-				Included:  nonInversion,
+				Included:  included,
 				MatchType: matchType,
 			},
 		},
@@ -2213,7 +2213,7 @@ func TestPortRuleWithNamedPort(t *testing.T) {
 							Name: util.NamedPortIPSetPrefix + "serve-tcp",
 							Type: ipsets.NamedPorts,
 						},
-						Included:  nonInversion,
+						Included:  included,
 						MatchType: matchType,
 					},
 				},
@@ -2241,7 +2241,7 @@ func TestPortRuleWithNamedPort(t *testing.T) {
 							Name: util.NamedPortIPSetPrefix + "serve-tcp",
 							Type: ipsets.NamedPorts,
 						},
-						Included:  nonInversion,
+						Included:  included,
 						MatchType: matchType,
 					},
 				},
@@ -2255,7 +2255,7 @@ func TestPortRuleWithNamedPort(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ruleIPSets := []*ipsets.TranslatedIPSet{}
 			acl := &policies.ACLPolicy{}
-			ruleIPSets, acl = portRule(ruleIPSets, acl, tt.portRule, namedPortType)
+			ruleIPSets = portRule(ruleIPSets, acl, tt.portRule, namedPortType)
 			require.Equal(t, tt.ruleIPSets, ruleIPSets)
 			require.Equal(t, tt.acl, acl)
 		})
@@ -2332,7 +2332,7 @@ func TestPortRuleWithNumericPort(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			acl := &policies.ACLPolicy{}
-			_, acl = portRule([]*ipsets.TranslatedIPSet{}, acl, tt.portRule, numericPortType)
+			_ = portRule([]*ipsets.TranslatedIPSet{}, acl, tt.portRule, numericPortType)
 			require.Equal(t, tt.acl, acl)
 		})
 	}
@@ -2359,7 +2359,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					Name: "test-in-ns-default-0IN",
 					Type: ipsets.CIDRBlocks,
 				},
-				Included:  nonInversion,
+				Included:  included,
 				MatchType: matchType,
 			},
 		},
@@ -2369,7 +2369,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					Name: "label:src",
 					Type: ipsets.KeyValueLabelOfNamespace,
 				},
-				Included:  true,
+				Included:  included,
 				MatchType: matchType,
 			},
 			{
@@ -2377,7 +2377,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					Name: "label",
 					Type: ipsets.KeyLabelOfNamespace,
 				},
-				Included:  true,
+				Included:  included,
 				MatchType: matchType,
 			},
 		},
@@ -2387,7 +2387,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					Name: "k0:v0",
 					Type: ipsets.KeyValueLabelOfPod,
 				},
-				Included:  nonInversion,
+				Included:  included,
 				MatchType: matchType,
 			},
 			{
@@ -2395,7 +2395,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					Name: "k2",
 					Type: ipsets.KeyLabelOfPod,
 				},
-				Included:  inversion,
+				Included:  nonIncluded,
 				MatchType: matchType,
 			},
 			{
@@ -2403,7 +2403,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					Name: "k1:v10:v11",
 					Type: ipsets.NestedLabelOfPod,
 				},
-				Included:  nonInversion,
+				Included:  included,
 				MatchType: matchType,
 			},
 		},
@@ -2474,7 +2474,7 @@ func TestPeerAndPortRule(t *testing.T) {
 									Name: util.NamedPortIPSetPrefix + "serve-tcp",
 									Type: ipsets.NamedPorts,
 								},
-								Included:  nonInversion,
+								Included:  included,
 								MatchType: policies.DstDstMatch,
 							},
 						},
@@ -2514,7 +2514,7 @@ func TestPeerAndPortRule(t *testing.T) {
 									Name: "test-in-ns-default-0IN",
 									Type: ipsets.CIDRBlocks,
 								},
-								Included:  nonInversion,
+								Included:  included,
 								MatchType: matchType,
 							},
 						},
@@ -2524,7 +2524,7 @@ func TestPeerAndPortRule(t *testing.T) {
 									Name: util.NamedPortIPSetPrefix + "serve-tcp",
 									Type: ipsets.NamedPorts,
 								},
-								Included:  nonInversion,
+								Included:  included,
 								MatchType: policies.DstDstMatch,
 							},
 						},
@@ -2565,7 +2565,7 @@ func TestPeerAndPortRule(t *testing.T) {
 									Name: util.NamedPortIPSetPrefix + "serve-tcp",
 									Type: ipsets.NamedPorts,
 								},
-								Included:  nonInversion,
+								Included:  included,
 								MatchType: policies.DstDstMatch,
 							},
 						},
@@ -2606,7 +2606,7 @@ func TestPeerAndPortRule(t *testing.T) {
 									Name: util.NamedPortIPSetPrefix + "serve-tcp",
 									Type: ipsets.NamedPorts,
 								},
-								Included:  nonInversion,
+								Included:  included,
 								MatchType: policies.DstDstMatch,
 							},
 						},
@@ -2641,14 +2641,14 @@ func TestTranslateIngress(t *testing.T) {
 	// TODO(jungukcho): add test cases with more complex rules
 	tests := []struct {
 		name           string
-		targetSelector metav1.LabelSelector
+		targetSelector *metav1.LabelSelector
 		rules          []networkingv1.NetworkPolicyIngressRule
 		npmNetPol      *policies.NPMNetworkPolicy
 		wantErr        bool
 	}{
 		{
 			name: "only port in ingress rules",
-			targetSelector: metav1.LabelSelector{
+			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
 				},
@@ -2680,7 +2680,7 @@ func TestTranslateIngress(t *testing.T) {
 							Name: "label:src",
 							Type: ipsets.KeyValueLabelOfPod,
 						},
-						Included:  nonInversion,
+						Included:  included,
 						MatchType: targetPodMatchType,
 					},
 				},
@@ -2701,7 +2701,7 @@ func TestTranslateIngress(t *testing.T) {
 		},
 		{
 			name: "only ipBlock in ingress rules",
-			targetSelector: metav1.LabelSelector{
+			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
 				},
@@ -2736,7 +2736,7 @@ func TestTranslateIngress(t *testing.T) {
 							Name: "label:src",
 							Type: ipsets.KeyValueLabelOfPod,
 						},
-						Included:  nonInversion,
+						Included:  included,
 						MatchType: targetPodMatchType,
 					},
 				},
@@ -2760,7 +2760,7 @@ func TestTranslateIngress(t *testing.T) {
 									Name: "only-ipblock-in-ns-default-0IN",
 									Type: ipsets.CIDRBlocks,
 								},
-								Included:  nonInversion,
+								Included:  included,
 								MatchType: peerMatchType,
 							},
 						},
@@ -2771,7 +2771,7 @@ func TestTranslateIngress(t *testing.T) {
 		},
 		{
 			name: "only peer podSelector in ingress rules",
-			targetSelector: metav1.LabelSelector{
+			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
 				},
@@ -2807,7 +2807,7 @@ func TestTranslateIngress(t *testing.T) {
 							Name: "label:src",
 							Type: ipsets.KeyValueLabelOfPod,
 						},
-						Included:  nonInversion,
+						Included:  included,
 						MatchType: targetPodMatchType,
 					},
 				},
@@ -2831,7 +2831,7 @@ func TestTranslateIngress(t *testing.T) {
 									Name: "peer-podselector-kay:peer-podselector-value",
 									Type: ipsets.KeyValueLabelOfPod,
 								},
-								Included:  nonInversion,
+								Included:  included,
 								MatchType: peerMatchType,
 							},
 						},
@@ -2842,7 +2842,7 @@ func TestTranslateIngress(t *testing.T) {
 		},
 		{
 			name: "only peer nameSpaceSelector in ingress rules",
-			targetSelector: metav1.LabelSelector{
+			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
 				},
@@ -2878,7 +2878,7 @@ func TestTranslateIngress(t *testing.T) {
 							Name: "label:src",
 							Type: ipsets.KeyValueLabelOfPod,
 						},
-						Included:  nonInversion,
+						Included:  included,
 						MatchType: targetPodMatchType,
 					},
 				},
@@ -2902,7 +2902,7 @@ func TestTranslateIngress(t *testing.T) {
 									Name: "peer-nsselector-kay:peer-nsselector-value",
 									Type: ipsets.KeyValueLabelOfNamespace,
 								},
-								Included:  nonInversion,
+								Included:  included,
 								MatchType: peerMatchType,
 							},
 						},
