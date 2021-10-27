@@ -341,7 +341,7 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	// validate if Pod1 exists
-	cachedPodKey := ipsMgr.setMap[setname].Elements[ip]
+	cachedPodKey := ipsMgr.setMap[setname].elements[ip]
 	if cachedPodKey != pod1 {
 		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s",
 			setname, util.GetHashedName(setname), cachedPodKey, pod1)
@@ -353,7 +353,7 @@ func TestAddToSetWithCachePodInfo(t *testing.T) {
 		t.Errorf("TestAddToSetWithCachePodInfo with pod2 failed @ ipsMgr.AddToSet")
 	}
 
-	cachedPodKey = ipsMgr.setMap[setname].Elements[ip]
+	cachedPodKey = ipsMgr.setMap[setname].elements[ip]
 	if cachedPodKey != pod2 {
 		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s",
 			setname, util.GetHashedName(setname), cachedPodKey, pod2)
@@ -383,7 +383,7 @@ func TestDeleteFromSet(t *testing.T) {
 	err := ipsMgr.AddToSet(testSetName, "1.2.3.4", util.IpsetNetHashFlag, "")
 	require.NoError(t, err)
 
-	if len(ipsMgr.setMap[testSetName].Elements) != 1 {
+	if len(ipsMgr.setMap[testSetName].elements) != 1 {
 		require.FailNow(t, "TestDeleteFromSet failed @ ipsMgr.AddToSet")
 	}
 
@@ -424,7 +424,7 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 		t.Errorf("TestDeleteFromSetWithPodCache failed for pod1 @ ipsMgr.AddToSet with err %+v", err)
 	}
 
-	if len(ipsMgr.setMap[setname].Elements) != 1 {
+	if len(ipsMgr.setMap[setname].elements) != 1 {
 		t.Errorf("TestDeleteFromSetWithPodCache failed @ ipsMgr.AddToSet")
 	}
 
@@ -449,7 +449,7 @@ func TestDeleteFromSetWithPodCache(t *testing.T) {
 	}
 
 	// note the set will stil exist with pod ip
-	cachedPodKey := ipsMgr.setMap[setname].Elements[ip]
+	cachedPodKey := ipsMgr.setMap[setname].elements[ip]
 	if cachedPodKey != pod2 {
 		t.Errorf("setname: %s, hashedname: %s is added with wrong cachedPodKey: %s, expected: %s",
 			setname, util.GetHashedName(setname), cachedPodKey, pod2)

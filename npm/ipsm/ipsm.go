@@ -46,24 +46,24 @@ type IpsetManager struct {
 // Ipset represents one ipset entry.
 type Ipset struct {
 	name       string
-	Elements   map[string]string // key = ip, value: context associated to the ip like podKey
-	ReferCount int
+	elements   map[string]string // key = ip, value: context associated to the ip like podKey
+	referCount int
 }
 
 func (ipset *Ipset) incReferCount() {
-	ipset.ReferCount++
+	ipset.referCount++
 }
 
 func (ipset *Ipset) decReferCount() {
-	ipset.ReferCount--
+	ipset.referCount--
 }
 
 // NewIpset creates a new instance for Ipset object.
 func newIpset(setName string) *Ipset {
 	return &Ipset{
 		name:       setName,
-		Elements:   make(map[string]string),
-		ReferCount: 0,
+		elements:   make(map[string]string),
+		referCount: 0,
 	}
 }
 
@@ -111,7 +111,7 @@ func (ipsMgr *IpsetManager) exists(listName string, setName string, kind string)
 		return false
 	}
 
-	if _, exists := m[listName].Elements[setName]; !exists {
+	if _, exists := m[listName].elements[setName]; !exists {
 		return false
 	}
 
@@ -166,7 +166,7 @@ func (ipsMgr *IpsetManager) deleteList(listName string) error {
 		set:           util.GetHashedName(listName),
 	}
 
-	if ipsMgr.listMap[listName].ReferCount > 0 {
+	if ipsMgr.listMap[listName].referCount > 0 {
 		ipsMgr.IpSetReferIncOrDec(listName, util.IpsetSetListFlag, DecrementOp)
 		return nil
 	}
@@ -358,7 +358,7 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		metrics.AddEntryToIPSet(listName)
 	}
 
-	ipsMgr.listMap[listName].Elements[setName] = ""
+	ipsMgr.listMap[listName].elements[setName] = ""
 
 	return nil
 }
@@ -410,10 +410,10 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 	}
 
 	// Now cleanup the cache. Do nothing if the specified key doesn't exist.
-	delete(ipsMgr.listMap[listName].Elements, setName)
+	delete(ipsMgr.listMap[listName].elements, setName)
 	metrics.RemoveEntryFromIPSet(listName)
 
-	if len(ipsMgr.listMap[listName].Elements) == 0 {
+	if len(ipsMgr.listMap[listName].elements) == 0 {
 		if err := ipsMgr.deleteList(listName); err != nil {
 			metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to delete ipset list %s.", listName)
 			return err
@@ -444,12 +444,12 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 
 	if ipsMgr.exists(setName, ip, spec) {
 		// make sure we have updated the podKey in case it gets changed
-		cachedPodKey := ipsMgr.setMap[setName].Elements[ip]
+		cachedPodKey := ipsMgr.setMap[setName].elements[ip]
 		if cachedPodKey != podKey {
 			log.Logf("AddToSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Replace context with new PodOwner.",
 				ip, setName, cachedPodKey, podKey)
 
-			ipsMgr.setMap[setName].Elements[ip] = podKey
+			ipsMgr.setMap[setName].elements[ip] = podKey
 		}
 
 		return nil
@@ -499,7 +499,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	}
 
 	// Stores the podKey as the context for this ip.
-	ipsMgr.setMap[setName].Elements[ip] = podKey
+	ipsMgr.setMap[setName].elements[ip] = podKey
 	return nil
 }
 
@@ -524,9 +524,9 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 		return fmt.Errorf("Failed to add IP to set [%s], the ip to be added was empty", setName)
 	}
 
-	if _, exists := ipsMgr.setMap[setName].Elements[ip]; exists {
+	if _, exists := ipsMgr.setMap[setName].elements[ip]; exists {
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
-		cachedPodKey := ipSet.Elements[ip]
+		cachedPodKey := ipSet.elements[ip]
 		if cachedPodKey != podKey {
 			log.Logf("DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Ignore the delete as this is stale update",
 				ip, setName, cachedPodKey, podKey)
@@ -552,10 +552,10 @@ func (ipsMgr *IpsetManager) DeleteFromSet(setName, ip, podKey string) error {
 	}
 
 	// Now cleanup the cache
-	delete(ipsMgr.setMap[setName].Elements, ip)
+	delete(ipsMgr.setMap[setName].elements, ip)
 	metrics.RemoveEntryFromIPSet(setName)
 
-	if len(ipsMgr.setMap[setName].Elements) == 0 {
+	if len(ipsMgr.setMap[setName].elements) == 0 {
 		if err := ipsMgr.deleteSet(setName); err != nil {
 			return err
 		}
