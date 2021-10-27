@@ -1,6 +1,7 @@
 package policies
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -150,14 +151,15 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 	command := pMgr.ioShim.Exec.Command(util.Iptables, allArgs...)
 	output, err := command.CombinedOutput()
 
-	if msg, ok := err.(utilexec.ExitError); ok {
-		errCode := msg.ExitStatus()
+	var exitError utilexec.ExitError
+	if ok := errors.As(err, &exitError); ok {
+		errCode := exitError.ExitStatus()
 		allArgsString := strings.Join(allArgs, " ")
 		msgStr := strings.TrimSuffix(string(output), "\n")
 		if errCode > 0 && operationFlag != util.IptablesCheckFlag {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, err, msgStr)
+			metrics.SendErrorLogAndMetric(util.IptmID, "Error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, msgStr)
 		}
-		return errCode, npmerrors.SimpleErrorf("failed to run iptables command [%s %s] Stderr: [%w %s]", util.Iptables, allArgsString, err, msgStr)
+		return errCode, npmerrors.SimpleErrorf("failed to run iptables command [%s %s] Stderr: [%w %s]", util.Iptables, allArgsString, exitError, msgStr)
 	}
 	return 0, nil
 }
