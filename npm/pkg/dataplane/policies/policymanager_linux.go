@@ -20,7 +20,7 @@ const (
 )
 
 // shouldn't call this if the np has no ACLs (check in generic)
-func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ []string) error {
+func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
 	// TODO check for newPolicy errors
 	creator := pMgr.getCreatorForNewNetworkPolicies(networkPolicy)
 	err := restore(creator)
@@ -30,8 +30,7 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ []string
 	return nil
 }
 
-func (pMgr *PolicyManager) removePolicy(name string, _ []string) error {
-	networkPolicy := pMgr.policyMap.cache[name]
+func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
 	deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
 	if deleteErr != nil {
 		return npmerrors.SimpleErrorf("failed to delete jumps to policy chains: %w", deleteErr)

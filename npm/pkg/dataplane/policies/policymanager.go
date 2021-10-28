@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	"k8s.io/klog"
 )
 
 type PolicyMap struct {
@@ -25,6 +26,10 @@ func NewPolicyManager(ioShim *common.IOShim) *PolicyManager {
 	}
 }
 
+func (pMgr *PolicyManager) Reset() error {
+	return pMgr.reset()
+}
+
 func (pMgr *PolicyManager) PolicyExists(name string) bool {
 	_, ok := pMgr.policyMap.cache[name]
 	return ok
@@ -35,10 +40,15 @@ func (pMgr *PolicyManager) GetPolicy(name string) (*NPMNetworkPolicy, bool) {
 	return policy, ok
 }
 
-func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList []string) error {
+func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
+	if len(policy.ACLs) == 0 {
+		klog.Infof("[DataPlane] No ACLs in policy %s to apply", policy.Name)
+		return nil
+	}
 	if err := checkForErrors(policy); err != nil {
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("couldn't add malformed policy: %s", err.Error()))
 	}
+
 	// Call actual dataplane function to apply changes
 	err := pMgr.addPolicy(policy, endpointList)
 	if err != nil {
@@ -49,12 +59,18 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList []st
 	return nil
 }
 
-func (pMgr *PolicyManager) RemovePolicy(name string, endpointList []string) error {
-	if !pMgr.PolicyExists(name) {
+func (pMgr *PolicyManager) RemovePolicy(name string, endpointList map[string]string) error {
+	policy, ok := pMgr.GetPolicy(name)
+	if !ok {
+		return nil
+	}
+
+	if len(policy.ACLs) == 0 {
+		klog.Infof("[DataPlane] No ACLs in policy %s to remove", policy.Name)
 		return nil
 	}
 	// Call actual dataplane function to apply changes
-	err := pMgr.removePolicy(name, endpointList)
+	err := pMgr.removePolicy(policy, endpointList)
 	if err != nil {
 		return npmerrors.Errorf(npmerrors.RemovePolicy, false, fmt.Sprintf("failed to remove policy: %v", err))
 	}
@@ -73,9 +89,9 @@ func checkForErrors(networkPolicies ...*NPMNetworkPolicy) error {
 			if !aclPolicy.hasKnownDirection() {
 				return npmerrors.SimpleErrorf("ACL policy %s has unknown direction", aclPolicy.PolicyID)
 			}
-			if !aclPolicy.hasKnownProtocol() {
-				return npmerrors.SimpleErrorf("ACL policy %s has unknown protocol (set to All if desired)", aclPolicy.PolicyID)
-			}
+			// if !aclPolicy.hasKnownProtocol() {
+			// 	return npmerrors.SimpleErrorf("ACL policy %s has unknown protocol (set to All if desired)", aclPolicy.PolicyID)
+			// }
 			if !aclPolicy.satisifiesPortAndProtocolConstraints() {
 				return npmerrors.SimpleErrorf(
 					"ACL policy %s has multiple src or dst ports, so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s",

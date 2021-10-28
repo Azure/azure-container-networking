@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
-	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	kubecontroller "github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
@@ -292,7 +292,7 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 	)
 
 	nodeRegisterRequest.NumCPU = numCPU
-	supportedApis, retErr := nmagentclient.GetNmAgentSupportedApis(httpc, "")
+	supportedApis, retErr := nmagent.GetNmAgentSupportedApis(httpc, "")
 
 	if retErr != nil {
 		logger.Errorf("[Azure CNS] Failed to retrieve SupportedApis from NMagent of node %s with Infrastructure Network: %s PrivateEndpoint: %s",
@@ -431,7 +431,7 @@ func main() {
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
 	if cnsconfig.WireserverIP != "" {
-		nmagentclient.WireserverIP = cnsconfig.WireserverIP
+		nmagent.WireserverIP = cnsconfig.WireserverIP
 	}
 
 	if cnsconfig.ChannelMode == cns.Managed {
@@ -480,7 +480,7 @@ func main() {
 		return
 	}
 
-	nmaclient, err := nmagentclient.NewNMAgentClient("")
+	nmaclient, err := nmagent.NewClient("")
 	if err != nil {
 		logger.Errorf("Failed to start nmagent client due to error %v", err)
 		return
@@ -766,11 +766,13 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs * time.Millisecond)
+		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs)
 		for {
 			select {
 			case <-tickerChannel:
-				httpRestServiceImpl.SyncHostNCVersion(ctx, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+				timedCtx, cancel := context.WithTimeout(ctx, cnsconfig.SyncHostNCTimeoutMs)
+				httpRestServiceImpl.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
+				cancel()
 			case <-ctx.Done():
 				return
 			}
@@ -924,7 +926,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		for {
 			select {
 			case <-tickerChannel:
-				httpRestServiceImplementation.SyncHostNCVersion(ctx, cnsconfig.ChannelMode, cnsconfig.SyncHostNCTimeoutMs)
+				timedCtx, cancel := context.WithTimeout(ctx, cnsconfig.SyncHostNCTimeoutMs)
+				httpRestServiceImplementation.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
+				cancel()
 			case <-ctx.Done():
 				return
 			}

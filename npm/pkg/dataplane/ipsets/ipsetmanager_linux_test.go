@@ -81,19 +81,19 @@ func TestApplyCreationsAndAdds(t *testing.T) {
 	lines = append(lines, getSortedLines(TestNestedLabelList)...)
 	expectedFileString := strings.Join(lines, "\n") + "\n"
 
-	iMgr.CreateIPSet(TestNSSet.Metadata)
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
-	iMgr.CreateIPSet(TestKeyPodSet.Metadata)
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestKeyPodSet.Metadata}, "10.0.0.5", "c"))
-	iMgr.CreateIPSet(TestKVPodSet.Metadata)
-	iMgr.CreateIPSet(TestNamedportSet.Metadata)
-	iMgr.CreateIPSet(TestCIDRSet.Metadata)
-	iMgr.CreateIPSet(TestKeyNSList.Metadata)
-	require.NoError(t, iMgr.AddToList(TestKeyNSList.Metadata, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
-	iMgr.CreateIPSet(TestKVNSList.Metadata)
-	require.NoError(t, iMgr.AddToList(TestKVNSList.Metadata, []*IPSetMetadata{TestKVPodSet.Metadata}))
-	iMgr.CreateIPSet(TestNestedLabelList.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyPodSet.Metadata})
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestKeyPodSet.Metadata}, "10.0.0.5", "c"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKVPodSet.Metadata})
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNamedportSet.Metadata})
+	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyNSList.Metadata})
+	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKeyNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKVNSList.Metadata})
+	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKVNSList.Metadata}, []*IPSetMetadata{TestKVPodSet.Metadata}))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNestedLabelList.Metadata})
 	toAddOrUpdateSetNames := []string{
 		TestNSSet.PrefixName,
 		TestKeyPodSet.PrefixName,
@@ -120,17 +120,17 @@ func TestApplyDeletions(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, common.NewMockIOShim(calls))
 
 	// Remove members and delete others
-	iMgr.CreateIPSet(TestNSSet.Metadata)
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
-	iMgr.CreateIPSet(TestKeyPodSet.Metadata)
-	iMgr.CreateIPSet(TestKeyNSList.Metadata)
-	require.NoError(t, iMgr.AddToList(TestKeyNSList.Metadata, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
-	require.NoError(t, iMgr.RemoveFromSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyPodSet.Metadata})
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyNSList.Metadata})
+	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKeyNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
+	require.NoError(t, iMgr.RemoveFromSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
 	require.NoError(t, iMgr.RemoveFromList(TestKeyNSList.Metadata, []*IPSetMetadata{TestKeyPodSet.Metadata}))
-	iMgr.CreateIPSet(TestCIDRSet.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
-	iMgr.CreateIPSet(TestNestedLabelList.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNestedLabelList.Metadata})
 	iMgr.DeleteIPSet(TestNestedLabelList.PrefixName)
 
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName, TestNestedLabelList.PrefixName}
@@ -170,12 +170,12 @@ func TestFailureOnCreation(t *testing.T) {
 	calls := []testutils.TestCmd{setAlreadyExistsCommand, fakeRestoreSuccessCommand}
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, common.NewMockIOShim(calls))
 
-	iMgr.CreateIPSet(TestNSSet.Metadata)
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
-	iMgr.CreateIPSet(TestKeyPodSet.Metadata)
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestKeyPodSet.Metadata}, "10.0.0.5", "c"))
-	iMgr.CreateIPSet(TestCIDRSet.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyPodSet.Metadata})
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestKeyPodSet.Metadata}, "10.0.0.5", "c"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
 
 	toAddOrUpdateSetNames := []string{TestNSSet.PrefixName, TestKeyPodSet.PrefixName}
@@ -213,14 +213,14 @@ func TestFailureOnAddToList(t *testing.T) {
 	calls := []testutils.TestCmd{setAlreadyExistsCommand, fakeRestoreSuccessCommand}
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, common.NewMockIOShim(calls))
 
-	iMgr.CreateIPSet(TestNSSet.Metadata)
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
-	iMgr.CreateIPSet(TestKeyPodSet.Metadata)
-	iMgr.CreateIPSet(TestKeyNSList.Metadata)
-	require.NoError(t, iMgr.AddToList(TestKeyNSList.Metadata, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
-	iMgr.CreateIPSet(TestKVNSList.Metadata)
-	require.NoError(t, iMgr.AddToList(TestKVNSList.Metadata, []*IPSetMetadata{TestNSSet.Metadata}))
-	iMgr.CreateIPSet(TestCIDRSet.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyPodSet.Metadata})
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyNSList.Metadata})
+	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKeyNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKVNSList.Metadata})
+	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKVNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata}))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
 
 	toAddOrUpdateSetNames := []string{
@@ -277,11 +277,11 @@ func TestFailureOnFlush(t *testing.T) {
 	calls := []testutils.TestCmd{setAlreadyExistsCommand, fakeRestoreSuccessCommand}
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, common.NewMockIOShim(calls))
 
-	iMgr.CreateIPSet(TestNSSet.Metadata)
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
-	iMgr.CreateIPSet(TestKVPodSet.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKVPodSet.Metadata})
 	iMgr.DeleteIPSet(TestKVPodSet.PrefixName)
-	iMgr.CreateIPSet(TestCIDRSet.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
 
 	toAddOrUpdateSetNames := []string{TestNSSet.PrefixName}
@@ -318,11 +318,11 @@ func TestFailureOnDeletion(t *testing.T) {
 	calls := []testutils.TestCmd{setAlreadyExistsCommand, fakeRestoreSuccessCommand}
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, common.NewMockIOShim(calls))
 
-	iMgr.CreateIPSet(TestNSSet.Metadata)
-	require.NoError(t, iMgr.AddToSet([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
-	iMgr.CreateIPSet(TestKVPodSet.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
+	iMgr.CreateIPSets([]*IPSetMetadata{TestKVPodSet.Metadata})
 	iMgr.DeleteIPSet(TestKVPodSet.PrefixName)
-	iMgr.CreateIPSet(TestCIDRSet.Metadata)
+	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
 
 	toAddOrUpdateSetNames := []string{TestNSSet.PrefixName}

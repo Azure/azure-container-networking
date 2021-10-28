@@ -326,9 +326,9 @@ func (nsc *NamespaceController) syncAddNamespace(nsObj *corev1.Namespace) error 
 		npmNs.appendLabels(map[string]string{nsLabelKey: nsLabelVal}, appendToExistingLabels)
 	}
 
-	nsc.dp.CreateIPSet(append(namespaceSets, setsToAddNamespaceTo...))
+	nsc.dp.CreateIPSets(append(namespaceSets, setsToAddNamespaceTo...))
 
-	if err := nsc.dp.AddToLists(setsToAddNamespaceTo, namespaceSets, nil); err != nil {
+	if err := nsc.dp.AddToLists(setsToAddNamespaceTo, namespaceSets); err != nil {
 		return fmt.Errorf("failed to sync add namespace with error %w", err)
 	}
 
@@ -365,7 +365,7 @@ func (nsc *NamespaceController) syncUpdateNamespace(newNsObj *corev1.Namespace) 
 		toBeAdded := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(newNsName, ipsets.Namespace)}
 
 		klog.Infof("Deleting namespace %s from ipset list %s", newNsName, labelKey)
-		if err = nsc.dp.RemoveFromList(labelKeySet, toBeAdded, nil); err != nil {
+		if err = nsc.dp.RemoveFromList(labelKeySet, toBeAdded); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", newNsName, labelKey, err)
 			return fmt.Errorf("failed to remove from list during sync update namespace with err %w", err)
 		}
@@ -385,7 +385,7 @@ func (nsc *NamespaceController) syncUpdateNamespace(newNsObj *corev1.Namespace) 
 		labelKeySet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(nsLabelVal, ipsets.KeyLabelOfNamespace)}
 		toBeAdded := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(newNsName, ipsets.Namespace)}
 
-		if err = nsc.dp.AddToLists(labelKeySet, toBeAdded, nil); err != nil {
+		if err = nsc.dp.AddToLists(labelKeySet, toBeAdded); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to add namespace %s to ipset list %s with err: %v", newNsName, nsLabelVal, err)
 			return fmt.Errorf("failed to add %v sets to %v lists during addtolists in sync update namespace with err %w", toBeAdded, labelKeySet, err)
 		}
@@ -425,7 +425,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 
 		labelIpsetName := util.GetNSNameWithPrefix(nsLabelKey)
 		klog.Infof("Deleting namespace %s from ipset list %s", cachedNsKey, labelIpsetName)
-		if err = nsc.dp.RemoveFromList(labelKey, toBeDeletedKey, nil); err != nil {
+		if err = nsc.dp.RemoveFromList(labelKey, toBeDeletedKey); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, labelIpsetName, err)
 			return fmt.Errorf("failed to clean deleted namespace when deleting key with err %w", err)
 		}
@@ -435,7 +435,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 
 		labelIpsetName = util.GetNSNameWithPrefix(util.GetIpSetFromLabelKV(nsLabelKey, nsLabelVal))
 		klog.Infof("Deleting namespace %s from ipset list %s", cachedNsKey, labelIpsetName)
-		if err = nsc.dp.RemoveFromList(labelKeyValue, toBeDeletedKeyValue, nil); err != nil {
+		if err = nsc.dp.RemoveFromList(labelKeyValue, toBeDeletedKeyValue); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, labelIpsetName, err)
 			return fmt.Errorf("failed to clean deleted namespace when deleting key value with err %w", err)
 		}
@@ -448,7 +448,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 	toBeDeletedCachedKey := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(cachedNsKey, ipsets.Namespace)}
 
 	// Delete the namespace from all-namespace ipset list.
-	if err = nsc.dp.RemoveFromList(allNamespacesSet, toBeDeletedCachedKey, nil); err != nil {
+	if err = nsc.dp.RemoveFromList(allNamespacesSet, toBeDeletedCachedKey); err != nil {
 		metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, util.KubeAllNamespacesFlag, err)
 		return fmt.Errorf("failed to remove from list during clean deleted namespace %w", err)
 	}

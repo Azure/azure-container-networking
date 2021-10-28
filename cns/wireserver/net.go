@@ -14,15 +14,11 @@ var (
 )
 
 func GetPrimaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, error) {
-	interfaceInfo := &InterfaceInfo{}
-	found := false
-	// For each interface.
 	for _, i := range res.Interface {
 		// skip if not primary
 		if !i.IsPrimary {
 			continue
 		}
-		interfaceInfo.IsPrimary = true
 
 		// skip if no subnets
 		if len(i.IPSubnet) == 0 {
@@ -31,27 +27,26 @@ func GetPrimaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, er
 
 		// get the first subnet
 		s := i.IPSubnet[0]
-		interfaceInfo.Subnet = s.Prefix
 		gw, err := calculateGatewayIP(s.Prefix)
 		if err != nil {
 			return nil, err
 		}
-		interfaceInfo.Gateway = gw.String()
+
+		primaryIP := ""
 		for _, ip := range s.IPAddress {
 			if ip.IsPrimary {
-				interfaceInfo.PrimaryIP = ip.Address
+				primaryIP = ip.Address
 			}
 		}
 
-		found = true
-		break
+		return &InterfaceInfo{
+			Subnet:    s.Prefix,
+			IsPrimary: true,
+			Gateway:   gw.String(),
+			PrimaryIP: primaryIP,
+		}, nil
 	}
-
-	if !found {
-		return nil, ErrNoPrimaryInterface
-	}
-
-	return interfaceInfo, nil
+	return nil, ErrNoPrimaryInterface
 }
 
 // calculateGatewayIP parses the passed CIDR string and returns the first IP in the range.

@@ -13,6 +13,7 @@ type HnsV2WrapperInterface interface {
 	DeleteEndpoint(endpoint *hcn.HostComputeEndpoint) error
 	CreateNetwork(network *hcn.HostComputeNetwork) (*hcn.HostComputeNetwork, error)
 	DeleteNetwork(network *hcn.HostComputeNetwork) error
+	ModifyNetworkSettings(network *hcn.HostComputeNetwork, request *hcn.ModifyNetworkSettingRequest) error
 	AddNetworkPolicy(network *hcn.HostComputeNetwork, networkPolicy hcn.PolicyNetworkRequest) error
 	RemoveNetworkPolicy(network *hcn.HostComputeNetwork, networkPolicy hcn.PolicyNetworkRequest) error
 	GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeNamespace, error)

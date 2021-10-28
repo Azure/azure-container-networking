@@ -102,7 +102,7 @@ func TestRemovePolicies(t *testing.T) {
 
 	err := pMgr.AddPolicy(testNetworkPolicies[0], nil) // need the policy in the cache
 	require.NoError(t, err)
-	err = pMgr.removePolicy(testNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
 	require.NoError(t, err)
 }
 

@@ -41,11 +41,12 @@ type CacheKey string
 
 // NPMCache Key Contract for Json marshal and unmarshal
 const (
-	NodeName CacheKey = "NodeName"
-	NsMap    CacheKey = "NsMap"
-	PodMap   CacheKey = "PodMap"
-	ListMap  CacheKey = "ListMap"
-	SetMap   CacheKey = "SetMap"
+	NodeName    CacheKey = "NodeName"
+	NsMap       CacheKey = "NsMap"
+	PodMap      CacheKey = "PodMap"
+	ListMap     CacheKey = "ListMap"
+	SetMap      CacheKey = "SetMap"
+	EnvNodeName          = "HOSTNAME"
 )
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
@@ -97,7 +98,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 		ipsMgr:              ipsm.NewIpsetManager(exec),
 		npmNamespaceCacheV1: &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*controllersv1.Namespace)},
 		k8sServerVersion:    k8sServerVersion,
-		NodeName:            os.Getenv("HOSTNAME"),
+		NodeName:            GetNodeName(),
 		version:             npmVersion,
 		TelemetryEnabled:    true,
 	}
@@ -253,4 +254,9 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 	go npMgr.netPolController.runPeriodicTasks(stopCh)
 
 	return nil
+}
+
+func GetNodeName() string {
+	nodeName := os.Getenv(EnvNodeName)
+	return nodeName
 }

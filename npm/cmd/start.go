@@ -9,11 +9,13 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -105,7 +107,15 @@ func start(config npmconfig.Config) error {
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
 	k8sServerVersion := k8sServerVersion(clientset)
-	npMgr := npm.NewNetworkPolicyManager(config, factory, nil, exec.New(), version, k8sServerVersion)
+
+	var dp dataplane.GenericDataplane
+	if config.Toggles.EnableV2Controllers {
+		dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim())
+		if err != nil {
+			return fmt.Errorf("failed to create dataplane with error %w", err)
+		}
+	}
+	npMgr := npm.NewNetworkPolicyManager(config, factory, dp, exec.New(), version, k8sServerVersion)
 	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v.", err)

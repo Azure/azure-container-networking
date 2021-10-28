@@ -41,8 +41,8 @@
          "enableAutomaticUpdates": false,
          "sshEnabled": true,
          "windowsPublisher": "MicrosoftWindowsServer",
-         "windowsOffer": "WindowsServerSemiAnnual",
-         "windowsSku": "Datacenter-Core-1809-with-Containers-smalldisk",
+         "windowsOffer": "WindowsServer",
+         "windowsSku": "datacenter-core-2004-with-containers-smalldisk",
          "imageVersion": "latest"
       },
       "linuxProfile": {
