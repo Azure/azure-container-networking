@@ -8,17 +8,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func AssertEqualFileStrings(t *testing.T, expectedFileString, actualFileString string) {
-	if expectedFileString == actualFileString {
+func AssertEqualMultilineStrings(t *testing.T, expectedMultilineString, actualMultilineString string) {
+	if expectedMultilineString == actualMultilineString {
 		return
 	}
 	fmt.Println("EXPECTED FILE STRING:")
-	expectedLines := strings.Split(expectedFileString, "\n")
+	expectedLines := strings.Split(expectedMultilineString, "\n")
 	for _, line := range expectedLines {
 		fmt.Println(line)
 	}
 	fmt.Println("ACTUAL FILE STRING")
-	actualLines := strings.Split(actualFileString, "\n")
+	actualLines := strings.Split(actualMultilineString, "\n")
 	for _, line := range actualLines {
 		fmt.Println(line)
 	}

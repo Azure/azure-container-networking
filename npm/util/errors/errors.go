@@ -42,6 +42,11 @@ var (
 
 // Error labels for ipsetmanager
 const (
+	InitializeDataPlane     = "InitializeDataPlane"
+	ResetDataPlane          = "ResetDataPlane"
+	InitializePolicyMgr     = "InitializePolicyManager"
+	ResetPolicyMgr          = "ResetPolicyManager"
+	ResetIPSets             = "ResetIPSets"
 	CreateIPSet             = "CreateIPSet"
 	AppendIPSet             = "AppendIPSet"
 	DeleteIPSet             = "DeleteIPSet"
@@ -126,6 +131,16 @@ func Errorf(operation string, isRetriable bool, errstring string) *NPMError {
 	}
 }
 
+func ErrorWrapper(operation string, isRetriable bool, errstring string, err error) *NPMError {
+	return &NPMError{
+		OperationAction: operation,
+		IsRetriable:     false,
+		FullCmd:         []string{},
+		ErrID:           Unknown,
+		Err:             fmt.Errorf("%s: %w", errstring, err),
+	}
+}
+
 func Error(operation string, isRetriable bool, err error) *NPMError {
 	return &NPMError{
 		OperationAction: operation,
@@ -176,8 +191,12 @@ type NPMSimpleError struct {
 	Err error
 }
 
-func SimpleErrorf(messageFormat string, args ...interface{}) *NPMSimpleError {
-	return &NPMSimpleError{fmt.Errorf(messageFormat, args...)}
+func SimpleError(errstring string) *NPMSimpleError {
+	return nil
+}
+
+func SimpleErrorWrapper(errstring string, err error) *NPMSimpleError {
+	return &NPMSimpleError{fmt.Errorf("%s: %w", errstring, err)}
 }
 
 func (n *NPMSimpleError) Error() string {

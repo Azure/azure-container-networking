@@ -25,7 +25,7 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 	creator := pMgr.getCreatorForNewNetworkPolicies(networkPolicy)
 	err := restore(creator)
 	if err != nil {
-		return npmerrors.SimpleErrorf("failed to restore iptables with updated policies: %w", err)
+		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
 	}
 	return nil
 }
@@ -33,12 +33,12 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
 	deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
 	if deleteErr != nil {
-		return npmerrors.SimpleErrorf("failed to delete jumps to policy chains: %w", deleteErr)
+		return npmerrors.SimpleErrorWrapper("failed to delete jumps to policy chains", deleteErr)
 	}
 	creator := pMgr.getCreatorForRemovingPolicies(networkPolicy)
 	restoreErr := restore(creator)
 	if restoreErr != nil {
-		return npmerrors.SimpleErrorf("failed to flush policies:  %w", restoreErr)
+		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
 	}
 	return nil
 }
@@ -46,7 +46,7 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 func restore(creator *ioutil.FileCreator) error {
 	err := creator.RunCommandWithFile(util.IptablesRestore, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
 	if err != nil {
-		return npmerrors.SimpleErrorf("failed to restore iptables file: %w", err)
+		return npmerrors.SimpleErrorWrapper("failed to restore iptables file", err)
 	}
 	return nil
 }
@@ -145,9 +145,9 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, isIngress bo
 	specs = append([]string{baseChainName}, specs...)
 	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
 	if err != nil && errCode != couldntLoadTargetErrorCode {
-		errorFormat := "failed to delete jump from %s chain to %s chain for policy %s with error [%w] and exit code %d"
-		log.Errorf(errorFormat, baseChainName, chainName, policy.Name, err, errCode)
-		return npmerrors.SimpleErrorf(errorFormat, chainName, policy.Name, err, errCode)
+		errorString := fmt.Sprintf("failed to delete jump from %s chain to %s chain for policy %s with exit code %d", baseChainName, chainName, policy.Name, errCode)
+		log.Errorf(errorString+": %w", err)
+		return npmerrors.SimpleErrorWrapper(errorString, err)
 	}
 	return nil
 }

@@ -65,7 +65,7 @@ var (
 func TestAddPolicy(t *testing.T) {
 	netpol := &NPMNetworkPolicy{}
 
-	calls := getAddPolicyTestCalls(netpol)
+	calls := GetAddPolicyTestCalls(netpol)
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 
 	require.NoError(t, pMgr.AddPolicy(netpol, epList))
@@ -85,8 +85,7 @@ func TestGetPolicy(t *testing.T) {
 		},
 	}
 
-	calls := getAddPolicyTestCalls(netpol)
-	calls = append(calls, getRemovePolicyTestCalls(netpol)...)
+	calls := append(GetAddPolicyTestCalls(netpol), GetRemovePolicyTestCalls(netpol)...)
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 
 	require.NoError(t, pMgr.AddPolicy(netpol, epList))
@@ -99,8 +98,7 @@ func TestGetPolicy(t *testing.T) {
 }
 
 func TestRemovePolicy(t *testing.T) {
-	calls := getAddPolicyTestCalls(testNetPol)
-	calls = append(calls, getRemovePolicyTestCalls(testNetPol)...)
+	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyTestCalls(testNetPol)...)
 	fmt.Println(calls)
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 

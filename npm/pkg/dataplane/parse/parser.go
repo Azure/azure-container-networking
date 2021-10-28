@@ -93,7 +93,7 @@ func parseIptablesChainObject(tableName string, iptableBuffer []byte) map[string
 			}
 		} else if line[0] == '-' && len(line) > 1 {
 			// rules
-			chainName, ruleStartIndex := GetChainNameFromRuleLine(line)
+			chainName, ruleStartIndex := parseChainNameFromRuleLine(line)
 			iptableChain, ok := chainMap[chainName]
 			if !ok {
 				iptableChain = &NPMIPtable.Chain{Name: chainName, Data: []byte{}, Rules: make([]*NPMIPtable.Rule, 0)}
@@ -145,8 +145,8 @@ func Line(readIndex int, iptableBuffer []byte) ([]byte, int) {
 	return iptableBuffer[leftLineIndex : lastNonWhiteSpaceIndex+1], curReadIndex
 }
 
-// GetChainNameFromRuleLine gets the chain name from given rule line.
-func GetChainNameFromRuleLine(ruleLine []byte) (chainName string, ruleReadIndex int) {
+// parseChainNameFromRuleLine  gets the chain name from given rule line.
+func parseChainNameFromRuleLine(ruleLine []byte) (chainName string, ruleReadIndex int) {
 	spaceIndex := bytes.Index(ruleLine, SpaceBytes)
 	if spaceIndex == -1 {
 		panic(fmt.Sprintf("Unexpected chain line in iptables-save output: %v", string(ruleLine)))

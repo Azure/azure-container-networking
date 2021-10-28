@@ -50,6 +50,37 @@ type ACLPolicy struct {
 	Protocol Protocol
 }
 
+func (aclPolicy *ACLPolicy) hasKnownDirection() bool {
+	return aclPolicy.Direction == Ingress ||
+		aclPolicy.Direction == Egress ||
+		aclPolicy.Direction == Both
+}
+
+func (aclPolicy *ACLPolicy) hasIngress() bool {
+	return aclPolicy.Direction == Ingress || aclPolicy.Direction == Both
+}
+
+func (aclPolicy *ACLPolicy) hasEgress() bool {
+	return aclPolicy.Direction == Egress || aclPolicy.Direction == Both
+}
+
+func (aclPolicy *ACLPolicy) hasKnownProtocol() bool {
+	return aclPolicy.Protocol != "" && (aclPolicy.Protocol == TCP ||
+		aclPolicy.Protocol == UDP ||
+		aclPolicy.Protocol == SCTP ||
+		aclPolicy.Protocol == ICMP ||
+		aclPolicy.Protocol == AnyProtocol)
+}
+
+func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
+	return aclPolicy.Target == Allowed || aclPolicy.Target == Dropped
+}
+
+func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
+	return aclPolicy.Protocol != AnyProtocol ||
+		(len(aclPolicy.SrcPorts) == 0 && len(aclPolicy.DstPorts) == 0)
+}
+
 // SetInfo helps capture additional details in a matchSet
 // example match set in linux:
 //             ! azure-npm-123 src,src
@@ -69,6 +100,19 @@ type SetInfo struct {
 type Ports struct {
 	Port    int32
 	EndPort int32
+}
+
+func (portRange *Ports) isValidRange() bool {
+	return portRange.Port <= portRange.EndPort
+}
+
+func (portRange *Ports) toIPTablesString() string {
+	start := strconv.Itoa(int(portRange.Port))
+	if portRange.Port == portRange.EndPort {
+		return start
+	}
+	end := strconv.Itoa(int(portRange.EndPort))
+	return start + ":" + end
 }
 
 type Verdict string
@@ -115,84 +159,21 @@ const (
 	DstSrcMatch MatchType = 5
 )
 
-func (policy *ACLPolicy) hasKnownDirection() bool {
-	return policy.Direction == Ingress ||
-		policy.Direction == Egress ||
-		policy.Direction == Both
-}
-
-func (policy *ACLPolicy) hasIngress() bool {
-	return policy.Direction == Ingress || policy.Direction == Both
-}
-
-func (policy *ACLPolicy) hasEgress() bool {
-	return policy.Direction == Egress || policy.Direction == Both
-}
-
-func (policy *ACLPolicy) hasKnownProtocol() bool {
-	return policy.Protocol != "" && (policy.Protocol == TCP ||
-		policy.Protocol == UDP ||
-		policy.Protocol == SCTP ||
-		policy.Protocol == ICMP ||
-		policy.Protocol == AnyProtocol)
-}
-
-func (policy *ACLPolicy) hasKnownTarget() bool {
-	return policy.Target == Allowed || policy.Target == Dropped
-}
-
-func (portRange *Ports) isValidRange() bool {
-	return portRange.Port <= portRange.EndPort
-}
-
-var matchTypeStrings = make(map[MatchType]string)
-
-func initMatchTypeStrings() {
-	if len(matchTypeStrings) == 0 {
-		matchTypeStrings[SrcMatch] = util.IptablesSrcFlag
-		matchTypeStrings[DstMatch] = util.IptablesDstFlag
-		matchTypeStrings[SrcSrcMatch] = util.IptablesSrcFlag + "," + util.IptablesSrcFlag
-		matchTypeStrings[DstDstMatch] = util.IptablesDstFlag + "," + util.IptablesDstFlag
-		matchTypeStrings[SrcDstMatch] = util.IptablesSrcFlag + "," + util.IptablesDstFlag
-		matchTypeStrings[DstSrcMatch] = util.IptablesDstFlag + "," + util.IptablesSrcFlag
-	}
+var matchTypeStrings = map[MatchType]string{
+	SrcMatch:    util.IptablesSrcFlag,
+	DstMatch:    util.IptablesDstFlag,
+	SrcSrcMatch: util.IptablesSrcFlag + "," + util.IptablesSrcFlag,
+	DstDstMatch: util.IptablesDstFlag + "," + util.IptablesDstFlag,
+	SrcDstMatch: util.IptablesSrcFlag + "," + util.IptablesDstFlag,
+	DstSrcMatch: util.IptablesDstFlag + "," + util.IptablesSrcFlag,
 }
 
 // match type is only used in Linux
 func (setInfo *SetInfo) hasKnownMatchType() bool {
-	initMatchTypeStrings()
 	_, exists := matchTypeStrings[setInfo.MatchType]
 	return exists
 }
 
 func (matchType MatchType) toIPTablesString() string {
-	initMatchTypeStrings()
 	return matchTypeStrings[matchType]
-}
-
-func (portRange *Ports) toIPTablesString() string {
-	start := strconv.Itoa(int(portRange.Port))
-	if portRange.Port == portRange.EndPort {
-		return start
-	}
-	end := strconv.Itoa(int(portRange.EndPort))
-	return start + ":" + end
-}
-
-func (policy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
-	return policy.Protocol != AnyProtocol ||
-		(len(policy.SrcPorts) == 0 && len(policy.DstPorts) == 0)
-}
-
-func (networkPolicy *NPMNetworkPolicy) hasSamePodSelector(otherNetworkPolicy *NPMNetworkPolicy) bool {
-	if len(networkPolicy.PodSelectorIPSets) != len(otherNetworkPolicy.PodSelectorIPSets) {
-		return false
-	}
-	for k, ipset := range networkPolicy.PodSelectorIPSets {
-		otherIPSet := otherNetworkPolicy.PodSelectorIPSets[k]
-		if !ipset.Equals(otherIPSet) {
-			return false
-		}
-	}
-	return true
 }

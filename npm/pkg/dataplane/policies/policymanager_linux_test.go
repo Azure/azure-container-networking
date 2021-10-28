@@ -13,9 +13,6 @@ import (
 )
 
 var (
-	fakeIPTablesRestoreCommand        = testutils.TestCmd{Cmd: []string{"iptables-restore", "-T", "filter", "--noflush"}}
-	fakeIPTablesRestoreFailureCommand = testutils.TestCmd{Cmd: []string{"iptables-restore", "-T", "filter", "--noflush"}, ExitCode: 1}
-
 	testNetworkPolicies = GetTestNetworkPolicies()
 
 	testPolicy1IngressChain = testNetworkPolicies[0].getIngressChainName()
@@ -66,7 +63,7 @@ func TestAddPolicies(t *testing.T) {
 		"COMMIT\n",
 	}
 	expectedFileString := strings.Join(expectedLines, "\n")
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, fileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, fileString)
 
 	err := pMgr.addPolicy(testNetworkPolicies[0], nil)
 	require.NoError(t, err)
@@ -98,7 +95,7 @@ func TestRemovePolicies(t *testing.T) {
 		"COMMIT\n",
 	}
 	expectedFileString := strings.Join(expectedLines, "\n")
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, fileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, fileString)
 
 	err := pMgr.AddPolicy(testNetworkPolicies[0], nil) // need the policy in the cache
 	require.NoError(t, err)
@@ -143,16 +140,4 @@ func TestRemovePoliciesErrorOnEgressRule(t *testing.T) {
 	require.NoError(t, err)
 	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
 	require.Error(t, err)
-}
-
-func getFakeDeleteJumpCommand(chainName, jumpRule string) testutils.TestCmd {
-	args := []string{"iptables", "-w", "60", "-D", chainName}
-	args = append(args, strings.Split(jumpRule, " ")...)
-	return testutils.TestCmd{Cmd: args}
-}
-
-func getFakeDeleteJumpCommandWithCode(chainName, jumpRule string, exitCode int) testutils.TestCmd {
-	command := getFakeDeleteJumpCommand(chainName, jumpRule)
-	command.ExitCode = exitCode
-	return command
 }

@@ -22,7 +22,7 @@ const (
 // iptables related constants.
 const (
 	Iptables                   string = "iptables"
-	Ip6tables                  string = "ip6tables"
+	Ip6tables                  string = "ip6tables" //nolint (avoid warning to capitalize this p)
 	IptablesSave               string = "iptables-save"
 	IptablesRestore            string = "iptables-restore"
 	IptablesRestoreNoFlushFlag string = "--noflush"

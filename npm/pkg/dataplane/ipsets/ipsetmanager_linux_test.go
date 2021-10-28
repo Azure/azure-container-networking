@@ -19,12 +19,7 @@ var (
 		NetworkName: "",
 	}
 
-	ipsetRestoreStringSlice   = []string{"ipset", "restore"}
-	fakeRestoreSuccessCommand = testutils.TestCmd{
-		Cmd:      ipsetRestoreStringSlice,
-		Stdout:   "success",
-		ExitCode: 0,
-	}
+	ipsetRestoreStringSlice = []string{"ipset", "restore"}
 )
 
 func TestDestroyNPMIPSets(t *testing.T) {
@@ -109,7 +104,7 @@ func TestApplyCreationsAndAdds(t *testing.T) {
 	creator := iMgr.getFileCreator(1, nil, toAddOrUpdateSetNames)
 	actualFileString := getSortedFileString(creator)
 
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
 	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
@@ -154,7 +149,7 @@ func TestApplyDeletions(t *testing.T) {
 	lines = append(lines, getSortedLines(TestKeyNSList, TestNSSet.HashedName)...)
 	expectedFileString := strings.Join(lines, "\n") + "\n"
 
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
 	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
@@ -196,7 +191,7 @@ func TestFailureOnCreation(t *testing.T) {
 	expectedFileString := strings.Join(lines, "\n") + "\n"
 
 	actualFileString := getSortedFileString(creator)
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
 	wasFileAltered, err = creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
@@ -260,7 +255,7 @@ func TestFailureOnAddToList(t *testing.T) {
 	expectedFileString = strings.ReplaceAll(expectedFileString, badLine+"\n", "")
 
 	actualFileString := getSortedFileString(creator)
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
 	wasFileAltered, err = creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
@@ -302,7 +297,7 @@ func TestFailureOnFlush(t *testing.T) {
 	expectedFileString := strings.Join(lines, "\n") + "\n"
 
 	actualFileString := getSortedFileString(creator)
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
 	wasFileAltered, err = creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)
@@ -344,7 +339,7 @@ func TestFailureOnDeletion(t *testing.T) {
 	expectedFileString := strings.Join(lines, "\n") + "\n"
 
 	actualFileString := getSortedFileString(creator)
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
 	wasFileAltered, err = creator.RunCommandOnceWithFile("ipset", "restore")
 	require.NoError(t, err)
 	require.False(t, wasFileAltered)

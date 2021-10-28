@@ -63,9 +63,7 @@ var (
 
 func main() {
 	dp, err := dataplane.NewDataPlane(nodeName, common.NewIOShim())
-	if err != nil {
-		panic(err)
-	}
+	panicOnError(err)
 	printAndWait()
 
 	podMetadata := &dataplane.PodMetadata{

@@ -29,8 +29,6 @@ var (
 		IPSetMode:   ipsets.ApplyAllIPSets,
 		NetworkName: AzureNetworkName,
 	}
-	// ErrResetDataPlane  error while resetting dataplane
-	ErrResetDataPlane = fmt.Errorf("Failed to reset dataplane")
 )
 
 type DataPlane struct {
@@ -89,15 +87,23 @@ func (dp *DataPlane) InitializeDataPlane() error {
 	// Create Kube-All-NS IPSet
 	kubeAllSet := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
 	dp.CreateIPSets([]*ipsets.IPSetMetadata{kubeAllSet})
-	return dp.initializeDataPlane()
+	if err := dp.initializeDataPlane(); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.InitializeDataPlane, false, "failed to initialize overall dataplane", err)
+	}
+	if err := dp.policyMgr.Initialize(); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.InitializeDataPlane, false, "failed to initialize policy dataplane", err)
+	}
+	return nil
 }
 
 // ResetDataPlane helps in cleaning up dataplane sets and policies programmed
 // by NPM, retunring a clean slate
 func (dp *DataPlane) ResetDataPlane() error {
-	err := dp.ipsetMgr.ResetIPSets()
-	if err != nil {
-		return ErrResetDataPlane
+	if err := dp.ipsetMgr.ResetIPSets(); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset ipsets dataplane", err)
+	}
+	if err := dp.policyMgr.Reset(); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset policy dataplane", err)
 	}
 	return dp.resetDataPlane()
 }

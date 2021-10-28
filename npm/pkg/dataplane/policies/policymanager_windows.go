@@ -20,6 +20,16 @@ type endpointPolicyBuilder struct {
 	otherPolicies []hcn.EndpointPolicy
 }
 
+func (pMgr *PolicyManager) initialize() error {
+	// TODO
+	return nil
+}
+
+func (pMgr *PolicyManager) reset() error {
+	// TODO
+	return nil
+}
+
 func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
 	klog.Infof("[DataPlane Windows] adding policy %s on %+v", policy.Name, endpointList)
 	if endpointList == nil {
@@ -133,11 +143,6 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 	}
 
 	return aggregateErr
-}
-
-func (pMgr *PolicyManager) reset() error {
-	// TODO
-	return nil
 }
 
 // addEPPolicyWithEpID given an EP ID and a list of policies, add the policies to the endpoint

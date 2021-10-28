@@ -11,11 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	listLineNumbersCommandStrings      = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L", "FORWARD", "--line-numbers"}
-	listPolicyChainNamesCommandStrings = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}
-)
-
 func TestInitChainsCreator(t *testing.T) {
 	pMgr := NewPolicyManager(common.NewMockIOShim(nil))
 	creator := pMgr.getCreatorForInitChains() // doesn't make any exec calls
@@ -39,26 +34,11 @@ func TestInitChainsCreator(t *testing.T) {
 		"COMMIT\n",
 	}...)
 	expectedFileString := strings.Join(expectedLines, "\n")
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
 }
 
 func TestInitChainsSuccess(t *testing.T) {
-	calls := []testutils.TestCmd{
-		fakeIPTablesRestoreCommand, // gives correct exit code
-		{
-			Cmd:      listLineNumbersCommandStrings,
-			ExitCode: 1, // grep call gets this exit code (exit code 1 means grep found nothing)
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{
-			Cmd:      []string{"grep", "KUBE-SERVICES"},
-			Stdout:   "iptables: No chain/target/match by that name.", // this Stdout and ExitCode are for the iptables check command below
-			ExitCode: 1,
-		},
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "1", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-
+	calls := GetInitializeTestCalls()
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 	require.NoError(t, pMgr.initializeNPMChains())
 }
@@ -127,20 +107,11 @@ func TestRemoveChainsCreator(t *testing.T) {
 	}
 	expectedLines = append(expectedLines, "COMMIT\n")
 	expectedFileString := strings.Join(expectedLines, "\n")
-	dptestutils.AssertEqualFileStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
 }
 
 func TestRemoveChainsSuccess(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{
-			Cmd:    listPolicyChainNamesCommandStrings,
-			Stdout: "Chain AZURE-NPM-INGRESS-123456\nChain AZURE-NPM-EGRESS-123456",
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", ingressOrEgressPolicyChainPattern}}, // ExitCode 0 for the iptables restore command
-		fakeIPTablesRestoreCommand,
-	}
+	calls := GetResetTestCalls()
 	for _, chain := range iptablesOldAndNewChains {
 		calls = append(calls, getFakeDestroyCommand(chain))
 	}
