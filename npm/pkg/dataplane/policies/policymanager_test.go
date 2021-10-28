@@ -9,6 +9,8 @@ import (
 )
 
 var (
+	// below epList is no-op for linux
+	epList        = map[string]string{"10.0.0.1": "test123", "10.0.0.2": "test456"}
 	testNSSet     = ipsets.NewIPSetMetadata("test-ns-set", ipsets.Namespace)
 	testKeyPodSet = ipsets.NewIPSetMetadata("test-keyPod-set", ipsets.KeyLabelOfPod)
 	testNetPol    = NPMNetworkPolicy{
@@ -64,12 +66,12 @@ func TestAddPolicy(t *testing.T) {
 
 	netpol := NPMNetworkPolicy{}
 
-	err := pMgr.AddPolicy(&netpol, nil)
+	err := pMgr.AddPolicy(&netpol, epList)
 	if err != nil {
 		t.Errorf("AddPolicy() returned error %s", err.Error())
 	}
 
-	err = pMgr.AddPolicy(&testNetPol, nil)
+	err = pMgr.AddPolicy(&testNetPol, epList)
 	if err != nil {
 		t.Errorf("AddPolicy() returned error %s", err.Error())
 	}
@@ -79,9 +81,16 @@ func TestGetPolicy(t *testing.T) {
 	pMgr := NewPolicyManager(common.NewMockIOShim([]testutils.TestCmd{}))
 	netpol := NPMNetworkPolicy{
 		Name: "test",
+		ACLs: []*ACLPolicy{
+			{
+				PolicyID:  "azure-acl-123",
+				Target:    Dropped,
+				Direction: Ingress,
+			},
+		},
 	}
 
-	err := pMgr.AddPolicy(&netpol, nil)
+	err := pMgr.AddPolicy(&netpol, epList)
 	if err != nil {
 		t.Errorf("AddPolicy() returned error %s", err.Error())
 	}
@@ -103,12 +112,12 @@ func TestGetPolicy(t *testing.T) {
 func TestRemovePolicy(t *testing.T) {
 	pMgr := NewPolicyManager(common.NewMockIOShim([]testutils.TestCmd{}))
 
-	err := pMgr.AddPolicy(&testNetPol, nil)
+	err := pMgr.AddPolicy(&testNetPol, epList)
 	if err != nil {
 		t.Errorf("AddPolicy() returned error %s", err.Error())
 	}
 
-	err = pMgr.RemovePolicy("test", nil)
+	err = pMgr.RemovePolicy("test", epList)
 	if err != nil {
 		t.Errorf("RemovePolicy() returned error %s", err.Error())
 	}

@@ -27,6 +27,10 @@ func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return nil
 	}
 
+	if policy.PodEndpoints == nil {
+		policy.PodEndpoints = make(map[string]string)
+	}
+
 	for epIP, epID := range policy.PodEndpoints {
 		expectedEpID, ok := endpointList[epIP]
 		if !ok {
