@@ -119,7 +119,7 @@ func (acl *ACLPolicy) checkIPSets() bool {
 			return false
 		}
 
-		if set.MatchType != "src" && set.MatchType != "dst" {
+		if !set.hasKnownMatchType() {
 			return false
 		}
 	}
@@ -128,7 +128,7 @@ func (acl *ACLPolicy) checkIPSets() bool {
 			return false
 		}
 
-		if set.MatchType != "src" && set.MatchType != "dst" {
+		if !set.hasKnownMatchType() {
 			return false
 		}
 	}
