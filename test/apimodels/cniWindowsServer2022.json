@@ -3,7 +3,7 @@
    "properties": {
       "orchestratorProfile": {
          "orchestratorType": "Kubernetes",
-         "orchestratorRelease": "1.17",
+         "orchestratorRelease": "1.22",
          "kubernetesConfig": {
             "networkPlugin": "azure",
             "networkPolicy": "azure",
@@ -40,10 +40,11 @@
          "adminPassword": "azureTest@!",
          "enableAutomaticUpdates": false,
          "sshEnabled": true,
-         "windowsPublisher": "MicrosoftWindowsServer",
-         "windowsOffer": "WindowsServer",
-         "windowsSku": "datacenter-core-2004-with-containers-smalldisk",
-         "imageVersion": "latest"
+         "imageReference.name": "runner-windows",
+         "imageReference.resourceGroup": "azure-pipelines-vmss-1es",
+         "imageReference.subscriptionId":"d9eabe18-12f6-4421-934a-d7e2327585f5",
+         "imageReference.gallery":"acnazpgallerywindows",
+         "imageReference.version":"1.0.24"         
       },
       "linuxProfile": {
          "adminUsername": "azureuser",

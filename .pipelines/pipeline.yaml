@@ -231,9 +231,9 @@ stages:
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "windows_20_04_e2e"
-      displayName: "Windows 2004"
+      displayName: "Windows Server 2022"
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows2004.json"
+      clusterDefinition: "cniWindowsServer2022.json"
       clusterDefinitionCniTypeKey: "azureCNIURLWindows"
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
