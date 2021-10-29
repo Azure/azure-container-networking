@@ -109,6 +109,7 @@ func normalizePolicy(networkPolicy *NPMNetworkPolicy) {
 	}
 }
 
+// TODO do verification in controller?
 func checkForErrors(networkPolicy *NPMNetworkPolicy) error {
 	for _, aclPolicy := range networkPolicy.ACLs {
 		if !aclPolicy.hasKnownTarget() {
