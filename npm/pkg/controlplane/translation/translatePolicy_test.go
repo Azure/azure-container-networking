@@ -13,7 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const nonIncluded bool = false
+const (
+	nonIncluded  bool   = false
+	namedPortStr string = "serve-tcp"
+)
 
 // TODO(jungukcho)
 // 1. will use variables in UTs instead of constant "src",  and "dst" for better managements
@@ -23,7 +26,6 @@ func TestPortType(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	port8000 := intstr.FromInt(8000)
 	var endPort int32 = 8100
-	namedPortStr := "serve-tcp"
 	namedPortName := intstr.FromString(namedPortStr)
 
 	tests := []struct {
@@ -164,7 +166,6 @@ func TestNumericPortRule(t *testing.T) {
 }
 
 func TestNamedPortRuleInfo(t *testing.T) {
-	namedPortStr := "serve-tcp"
 	namedPort := intstr.FromString(namedPortStr)
 	type namedPortOutput struct {
 		translatedIPSet *ipsets.TranslatedIPSet
@@ -235,7 +236,6 @@ func TestNamedPortRuleInfo(t *testing.T) {
 }
 
 func TestNamedPortRule(t *testing.T) {
-	namedPortStr := "serve-tcp"
 	namedPort := intstr.FromString(namedPortStr)
 	type namedPortRuleOutput struct {
 		translatedIPSet *ipsets.TranslatedIPSet
@@ -2181,7 +2181,6 @@ func TestDefaultDropACL(t *testing.T) {
 }
 
 func TestPortRuleWithNamedPort(t *testing.T) {
-	namedPortStr := "serve-tcp"
 	namedPort := intstr.FromString(namedPortStr)
 	tcp := v1.ProtocolTCP
 	matchType := policies.DstDstMatch
@@ -2339,7 +2338,6 @@ func TestPortRuleWithNumericPort(t *testing.T) {
 }
 
 func TestPeerAndPortRule(t *testing.T) {
-	namedPortStr := "serve-tcp"
 	namedPort := intstr.FromString(namedPortStr)
 	port8000 := intstr.FromInt(8000)
 	var endPort int32 = 8100
@@ -2644,7 +2642,6 @@ func TestTranslateIngress(t *testing.T) {
 		targetSelector *metav1.LabelSelector
 		rules          []networkingv1.NetworkPolicyIngressRule
 		npmNetPol      *policies.NPMNetworkPolicy
-		wantErr        bool
 	}{
 		{
 			name: "only port in ingress rules",
@@ -2697,7 +2694,6 @@ func TestTranslateIngress(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "only ipBlock in ingress rules",
@@ -2767,7 +2763,6 @@ func TestTranslateIngress(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "only peer podSelector in ingress rules",
@@ -2838,7 +2833,6 @@ func TestTranslateIngress(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 		{
 			name: "only peer nameSpaceSelector in ingress rules",
@@ -2909,7 +2903,6 @@ func TestTranslateIngress(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 		},
 	}
 
@@ -2920,11 +2913,7 @@ func TestTranslateIngress(t *testing.T) {
 				Name:      tt.npmNetPol.Name,
 				NameSpace: tt.npmNetPol.NameSpace,
 			}
-			err := translateIngress(npmNetPol, tt.targetSelector, tt.rules)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
+			translateIngress(npmNetPol, tt.targetSelector, tt.rules)
 			require.Equal(t, tt.npmNetPol, npmNetPol)
 		})
 	}

@@ -18,23 +18,28 @@ func ParseLabel(label string) (string, bool) {
 }
 
 // GetOperatorAndLabel returns the operator associated with the label and the label without operator.
-func GetOperatorAndLabel(label string) (string, string) {
+func GetOperatorAndLabel(labelWithOp string) (op, label string) {
 	// TODO(jungukcho): check whether this is possible
-	if label == "" {
-		return "", ""
+	if labelWithOp == "" {
+		return op, label
 	}
 
-	if string(label[0]) == util.IptablesNotFlag {
-		return util.IptablesNotFlag, label[1:]
+	// in case "!"" Operaror do not exist
+	if string(labelWithOp[0]) != util.IptablesNotFlag {
+		label = labelWithOp
+		return op, label
 	}
 
-	return "", label
+	// in case "!"" Operaror exists
+	op, label = util.IptablesNotFlag, labelWithOp[1:]
+	return op, label
 }
 
 // GetOperatorsAndLabels returns the operators along with the associated labels.
-func GetOperatorsAndLabels(labelsWithOps []string) ([]string, []string) {
-	ops := make([]string, len(labelsWithOps))
-	labelsWithoutOps := make([]string, len(labelsWithOps))
+func GetOperatorsAndLabels(labelsWithOps []string) (ops, labelsWithoutOps []string) {
+	ops = make([]string, len(labelsWithOps))
+	labelsWithoutOps = make([]string, len(labelsWithOps))
+
 	for i, labelWithOp := range labelsWithOps {
 		op, labelWithoutOp := GetOperatorAndLabel(labelWithOp)
 		ops[i] = op
@@ -114,7 +119,8 @@ func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSe
 		// NPM will ignore single value matchExprs of these operators.
 		// for multiple values, it will create a slice of them to be used for Zipping with baseSelector
 		// to create multiple nsSelectors to preserve OR condition across all labels and expressions
-		if (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpNotIn) {
+		switch {
+		case (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpNotIn):
 			if len(req.Values) == 1 {
 				// for length 1, add the matchExpr to baseSelector
 				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
@@ -122,10 +128,10 @@ func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSe
 				multiValuePresent = true
 				multiValueMatchExprs = append(multiValueMatchExprs, req)
 			}
-		} else if (req.Operator == metav1.LabelSelectorOpExists) || (req.Operator == metav1.LabelSelectorOpDoesNotExist) {
+		case (req.Operator == metav1.LabelSelectorOpExists) || (req.Operator == metav1.LabelSelectorOpDoesNotExist):
 			// since Exists and NotExists do not contain any values, NPM can safely add them to the baseSelector
 			baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
-		} else {
+		default:
 			log.Errorf("Invalid operator [%s] for selector [%v] requirement", req.Operator, *nsSelector)
 		}
 	}
@@ -178,15 +184,15 @@ func zipMatchExprs(baseSelectors []metav1.LabelSelector, matchExpr metav1.LabelS
 // and a map of labelKeys and labelIpsetname for multivalue match exprs
 // higher level functions will need to compute what sets or ipsets should be
 // used from this map
-func parseSelector(selector *metav1.LabelSelector) ([]string, map[string][]string) {
+func parseSelector(selector *metav1.LabelSelector) (labels []string, vals map[string][]string) {
 	// TODO(jungukcho): check return values
 	// labels []string and []string{}
 	if selector == nil {
-		return []string{}, map[string][]string{}
+		return labels, vals
 	}
 
-	labels := []string{}
-	vals := make(map[string][]string)
+	labels = []string{}
+	vals = make(map[string][]string)
 	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
 		labels = append(labels, "")
 		return labels, vals
