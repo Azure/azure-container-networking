@@ -11,12 +11,13 @@ import (
 type NPMNetworkPolicy struct {
 	Name      string
 	NameSpace string
+	// TODO(jungukcho)
+	// ipsets.IPSetMetadata is common data in both PodSelectorIPSets and PodSelectorList.
+	// So, they can be one datastructure holding all information without redundancy.
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
-
 	// PodSelectorList holds target pod information to avoid duplicatoin in SrcList and DstList fields in ACLs
 	PodSelectorList []SetInfo
-
 	// RuleIPSets holds all IPSets generated from policy's rules
 	// and not from pod selector IPSets
 	RuleIPSets []*ipsets.TranslatedIPSet

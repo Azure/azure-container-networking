@@ -20,6 +20,9 @@ TODO
 (https://kubernetes.io/docs/concepts/services-networking/network-policies/#targeting-a-namespace-by-its-name)
 2. Check possible error - first check see how K8s guarantees correctness of the submitted network policy
 - Return error and validation
+3. Need to handle 0.0.0.0/0 in IPBlock field
+- Ipset doesn't allow 0.0.0.0/0 to be added. A general solution is split 0.0.0.0/1 in half which convert to
+  1.0.0.0/1 and 128.0.0.0/1 in linux
 */
 
 var errUnknownPortType = errors.New("unknown port Type")
