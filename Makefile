@@ -220,6 +220,7 @@ azure-cnm-plugin-image: azure-cnm-plugin
 # Build the Azure NPM image.
 .PHONY: azure-npm-image
 azure-npm-image:
+ifeq ($(GOOS),linux)
 	$(MKDIR) $(IMAGE_DIR)
 	docker buildx create --use
 	docker buildx build \
@@ -234,6 +235,7 @@ azure-npm-image:
 	.
 	
 	echo $(AZURE_NPM_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
+endif
 
 # Build the Azure CNS image
 .PHONY: azure-cns-image
