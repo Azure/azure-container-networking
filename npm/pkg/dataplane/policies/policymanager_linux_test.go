@@ -13,12 +13,10 @@ import (
 )
 
 var (
-	testNetworkPolicies = GetTestNetworkPolicies()
-
-	testPolicy1IngressChain = testNetworkPolicies[0].getIngressChainName()
-	testPolicy1EgressChain  = testNetworkPolicies[0].getEgressChainName()
-	testPolicy2IngressChain = testNetworkPolicies[1].getIngressChainName()
-	testPolicy3EgressChain  = testNetworkPolicies[2].getEgressChainName()
+	testPolicy1IngressChain = TestNetworkPolicies[0].getIngressChainName()
+	testPolicy1EgressChain  = TestNetworkPolicies[0].getEgressChainName()
+	testPolicy2IngressChain = TestNetworkPolicies[1].getIngressChainName()
+	testPolicy3EgressChain  = TestNetworkPolicies[2].getEgressChainName()
 
 	testPolicy1IngressJump = fmt.Sprintf("-j %s -m set --match-set %s dst", testPolicy1IngressChain, ipsets.TestKVNSList.HashedName)
 	testPolicy1EgressJump  = fmt.Sprintf("-j %s -m set --match-set %s src", testPolicy1EgressChain, ipsets.TestKVNSList.HashedName)
@@ -38,7 +36,7 @@ var (
 func TestAddPolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	creator := pMgr.getCreatorForNewNetworkPolicies(testNetworkPolicies...)
+	creator := pMgr.getCreatorForNewNetworkPolicies(TestNetworkPolicies...)
 	fileString := creator.ToString()
 	expectedLines := []string{
 		"*filter",
@@ -65,14 +63,14 @@ func TestAddPolicies(t *testing.T) {
 	expectedFileString := strings.Join(expectedLines, "\n")
 	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, fileString)
 
-	err := pMgr.addPolicy(testNetworkPolicies[0], nil)
+	err := pMgr.addPolicy(TestNetworkPolicies[0], nil)
 	require.NoError(t, err)
 }
 
 func TestAddPoliciesError(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreFailureCommand}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	err := pMgr.addPolicy(testNetworkPolicies[0], nil)
+	err := pMgr.addPolicy(TestNetworkPolicies[0], nil)
 	require.Error(t, err)
 }
 
@@ -84,7 +82,7 @@ func TestRemovePolicies(t *testing.T) {
 		fakeIPTablesRestoreCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	creator := pMgr.getCreatorForRemovingPolicies(testNetworkPolicies...)
+	creator := pMgr.getCreatorForRemovingPolicies(TestNetworkPolicies...)
 	fileString := creator.ToString()
 	expectedLines := []string{
 		"*filter",
@@ -97,9 +95,9 @@ func TestRemovePolicies(t *testing.T) {
 	expectedFileString := strings.Join(expectedLines, "\n")
 	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, fileString)
 
-	err := pMgr.AddPolicy(testNetworkPolicies[0], nil) // need the policy in the cache
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil) // need the policy in the cache
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
 	require.NoError(t, err)
 }
 
@@ -111,9 +109,9 @@ func TestRemovePoliciesErrorOnRestore(t *testing.T) {
 		fakeIPTablesRestoreFailureCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	err := pMgr.AddPolicy(testNetworkPolicies[0], nil)
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
 	require.Error(t, err)
 }
 
@@ -123,9 +121,9 @@ func TestRemovePoliciesErrorOnIngressRule(t *testing.T) {
 		getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", testPolicy1IngressJump, 1), // anything but 0 or 2
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	err := pMgr.AddPolicy(testNetworkPolicies[0], nil)
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
 	require.Error(t, err)
 }
 
@@ -136,8 +134,8 @@ func TestRemovePoliciesErrorOnEgressRule(t *testing.T) {
 		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", testPolicy1EgressJump, 1), // anything but 0 or 2
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	err := pMgr.AddPolicy(testNetworkPolicies[0], nil)
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(testNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
 	require.Error(t, err)
 }

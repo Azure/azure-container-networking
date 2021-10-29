@@ -149,23 +149,17 @@ const (
 )
 
 // Possible MatchTypes.
-// MatchTypes with 2 locations (e.g. SrcDst) are for ip and port respectively.
+// MatchTypes with 2 locations (e.g. DstDst) are for ip and port respectively.
 const (
 	SrcMatch    MatchType = 0
 	DstMatch    MatchType = 1
-	SrcSrcMatch MatchType = 2
 	DstDstMatch MatchType = 3
-	SrcDstMatch MatchType = 4
-	DstSrcMatch MatchType = 5
 )
 
 var matchTypeStrings = map[MatchType]string{
 	SrcMatch:    util.IptablesSrcFlag,
 	DstMatch:    util.IptablesDstFlag,
-	SrcSrcMatch: util.IptablesSrcFlag + "," + util.IptablesSrcFlag,
 	DstDstMatch: util.IptablesDstFlag + "," + util.IptablesDstFlag,
-	SrcDstMatch: util.IptablesSrcFlag + "," + util.IptablesDstFlag,
-	DstSrcMatch: util.IptablesDstFlag + "," + util.IptablesSrcFlag,
 }
 
 // match type is only used in Linux

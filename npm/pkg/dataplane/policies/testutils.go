@@ -2,8 +2,35 @@ package policies
 
 import "github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 
-func GetTestNetworkPolicies() []*NPMNetworkPolicy {
-	testACLs := []*ACLPolicy{
+var (
+	// TestNetworkPolicies for testing
+	TestNetworkPolicies = []*NPMNetworkPolicy{
+		{
+			Name: "test1",
+			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{Metadata: ipsets.TestKVNSList.Metadata},
+			},
+			ACLs: testACLs,
+		},
+		{
+			Name: "test2",
+			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+				{Metadata: ipsets.TestKVNSList.Metadata},
+				{Metadata: ipsets.TestKeyPodSet.Metadata},
+			},
+			ACLs: []*ACLPolicy{
+				testACLs[0],
+			},
+		},
+		{
+			Name: "test3",
+			ACLs: []*ACLPolicy{
+				testACLs[3],
+			},
+		},
+	}
+
+	testACLs = []*ACLPolicy{
 		{
 			PolicyID: "test1",
 			Comment:  "comment1",
@@ -81,30 +108,4 @@ func GetTestNetworkPolicies() []*NPMNetworkPolicy {
 			Protocol:  AnyProtocol,
 		},
 	}
-
-	return []*NPMNetworkPolicy{
-		{
-			Name: "test1",
-			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
-				{Metadata: ipsets.TestKVNSList.Metadata},
-			},
-			ACLs: testACLs,
-		},
-		{
-			Name: "test2",
-			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
-				{Metadata: ipsets.TestKVNSList.Metadata},
-				{Metadata: ipsets.TestKeyPodSet.Metadata},
-			},
-			ACLs: []*ACLPolicy{
-				testACLs[0],
-			},
-		},
-		{
-			Name: "test3",
-			ACLs: []*ACLPolicy{
-				testACLs[3],
-			},
-		},
-	}
-}
+)

@@ -57,8 +57,6 @@ var (
 			},
 		},
 	}
-
-	testNetworkPolicies = policies.GetTestNetworkPolicies()
 )
 
 func main() {
@@ -121,21 +119,21 @@ func testPolicyManager() {
 	panicOnError(pMgr.Reset())
 	printAndWait()
 
-	panicOnError(pMgr.AddPolicy(testNetworkPolicies[0], nil))
+	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[0], nil))
 	printAndWait()
 
-	panicOnError(pMgr.AddPolicy(testNetworkPolicies[1], nil))
+	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[1], nil))
 	printAndWait()
 
 	// remove something that doesn't exist
-	panicOnError(pMgr.RemovePolicy(testNetworkPolicies[2].Name, nil))
+	panicOnError(pMgr.RemovePolicy(policies.TestNetworkPolicies[2].Name, nil))
 	printAndWait()
 
-	panicOnError(pMgr.AddPolicy(testNetworkPolicies[2], nil))
+	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[2], nil))
 	printAndWait()
 
 	// remove something that exists
-	panicOnError(pMgr.RemovePolicy(testNetworkPolicies[1].Name, nil))
+	panicOnError(pMgr.RemovePolicy(policies.TestNetworkPolicies[1].Name, nil))
 }
 
 func panicOnError(err error) {

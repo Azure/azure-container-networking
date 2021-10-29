@@ -85,7 +85,7 @@ func TestGetPolicy(t *testing.T) {
 		},
 	}
 
-	calls := append(GetAddPolicyTestCalls(netpol), GetRemovePolicyTestCalls(netpol)...)
+	calls := GetAddPolicyTestCalls(netpol)
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 
 	require.NoError(t, pMgr.AddPolicy(netpol, epList))
