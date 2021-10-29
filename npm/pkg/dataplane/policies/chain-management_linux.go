@@ -174,9 +174,7 @@ func (pMgr *PolicyManager) getCreatorForInitChains() *ioutil.FileCreator {
 
 	// add AZURE-NPM chain rules
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureIngressChain)
-
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureEgressChain)
-
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureAcceptChain)
 
 	// add AZURE-NPM-INGRESS chain rules
@@ -190,7 +188,6 @@ func (pMgr *PolicyManager) getCreatorForInitChains() *ioutil.FileCreator {
 	markIngressAllowSpecs = append(markIngressAllowSpecs, getSetMarkSpecs(util.IptablesAzureIngressAllowMarkHex)...)
 	markIngressAllowSpecs = append(markIngressAllowSpecs, getCommentSpecs(fmt.Sprintf("SET-INGRESS-ALLOW-MARK-%s", util.IptablesAzureIngressAllowMarkHex))...)
 	creator.AddLine("", nil, markIngressAllowSpecs...)
-
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureIngressAllowMarkChain, util.IptablesJumpFlag, util.IptablesAzureEgressChain)
 
 	// add AZURE-NPM-EGRESS chain rules
@@ -209,9 +206,7 @@ func (pMgr *PolicyManager) getCreatorForInitChains() *ioutil.FileCreator {
 	clearSpecs = append(clearSpecs, getSetMarkSpecs(util.IptablesAzureClearMarkHex)...)
 	clearSpecs = append(clearSpecs, getCommentSpecs("Clear-AZURE-NPM-MARKS")...)
 	creator.AddLine("", nil, clearSpecs...)
-
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureAcceptChain, util.IptablesJumpFlag, util.IptablesAccept)
-
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
 	return creator
 }

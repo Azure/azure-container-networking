@@ -113,10 +113,7 @@ func (pMgr *PolicyManager) getNewCreatorWithChains(chainNames []string) *ioutil.
 
 // will make a similar func for on update eventually
 func (pMgr *PolicyManager) deleteOldJumpRulesOnRemove(policy *NPMNetworkPolicy) error {
-	fmt.Println(policy.ACLs[0])
-
 	shouldDeleteIngress, shouldDeleteEgress := policy.hasIngressAndEgress()
-	fmt.Println(shouldDeleteIngress, shouldDeleteEgress)
 	if shouldDeleteIngress {
 		if err := pMgr.deleteJumpRule(policy, true); err != nil {
 			return err
