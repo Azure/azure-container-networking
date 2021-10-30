@@ -57,7 +57,6 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	}
 	normalizePolicy(policy)
 	if err := checkForErrors(policy); err != nil {
-		fmt.Println(err)
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("couldn't add malformed policy: %s", err.Error()))
 	}
 
