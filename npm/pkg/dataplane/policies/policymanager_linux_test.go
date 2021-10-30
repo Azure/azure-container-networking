@@ -24,11 +24,11 @@ var (
 	testPolicy3EgressJump  = fmt.Sprintf("-j %s", testPolicy3EgressChain)
 
 	testACLRule1 = fmt.Sprintf(
-		"-j MARK --set-mark 0x4000 -p tcp --sport 144:255 -m multiport --dports 222:333,456 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment comment1",
+		"-j MARK --set-mark 0x4000 -p tcp --dport 222:333 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment comment1",
 		ipsets.TestCIDRSet.HashedName,
 		ipsets.TestKeyPodSet.HashedName,
 	)
-	testACLRule2 = fmt.Sprintf("-j AZURE-NPM-EGRESS -p udp --sport 144 -m set --match-set %s src -m comment --comment comment2", ipsets.TestCIDRSet.HashedName)
+	testACLRule2 = fmt.Sprintf("-j AZURE-NPM-EGRESS -p udp -m set --match-set %s src -m comment --comment comment2", ipsets.TestCIDRSet.HashedName)
 	testACLRule3 = fmt.Sprintf("-j MARK --set-mark 0x5000 -p udp --dport 144 -m set --match-set %s src -m comment --comment comment3", ipsets.TestCIDRSet.HashedName)
 	testACLRule4 = fmt.Sprintf("-j AZURE-NPM-ACCEPT -p all -m set --match-set %s src -m comment --comment comment4", ipsets.TestCIDRSet.HashedName)
 )

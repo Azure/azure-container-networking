@@ -46,6 +46,7 @@ type ACLPolicy struct {
 	// Direction defines the flow of traffic
 	Direction Direction
 	// DstPorts holds the destination port information
+	// TODO(jungukcho): It may be better to use pointer to differentiate default value.
 	DstPorts Ports
 	// Protocol is the value of traffic protocol
 	Protocol Protocol
@@ -96,7 +97,8 @@ func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
 }
 
 func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
-	return (aclPolicy.Protocol != AnyProtocol)
+	// TODO(jungukcho): need to check second condition
+	return (aclPolicy.Protocol != AnyProtocol) || (aclPolicy.DstPorts.Port == 0 && aclPolicy.DstPorts.EndPort == 0)
 }
 
 // SetInfo helps capture additional details in a matchSet.

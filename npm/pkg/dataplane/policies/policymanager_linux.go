@@ -235,6 +235,11 @@ func getPortSpecs(portRanges []Ports) []string {
 		return []string{}
 	}
 
+	// TODO(jungukcho): temporary solution and need to fix it.
+	if portRanges[0].Port == 0 && portRanges[0].EndPort == 0 {
+		return []string{}
+	}
+
 	return []string{util.IptablesDstPortFlag, portRanges[0].toIPTablesString()}
 }
 
