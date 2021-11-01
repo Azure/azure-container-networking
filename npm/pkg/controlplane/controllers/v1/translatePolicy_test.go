@@ -1,4 +1,4 @@
-package npm
+package controllers
 
 import (
 	"encoding/json"
@@ -1124,7 +1124,7 @@ func readPolicyYaml(policyYaml string) (*networkingv1.NetworkPolicy, error) {
 }
 
 func TestDenyAllPolicy(t *testing.T) {
-	denyAllPolicy, err := readPolicyYaml("testpolicies/deny-all-policy.yaml")
+	denyAllPolicy, err := readPolicyYaml("../../../../testpolicies/deny-all-policy.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1157,7 +1157,7 @@ func TestDenyAllPolicy(t *testing.T) {
 }
 
 func TestAllowBackendToFrontend(t *testing.T) {
-	allowBackendToFrontendPolicy, err := readPolicyYaml("testpolicies/allow-backend-to-frontend.yaml")
+	allowBackendToFrontendPolicy, err := readPolicyYaml("../../../../testpolicies/allow-backend-to-frontend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1250,7 +1250,7 @@ func TestAllowBackendToFrontend(t *testing.T) {
 }
 
 func TestAllowAllToAppFrontend(t *testing.T) {
-	allowToFrontendPolicy, err := readPolicyYaml("testpolicies/allow-all-to-app-frontend.yaml")
+	allowToFrontendPolicy, err := readPolicyYaml("../../../../testpolicies/allow-all-to-app-frontend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1313,7 +1313,7 @@ func TestAllowAllToAppFrontend(t *testing.T) {
 }
 
 func TestDenyAllToAppFrontend(t *testing.T) {
-	denyAllToFrontendPolicy, err := readPolicyYaml("testpolicies/deny-all-to-app-frontend.yaml")
+	denyAllToFrontendPolicy, err := readPolicyYaml("../../../../testpolicies/deny-all-to-app-frontend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1349,7 +1349,7 @@ func TestDenyAllToAppFrontend(t *testing.T) {
 }
 
 func TestNamespaceToFrontend(t *testing.T) {
-	allowNsTestNamespaceToFrontendPolicy, err := readPolicyYaml("testpolicies/allow-ns-test-namespace-to-frontend.yaml")
+	allowNsTestNamespaceToFrontendPolicy, err := readPolicyYaml("../../../../testpolicies/allow-ns-test-namespace-to-frontend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1437,7 +1437,7 @@ func TestNamespaceToFrontend(t *testing.T) {
 }
 
 func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
-	allowAllNsToFrontendPolicy, err := readPolicyYaml("testpolicies/allow-all-ns-to-frontend.yaml")
+	allowAllNsToFrontendPolicy, err := readPolicyYaml("../../../../testpolicies/allow-all-ns-to-frontend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1526,7 +1526,7 @@ func TestAllowAllNamespacesToAppFrontend(t *testing.T) {
 }
 
 func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
-	allowNsDevToFrontendPolicy, err := readPolicyYaml("testpolicies/allow-ns-dev-to-app-frontend.yaml")
+	allowNsDevToFrontendPolicy, err := readPolicyYaml("../../../../testpolicies/allow-ns-dev-to-app-frontend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1659,7 +1659,7 @@ func TestAllowNamespaceDevToAppFrontend(t *testing.T) {
 }
 
 func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
-	allowAllToFrontendPolicy, err := readPolicyYaml("testpolicies/test-allow-all-to-k0-and-k1-and-app-frontend.yaml")
+	allowAllToFrontendPolicy, err := readPolicyYaml("../../../../testpolicies/test-allow-all-to-k0-and-k1-and-app-frontend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1779,7 +1779,7 @@ func TestAllowAllToK0AndK1AndAppFrontend(t *testing.T) {
 }
 
 func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
-	allowNsDevAndBackendToFrontendPolicy, err := readPolicyYaml("testpolicies/allow-ns-dev-and-app-backend-to-app-frontend.yaml")
+	allowNsDevAndBackendToFrontendPolicy, err := readPolicyYaml("../../../../testpolicies/allow-ns-dev-and-app-backend-to-app-frontend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1877,7 +1877,7 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 }
 
 func TestAllowInternalAndExternal(t *testing.T) {
-	allowInternalAndExternalPolicy, err := readPolicyYaml("testpolicies/allow-internal-and-external.yaml")
+	allowInternalAndExternalPolicy, err := readPolicyYaml("../../../../testpolicies/allow-internal-and-external.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1940,7 +1940,7 @@ func TestAllowInternalAndExternal(t *testing.T) {
 }
 
 func TestAllowBackendToFrontendPort8000(t *testing.T) {
-	allowBackendToFrontendPort8000Policy, err := readPolicyYaml("testpolicies/allow-app-backend-to-app-frontend-port-8000.yaml")
+	allowBackendToFrontendPort8000Policy, err := readPolicyYaml("../../../../testpolicies/allow-app-backend-to-app-frontend-port-8000.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2037,7 +2037,7 @@ func TestAllowBackendToFrontendPort8000(t *testing.T) {
 }
 
 func TestAllowBackendToFrontendWithMissingPort(t *testing.T) {
-	allowBackendToFrontendMissingPortPolicy, err := readPolicyYaml("testpolicies/allow-backend-to-frontend-with-missing-port.yaml")
+	allowBackendToFrontendMissingPortPolicy, err := readPolicyYaml("../../../../testpolicies/allow-backend-to-frontend-with-missing-port.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2132,7 +2132,7 @@ func TestAllowBackendToFrontendWithMissingPort(t *testing.T) {
 }
 
 func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
-	allowCniOrCnsToK8sPolicy, err := readPolicyYaml("testpolicies/allow-multiple-labels-to-multiple-labels.yaml")
+	allowCniOrCnsToK8sPolicy, err := readPolicyYaml("../../../../testpolicies/allow-multiple-labels-to-multiple-labels.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2289,7 +2289,7 @@ func TestAllowMultipleLabelsToMultipleLabels(t *testing.T) {
 }
 
 func TestDenyAllFromAppBackend(t *testing.T) {
-	denyAllFromBackendPolicy, err := readPolicyYaml("testpolicies/deny-all-from-app-backend.yaml")
+	denyAllFromBackendPolicy, err := readPolicyYaml("../../../../testpolicies/deny-all-from-app-backend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2325,7 +2325,7 @@ func TestDenyAllFromAppBackend(t *testing.T) {
 }
 
 func TestAllowAllFromAppBackend(t *testing.T) {
-	allowAllEgress, err := readPolicyYaml("testpolicies/allow-all-from-app-backend.yaml")
+	allowAllEgress, err := readPolicyYaml("../../../../testpolicies/allow-all-from-app-backend.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2391,7 +2391,7 @@ func TestAllowAllFromAppBackend(t *testing.T) {
 Commenting this test since it has been a flaky test for a while.
 TODO unblock this test when we are done refactoring translate policy
 func TestAllowMultiplePodSelectors(t *testing.T) {
-	multiPodSlector, err := readPolicyYaml("testpolicies/allow-ns-y-z-pod-b-c.yaml")
+	multiPodSlector, err := readPolicyYaml("../../../../testpolicies/allow-ns-y-z-pod-b-c.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2532,7 +2532,7 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 */
 
 func TestDenyAllFromNsUnsafe(t *testing.T) {
-	denyAllFromNsUnsafePolicy, err := readPolicyYaml("testpolicies/deny-all-from-ns-unsafe.yaml")
+	denyAllFromNsUnsafePolicy, err := readPolicyYaml("../../../../testpolicies/deny-all-from-ns-unsafe.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2565,7 +2565,7 @@ func TestDenyAllFromNsUnsafe(t *testing.T) {
 }
 
 func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
-	allowFrontendToTCPPort53UDPPort53Policy, err := readPolicyYaml("testpolicies/allow-app-frontend-tcp-port-or-udp-port-53.yaml")
+	allowFrontendToTCPPort53UDPPort53Policy, err := readPolicyYaml("../../../../testpolicies/allow-app-frontend-tcp-port-or-udp-port-53.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2710,8 +2710,8 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 }
 
 func TestComplexPolicy(t *testing.T) {
-	k8sExamplePolicy, err := readPolicyYaml("testpolicies/complex-policy.yaml")
-	k8sExamplePolicyDiffOrder, err := readPolicyYaml("testpolicies/complex-policy-diff-order.yaml")
+	k8sExamplePolicy, err := readPolicyYaml("../../../../testpolicies/complex-policy.yaml")
+	k8sExamplePolicyDiffOrder, err := readPolicyYaml("../../../../testpolicies/complex-policy-diff-order.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3288,7 +3288,7 @@ func TestDropPrecedenceOverAllow(t *testing.T) {
 }
 
 func TestNamedPorts(t *testing.T) {
-	namedPortPolicy, err := readPolicyYaml("testpolicies/named-port.yaml")
+	namedPortPolicy, err := readPolicyYaml("../../../../testpolicies/named-port.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
