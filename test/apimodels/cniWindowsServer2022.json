@@ -53,13 +53,8 @@
          "sshEnabled": false,
          "windowsPauseImageURL": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
          "alwaysPullWindowsPauseImage": true,
-         "imageReference" : {
-            "name": "runner-windows",
-            "imageReference.resourceGroup": "azure-pipelines-vmss-1es",
-            "subscriptionId": "d9eabe18-12f6-4421-934a-d7e2327585f5",
-            "gallery": "acnazpgallerywindows",
-            "version": "1.0.24"
-         }
+         "windowsPublisher": "cncf-upstream",
+         "windowsOffer": "capi"
       },
       "linuxProfile": {
          "adminUsername": "azureuser",
