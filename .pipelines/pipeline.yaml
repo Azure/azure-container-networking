@@ -33,7 +33,7 @@ stages:
             condition: always()
 
   - stage: build_and_test
-    displayName: ACN
+    displayName: AMD64
     dependsOn:
     - "setup"
     jobs:
@@ -137,7 +137,7 @@ stages:
 
 
   - stage: build_arm_images
-    displayName: ARM
+    displayName: ARM64
     dependsOn:
     - "setup"
     jobs:
