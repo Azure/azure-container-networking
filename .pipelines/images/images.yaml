@@ -4,12 +4,25 @@ parameters:
   imagePlatformArches: ""
 
 jobs:
+- job: setup_env
+  displayName: Setup 
+  pool:
+    name: "$(BUILD_POOL_NAME_DEFAULT)"
+  steps:
+    - script: |
+        BUILD_NUMBER=$(Build.BuildNumber)
+        echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
+        echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
+      name: "EnvironmentalVariables"
+      displayName: "Set environmental variables"
+      condition: always()
+
 - job: ${{ parameters.name }}
   displayName: ${{ parameters.displayName }}
   dependsOn:
-    - "setup"
+    - "setup_env"
   variables:
-    TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
+    TAG: $[ dependencies.setup_env.outputs['EnvironmentalVariables.Tag'] ]
   pool:
     name: "$(BUILD_POOL_NAME_DEFAULT)"
   steps:

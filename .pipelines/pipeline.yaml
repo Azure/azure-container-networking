@@ -89,12 +89,6 @@ stages:
           displayName: Build AMD64 Images
           imagePlatformArches: linux/amd64
 
-      - template: images/images.yaml
-        parameters:
-          name: "build_images_arm64"
-          displayName: Build ARM Images
-          imagePlatformArches: linux/arm64
-
       - job: test
         displayName: Run Tests
         dependsOn:
@@ -138,6 +132,16 @@ stages:
               summaryFileLocation: coverage.xml
             displayName: "Publish Code Coverage Results"
             condition: always()
+
+
+  - stage: build_arm_images
+    displayName: ARM
+    jobs:
+    - template: images/images.yaml
+      parameters:
+        name: "build_images_arm64"
+        displayName: Build ARM Images
+        imagePlatformArches: linux/arm64
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
