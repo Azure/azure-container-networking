@@ -53,8 +53,13 @@
          "sshEnabled": false,
          "windowsPauseImageURL": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
          "alwaysPullWindowsPauseImage": true,
-         "windowsPublisher": "cncf-upstream",
-         "windowsOffer": "capi"
+         "imageReference": {
+            "subscriptionId": "9b8218f9-902a-4d20-a65c-e98acec5362f",
+            "resourceGroup": "azure-pipelines-ws22-akse",
+            "gallery": "acnvmimages",
+            "name": "2022-datacenter-with-containers",
+            "version": "1.0.0"
+         }
       },
       "linuxProfile": {
          "adminUsername": "azureuser",
