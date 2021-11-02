@@ -39,10 +39,9 @@ stages:
     jobs:
       - job: build
         displayName: Build Binaries
-
         variables:
-          TAG: $[ dependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-          STORAGE_ID: $[ dependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
@@ -96,7 +95,7 @@ stages:
       - job: test
         displayName: Run Tests
         variables:
-          STORAGE_ID: $[ dependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
