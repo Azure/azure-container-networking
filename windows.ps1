@@ -1,3 +1,3 @@
 function azure-npm-image {
-    echo "test"
+    echo $Tag
 }

@@ -37,21 +37,16 @@ stages:
     dependsOn:
       - "setup"
     jobs:
-      - job: npm
-        displayName: Build Windows NPM Image 
+      - job: npm1
         variables:
-          Tag: $[ stagedependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
+            Tag: $[ stagedependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
         pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
-          steps:
-          - powershell: |
-              docker ps
-              echo $Tag
-              powershell -command "& { . .\windows.ps1; azure-npm-image }"
-            env: 
-              Tag: $(Tag)
-            name: "powershelltest"
-            displayName: "Powershell Test"
+            name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+        steps:
+          - script: |
+              powershell.exe -command "& { . .\windows.ps1; azure-npm-image }"
+            name: "powershelltest2"
+            displayName: "Powershell Test2"
 
 
   - stage: build_and_test
