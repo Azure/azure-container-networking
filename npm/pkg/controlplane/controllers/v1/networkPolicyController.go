@@ -121,15 +121,15 @@ func (c *NetworkPolicyController) addNetworkPolicy(obj interface{}) {
 	c.workqueue.Add(netPolkey)
 }
 
-func (c *NetworkPolicyController) updateNetworkPolicy(old, newObj interface{}) {
-	netPolkey, err := c.getNetworkPolicyKey(newObj)
+func (c *NetworkPolicyController) updateNetworkPolicy(old, newnetpol interface{}) {
+	netPolkey, err := c.getNetworkPolicyKey(newnetpol)
 	if err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
 
 	// new network policy object is already checked validation by calling getNetworkPolicyKey function.
-	newNetPol, _ := newObj.(*networkingv1.NetworkPolicy)
+	newNetPol, _ := newnetpol.(*networkingv1.NetworkPolicy)
 	oldNetPol, ok := old.(*networkingv1.NetworkPolicy)
 	if ok {
 		if oldNetPol.ResourceVersion == newNetPol.ResourceVersion {

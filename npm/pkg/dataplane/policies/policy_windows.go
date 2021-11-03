@@ -146,17 +146,15 @@ func getAddrListFromSetInfo(setInfoList []SetInfo) string {
 }
 
 func getPortStrFromPorts(port Ports) string {
-	portStr := ""
 	if port.Port == 0 {
-		return portStr
+		return ""
 	}
-	tempPortStr := fmt.Sprintf("%d", port.Port)
+	portStr := fmt.Sprintf("%d", port.Port)
 	if port.EndPort != 0 {
 		for tempPort := port.Port + 1; tempPort <= port.EndPort; tempPort++ {
-			tempPortStr += fmt.Sprintf(",%d", tempPort)
+			portStr += fmt.Sprintf(",%d", tempPort)
 		}
 	}
-	portStr += tempPortStr
 	return portStr
 }
 
