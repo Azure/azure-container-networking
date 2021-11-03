@@ -29,7 +29,7 @@ var filters = map[types.IPState]IPConfigStatePredicate{
 // the passed State string and returns true when equal.
 func ipConfigStatePredicate(test types.IPState) IPConfigStatePredicate {
 	return func(ipconfig cns.IPConfigurationStatus) bool {
-		return ipconfig.State == test
+		return ipconfig.GetState() == test
 	}
 }
 

@@ -56,8 +56,8 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 		ipconfigCNS := cns.IPConfigurationStatus{
 			ID:        ipconfigCRD.Name,
 			IPAddress: ipconfigCRD.IP,
-			State:     types.Available,
 		}
+		ipconfigCNS.SetState(types.Available)
 		cnsIPConfigs = append(cnsIPConfigs, ipconfigCNS)
 
 		incrementIP(rc.ip)

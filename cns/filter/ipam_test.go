@@ -16,34 +16,33 @@ var testStatuses = []struct {
 	{
 		State: types.Assigned,
 		Status: cns.IPConfigurationStatus{
-			ID:    "assigned",
-			State: types.Assigned,
+			ID: "assigned",
 		},
 	},
 	{
 		State: types.Available,
 		Status: cns.IPConfigurationStatus{
-			ID:    "available",
-			State: types.Available,
+			ID: "available",
 		},
 	},
 	{
 		State: types.PendingProgramming,
 		Status: cns.IPConfigurationStatus{
-			ID:    "pending-programming",
-			State: types.PendingProgramming,
+			ID: "pending-programming",
 		},
 	},
 	{
 		State: types.PendingRelease,
 		Status: cns.IPConfigurationStatus{
-			ID:    "pending-release",
-			State: types.PendingRelease,
+			ID: "pending-release",
 		},
 	},
 }
 
 func TestMatchesAnyIPConfigState(t *testing.T) {
+	for i := range testStatuses {
+		testStatuses[i].Status.SetState(testStatuses[i].State)
+	}
 	for i := range testStatuses {
 		status := testStatuses[i].Status
 		failStatus := testStatuses[(i+1)%len(testStatuses)].Status
@@ -54,6 +53,9 @@ func TestMatchesAnyIPConfigState(t *testing.T) {
 }
 
 func TestMatchAnyIPConfigState(t *testing.T) {
+	for i := range testStatuses {
+		testStatuses[i].Status.SetState(testStatuses[i].State)
+	}
 	m := map[string]cns.IPConfigurationStatus{}
 	for i := range testStatuses {
 		key := strconv.Itoa(i)

@@ -154,8 +154,8 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	}
 	for i := range receivedSecondaryIPConfigs {
 		podIPConfigState := svc.PodIPConfigState[i]
-		if podIPConfigState.State != types.PendingProgramming {
-			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, types.PendingProgramming, podIPConfigState.State, podIPConfigState.IPAddress)
+		if podIPConfigState.GetState() != types.PendingProgramming {
+			t.Errorf("Unexpected State %s, expected State is %s, IP address is %s", podIPConfigState.GetState(), types.PendingProgramming, podIPConfigState.IPAddress)
 		}
 	}
 	svc.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -167,8 +167,8 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	}
 	for i := range receivedSecondaryIPConfigs {
 		podIPConfigState := svc.PodIPConfigState[i]
-		if podIPConfigState.State != types.Available {
-			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, types.Available, podIPConfigState.State, podIPConfigState.IPAddress)
+		if podIPConfigState.GetState() != types.Available {
+			t.Errorf("Unexpected State %s, expeted State is %s, IP address is %s", podIPConfigState.GetState(), types.Available, podIPConfigState.IPAddress)
 		}
 	}
 }
@@ -483,15 +483,15 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 				// Validate IP state
 				if ipStatus.PodInfo != nil {
 					if _, exists := svc.PodIPIDByPodInterfaceKey[ipStatus.PodInfo.Key()]; exists {
-						if ipStatus.State != types.Assigned {
+						if ipStatus.GetState() != types.Assigned {
 							t.Fatalf("IPId: %s State is not Assigned, ipStatus: %+v", ipid, ipStatus)
 						}
 					} else {
 						t.Fatalf("Failed to find podContext for assigned ip: %+v, podinfo :%+v", ipStatus, ipStatus.PodInfo)
 					}
-				} else if ipStatus.State != expectedIPStatus {
+				} else if ipStatus.GetState() != expectedIPStatus {
 					// Todo: Validate for pendingRelease as well
-					t.Fatalf("IPId: %s State is not as expected, ipStatus is : %+v, expected status is %+v", ipid, ipStatus.State, expectedIPStatus)
+					t.Fatalf("IPId: %s State is not as expected, ipStatus is : %+v, expected status is %+v", ipid, ipStatus.GetState(), expectedIPStatus)
 				}
 
 				alreadyValidated[ipid] = ipStatus.IPAddress
@@ -552,7 +552,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 		ipId := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
 		ipConfigstate := svc.PodIPConfigState[ipId]
 
-		if ipConfigstate.State != types.Assigned {
+		if ipConfigstate.GetState() != types.Assigned {
 			t.Fatalf("IpAddress %s is not marked as assigned to Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)
 		}
 
@@ -582,7 +582,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 
 			// Validate IP state
 			if secIpConfigState, found := svc.PodIPConfigState[secIpId]; found {
-				if secIpConfigState.State != types.Available {
+				if secIpConfigState.GetState() != types.Available {
 					t.Fatalf("IPId: %s State is not Available, ipStatus: %+v", secIpId, secIpConfigState)
 				}
 			} else {

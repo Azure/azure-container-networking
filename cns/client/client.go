@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -388,12 +390,17 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 		return nil, errors.Wrap(err, "http request failed")
 	}
 	defer res.Body.Close()
+	b, err := io.ReadAll(res.Body)
+	s := string(b)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to read body %s", s))
+	}
 
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.Errorf("http response %d", res.StatusCode)
 	}
 	var resp restserver.GetHTTPServiceDataResponse
-	err = json.NewDecoder(res.Body).Decode(&resp)
+	err = json.NewDecoder(bytes.NewReader(b)).Decode(&resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode GetHTTPServiceDataResponse")
 	}

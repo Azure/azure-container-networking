@@ -4,7 +4,6 @@
 package restserver
 
 import (
-	"reflect"
 	"strconv"
 	"testing"
 
@@ -13,6 +12,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -53,77 +54,49 @@ func newSecondaryIPConfig(ipAddress string, ncVersion int) cns.SecondaryIPConfig
 
 func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state types.IPState, ncVersion int) cns.IPConfigurationStatus {
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
-
-	return cns.IPConfigurationStatus{
+	status := &cns.IPConfigurationStatus{
 		IPAddress: ipconfig.IPAddress,
 		ID:        id,
 		NCID:      ncid,
-		State:     state,
 	}
+	status.SetState(state)
+	return *status
 }
 
-func requestIpAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPConfigurationStatus, error) {
-	var (
-		ipState   cns.IPConfigurationStatus
-		PodIpInfo cns.PodIpInfo
-		err       error
-	)
-
-	PodIpInfo, err = requestIPConfigHelper(svc, req)
+func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPConfigurationStatus, error) {
+	PodIPInfo, err := requestIPConfigHelper(svc, req)
 	if err != nil {
-		return ipState, err
+		return cns.IPConfigurationStatus{}, err
 	}
 
-	if reflect.DeepEqual(PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, primaryIp) != true {
-		t.Fatalf("PrimarIP is not added as expected ipConfig %+v, expected primaryIP: %+v", PodIpInfo.NetworkContainerPrimaryIPConfig, primaryIp)
-	}
-
-	if PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength != subnetPrfixLength {
-		t.Fatalf("Primary IP Prefix length is not added as expected ipConfig %+v, expected: %+v", PodIpInfo.NetworkContainerPrimaryIPConfig, subnetPrfixLength)
-	}
-
-	// validate DnsServer and Gateway Ip as the same configured for Primary IP
-	if reflect.DeepEqual(PodIpInfo.NetworkContainerPrimaryIPConfig.DNSServers, dnsservers) != true {
-		t.Fatalf("DnsServer is not added as expected ipConfig %+v, expected dnsServers: %+v", PodIpInfo.NetworkContainerPrimaryIPConfig, dnsservers)
-	}
-
-	if reflect.DeepEqual(PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, gatewayIp) != true {
-		t.Fatalf("Gateway is not added as expected ipConfig %+v, expected GatewayIp: %+v", PodIpInfo.NetworkContainerPrimaryIPConfig, gatewayIp)
-	}
-
-	if PodIpInfo.PodIPConfig.PrefixLength != subnetPrfixLength {
-		t.Fatalf("Pod IP Prefix length is not added as expected ipConfig %+v, expected: %+v", PodIpInfo.PodIPConfig, subnetPrfixLength)
-	}
-
-	if reflect.DeepEqual(PodIpInfo.HostPrimaryIPInfo.PrimaryIP, fakes.HostPrimaryIP) != true {
-		t.Fatalf("Host PrimaryIP is not added as expected ipConfig %+v, expected primaryIP: %+v", PodIpInfo.HostPrimaryIPInfo, fakes.HostPrimaryIP)
-	}
-
-	if reflect.DeepEqual(PodIpInfo.HostPrimaryIPInfo.Subnet, fakes.HostSubnet) != true {
-		t.Fatalf("Host Subnet is not added as expected ipConfig %+v, expected Host subnet: %+v", PodIpInfo.HostPrimaryIPInfo, fakes.HostSubnet)
-	}
+	assert.Equal(t, primaryIp, PodIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
+	assert.Equal(t, subnetPrfixLength, int(PodIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
+	assert.Equal(t, dnsservers, PodIPInfo.NetworkContainerPrimaryIPConfig.DNSServers)
+	assert.Equal(t, gatewayIp, PodIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress)
+	assert.Equal(t, subnetPrfixLength, int(PodIPInfo.PodIPConfig.PrefixLength))
+	assert.Equal(t, fakes.HostPrimaryIP, PodIPInfo.HostPrimaryIPInfo.PrimaryIP)
+	assert.Equal(t, fakes.HostSubnet, PodIPInfo.HostPrimaryIPInfo.Subnet)
 
 	// retrieve podinfo from orchestrator context
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
-		return ipState, err
+		return cns.IPConfigurationStatus{}, errors.Wrap(err, "failed to unmarshal pod info")
 	}
 
-	ipId := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
-	ipState = svc.PodIPConfigState[ipId]
-
-	return ipState, err
+	ipID := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
+	return svc.PodIPConfigState[ipID], nil
 }
 
 func NewPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.IPState, prefixLength uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
-	return cns.IPConfigurationStatus{
+	status := &cns.IPConfigurationStatus{
 		IPAddress: ipconfig.IPAddress,
 		ID:        id,
 		NCID:      ncid,
-		State:     state,
 		PodInfo:   podInfo,
-	}, nil
+	}
+	status.SetState(state)
+	return *status, nil
 }
 
 // Test function to populate the IPConfigState
@@ -144,7 +117,7 @@ func UpdatePodIpConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 
 	// update ipconfigs to expected state
 	for ipId, ipconfig := range ipconfigs {
-		if ipconfig.State == types.Assigned {
+		if ipconfig.GetState() == types.Assigned {
 			svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()] = ipId
 			svc.PodIPConfigState[ipId] = ipconfig
 		}
@@ -169,7 +142,7 @@ func TestIPAMGetAvailableIPConfig(t *testing.T) {
 	b, _ := testPod1Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
-	actualstate, err := requestIpAddressAndGetState(t, req)
+	actualstate, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatal("Expected IP retrieval to be nil")
 	}
@@ -177,9 +150,11 @@ func TestIPAMGetAvailableIPConfig(t *testing.T) {
 	desiredState := NewPodState(testIP1, 24, testPod1GUID, testNCID, types.Assigned, 0)
 	desiredState.PodInfo = testPod1Info
 
-	if reflect.DeepEqual(desiredState, actualstate) != true {
-		t.Fatalf("Desired state not matching actual state, expected: %+v, actual: %+v", desiredState, actualstate)
-	}
+	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
+	assert.Equal(t, desiredState.ID, actualstate.ID)
+	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
+	assert.Equal(t, desiredState.NCID, actualstate.NCID)
+	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
 }
 
 // First IP is already assigned to a pod, want second IP
@@ -207,16 +182,18 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
-	actualstate, err := requestIpAddressAndGetState(t, req)
+	actualstate, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
 	}
 	// want second available Pod IP State as first has been assigned
 	desiredState, _ := NewPodStateWithOrchestratorContext(testIP2, testPod2GUID, testNCID, types.Assigned, 24, 0, testPod2Info)
 
-	if reflect.DeepEqual(desiredState, actualstate) != true {
-		t.Fatalf("Desired state not matching actual state, expected: %+v, actual: %+v", desiredState, actualstate)
-	}
+	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
+	assert.Equal(t, desiredState.ID, actualstate.ID)
+	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
+	assert.Equal(t, desiredState.NCID, actualstate.NCID)
+	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
 }
 
 func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T) {
@@ -239,16 +216,18 @@ func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T) {
 	b, _ := testPod1Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
-	actualstate, err := requestIpAddressAndGetState(t, req)
+	actualstate, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatalf("Expected not error: %+v", err)
 	}
 
 	desiredState, _ := NewPodStateWithOrchestratorContext(testIP1, testPod1GUID, testNCID, types.Assigned, 24, 0, testPod1Info)
 
-	if reflect.DeepEqual(desiredState, actualstate) != true {
-		t.Fatalf("Desired state not matching actual state, expected: %+v, actual: %+v", desiredState, actualstate)
-	}
+	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
+	assert.Equal(t, desiredState.ID, actualstate.ID)
+	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
+	assert.Equal(t, desiredState.NCID, actualstate.NCID)
+	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
 }
 
 func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
@@ -273,7 +252,7 @@ func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = testIP2
 
-	_, err = requestIpAddressAndGetState(t, req)
+	_, err = requestIPAddressAndGetState(t, req)
 	if err == nil {
 		t.Fatalf("Expected to fail as IP not found in pool")
 	}
@@ -301,7 +280,7 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = testIP1
 
-	actualstate, err := requestIpAddressAndGetState(t, req)
+	actualstate, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
 	}
@@ -309,9 +288,11 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 	desiredState := NewPodState(testIP1, 24, testPod1GUID, testNCID, types.Assigned, 0)
 	desiredState.PodInfo = testPod1Info
 
-	if reflect.DeepEqual(desiredState, actualstate) != true {
-		t.Fatalf("Desired state not matching actual state, expected: %+v, actual: %+v", desiredState, actualstate)
-	}
+	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
+	assert.Equal(t, desiredState.ID, actualstate.ID)
+	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
+	assert.Equal(t, desiredState.NCID, actualstate.NCID)
+	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
 }
 
 func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T) {
@@ -336,7 +317,7 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T)
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = testIP1
 
-	_, err = requestIpAddressAndGetState(t, req)
+	_, err = requestIPAddressAndGetState(t, req)
 	if err == nil {
 		t.Fatalf("Expected failure requesting already assigned IP: %+v", err)
 	}
@@ -363,7 +344,7 @@ func TestIPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T) {
 	b, _ := testPod3Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
-	_, err = requestIpAddressAndGetState(t, req)
+	_, err = requestIPAddressAndGetState(t, req)
 	if err == nil {
 		t.Fatalf("Expected failure requesting IP when there are no more IPs: %+v", err)
 	}
@@ -398,7 +379,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = desiredIpAddress
 
-	_, err = requestIpAddressAndGetState(t, req)
+	_, err = requestIPAddressAndGetState(t, req)
 	if err == nil {
 		t.Fatal("Expected failure requesting IP when there are no more IPs")
 	}
@@ -418,7 +399,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = desiredIpAddress
 
-	actualstate, err := requestIpAddressAndGetState(t, req)
+	actualstate, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
 	}
@@ -428,9 +409,11 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	desiredState.IPAddress = desiredIpAddress
 	desiredState.PodInfo = testPod2Info
 
-	if reflect.DeepEqual(desiredState, actualstate) != true {
-		t.Fatalf("Desired state not matching actual state, expected: %+v, actual: %+v", state1, actualstate)
-	}
+	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
+	assert.Equal(t, desiredState.ID, actualstate.ID)
+	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
+	assert.Equal(t, desiredState.NCID, actualstate.NCID)
+	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
 }
 
 func TestIPAMReleaseIPIdempotency(t *testing.T) {
@@ -513,7 +496,7 @@ func TestAvailableIPConfigs(t *testing.T) {
 	req.OrchestratorContext = b
 	req.DesiredIPAddress = state1.IPAddress
 
-	_, err := requestIpAddressAndGetState(t, req)
+	_, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatal("Expected IP retrieval to be nil")
 	}
@@ -534,18 +517,18 @@ func validateIpState(t *testing.T, actualIps []cns.IPConfigurationStatus, expect
 		t.Fatalf("Actual and expected  count doesnt match, expected %d, actual %d", len(actualIps), len(expectedList))
 	}
 
-	for _, actualIp := range actualIps {
-		var expectedIp cns.IPConfigurationStatus
+	for _, actualIP := range actualIps { //nolint:gocritic // ignore copy
+		var expectedIP cns.IPConfigurationStatus
 		var found bool
-		for _, expectedIp = range expectedList {
-			if reflect.DeepEqual(actualIp, expectedIp) == true {
+		for _, expectedIP = range expectedList { //nolint:gocritic // ignore copy
+			if expectedIP.Equals(actualIP) {
 				found = true
 				break
 			}
 		}
 
 		if !found {
-			t.Fatalf("Actual and expected list doesnt match actual: %+v, expected: %+v", actualIp, expectedIp)
+			t.Fatalf("Actual and expected list doesnt match actual: %+v, expected: %+v", actualIP, expectedIP)
 		}
 	}
 }
@@ -635,10 +618,10 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	}
 	// Check returning released IPs are from pod 1 and 3
 	if _, exists := ips[testPod1GUID]; !exists {
-		t.Fatalf("Expected ID not marked as pending: %+v, ips is %s", err, ips)
+		t.Fatalf("Expected ID not marked as pending: %+v, ips is %v", err, ips)
 	}
 	if _, exists := ips[testPod3GUID]; !exists {
-		t.Fatalf("Expected ID not marked as pending: %+v, ips is %s", err, ips)
+		t.Fatalf("Expected ID not marked as pending: %+v, ips is %v", err, ips)
 	}
 
 	pendingRelease := svc.GetPendingReleaseIPConfigs()
@@ -670,10 +653,10 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	}
 	// Make sure newly released IPs are from pod 2 and pod 4
 	if _, exists := ips[testPod2GUID]; !exists {
-		t.Fatalf("Expected ID not marked as pending: %+v, ips is %s", err, ips)
+		t.Fatalf("Expected ID not marked as pending: %+v, ips is %v", err, ips)
 	}
 	if _, exists := ips[testPod4GUID]; !exists {
-		t.Fatalf("Expected ID not marked as pending: %+v, ips is %s", err, ips)
+		t.Fatalf("Expected ID not marked as pending: %+v, ips is %v", err, ips)
 	}
 
 	// Get all pending release IPs and check total number is 4

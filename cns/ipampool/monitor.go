@@ -126,7 +126,7 @@ func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.Nod
 		requested: spec.RequestedIPCount,
 	}
 	for _, v := range ips {
-		switch v.State {
+		switch v.GetState() {
 		case types.Assigned:
 			state.assigned++
 		case types.Available:

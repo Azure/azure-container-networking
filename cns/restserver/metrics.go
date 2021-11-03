@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
@@ -31,10 +33,21 @@ var ipAssignmentLatency = prometheus.NewHistogram(
 	},
 )
 
+var ipConfigStatusStateTransitionTime = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name: "ipconfigstatus_state_transition",
+		Help: "Time spent by the IP Configuration Status in each state transition",
+		//nolint:gomnd // default bucket consts
+		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1 ms to ~16 seconds
+	},
+	[]string{"previous_state", "next_state"},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		httpRequestLatency,
 		ipAssignmentLatency,
+		ipConfigStatusStateTransitionTime,
 	)
 }
 
@@ -46,4 +59,12 @@ func newHandlerFuncWithHistogram(handler http.HandlerFunc, histogram *prometheus
 		}()
 		handler(w, req)
 	}
+}
+
+func stateTransitionMiddleware(i *cns.IPConfigurationStatus, s types.IPState) {
+	// if no state transition has been recorded yet, don't collect any metric
+	if i.LastStateTransition.IsZero() {
+		return
+	}
+	ipConfigStatusStateTransitionTime.WithLabelValues(string(i.GetState()), string(s)).Observe(time.Since(i.LastStateTransition).Seconds())
 }

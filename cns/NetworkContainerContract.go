@@ -149,6 +149,8 @@ type PodInfo interface {
 	Namespace() string
 	// OrchestratorContext is a JSON KubernetesPodInfo
 	OrchestratorContext() (json.RawMessage, error)
+	// Equals implements a functional equals for PodInfos
+	Equals(PodInfo) bool
 }
 
 type KubernetesPodInfo struct {
@@ -164,6 +166,16 @@ type podInfo struct {
 	PodInfraContainerID string
 	PodInterfaceID      string
 	Version             podInfoScheme
+}
+
+func (p *podInfo) Equals(o PodInfo) bool {
+	if (p == nil) != (o == nil) {
+		return false
+	}
+	if p == nil {
+		return true
+	}
+	return p.Key() == o.Key()
 }
 
 func (p *podInfo) InfraContainerID() string {

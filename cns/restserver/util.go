@@ -225,7 +225,7 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
 			// pod ip exists, validate if state is not assigned, else fail
-			if ipConfigStatus.State == types.Assigned {
+			if ipConfigStatus.GetState() == types.Assigned {
 				errMsg := fmt.Sprintf("Failed to delete an Assigned IP %v", ipConfigStatus)
 				return types.InconsistentIPConfigState, errMsg
 			}
@@ -288,9 +288,10 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVe
 			NCID:      ncID,
 			ID:        ipID,
 			IPAddress: ipconfig.IPAddress,
-			State:     newIPCNSStatus,
 			PodInfo:   nil,
 		}
+		ipconfigStatus.WithStateMiddleware(stateTransitionMiddleware)
+		ipconfigStatus.SetState(newIPCNSStatus)
 		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
 		service.PodIPConfigState[ipID] = ipconfigStatus
@@ -321,7 +322,7 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
 			// pod ip exists, validate if state is not assigned, else fail
-			if ipConfigStatus.State == types.Assigned {
+			if ipConfigStatus.GetState() == types.Assigned {
 				errMsg := fmt.Sprintf("Failed to delete an Assigned IP %v", ipConfigStatus)
 				return types.InconsistentIPConfigState, errMsg
 			}

@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 )
 
 // Container Network Service remote API Contract
@@ -51,16 +53,70 @@ type HTTPService interface {
 // This is used for KubernetesCRD orchestrator Type where NC has multiple ips.
 // This struct captures the state for SecondaryIPs associated to a given NC
 type IPConfigurationStatus struct {
-	NCID      string
-	ID        string // uuid
-	IPAddress string
-	State     types.IPState
-	PodInfo   PodInfo
+	ID                   string // uuid
+	IPAddress            string
+	LastStateTransition  time.Time
+	NCID                 string
+	PodInfo              PodInfo
+	state                types.IPState
+	stateMiddlewareFuncs []stateMiddlewareFunc
 }
 
-func (i IPConfigurationStatus) String() string {
+// Equals compares a subset of the IPConfigurationStatus fields since a direct
+// DeepEquals or otherwise complete comparison of two IPConfigurationStatus objects
+// compares internal state details that don't impact their functional equality.
+//nolint:gocritic // it's safer to pass this by value
+func (i *IPConfigurationStatus) Equals(o IPConfigurationStatus) bool {
+	if i.PodInfo != nil && o.PodInfo != nil {
+		if !i.PodInfo.Equals(o.PodInfo) {
+			return false
+		}
+	}
+	return i.ID == o.ID &&
+		i.IPAddress == o.IPAddress &&
+		i.NCID == o.NCID &&
+		i.state == o.state
+}
+
+func (i *IPConfigurationStatus) GetState() types.IPState {
+	return i.state
+}
+
+type stateMiddlewareFunc func(*IPConfigurationStatus, types.IPState)
+
+func (i *IPConfigurationStatus) SetState(s types.IPState) {
+	for _, f := range i.stateMiddlewareFuncs {
+		f(i, s)
+	}
+	i.LastStateTransition = time.Now()
+	i.state = s
+}
+
+func (i *IPConfigurationStatus) WithStateMiddleware(fs ...stateMiddlewareFunc) {
+	i.stateMiddlewareFuncs = append(i.stateMiddlewareFuncs, fs...)
+}
+
+func (i *IPConfigurationStatus) String() string {
 	return fmt.Sprintf("IPConfigurationStatus: Id: [%s], NcId: [%s], IpAddress: [%s], State: [%s], PodInfo: [%v]",
-		i.ID, i.NCID, i.IPAddress, i.State, i.PodInfo)
+		i.ID, i.NCID, i.IPAddress, i.state, i.PodInfo)
+}
+
+// MarshalJSON is a custom marshaller for IPConfigurationStatus that
+// is capable of marshalling the private fields in the struct. The default
+// marshaller can't see private fields by default, so we alias the type through
+// a struct that has public fields for the original struct's private fields,
+// embed the original struct in an anonymous struct as the alias type, and then
+// let the default marshaller do its magic.
+//nolint:gocritic // ignore hugeParam it's a value receiver on purpose
+func (i IPConfigurationStatus) MarshalJSON() ([]byte, error) {
+	type alias IPConfigurationStatus
+	return json.Marshal(&struct { //nolint:wrapcheck // MarshalJSON is not called by us
+		State types.IPState `json:"state"`
+		*alias
+	}{
+		State: i.state,
+		alias: (*alias)(&i),
+	})
 }
 
 // UnmarshalJSON is a custom unmarshaller for IPConfigurationStatus that
@@ -70,32 +126,32 @@ func (i IPConfigurationStatus) String() string {
 func (i *IPConfigurationStatus) UnmarshalJSON(b []byte) error {
 	m := map[string]json.RawMessage{}
 	if err := json.Unmarshal(b, &m); err != nil {
-		return err
+		return errors.Wrap(err, "failed to unmarshal to RawMessage")
 	}
 	if s, ok := m["NCID"]; ok {
 		if err := json.Unmarshal(s, &(i.NCID)); err != nil {
-			return err
+			return errors.Wrap(err, "failed to unmarshal key NCID to string")
 		}
 	}
 	if s, ok := m["ID"]; ok {
 		if err := json.Unmarshal(s, &(i.ID)); err != nil {
-			return err
+			return errors.Wrap(err, "failed to unmarshal key ID to string")
 		}
 	}
 	if s, ok := m["IPAddress"]; ok {
 		if err := json.Unmarshal(s, &(i.IPAddress)); err != nil {
-			return err
+			return errors.Wrap(err, "failed to unmarshal key IPAddress to string")
 		}
 	}
-	if s, ok := m["State"]; ok {
-		if err := json.Unmarshal(s, &(i.State)); err != nil {
-			return err
+	if s, ok := m["state"]; ok {
+		if err := json.Unmarshal(s, &(i.state)); err != nil {
+			return errors.Wrap(err, "failed to unmarshal key state to IPConfigState")
 		}
 	}
 	if s, ok := m["PodInfo"]; ok {
 		pi, err := UnmarshalPodInfo(s)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to unmarshal key PodInfo to PodInfo")
 		}
 		i.PodInfo = pi
 	}

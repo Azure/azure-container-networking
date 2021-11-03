@@ -255,7 +255,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	secondaryIps := make([]string, 0)
 	secondaryIps = append(secondaryIps, desiredIpAddress)
-	cnsClient, _ := New("", 2*time.Second)
+	cnsClient, _ := New("", 2*time.Hour)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -289,7 +289,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	assert.Len(t, ipaddresses, 1, "Number of available IP addresses expected to be 1")
 	assert.Equal(t, desiredIpAddress, ipaddresses[0].IPAddress, "Available IP address does not match expected, address state")
-	assert.Equal(t, types.Assigned, ipaddresses[0].State, "Available IP address does not match expected, address state")
+	assert.Equal(t, types.Assigned, ipaddresses[0].GetState(), "Available IP address does not match expected, address state")
 
 	t.Log(ipaddresses)
 
@@ -334,7 +334,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	desiredIpAddress := "10.0.0.5"
 
 	secondaryIps := []string{desiredIpAddress}
-	cnsClient, _ := New("", 2*time.Second)
+	cnsClient, _ := New("", 2*time.Hour)
 
 	addTestStateToRestServer(t, secondaryIps)
 
@@ -356,7 +356,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	podConfig := inmemory.HTTPRestServiceData.PodIPConfigState
 	for _, v := range podConfig {
 		assert.Equal(t, "10.0.0.5", v.IPAddress, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
-		assert.Equal(t, types.Assigned, v.State, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
+		assert.Equal(t, types.Assigned, v.GetState(), "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 		assert.Equal(t, "testNcId1", v.NCID, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 	}
 	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPConfigState), 1, "PodIpConfigState with at least 1 entry expected")

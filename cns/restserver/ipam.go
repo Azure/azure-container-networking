@@ -112,7 +112,7 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	defer service.Unlock()
 
 	for uuid, existingIpConfig := range service.PodIPConfigState {
-		if existingIpConfig.State == types.PendingProgramming {
+		if existingIpConfig.GetState() == types.PendingProgramming {
 			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
 			if err != nil {
 				return nil, err
@@ -127,7 +127,7 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 
 	// if not all expected IPs are set to PendingRelease, then check the Available IPs
 	for uuid, existingIpConfig := range service.PodIPConfigState {
-		if existingIpConfig.State == types.Available {
+		if existingIpConfig.GetState() == types.Available {
 			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
 			if err != nil {
 				return nil, err
@@ -148,7 +148,7 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState types.IPState, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	if ipConfig, found := service.PodIPConfigState[ipID]; found {
 		logger.Printf("[updateIPConfigState] Changing IpId [%s] state to [%s], podInfo [%+v]. Current config [%+v]", ipID, updatedState, podInfo, ipConfig)
-		ipConfig.State = updatedState
+		ipConfig.SetState(updatedState)
 		ipConfig.PodInfo = podInfo
 		service.PodIPConfigState[ipID] = ipConfig
 		return ipConfig, nil
@@ -175,7 +175,7 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
 				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
 					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
-				} else if ipConfigStatus.State == types.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
+				} else if ipConfigStatus.GetState() == types.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
 					_, err := service.updateIPConfigState(uuid, types.Available, nil)
 					if err != nil {
 						logger.Errorf("Error updating IPConfig [%+v] state to Available, err: %+v", ipConfigStatus, err)
@@ -338,12 +338,12 @@ func (service *HTTPRestService) MarkExistingIPsAsPending(pendingIPIDs []string) 
 
 	for _, id := range pendingIPIDs {
 		if ipconfig, exists := service.PodIPConfigState[id]; exists {
-			if ipconfig.State == types.Assigned {
+			if ipconfig.GetState() == types.Assigned {
 				return errors.Errorf("Failed to mark IP [%v] as pending, currently assigned", id)
 			}
 
 			logger.Printf("[MarkExistingIPsAsPending]: Marking IP [%+v] to PendingRelease", ipconfig)
-			ipconfig.State = types.PendingRelease
+			ipconfig.SetState(types.PendingRelease)
 			service.PodIPConfigState[id] = ipconfig
 		} else {
 			logger.Errorf("Inconsistent state, ipconfig with ID [%v] marked as pending release, but does not exist in state", id)
@@ -382,7 +382,7 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 
 	for _, ipConfig := range service.PodIPConfigState {
 		if ipConfig.IPAddress == desiredIPAddress {
-			switch ipConfig.State { //nolint:exhaustive // ignoring PendingRelease case intentionally
+			switch ipConfig.GetState() { //nolint:exhaustive // ignoring PendingRelease case intentionally
 			case types.Assigned:
 				// This IP has already been assigned, if it is assigned to same pod, then return the same
 				// IPconfiguration
@@ -412,7 +412,7 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 	defer service.Unlock()
 
 	for _, ipState := range service.PodIPConfigState {
-		if ipState.State == types.Available {
+		if ipState.GetState() == types.Available {
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
 				return cns.PodIpInfo{}, err
 			}
