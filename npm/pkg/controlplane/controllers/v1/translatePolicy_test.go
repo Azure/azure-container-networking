@@ -2711,6 +2711,9 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 
 func TestComplexPolicy(t *testing.T) {
 	k8sExamplePolicy, err := readPolicyYaml("../../../../testpolicies/complex-policy.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
 	k8sExamplePolicyDiffOrder, err := readPolicyYaml("../../../../testpolicies/complex-policy-diff-order.yaml")
 	if err != nil {
 		t.Fatal(err)

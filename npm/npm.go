@@ -243,8 +243,8 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 		go npMgr.podControllerV2.Run(stopCh)
 		go npMgr.namespaceControllerV2.Run(stopCh)
 		// TODO add in netpol controller v2
-		//go npMgr.netPolControllerV1.Run(stopCh)
-		//go npMgr.netPolControllerV1.RunPeriodicTasks(stopCh)
+		// go npMgr.netPolControllerV1.Run(stopCh)
+		// go npMgr.netPolControllerV1.RunPeriodicTasks(stopCh)
 		return nil
 	}
 
