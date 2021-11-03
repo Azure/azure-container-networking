@@ -67,8 +67,8 @@ type NetworkPolicyManager struct {
 	namespaceControllerV2 *controllersv2.NamespaceController
 	npmNamespaceCacheV2   *controllersv2.NpmNamespaceCache
 
-	npInformer       networkinginformers.NetworkPolicyInformer
-	netPolController *networkPolicyController
+	npInformer         networkinginformers.NetworkPolicyInformer
+	netPolControllerV1 *controllersv1.NetworkPolicyController
 
 	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management
 	// and uses lock to avoid unintentional race condictions in IpsetManager.
@@ -116,7 +116,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	// create NameSpace controller
 	npMgr.namespaceControllerV1 = controllersv1.NewNameSpaceController(npMgr.nsInformer, npMgr.ipsMgr, npMgr.npmNamespaceCacheV1)
 	// create network policy controller
-	npMgr.netPolController = NewNetworkPolicyController(npMgr.npInformer, npMgr.ipsMgr)
+	npMgr.netPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.npInformer, npMgr.ipsMgr)
 
 	return npMgr
 }
@@ -204,7 +204,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 		lenOfNsMap := len(npMgr.npmNamespaceCacheV1.NsMap)
 		nsCount.Value = float64(lenOfNsMap - 1)
 
-		lenOfRawNpMap := npMgr.netPolController.lengthOfRawNpMap()
+		lenOfRawNpMap := npMgr.netPolControllerV1.LengthOfRawNpMap()
 		nwPolicyCount.Value += float64(lenOfRawNpMap)
 
 		lenOfPodMap := npMgr.podControllerV1.LengthOfPodMap()
@@ -219,7 +219,7 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
 	// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
-	if err := npMgr.netPolController.resetDataPlane(); err != nil {
+	if err := npMgr.netPolControllerV1.ResetDataPlane(); err != nil {
 		return fmt.Errorf("Failed to initialized data plane")
 	}
 
@@ -242,16 +242,17 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 	if config.Toggles.EnableV2Controllers {
 		go npMgr.podControllerV2.Run(stopCh)
 		go npMgr.namespaceControllerV2.Run(stopCh)
-		go npMgr.netPolController.Run(stopCh)
-		go npMgr.netPolController.runPeriodicTasks(stopCh)
+		// TODO add in netpol controller v2
+		// go npMgr.netPolControllerV1.Run(stopCh)
+		// go npMgr.netPolControllerV1.RunPeriodicTasks(stopCh)
 		return nil
 	}
 
 	// start controllers after synced
 	go npMgr.podControllerV1.Run(stopCh)
 	go npMgr.namespaceControllerV1.Run(stopCh)
-	go npMgr.netPolController.Run(stopCh)
-	go npMgr.netPolController.runPeriodicTasks(stopCh)
+	go npMgr.netPolControllerV1.Run(stopCh)
+	go npMgr.netPolControllerV1.RunPeriodicTasks(stopCh)
 
 	return nil
 }

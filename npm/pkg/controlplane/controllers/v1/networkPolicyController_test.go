@@ -1,12 +1,11 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package npm
+package controllers
 
 import (
 	"fmt"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -25,8 +24,6 @@ import (
 	"k8s.io/utils/exec"
 )
 
-var noResyncPeriodFunc = func() time.Duration { return 0 }
-
 type netPolFixture struct {
 	t *testing.T
 
@@ -38,7 +35,7 @@ type netPolFixture struct {
 	kubeobjects []runtime.Object
 
 	ipsMgr           *ipsm.IpsetManager
-	netPolController *networkPolicyController
+	netPolController *NetworkPolicyController
 	kubeInformer     kubeinformers.SharedInformerFactory
 }
 

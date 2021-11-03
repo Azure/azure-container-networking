@@ -1,6 +1,6 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package npm
+package controllers
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ const (
 	unSafeToCleanUpAzureNpmChain IsSafeCleanUpAzureNpmChain = false
 )
 
-type networkPolicyController struct {
+type NetworkPolicyController struct {
 	netPolLister netpollister.NetworkPolicyLister
 	workqueue    workqueue.RateLimitingInterface
 	rawNpMap     map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
@@ -43,8 +43,8 @@ type networkPolicyController struct {
 	iptMgr                 *iptm.IptablesManager
 }
 
-func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, ipsMgr *ipsm.IpsetManager) *networkPolicyController {
-	netPolController := &networkPolicyController{
+func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, ipsMgr *ipsm.IpsetManager) *NetworkPolicyController {
+	netPolController := &NetworkPolicyController{
 		netPolLister: npInformer.Lister(),
 		workqueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
 		rawNpMap:     make(map[string]*networkingv1.NetworkPolicy),
@@ -66,7 +66,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 
 // initializeDataPlane do all initialization tasks for data plane
 // TODO(jungukcho) Need to refactor UninitNpmChains since it assumes it has already AZURE-NPM chains
-func (c *networkPolicyController) resetDataPlane() error {
+func (c *NetworkPolicyController) ResetDataPlane() error {
 	klog.Infof("Initiailize data plane. Clean up Azure-NPM chains and start reconcile iptables")
 
 	// TODO(jungukcho): will clean-up error handling codes to initialize iptables and ipset in a separate PR
@@ -85,18 +85,18 @@ func (c *networkPolicyController) resetDataPlane() error {
 	return nil
 }
 
-func (c *networkPolicyController) runPeriodicTasks(stopCh <-chan struct{}) {
+func (c *NetworkPolicyController) RunPeriodicTasks(stopCh <-chan struct{}) {
 	// (TODO): Check any side effects
 	c.iptMgr.ReconcileIPTables(stopCh)
 }
 
-func (c *networkPolicyController) lengthOfRawNpMap() int {
+func (c *NetworkPolicyController) LengthOfRawNpMap() int {
 	return len(c.rawNpMap)
 }
 
 // getNetworkPolicyKey returns namespace/name of network policy object if it is valid network policy object and has valid namespace/name.
 // If not, it returns error.
-func (c *networkPolicyController) getNetworkPolicyKey(obj interface{}) (string, error) {
+func (c *NetworkPolicyController) getNetworkPolicyKey(obj interface{}) (string, error) {
 	var key string
 	_, ok := obj.(*networkingv1.NetworkPolicy)
 	if !ok {
@@ -111,7 +111,7 @@ func (c *networkPolicyController) getNetworkPolicyKey(obj interface{}) (string, 
 	return key, nil
 }
 
-func (c *networkPolicyController) addNetworkPolicy(obj interface{}) {
+func (c *NetworkPolicyController) addNetworkPolicy(obj interface{}) {
 	netPolkey, err := c.getNetworkPolicyKey(obj)
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -121,15 +121,15 @@ func (c *networkPolicyController) addNetworkPolicy(obj interface{}) {
 	c.workqueue.Add(netPolkey)
 }
 
-func (c *networkPolicyController) updateNetworkPolicy(old, new interface{}) {
-	netPolkey, err := c.getNetworkPolicyKey(new)
+func (c *NetworkPolicyController) updateNetworkPolicy(old, newnetpol interface{}) {
+	netPolkey, err := c.getNetworkPolicyKey(newnetpol)
 	if err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
 
 	// new network policy object is already checked validation by calling getNetworkPolicyKey function.
-	newNetPol, _ := new.(*networkingv1.NetworkPolicy)
+	newNetPol, _ := newnetpol.(*networkingv1.NetworkPolicy)
 	oldNetPol, ok := old.(*networkingv1.NetworkPolicy)
 	if ok {
 		if oldNetPol.ResourceVersion == newNetPol.ResourceVersion {
@@ -142,7 +142,7 @@ func (c *networkPolicyController) updateNetworkPolicy(old, new interface{}) {
 	c.workqueue.Add(netPolkey)
 }
 
-func (c *networkPolicyController) deleteNetworkPolicy(obj interface{}) {
+func (c *NetworkPolicyController) deleteNetworkPolicy(obj interface{}) {
 	netPolObj, ok := obj.(*networkingv1.NetworkPolicy)
 	// DeleteFunc gets the final state of the resource (if it is known).
 	// Otherwise, it gets an object of type DeletedFinalStateUnknown.
@@ -173,7 +173,7 @@ func (c *networkPolicyController) deleteNetworkPolicy(obj interface{}) {
 	c.workqueue.Add(netPolkey)
 }
 
-func (c *networkPolicyController) Run(stopCh <-chan struct{}) {
+func (c *NetworkPolicyController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
@@ -185,12 +185,12 @@ func (c *networkPolicyController) Run(stopCh <-chan struct{}) {
 	klog.Info("Shutting down Network Policy workers")
 }
 
-func (c *networkPolicyController) runWorker() {
+func (c *NetworkPolicyController) runWorker() {
 	for c.processNextWorkItem() {
 	}
 }
 
-func (c *networkPolicyController) processNextWorkItem() bool {
+func (c *NetworkPolicyController) processNextWorkItem() bool {
 	obj, shutdown := c.workqueue.Get()
 
 	if shutdown {
@@ -232,7 +232,7 @@ func (c *networkPolicyController) processNextWorkItem() bool {
 }
 
 // syncNetPol compares the actual state with the desired, and attempts to converge the two.
-func (c *networkPolicyController) syncNetPol(key string) error {
+func (c *NetworkPolicyController) syncNetPol(key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -286,7 +286,7 @@ func (c *networkPolicyController) syncNetPol(key string) error {
 }
 
 // initializeDefaultAzureNpmChain install default rules for kube-system and iptables
-func (c *networkPolicyController) initializeDefaultAzureNpmChain() error {
+func (c *NetworkPolicyController) initializeDefaultAzureNpmChain() error {
 	if c.isAzureNpmChainCreated {
 		return nil
 	}
@@ -303,7 +303,7 @@ func (c *networkPolicyController) initializeDefaultAzureNpmChain() error {
 }
 
 // syncAddAndUpdateNetPol handles a new network policy or an updated network policy object triggered by add and update events
-func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1.NetworkPolicy) error {
+func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1.NetworkPolicy) error {
 	prometheusTimer := metrics.StartNewTimer()
 	defer metrics.RecordPolicyExecTime(prometheusTimer) // record execution time regardless of failure
 
@@ -395,7 +395,7 @@ func (c *networkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 }
 
 // DeleteNetworkPolicy handles deleting network policy based on netPolKey.
-func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeCleanUpAzureNpmChain IsSafeCleanUpAzureNpmChain) error {
+func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeCleanUpAzureNpmChain IsSafeCleanUpAzureNpmChain) error {
 	cachedNetPolObj, cachedNetPolObjExists := c.rawNpMap[netPolKey]
 	// if there is no applied network policy with the netPolKey, do not need to clean up process.
 	if !cachedNetPolObjExists {
@@ -455,7 +455,7 @@ func (c *networkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 }
 
 // (TODO) do not need to ipsMgr parameter
-func (c *networkPolicyController) createCidrsRule(direction, policyName, ns string, ipsets [][]string) error {
+func (c *NetworkPolicyController) createCidrsRule(direction, policyName, ns string, ipsets [][]string) error {
 	spec := []string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum}
 
 	for i, ipCidrSet := range ipsets {
@@ -488,7 +488,7 @@ func (c *networkPolicyController) createCidrsRule(direction, policyName, ns stri
 	return nil
 }
 
-func (c *networkPolicyController) removeCidrsRule(direction, policyName, ns string, ipsets [][]string) error {
+func (c *NetworkPolicyController) removeCidrsRule(direction, policyName, ns string, ipsets [][]string) error {
 	for i, ipCidrSet := range ipsets {
 		if len(ipCidrSet) == 0 {
 			continue

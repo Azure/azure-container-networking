@@ -40,17 +40,17 @@ type NPMACLPolSettings struct {
 	Priority        uint16            `json:",omitempty"`
 }
 
-func (orig NPMACLPolSettings) compare(new *NPMACLPolSettings) bool {
-	return orig.Id == new.Id &&
-		orig.Protocols == new.Protocols &&
-		orig.Action == new.Action &&
-		orig.Direction == new.Direction &&
-		orig.LocalAddresses == new.LocalAddresses &&
-		orig.RemoteAddresses == new.RemoteAddresses &&
-		orig.LocalPorts == new.LocalPorts &&
-		orig.RemotePorts == new.RemotePorts &&
-		orig.RuleType == new.RuleType &&
-		orig.Priority == new.Priority
+func (orig NPMACLPolSettings) compare(newACL *NPMACLPolSettings) bool {
+	return orig.Id == newACL.Id &&
+		orig.Protocols == newACL.Protocols &&
+		orig.Action == newACL.Action &&
+		orig.Direction == newACL.Direction &&
+		orig.LocalAddresses == newACL.LocalAddresses &&
+		orig.RemoteAddresses == newACL.RemoteAddresses &&
+		orig.LocalPorts == newACL.LocalPorts &&
+		orig.RemotePorts == newACL.RemotePorts &&
+		orig.RuleType == newACL.RuleType &&
+		orig.Priority == newACL.Priority
 }
 
 func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
@@ -88,7 +88,6 @@ func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
 
 	// ACLPolicy settings uses ID field of SetPolicy in LocalAddresses or RemoteAddresses
 	srcListStr := getAddrListFromSetInfo(acl.SrcList)
-	srcPortStr := getPortStrFromPorts(acl.SrcPorts)
 	dstListStr := getAddrListFromSetInfo(acl.DstList)
 	dstPortStr := getPortStrFromPorts(acl.DstPorts)
 
@@ -100,14 +99,12 @@ func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
 	// 		LocalAddresses = Destination IPs
 	// 		RemoteAddresses = Source IPs
 	policySettings.LocalAddresses = srcListStr
-	policySettings.LocalPorts = srcPortStr
 	policySettings.RemoteAddresses = dstListStr
 	policySettings.RemotePorts = dstPortStr
 	if policySettings.Direction == hcn.DirectionTypeOut {
 		policySettings.LocalAddresses = dstListStr
 		policySettings.LocalPorts = dstPortStr
 		policySettings.RemoteAddresses = srcListStr
-		policySettings.RemotePorts = srcPortStr
 	}
 
 	return policySettings, nil
@@ -148,22 +145,14 @@ func getAddrListFromSetInfo(setInfoList []SetInfo) string {
 	return setInfoStr
 }
 
-func getPortStrFromPorts(ports []Ports) string {
-	portStr := ""
-	for i, port := range ports {
-		if port.Port == 0 {
-			continue
-		}
-		tempPortStr := fmt.Sprintf("%d", port.Port)
-		if port.EndPort != 0 {
-			for tempPort := port.Port + 1; tempPort <= port.EndPort; tempPort++ {
-				tempPortStr += fmt.Sprintf(",%d", tempPort)
-			}
-		}
-		if i < len(ports)-1 {
-			portStr += tempPortStr + ","
-		} else {
-			portStr += tempPortStr
+func getPortStrFromPorts(port Ports) string {
+	if port.Port == 0 {
+		return ""
+	}
+	portStr := fmt.Sprintf("%d", port.Port)
+	if port.EndPort != 0 {
+		for tempPort := port.Port + 1; tempPort <= port.EndPort; tempPort++ {
+			portStr += fmt.Sprintf(",%d", tempPort)
 		}
 	}
 	return portStr

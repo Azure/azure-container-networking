@@ -1,8 +1,9 @@
-package npm
+package controllers
 
 import (
 	"encoding/json"
 	"io/ioutil"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -14,6 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
 )
+
+const testPolicyDir = "../../../../"
 
 func TestCraftPartialIptEntrySpecFromPort(t *testing.T) {
 	portRule := networkingv1.NetworkPolicyPort{}
@@ -1112,7 +1115,8 @@ func TestTranslateEgress(t *testing.T) {
 
 func readPolicyYaml(policyYaml string) (*networkingv1.NetworkPolicy, error) {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
-	b, err := ioutil.ReadFile(policyYaml)
+	policyYamlLocation := filepath.Join(testPolicyDir, policyYaml)
+	b, err := ioutil.ReadFile(policyYamlLocation)
 	if err != nil {
 		return nil, err
 	}
@@ -2711,6 +2715,9 @@ func TestAllowAppFrontendToTCPPort53UDPPort53Policy(t *testing.T) {
 
 func TestComplexPolicy(t *testing.T) {
 	k8sExamplePolicy, err := readPolicyYaml("testpolicies/complex-policy.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
 	k8sExamplePolicyDiffOrder, err := readPolicyYaml("testpolicies/complex-policy-diff-order.yaml")
 	if err != nil {
 		t.Fatal(err)
