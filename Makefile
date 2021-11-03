@@ -113,7 +113,7 @@ ifeq ($(GOOS),linux)
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images: azure-npm-image azure-cns-image
 else
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images:
 	@echo "Nothing to build. Skip."
 endif

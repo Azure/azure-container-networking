@@ -11,22 +11,10 @@ trigger:
       - honeycomb-dev
 
 stages:
-  - stage: build_and_test
+  - stage: setup
     displayName: ACN
     jobs:
-
-      - job: setup_windows
-        displayName: Setup Windows
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
-        steps:
-          - script: |
-              docker ps
-            name: "EnvironmentalVariables"
-            displayName: "Set environmental variables"
-            condition: always()
-
-      - job: setup
+      - job: env
         displayName: Setup 
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
@@ -44,13 +32,38 @@ stages:
             displayName: "Set environmental variables"
             condition: always()
 
+  - stage: build_windows_images
+    displayName: Build Windows Images
+    dependsOn:
+      - "setup"
+    jobs:
+      - job: npm
+        displayName: Build Windows NPM Image 
+        variables:
+          Tag: $[ stagedependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+          steps:
+          - powershell: |
+              docker ps
+              echo $Tag
+              powershell -command "& { . .\windows.ps1; azure-npm-image }"
+            env: 
+              Tag: $(Tag)
+            name: "powershelltest"
+            displayName: "Powershell Test"
+
+
+  - stage: build_and_test
+    displayName: ACN
+    dependsOn:
+      - "setup"
+    jobs:
       - job: build
         displayName: Build Binaries
-        dependsOn:
-          - "setup"
         variables:
-          TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
-          STORAGE_ID: $[ dependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
+          TAG: $[ stagedependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
+          STORAGE_ID: $[ stagedependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
@@ -97,8 +110,6 @@ stages:
 
       - job: build_images
         displayName: Build Images
-        dependsOn:
-          - "setup"
         variables:
           TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
         pool:
@@ -170,8 +181,6 @@ stages:
 
       - job: test
         displayName: Run Tests
-        dependsOn:
-          - "setup"
         variables:
           STORAGE_ID: $[ dependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
