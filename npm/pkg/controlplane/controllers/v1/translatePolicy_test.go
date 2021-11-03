@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-var testPolicyDir = "../../../../"
+const testPolicyDir = "../../../../"
 
 func TestCraftPartialIptEntrySpecFromPort(t *testing.T) {
 	portRule := networkingv1.NetworkPolicyPort{}
