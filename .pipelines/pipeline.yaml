@@ -14,6 +14,18 @@ stages:
   - stage: build_and_test
     displayName: ACN
     jobs:
+
+      - job: setup_windows
+        displayName: Setup Windows
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+        steps:
+          - script: |
+              docker ps
+            name: "EnvironmentalVariables"
+            displayName: "Set environmental variables"
+            condition: always()
+
       - job: setup
         displayName: Setup 
         pool:
