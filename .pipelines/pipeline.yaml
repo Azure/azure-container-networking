@@ -44,7 +44,7 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
         steps:
           - powershell:  |
-              [System.Environment]::SetEnvironmentVariable('Tag',$(Tag)) 
+              [System.Environment]::SetEnvironmentVariable('Tag',"$(Tag)") 
               echo "Tag1": $env:Tag
               powershell.exe -command "& { . .\windows.ps1; azure-npm-image }"
               echo "Tag2": $env:Tag
