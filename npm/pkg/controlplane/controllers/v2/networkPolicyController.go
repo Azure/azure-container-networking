@@ -3,6 +3,7 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -12,7 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	networkinginformers "k8s.io/client-go/informers/networking/v1"
@@ -21,6 +22,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 )
+
+var errNetPolKeyFormat = errors.New("invalid network policy key format")
 
 type NetworkPolicyController struct {
 	netPolLister netpollister.NetworkPolicyLister
@@ -57,12 +60,12 @@ func (c *NetworkPolicyController) getNetworkPolicyKey(obj interface{}) (string, 
 	var key string
 	_, ok := obj.(*networkingv1.NetworkPolicy)
 	if !ok {
-		return key, fmt.Errorf("cannot cast obj (%v) to network policy obj", obj)
+		return key, fmt.Errorf("cannot cast obj (%v) to network policy obj err: %w", obj, errNetPolKeyFormat)
 	}
 
 	var err error
 	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
-		return key, fmt.Errorf("error due to %s", err)
+		return key, fmt.Errorf("error due to %w", err)
 	}
 
 	return key, nil
@@ -78,15 +81,15 @@ func (c *NetworkPolicyController) addNetworkPolicy(obj interface{}) {
 	c.workqueue.Add(netPolkey)
 }
 
-func (c *NetworkPolicyController) updateNetworkPolicy(old, new interface{}) {
-	netPolkey, err := c.getNetworkPolicyKey(new)
+func (c *NetworkPolicyController) updateNetworkPolicy(old, newnetpol interface{}) {
+	netPolkey, err := c.getNetworkPolicyKey(newnetpol)
 	if err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
 
 	// new network policy object is already checked validation by calling getNetworkPolicyKey function.
-	newNetPol, _ := new.(*networkingv1.NetworkPolicy)
+	newNetPol, _ := newnetpol.(*networkingv1.NetworkPolicy)
 	oldNetPol, ok := old.(*networkingv1.NetworkPolicy)
 	if ok {
 		if oldNetPol.ResourceVersion == newNetPol.ResourceVersion {
@@ -109,13 +112,11 @@ func (c *NetworkPolicyController) deleteNetworkPolicy(obj interface{}) {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[NETPOL DELETE EVENT] Received unexpected object type: %v", obj)
-			utilruntime.HandleError(fmt.Errorf("error decoding object, invalid type"))
 			return
 		}
 
 		if netPolObj, ok = tombstone.Obj.(*networkingv1.NetworkPolicy); !ok {
 			metrics.SendErrorLogAndMetric(util.NetpolID, "[NETPOL DELETE EVENT] Received unexpected object type (error decoding object tombstone, invalid type): %v", obj)
-			utilruntime.HandleError(fmt.Errorf("error decoding object tombstone, invalid type"))
 			return
 		}
 	}
@@ -163,7 +164,7 @@ func (c *NetworkPolicyController) processNextWorkItem() bool {
 			// Forget here else we'd go into a loop of attempting to
 			// process a work item that is invalid.
 			c.workqueue.Forget(obj)
-			utilruntime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("expected string in workqueue but got %#v, err %w", obj, errWorkqueueFormatting))
 			return nil
 		}
 		// Run the syncNetPol, passing it the namespace/name string of the
@@ -171,7 +172,7 @@ func (c *NetworkPolicyController) processNextWorkItem() bool {
 		if err := c.syncNetPol(key); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			c.workqueue.AddRateLimited(key)
-			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
+			return fmt.Errorf("error syncing '%s': %w, requeuing", key, err)
 		}
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
@@ -193,20 +194,20 @@ func (c *NetworkPolicyController) syncNetPol(key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return nil
+		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s err: %w", key, errNetPolKeyFormat))
+		return nil //nolint HandleError  is used instead of returning error to caller
 	}
 
 	// Get the network policy resource with this namespace/name
 	netPolObj, err := c.netPolLister.NetworkPolicies(namespace).Get(name)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			klog.Infof("Network Policy %s is not found, may be it is deleted", key)
 			// netPolObj is not found, but should need to check the RawNpMap cache with key.
 			// cleanUpNetworkPolicy method will take care of the deletion of a cached network policy if the cached network policy exists with key in our RawNpMap cache.
 			err = c.cleanUpNetworkPolicy(key)
 			if err != nil {
-				return fmt.Errorf("[syncNetPol] Error: %v when network policy is not found\n", err)
+				return fmt.Errorf("[syncNetPol] error: %w when network policy is not found", err)
 			}
 			return err
 		}
@@ -218,7 +219,7 @@ func (c *NetworkPolicyController) syncNetPol(key string) error {
 	if netPolObj.ObjectMeta.DeletionTimestamp != nil || netPolObj.ObjectMeta.DeletionGracePeriodSeconds != nil {
 		err = c.cleanUpNetworkPolicy(key)
 		if err != nil {
-			return fmt.Errorf("Error: %v when ObjectMeta.DeletionTimestamp field is set\n", err)
+			return fmt.Errorf("error: %w when ObjectMeta.DeletionTimestamp field is set", err)
 		}
 		return nil
 	}
@@ -236,7 +237,7 @@ func (c *NetworkPolicyController) syncNetPol(key string) error {
 
 	err = c.syncAddAndUpdateNetPol(netPolObj)
 	if err != nil {
-		return fmt.Errorf("[syncNetPol] Error due to  %s\n", err.Error())
+		return fmt.Errorf("[syncNetPol] error due to  %w", err)
 	}
 
 	return nil
@@ -250,7 +251,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	var err error
 	netpolKey, err := cache.MetaNamespaceKeyFunc(netPolObj)
 	if err != nil {
-		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: while running MetaNamespaceKeyFunc err: %s", err)
+		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: while running MetaNamespaceKeyFunc err: %w", err)
 	}
 
 	// Start reconciling loop to eventually meet cached states against the desired states from network policy.
@@ -269,7 +270,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// delete existing network policy
 	err = c.cleanUpNetworkPolicy(netpolKey)
 	if err != nil {
-		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to deleteNetworkPolicy due to %s", err)
+		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to deleteNetworkPolicy due to %w", err)
 	}
 
 	// install translated rules into kernel
@@ -280,7 +281,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// install translated rules into Dataplane
 	err = c.dp.AddPolicy(npmNetPolObj)
 	if err != nil {
-		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to install translated NPMNetworkPolicy into Dataplane due to %s", err)
+		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to install translated NPMNetworkPolicy into Dataplane due to %w", err)
 	}
 
 	// Cache network object first before applying ipsets and iptables.
@@ -304,33 +305,33 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
 
 	err := c.dp.RemovePolicy(netPolKey)
 	if err != nil {
-		return fmt.Errorf("[cleanUpNetworkPolicy] Error: failed to remove policy due to %s", err)
+		return fmt.Errorf("[cleanUpNetworkPolicy] Error: failed to remove policy due to %w", err)
 	}
 
-	// Sucess to clean up ipset and iptables operations in kernel and delete the cached network policy from RawNpMap
+	// Success to clean up ipset and iptables operations in kernel and delete the cached network policy from RawNpMap
 	delete(c.rawNpMap, netPolKey)
 	metrics.DecNumPolicies()
 	return nil
 }
 
 // compare all fields including name of two network policies, which network policy controller need to care about.
-func isSameNetworkPolicy(old, new *networkingv1.NetworkPolicy) bool {
-	if old.ObjectMeta.Name != new.ObjectMeta.Name {
+func isSameNetworkPolicy(old, newnetpol *networkingv1.NetworkPolicy) bool {
+	if old.ObjectMeta.Name != newnetpol.ObjectMeta.Name {
 		return false
 	}
-	return isSamePolicy(old, new)
+	return isSamePolicy(old, newnetpol)
 }
 
-func isSamePolicy(old, new *networkingv1.NetworkPolicy) bool {
-	if !reflect.DeepEqual(old.TypeMeta, new.TypeMeta) {
+func isSamePolicy(old, newnetpol *networkingv1.NetworkPolicy) bool {
+	if !reflect.DeepEqual(old.TypeMeta, newnetpol.TypeMeta) {
 		return false
 	}
 
-	if old.ObjectMeta.Namespace != new.ObjectMeta.Namespace {
+	if old.ObjectMeta.Namespace != newnetpol.ObjectMeta.Namespace {
 		return false
 	}
 
-	if !reflect.DeepEqual(old.Spec, new.Spec) {
+	if !reflect.DeepEqual(old.Spec, newnetpol.Spec) {
 		return false
 	}
 

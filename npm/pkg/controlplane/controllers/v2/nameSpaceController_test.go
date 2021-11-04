@@ -19,17 +19,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 )
 
-var (
-	alwaysReady        = func() bool { return true }
-	noResyncPeriodFunc = func() time.Duration { return 0 }
-)
+var noResyncPeriodFunc = func() time.Duration { return 0 }
 
 type expectedNsValues struct {
-	expectedLenOfPodMap    int
 	expectedLenOfNsMap     int
 	expectedLenOfWorkQueue int
 }
@@ -38,8 +33,6 @@ type nameSpaceFixture struct {
 	t *testing.T
 
 	nsLister []*corev1.Namespace
-	// Actions expected to happen on the client.
-	kubeactions []core.Action
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 
@@ -58,7 +51,7 @@ func newNsFixture(t *testing.T, dp dataplane.GenericDataplane) *nameSpaceFixture
 	return f
 }
 
-func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
+func (f *nameSpaceFixture) newNsController(_ chan struct{}) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
@@ -67,7 +60,10 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 		f.kubeInformer.Core().V1().Namespaces(), f.dp, npmNamespaceCache)
 
 	for _, ns := range f.nsLister {
-		f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Add(ns)
+		err := f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Add(ns)
+		if err != nil {
+			f.t.Errorf("Error adding namespace to informer: %v", err)
+		}
 	}
 	// Do not start informer to avoid unnecessary event triggers.
 	// (TODO) Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
@@ -99,7 +95,10 @@ func updateNamespace(t *testing.T, f *nameSpaceFixture, oldNsObj, newNsObj *core
 	t.Logf("Complete add namespace event")
 
 	t.Logf("Updating kubeinformer namespace object")
-	f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Update(newNsObj)
+	err := f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Update(newNsObj)
+	if err != nil {
+		f.t.Errorf("Error updating namespace to informer: %v", err)
+	}
 
 	t.Logf("Calling update namespace event")
 	f.nsController.updateNamespace(oldNsObj, newNsObj)
@@ -115,8 +114,10 @@ func deleteNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace,
 	t.Logf("Complete add namespace event")
 
 	t.Logf("Updating kubeinformer namespace object")
-	f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Delete(nsObj)
-
+	err := f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Delete(nsObj)
+	if err != nil {
+		f.t.Errorf("Error deleting namespace to informer: %v", err)
+	}
 	t.Logf("Calling delete namespace event")
 	if isDeletedFinalStateUnknownObject {
 		tombstone := cache.DeletedFinalStateUnknown{
@@ -172,7 +173,7 @@ func TestAddNamespace(t *testing.T) {
 
 	// Cache and state validation section
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1},
 	}
 	checkNsTestResult("TestAddNamespace", f, testCases)
 
@@ -232,7 +233,7 @@ func TestUpdateNamespace(t *testing.T) {
 
 	// Cache and state validation section
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1},
 	}
 	checkNsTestResult("TestUpdateNamespace", f, testCases)
 
@@ -302,7 +303,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1},
 	}
 	checkNsTestResult("TestAddNamespaceLabel", f, testCases)
 
@@ -362,7 +363,7 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1},
 	}
 	checkNsTestResult("TestAddNamespaceLabelSameRv", f, testCases)
 
@@ -438,7 +439,7 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1},
 	}
 	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
 
@@ -477,7 +478,7 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 
 	newNsObj := newNameSpace(
 		"test-namespace",
-		"9",
+		"11",
 		map[string]string{
 			"app":    "old-test-namespace",
 			"update": "false",
@@ -505,6 +506,7 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 
 	dp.EXPECT().AddToLists(setsToAddNamespaceTo[1:], setsToAddNamespaceTo[:1]).Return(nil).Times(1)
 	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
+
 	setsToAddNamespaceToNew := []*ipsets.IPSetMetadata{
 		ipsets.NewIPSetMetadata("update:false", ipsets.KeyValueLabelOfNamespace),
 	}
@@ -519,7 +521,7 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1},
 	}
 	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
 
@@ -576,7 +578,7 @@ func TestDeleteNamespace(t *testing.T) {
 	deleteNamespace(t, f, nsObj, DeletedFinalStateknownObject)
 
 	testCases := []expectedNsValues{
-		{0, 0, 0},
+		{0, 0},
 	}
 	checkNsTestResult("TestDeleteNamespace", f, testCases)
 
@@ -610,7 +612,7 @@ func TestDeleteNamespaceWithTombstone(t *testing.T) {
 	f.nsController.deleteNamespace(tombstone)
 
 	testCases := []expectedNsValues{
-		{0, 0, 1},
+		{0, 0},
 	}
 	checkNsTestResult("TestDeleteNamespaceWithTombstone", f, testCases)
 }
@@ -654,7 +656,7 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 
 	deleteNamespace(t, f, nsObj, DeletedFinalStateUnknownObject)
 	testCases := []expectedNsValues{
-		{0, 0, 0},
+		{0, 0},
 	}
 	checkNsTestResult("TestDeleteNamespaceWithTombstoneAfterAddingNameSpace", f, testCases)
 }
@@ -683,11 +685,11 @@ func TestIsSystemNs(t *testing.T) {
 func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expectedNsValues) {
 	for _, test := range testCases {
 		if got := len(f.nsController.npmNamespaceCache.NsMap); got != test.expectedLenOfNsMap {
-			f.t.Errorf("NsMap length = %d, want %d. Map: %+v",
-				got, test.expectedLenOfNsMap, f.nsController.npmNamespaceCache.NsMap)
+			f.t.Errorf("Test: %s, NsMap length = %d, want %d. Map: %+v",
+				testName, got, test.expectedLenOfNsMap, f.nsController.npmNamespaceCache.NsMap)
 		}
 		if got := f.nsController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
-			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)
+			f.t.Errorf("Test: %s, Workqueue length = %d, want %d", testName, got, test.expectedLenOfWorkQueue)
 		}
 	}
 }

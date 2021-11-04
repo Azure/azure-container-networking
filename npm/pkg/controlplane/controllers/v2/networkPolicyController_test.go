@@ -13,7 +13,6 @@ import (
 	dpmocks "github.com/Azure/azure-container-networking/npm/pkg/dataplane/mocks"
 	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,9 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/utils/exec"
 )
 
 type netPolFixture struct {
@@ -31,8 +28,6 @@ type netPolFixture struct {
 
 	// Objects to put in the store.
 	netPolLister []*networkingv1.NetworkPolicy
-	// (TODO) Actions expected to happen on the client. Will use this to check action.
-	kubeactions []core.Action
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 
@@ -40,24 +35,26 @@ type netPolFixture struct {
 	kubeInformer     kubeinformers.SharedInformerFactory
 }
 
-func newNetPolFixture(t *testing.T, utilexec exec.Interface) *netPolFixture {
+func newNetPolFixture(t *testing.T) *netPolFixture {
 	f := &netPolFixture{
 		t:            t,
 		netPolLister: []*networkingv1.NetworkPolicy{},
 		kubeobjects:  []runtime.Object{},
-		// iptMgr:                      iptm.NewIptablesManager(utilexec, iptm.NewFakeIptOperationShim()),
 	}
 	return f
 }
 
-func (f *netPolFixture) newNetPolController(stopCh chan struct{}, dp dataplane.GenericDataplane) {
+func (f *netPolFixture) newNetPolController(_ chan struct{}, dp dataplane.GenericDataplane) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
 	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(), dp)
 
 	for _, netPol := range f.netPolLister {
-		f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)
+		err := f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)
+		if err != nil {
+			f.t.Errorf("Failed to add network policy %s to shared informer cache: %v", netPol.Name, err)
+		}
 	}
 
 	// Do not start informer to avoid unnecessary event triggers
@@ -112,7 +109,7 @@ func createNetPol() *networkingv1.NetworkPolicy {
 	}
 }
 
-func addNetPol(t *testing.T, f *netPolFixture, netPolObj *networkingv1.NetworkPolicy) {
+func addNetPol(f *netPolFixture, netPolObj *networkingv1.NetworkPolicy) {
 	// simulate "network policy" add event and add network policy object to sharedInformer cache
 	f.netPolController.addNetworkPolicy(netPolObj)
 
@@ -124,11 +121,14 @@ func addNetPol(t *testing.T, f *netPolFixture, netPolObj *networkingv1.NetworkPo
 }
 
 func deleteNetPol(t *testing.T, f *netPolFixture, netPolObj *networkingv1.NetworkPolicy, isDeletedFinalStateUnknownObject IsDeletedFinalStateUnknownObject) {
-	addNetPol(t, f, netPolObj)
+	addNetPol(f, netPolObj)
 	t.Logf("Complete adding network policy event")
 
 	// simulate network policy deletion event and delete network policy object from sharedInformer cache
-	f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Delete(netPolObj)
+	err := f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Delete(netPolObj)
+	if err != nil {
+		f.t.Errorf("Failed to delete network policy %s to shared informer cache: %v", netPolObj.Name, err)
+	}
 	if isDeletedFinalStateUnknownObject {
 		netPolKey := getKey(netPolObj, t)
 		tombstone := cache.DeletedFinalStateUnknown{
@@ -148,11 +148,14 @@ func deleteNetPol(t *testing.T, f *netPolFixture, netPolObj *networkingv1.Networ
 }
 
 func updateNetPol(t *testing.T, f *netPolFixture, oldNetPolObj, netNetPolObj *networkingv1.NetworkPolicy) {
-	addNetPol(t, f, oldNetPolObj)
+	addNetPol(f, oldNetPolObj)
 	t.Logf("Complete adding network policy event")
 
 	// simulate network policy update event and update the network policy to shared informer's cache
-	f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Update(netNetPolObj)
+	err := f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Update(netNetPolObj)
+	if err != nil {
+		f.t.Errorf("Failed to update network policy %s to shared informer cache: %v", netNetPolObj.Name, err)
+	}
 	f.netPolController.updateNetworkPolicy(oldNetPolObj, netNetPolObj)
 
 	if f.netPolController.workqueue.Len() == 0 {
@@ -173,11 +176,11 @@ type expectedNetPolValues struct {
 func checkNetPolTestResult(testName string, f *netPolFixture, testCases []expectedNetPolValues) {
 	for _, test := range testCases {
 		if got := len(f.netPolController.rawNpMap); got != test.expectedLenOfRawNpMap {
-			f.t.Errorf("Raw NetPol Map length = %d, want %d", got, test.expectedLenOfRawNpMap)
+			f.t.Errorf("Test: %s, Raw NetPol Map length = %d, want %d", testName, got, test.expectedLenOfRawNpMap)
 		}
 
 		if got := f.netPolController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
-			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)
+			f.t.Errorf("Test: %s, Workqueue length = %d, want %d", testName, got, test.expectedLenOfWorkQueue)
 		}
 
 		testPrometheusMetrics(f.t, test.expectedNumPolicies, test.expectedExecCount)
@@ -216,8 +219,7 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 	// namedPort
 	netPolObj2.Spec.Ingress[0].Ports[0].Port = &intstr.IntOrString{StrVal: netPolObj2.Name}
 
-	fexec := exec.New()
-	f := newNetPolFixture(t, fexec)
+	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj1, netPolObj2)
 	f.kubeobjects = append(f.kubeobjects, netPolObj1, netPolObj2)
 	stopCh := make(chan struct{})
@@ -233,8 +235,8 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 
 	execCount := resetPrometheusAndGetExecCount(f.t)
 
-	addNetPol(t, f, netPolObj1)
-	addNetPol(t, f, netPolObj2)
+	addNetPol(f, netPolObj1)
+	addNetPol(f, netPolObj2)
 
 	testCases := []expectedNetPolValues{
 		{2, 0, 2, execCount + 2},
@@ -245,8 +247,7 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 func TestAddNetworkPolicy(t *testing.T) {
 	netPolObj := createNetPol()
 
-	fexec := exec.New()
-	f := newNetPolFixture(t, fexec)
+	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
 	stopCh := make(chan struct{})
@@ -260,7 +261,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 	execCount := resetPrometheusAndGetExecCount(f.t)
 	dp.EXPECT().AddPolicy(gomock.Any()).Times(1)
 
-	addNetPol(t, f, netPolObj)
+	addNetPol(f, netPolObj)
 	testCases := []expectedNetPolValues{
 		{1, 0, 1, execCount + 1},
 	}
@@ -271,8 +272,7 @@ func TestAddNetworkPolicy(t *testing.T) {
 func TestDeleteNetworkPolicy(t *testing.T) {
 	netPolObj := createNetPol()
 
-	fexec := exec.New()
-	f := newNetPolFixture(t, fexec)
+	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
 	stopCh := make(chan struct{})
@@ -297,8 +297,7 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 	netPolObj := createNetPol()
 
-	fexec := exec.New()
-	f := newNetPolFixture(t, fexec)
+	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
 	stopCh := make(chan struct{})
@@ -327,8 +326,7 @@ func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) {
 	netPolObj := createNetPol()
 
-	fexec := exec.New()
-	f := newNetPolFixture(t, fexec)
+	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
 	stopCh := make(chan struct{})
@@ -355,8 +353,7 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 func TestUpdateNetworkPolicy(t *testing.T) {
 	oldNetPolObj := createNetPol()
 
-	fexec := exec.New()
-	f := newNetPolFixture(t, fexec)
+	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, oldNetPolObj)
 	f.kubeobjects = append(f.kubeobjects, oldNetPolObj)
 	stopCh := make(chan struct{})
@@ -385,8 +382,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	oldNetPolObj := createNetPol()
 
-	fexec := exec.New()
-	f := newNetPolFixture(t, fexec)
+	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, oldNetPolObj)
 	f.kubeobjects = append(f.kubeobjects, oldNetPolObj)
 	stopCh := make(chan struct{})

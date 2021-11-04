@@ -269,7 +269,7 @@ func (c *PodController) processNextWorkItem() bool {
 			// Forget here else we'd go into a loop of attempting to
 			// process a work item that is invalid.
 			c.workqueue.Forget(obj)
-			utilruntime.HandleError(fmt.Errorf("expected string in workqueue but got %w", obj))
+			utilruntime.HandleError(fmt.Errorf("expected string in workqueue got %#v, err %w", obj, errWorkqueueFormatting))
 			return nil
 		}
 		// Run the syncPod, passing it the namespace/name string of the

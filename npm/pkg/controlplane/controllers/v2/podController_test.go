@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -40,8 +39,6 @@ type podFixture struct {
 
 	// Objects to put in the store.
 	podLister []*corev1.Pod
-	// (TODO) Actions expected to happen on the client. Will use this to check action.
-	kubeactions []core.Action
 	// Objects from here preloaded into NewSimpleFake.
 	kubeobjects []runtime.Object
 
@@ -69,7 +66,7 @@ func getKey(obj interface{}, t *testing.T) string {
 	return key
 }
 
-func (f *podFixture) newPodController(stopCh chan struct{}) {
+func (f *podFixture) newPodController(_ chan struct{}) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
@@ -77,7 +74,10 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.dp, npmNamespaceCache)
 
 	for _, pod := range f.podLister {
-		f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Add(pod)
+		err := f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Add(pod)
+		if err != nil {
+			f.t.Errorf("Failed to add pod %v to informer cache: %v", pod, err)
+		}
 	}
 
 	// Do not start informer to avoid unnecessary event triggers
@@ -131,7 +131,10 @@ func deletePod(t *testing.T, f *podFixture, podObj *corev1.Pod, isDeletedFinalSt
 	t.Logf("Complete add pod event")
 
 	// simulate pod delete event and delete pod object from sharedInformer cache
-	f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Delete(podObj)
+	err := f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Delete(podObj)
+	if err != nil {
+		f.t.Errorf("Failed to add pod %v to informer cache: %v", podObj, err)
+	}
 
 	if isDeletedFinalStateUnknownObject {
 		podKey := getKey(podObj, t)
@@ -158,7 +161,10 @@ func updatePod(t *testing.T, f *podFixture, oldPodObj, newPodObj *corev1.Pod) {
 	t.Logf("Complete add pod event")
 
 	// simulate pod update event and update the pod to shared informer's cache
-	f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Update(newPodObj)
+	err := f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Update(newPodObj)
+	if err != nil {
+		f.t.Errorf("Failed to add pod %v to informer cache: %v", newPodObj, err)
+	}
 	f.podController.updatePod(oldPodObj, newPodObj)
 
 	if f.podController.workqueue.Len() == 0 {
@@ -211,8 +217,8 @@ func TestAddMultiplePods(t *testing.T) {
 	labels := map[string]string{
 		"app": "test-pod",
 	}
-	podObj1 := createPod("test-pod-1", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
-	podObj2 := createPod("test-pod-2", "test-namespace", "0", "1.2.3.5", labels, NonHostNetwork, corev1.PodRunning)
+	podObj1 := createPod("test-pod-1", "test-ns", "1", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+	podObj2 := createPod("test-pod-2", "test-ns", "0", "1.2.3.5", labels, NonHostNetwork, corev1.PodRunning)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -226,12 +232,12 @@ func TestAddMultiplePods(t *testing.T) {
 	f.newPodController(stopCh)
 
 	mockIPSets := []*ipsets.IPSetMetadata{
-		ipsets.NewIPSetMetadata("test-namespace", ipsets.Namespace),
+		ipsets.NewIPSetMetadata("test-ns", ipsets.Namespace),
 		ipsets.NewIPSetMetadata("app", ipsets.KeyLabelOfPod),
 		ipsets.NewIPSetMetadata("app:test-pod", ipsets.KeyValueLabelOfPod),
 	}
-	podMetadata1 := dataplane.NewPodMetadata("test-namespace/test-pod-1", "1.2.3.4", "")
-	podMetadata2 := dataplane.NewPodMetadata("test-namespace/test-pod-2", "1.2.3.5", "")
+	podMetadata1 := dataplane.NewPodMetadata("test-ns/test-pod-1", "1.2.3.4", "")
+	podMetadata2 := dataplane.NewPodMetadata("test-ns/test-pod-2", "1.2.3.5", "")
 
 	dp.EXPECT().AddToLists([]*ipsets.IPSetMetadata{kubeAllNamespaces}, mockIPSets[:1]).Return(nil).Times(1)
 	for _, metaData := range []*dataplane.PodMetadata{podMetadata1, podMetadata2} {
@@ -241,13 +247,13 @@ func TestAddMultiplePods(t *testing.T) {
 	dp.EXPECT().
 		AddToSets(
 			[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod-1", ipsets.NamedPorts)},
-			dataplane.NewPodMetadata("test-namespace/test-pod-1", "1.2.3.4,8080", ""),
+			dataplane.NewPodMetadata("test-ns/test-pod-1", "1.2.3.4,8080", ""),
 		).
 		Return(nil).Times(1)
 	dp.EXPECT().
 		AddToSets(
 			[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod-2", ipsets.NamedPorts)},
-			dataplane.NewPodMetadata("test-namespace/test-pod-2", "1.2.3.5,8080", ""),
+			dataplane.NewPodMetadata("test-ns/test-pod-2", "1.2.3.5,8080", ""),
 		).
 		Return(nil).Times(1)
 	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
@@ -645,13 +651,10 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	defer close(stopCh)
 	f.newPodController(stopCh)
 
-	newPodObj := oldPodObj.DeepCopy()
+	newPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodSucceeded)
 	// oldPodObj.ResourceVersion value is "0"
 	newRV, _ := strconv.Atoi(oldPodObj.ResourceVersion)
 	newPodObj.ResourceVersion = fmt.Sprintf("%d", newRV+1)
-
-	// oldPodObj PodIP is "1.2.3.4"
-	newPodObj.Status.Phase = corev1.PodSucceeded
 
 	mockIPSets := []*ipsets.IPSetMetadata{
 		ipsets.NewIPSetMetadata("test-namespace", ipsets.Namespace),
