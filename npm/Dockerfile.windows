@@ -12,8 +12,8 @@ COPY . .
 RUN $Env:CGO_ENABLED=0; go build -v -o /usr/bin/npm.exe -gcflags="-dwarflocationlists=true" ./npm/cmd/
 
 # Copy into final image
-FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
 COPY --from=builder /usr/bin/npm.exe \
     /usr/bin/npm.exe
 
-ENTRYPOINT ["/usr/bin/npm.exe"]
+ENTRYPOINT ["/usr/bin/npm.exe", "start"]
