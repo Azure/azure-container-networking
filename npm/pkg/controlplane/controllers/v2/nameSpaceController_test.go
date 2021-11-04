@@ -173,7 +173,7 @@ func TestAddNamespace(t *testing.T) {
 
 	// Cache and state validation section
 	testCases := []expectedNsValues{
-		{0, 1},
+		{1, 0},
 	}
 	checkNsTestResult("TestAddNamespace", f, testCases)
 
@@ -233,7 +233,7 @@ func TestUpdateNamespace(t *testing.T) {
 
 	// Cache and state validation section
 	testCases := []expectedNsValues{
-		{0, 1},
+		{1, 0},
 	}
 	checkNsTestResult("TestUpdateNamespace", f, testCases)
 
@@ -303,7 +303,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1},
+		{1, 0},
 	}
 	checkNsTestResult("TestAddNamespaceLabel", f, testCases)
 
@@ -363,7 +363,7 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1},
+		{1, 0},
 	}
 	checkNsTestResult("TestAddNamespaceLabelSameRv", f, testCases)
 
@@ -439,7 +439,7 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1},
+		{1, 0},
 	}
 	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
 
@@ -521,7 +521,7 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1},
+		{1, 0},
 	}
 	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
 
@@ -612,7 +612,7 @@ func TestDeleteNamespaceWithTombstone(t *testing.T) {
 	f.nsController.deleteNamespace(tombstone)
 
 	testCases := []expectedNsValues{
-		{0, 0},
+		{0, 1},
 	}
 	checkNsTestResult("TestDeleteNamespaceWithTombstone", f, testCases)
 }
