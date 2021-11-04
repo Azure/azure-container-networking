@@ -324,7 +324,9 @@ func (c *PodController) syncPod(key string) error {
 		return err
 	}
 
-	// If newPodObj status is either corev1.PodSucceeded or corev1.PodFailed or DeletionTimestamp is set, start clean-up the lastly applied states.
+	// TODO(jungukcho): update..
+	// If newPodObj status is either corev1.PodSucceeded or corev1.PodFailed or DeletionTimestamp is set,
+	// start clean-up the lastly applied states.
 	if isCompletePod(pod) {
 		if err = c.cleanUpDeletedPod(key); err != nil {
 			return fmt.Errorf("Error: %v when when pod is in completed state.\n", err)
@@ -591,7 +593,7 @@ func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, p
 }
 
 func isCompletePod(podObj *corev1.Pod) bool {
-	if podObj.DeletionTimestamp != nil {
+	if podObj.DeletionTimestamp != nil && podObj.DeletionGracePeriodSeconds != nil && *podObj.DeletionGracePeriodSeconds == 0 {
 		return true
 	}
 
@@ -625,8 +627,9 @@ func isInvalidPodUpdate(npmPod *NpmPod, newPodObj *corev1.Pod) bool {
 		npmPod.Name == newPodObj.ObjectMeta.Name &&
 		npmPod.Phase == newPodObj.Status.Phase &&
 		npmPod.PodIP == newPodObj.Status.PodIP &&
-		newPodObj.ObjectMeta.DeletionTimestamp == nil &&
-		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil &&
+		// TODO(jungukcho): it seems it is not needed.
+		// newPodObj.ObjectMeta.DeletionGracePeriodSeconds != nil &&
+		// *newPodObj.ObjectMeta.DeletionGracePeriodSeconds != 0 &&
 		reflect.DeepEqual(npmPod.Labels, newPodObj.ObjectMeta.Labels) &&
 		reflect.DeepEqual(npmPod.ContainerPorts, getContainerPortList(newPodObj))
 }
