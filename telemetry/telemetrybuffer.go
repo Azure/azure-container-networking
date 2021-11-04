@@ -199,7 +199,8 @@ func read(conn net.Conn) (b []byte, err error) {
 	return
 }
 
-// Write - write to the file descriptor
+// Write - write to the file descriptor. It modifies the buffer by appending '\n' at end of buffer.
+// TODO: https://msazure.visualstudio.com/One/_workitems/edit/12520545 to investigate why copy() didn't work in dualstack windows setup
 func (tb *TelemetryBuffer) Write(b []byte) (c int, err error) {
 	//nolint:staticcheck // append says It is therefore necessary to store the
 	// result of append, often in the variable holding the slice itself:
@@ -249,15 +250,15 @@ func push(x interface{}) {
 	if err != nil {
 		log.Logf("Error getting metadata %v", err)
 
-		var processLockCli processlock.Interface
-		processLockCli, err = processlock.NewFileLock(metadataFile + store.LockExtension)
+		var lockclient processlock.Interface
+		lockclient, err = processlock.NewFileLock(metadataFile + store.LockExtension)
 		if err != nil {
 			log.Printf("Error initializing file lock:%v", err)
 			return
 		}
 
 		var kvs store.KeyValueStore
-		kvs, err = store.NewJsonFileStore(metadataFile, processLockCli)
+		kvs, err = store.NewJsonFileStore(metadataFile, lockclient)
 		if err != nil {
 			log.Printf("Error acuiring lock for writing metadata file: %v", err)
 		}

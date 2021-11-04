@@ -154,13 +154,13 @@ func (plugin *Plugin) Errorf(format string, args ...interface{}) *cniTypes.Error
 func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error {
 	// Create the key value store.
 	if plugin.Store == nil {
-		processLockCli, err := processlock.NewFileLock(platform.CNILockPath + plugin.Name + store.LockExtension)
+		lockclient, err := processlock.NewFileLock(platform.CNILockPath + plugin.Name + store.LockExtension)
 		if err != nil {
 			log.Printf("[cni] Error initializing file lock:%v", err)
 			return errors.Wrap(err, "error creating new filelock")
 		}
 
-		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", processLockCli)
+		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient)
 		if err != nil {
 			log.Printf("[cni] Failed to create store: %v.", err)
 			return err

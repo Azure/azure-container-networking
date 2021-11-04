@@ -142,15 +142,15 @@ func main() {
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 
-	var processLockCli processlock.Interface
+	var lockclient processlock.Interface
 	for {
-		processLockCli, err = processlock.NewFileLock(platform.CNILockPath + pluginName + store.LockExtension)
+		lockclient, err = processlock.NewFileLock(platform.CNILockPath + pluginName + store.LockExtension)
 		if err != nil {
 			log.Printf("Error initializing file lock:%v", err)
 			return
 		}
 
-		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+pluginName+".json", processLockCli)
+		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+pluginName+".json", lockclient)
 		if err != nil {
 			fmt.Printf("[monitor] Failed to create store: %v\n", err)
 			return

@@ -48,12 +48,12 @@ func (l *fileLock) Lock() error {
 
 	l.file, err = lockedfile.Create(l.filePath)
 	if err != nil {
-		return errors.Wrap(err, "Failed to acquire lock")
+		return errors.Wrap(err, "lockedfile create error in lock")
 	}
 
 	_, err = l.file.WriteString(strconv.Itoa(os.Getpid()))
 	if err != nil {
-		return errors.Wrap(err, "Write to lockfile failed")
+		return errors.Wrap(err, "write to lockfile failed")
 	}
 
 	return nil
@@ -66,7 +66,7 @@ func (l *fileLock) Unlock() error {
 
 	err := l.file.Close()
 	if err != nil && !errors.Is(err, fs.ErrClosed) {
-		return errors.Wrap(err, "Failed to release lock")
+		return errors.Wrap(err, "file close error in unlock")
 	}
 
 	return nil

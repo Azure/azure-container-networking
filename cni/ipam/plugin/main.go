@@ -48,7 +48,7 @@ func main() {
 
 	defer func() {
 		if errUninit := ipamPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
-			fmt.Printf("Failed to uninitialize key-value store of ipam plugin, err:%v.\n", err)
+			fmt.Printf("Failed to uninitialize key-value store of ipam plugin, err:%v.\n", errUninit)
 		}
 
 		if recover() != nil {

@@ -472,7 +472,7 @@ func main() {
 		return
 	}
 
-	processLockCli, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
+	lockclient, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
 	if err != nil {
 		log.Printf("Error initializing file lock:%v", err)
 		return
@@ -480,7 +480,7 @@ func main() {
 
 	// Create the key value store.
 	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName, processLockCli)
+	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return
@@ -633,8 +633,11 @@ func main() {
 		}(privateEndpoint, infravnet, nodeID)
 	}
 
-	var netPlugin network.NetPlugin
-	var ipamPlugin ipam.IpamPlugin
+	var (
+		netPlugin     network.NetPlugin
+		ipamPlugin    ipam.IpamPlugin
+		lockclientCnm processlock.Interface
+	)
 
 	if startCNM {
 		var pluginConfig acn.PluginConfig
@@ -657,8 +660,7 @@ func main() {
 			return
 		}
 
-		var procLockCnm processlock.Interface
-		procLockCnm, err = processlock.NewFileLock(platform.CNILockPath + pluginName + store.LockExtension)
+		lockclientCnm, err = processlock.NewFileLock(platform.CNILockPath + pluginName + store.LockExtension)
 		if err != nil {
 			log.Printf("Error initializing file lock:%v", err)
 			return
@@ -666,7 +668,7 @@ func main() {
 
 		// Create the key value store.
 		pluginStoreFile := storeFileLocation + pluginName + ".json"
-		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, procLockCnm)
+		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm)
 		if err != nil {
 			logger.Errorf("Failed to create plugin store file %s, due to error : %v\n", pluginStoreFile, err)
 			return
@@ -717,6 +719,14 @@ func main() {
 			logger.Printf("stop ipam plugin")
 			ipamPlugin.Stop()
 		}
+
+		if err = lockclientCnm.Unlock(); err != nil {
+			log.Errorf("lockclient cnm unlock error:%v", err)
+		}
+	}
+
+	if err = lockclient.Unlock(); err != nil {
+		log.Errorf("lockclient cns unlock error:%v", err)
 	}
 
 	logger.Printf("CNS exited")

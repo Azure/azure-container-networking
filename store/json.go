@@ -203,7 +203,7 @@ func (kvs *jsonFileStore) Unlock() error {
 
 	err := kvs.processLock.Unlock()
 	if err != nil {
-		return errors.Wrap(err, "Release lockfile error")
+		return errors.Wrap(err, "unlock error")
 	}
 
 	log.Printf("Released process lock")

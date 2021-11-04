@@ -5,7 +5,7 @@ import (
 )
 
 // ErrMockFileLock - mock filelock error
-var ErrMockFileLock = errors.New("Mock filelock error")
+var ErrMockFileLock = errors.New("mock filelock error")
 
 type mockFileLock struct {
 	fail bool

@@ -159,7 +159,7 @@ func main() {
 		return
 	}
 
-	processLockCli, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
+	lockclient, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
 	if err != nil {
 		log.Printf("Error initializing file lock:%v", err)
 		return
@@ -167,7 +167,7 @@ func main() {
 
 	// Create the key value store.
 	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName, processLockCli)
+	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
 	if err != nil {
 		log.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return

@@ -102,14 +102,14 @@ func getMetadata(th *telemetryHandle) {
 	th.metadata = metadata
 	th.rwmutex.Unlock()
 
-	processLockCli, err := processlock.NewFileLock(metadataFile + store.LockExtension)
+	lockclient, err := processlock.NewFileLock(metadataFile + store.LockExtension)
 	if err != nil {
 		log.Printf("Error initializing file lock:%v", err)
 		return
 	}
 
 	// Save metadata retrieved from wireserver to a file
-	kvs, err := store.NewJsonFileStore(metadataFile, processLockCli)
+	kvs, err := store.NewJsonFileStore(metadataFile, lockclient)
 	if err != nil {
 		debugLog("[AppInsights] Error initializing kvs store: %v", err)
 		return
