@@ -32,25 +32,8 @@ stages:
             displayName: "Set environmental variables"
             condition: always()
 
-  - stage: build_windows_images
-    displayName: Build Windows Images
-    dependsOn:
-      - "setup"
-    jobs:
-      - job: npm1
-        variables:
-            tag: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-        pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
-        steps:
-          - powershell:  |
-              [System.Environment]::SetEnvironmentVariable('tag',"$(tag)") 
-              echo "Tag1": $env:tag
-              powershell.exe -command "& { . .\windows.ps1; azure-npm-image }"
-              echo "Tag2": $env:tag
-            name: "powershelltest2"
-            displayName: "Powershell Test2"
 
+  - template: windows-image.yaml
 
   - stage: build_and_test
     displayName: ACN
@@ -60,8 +43,8 @@ stages:
       - job: build
         displayName: Build Binaries
         variables:
-          TAG: $[ stagedependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
-          STORAGE_ID: $[ stagedependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
@@ -109,7 +92,7 @@ stages:
       - job: build_images
         displayName: Build Images
         variables:
-          TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
@@ -180,7 +163,7 @@ stages:
       - job: test
         displayName: Run Tests
         variables:
-          STORAGE_ID: $[ dependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
