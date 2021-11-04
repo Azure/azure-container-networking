@@ -31,7 +31,7 @@ stages:
 
         - powershell: |
             mkdir .\output\images\windows\
-            docker save acnpublic.azurecr.io/azure-npm:$(tag)-windows-amd64 | gzip -c > .\output\images\windows\acnpublic.azurecr.io/azure-npm:$(tag)-windows-amd64
+            docker save .\output\images\windows\acnpublic.azurecr.io/azure-npm:$(tag)-windows-amd64 -o azure-npm-$(tag)-windows-amd64.tar
           name: "save_npm"
           displayName: "Save"
 
