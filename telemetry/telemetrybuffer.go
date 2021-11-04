@@ -199,14 +199,13 @@ func read(conn net.Conn) (b []byte, err error) {
 	return
 }
 
-// Write - write to the file descriptor. It modifies the buffer by appending '\n' at end of buffer.
-// TODO: https://msazure.visualstudio.com/One/_workitems/edit/12520545 to investigate why copy() didn't work in dualstack windows setup
+// Write - write to the file descriptor.
 func (tb *TelemetryBuffer) Write(b []byte) (c int, err error) {
-	//nolint:staticcheck // append says It is therefore necessary to store the
-	// result of append, often in the variable holding the slice itself:
-	b = append(b, Delimiter)
+	buf := make([]byte, len(b))
+	copy(buf, b)
+	buf = append(buf, Delimiter)
 	w := bufio.NewWriter(tb.client)
-	c, err = w.Write(b)
+	c, err = w.Write(buf)
 	if err == nil {
 		err = w.Flush()
 	}
