@@ -60,6 +60,8 @@ const (
 
 	// 720 * acn.FiveSeconds sec sleeps = 1Hr
 	maxRetryNodeRegister = 720
+	//10 * 30 seconds = 5 minutes of retrying before we crash and backoff.
+	maxRetryInit = 10
 )
 
 var (
@@ -884,9 +886,18 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 
-	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
-	if err != nil {
-		return errors.Wrap(err, "failed to initialize CNS state")
+	//apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
+	//aks addons to come up so retry a bit more aggresively here.
+	for tryNum := 0; tryNum <= maxRetryInit; tryNum++ {
+		err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
+		if err == nil {
+			break
+		}
+		logger.Errorf("[Azure CNS] failed to init cns: %v", err)
+		if tryNum >= maxRetryInit {
+			return errors.Wrap(err, "failed to initialize CNS state")
+		}
+		time.Sleep(30 * time.Second)
 	}
 
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
