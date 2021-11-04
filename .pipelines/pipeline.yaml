@@ -39,15 +39,15 @@ stages:
     jobs:
       - job: npm1
         variables:
-            Tag: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+            tag: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
             name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
         steps:
           - powershell:  |
-              [System.Environment]::SetEnvironmentVariable('Tag',"$(Tag)") 
-              echo "Tag1": $env:Tag
+              [System.Environment]::SetEnvironmentVariable('tag',"$(tag)") 
+              echo "Tag1": $env:tag
               powershell.exe -command "& { . .\windows.ps1; azure-npm-image }"
-              echo "Tag2": $env:Tag
+              echo "Tag2": $env:tag
             name: "powershelltest2"
             displayName: "Powershell Test2"
 
