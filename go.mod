@@ -48,6 +48,8 @@ require (
 )
 
 require (
+	github.com/avast/retry-go v3.0.0+incompatible
+	github.com/avast/retry-go/v3 v3.1.1
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/containerd/cgroups v1.0.1 // indirect
