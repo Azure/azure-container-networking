@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -690,6 +691,89 @@ func TestHasValidPodIP(t *testing.T) {
 	}
 }
 
+func TestIsCompletePod(t *testing.T) {
+	var zeroGracePeriod int64 = 0
+	var defaultGracePeriod int64 = 30
+
+	type podState struct {
+		Phase                      corev1.PodPhase
+		DeletionTimestamp          *metav1.Time
+		DeletionGracePeriodSeconds *int64
+	}
+
+	tests := []struct {
+		name                 string
+		podState             podState
+		expectedCompletedPod bool
+	}{
+
+		{
+			name: "pod is in running status",
+			podState: podState{
+				Phase:                      corev1.PodRunning,
+				DeletionTimestamp:          nil,
+				DeletionGracePeriodSeconds: nil,
+			},
+			expectedCompletedPod: false,
+		},
+		{
+			name: "pod is in completely terminating states after graceful shutdown period",
+			podState: podState{
+				Phase:                      corev1.PodRunning,
+				DeletionTimestamp:          &metav1.Time{},
+				DeletionGracePeriodSeconds: &zeroGracePeriod,
+			},
+			expectedCompletedPod: true,
+		},
+		{
+			name: "pod is in terminating states, but in graceful shutdown period",
+			podState: podState{
+				Phase:                      corev1.PodRunning,
+				DeletionTimestamp:          &metav1.Time{},
+				DeletionGracePeriodSeconds: &defaultGracePeriod,
+			},
+			expectedCompletedPod: false,
+		},
+		{
+			name: "pod is in PodSucceeded status",
+			podState: podState{
+				Phase:                      corev1.PodSucceeded,
+				DeletionTimestamp:          nil,
+				DeletionGracePeriodSeconds: nil,
+			},
+			expectedCompletedPod: true,
+		},
+		{
+			name: "pod is in PodFailed status",
+			podState: podState{
+				Phase:                      corev1.PodSucceeded,
+				DeletionTimestamp:          nil,
+				DeletionGracePeriodSeconds: nil,
+			},
+			expectedCompletedPod: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			corev1Pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					DeletionTimestamp:          tt.podState.DeletionTimestamp,
+					DeletionGracePeriodSeconds: tt.podState.DeletionGracePeriodSeconds,
+				},
+				Status: corev1.PodStatus{
+					Phase: tt.podState.Phase,
+				},
+			}
+			isPodCompleted := isCompletePod(corev1Pod)
+			require.Equal(t, tt.expectedCompletedPod, isPodCompleted)
+
+		})
+	}
+}
+
 // Extra unit test which is not quite related to PodController,
 // but help to understand how workqueue works to make event handler logic lock-free.
 // If the same key are queued into workqueue in multiple times,
@@ -719,5 +803,73 @@ func TestWorkQueue(t *testing.T) {
 			t.Errorf("TestWorkQueue failed due to returned workqueue length = %d, want %d",
 				workQueueLength, expectedWorkQueueLength)
 		}
+	}
+}
+
+func TestNPMPodNoUpdate(t *testing.T) {
+	type podInfo struct {
+		podName        string
+		ns             string
+		rv             string
+		podIP          string
+		labels         map[string]string
+		isHostNewtwork bool
+		podPhase       corev1.PodPhase
+	}
+
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+
+	tests := []struct {
+		name string
+		podInfo
+		updatingNPMPod   bool
+		expectedNoUpdate bool
+	}{
+		{
+			"Required update of NPMPod given Pod",
+			podInfo{
+				podName:        "test-pod-1",
+				ns:             "test-namespace",
+				rv:             "0",
+				podIP:          "1.2.3.4",
+				labels:         labels,
+				isHostNewtwork: NonHostNetwork,
+				podPhase:       corev1.PodRunning,
+			},
+			false,
+			false,
+		},
+		{
+			"No required update of NPMPod given Pod",
+			podInfo{
+				podName:        "test-pod-2",
+				ns:             "test-namespace",
+				rv:             "0",
+				podIP:          "1.2.3.4",
+				labels:         labels,
+				isHostNewtwork: NonHostNetwork,
+				podPhase:       corev1.PodRunning,
+			},
+			true,
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			corev1Pod := createPod(tt.podName, tt.ns, tt.rv, tt.podIP, tt.labels, tt.isHostNewtwork, tt.podPhase)
+			npmPod := newNpmPod(corev1Pod)
+			if tt.updatingNPMPod {
+				npmPod.appendLabels(corev1Pod.Labels, AppendToExistingLabels)
+				npmPod.updateNpmPodAttributes(corev1Pod)
+				npmPod.appendContainerPorts(corev1Pod)
+			}
+			noUpdate := npmPod.noUpdate(corev1Pod)
+			require.Equal(t, tt.expectedNoUpdate, noUpdate)
+		})
 	}
 }

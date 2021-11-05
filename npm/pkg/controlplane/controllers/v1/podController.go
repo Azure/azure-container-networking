@@ -615,6 +615,8 @@ func isCompletePod(podObj *corev1.Pod) bool {
 
 	// K8s categorizes Succeeded and Failed pods as a terminated pod and will not restart them.
 	// So NPM will ignorer adding these pods
+	// TODO(jungukcho): what are the values of DeletionTimestamp and podObj.DeletionGracePeriodSeconds
+	// in either below status?
 	if podObj.Status.Phase == corev1.PodSucceeded || podObj.Status.Phase == corev1.PodFailed {
 		return true
 	}
