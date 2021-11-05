@@ -309,18 +309,12 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 	nodeRegisterRequest.NmAgentSupportedApis = supportedApis
 
 	// CNS tries to register Node for maximum of an hour.
-	for tryNum := 0; tryNum <= maxRetryNodeRegister; tryNum++ {
-		success, err := sendRegisterNodeRequest(httpc, httpRestService, nodeRegisterRequest, url)
-		if err != nil {
-			return err
-		}
-		if success {
-			return nil
-		}
-		time.Sleep(acn.FiveSeconds)
-	}
-	return fmt.Errorf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
-		nodeID, infraVnet, dncEP)
+	err := retry.Do(func() error {
+		return sendRegisterNodeRequest(httpc, httpRestService, nodeRegisterRequest, url)
+	}, retry.Delay(acn.FiveSeconds), retry.Attempts(maxRetryNodeRegister), retry.DelayType(retry.FixedDelay))
+
+	return errors.Wrap(err, fmt.Sprintf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
+		nodeID, infraVnet, dncEP))
 }
 
 // sendRegisterNodeRequest func helps in registering the node until there is an error.
@@ -328,38 +322,38 @@ func sendRegisterNodeRequest(
 	httpc *http.Client,
 	httpRestService cns.HTTPService,
 	nodeRegisterRequest cns.NodeRegisterRequest,
-	registerURL string) (bool, error) {
+	registerURL string) error {
 
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
 		log.Errorf("[Azure CNS] Failed to register node while encoding json failed with non-retriable err %v", err)
-		return false, err
+		return retry.Unrecoverable(err)
 	}
 
 	response, err := httpc.Post(registerURL, "application/json", &body)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to register node with retriable err: %+v", err)
-		return false, nil
+		return err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusCreated {
 		err = fmt.Errorf("[Azure CNS] Failed to register node, DNC replied with http status code %s", strconv.Itoa(response.StatusCode))
 		logger.Errorf(err.Error())
-		return false, nil
+		return err
 	}
 
 	var req cns.SetOrchestratorTypeRequest
 	err = json.NewDecoder(response.Body).Decode(&req)
 	if err != nil {
 		log.Errorf("[Azure CNS] decoding Node Resgister response json failed with err %v", err)
-		return false, nil
+		return err
 	}
 	httpRestService.SetNodeOrchestrator(&req)
 
 	logger.Printf("[Azure CNS] Node Registered")
-	return true, nil
+	return nil
 }
 
 // Main is the entry point for CNS.
