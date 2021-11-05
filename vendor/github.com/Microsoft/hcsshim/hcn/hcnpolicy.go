@@ -23,7 +23,7 @@ const (
 	// Endpoint and Network have InterfaceConstraint and ProviderAddress
 	NetworkProviderAddress     EndpointPolicyType = "ProviderAddress"
 	NetworkInterfaceConstraint EndpointPolicyType = "InterfaceConstraint"
-	TierAcl       EndpointPolicyType = "TierAcl"	
+	TierAcl                    EndpointPolicyType = "TierAcl"
 )
 
 // EndpointPolicy is a collection of Policy settings for an Endpoint.
@@ -275,10 +275,10 @@ const (
 
 // SetPolicySetting creates IPSets on network
 type SetPolicySetting struct {
-	Id     string
-	Name   string
-	Type   SetPolicyType
-	Values string
+	Id         string
+	Name       string
+	PolicyType SetPolicyType
+	Values     string
 }
 
 // VxlanPortPolicySetting allows configuring the VXLAN TCP port
@@ -310,20 +310,20 @@ type L4ProxyPolicySetting struct {
 
 // TierAclRule represents an ACL within TierAclPolicySetting
 type TierAclRule struct {
-	Id                string        `json:",omitempty"`
-	Protocols         string        `json:",omitempty"`
-	TierAclRuleAction ActionType    `json:","`
-	LocalAddresses    string        `json:",omitempty"`
-	RemoteAddresses   string        `json:",omitempty"`
-	LocalPorts        string        `json:",omitempty"`
-	RemotePorts       string        `json:",omitempty"`
-	Priority          uint16        `json:",omitempty"`
+	Id                string     `json:",omitempty"`
+	Protocols         string     `json:",omitempty"`
+	TierAclRuleAction ActionType `json:","`
+	LocalAddresses    string     `json:",omitempty"`
+	RemoteAddresses   string     `json:",omitempty"`
+	LocalPorts        string     `json:",omitempty"`
+	RemotePorts       string     `json:",omitempty"`
+	Priority          uint16     `json:",omitempty"`
 }
 
 // TierAclPolicySetting represents a Tier containing ACLs
 type TierAclPolicySetting struct {
-	Name            string         `json:","`
-	Direction       DirectionType  `json:","`
-	Order           uint16         `json:""`
-	TierAclRules    []TierAclRule  `json:",omitempty"`
+	Name         string        `json:","`
+	Direction    DirectionType `json:","`
+	Order        uint16        `json:""`
+	TierAclRules []TierAclRule `json:",omitempty"`
 }
