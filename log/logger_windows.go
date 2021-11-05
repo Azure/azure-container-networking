@@ -19,6 +19,9 @@ func (logger *Logger) SetTarget(target int) error {
 	var err error
 
 	switch target {
+	case TargetStdout:
+		logger.out = os.Stdout
+
 	case TargetStderr:
 		logger.out = os.Stderr
 

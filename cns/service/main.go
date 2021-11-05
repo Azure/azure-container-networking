@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -60,6 +61,7 @@ const (
 
 	// 720 * acn.FiveSeconds sec sleeps = 1Hr
 	maxRetryNodeRegister = 720
+	initCNSInitalDelay   = 10 * time.Second
 )
 
 var (
@@ -308,18 +310,12 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 	nodeRegisterRequest.NmAgentSupportedApis = supportedApis
 
 	// CNS tries to register Node for maximum of an hour.
-	for tryNum := 0; tryNum <= maxRetryNodeRegister; tryNum++ {
-		success, err := sendRegisterNodeRequest(httpc, httpRestService, nodeRegisterRequest, url)
-		if err != nil {
-			return err
-		}
-		if success {
-			return nil
-		}
-		time.Sleep(acn.FiveSeconds)
-	}
-	return fmt.Errorf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
-		nodeID, infraVnet, dncEP)
+	err := retry.Do(func() error {
+		return sendRegisterNodeRequest(httpc, httpRestService, nodeRegisterRequest, url)
+	}, retry.Delay(acn.FiveSeconds), retry.Attempts(maxRetryNodeRegister), retry.DelayType(retry.FixedDelay))
+
+	return errors.Wrap(err, fmt.Sprintf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
+		nodeID, infraVnet, dncEP))
 }
 
 // sendRegisterNodeRequest func helps in registering the node until there is an error.
@@ -327,38 +323,38 @@ func sendRegisterNodeRequest(
 	httpc *http.Client,
 	httpRestService cns.HTTPService,
 	nodeRegisterRequest cns.NodeRegisterRequest,
-	registerURL string) (bool, error) {
+	registerURL string) error {
 
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
 		log.Errorf("[Azure CNS] Failed to register node while encoding json failed with non-retriable err %v", err)
-		return false, err
+		return errors.Wrap(retry.Unrecoverable(err), "failed to sendRegisterNodeRequest")
 	}
 
 	response, err := httpc.Post(registerURL, "application/json", &body)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to register node with retriable err: %+v", err)
-		return false, nil
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusCreated {
 		err = fmt.Errorf("[Azure CNS] Failed to register node, DNC replied with http status code %s", strconv.Itoa(response.StatusCode))
 		logger.Errorf(err.Error())
-		return false, nil
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 
 	var req cns.SetOrchestratorTypeRequest
 	err = json.NewDecoder(response.Body).Decode(&req)
 	if err != nil {
 		log.Errorf("[Azure CNS] decoding Node Resgister response json failed with err %v", err)
-		return false, nil
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 	httpRestService.SetNodeOrchestrator(&req)
 
 	logger.Printf("[Azure CNS] Node Registered")
-	return true, nil
+	return nil
 }
 
 // Main is the entry point for CNS.
@@ -884,9 +880,18 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 
-	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
-	if err != nil {
+	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
+	// aks addons to come up so retry a bit more aggresively here.
+	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
+	err = retry.Do(func() error {
+		err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
+		if err != nil {
+			logger.Errorf("[Azure CNS] Failed to init cns with err: %v", err)
+		}
 		return errors.Wrap(err, "failed to initialize CNS state")
+	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
+	if err != nil {
+		return err
 	}
 
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{

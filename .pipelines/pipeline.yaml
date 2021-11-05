@@ -11,10 +11,10 @@ trigger:
       - honeycomb-dev
 
 stages:
-  - stage: build_and_test
+  - stage: setup
     displayName: ACN
     jobs:
-      - job: setup
+      - job: env
         displayName: Setup 
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
@@ -32,13 +32,19 @@ stages:
             displayName: "Set environmental variables"
             condition: always()
 
+
+  - template: windows-image.yaml
+
+  - stage: build_and_test
+    displayName: ACN
+    dependsOn:
+      - "setup"
+    jobs:
       - job: build
         displayName: Build Binaries
-        dependsOn:
-          - "setup"
         variables:
-          TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
-          STORAGE_ID: $[ dependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
@@ -85,10 +91,8 @@ stages:
 
       - job: build_images
         displayName: Build Images
-        dependsOn:
-          - "setup"
         variables:
-          TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.Tag'] ]
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
@@ -158,10 +162,8 @@ stages:
 
       - job: test
         displayName: Run Tests
-        dependsOn:
-          - "setup"
         variables:
-          STORAGE_ID: $[ dependencies.setup.outputs['EnvironmentalVariables.StorageID'] ]
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
