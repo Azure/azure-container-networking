@@ -19,6 +19,10 @@ func GetAddPolicyTestCalls(_ *NPMNetworkPolicy) []testutils.TestCmd {
 	return []testutils.TestCmd{fakeIPTablesRestoreCommand}
 }
 
+func GetAddPolicyFailureTestCalls(_ *NPMNetworkPolicy) []testutils.TestCmd {
+	return []testutils.TestCmd{fakeIPTablesRestoreFailureCommand}
+}
+
 func GetRemovePolicyTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
 	calls := []testutils.TestCmd{}
 	hasIngress, hasEgress := policy.hasIngressAndEgress()
@@ -34,6 +38,13 @@ func GetRemovePolicyTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
 	}
 
 	calls = append(calls, fakeIPTablesRestoreCommand)
+	return calls
+}
+
+// GetRemovePolicyFailureTestCalls fails on the restore
+func GetRemovePolicyFailureTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
+	calls := GetRemovePolicyTestCalls(policy)
+	calls[len(calls)-1] = fakeIPTablesRestoreFailureCommand // replace the restore success with a failure
 	return calls
 }
 

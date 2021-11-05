@@ -21,10 +21,14 @@ const (
 // shouldn't call this if the np has no ACLs (check in generic)
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
 	// TODO check for newPolicy errors
-	creator := pMgr.getCreatorForNewNetworkPolicies(networkPolicy)
+	allChainNames := getAllChainNames([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.getCreatorForNewNetworkPolicies(allChainNames, networkPolicy)
 	err := restore(creator)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
+	}
+	for _, chain := range allChainNames {
+		delete(pMgr.chainsToCleanup, chain)
 	}
 	return nil
 }
@@ -34,10 +38,14 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	if deleteErr != nil {
 		return npmerrors.SimpleErrorWrapper("failed to delete jumps to policy chains", deleteErr)
 	}
-	creator := pMgr.getCreatorForRemovingPolicies(networkPolicy)
+	allChainNames := getAllChainNames([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.getCreatorForRemovingPolicies(allChainNames)
 	restoreErr := restore(creator)
 	if restoreErr != nil {
 		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
+	}
+	for _, chain := range allChainNames {
+		pMgr.chainsToCleanup[chain] = struct{}{}
 	}
 	return nil
 }
@@ -50,8 +58,8 @@ func restore(creator *ioutil.FileCreator) error {
 	return nil
 }
 
-func (pMgr *PolicyManager) getCreatorForRemovingPolicies(networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
-	allChainNames := getAllChainNames(networkPolicies)
+// TODO use array instead of ...
+func (pMgr *PolicyManager) getCreatorForRemovingPolicies(allChainNames []string) *ioutil.FileCreator {
 	creator := pMgr.getNewCreatorWithChains(allChainNames)
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
 	return creator
@@ -165,8 +173,8 @@ func getEgressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
 }
 
 // noflush add to chains impacted
-func (pMgr *PolicyManager) getCreatorForNewNetworkPolicies(networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
-	allChainNames := getAllChainNames(networkPolicies)
+// TODO use array instead of ...
+func (pMgr *PolicyManager) getCreatorForNewNetworkPolicies(allChainNames []string, networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
 	creator := pMgr.getNewCreatorWithChains(allChainNames)
 
 	ingressJumpLineNumber := 1

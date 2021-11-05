@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
@@ -54,6 +53,25 @@ var (
 	ingressOrEgressPolicyChainPattern = fmt.Sprintf("'Chain %s-\\|Chain %s-'", util.IptablesAzureIngressPolicyChainPrefix, util.IptablesAzureEgressPolicyChainPrefix)
 )
 
+type osTools struct {
+	chainsToCleanup map[string]struct{}
+}
+
+func makeTools() osTools {
+	return osTools{make(map[string]struct{})}
+}
+
+func (pMgr *PolicyManager) reboot() error {
+	// TODO for the sake of UTs, need to have a pMgr config specifying whether or not this reboot happens
+	// if err := pMgr.reset(); err != nil {
+	// 	return npmerrors.SimpleErrorWrapper("failed to remove NPM chains while rebooting", err)
+	// }
+	// if err := pMgr.initialize(); err != nil {
+	// 	return npmerrors.SimpleErrorWrapper("failed to initialize NPM chains while rebooting", err)
+	// }
+	return nil
+}
+
 func (pMgr *PolicyManager) initialize() error {
 	if err := pMgr.initializeNPMChains(); err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to initialize NPM chains", err)
@@ -65,6 +83,7 @@ func (pMgr *PolicyManager) reset() error {
 	if err := pMgr.removeNPMChains(); err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to remove NPM chains", err)
 	}
+	pMgr.chainsToCleanup = make(map[string]struct{})
 	return nil
 }
 
@@ -123,26 +142,48 @@ func (pMgr *PolicyManager) removeNPMChains() error {
 	return nil
 }
 
-// ReconcileChains periodically creates the jump rule from FORWARD chain to AZURE-NPM chain (if it d.n.e)
-// and makes sure it's after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
-func (pMgr *PolicyManager) ReconcileChains(stopChannel <-chan struct{}) {
-	go pMgr.reconcileChains(stopChannel)
+// reconcile does the following:
+// - cleans up old policy chains
+// - creates the jump rule from FORWARD chain to AZURE-NPM chain (if it d.n.e) and makes sure it's after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
+func (pMgr *PolicyManager) reconcile(stopChannel <-chan struct{}) {
+	if err := pMgr.positionAzureChainJumpRule(); err != nil {
+		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
+	}
+	if err := pMgr.cleanupChains(pMgr.oldPolicyChains()); err != nil {
+		klog.Errorf("failed to clean up old policy chains with the following error %s", err.Error())
+	}
 }
 
-func (pMgr *PolicyManager) reconcileChains(stopChannel <-chan struct{}) {
-	ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
-	defer ticker.Stop()
+func (pMgr *PolicyManager) oldPolicyChains() []string {
+	result := make([]string, len(pMgr.chainsToCleanup))
+	k := 0
+	for chain := range pMgr.chainsToCleanup {
+		result[k] = chain
+		k++
+	}
+	return result
+}
 
-	for {
-		select {
-		case <-stopChannel:
-			return
-		case <-ticker.C:
-			if err := pMgr.positionAzureChainJumpRule(); err != nil {
-				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
+// have to use slice argument for deterministic behavior for UTs
+func (pMgr *PolicyManager) cleanupChains(chains []string) error {
+	var aggregateError error
+	for _, chain := range chains {
+		errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain) // TODO run the one that ignores doesNotExistErrorCode
+		if err == nil || errCode == doesNotExistErrorCode {
+			delete(pMgr.chainsToCleanup, chain)
+		} else {
+			currentErrString := fmt.Sprintf("failed to clean up policy chain %s with err [%v]", chain, err)
+			if aggregateError == nil {
+				aggregateError = npmerrors.SimpleError(currentErrString)
+			} else {
+				aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
 			}
 		}
 	}
+	if aggregateError != nil {
+		return npmerrors.SimpleErrorWrapper("failed to clean up some policy chains with errors", aggregateError)
+	}
+	return nil
 }
 
 // this function has a direct comparison in NPM v1 iptables manager (iptm.go)

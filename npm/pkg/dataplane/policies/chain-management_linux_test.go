@@ -2,6 +2,7 @@ package policies
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
@@ -10,6 +11,58 @@ import (
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 )
+
+const (
+	testChain1 = "chain1"
+	testChain2 = "chain2"
+	testChain3 = "chain3"
+)
+
+func TestOldPolicyChains(t *testing.T) {
+	pMgr := NewPolicyManager(common.NewMockIOShim(nil))
+	pMgr.chainsToCleanup[testChain1] = struct{}{}
+	pMgr.chainsToCleanup[testChain2] = struct{}{}
+	chainsToCleanup := pMgr.oldPolicyChains()
+	require.Equal(t, 2, len(chainsToCleanup))
+	require.True(t, chainsToCleanup[0] == testChain1 || chainsToCleanup[1] == testChain1)
+	require.True(t, chainsToCleanup[0] == testChain2 || chainsToCleanup[1] == testChain2)
+}
+
+func TestCleanupChainsSuccess(t *testing.T) {
+	calls := []testutils.TestCmd{
+		getFakeDestroyCommand(testChain1),
+		getFakeDestroyCommandWithExitCode(testChain2, 1), // exit code 1 means the chain d.n.e.
+	}
+	ioshim := common.NewMockIOShim(calls)
+	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
+	pMgr := NewPolicyManager(ioshim)
+
+	pMgr.chainsToCleanup[testChain1] = struct{}{}
+	pMgr.chainsToCleanup[testChain2] = struct{}{}
+	chainsToCleanup := pMgr.oldPolicyChains()
+	sort.Strings(chainsToCleanup)
+	require.NoError(t, pMgr.cleanupChains(chainsToCleanup))
+	assertEqualCleanupContents(t, pMgr)
+}
+
+func TestCleanupChainsFailure(t *testing.T) {
+	calls := []testutils.TestCmd{
+		getFakeDestroyCommandWithExitCode(testChain1, 2),
+		getFakeDestroyCommand(testChain2),
+		getFakeDestroyCommandWithExitCode(testChain3, 2),
+	}
+	ioshim := common.NewMockIOShim(calls)
+	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
+	pMgr := NewPolicyManager(ioshim)
+
+	pMgr.chainsToCleanup[testChain1] = struct{}{}
+	pMgr.chainsToCleanup[testChain2] = struct{}{}
+	pMgr.chainsToCleanup[testChain3] = struct{}{}
+	chainsToCleanup := pMgr.oldPolicyChains()
+	sort.Strings(chainsToCleanup)
+	require.Error(t, pMgr.cleanupChains(chainsToCleanup))
+	assertEqualCleanupContents(t, pMgr, testChain1, testChain3)
+}
 
 func TestInitChainsCreator(t *testing.T) {
 	pMgr := NewPolicyManager(common.NewMockIOShim(nil))
@@ -109,7 +162,7 @@ func TestRemoveChainsCreator(t *testing.T) {
 
 func TestRemoveChainsSuccess(t *testing.T) {
 	calls := GetResetTestCalls()
-	for _, chain := range iptablesOldAndNewChains {
+	for _, chain := range iptablesOldAndNewChains { // TODO write these out, don't use variable
 		calls = append(calls, getFakeDestroyCommand(chain))
 	}
 	calls = append(
@@ -162,7 +215,7 @@ func TestRemoveChainsFailureOnDestroy(t *testing.T) {
 		{Cmd: []string{"grep", ingressOrEgressPolicyChainPattern}}, // ExitCode 0 for the iptables restore command
 		fakeIPTablesRestoreCommand,
 	}
-	calls = append(calls, getFakeDestroyFailureCommand(iptablesOldAndNewChains[0])) // this ExitCode here will actually impact the next below
+	calls = append(calls, getFakeDestroyCommandWithExitCode(iptablesOldAndNewChains[0], 2)) // this ExitCode here will actually impact the next below
 	for _, chain := range iptablesOldAndNewChains[1:] {
 		calls = append(calls, getFakeDestroyCommand(chain))
 	}
@@ -411,8 +464,8 @@ func getFakeDestroyCommand(chain string) testutils.TestCmd {
 	return testutils.TestCmd{Cmd: []string{"iptables", "-w", "60", "-X", chain}}
 }
 
-func getFakeDestroyFailureCommand(chain string) testutils.TestCmd {
+func getFakeDestroyCommandWithExitCode(chain string, exitCode int) testutils.TestCmd {
 	command := getFakeDestroyCommand(chain)
-	command.ExitCode = 1
+	command.ExitCode = exitCode
 	return command
 }
