@@ -60,7 +60,7 @@ const (
 
 	// 720 * acn.FiveSeconds sec sleeps = 1Hr
 	maxRetryNodeRegister = 720
-	//10 * 30 seconds = 5 minutes of retrying before we crash and backoff.
+	// 10 * 30 seconds = 5 minutes of retrying before we crash and backoff.
 	maxRetryInit      = 10
 	retryIntervalInit = 30 * time.Second
 )
