@@ -65,8 +65,7 @@ spec:
     metadata:
       labels:
         k8s-app: azure-npm
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
+      annotations:  
         azure.npm/scrapeable: ''
     spec:
       priorityClassName: system-node-critical
@@ -78,14 +77,10 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
 
-      securityContext:
-        windowsOptions:
-          hostProcess: true
-          runAsUserName: "NT AUTHORITY\\SYSTEM"
-      hostNetwork: true
+
       containers:
         - name: azure-npm
-          image: acnpublic.azurecr.io/azure-npm:v1.4.14-26-g67949bdf-windows-amd64-test
+          image: acnpublic.azurecr.io/azure-npm:windows-amd64-v3-test
           resources:
             limits:
               cpu: 250m
@@ -104,7 +99,6 @@ spec:
           volumeMounts:
           - name: azure-npm-config
             mountPath: /etc/azure-npm
-      hostNetwork: true
       nodeSelector:
         kubernetes.io/os: windows
       volumes:
