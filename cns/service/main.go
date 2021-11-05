@@ -329,27 +329,27 @@ func sendRegisterNodeRequest(
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
 		log.Errorf("[Azure CNS] Failed to register node while encoding json failed with non-retriable err %v", err)
-		return retry.Unrecoverable(err)
+		return errors.Wrap(retry.Unrecoverable(err), "failed to sendRegisterNodeRequest")
 	}
 
 	response, err := httpc.Post(registerURL, "application/json", &body)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to register node with retriable err: %+v", err)
-		return err
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusCreated {
 		err = fmt.Errorf("[Azure CNS] Failed to register node, DNC replied with http status code %s", strconv.Itoa(response.StatusCode))
 		logger.Errorf(err.Error())
-		return err
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 
 	var req cns.SetOrchestratorTypeRequest
 	err = json.NewDecoder(response.Body).Decode(&req)
 	if err != nil {
 		log.Errorf("[Azure CNS] decoding Node Resgister response json failed with err %v", err)
-		return err
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 	httpRestService.SetNodeOrchestrator(&req)
 
