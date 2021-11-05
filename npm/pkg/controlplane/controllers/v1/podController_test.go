@@ -692,7 +692,7 @@ func TestHasValidPodIP(t *testing.T) {
 }
 
 func TestIsCompletePod(t *testing.T) {
-	var zeroGracePeriod int64 = 0
+	var zeroGracePeriod int64
 	var defaultGracePeriod int64 = 30
 
 	type podState struct {
@@ -769,7 +769,6 @@ func TestIsCompletePod(t *testing.T) {
 			}
 			isPodCompleted := isCompletePod(corev1Pod)
 			require.Equal(t, tt.expectedCompletedPod, isPodCompleted)
-
 		})
 	}
 }
