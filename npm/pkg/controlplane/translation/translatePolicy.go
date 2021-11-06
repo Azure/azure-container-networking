@@ -259,6 +259,28 @@ func targetPodSelector(ns string, matchType policies.MatchType, selector *metav1
 	return podSelectorIPSets, podSelectorList
 }
 
+// PodSelector translates podSelector of spec field and NetworkPolicyPeer in networkpolicy object to trasnslatedIPSet and SetInfo.
+func podSelector(ns string, matchType policies.MatchType, selector *metav1.LabelSelector) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
+	podSelectors := parsePodSelector(selector, ns)
+	LenOfPodSelectors := len(podSelectors)
+	podSelectorIPSets := []*ipsets.TranslatedIPSet{}
+	podSelectorList := make([]policies.SetInfo, LenOfPodSelectors)
+
+	for i := 0; i < LenOfPodSelectors; i++ {
+		ps := podSelectors[i]
+		podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.label, ps.settype, ps.Members))
+		// if value is nested value, create translatedIPSet with the nested value
+		for j := 0; j < len(ps.Members); j++ {
+			var nilSlices []string
+			podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.Members[j], ipsets.KeyValueLabelOfPod, nilSlices))
+		}
+
+		podSelectorList[i] = policies.NewSetInfo(ps.label, ps.settype, ps.include, matchType)
+	}
+
+	return podSelectorIPSets, podSelectorList
+}
+
 func nsLabelType(label string) ipsets.SetType {
 	// TODO(jungukcho): this is unnecessary function which has extra computation
 	// will be removed after optimizing parseSelector function

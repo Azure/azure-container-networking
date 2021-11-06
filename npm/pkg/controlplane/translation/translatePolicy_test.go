@@ -1064,7 +1064,6 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "default",
 						Type: ipsets.Namespace,
 					},
-					Members: []string{},
 				},
 			},
 			podSelectorList: []policies.SetInfo{
@@ -1091,7 +1090,6 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "test",
 						Type: ipsets.Namespace,
 					},
-					Members: []string{},
 				},
 			},
 			podSelectorList: []policies.SetInfo{
@@ -1119,7 +1117,6 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Members: []string{},
 				},
 			},
 			podSelectorList: []policies.SetInfo{
@@ -1153,14 +1150,12 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "label",
 						Type: ipsets.KeyLabelOfPod,
 					},
-					Members: []string{},
 				},
 			},
 			podSelectorList: []policies.SetInfo{
@@ -1205,14 +1200,12 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "labelIn:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Members: []string{},
 				},
 			},
 			podSelectorList: []policies.SetInfo{
@@ -1257,14 +1250,12 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "labelNotIn:src",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Members: []string{},
 				},
 			},
 			podSelectorList: []policies.SetInfo{
@@ -1315,28 +1306,6 @@ func TestTargetPodSelector(t *testing.T) {
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfPod,
 					},
-					Members: []string{},
-				},
-				{
-					Metadata: &ipsets.IPSetMetadata{
-						Name: "k2",
-						Type: ipsets.KeyLabelOfPod,
-					},
-					Members: []string{},
-				},
-				{
-					Metadata: &ipsets.IPSetMetadata{
-						Name: "k1:v10",
-						Type: ipsets.KeyValueLabelOfPod,
-					},
-					Members: []string{},
-				},
-				{
-					Metadata: &ipsets.IPSetMetadata{
-						Name: "k1:v11",
-						Type: ipsets.KeyValueLabelOfPod,
-					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
@@ -1344,6 +1313,24 @@ func TestTargetPodSelector(t *testing.T) {
 						Type: ipsets.NestedLabelOfPod,
 					},
 					Members: []string{"k1:v10", "k1:v11"},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v10",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v11",
+						Type: ipsets.KeyValueLabelOfPod,
+					},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k2",
+						Type: ipsets.KeyLabelOfPod,
+					},
 				},
 			},
 			podSelectorList: []policies.SetInfo{
@@ -1357,18 +1344,18 @@ func TestTargetPodSelector(t *testing.T) {
 				},
 				{
 					IPSet: &ipsets.IPSetMetadata{
-						Name: "k2",
-						Type: ipsets.KeyLabelOfPod,
-					},
-					Included:  nonIncluded,
-					MatchType: matchType,
-				},
-				{
-					IPSet: &ipsets.IPSetMetadata{
 						Name: "k1:v10:v11",
 						Type: ipsets.NestedLabelOfPod,
 					},
 					Included:  included,
+					MatchType: matchType,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "k2",
+						Type: ipsets.KeyLabelOfPod,
+					},
+					Included:  nonIncluded,
 					MatchType: matchType,
 				},
 			},
@@ -1378,7 +1365,8 @@ func TestTargetPodSelector(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			podSelectorIPSets, podSelectorList := targetPodSelector(tt.namespace, tt.matchType, tt.labelSelector)
+			t.Parallel()
+			podSelectorIPSets, podSelectorList := podSelector(tt.namespace, tt.matchType, tt.labelSelector)
 			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
 			require.Equal(t, tt.podSelectorList, podSelectorList)
 		})
