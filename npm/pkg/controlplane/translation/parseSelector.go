@@ -2,6 +2,7 @@ package translation
 
 import (
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -45,7 +46,6 @@ func GetOperatorsAndLabels(labelsWithOps []string) (ops, labelsWithoutOps []stri
 		ops[i] = op
 		labelsWithoutOps[i] = labelWithoutOp
 	}
-
 	return ops, labelsWithoutOps
 }
 
@@ -237,4 +237,78 @@ func parseSelector(selector *metav1.LabelSelector) (labels []string, vals map[st
 	}
 
 	return labels, vals
+}
+
+type selectorInfo struct {
+	include bool
+	settype ipsets.SetType
+	label   string
+}
+
+func newSelectorInfo(include bool, setType ipsets.SetType, label string) selectorInfo {
+	return selectorInfo{
+		include: include,
+		settype: setType,
+		label:   label,
+	}
+}
+
+func parseNSSelector(selector *metav1.LabelSelector) []selectorInfo {
+	// TODO(jungukcho): This will not happen
+	if selector == nil {
+		return []selectorInfo{}
+	}
+
+	parsedSelectors := []selectorInfo{}
+	// #1. All namespaces case
+	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
+		selectorInfo := newSelectorInfo(true, ipsets.Namespace, util.KubeAllNamespacesFlag)
+		parsedSelectors = append(parsedSelectors, selectorInfo)
+		return parsedSelectors
+	}
+
+	// To avoid the duplilcate matchLabel among matchLabels and MatchExpression
+	// key of labelSet including "!" if operator is "OpNOtIn" or "OpDoesNotExist"
+	labelSet := make(map[string]struct{})
+
+	// #2. MatchLabels
+	for matchKey, matchVal := range selector.MatchLabels {
+		// matchKey + ":" + matchVal case
+		matchLabel := matchKey + util.IpsetLabelDelimter + matchVal
+		if _, exist := labelSet[matchLabel]; !exist {
+			selectorInfo := newSelectorInfo(true, ipsets.KeyValueLabelOfNamespace, matchLabel)
+			parsedSelectors = append(parsedSelectors, selectorInfo)
+			labelSet[matchLabel] = struct{}{}
+		}
+	}
+
+	// #3. MatchExpressions
+	for _, req := range selector.MatchExpressions {
+		var matchLabel string
+		var setType ipsets.SetType
+		switch op := req.Operator; op {
+		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
+			// "(!) + matchKey + : + matchVal" case
+			matchLabel = req.Key + util.IpsetLabelDelimter + req.Values[0]
+			setType = ipsets.KeyValueLabelOfNamespace
+		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+			// "(!) + matchKey" case
+			matchLabel = req.Key
+			setType = ipsets.KeyLabelOfNamespace
+		}
+
+		matchLabelWithOp := matchLabel
+		noNegativeOp := (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpExists)
+		if !noNegativeOp {
+			matchLabelWithOp = "!" + matchLabel
+		}
+
+		if _, exist := labelSet[matchLabelWithOp]; !exist {
+			selectorInfo := newSelectorInfo(noNegativeOp, setType, matchLabel)
+			parsedSelectors = append(parsedSelectors, selectorInfo)
+			labelSet[matchLabelWithOp] = struct{}{}
+		}
+	}
+
+	return parsedSelectors
 }

@@ -316,15 +316,17 @@ func allNameSpaceRule(matchType policies.MatchType) ([]*ipsets.TranslatedIPSet, 
 
 // nameSpaceSelector translates namespaceSelector of NetworkPolicyPeer in networkpolicy object to trasnslatedIPSet and SetInfo.
 func nameSpaceSelector(matchType policies.MatchType, selector *metav1.LabelSelector) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
-	ops, singleValueLabels := nameSpaceSelectorInfo(selector)
+	nsSelectors := parseNSSelector(selector)
+	LenOfnsSelectors := len(nsSelectors)
+	nsSelectorIPSets := make([]*ipsets.TranslatedIPSet, LenOfnsSelectors)
+	nsSelectorList := make([]policies.SetInfo, LenOfnsSelectors)
 
-	if len(ops) == 1 && len(singleValueLabels) == 1 && ops[0] == "" && singleValueLabels[0] == "" {
-		nsSelectorIPSets, nsSelectorList := allNameSpaceRule(matchType)
-		return nsSelectorIPSets, nsSelectorList
+	for i := 0; i < LenOfnsSelectors; i++ {
+		nsc := nsSelectors[i]
+		nsSelectorIPSets[i] = ipsets.NewTranslatedIPSet(nsc.label, nsc.settype, []string{})
+		nsSelectorList[i] = policies.NewSetInfo(nsc.label, nsc.settype, nsc.include, matchType)
 	}
 
-	nsSelectorIPSets := nameSpaceSelectorIPSets(singleValueLabels)
-	nsSelectorList := nameSpaceSelectorRule(matchType, ops, singleValueLabels)
 	return nsSelectorIPSets, nsSelectorList
 }
 
@@ -394,8 +396,6 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, ports []networkingv1.
 // translateIngress traslates podSelector of spec field and NetworkPolicyIngressRule in networkpolicy object
 // to NPMNetworkPolicy object.
 func translateIngress(npmNetPol *policies.NPMNetworkPolicy, targetSelector *metav1.LabelSelector, rules []networkingv1.NetworkPolicyIngressRule) {
-	// TODO(jungukcho) : Double-check addedCidrEntry.
-	var addedCidrEntry bool // all cidr entry will be added in one set per from/to rule
 	npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList = targetPodSelector(npmNetPol.NameSpace, policies.DstMatch, targetSelector)
 
 	for i, rule := range rules {
@@ -432,17 +432,15 @@ func translateIngress(npmNetPol *policies.NPMNetworkPolicy, targetSelector *meta
 			// #2.1 Handle IPBlock and port if exist
 			if fromRule.IPBlock != nil {
 				if len(fromRule.IPBlock.CIDR) > 0 {
-					// TODO(jungukcho): check this - need UTs
-					// TODO(jungukcho): need a const for "in"
 					ipBlockIPSet, ipBlockSetInfo := ipBlockRule(npmNetPol.Name, npmNetPol.NameSpace, policies.Ingress, i, fromRule.IPBlock)
 					npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ipBlockIPSet)
-					if j != 0 && addedCidrEntry {
+					// all IPBlock entries (i.e., cidr and except) will be added in one ipset per from rule
+					if j != 0 {
 						continue
 					}
 					peerAndPortRule(npmNetPol, rule.Ports, []policies.SetInfo{ipBlockSetInfo})
-					addedCidrEntry = true
 				}
-				// Do not check further since IPBlock filed is exclusive field.
+				// Do not check further since IPBlock field is exclusive in NetworkPolicyPeer (i.e., fromRule in this code).
 				continue
 			}
 

@@ -2040,7 +2040,6 @@ func TestNameSpaceSelector(t *testing.T) {
 						Operator: metav1.LabelSelectorOpIn,
 						Values: []string{
 							"v10",
-							"v11",
 						},
 					},
 					{
@@ -2050,12 +2049,17 @@ func TestNameSpaceSelector(t *testing.T) {
 					},
 				},
 			},
-			// Multiple values are ignored in namespace case
-			// Refer to FlattenNameSpaceSelector function in parseSelector.go
 			nsSelectorIPSets: []*ipsets.TranslatedIPSet{
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "k0:v0",
+						Type: ipsets.KeyValueLabelOfNamespace,
+					},
+					Members: []string{},
+				},
+				{
+					Metadata: &ipsets.IPSetMetadata{
+						Name: "k1:v10",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Members: []string{},
@@ -2072,6 +2076,14 @@ func TestNameSpaceSelector(t *testing.T) {
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: "k0:v0",
+						Type: ipsets.KeyValueLabelOfNamespace,
+					},
+					Included:  included,
+					MatchType: matchType,
+				},
+				{
+					IPSet: &ipsets.IPSetMetadata{
+						Name: "k1:v10",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
 					Included:  included,
