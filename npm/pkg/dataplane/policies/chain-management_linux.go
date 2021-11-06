@@ -91,7 +91,7 @@ func (pMgr *PolicyManager) reset() error {
 // AZURE-NPM chain is after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
 func (pMgr *PolicyManager) initializeNPMChains() error {
 	klog.Infof("Initializing AZURE-NPM chains.")
-	creator := pMgr.getCreatorForInitChains()
+	creator := pMgr.creatorForInitChains()
 	err := restore(creator)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to create chains and rules", err)
@@ -120,7 +120,7 @@ func (pMgr *PolicyManager) removeNPMChains() error {
 	}
 
 	// flush all chains (will create any chain, including deprecated ones, if they don't exist)
-	creatorToFlush, chainsToDelete := pMgr.getCreatorAndChainsForReset()
+	creatorToFlush, chainsToDelete := pMgr.creatorAndChainsForReset()
 	restoreError := restore(creatorToFlush)
 	if restoreError != nil {
 		return npmerrors.SimpleErrorWrapper("failed to flush chains", restoreError)
@@ -211,8 +211,8 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 	return 0, nil
 }
 
-func (pMgr *PolicyManager) getCreatorForInitChains() *ioutil.FileCreator {
-	creator := pMgr.getNewCreatorWithChains(iptablesAzureChains)
+func (pMgr *PolicyManager) creatorForInitChains() *ioutil.FileCreator {
+	creator := pMgr.newCreatorWithChains(iptablesAzureChains)
 
 	// add AZURE-NPM chain rules
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureIngressChain)
@@ -221,32 +221,32 @@ func (pMgr *PolicyManager) getCreatorForInitChains() *ioutil.FileCreator {
 
 	// add AZURE-NPM-INGRESS chain rules
 	ingressDropSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureIngressChain, util.IptablesJumpFlag, util.IptablesDrop}
-	ingressDropSpecs = append(ingressDropSpecs, getOnMarkSpecs(util.IptablesAzureIngressDropMarkHex)...)
-	ingressDropSpecs = append(ingressDropSpecs, getCommentSpecs(fmt.Sprintf("DROP-ON-INGRESS-DROP-MARK-%s", util.IptablesAzureIngressDropMarkHex))...)
+	ingressDropSpecs = append(ingressDropSpecs, onMarkSpecs(util.IptablesAzureIngressDropMarkHex)...)
+	ingressDropSpecs = append(ingressDropSpecs, commentSpecs(fmt.Sprintf("DROP-ON-INGRESS-DROP-MARK-%s", util.IptablesAzureIngressDropMarkHex))...)
 	creator.AddLine("", nil, ingressDropSpecs...)
 
 	// add AZURE-NPM-INGRESS-ALLOW-MARK chain
 	markIngressAllowSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureIngressAllowMarkChain}
-	markIngressAllowSpecs = append(markIngressAllowSpecs, getSetMarkSpecs(util.IptablesAzureIngressAllowMarkHex)...)
-	markIngressAllowSpecs = append(markIngressAllowSpecs, getCommentSpecs(fmt.Sprintf("SET-INGRESS-ALLOW-MARK-%s", util.IptablesAzureIngressAllowMarkHex))...)
+	markIngressAllowSpecs = append(markIngressAllowSpecs, setMarkSpecs(util.IptablesAzureIngressAllowMarkHex)...)
+	markIngressAllowSpecs = append(markIngressAllowSpecs, commentSpecs(fmt.Sprintf("SET-INGRESS-ALLOW-MARK-%s", util.IptablesAzureIngressAllowMarkHex))...)
 	creator.AddLine("", nil, markIngressAllowSpecs...)
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureIngressAllowMarkChain, util.IptablesJumpFlag, util.IptablesAzureEgressChain)
 
 	// add AZURE-NPM-EGRESS chain rules
 	egressDropSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureEgressChain, util.IptablesJumpFlag, util.IptablesDrop}
-	egressDropSpecs = append(egressDropSpecs, getOnMarkSpecs(util.IptablesAzureEgressDropMarkHex)...)
-	egressDropSpecs = append(egressDropSpecs, getCommentSpecs(fmt.Sprintf("DROP-ON-EGRESS-DROP-MARK-%s", util.IptablesAzureEgressDropMarkHex))...)
+	egressDropSpecs = append(egressDropSpecs, onMarkSpecs(util.IptablesAzureEgressDropMarkHex)...)
+	egressDropSpecs = append(egressDropSpecs, commentSpecs(fmt.Sprintf("DROP-ON-EGRESS-DROP-MARK-%s", util.IptablesAzureEgressDropMarkHex))...)
 	creator.AddLine("", nil, egressDropSpecs...)
 
 	jumpOnIngressMatchSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureEgressChain, util.IptablesJumpFlag, util.IptablesAzureAcceptChain}
-	jumpOnIngressMatchSpecs = append(jumpOnIngressMatchSpecs, getOnMarkSpecs(util.IptablesAzureIngressAllowMarkHex)...)
-	jumpOnIngressMatchSpecs = append(jumpOnIngressMatchSpecs, getCommentSpecs(fmt.Sprintf("ACCEPT-ON-INGRESS-ALLOW-MARK-%s", util.IptablesAzureIngressAllowMarkHex))...)
+	jumpOnIngressMatchSpecs = append(jumpOnIngressMatchSpecs, onMarkSpecs(util.IptablesAzureIngressAllowMarkHex)...)
+	jumpOnIngressMatchSpecs = append(jumpOnIngressMatchSpecs, commentSpecs(fmt.Sprintf("ACCEPT-ON-INGRESS-ALLOW-MARK-%s", util.IptablesAzureIngressAllowMarkHex))...)
 	creator.AddLine("", nil, jumpOnIngressMatchSpecs...)
 
 	// add AZURE-NPM-ACCEPT chain rules
 	clearSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureAcceptChain}
-	clearSpecs = append(clearSpecs, getSetMarkSpecs(util.IptablesAzureClearMarkHex)...)
-	clearSpecs = append(clearSpecs, getCommentSpecs("Clear-AZURE-NPM-MARKS")...)
+	clearSpecs = append(clearSpecs, setMarkSpecs(util.IptablesAzureClearMarkHex)...)
+	clearSpecs = append(clearSpecs, commentSpecs("Clear-AZURE-NPM-MARKS")...)
 	creator.AddLine("", nil, clearSpecs...)
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureAcceptChain, util.IptablesJumpFlag, util.IptablesAccept)
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
@@ -256,7 +256,7 @@ func (pMgr *PolicyManager) getCreatorForInitChains() *ioutil.FileCreator {
 // add/reposition AZURE-NPM chain after KUBE-FORWARD and KUBE-SERVICE chains if they exist
 // this function has a direct comparison in NPM v1 iptables manager (iptm.go)
 func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
-	kubeServicesLine, kubeServicesLineNumErr := pMgr.getChainLineNumber(util.IptablesKubeServicesChain)
+	kubeServicesLine, kubeServicesLineNumErr := pMgr.chainLineNumber(util.IptablesKubeServicesChain)
 	if kubeServicesLineNumErr != nil {
 		// not possible to cover this branch currently because of testing limitations for PipeCommandToGrep()
 		baseErrString := "failed to get index of jump from KUBE-SERVICES chain to FORWARD chain with error"
@@ -266,7 +266,7 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 
 	index := kubeServicesLine + 1
 
-	// TODO could call getChainLineNumber instead, and say it doesn't exist for lineNum == 0
+	// TODO could call chainLineNumber instead, and say it doesn't exist for lineNum == 0
 	jumpRuleErrCode, checkErr := pMgr.runIPTablesCommand(util.IptablesCheckFlag, jumpFromForwardToAzureChainArgs...)
 	hadCheckError := checkErr != nil && jumpRuleErrCode != doesNotExistErrorCode
 	if hadCheckError {
@@ -293,7 +293,7 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 		return nil
 	}
 
-	npmChainLine, npmLineNumErr := pMgr.getChainLineNumber(util.IptablesAzureChain)
+	npmChainLine, npmLineNumErr := pMgr.chainLineNumber(util.IptablesAzureChain)
 	if npmLineNumErr != nil {
 		// not possible to cover this branch currently because of testing limitations for PipeCommandToGrep()
 		baseErrString := "failed to get index of jump from FORWARD chain to AZURE-NPM chain"
@@ -334,7 +334,7 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 
 // returns 0 if the chain d.n.e.
 // this function has a direct comparison in NPM v1 iptables manager (iptm.go)
-func (pMgr *PolicyManager) getChainLineNumber(chain string) (int, error) {
+func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
 	// TODO could call this once and use regex instead of grep to cut down on OS calls
 	listForwardEntriesCommand := pMgr.ioShim.Exec.Command(util.Iptables,
 		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
@@ -357,20 +357,20 @@ func (pMgr *PolicyManager) getChainLineNumber(chain string) (int, error) {
 }
 
 // make this a function for easier testing
-func (pMgr *PolicyManager) getCreatorAndChainsForReset() (creator *ioutil.FileCreator, chainsToFlush []string) {
-	oldPolicyChains, err := pMgr.getPolicyChainNames()
+func (pMgr *PolicyManager) creatorAndChainsForReset() (creator *ioutil.FileCreator, chainsToFlush []string) {
+	oldPolicyChains, err := pMgr.policyChainNames()
 	if err != nil {
 		// not possible to cover this branch currently because of testing limitations for PipeCommandToGrep()
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to determine NPM ingress/egress policy chains to delete")
 	}
 	chainsToFlush = iptablesOldAndNewChains
 	chainsToFlush = append(chainsToFlush, oldPolicyChains...) // will work even if oldPolicyChains is nil
-	creator = pMgr.getNewCreatorWithChains(chainsToFlush)
+	creator = pMgr.newCreatorWithChains(chainsToFlush)
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
 	return
 }
 
-func (pMgr *PolicyManager) getPolicyChainNames() ([]string, error) {
+func (pMgr *PolicyManager) policyChainNames() ([]string, error) {
 	iptablesListCommand := pMgr.ioShim.Exec.Command(util.Iptables,
 		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
 		util.IptablesNumericFlag, util.IptablesListFlag,
@@ -396,7 +396,7 @@ func (pMgr *PolicyManager) getPolicyChainNames() ([]string, error) {
 	return chainNames, nil
 }
 
-func getOnMarkSpecs(mark string) []string {
+func onMarkSpecs(mark string) []string {
 	return []string{
 		util.IptablesModuleFlag,
 		util.IptablesMarkVerb,

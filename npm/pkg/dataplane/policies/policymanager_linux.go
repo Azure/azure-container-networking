@@ -21,8 +21,8 @@ const (
 // shouldn't call this if the np has no ACLs (check in generic)
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
 	// TODO check for newPolicy errors
-	allChainNames := getAllChainNames([]*NPMNetworkPolicy{networkPolicy})
-	creator := pMgr.getCreatorForNewNetworkPolicies(allChainNames, networkPolicy)
+	allChainNames := allChainNames([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.creatorForNewNetworkPolicies(allChainNames, networkPolicy)
 	err := restore(creator)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
@@ -38,8 +38,8 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	if deleteErr != nil {
 		return npmerrors.SimpleErrorWrapper("failed to delete jumps to policy chains", deleteErr)
 	}
-	allChainNames := getAllChainNames([]*NPMNetworkPolicy{networkPolicy})
-	creator := pMgr.getCreatorForRemovingPolicies(allChainNames)
+	allChainNames := allChainNames([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.creatorForRemovingPolicies(allChainNames)
 	restoreErr := restore(creator)
 	if restoreErr != nil {
 		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
@@ -59,23 +59,23 @@ func restore(creator *ioutil.FileCreator) error {
 }
 
 // TODO use array instead of ...
-func (pMgr *PolicyManager) getCreatorForRemovingPolicies(allChainNames []string) *ioutil.FileCreator {
-	creator := pMgr.getNewCreatorWithChains(allChainNames)
+func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *ioutil.FileCreator {
+	creator := pMgr.newCreatorWithChains(allChainNames)
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
 	return creator
 }
 
 // returns all chain names (ingress and egress policy chain names)
-func getAllChainNames(networkPolicies []*NPMNetworkPolicy) []string {
+func allChainNames(networkPolicies []*NPMNetworkPolicy) []string {
 	chainNames := make([]string, 0)
 	for _, networkPolicy := range networkPolicies {
 		hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()
 
 		if hasIngress {
-			chainNames = append(chainNames, networkPolicy.getIngressChainName())
+			chainNames = append(chainNames, networkPolicy.ingressChainName())
 		}
 		if hasEgress {
-			chainNames = append(chainNames, networkPolicy.getEgressChainName())
+			chainNames = append(chainNames, networkPolicy.egressChainName())
 		}
 	}
 	return chainNames
@@ -92,20 +92,20 @@ func (networkPolicy *NPMNetworkPolicy) hasIngressAndEgress() (hasIngress, hasEgr
 	return
 }
 
-func (networkPolicy *NPMNetworkPolicy) getEgressChainName() string {
-	return networkPolicy.getChainName(util.IptablesAzureEgressPolicyChainPrefix)
+func (networkPolicy *NPMNetworkPolicy) egressChainName() string {
+	return networkPolicy.chainName(util.IptablesAzureEgressPolicyChainPrefix)
 }
 
-func (networkPolicy *NPMNetworkPolicy) getIngressChainName() string {
-	return networkPolicy.getChainName(util.IptablesAzureIngressPolicyChainPrefix)
+func (networkPolicy *NPMNetworkPolicy) ingressChainName() string {
+	return networkPolicy.chainName(util.IptablesAzureIngressPolicyChainPrefix)
 }
 
-func (networkPolicy *NPMNetworkPolicy) getChainName(prefix string) string {
+func (networkPolicy *NPMNetworkPolicy) chainName(prefix string) string {
 	policyHash := util.Hash(networkPolicy.Name) // assuming the name is unique
 	return joinWithDash(prefix, policyHash)
 }
 
-func (pMgr *PolicyManager) getNewCreatorWithChains(chainNames []string) *ioutil.FileCreator {
+func (pMgr *PolicyManager) newCreatorWithChains(chainNames []string) *ioutil.FileCreator {
 	creator := ioutil.NewFileCreator(pMgr.ioShim, maxRetryCount, knownLineErrorPattern, unknownLineErrorPattern) // TODO pass an array instead of this ... thing
 
 	creator.AddLine("", nil, "*"+util.IptablesFilterTable) // specify the table
@@ -140,13 +140,13 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, isIngress bo
 	var baseChainName string
 	var chainName string
 	if isIngress {
-		specs = getIngressJumpSpecs(policy)
+		specs = ingressJumpSpecs(policy)
 		baseChainName = util.IptablesAzureIngressChain
-		chainName = policy.getIngressChainName()
+		chainName = policy.ingressChainName()
 	} else {
-		specs = getEgressJumpSpecs(policy)
+		specs = egressJumpSpecs(policy)
 		baseChainName = util.IptablesAzureEgressChain
-		chainName = policy.getEgressChainName()
+		chainName = policy.egressChainName()
 	}
 
 	specs = append([]string{baseChainName}, specs...)
@@ -160,22 +160,22 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, isIngress bo
 	return nil
 }
 
-func getIngressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
-	chainName := networkPolicy.getIngressChainName()
+func ingressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
+	chainName := networkPolicy.ingressChainName()
 	specs := []string{util.IptablesJumpFlag, chainName}
-	return append(specs, getMatchSetSpecsForNetworkPolicy(networkPolicy, DstMatch)...)
+	return append(specs, matchSetSpecsForNetworkPolicy(networkPolicy, DstMatch)...)
 }
 
-func getEgressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
-	chainName := networkPolicy.getEgressChainName()
+func egressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
+	chainName := networkPolicy.egressChainName()
 	specs := []string{util.IptablesJumpFlag, chainName}
-	return append(specs, getMatchSetSpecsForNetworkPolicy(networkPolicy, SrcMatch)...)
+	return append(specs, matchSetSpecsForNetworkPolicy(networkPolicy, SrcMatch)...)
 }
 
 // noflush add to chains impacted
 // TODO use array instead of ...
-func (pMgr *PolicyManager) getCreatorForNewNetworkPolicies(allChainNames []string, networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
-	creator := pMgr.getNewCreatorWithChains(allChainNames)
+func (pMgr *PolicyManager) creatorForNewNetworkPolicies(allChainNames []string, networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
+	creator := pMgr.newCreatorWithChains(allChainNames)
 
 	ingressJumpLineNumber := 1
 	egressJumpLineNumber := 1
@@ -185,12 +185,12 @@ func (pMgr *PolicyManager) getCreatorForNewNetworkPolicies(allChainNames []strin
 		// add jump rule(s) to policy chain(s)
 		hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()
 		if hasIngress {
-			ingressJumpSpecs := getInsertSpecs(util.IptablesAzureIngressChain, ingressJumpLineNumber, getIngressJumpSpecs(networkPolicy))
+			ingressJumpSpecs := insertSpecs(util.IptablesAzureIngressChain, ingressJumpLineNumber, ingressJumpSpecs(networkPolicy))
 			creator.AddLine("", nil, ingressJumpSpecs...) // TODO error handler
 			ingressJumpLineNumber++
 		}
 		if hasEgress {
-			egressJumpSpecs := getInsertSpecs(util.IptablesAzureEgressChain, egressJumpLineNumber, getEgressJumpSpecs(networkPolicy))
+			egressJumpSpecs := insertSpecs(util.IptablesAzureEgressChain, egressJumpLineNumber, egressJumpSpecs(networkPolicy))
 			creator.AddLine("", nil, egressJumpSpecs...) // TODO error handler
 			egressJumpLineNumber++
 		}
@@ -205,40 +205,40 @@ func writeNetworkPolicyRules(creator *ioutil.FileCreator, networkPolicy *NPMNetw
 		var chainName string
 		var actionSpecs []string
 		if aclPolicy.hasIngress() {
-			chainName = networkPolicy.getIngressChainName()
+			chainName = networkPolicy.ingressChainName()
 			if aclPolicy.Target == Allowed {
 				actionSpecs = []string{util.IptablesJumpFlag, util.IptablesAzureEgressChain}
 			} else {
-				actionSpecs = getSetMarkSpecs(util.IptablesAzureIngressDropMarkHex)
+				actionSpecs = setMarkSpecs(util.IptablesAzureIngressDropMarkHex)
 			}
 		} else {
-			chainName = networkPolicy.getEgressChainName()
+			chainName = networkPolicy.egressChainName()
 			if aclPolicy.Target == Allowed {
 				actionSpecs = []string{util.IptablesJumpFlag, util.IptablesAzureAcceptChain}
 			} else {
-				actionSpecs = getSetMarkSpecs(util.IptablesAzureEgressDropMarkHex)
+				actionSpecs = setMarkSpecs(util.IptablesAzureEgressDropMarkHex)
 			}
 		}
 		line := []string{"-A", chainName}
 		line = append(line, actionSpecs...)
-		line = append(line, getIPTablesRuleSpecs(aclPolicy)...)
+		line = append(line, iptablesRuleSpecs(aclPolicy)...)
 		creator.AddLine("", nil, line...) // TODO add error handler
 	}
 }
 
-func getIPTablesRuleSpecs(aclPolicy *ACLPolicy) []string {
+func iptablesRuleSpecs(aclPolicy *ACLPolicy) []string {
 	specs := make([]string, 0)
 	specs = append(specs, util.IptablesProtFlag, string(aclPolicy.Protocol)) // NOTE: protocol must be ALL instead of nil
-	specs = append(specs, getPortSpecs([]Ports{aclPolicy.DstPorts})...)
-	specs = append(specs, getMatchSetSpecsFromSetInfo(aclPolicy.SrcList)...)
-	specs = append(specs, getMatchSetSpecsFromSetInfo(aclPolicy.DstList)...)
+	specs = append(specs, portSpecs([]Ports{aclPolicy.DstPorts})...)
+	specs = append(specs, matchSetSpecsFromSetInfo(aclPolicy.SrcList)...)
+	specs = append(specs, matchSetSpecsFromSetInfo(aclPolicy.DstList)...)
 	if aclPolicy.Comment != "" {
-		specs = append(specs, getCommentSpecs(aclPolicy.Comment)...)
+		specs = append(specs, commentSpecs(aclPolicy.Comment)...)
 	}
 	return specs
 }
 
-func getPortSpecs(portRanges []Ports) []string {
+func portSpecs(portRanges []Ports) []string {
 	// TODO(jungukcho): do not need to take slices since it can only have one dst port
 	if len(portRanges) != 1 {
 		return []string{}
@@ -252,7 +252,7 @@ func getPortSpecs(portRanges []Ports) []string {
 	return []string{util.IptablesDstPortFlag, portRanges[0].toIPTablesString()}
 }
 
-func getMatchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType MatchType) []string {
+func matchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType MatchType) []string {
 	// TODO update to use included boolean/new data structure from Junguk's PR
 	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(networkPolicy.PodSelectorIPSets))
 	for _, translatedIPSet := range networkPolicy.PodSelectorIPSets {
@@ -263,7 +263,7 @@ func getMatchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType
 	return specs
 }
 
-func getMatchSetSpecsFromSetInfo(setInfoList []SetInfo) []string {
+func matchSetSpecsFromSetInfo(setInfoList []SetInfo) []string {
 	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(setInfoList))
 	for _, setInfo := range setInfoList {
 		matchString := setInfo.MatchType.toIPTablesString()
@@ -277,7 +277,7 @@ func getMatchSetSpecsFromSetInfo(setInfoList []SetInfo) []string {
 	return specs
 }
 
-func getSetMarkSpecs(mark string) []string {
+func setMarkSpecs(mark string) []string {
 	return []string{
 		util.IptablesJumpFlag,
 		util.IptablesMark,
@@ -286,7 +286,7 @@ func getSetMarkSpecs(mark string) []string {
 	}
 }
 
-func getCommentSpecs(comment string) []string {
+func commentSpecs(comment string) []string {
 	return []string{
 		util.IptablesModuleFlag,
 		util.IptablesCommentModuleFlag,
@@ -295,7 +295,7 @@ func getCommentSpecs(comment string) []string {
 	}
 }
 
-func getInsertSpecs(chainName string, index int, specs []string) []string {
+func insertSpecs(chainName string, index int, specs []string) []string {
 	indexString := fmt.Sprint(index)
 	insertSpecs := []string{util.IptablesInsertionFlag, chainName, indexString}
 	return append(insertSpecs, specs...)

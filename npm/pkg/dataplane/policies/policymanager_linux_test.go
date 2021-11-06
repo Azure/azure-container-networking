@@ -14,10 +14,10 @@ import (
 )
 
 var (
-	testPolicy1IngressChain = TestNetworkPolicies[0].getIngressChainName()
-	testPolicy1EgressChain  = TestNetworkPolicies[0].getEgressChainName()
-	testPolicy2IngressChain = TestNetworkPolicies[1].getIngressChainName()
-	testPolicy3EgressChain  = TestNetworkPolicies[2].getEgressChainName()
+	testPolicy1IngressChain = TestNetworkPolicies[0].ingressChainName()
+	testPolicy1EgressChain  = TestNetworkPolicies[0].egressChainName()
+	testPolicy2IngressChain = TestNetworkPolicies[1].ingressChainName()
+	testPolicy3EgressChain  = TestNetworkPolicies[2].egressChainName()
 
 	testPolicy1IngressJump = fmt.Sprintf("-j %s -m set --match-set %s dst", testPolicy1IngressChain, ipsets.TestKVNSList.HashedName)
 	testPolicy1EgressJump  = fmt.Sprintf("-j %s -m set --match-set %s src", testPolicy1EgressChain, ipsets.TestKVNSList.HashedName)
@@ -36,15 +36,15 @@ var (
 
 func TestChainNames(t *testing.T) {
 	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(TestNetworkPolicies[0].Name))
-	require.Equal(t, expectedName, TestNetworkPolicies[0].getIngressChainName())
+	require.Equal(t, expectedName, TestNetworkPolicies[0].ingressChainName())
 	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(TestNetworkPolicies[0].Name))
-	require.Equal(t, expectedName, TestNetworkPolicies[0].getEgressChainName())
+	require.Equal(t, expectedName, TestNetworkPolicies[0].egressChainName())
 }
 
 func TestAddPolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	creator := pMgr.getCreatorForNewNetworkPolicies(getAllChainNames(TestNetworkPolicies), TestNetworkPolicies...)
+	creator := pMgr.creatorForNewNetworkPolicies(allChainNames(TestNetworkPolicies), TestNetworkPolicies...)
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
@@ -89,7 +89,7 @@ func TestRemovePolicies(t *testing.T) {
 		fakeIPTablesRestoreCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	creator := pMgr.getCreatorForRemovingPolicies(getAllChainNames(TestNetworkPolicies))
+	creator := pMgr.creatorForRemovingPolicies(allChainNames(TestNetworkPolicies))
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",

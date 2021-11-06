@@ -66,7 +66,7 @@ func TestCleanupChainsFailure(t *testing.T) {
 
 func TestInitChainsCreator(t *testing.T) {
 	pMgr := NewPolicyManager(common.NewMockIOShim(nil))
-	creator := pMgr.getCreatorForInitChains() // doesn't make any exec calls
+	creator := pMgr.creatorForInitChains() // doesn't make any exec calls
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{"*filter"}
 	for _, chain := range iptablesAzureChains {
@@ -130,7 +130,7 @@ func TestRemoveChainsCreator(t *testing.T) {
 	}
 
 	pMgr := NewPolicyManager(common.NewMockIOShim(creatorCalls))
-	creator, chainsToFlush := pMgr.getCreatorAndChainsForReset()
+	creator, chainsToFlush := pMgr.creatorAndChainsForReset()
 	expectedChainsToFlush := []string{
 		"AZURE-NPM",
 		"AZURE-NPM-INGRESS",
@@ -408,7 +408,7 @@ func TestGetChainLineNumber(t *testing.T) {
 		grepCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	lineNum, err := pMgr.getChainLineNumber(testChainName)
+	lineNum, err := pMgr.chainLineNumber(testChainName)
 	require.Equal(t, 3, lineNum)
 	require.NoError(t, err)
 
@@ -421,7 +421,7 @@ func TestGetChainLineNumber(t *testing.T) {
 		grepCommand,
 	}
 	pMgr = NewPolicyManager(common.NewMockIOShim(calls))
-	lineNum, err = pMgr.getChainLineNumber(testChainName)
+	lineNum, err = pMgr.chainLineNumber(testChainName)
 	require.Equal(t, 0, lineNum)
 	require.NoError(t, err)
 }
@@ -437,7 +437,7 @@ func TestGetPolicyChainNames(t *testing.T) {
 		grepCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	chainNames, err := pMgr.getPolicyChainNames()
+	chainNames, err := pMgr.policyChainNames()
 	expectedChainNames := []string{
 		"AZURE-NPM-INGRESS-123456",
 		"AZURE-NPM-EGRESS-123456",
@@ -454,7 +454,7 @@ func TestGetPolicyChainNames(t *testing.T) {
 		grepCommand,
 	}
 	pMgr = NewPolicyManager(common.NewMockIOShim(calls))
-	chainNames, err = pMgr.getPolicyChainNames()
+	chainNames, err = pMgr.policyChainNames()
 	expectedChainNames = nil
 	require.Equal(t, expectedChainNames, chainNames)
 	require.NoError(t, err)
