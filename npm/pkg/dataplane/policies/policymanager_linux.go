@@ -229,7 +229,7 @@ func writeNetworkPolicyRules(creator *ioutil.FileCreator, networkPolicy *NPMNetw
 func iptablesRuleSpecs(aclPolicy *ACLPolicy) []string {
 	specs := make([]string, 0)
 	specs = append(specs, util.IptablesProtFlag, string(aclPolicy.Protocol)) // NOTE: protocol must be ALL instead of nil
-	specs = append(specs, portSpecs([]Ports{aclPolicy.DstPorts})...)
+	specs = append(specs, dstPortSpecs(aclPolicy.DstPorts)...)
 	specs = append(specs, matchSetSpecsFromSetInfo(aclPolicy.SrcList)...)
 	specs = append(specs, matchSetSpecsFromSetInfo(aclPolicy.DstList)...)
 	if aclPolicy.Comment != "" {
@@ -238,18 +238,11 @@ func iptablesRuleSpecs(aclPolicy *ACLPolicy) []string {
 	return specs
 }
 
-func portSpecs(portRanges []Ports) []string {
-	// TODO(jungukcho): do not need to take slices since it can only have one dst port
-	if len(portRanges) != 1 {
+func dstPortSpecs(portRange Ports) []string {
+	if portRange.Port == 0 && portRange.EndPort == 0 {
 		return []string{}
 	}
-
-	// TODO(jungukcho): temporary solution and need to fix it.
-	if portRanges[0].Port == 0 && portRanges[0].EndPort == 0 {
-		return []string{}
-	}
-
-	return []string{util.IptablesDstPortFlag, portRanges[0].toIPTablesString()}
+	return []string{util.IptablesDstPortFlag, portRange.toIPTablesString()}
 }
 
 func matchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType MatchType) []string {

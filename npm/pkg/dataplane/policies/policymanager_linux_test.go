@@ -159,17 +159,16 @@ func TestUpdatingChainsToCleanup(t *testing.T) {
 	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
 	pMgr := NewPolicyManager(ioshim)
 
-	// FIXME off because of grep stuff
 	require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[0], nil))
 	assertEqualCleanupContents(t, pMgr)
 	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil))
 	assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain)
 
+	// TODO uncomment when grep stuff is fixed
 	// require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[1], nil))
 	// assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain)
 	// require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[1].Name, nil))
 	// assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain)
-
 	// require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[2], nil))
 	// assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain)
 	// require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[2].Name, nil))
