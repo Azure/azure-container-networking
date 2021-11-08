@@ -105,7 +105,7 @@ func TestWrite(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, got, "Expected:%d but got:%d", tt.want, got)
 		})
 	}
 }

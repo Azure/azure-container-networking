@@ -201,8 +201,9 @@ func read(conn net.Conn) (b []byte, err error) {
 
 // Write - write to the file descriptor.
 func (tb *TelemetryBuffer) Write(b []byte) (c int, err error) {
-	buf := make([]byte, 0, len(b))
+	buf := make([]byte, len(b))
 	copy(buf, b)
+	//nolint:makezero //keeping old code
 	buf = append(buf, Delimiter)
 	w := bufio.NewWriter(tb.client)
 	c, err = w.Write(buf)
