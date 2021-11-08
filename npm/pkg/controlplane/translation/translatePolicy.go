@@ -268,11 +268,11 @@ func podSelector(ns string, matchType policies.MatchType, selector *metav1.Label
 
 	for i := 0; i < LenOfPodSelectors; i++ {
 		ps := podSelectors[i]
-		podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.label, ps.settype, ps.Members))
+		podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.label, ps.settype, ps.members))
 		// if value is nested value, create translatedIPSet with the nested value
-		for j := 0; j < len(ps.Members); j++ {
+		for j := 0; j < len(ps.members); j++ {
 			var nilSlices []string
-			podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.Members[j], ipsets.KeyValueLabelOfPod, nilSlices))
+			podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.members[j], ipsets.KeyValueLabelOfPod, nilSlices))
 		}
 
 		podSelectorList[i] = policies.NewSetInfo(ps.label, ps.settype, ps.include, matchType)
