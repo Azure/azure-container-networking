@@ -5,14 +5,16 @@ package dockerclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
-	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -22,34 +24,30 @@ const (
 	bridgeMode                 = "bridge"
 )
 
-// DockerClient specifies a client to connect to docker.
-type DockerClient struct {
+type interfaceGetter interface {
+	GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error)
+}
+
+// Client specifies a client to connect to docker.
+type Client struct {
 	connectionURL string
-	imdsClient    imdsclient.ImdsClientInterface
+	wscli         interfaceGetter
 }
 
-// NewDockerClient create a new docker client.
-func NewDockerClient(url string) (*DockerClient, error) {
-	return &DockerClient{
-		connectionURL: url,
-		imdsClient:    new(imdsclient.ImdsClient),
-	}, nil
-}
-
-// NewDefaultDockerClient create a new docker client.
-func NewDefaultDockerClient(imdsClient imdsclient.ImdsClientInterface) (*DockerClient, error) {
-	return &DockerClient{
+// NewDefaultClient create a new docker client.
+func NewDefaultClient(wscli interfaceGetter) (*Client, error) {
+	return &Client{
 		connectionURL: defaultDockerConnectionURL,
-		imdsClient:    imdsClient,
+		wscli:         wscli,
 	}, nil
 }
 
 // NetworkExists tries to retrieve a network from docker (if it exists).
-func (dockerClient *DockerClient) NetworkExists(networkName string) error {
+func (c *Client) NetworkExists(networkName string) error {
 	logger.Printf("[Azure CNS] NetworkExists")
 
 	res, err := http.Get(
-		dockerClient.connectionURL + inspectNetworkPath + networkName)
+		c.connectionURL + inspectNetworkPath + networkName)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error received from http Post for docker network inspect %v %v", networkName, err.Error())
 		return err
@@ -73,7 +71,7 @@ func (dockerClient *DockerClient) NetworkExists(networkName string) error {
 }
 
 // CreateNetwork creates a network using docker network create.
-func (dockerClient *DockerClient) CreateNetwork(networkName string, nicInfo *imdsclient.InterfaceInfo, options map[string]interface{}) error {
+func (c *Client) CreateNetwork(networkName string, nicInfo *wireserver.InterfaceInfo, options map[string]interface{}) error {
 	logger.Printf("[Azure CNS] CreateNetwork")
 
 	enableSnat := true
@@ -116,7 +114,7 @@ func (dockerClient *DockerClient) CreateNetwork(networkName string, nicInfo *imd
 	}
 
 	res, err := http.Post(
-		dockerClient.connectionURL+createNetworkPath,
+		c.connectionURL+createNetworkPath,
 		common.JsonContent,
 		netConfigJSON)
 	if err != nil {
@@ -149,11 +147,11 @@ func (dockerClient *DockerClient) CreateNetwork(networkName string, nicInfo *imd
 }
 
 // DeleteNetwork creates a network using docker network create.
-func (dockerClient *DockerClient) DeleteNetwork(networkName string) error {
+func (c *Client) DeleteNetwork(networkName string) error {
 	p := platform.NewExecClient()
 	logger.Printf("[Azure CNS] DeleteNetwork")
 
-	url := dockerClient.connectionURL + inspectNetworkPath + networkName
+	url := c.connectionURL + inspectNetworkPath + networkName
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
 		logger.Printf("[Azure CNS] Error received while creating http DELETE request for network delete %v %v", networkName, err.Error())
@@ -172,9 +170,13 @@ func (dockerClient *DockerClient) DeleteNetwork(networkName string) error {
 
 	// network successfully deleted.
 	if res.StatusCode == 204 {
-		primaryNic, err := dockerClient.imdsClient.GetPrimaryInterfaceInfoFromHost()
+		res, err := c.wscli.GetInterfaces(context.TODO()) // TODO(rbtr): thread context through this client
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get interfaces from IMDS")
+		}
+		primaryNic, err := wireserver.GetPrimaryInterfaceFromResult(res)
+		if err != nil {
+			return errors.Wrap(err, "failed to get primary interface from IMDS response")
 		}
 
 		cmd := fmt.Sprintf("iptables -t nat -D POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",

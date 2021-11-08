@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -14,21 +15,20 @@ import (
 )
 
 var (
+	nodeName                = "testnode"
 	fakeIPSetRestoreSuccess = testutils.TestCmd{
 		Cmd:      []string{util.Ipset, util.IpsetRestoreFlag},
 		ExitCode: 0,
 	}
 
-	emptyMockIOShim = common.NewMockIOShim([]testutils.TestCmd{})
-
 	setPodKey1 = &ipsets.TranslatedIPSet{
 		Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
 	}
-	testPolicyobj = &policies.NPMNetworkPolicy{
+	testPolicyobj = policies.NPMNetworkPolicy{
 		Name: "ns1/testpolicy",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
-				Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.NameSpace),
+				Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.Namespace),
 			},
 			setPodKey1,
 			{
@@ -40,7 +40,7 @@ var (
 		},
 		RuleIPSets: []*ipsets.TranslatedIPSet{
 			{
-				Metadata: ipsets.NewIPSetMetadata("setns2", ipsets.NameSpace),
+				Metadata: ipsets.NewIPSetMetadata("setns2", ipsets.Namespace),
 			},
 			{
 				Metadata: ipsets.NewIPSetMetadata("setpodkey2", ipsets.KeyLabelOfPod),
@@ -67,31 +67,41 @@ var (
 
 func TestNewDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", emptyMockIOShim)
+
+	calls := getNewDataplaneTestCalls()
+	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	require.NoError(t, err)
 
 	if dp == nil {
 		t.Error("NewDataPlane() returned nil")
 	}
 
-	setMetadata := ipsets.NewIPSetMetadata("test", ipsets.NameSpace)
-	dp.CreateIPSet(setMetadata)
+	setMetadata := ipsets.NewIPSetMetadata("test", ipsets.Namespace)
+	dp.CreateIPSets([]*ipsets.IPSetMetadata{setMetadata})
 }
 
 func TestInitializeDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", emptyMockIOShim)
+
+	calls := append(getNewDataplaneTestCalls(), policies.GetInitializeTestCalls()...)
+	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	require.NoError(t, err)
 
 	assert.NotNil(t, dp)
-	err := dp.InitializeDataPlane()
+	err = dp.InitializeDataPlane()
 	require.NoError(t, err)
 }
 
 func TestResetDataPlane(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", emptyMockIOShim)
+
+	calls := append(getNewDataplaneTestCalls(), getInitializeTestCalls()...)
+	calls = append(calls, getResetTestCalls()...)
+	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	require.NoError(t, err)
 
 	assert.NotNil(t, dp)
-	err := dp.InitializeDataPlane()
+	err = dp.InitializeDataPlane()
 	require.NoError(t, err)
 	err = dp.ResetDataPlane()
 	require.NoError(t, err)
@@ -99,27 +109,26 @@ func TestResetDataPlane(t *testing.T) {
 
 func TestCreateAndDeleteIpSets(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", emptyMockIOShim)
+
+	calls := getNewDataplaneTestCalls()
+	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	require.NoError(t, err)
 	assert.NotNil(t, dp)
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
 			Name: "test",
-			Type: ipsets.NameSpace,
+			Type: ipsets.Namespace,
 		},
 		{
 			Name: "test1",
-			Type: ipsets.NameSpace,
+			Type: ipsets.Namespace,
 		},
 	}
 
-	for _, v := range setsTocreate {
-		dp.CreateIPSet(v)
-	}
+	dp.CreateIPSets(setsTocreate)
 
 	// Creating again to see if duplicates get created
-	for _, v := range setsTocreate {
-		dp.CreateIPSet(v)
-	}
+	dp.CreateIPSets(setsTocreate)
 
 	for _, v := range setsTocreate {
 		prefixedName := v.GetPrefixName()
@@ -140,22 +149,23 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 
 func TestAddToSet(t *testing.T) {
 	metrics.InitializeAll()
-	dp := NewDataPlane("testnode", emptyMockIOShim)
+
+	calls := getNewDataplaneTestCalls()
+	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	require.NoError(t, err)
 
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
 			Name: "test",
-			Type: ipsets.NameSpace,
+			Type: ipsets.Namespace,
 		},
 		{
 			Name: "test1",
-			Type: ipsets.NameSpace,
+			Type: ipsets.Namespace,
 		},
 	}
 
-	for _, v := range setsTocreate {
-		dp.CreateIPSet(v)
-	}
+	dp.CreateIPSets(setsTocreate)
 
 	for _, v := range setsTocreate {
 		prefixedName := v.GetPrefixName()
@@ -163,11 +173,13 @@ func TestAddToSet(t *testing.T) {
 		assert.NotNil(t, set)
 	}
 
-	err := dp.AddToSet(setsTocreate, "10.0.0.1", "testns/a")
+	podMetadata := NewPodMetadata("testns/a", "10.0.0.1", nodeName)
+	err = dp.AddToSets(setsTocreate, podMetadata)
 	require.NoError(t, err)
 
+	v6PodMetadata := NewPodMetadata("testns/a", "2001:db8:0:0:0:0:2:1", nodeName)
 	// Test IPV6 addess it should error out
-	err = dp.AddToSet(setsTocreate, "2001:db8:0:0:0:0:2:1", "testns/a")
+	err = dp.AddToSets(setsTocreate, v6PodMetadata)
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
@@ -180,10 +192,10 @@ func TestAddToSet(t *testing.T) {
 		assert.NotNil(t, set)
 	}
 
-	err = dp.RemoveFromSet(setsTocreate, "10.0.0.1", "testns/a")
+	err = dp.RemoveFromSets(setsTocreate, podMetadata)
 	require.NoError(t, err)
 
-	err = dp.RemoveFromSet(setsTocreate, "2001:db8:0:0:0:0:2:1", "testns/a")
+	err = dp.RemoveFromSets(setsTocreate, v6PodMetadata)
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
@@ -199,21 +211,26 @@ func TestAddToSet(t *testing.T) {
 
 func TestApplyPolicy(t *testing.T) {
 	metrics.InitializeAll()
-	calls := []testutils.TestCmd{fakeIPSetRestoreSuccess}
-	ioShim := common.NewMockIOShim(calls)
-	dp := NewDataPlane("testnode", ioShim)
 
-	err := dp.AddPolicy(testPolicyobj)
+	calls := append(getNewDataplaneTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
+	ioShim := common.NewMockIOShim(calls)
+	dp, err := NewDataPlane("testnode", ioShim)
+	require.NoError(t, err)
+
+	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
 }
 
 func TestRemovePolicy(t *testing.T) {
 	metrics.InitializeAll()
-	calls := []testutils.TestCmd{fakeIPSetRestoreSuccess, fakeIPSetRestoreSuccess}
-	ioShim := common.NewMockIOShim(calls)
-	dp := NewDataPlane("testnode", ioShim)
 
-	err := dp.AddPolicy(testPolicyobj)
+	calls := append(getNewDataplaneTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
+	calls = append(calls, getRemovePolicyTestCallsForDP(&testPolicyobj)...)
+	ioShim := common.NewMockIOShim(calls)
+	dp, err := NewDataPlane("testnode", ioShim)
+	require.NoError(t, err)
+
+	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
 
 	err = dp.RemovePolicy(testPolicyobj.Name)
@@ -222,14 +239,9 @@ func TestRemovePolicy(t *testing.T) {
 
 func TestUpdatePolicy(t *testing.T) {
 	metrics.InitializeAll()
-	calls := []testutils.TestCmd{fakeIPSetRestoreSuccess, fakeIPSetRestoreSuccess}
-	ioShim := common.NewMockIOShim(calls)
-	dp := NewDataPlane("testnode", ioShim)
 
-	err := dp.AddPolicy(testPolicyobj)
-	require.NoError(t, err)
-
-	testPolicyobj.ACLs = []*policies.ACLPolicy{
+	updatedTestPolicyobj := testPolicyobj
+	updatedTestPolicyobj.ACLs = []*policies.ACLPolicy{
 		{
 			PolicyID:  "testpol1",
 			Target:    policies.Dropped,
@@ -237,6 +249,61 @@ func TestUpdatePolicy(t *testing.T) {
 		},
 	}
 
-	err = dp.UpdatePolicy(testPolicyobj)
+	calls := append(getNewDataplaneTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
+	calls = append(calls, getRemovePolicyTestCallsForDP(&testPolicyobj)...)
+	calls = append(calls, getAddPolicyTestCallsForDP(&updatedTestPolicyobj)...)
+	for _, call := range calls {
+		fmt.Println(call)
+	}
+	ioShim := common.NewMockIOShim(calls)
+	dp, err := NewDataPlane("testnode", ioShim)
 	require.NoError(t, err)
+
+	err = dp.AddPolicy(&testPolicyobj)
+	require.NoError(t, err)
+
+	err = dp.UpdatePolicy(&updatedTestPolicyobj)
+	require.NoError(t, err)
+}
+
+func getNewDataplaneTestCalls() []testutils.TestCmd {
+	return append(getResetTestCalls(), getInitializeTestCalls()...)
+}
+
+func getInitializeTestCalls() []testutils.TestCmd {
+	return []testutils.TestCmd{}
+	// TODO update when piped error is fixed in fexec
+	// return policies.GetInitializeTestCalls()
+}
+
+func getResetTestCalls() []testutils.TestCmd {
+	return ipsets.GetResetTestCalls()
+	// TODO update when piped error is fixed in fexec
+	// return append(ipsets.GetResetTestCalls(), policies.GetResetTestCalls()...)
+}
+
+func getAddPolicyTestCallsForDP(networkPolicy *policies.NPMNetworkPolicy) []testutils.TestCmd {
+	toAddOrUpdateSets := getAffectedIPSets(networkPolicy)
+	calls := ipsets.GetApplyIPSetsTestCalls(toAddOrUpdateSets, nil)
+	calls = append(calls, policies.GetAddPolicyTestCalls(networkPolicy)...)
+	return calls
+}
+
+func getRemovePolicyTestCallsForDP(networkPolicy *policies.NPMNetworkPolicy) []testutils.TestCmd {
+	// NOTE toDeleteSets is only correct if these ipsets are referenced by no other policy in iMgr
+	toDeleteSets := getAffectedIPSets(networkPolicy)
+	calls := policies.GetRemovePolicyTestCalls(networkPolicy)
+	calls = append(calls, ipsets.GetApplyIPSetsTestCalls(nil, toDeleteSets)...)
+	return calls
+}
+
+func getAffectedIPSets(networkPolicy *policies.NPMNetworkPolicy) []*ipsets.IPSetMetadata {
+	sets := make([]*ipsets.IPSetMetadata, 0)
+	for _, translatedIPSet := range networkPolicy.PodSelectorIPSets {
+		sets = append(sets, translatedIPSet.Metadata)
+	}
+	for _, translatedIPSet := range networkPolicy.RuleIPSets {
+		sets = append(sets, translatedIPSet.Metadata)
+	}
+	return sets
 }

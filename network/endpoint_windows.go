@@ -249,7 +249,7 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		MacAddress: epInfo.MacAddress.String(),
 	}
 
-	if endpointPolicies, err := policy.GetHcnEndpointPolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data, epInfo.EnableSnatForDns, epInfo.EnableMultiTenancy); err == nil {
+	if endpointPolicies, err := policy.GetHcnEndpointPolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data, epInfo.EnableSnatForDns, epInfo.EnableMultiTenancy, epInfo.NATInfo); err == nil {
 		for _, epPolicy := range endpointPolicies {
 			hcnEndpoint.Policies = append(hcnEndpoint.Policies, epPolicy)
 		}

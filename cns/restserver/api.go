@@ -4,8 +4,9 @@
 package restserver
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -15,8 +16,9 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 )
@@ -66,7 +68,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 		logger.Request(service.Name, &req, err)
 
 		if err != nil {
-			//nolint:goconst
+			//nolint:goconst // ignore const string
 			returnMessage = "[Azure CNS] Error. Unable to decode input request."
 			returnCode = types.InvalidParameter
 		} else {
@@ -93,7 +95,8 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 								logger.Printf("[Azure CNS] Unable to get routing table from node, %+v.", err.Error())
 							}
 
-							nicInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromHost()
+							var nicInfo *wireserver.InterfaceInfo
+							nicInfo, err = service.getPrimaryHostInterface(context.TODO())
 							if err != nil {
 								returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryInterfaceInfoFromHost failed %v.", err.Error())
 								returnCode = types.UnexpectedError
@@ -342,7 +345,8 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 	case "POST":
 		ic := service.ipamClient
 
-		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+		var ifInfo *wireserver.InterfaceInfo
+		ifInfo, err = service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
 			returnCode = types.UnexpectedError
@@ -418,7 +422,8 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	case "POST":
 		ic := service.ipamClient
 
-		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+		var ifInfo *wireserver.InterfaceInfo
+		ifInfo, err = service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
 			returnCode = types.UnexpectedError
@@ -473,8 +478,8 @@ func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 		case "GET":
 			switch service.state.NetworkType {
 			case "Underlay":
-				if service.imdsClient != nil {
-					piface, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+				if service.wscli != nil {
+					piface, err := service.getPrimaryHostInterface(context.TODO())
 					if err == nil {
 						hostLocalIP = piface.PrimaryIP
 						found = true
@@ -526,7 +531,7 @@ func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r
 	case "GET":
 		ic := service.ipamClient
 
-		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+		ifInfo, err := service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
 			returnCode = types.UnexpectedError
@@ -625,7 +630,7 @@ func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 	case "GET":
 		ic := service.ipamClient
 
-		ifInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+		ifInfo, err := service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
 			returnCode = types.UnexpectedError
@@ -1133,7 +1138,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 		if isNetworkJoined {
 			// Publish Network Container
-			publishResponse, publishError = nmagentclient.PublishNetworkContainer(
+			publishResponse, publishError = nmagent.PublishNetworkContainer(
 				req.NetworkContainerID,
 				req.CreateNetworkContainerURL,
 				req.CreateNetworkContainerRequestBody)
@@ -1142,6 +1147,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 				returnCode = types.NetworkContainerPublishFailed
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
 			}
+			defer publishResponse.Body.Close()
 		}
 
 		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
@@ -1151,10 +1157,10 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		// we attempt to extract the wireserver IP to use from the request, otherwise default to the well-known IP.
 		hostIP := extractHostFromJoinNetworkURL(req.JoinNetworkURL)
 		if hostIP == "" {
-			hostIP = nmagentclient.WireserverIP
+			hostIP = nmagent.WireserverIP
 		}
 
-		ncGetVersionURL := fmt.Sprintf(nmagentclient.GetNetworkContainerVersionURLFmt,
+		ncGetVersionURL := fmt.Sprintf(nmagent.GetNetworkContainerVersionURLFmt,
 			hostIP,
 			primaryInterfaceIdentifier,
 			req.NetworkContainerID,
@@ -1174,14 +1180,12 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		publishStatusCode = publishResponse.StatusCode
 
 		var errParse error
-		publishResponseBody, errParse = ioutil.ReadAll(publishResponse.Body)
+		publishResponseBody, errParse = io.ReadAll(publishResponse.Body)
 		if errParse != nil {
 			returnMessage = fmt.Sprintf("Failed to parse the publish body. Error: %v", errParse)
 			returnCode = types.UnexpectedError
 			logger.Errorf("[Azure-CNS] %s", returnMessage)
 		}
-
-		publishResponse.Body.Close()
 	}
 
 	response := cns.PublishNetworkContainerResponse{
@@ -1247,7 +1251,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 		if isNetworkJoined {
 			// Unpublish Network Container
-			unpublishResponse, unpublishError = nmagentclient.UnpublishNetworkContainer(
+			unpublishResponse, unpublishError = nmagent.UnpublishNetworkContainer(
 				req.NetworkContainerID,
 				req.DeleteNetworkContainerURL)
 			if unpublishError != nil || unpublishResponse.StatusCode != http.StatusOK {
@@ -1258,7 +1262,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 			if unpublishResponse != nil {
 				var errParse error
-				unpublishResponseBody, errParse = ioutil.ReadAll(unpublishResponse.Body)
+				unpublishResponseBody, errParse = io.ReadAll(unpublishResponse.Body)
 				if errParse != nil {
 					returnMessage = fmt.Sprintf("Failed to parse the unpublish body. Error: %v", errParse)
 					returnCode = types.UnexpectedError
@@ -1415,7 +1419,7 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 
 	switch r.Method {
 	case http.MethodPost:
-		supportedApis, retErr = nmagentclient.GetNmAgentSupportedApis(common.GetHttpClient(),
+		supportedApis, retErr = nmagent.GetNmAgentSupportedApis(common.GetHttpClient(),
 			req.GetNmAgentSupportedApisURL)
 		if retErr != nil {
 			returnCode = types.NmAgentSupportedApisError

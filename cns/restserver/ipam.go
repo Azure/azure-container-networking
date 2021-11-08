@@ -366,7 +366,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) (cns.Po
 	ipID := service.PodIPIDByPodInterfaceKey[podInfo.Key()]
 	if ipID != "" {
 		if ipState, isExist := service.PodIPConfigState[ipID]; isExist {
-			err := service.populateIpConfigInfoUntransacted(ipState, &podIpInfo)
+			err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo)
 			return podIpInfo, isExist, err
 		}
 
@@ -406,7 +406,7 @@ func (service *HTTPRestService) AllocateDesiredIPConfig(podInfo cns.PodInfo, des
 			}
 
 			if found {
-				err := service.populateIpConfigInfoUntransacted(ipConfig, &podIpInfo)
+				err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo)
 				return podIpInfo, err
 			}
 		}
@@ -425,7 +425,7 @@ func (service *HTTPRestService) AllocateAnyAvailableIPConfig(podInfo cns.PodInfo
 			}
 
 			podIPInfo := cns.PodIpInfo{}
-			if err := service.populateIpConfigInfoUntransacted(ipState, &podIPInfo); err != nil {
+			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo); err != nil {
 				return cns.PodIpInfo{}, err
 			}
 

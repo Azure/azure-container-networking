@@ -135,3 +135,7 @@ func updateSubnetPrefix(cnsNetworkConfig *cns.GetNetworkContainerResponse, subne
 func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
 	return nwCfg.Name, nil
 }
+
+func getNATInfo(_ string, _ interface{}, _, _ bool) (natInfo []policy.NATInfo) {
+	return natInfo
+}

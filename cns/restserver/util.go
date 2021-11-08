@@ -1,13 +1,10 @@
-// Copyright 2017 Microsoft. All rights reserved.
-// MIT License
-
 package restserver
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -17,11 +14,13 @@ import (
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
-	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
 )
 
 // This file contains the utility/helper functions called by either HTTP APIs or Exported/Internal APIs on HTTPRestService
@@ -621,7 +620,7 @@ func (service *HTTPRestService) joinNetwork(
 	networkID string,
 	joinNetworkURL string) (*http.Response, error, error) {
 	var err error
-	joinResponse, joinErr := nmagentclient.JoinNetwork(
+	joinResponse, joinErr := nmagent.JoinNetwork(
 		networkID,
 		joinNetworkURL)
 
@@ -705,34 +704,47 @@ func (service *HTTPRestService) validateIPConfigRequest(
 	return podInfo, types.Success, ""
 }
 
-func (service *HTTPRestService) populateIpConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIpInfo *cns.PodIpInfo) error {
-	var (
-		ncStatus               containerstatus
-		exists                 bool
-		primaryIpConfiguration cns.IPConfiguration
-	)
+// getPrimaryHostInterface returns the cached InterfaceInfo, if available, otherwise
+// queries the IMDS to get the primary interface info and caches it in the server state
+// before returning the result.
+func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*wireserver.InterfaceInfo, error) {
+	if service.state.primaryInterface == nil {
+		res, err := service.wscli.GetInterfaces(ctx)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
+		}
+		primary, err := wireserver.GetPrimaryInterfaceFromResult(res)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
+		}
+		service.state.primaryInterface = primary
+	}
+	return service.state.primaryInterface, nil
+}
 
-	if ncStatus, exists = service.state.ContainerStatus[ipConfigStatus.NCID]; !exists {
+//nolint:gocritic // ignore hugeParam pls
+func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIPInfo *cns.PodIpInfo) error {
+	ncStatus, exists := service.state.ContainerStatus[ipConfigStatus.NCID]
+	if !exists {
 		return fmt.Errorf("Failed to get NC Configuration for NcId: %s", ipConfigStatus.NCID)
 	}
 
-	primaryIpConfiguration = ncStatus.CreateNetworkContainerRequest.IPConfiguration
+	primaryIPCfg := ncStatus.CreateNetworkContainerRequest.IPConfiguration
 
-	podIpInfo.PodIPConfig = cns.IPSubnet{
+	podIPInfo.PodIPConfig = cns.IPSubnet{
 		IPAddress:    ipConfigStatus.IPAddress,
-		PrefixLength: primaryIpConfiguration.IPSubnet.PrefixLength,
+		PrefixLength: primaryIPCfg.IPSubnet.PrefixLength,
 	}
 
-	podIpInfo.NetworkContainerPrimaryIPConfig = primaryIpConfiguration
-
-	hostInterfaceInfo, err := service.imdsClient.GetPrimaryInterfaceInfoFromMemory()
+	podIPInfo.NetworkContainerPrimaryIPConfig = primaryIPCfg
+	primaryHostInterface, err := service.getPrimaryHostInterface(context.TODO())
 	if err != nil {
-		return fmt.Errorf("Failed to get the HostInterfaceInfo %s", err)
+		return err
 	}
 
-	podIpInfo.HostPrimaryIPInfo.PrimaryIP = hostInterfaceInfo.PrimaryIP
-	podIpInfo.HostPrimaryIPInfo.Subnet = hostInterfaceInfo.Subnet
-	podIpInfo.HostPrimaryIPInfo.Gateway = hostInterfaceInfo.Gateway
+	podIPInfo.HostPrimaryIPInfo.PrimaryIP = primaryHostInterface.PrimaryIP
+	podIPInfo.HostPrimaryIPInfo.Subnet = primaryHostInterface.Subnet
+	podIPInfo.HostPrimaryIPInfo.Gateway = primaryHostInterface.Gateway
 
 	return nil
 }
@@ -764,7 +776,7 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 		return
 	}
 
-	resp, err := nmagentclient.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
+	resp, err := nmagent.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
 	if err != nil {
 		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
 			"Skipping GetNCVersionStatus check from NMAgent", err)
@@ -780,8 +792,8 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 		return
 	}
 
-	var versionResponse nmagentclient.NMANetworkContainerResponse
-	rBytes, _ := ioutil.ReadAll(resp.Body)
+	var versionResponse nmagent.NetworkContainerResponse
+	rBytes, _ := io.ReadAll(resp.Body)
 	json.Unmarshal(rBytes, &versionResponse)
 	if versionResponse.ResponseCode != "200" {
 		returnCode = types.NetworkContainerVfpProgramPending

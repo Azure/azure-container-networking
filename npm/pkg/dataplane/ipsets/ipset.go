@@ -3,10 +3,181 @@ package ipsets
 import (
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+)
+
+type IPSetMetadata struct {
+	Name string
+	Type SetType
+}
+
+type SetKind string
+
+const (
+	// ListSet is of kind list with members as other IPSets
+	ListSet SetKind = "list"
+	// HashSet is of kind hashset with members as IPs and/or port
+	HashSet SetKind = "set"
+	// UnknownKind is returned when kind is unknown
+	UnknownKind SetKind = "unknown"
+)
+
+// NewIPSetMetadata is used for controllers to send in skeleton ipsets to DP
+func NewIPSetMetadata(name string, setType SetType) *IPSetMetadata {
+	set := &IPSetMetadata{
+		Name: name,
+		Type: setType,
+	}
+	return set
+}
+
+func (setMetadata *IPSetMetadata) GetHashedName() string {
+	// TODO(jungukcho): I think this is unnecessary code.
+	prefixedName := setMetadata.GetPrefixName()
+	if prefixedName == Unknown {
+		return Unknown
+	}
+	return util.GetHashedName(prefixedName)
+}
+
+func (setMetadata *IPSetMetadata) GetPrefixName() string {
+	switch setMetadata.Type {
+	case CIDRBlocks:
+		return fmt.Sprintf("%s%s", util.CIDRPrefix, setMetadata.Name)
+	case Namespace:
+		return fmt.Sprintf("%s%s", util.NamespacePrefix, setMetadata.Name)
+	case NamedPorts:
+		return fmt.Sprintf("%s%s", util.NamedPortIPSetPrefix, setMetadata.Name)
+	case KeyLabelOfPod:
+		return fmt.Sprintf("%s%s", util.PodLabelPrefix, setMetadata.Name)
+	case KeyValueLabelOfPod:
+		return fmt.Sprintf("%s%s", util.PodLabelPrefix, setMetadata.Name)
+	case KeyLabelOfNamespace:
+		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
+	case KeyValueLabelOfNamespace:
+		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
+	case NestedLabelOfPod:
+		return fmt.Sprintf("%s%s", util.NestedLabelPrefix, setMetadata.Name)
+	case UnknownType: // adding this to appease golint
+		return Unknown
+	default:
+		return Unknown
+	}
+}
+
+func (setMetadata *IPSetMetadata) GetSetKind() SetKind {
+	switch setMetadata.Type {
+	case CIDRBlocks:
+		return HashSet
+	case Namespace:
+		return HashSet
+	case NamedPorts:
+		return HashSet
+	case KeyLabelOfPod:
+		return HashSet
+	case KeyValueLabelOfPod:
+		return HashSet
+	case KeyLabelOfNamespace:
+		return ListSet
+	case KeyValueLabelOfNamespace:
+		return ListSet
+	case NestedLabelOfPod:
+		return ListSet
+	case UnknownType: // adding this to appease golint
+		return UnknownKind
+	default:
+		return UnknownKind
+	}
+}
+
+// TranslatedIPSet is created by translation engine and provides IPSets used in
+// network policy. Only 2 types of IPSets are generated with members:
+// 1. CIDRBlocks IPSet
+// 2. NestedLabelOfPod IPSet from multi value labels
+// Members field holds member ipset names for NestedLabelOfPod and ip address ranges
+// for CIDRBlocks IPSet
+type TranslatedIPSet struct {
+	Metadata *IPSetMetadata
+	// Members holds member ipset names for NestedLabelOfPod and ip address ranges
+	// for CIDRBlocks IPSet
+	Members []string
+}
+
+// NewTranslatedIPSet creates TranslatedIPSet.
+func NewTranslatedIPSet(name string, setType SetType, members []string) *TranslatedIPSet {
+	translatedIPSet := &TranslatedIPSet{
+		Metadata: NewIPSetMetadata(name, setType),
+		Members:  members,
+	}
+	return translatedIPSet
+}
+
+type SetProperties struct {
+	// Stores type of ip grouping
+	Type SetType
+	// Stores kind of ipset in dataplane
+	Kind SetKind
+}
+
+type SetType int8
+
+const (
+	// Unknown SetType
+	UnknownType SetType = 0
+	// NameSpace IPSet is created to hold
+	// ips of pods in a given NameSapce
+	Namespace SetType = 1
+	// KeyLabelOfNamespace IPSet is a list kind ipset
+	// with members as ipsets of namespace with this Label Key
+	KeyLabelOfNamespace SetType = 2
+	// KeyValueLabelOfNamespace IPSet is a list kind ipset
+	// with members as ipsets of namespace with this Label
+	KeyValueLabelOfNamespace SetType = 3
+	// KeyLabelOfPod IPSet contains IPs of Pods with this Label Key
+	KeyLabelOfPod SetType = 4
+	// KeyValueLabelOfPod IPSet contains IPs of Pods with this Label
+	KeyValueLabelOfPod SetType = 5
+	// NamedPorts IPSets contains a given namedport
+	NamedPorts SetType = 6
+	// NestedLabelOfPod is derived for multivalue matchexpressions
+	NestedLabelOfPod SetType = 7
+	// CIDRBlocks holds CIDR blocks
+	CIDRBlocks SetType = 8
+	// Unknown const for unknown string
+	Unknown string = "unknown"
+)
+
+var (
+	setTypeName = map[SetType]string{
+		UnknownType:              Unknown,
+		Namespace:                "NameSpace",
+		KeyLabelOfNamespace:      "KeyLabelOfNameSpace",
+		KeyValueLabelOfNamespace: "KeyValueLabelOfNameSpace",
+		KeyLabelOfPod:            "KeyLabelOfPod",
+		KeyValueLabelOfPod:       "KeyValueLabelOfPod",
+		NamedPorts:               "NamedPorts",
+		NestedLabelOfPod:         "NestedLabelOfPod",
+		CIDRBlocks:               "CIDRBlocks",
+	}
+	// ErrIPSetInvalidKind is returned when IPSet kind is invalid
+	ErrIPSetInvalidKind = errors.New("invalid IPSet Kind")
+)
+
+func (x SetType) String() string {
+	return setTypeName[x]
+}
+
+// ReferenceType specifies the kind of reference for an IPSet
+type ReferenceType string
+
+// Possible ReferenceTypes
+const (
+	SelectorType ReferenceType = "Selector"
+	NetPolType   ReferenceType = "NetPol"
 )
 
 type IPSet struct {
@@ -33,99 +204,6 @@ type IPSet struct {
 	kernelReferCount int
 }
 
-type IPSetMetadata struct {
-	Name string
-	Type SetType
-}
-
-// TranslatedIPSet is created by translation engine and provides IPSets used in
-// network policy. Only 2 types of IPSets are generated with members:
-// 1. CIDRBlocks IPSet
-// 2. NestedLabelOfPod IPSet from multi value labels
-// Members field holds member ipset names for NestedLabelOfPod and ip address ranges
-// for CIDRBlocks IPSet
-type TranslatedIPSet struct {
-	Metadata *IPSetMetadata
-	// Members holds member ipset names for NestedLabelOfPod and ip address ranges
-	// for CIDRBlocks IPSet
-	Members []string
-}
-
-type SetProperties struct {
-	// Stores type of ip grouping
-	Type SetType
-	// Stores kind of ipset in dataplane
-	Kind SetKind
-}
-
-type SetType int8
-
-const (
-	// Unknown SetType
-	UnknownType SetType = 0
-	// NameSpace IPSet is created to hold
-	// ips of pods in a given NameSapce
-	NameSpace SetType = 1
-	// KeyLabelOfNameSpace IPSet is a list kind ipset
-	// with members as ipsets of namespace with this Label Key
-	KeyLabelOfNameSpace SetType = 2
-	// KeyValueLabelOfNameSpace IPSet is a list kind ipset
-	// with members as ipsets of namespace with this Label
-	KeyValueLabelOfNameSpace SetType = 3
-	// KeyLabelOfPod IPSet contains IPs of Pods with this Label Key
-	KeyLabelOfPod SetType = 4
-	// KeyValueLabelOfPod IPSet contains IPs of Pods with this Label
-	KeyValueLabelOfPod SetType = 5
-	// NamedPorts IPSets contains a given namedport
-	NamedPorts SetType = 6
-	// NestedLabelOfPod is derived for multivalue matchexpressions
-	NestedLabelOfPod SetType = 7
-	// CIDRBlocks holds CIDR blocks
-	CIDRBlocks SetType = 8
-	// Unknown const for unknown string
-	Unknown string = "unknown"
-)
-
-var (
-	setTypeName = map[SetType]string{
-		UnknownType:              Unknown,
-		NameSpace:                "NameSpace",
-		KeyLabelOfNameSpace:      "KeyLabelOfNameSpace",
-		KeyValueLabelOfNameSpace: "KeyValueLabelOfNameSpace",
-		KeyLabelOfPod:            "KeyLabelOfPod",
-		KeyValueLabelOfPod:       "KeyValueLabelOfPod",
-		NamedPorts:               "NamedPorts",
-		NestedLabelOfPod:         "NestedLabelOfPod",
-		CIDRBlocks:               "CIDRBlocks",
-	}
-	// ErrIPSetInvalidKind is returned when IPSet kind is invalid
-	ErrIPSetInvalidKind = errors.New("invalid IPSet Kind")
-)
-
-func (x SetType) String() string {
-	return setTypeName[x]
-}
-
-type SetKind string
-
-const (
-	// ListSet is of kind list with members as other IPSets
-	ListSet SetKind = "list"
-	// HashSet is of kind hashset with members as IPs and/or port
-	HashSet SetKind = "set"
-	// UnknownKind is returned when kind is unknown
-	UnknownKind SetKind = "unknown"
-)
-
-// ReferenceType specifies the kind of reference for an IPSet
-type ReferenceType string
-
-// Possible ReferenceTypes
-const (
-	SelectorType ReferenceType = "Selector"
-	NetPolType   ReferenceType = "NetPol"
-)
-
 func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 	prefixedName := setMetadata.GetPrefixName()
 	set := &IPSet{
@@ -133,7 +211,7 @@ func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 		HashedName: util.GetHashedName(prefixedName),
 		SetProperties: SetProperties{
 			Type: setMetadata.Type,
-			Kind: GetSetKind(setMetadata.Type),
+			Kind: setMetadata.GetSetKind(),
 		},
 		// Map with Key as Network Policy name to to emulate set
 		// and value as struct{} for minimal memory consumption
@@ -152,38 +230,9 @@ func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 	return set
 }
 
-// NewIPSetMetadata is used for controllers to send in skeleton ipsets to DP
-func NewIPSetMetadata(name string, setType SetType) *IPSetMetadata {
-	set := &IPSetMetadata{
-		Name: name,
-		Type: setType,
-	}
-	return set
-}
-
-func (setMetadata *IPSetMetadata) GetPrefixName() string {
-	switch setMetadata.Type {
-	case CIDRBlocks:
-		return fmt.Sprintf("%s%s", util.CIDRPrefix, setMetadata.Name)
-	case NameSpace:
-		return fmt.Sprintf("%s%s", util.NamespacePrefix, setMetadata.Name)
-	case NamedPorts:
-		return fmt.Sprintf("%s%s", util.NamedPortIPSetPrefix, setMetadata.Name)
-	case KeyLabelOfPod:
-		return fmt.Sprintf("%s%s", util.PodLabelPrefix, setMetadata.Name)
-	case KeyValueLabelOfPod:
-		return fmt.Sprintf("%s%s", util.PodLabelPrefix, setMetadata.Name)
-	case KeyLabelOfNameSpace:
-		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
-	case KeyValueLabelOfNameSpace:
-		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
-	case NestedLabelOfPod:
-		return fmt.Sprintf("%s%s", util.NestedLabelPrefix, setMetadata.Name)
-	case UnknownType: // adding this to appease golint
-		return Unknown
-	default:
-		return Unknown
-	}
+func (set *IPSet) String() string {
+	return fmt.Sprintf("Name: %s HashedNamed: %s Type: %s Kind: %s",
+		set.Name, set.HashedName, setTypeName[set.Type], string(set.Kind))
 }
 
 func (set *IPSet) GetSetContents() ([]string, error) {
@@ -254,31 +303,6 @@ func (set *IPSet) Compare(newSet *IPSet) bool {
 		}
 	}
 	return true
-}
-
-func GetSetKind(setType SetType) SetKind {
-	switch setType {
-	case CIDRBlocks:
-		return HashSet
-	case NameSpace:
-		return HashSet
-	case NamedPorts:
-		return HashSet
-	case KeyLabelOfPod:
-		return HashSet
-	case KeyValueLabelOfPod:
-		return HashSet
-	case KeyLabelOfNameSpace:
-		return ListSet
-	case KeyValueLabelOfNameSpace:
-		return ListSet
-	case NestedLabelOfPod:
-		return ListSet
-	case UnknownType: // adding this to appease golint
-		return UnknownKind
-	default:
-		return UnknownKind
-	}
 }
 
 func (set *IPSet) incIPSetReferCount() {
@@ -376,6 +400,10 @@ func (set *IPSet) getSetIntersection(existingIntersection map[string]struct{}) (
 func (set *IPSet) canSetBeSelectorIPSet() bool {
 	return (set.Type == KeyLabelOfPod ||
 		set.Type == KeyValueLabelOfPod ||
-		set.Type == NameSpace ||
+		set.Type == Namespace ||
 		set.Type == NestedLabelOfPod)
+}
+
+func (ipset *TranslatedIPSet) Equals(otherIPSet *TranslatedIPSet) bool {
+	return reflect.DeepEqual(ipset, otherIPSet)
 }

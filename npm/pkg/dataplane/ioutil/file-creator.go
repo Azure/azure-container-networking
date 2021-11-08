@@ -29,9 +29,9 @@ type FileCreator struct {
 	ioShim                 *common.IOShim
 }
 
-// TODO for iptables:
-// lineFailurePattern := "line (\\d+) failed"
-// AND "Error occurred at line: (\\d+)"
+// TODO ideas:
+// - section to error handler(s) map for addLine
+// - error handlers have the kind of line error pattern as a requirement
 
 // Line defines the content, section, and error handlers for a line
 type Line struct {

@@ -53,32 +53,32 @@ func (mr *MockGenericDataplaneMockRecorder) AddPolicy(policies interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddPolicy", reflect.TypeOf((*MockGenericDataplane)(nil).AddPolicy), policies)
 }
 
-// AddToList mocks base method.
-func (m *MockGenericDataplane) AddToList(listName *ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error {
+// AddToLists mocks base method.
+func (m *MockGenericDataplane) AddToLists(listName, setNames []*ipsets.IPSetMetadata) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddToList", listName, setNames)
+	ret := m.ctrl.Call(m, "AddToLists", listName, setNames)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// AddToList indicates an expected call of AddToList.
-func (mr *MockGenericDataplaneMockRecorder) AddToList(listName, setNames interface{}) *gomock.Call {
+// AddToLists indicates an expected call of AddToLists.
+func (mr *MockGenericDataplaneMockRecorder) AddToLists(listName, setNames interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddToList", reflect.TypeOf((*MockGenericDataplane)(nil).AddToList), listName, setNames)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddToLists", reflect.TypeOf((*MockGenericDataplane)(nil).AddToLists), listName, setNames)
 }
 
-// AddToSet mocks base method.
-func (m *MockGenericDataplane) AddToSet(setNames []*ipsets.IPSetMetadata, ip, podKey string) error {
+// AddToSets mocks base method.
+func (m *MockGenericDataplane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *dataplane.PodMetadata) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddToSet", setNames, ip, podKey)
+	ret := m.ctrl.Call(m, "AddToSets", setNames, podMetadata)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// AddToSet indicates an expected call of AddToSet.
-func (mr *MockGenericDataplaneMockRecorder) AddToSet(setNames, ip, podKey interface{}) *gomock.Call {
+// AddToSets indicates an expected call of AddToSets.
+func (mr *MockGenericDataplaneMockRecorder) AddToSets(setNames, podMetadata interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddToSet", reflect.TypeOf((*MockGenericDataplane)(nil).AddToSet), setNames, ip, podKey)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddToSets", reflect.TypeOf((*MockGenericDataplane)(nil).AddToSets), setNames, podMetadata)
 }
 
 // ApplyDataPlane mocks base method.
@@ -95,16 +95,16 @@ func (mr *MockGenericDataplaneMockRecorder) ApplyDataPlane() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyDataPlane", reflect.TypeOf((*MockGenericDataplane)(nil).ApplyDataPlane))
 }
 
-// CreateIPSet mocks base method.
-func (m *MockGenericDataplane) CreateIPSet(setMetadata *ipsets.IPSetMetadata) {
+// CreateIPSets mocks base method.
+func (m *MockGenericDataplane) CreateIPSets(setNames []*ipsets.IPSetMetadata) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CreateIPSet", setMetadata)
+	m.ctrl.Call(m, "CreateIPSets", setNames)
 }
 
-// CreateIPSet indicates an expected call of CreateIPSet.
-func (mr *MockGenericDataplaneMockRecorder) CreateIPSet(setMetadata interface{}) *gomock.Call {
+// CreateIPSets indicates an expected call of CreateIPSets.
+func (mr *MockGenericDataplaneMockRecorder) CreateIPSets(setNames interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIPSet", reflect.TypeOf((*MockGenericDataplane)(nil).CreateIPSet), setMetadata)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIPSets", reflect.TypeOf((*MockGenericDataplane)(nil).CreateIPSets), setNames)
 }
 
 // DeleteIPSet mocks base method.
@@ -147,18 +147,18 @@ func (mr *MockGenericDataplaneMockRecorder) RemoveFromList(listName, setNames in
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromList", reflect.TypeOf((*MockGenericDataplane)(nil).RemoveFromList), listName, setNames)
 }
 
-// RemoveFromSet mocks base method.
-func (m *MockGenericDataplane) RemoveFromSet(setNames []*ipsets.IPSetMetadata, ip, podKey string) error {
+// RemoveFromSets mocks base method.
+func (m *MockGenericDataplane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadata *dataplane.PodMetadata) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveFromSet", setNames, ip, podKey)
+	ret := m.ctrl.Call(m, "RemoveFromSets", setNames, podMetadata)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// RemoveFromSet indicates an expected call of RemoveFromSet.
-func (mr *MockGenericDataplaneMockRecorder) RemoveFromSet(setNames, ip, podKey interface{}) *gomock.Call {
+// RemoveFromSets indicates an expected call of RemoveFromSets.
+func (mr *MockGenericDataplaneMockRecorder) RemoveFromSets(setNames, podMetadata interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromSet", reflect.TypeOf((*MockGenericDataplane)(nil).RemoveFromSet), setNames, ip, podKey)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveFromSets", reflect.TypeOf((*MockGenericDataplane)(nil).RemoveFromSets), setNames, podMetadata)
 }
 
 // RemovePolicy mocks base method.
@@ -187,20 +187,6 @@ func (m *MockGenericDataplane) ResetDataPlane() error {
 func (mr *MockGenericDataplaneMockRecorder) ResetDataPlane() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetDataPlane", reflect.TypeOf((*MockGenericDataplane)(nil).ResetDataPlane))
-}
-
-// UpdatePod mocks base method.
-func (m *MockGenericDataplane) UpdatePod(pod *dataplane.UpdateNPMPod) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePod", pod)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdatePod indicates an expected call of UpdatePod.
-func (mr *MockGenericDataplaneMockRecorder) UpdatePod(pod interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePod", reflect.TypeOf((*MockGenericDataplane)(nil).UpdatePod), pod)
 }
 
 // UpdatePolicy mocks base method.

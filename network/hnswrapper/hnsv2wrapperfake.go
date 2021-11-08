@@ -21,6 +21,10 @@ func (f Hnsv2wrapperFake) DeleteNetwork(network *hcn.HostComputeNetwork) error {
 	return nil
 }
 
+func (Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork, request *hcn.ModifyNetworkSettingRequest) error {
+	return nil
+}
+
 func (Hnsv2wrapperFake) AddNetworkPolicy(network *hcn.HostComputeNetwork, networkPolicy hcn.PolicyNetworkRequest) error {
 	return nil
 }
@@ -33,13 +37,13 @@ func (Hnsv2wrapperFake) GetNetworkByName(networkName string) (*hcn.HostComputeNe
 	return &hcn.HostComputeNetwork{}, nil
 }
 
-func (f Hnsv2wrapperFake) GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error) {
-	network := &hcn.HostComputeNetwork{Id: "c84257e3-3d60-40c4-8c47-d740a1c260d3"}
+func (f Hnsv2wrapperFake) GetNetworkByID(networkID string) (*hcn.HostComputeNetwork, error) {
+	network := &hcn.HostComputeNetwork{Id: networkID}
 	return network, nil
 }
 
-func (f Hnsv2wrapperFake) GetEndpointByID(endpointId string) (*hcn.HostComputeEndpoint, error) {
-	endpoint := &hcn.HostComputeEndpoint{Id: "7a2ae98a-0c84-4b35-9684-1c02a2bf7e03"}
+func (f Hnsv2wrapperFake) GetEndpointByID(endpointID string) (*hcn.HostComputeEndpoint, error) {
+	endpoint := &hcn.HostComputeEndpoint{Id: endpointID}
 	return endpoint, nil
 }
 

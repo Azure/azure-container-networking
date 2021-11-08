@@ -80,6 +80,7 @@ type EndpointInfo struct {
 	IPV6Mode                 string
 	VnetCidrs                string
 	ServiceCidrs             string
+	NATInfo                  []policy.NATInfo
 }
 
 // RouteInfo contains information about an IP route.

@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -135,7 +134,7 @@ func testSyncHostNCVersion(t *testing.T, orchestratorType string) {
 		t.Errorf("Unexpected nc version in containerStatus as %s, expeted VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
 	}
 	// When sync host NC version, it will use the orchestratorType pass in.
-	svc.SyncHostNCVersion(context.Background(), orchestratorType, 500*time.Millisecond)
+	svc.SyncHostNCVersion(context.Background(), orchestratorType)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 	if containerStatus.HostVersion != "0" {
 		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be 0 in string", containerStatus.HostVersion)
@@ -159,7 +158,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, cns.PendingProgramming, podIPConfigState.State, podIPConfigState.IPAddress)
 		}
 	}
-	svc.SyncHostNCVersion(context.Background(), cns.CRD, 500*time.Millisecond)
+	svc.SyncHostNCVersion(context.Background(), cns.CRD)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs

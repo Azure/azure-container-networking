@@ -1,25 +1,24 @@
-// Copyright 2017 Microsoft. All rights reserved.
-// MIT License
-
 package restserver
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
-	"github.com/Azure/azure-container-networking/cns/imdsclient"
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
-	"github.com/Azure/azure-container-networking/cns/nmagentclient"
+	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
 )
 
 // This file contains the initialization of RestServer.
@@ -35,13 +34,21 @@ var (
 	ncVersionURLs sync.Map
 )
 
+type interfaceGetter interface {
+	GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error)
+}
+
+type nmagentClient interface {
+	GetNCVersionList(ctx context.Context) (*nmagent.NetworkContainerListResponse, error)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
-	dockerClient             *dockerclient.DockerClient
-	imdsClient               imdsclient.ImdsClientInterface
+	dockerClient             *dockerclient.Client
+	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
-	nmagentClient            nmagentclient.NMAgentClientInterface
+	nmagentClient            nmagentClient
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -92,25 +99,25 @@ type httpRestServiceState struct {
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
 	joinedNetworks                   map[string]struct{}
+	primaryInterface                 *wireserver.InterfaceInfo
 }
 
 type networkInfo struct {
 	NetworkName string
-	NicInfo     *imdsclient.InterfaceInfo
+	NicInfo     *wireserver.InterfaceInfo
 	Options     map[string]interface{}
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdsclient.ImdsClientInterface, nmagentClient nmagentclient.NMAgentClientInterface) (cns.HTTPService, error) {
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
 	}
 
-	imdsClient := imdsClientInterface
 	routingTable := &routes.RoutingTable{}
 	nc := &networkcontainers.NetworkContainers{}
-	dc, err := dockerclient.NewDefaultDockerClient(imdsClientInterface)
+	dc, err := dockerclient.NewDefaultClient(wscli)
 	if err != nil {
 		return nil, err
 	}
@@ -120,9 +127,20 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		return nil, err
 	}
 
-	serviceState := &httpRestServiceState{}
-	serviceState.Networks = make(map[string]*networkInfo)
-	serviceState.joinedNetworks = make(map[string]struct{})
+	res, err := wscli.GetInterfaces(context.TODO()) // TODO(rbtr): thread context through this client
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
+	}
+	primaryInterface, err := wireserver.GetPrimaryInterfaceFromResult(res)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
+	}
+
+	serviceState := &httpRestServiceState{
+		Networks:         make(map[string]*networkInfo),
+		joinedNetworks:   make(map[string]struct{}),
+		primaryInterface: primaryInterface,
+	}
 
 	podIPIDByPodInterfaceKey := make(map[string]string)
 	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
@@ -131,7 +149,7 @@ func NewHTTPRestService(config *common.ServiceConfig, imdsClientInterface imdscl
 		Service:                  service,
 		store:                    service.Service.Store,
 		dockerClient:             dc,
-		imdsClient:               imdsClient,
+		wscli:                    wscli,
 		ipamClient:               ic,
 		nmagentClient:            nmagentClient,
 		networkContainer:         nc,

@@ -1,0 +1,55 @@
+stages:
+- stage: build_windows_images
+  displayName: Build Windows Images
+  dependsOn:
+    - "setup"
+  jobs:
+    - job: NPM
+      displayName: Build NPM
+      variables:
+          tag: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+      steps:
+        - powershell: |
+            powershell.exe -command "& { . .\windows.ps1; azure-npm-image $(tag)-windows-amd64 }"
+          name: "build_npm"
+          displayName: "Build"
+
+        - task: Docker@2
+          displayName: Docker Login
+          inputs:
+            containerRegistry: $(ACR_SERVICE_CONNECTION)
+            command: 'login'
+            addPipelineData: false
+
+        - powershell: |
+            docker tag acnpublic.azurecr.io/azure-npm:$(tag)-windows-amd64 acnpublic.azurecr.io/azure-npm:$(tag)-windows-amd64-test
+            docker push acnpublic.azurecr.io/azure-npm:$(tag)-windows-amd64-test
+          name: "push_npm"
+          displayName: "Push"
+
+        - powershell: |
+            mkdir .\output\images\windows\
+            docker save acnpublic.azurecr.io/azure-npm:$(tag)-windows-amd64-test -o .\output\images\windows\azure-npm-$(tag)-windows-amd64.tar
+          name: "save_npm"
+          displayName: "Save"
+
+        - task: Docker@2
+          displayName: Docker Logout
+          inputs:
+            containerRegistry: $(ACR_SERVICE_CONNECTION)
+            command: 'logout'
+            addPipelineData: false
+
+        - task: CopyFiles@2
+          inputs:
+            sourceFolder: "output"
+            targetFolder: $(Build.ArtifactStagingDirectory)
+          condition: succeeded()
+
+        - task: PublishBuildArtifacts@1
+          inputs:
+            artifactName: "output"
+            pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+          condition: succeeded()

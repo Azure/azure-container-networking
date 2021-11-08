@@ -21,7 +21,7 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 }
 
 // updatePod is no-op in Linux
-func (dp *DataPlane) updatePod(pod *UpdateNPMPod) error {
+func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	return nil
 }
 

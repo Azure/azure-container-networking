@@ -145,8 +145,8 @@ func Line(readIndex int, iptableBuffer []byte) ([]byte, int) {
 	return iptableBuffer[leftLineIndex : lastNonWhiteSpaceIndex+1], curReadIndex
 }
 
-// parseChainNameFromRuleLine gets the chain name from given rule line.
-func parseChainNameFromRuleLine(ruleLine []byte) (string, int) {
+// parseChainNameFromRuleLine  gets the chain name from given rule line.
+func parseChainNameFromRuleLine(ruleLine []byte) (chainName string, ruleReadIndex int) {
 	spaceIndex := bytes.Index(ruleLine, SpaceBytes)
 	if spaceIndex == -1 {
 		panic(fmt.Sprintf("Unexpected chain line in iptables-save output: %v", string(ruleLine)))
@@ -157,7 +157,10 @@ func parseChainNameFromRuleLine(ruleLine []byte) (string, int) {
 		panic(fmt.Sprintf("Unexpected chain line in iptables-save output: %v", string(ruleLine)))
 	}
 	chainNameEnd := chainNameStart + spaceIndex
-	return string(ruleLine[chainNameStart:chainNameEnd]), chainNameEnd + 1
+
+	chainName = string(ruleLine[chainNameStart:chainNameEnd])
+	ruleReadIndex = chainNameEnd + 1
+	return
 }
 
 // parseRuleFromLine creates an iptable rule object from rule line with chain name excluded from the byte array.
@@ -237,10 +240,9 @@ func parseTarget(nextIndex int, target *NPMIPtable.Target, ruleLine []byte) int 
 	return parseTargetOptionAndValue(nextIndex+spaceIndex+1, target, "", ruleLine)
 }
 
-func parseTargetOptionAndValue(nextIndex int, target *NPMIPtable.Target, curOption string, ruleLine []byte) int {
+func parseTargetOptionAndValue(nextIndex int, target *NPMIPtable.Target, currentOption string, ruleLine []byte) int {
 	spaceIndex := bytes.Index(ruleLine[nextIndex:], SpaceBytes)
-	currentOption := curOption
-	if spaceIndex == -1 {
+	if spaceIndex == -1 { // no more spaces
 		if currentOption == "" {
 			panic(fmt.Sprintf("Rule's value have no preceded option: %v", string(ruleLine)))
 		}
@@ -261,7 +263,7 @@ func parseTargetOptionAndValue(nextIndex int, target *NPMIPtable.Target, curOpti
 				// recursively parsing options and their value until a new flag is encounter
 				return parseTargetOptionAndValue(nextIndex, target, currentOption, ruleLine)
 			}
-			// this is a new flag
+			// this is a new flag, so stop adding option-values to the target
 			return nextIndex
 		}
 	}

@@ -29,6 +29,10 @@ func (Hnsv2wrapper) DeleteNetwork(network *hcn.HostComputeNetwork) error {
 	return network.Delete()
 }
 
+func (Hnsv2wrapper) ModifyNetworkSettings(network *hcn.HostComputeNetwork, request *hcn.ModifyNetworkSettingRequest) error {
+	return network.ModifyNetworkSettings(request)
+}
+
 func (Hnsv2wrapper) AddNetworkPolicy(network *hcn.HostComputeNetwork, networkPolicy hcn.PolicyNetworkRequest) error {
 	return network.AddPolicy(networkPolicy)
 }

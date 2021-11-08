@@ -113,7 +113,7 @@ ifeq ($(GOOS),linux)
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images: azure-npm-image azure-cns-image
 else
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images:
 	@echo "Nothing to build. Skip."
 endif
@@ -372,7 +372,7 @@ test-all:
 # run all tests
 .PHONY: test-integration
 test-integration:
-	go test -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
+	go test -timeout 1h -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
 .PHONY: test-cyclonus
 test-cyclonus:
