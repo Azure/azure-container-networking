@@ -245,9 +245,9 @@ type labelSelector struct {
 	include bool
 	settype ipsets.SetType
 	// label is among
-	// 1. "(!) + matchKey + ":" + matchVal (can be empty string) case
-	// 2. "(!) + matchKey" case
-	// or 3. "(!) + matchKey + : + multiple matchVals" case.
+	// 1. matchKey + ":" + matchVal (can be empty string) case
+	// 2. "matchKey" case
+	// or 3. "matchKey + : + multiple matchVals" case.
 	label string
 	// members slice exists only if setType is only NestedLabelOfPod.
 	members []string
