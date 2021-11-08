@@ -54,10 +54,10 @@
          "windowsPauseImageURL": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
          "alwaysPullWindowsPauseImage": true,
          "imageReference": {
-            "subscriptionId": "9b8218f9-902a-4d20-a65c-e98acec5362f",
-            "resourceGroup": "azure-pipelines-ws22-akse",
-            "gallery": "acnvmimages",
-            "name": "2022-datacenter-with-containers",
+            "subscriptionId": "d9eabe18-12f6-4421-934a-d7e2327585f5",
+            "resourceGroup": "azure-pipelines-vmss-1es-win",
+            "gallery": "acnazpgallerywindows",
+            "name": "ws22-with-containers",
             "version": "1.0.0"
          }
       },
