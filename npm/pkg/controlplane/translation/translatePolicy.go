@@ -120,7 +120,7 @@ func portRule(ruleIPSets []*ipsets.TranslatedIPSet, acl *policies.ACLPolicy, por
 // as ipset name of the IPBlock.
 // For example, in case network policy object has
 // name: "test"
-// namespace: "deafult"
+// namespace: "default"
 // ingress rule
 // it returns "test-in-ns-default-0IN".
 func ipBlockSetName(policyName, ns string, direction policies.Direction, ipBlockSetIndex int) string {

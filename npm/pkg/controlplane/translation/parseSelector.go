@@ -239,16 +239,25 @@ func parseSelector(selector *metav1.LabelSelector) (labels []string, vals map[st
 	return labels, vals
 }
 
+// labelSelector has parsed matchLabels and MatchExpressions information.
 type labelSelector struct {
+	// include is a flag to indicate whether Op exists or not.
 	include bool
 	settype ipsets.SetType
-	label   string
+	// label is among
+	// 1. "(!) + matchKey + ":" + matchVal (can be empty string) case
+	// 2. "(!) + matchKey" case
+	// or 3. "(!) + matchKey + : + multiple matchVals" case.
+	label string
+	// members slice exists only if setType is only NestedLabelOfPod.
 	members []string
 }
+
+// parsedSelectors maintains slice of unique labelSelector.
 type parsedSelectors struct {
 	labelSelectors []labelSelector
 	// To avoid the duplilcate matchLabel among matchLabels and MatchExpression
-	// key of labelSet including "!" if operator is "OpNOtIn" or "OpDoesNotExist"
+	// key of labelSet including "!" if operator is "OpNOtIn" or "OpDoesNotExist".
 	labelSet map[string]struct{}
 }
 
@@ -281,7 +290,6 @@ func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, mat
 
 	ps.labelSelectors = append(ps.labelSelectors, ls)
 	ps.labelSet[matchLabelWithOp] = struct{}{}
-
 }
 
 // parseNSSelector parses namespaceSelector and returns slice of labelSelector object
