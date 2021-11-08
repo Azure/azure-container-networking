@@ -77,6 +77,20 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
 
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\SYSTEM"
+      hostNetwork: true
+
+      initContainers:
+      - name: init-kubeconfig
+        image: mcr.microsoft.com/windows/servercore:ltsc2022
+        command: ["powershell.exe"]
+        args:
+          - mkdir -force /var/lib/kube-proxy/;
+            ((Get-Content -path $env:CONTAINER_SANDBOX_MOUNT_POINT/var/lib/kube-proxy/kubeconfig.conf -Raw) -replace '/var',"$($env:CONTAINER_SANDBOX_MOUNT_POINT)/var") | Set-Content -Path $env:CONTAINER_SANDBOX_MOUNT_POINT/var/lib/kube-proxy/kubeconfig.conf;
+            cp $env:CONTAINER_SANDBOX_MOUNT_POINT/var/lib/kube-proxy/kubeconfig.conf /var/lib/kube-proxy/kubeconfig.conf
 
       containers:
         - name: azure-npm
