@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/version"
 )
 
@@ -321,5 +322,110 @@ func TestCompareSlices(t *testing.T) {
 
 	if !CompareSlices(list1, list2) {
 		t.Errorf("TestCompareSlices failed @ slice comparison 4")
+	}
+}
+
+func TestIsSameLabels(t *testing.T) {
+	var nilLabel map[string]string
+	tests := []struct {
+		name                string
+		labelA              map[string]string
+		labelB              map[string]string
+		expectedIsSameLabel bool
+	}{
+		{
+			name:                "Empty labels",
+			labelA:              map[string]string{},
+			labelB:              map[string]string{},
+			expectedIsSameLabel: true,
+		},
+		{
+			name:                "Empty label and Nil label",
+			labelA:              map[string]string{},
+			labelB:              nilLabel,
+			expectedIsSameLabel: true,
+		},
+		{
+			name: "Same labels",
+			labelA: map[string]string{
+				"e": "f",
+				"c": "d",
+				"a": "b",
+			},
+			labelB: map[string]string{
+				"e": "f",
+				"c": "d",
+				"a": "b",
+			},
+			expectedIsSameLabel: true,
+		},
+		{
+			name: "Same labels with different ordered addition",
+			labelA: map[string]string{
+				"e": "f",
+				"c": "d",
+				"a": "b",
+			},
+			labelB: map[string]string{
+				"c": "d",
+				"e": "f",
+				"a": "b",
+			},
+			expectedIsSameLabel: true,
+		},
+		{
+			name: "Different length",
+			labelA: map[string]string{
+				"e": "f",
+			},
+			labelB: map[string]string{
+				"e": "f",
+				"a": "b",
+			},
+			expectedIsSameLabel: false,
+		},
+		{
+			name:   "Different (empty map and non-empty map)",
+			labelA: map[string]string{},
+			labelB: map[string]string{
+				"e": "f",
+				"c": "d",
+				"a": "b",
+			},
+			expectedIsSameLabel: false,
+		},
+		{
+			name:   "Different (nil map and non-empty map)",
+			labelA: nilLabel,
+			labelB: map[string]string{
+				"e": "f",
+				"c": "d",
+				"a": "b",
+			},
+			expectedIsSameLabel: false,
+		},
+		{
+			name: "Have a different one pair of key and value",
+			labelA: map[string]string{
+				"e": "f",
+				"d": "c",
+				"a": "b",
+			},
+			labelB: map[string]string{
+				"e": "f",
+				"c": "d",
+				"a": "b",
+			},
+			expectedIsSameLabel: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := IsSameLabels(tt.labelA, tt.labelB)
+			require.Equal(t, tt.expectedIsSameLabel, got)
+		})
 	}
 }

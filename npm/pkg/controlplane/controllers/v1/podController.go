@@ -88,7 +88,9 @@ func (nPod *NpmPod) noUpdate(podObj *corev1.Pod) bool {
 		nPod.Name == podObj.ObjectMeta.Name &&
 		nPod.Phase == podObj.Status.Phase &&
 		nPod.PodIP == podObj.Status.PodIP &&
-		reflect.DeepEqual(nPod.Labels, podObj.ObjectMeta.Labels) &&
+		util.IsSameLabels(nPod.Labels, podObj.ObjectMeta.Labels) &&
+		// TODO(jungukcho) to avoid using DeepEqual for ContainerPorts,
+		// it needs a precise sorting. Will optimize it later if needed.
 		reflect.DeepEqual(nPod.ContainerPorts, getContainerPortList(podObj))
 }
 
