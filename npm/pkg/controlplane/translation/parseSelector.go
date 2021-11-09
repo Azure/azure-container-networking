@@ -59,7 +59,7 @@ func getSetNameForMultiValueSelector(key string, vals []string) string {
 	return newIPSet
 }
 
-// FlattenNameSpaceSelector will help flatten multiple NameSpace selector match Expressions values
+// FlattenNameSpaceSelector will help flatten multiple nameSpace selector match Expressions values
 // into multiple label selectors helping with the OR condition.
 func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSelector {
 	/*
@@ -296,6 +296,10 @@ func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, set
 
 // parseNSSelector parses namespaceSelector and returns slice of labelSelector object
 // which includes operator, setType, ipset name and always nil members slice.
+// Member slices is always nil since parseNSSelector function is called
+// after FlattenNameSpaceSelector function is called, which guarantees
+// there is no matchExpression with multiple values.
+// TODO: good to remove this dependency later if possible.
 func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 	// TODO(jungukcho): This will not happen
 	if selector == nil {
@@ -313,7 +317,7 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 	// #2. MatchLabels
 	for matchKey, matchVal := range selector.MatchLabels {
 		// matchKey + ":" + matchVal (can be empty string) case
-		setName := matchKey + util.IpsetLabelDelimter + matchVal
+		setName := util.GetIpSetFromLabelKV(matchKey, matchVal)
 		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfNamespace, setName)
 	}
 
@@ -324,7 +328,7 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 		switch op := req.Operator; op {
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
 			// "(!) + matchKey + : + matchVal" case
-			setName = req.Key + util.IpsetLabelDelimter + req.Values[0]
+			setName = util.GetIpSetFromLabelKV(req.Key, req.Values[0])
 			setType = ipsets.KeyValueLabelOfNamespace
 		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
 			// "(!) + matchKey" case
@@ -359,7 +363,7 @@ func parsePodSelector(selector *metav1.LabelSelector, nsInPod string) []labelSel
 	// #2. MatchLabels
 	for matchKey, matchVal := range selector.MatchLabels {
 		// matchKey + ":" + matchVal (can be empty string) case
-		setName := matchKey + util.IpsetLabelDelimter + matchVal
+		setName := util.GetIpSetFromLabelKV(matchKey, matchVal)
 		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfPod, setName)
 	}
 
@@ -372,14 +376,14 @@ func parsePodSelector(selector *metav1.LabelSelector, nsInPod string) []labelSel
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
 			// "(!) + matchKey + : + matchVal" case
 			if len(req.Values) == 1 {
-				setName = req.Key + util.IpsetLabelDelimter + req.Values[0]
+				setName = util.GetIpSetFromLabelKV(req.Key, req.Values[0])
 				setType = ipsets.KeyValueLabelOfPod
 			} else {
 				// "(!) + matchKey + : + multiple matchVals" case
 				setName = req.Key
 				for _, val := range req.Values {
-					setName = setName + util.IpsetLabelDelimter + val
-					members = append(members, req.Key+util.IpsetLabelDelimter+val)
+					setName = util.GetIpSetFromLabelKV(setName, val)
+					members = append(members, util.GetIpSetFromLabelKV(req.Key, val))
 				}
 				setType = ipsets.NestedLabelOfPod
 			}
