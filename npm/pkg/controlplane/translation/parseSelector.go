@@ -244,11 +244,11 @@ type labelSelector struct {
 	// include is a flag to indicate whether Op exists or not.
 	include bool
 	settype ipsets.SetType
-	// label is among
+	// setName is among
 	// 1. matchKey + ":" + matchVal (can be empty string) case
 	// 2. "matchKey" case
 	// or 3. "matchKey + : + multiple matchVals" case.
-	label string
+	setName string
 	// members slice exists only if setType is only NestedLabelOfPod.
 	members []string
 }
@@ -256,8 +256,10 @@ type labelSelector struct {
 // parsedSelectors maintains slice of unique labelSelector.
 type parsedSelectors struct {
 	labelSelectors []labelSelector
-	// To avoid the duplilcate matchLabel among matchLabels and MatchExpression
-	// key of labelSet including "!" if operator is "OpNOtIn" or "OpDoesNotExist".
+	// Use set data structure to avoid the duplicate setName among matchLabels and MatchExpression.
+	// The key of labelSet includes "!" if operator is "OpNOtIn" or "OpDoesNotExist"
+	// to make difference when it has the same key (and value), but different operator
+	// while this is weird since it is not always matched, but K8s accepts this spec.
 	labelSet map[string]struct{}
 }
 
@@ -270,26 +272,26 @@ func newParsedSelectors() parsedSelectors {
 
 // addSelector only adds non-duplicated labelSelector.
 // Only nested labels from podSelector has members fields.
-func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, matchLabel string, members ...string) {
-	matchLabelWithOp := matchLabel
+func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, setName string, members ...string) {
+	setNameWithOp := setName
 	if !include {
-		matchLabelWithOp = "!" + matchLabel
+		setNameWithOp = "!" + setName
 	}
 
-	// in case matchLabelWithOp exists in a set, do not need to add it.
-	if _, exist := ps.labelSet[matchLabelWithOp]; exist {
+	// in case setNameWithOp exists in a set, do not need to add it.
+	if _, exist := ps.labelSet[setNameWithOp]; exist {
 		return
 	}
 
 	ls := labelSelector{
 		include: include,
 		settype: setType,
-		label:   matchLabel,
+		setName: setName,
 		members: members,
 	}
 
 	ps.labelSelectors = append(ps.labelSelectors, ls)
-	ps.labelSet[matchLabelWithOp] = struct{}{}
+	ps.labelSet[setNameWithOp] = struct{}{}
 }
 
 // parseNSSelector parses namespaceSelector and returns slice of labelSelector object
@@ -311,27 +313,27 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 	// #2. MatchLabels
 	for matchKey, matchVal := range selector.MatchLabels {
 		// matchKey + ":" + matchVal (can be empty string) case
-		matchLabel := matchKey + util.IpsetLabelDelimter + matchVal
-		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfNamespace, matchLabel)
+		setName := matchKey + util.IpsetLabelDelimter + matchVal
+		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfNamespace, setName)
 	}
 
 	// #3. MatchExpressions
 	for _, req := range selector.MatchExpressions {
-		var matchLabel string
+		var setName string
 		var setType ipsets.SetType
 		switch op := req.Operator; op {
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
 			// "(!) + matchKey + : + matchVal" case
-			matchLabel = req.Key + util.IpsetLabelDelimter + req.Values[0]
+			setName = req.Key + util.IpsetLabelDelimter + req.Values[0]
 			setType = ipsets.KeyValueLabelOfNamespace
 		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
 			// "(!) + matchKey" case
-			matchLabel = req.Key
+			setName = req.Key
 			setType = ipsets.KeyLabelOfNamespace
 		}
 
 		noNegativeOp := (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpExists)
-		parsedSelectors.addSelector(noNegativeOp, setType, matchLabel)
+		parsedSelectors.addSelector(noNegativeOp, setType, setName)
 	}
 
 	return parsedSelectors.labelSelectors
@@ -357,38 +359,38 @@ func parsePodSelector(selector *metav1.LabelSelector, nsInPod string) []labelSel
 	// #2. MatchLabels
 	for matchKey, matchVal := range selector.MatchLabels {
 		// matchKey + ":" + matchVal (can be empty string) case
-		matchLabel := matchKey + util.IpsetLabelDelimter + matchVal
-		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfPod, matchLabel)
+		setName := matchKey + util.IpsetLabelDelimter + matchVal
+		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfPod, setName)
 	}
 
 	// #3. MatchExpressions
 	for _, req := range selector.MatchExpressions {
-		var matchLabel string
+		var setName string
 		var setType ipsets.SetType
 		var members []string
 		switch op := req.Operator; op {
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
 			// "(!) + matchKey + : + matchVal" case
 			if len(req.Values) == 1 {
-				matchLabel = req.Key + util.IpsetLabelDelimter + req.Values[0]
+				setName = req.Key + util.IpsetLabelDelimter + req.Values[0]
 				setType = ipsets.KeyValueLabelOfPod
 			} else {
 				// "(!) + matchKey + : + multiple matchVals" case
-				matchLabel = req.Key
+				setName = req.Key
 				for _, val := range req.Values {
-					matchLabel = matchLabel + util.IpsetLabelDelimter + val
+					setName = setName + util.IpsetLabelDelimter + val
 					members = append(members, req.Key+util.IpsetLabelDelimter+val)
 				}
 				setType = ipsets.NestedLabelOfPod
 			}
 		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
 			// "(!) + matchKey" case
-			matchLabel = req.Key
+			setName = req.Key
 			setType = ipsets.KeyLabelOfPod
 		}
 
 		noNegativeOp := (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpExists)
-		parsedSelectors.addSelector(noNegativeOp, setType, matchLabel, members...)
+		parsedSelectors.addSelector(noNegativeOp, setType, setName, members...)
 	}
 
 	return parsedSelectors.labelSelectors

@@ -268,14 +268,14 @@ func podSelector(ns string, matchType policies.MatchType, selector *metav1.Label
 
 	for i := 0; i < LenOfPodSelectors; i++ {
 		ps := podSelectors[i]
-		podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.label, ps.settype, ps.members))
+		podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.setName, ps.settype, ps.members))
 		// if value is nested value, create translatedIPSet with the nested value
 		for j := 0; j < len(ps.members); j++ {
 			var nilSlices []string
 			podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.members[j], ipsets.KeyValueLabelOfPod, nilSlices))
 		}
 
-		podSelectorList[i] = policies.NewSetInfo(ps.label, ps.settype, ps.include, matchType)
+		podSelectorList[i] = policies.NewSetInfo(ps.setName, ps.settype, ps.include, matchType)
 	}
 
 	return podSelectorIPSets, podSelectorList
@@ -345,8 +345,8 @@ func nameSpaceSelector(matchType policies.MatchType, selector *metav1.LabelSelec
 
 	for i := 0; i < LenOfnsSelectors; i++ {
 		nsc := nsSelectors[i]
-		nsSelectorIPSets[i] = ipsets.NewTranslatedIPSet(nsc.label, nsc.settype, []string{})
-		nsSelectorList[i] = policies.NewSetInfo(nsc.label, nsc.settype, nsc.include, matchType)
+		nsSelectorIPSets[i] = ipsets.NewTranslatedIPSet(nsc.setName, nsc.settype, []string{})
+		nsSelectorList[i] = policies.NewSetInfo(nsc.setName, nsc.settype, nsc.include, matchType)
 	}
 
 	return nsSelectorIPSets, nsSelectorList
