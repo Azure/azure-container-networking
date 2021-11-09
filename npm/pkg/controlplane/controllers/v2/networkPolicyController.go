@@ -28,7 +28,7 @@ var errNetPolKeyFormat = errors.New("invalid network policy key format")
 type NetworkPolicyController struct {
 	netPolLister netpollister.NetworkPolicyLister
 	workqueue    workqueue.RateLimitingInterface
-	rawNpMap     map[string]*networkingv1.NetworkPolicy // Key is <nsname>/<policyname>
+	rawNpMap     map[string]*networkingv1.NetworkPolicySpec // Key is <nsname>/<policyname>
 	dp           dataplane.GenericDataplane
 }
 
@@ -36,7 +36,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 	netPolController := &NetworkPolicyController{
 		netPolLister: npInformer.Lister(),
 		workqueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
-		rawNpMap:     make(map[string]*networkingv1.NetworkPolicy),
+		rawNpMap:     make(map[string]*networkingv1.NetworkPolicySpec),
 		dp:           dp,
 	}
 
@@ -224,13 +224,13 @@ func (c *NetworkPolicyController) syncNetPol(key string) error {
 		return nil
 	}
 
-	cachedNetPolObj, netPolExists := c.rawNpMap[key]
+	cachedNetPolSpecObj, netPolExists := c.rawNpMap[key]
 	if netPolExists {
 		// if network policy does not have different states against lastly applied states stored in cachedNetPolObj,
 		// netPolController does not need to reconcile this update.
 		// In this updateNetworkPolicy event,
 		// newNetPol was updated with states which netPolController does not need to reconcile.
-		if isSameNetworkPolicy(cachedNetPolObj, netPolObj) {
+		if reflect.DeepEqual(cachedNetPolSpecObj, netPolObj.Spec) {
 			return nil
 		}
 	}
@@ -273,7 +273,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 		metrics.IncNumPolicies()
 	}
 
-	c.rawNpMap[netpolKey] = netPolObj
+	c.rawNpMap[netpolKey] = &netPolObj.Spec
 	return nil
 }
 
@@ -294,11 +294,4 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
 	delete(c.rawNpMap, netPolKey)
 	metrics.DecNumPolicies()
 	return nil
-}
-
-// compare all fields including name of two network policies, which network policy controller need to care about.
-func isSameNetworkPolicy(old, newnetpol *networkingv1.NetworkPolicy) bool {
-	return old.ObjectMeta.Name == newnetpol.ObjectMeta.Name &&
-		old.ObjectMeta.Namespace == newnetpol.ObjectMeta.Namespace &&
-		reflect.DeepEqual(old.Spec, newnetpol.Spec)
 }
