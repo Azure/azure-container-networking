@@ -194,7 +194,6 @@ func resetPrometheusAndGetExecCount(t *testing.T) int {
 	return execCount
 }
 
-// for local testing, prepend "sudo" to the command within run() in iptm.go
 func testPrometheusMetrics(t *testing.T, expectedNumPolicies, expectedExecCount int) {
 	numPolicies, err := metrics.GetNumPolicies()
 	promutil.NotifyIfErrors(t, err)

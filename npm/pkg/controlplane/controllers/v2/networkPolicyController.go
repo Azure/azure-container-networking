@@ -254,34 +254,12 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: while running MetaNamespaceKeyFunc err: %w", err)
 	}
 
-	// Start reconciling loop to eventually meet cached states against the desired states from network policy.
-	// #1 If a new network policy is created, the network policy is not in RawNPMap.
-	// start translating policy and install translated ipset and iptables rules into kernel
-	// #2 If a network policy with <ns>-<netpol namespace>-<netpol name> is applied before and two network policy are the same object (same UID),
-	// first delete the applied network policy, then start translating policy and install translated ipset and iptables rules into kernel
-	// #3 If a network policy with <ns>-<netpol namespace>-<netpol name> is applied before and two network policy are the different object (different UID) due to missing some events for the old object
-	// first delete the applied network policy, then start translating policy and install translated ipset and iptables rules into kernel
-	// To deal with all three cases, we first delete network policy if possible, then install translated rules into kernel.
-	// (TODO): can optimize logic more to reduce computations. For example, apply only difference if possible like podController
-
-	// Do not need to clean up default Azure NPM chain in deleteNetworkPolicy function, if network policy object is applied soon.
-	// So, avoid extra overhead to install default Azure NPM chain in initializeDefaultAzureNpmChain function.
-	// To achieve it, use flag unSafeToCleanUpAzureNpmChain to indicate that the default Azure NPM chain cannot be deleted.
-	// delete existing network policy
-	err = c.cleanUpNetworkPolicy(netpolKey)
-	if err != nil {
-		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to deleteNetworkPolicy due to %w", err)
-	}
-
 	// install translated rules into kernel
 	npmNetPolObj := translation.TranslatePolicy(netPolObj)
-
-	fmt.Printf("%+v", npmNetPolObj)
-
 	// install translated rules into Dataplane
-	err = c.dp.AddPolicy(npmNetPolObj)
+	err = c.dp.UpdatePolicy(npmNetPolObj)
 	if err != nil {
-		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to install translated NPMNetworkPolicy into Dataplane due to %w", err)
+		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to update translated NPMNetworkPolicy into Dataplane due to %w", err)
 	}
 
 	// Cache network object first before applying ipsets and iptables.
@@ -289,9 +267,6 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// the key is re-queued in workqueue and process this function again, which eventually meets desired states of network policy
 	c.rawNpMap[netpolKey] = netPolObj
 	metrics.IncNumPolicies()
-
-	// TODO
-
 	return nil
 }
 
@@ -316,24 +291,8 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
 
 // compare all fields including name of two network policies, which network policy controller need to care about.
 func isSameNetworkPolicy(old, newnetpol *networkingv1.NetworkPolicy) bool {
-	if old.ObjectMeta.Name != newnetpol.ObjectMeta.Name {
-		return false
-	}
-	return isSamePolicy(old, newnetpol)
-}
-
-func isSamePolicy(old, newnetpol *networkingv1.NetworkPolicy) bool {
-	if !reflect.DeepEqual(old.TypeMeta, newnetpol.TypeMeta) {
-		return false
-	}
-
-	if old.ObjectMeta.Namespace != newnetpol.ObjectMeta.Namespace {
-		return false
-	}
-
-	if !reflect.DeepEqual(old.Spec, newnetpol.Spec) {
-		return false
-	}
-
-	return true
+	return old.ObjectMeta.Name == newnetpol.ObjectMeta.Name &&
+		old.ObjectMeta.Namespace == newnetpol.ObjectMeta.Namespace &&
+		reflect.DeepEqual(old.TypeMeta, newnetpol.TypeMeta) &&
+		reflect.DeepEqual(old.Spec, newnetpol.Spec)
 }

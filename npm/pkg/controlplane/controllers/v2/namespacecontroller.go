@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformer "k8s.io/client-go/informers/core/v1"
@@ -67,15 +66,6 @@ func newNs(name string) *Namespace {
 		LabelsMap: make(map[string]string),
 	}
 	return ns
-}
-
-func (nsObj *Namespace) getNamespaceObjFromNsObj() *corev1.Namespace {
-	return &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   nsObj.name,
-			Labels: nsObj.LabelsMap,
-		},
-	}
 }
 
 func (nsObj *Namespace) appendLabels(newm map[string]string, clear LabelAppendOperation) {
@@ -320,10 +310,11 @@ func (nsc *NamespaceController) syncAddNamespace(nsObj *corev1.Namespace) error 
 
 	// Add the namespace to its label's ipset list.
 	for nsLabelKey, nsLabelVal := range nsObj.ObjectMeta.Labels {
-		klog.Infof("Adding namespace %s to ipset list %s", nsObj.ObjectMeta.Name, nsLabelKey)
+		nsLabelKeyValue := util.GetIpSetFromLabelKV(nsLabelKey, nsLabelVal)
+		klog.Infof("Adding namespace %s to ipset list %s and %s", nsObj.ObjectMeta.Name, nsLabelKey, nsLabelKeyValue)
 		labelIPSets := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(nsLabelKey, ipsets.KeyLabelOfNamespace),
-			ipsets.NewIPSetMetadata(util.GetIpSetFromLabelKV(nsLabelKey, nsLabelVal), ipsets.KeyValueLabelOfNamespace),
+			ipsets.NewIPSetMetadata(nsLabelKeyValue, ipsets.KeyValueLabelOfNamespace),
 		}
 
 		setsToAddNamespaceTo = append(setsToAddNamespaceTo, labelIPSets...)
@@ -363,15 +354,16 @@ func (nsc *NamespaceController) syncUpdateNamespace(newNsObj *corev1.Namespace) 
 	addToIPSets, deleteFromIPSets := util.GetIPSetListCompareLabels(curNsObj.LabelsMap, newNsLabel)
 	// Delete the namespace from its label's ipset list.
 	for _, nsLabelVal := range deleteFromIPSets {
-
-		labelKeySet := &ipsets.IPSetMetadata{Name: nsLabelVal, Type: ipsets.KeyLabelOfNamespace}
-		if util.IsKeyLabelSetName(nsLabelVal) {
-			labelKeySet = &ipsets.IPSetMetadata{Name: nsLabelVal, Type: ipsets.KeyValueLabelOfNamespace}
+		var labelSet *ipsets.IPSetMetadata
+		if util.IsKeyValueLabelSetName(nsLabelVal) {
+			labelSet = ipsets.NewIPSetMetadata(nsLabelVal, ipsets.KeyValueLabelOfNamespace)
+		} else {
+			labelSet = ipsets.NewIPSetMetadata(nsLabelVal, ipsets.KeyLabelOfNamespace)
 		}
 		toBeRemoved := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(newNsName, ipsets.Namespace)}
 
 		klog.Infof("Deleting namespace %s from ipset list %s", newNsName, nsLabelVal)
-		if err = nsc.dp.RemoveFromList(labelKeySet, toBeRemoved); err != nil {
+		if err = nsc.dp.RemoveFromList(labelSet, toBeRemoved); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", newNsName, nsLabelVal, err)
 			return fmt.Errorf("failed to remove from list during sync update namespace with err %w", err)
 		}
@@ -388,15 +380,17 @@ func (nsc *NamespaceController) syncUpdateNamespace(newNsObj *corev1.Namespace) 
 	for _, nsLabelVal := range addToIPSets {
 		klog.Infof("Adding namespace %s to ipset list %s", newNsName, nsLabelVal)
 
-		labelKeySet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(nsLabelVal, ipsets.KeyLabelOfNamespace)}
-		if util.IsKeyLabelSetName(nsLabelVal) {
-			labelKeySet = []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(nsLabelVal, ipsets.KeyValueLabelOfNamespace)}
+		var labelSet []*ipsets.IPSetMetadata
+		if util.IsKeyValueLabelSetName(nsLabelVal) {
+			labelSet = []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(nsLabelVal, ipsets.KeyValueLabelOfNamespace)}
+		} else {
+			labelSet = []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(nsLabelVal, ipsets.KeyLabelOfNamespace)}
 		}
 		toBeAdded := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(newNsName, ipsets.Namespace)}
 
-		if err = nsc.dp.AddToLists(labelKeySet, toBeAdded); err != nil {
+		if err = nsc.dp.AddToLists(labelSet, toBeAdded); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to add namespace %s to ipset list %s with err: %v", newNsName, nsLabelVal, err)
-			return fmt.Errorf("failed to add %v sets to %v lists during addtolists in sync update namespace with err %w", toBeAdded, labelKeySet, err)
+			return fmt.Errorf("failed to add %v sets to %v lists during addtolists in sync update namespace with err %w", toBeAdded, labelSet, err)
 		}
 		// {IMPORTANT} Same as above order is assumed to be key and then key+val. NPM should only append to existing labels
 		// only after both ipsets for a given label's key value pair are added successfully
@@ -430,7 +424,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 	// Delete the namespace from its label's ipset list.
 	for nsLabelKey, nsLabelVal := range cachedNsObj.LabelsMap {
 
-		labelKey := &ipsets.IPSetMetadata{Name: nsLabelKey, Type: ipsets.KeyLabelOfNamespace}
+		labelKey := ipsets.NewIPSetMetadata(nsLabelKey, ipsets.KeyLabelOfNamespace)
 		klog.Infof("Deleting namespace %s from ipset list %s", cachedNsKey, labelKey)
 		if err = nsc.dp.RemoveFromList(labelKey, toBeDeletedNs); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, labelKey, err)
@@ -438,7 +432,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 		}
 
 		labelIpsetName := util.GetIpSetFromLabelKV(nsLabelKey, nsLabelVal)
-		labelKeyValue := &ipsets.IPSetMetadata{Name: labelIpsetName, Type: ipsets.KeyValueLabelOfNamespace}
+		labelKeyValue := ipsets.NewIPSetMetadata(labelIpsetName, ipsets.KeyValueLabelOfNamespace)
 		klog.Infof("Deleting namespace %s from ipset list %s", cachedNsKey, labelIpsetName)
 		if err = nsc.dp.RemoveFromList(labelKeyValue, toBeDeletedNs); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[DeleteNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", cachedNsKey, labelIpsetName, err)
@@ -449,7 +443,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 		cachedNsObj.removeLabelsWithKey(nsLabelKey)
 	}
 
-	allNamespacesSet := &ipsets.IPSetMetadata{Name: util.KubeAllNamespacesFlag, Type: ipsets.KeyLabelOfNamespace}
+	allNamespacesSet := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
 	toBeDeletedCachedKey := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(cachedNsKey, ipsets.Namespace)}
 
 	// Delete the namespace from all-namespace ipset list.

@@ -304,7 +304,7 @@ func GetIpSetFromLabelKV(k, v string) string {
 	return fmt.Sprintf("%s%s%s", k, IpsetLabelDelimter, v)
 }
 
-func IsKeyLabelSetName(k string) bool {
+func IsKeyValueLabelSetName(k string) bool {
 	return strings.Contains(k, IpsetLabelDelimter)
 }
 

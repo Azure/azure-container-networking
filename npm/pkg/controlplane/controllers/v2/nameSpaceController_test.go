@@ -669,19 +669,6 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 	checkNsTestResult("TestDeleteNamespaceWithTombstoneAfterAddingNameSpace", f, testCases)
 }
 
-func TestGetNamespaceObjFromNsObj(t *testing.T) {
-	ns := newNs("test-ns")
-	ns.LabelsMap = map[string]string{
-		"test": "new",
-	}
-
-	nsObj := ns.getNamespaceObjFromNsObj()
-
-	if !reflect.DeepEqual(ns.LabelsMap, nsObj.ObjectMeta.Labels) {
-		t.Errorf("TestGetNamespaceObjFromNsObj failed @ nsObj labels check")
-	}
-}
-
 func TestIsSystemNs(t *testing.T) {
 	nsObj := newNameSpace("kube-system", "0", map[string]string{"test": "new"})
 
