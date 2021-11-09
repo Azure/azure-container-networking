@@ -230,7 +230,7 @@ func (c *NetworkPolicyController) syncNetPol(key string) error {
 		// netPolController does not need to reconcile this update.
 		// In this updateNetworkPolicy event,
 		// newNetPol was updated with states which netPolController does not need to reconcile.
-		if reflect.DeepEqual(cachedNetPolSpecObj, netPolObj.Spec) {
+		if reflect.DeepEqual(*cachedNetPolSpecObj, netPolObj.Spec) {
 			return nil
 		}
 	}
