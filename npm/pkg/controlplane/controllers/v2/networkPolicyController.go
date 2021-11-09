@@ -28,7 +28,7 @@ var errNetPolKeyFormat = errors.New("invalid network policy key format")
 type NetworkPolicyController struct {
 	netPolLister netpollister.NetworkPolicyLister
 	workqueue    workqueue.RateLimitingInterface
-	rawNpMap     map[string]*networkingv1.NetworkPolicySpec // Key is <nsname>/<policyname>
+	rawNpSpecMap map[string]*networkingv1.NetworkPolicySpec // Key is <nsname>/<policyname>
 	dp           dataplane.GenericDataplane
 }
 
@@ -36,7 +36,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 	netPolController := &NetworkPolicyController{
 		netPolLister: npInformer.Lister(),
 		workqueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
-		rawNpMap:     make(map[string]*networkingv1.NetworkPolicySpec),
+		rawNpSpecMap: make(map[string]*networkingv1.NetworkPolicySpec),
 		dp:           dp,
 	}
 
@@ -51,7 +51,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 }
 
 func (c *NetworkPolicyController) LengthOfRawNpMap() int {
-	return len(c.rawNpMap)
+	return len(c.rawNpSpecMap)
 }
 
 // getNetworkPolicyKey returns namespace/name of network policy object if it is valid network policy object and has valid namespace/name.
@@ -224,7 +224,7 @@ func (c *NetworkPolicyController) syncNetPol(key string) error {
 		return nil
 	}
 
-	cachedNetPolSpecObj, netPolExists := c.rawNpMap[key]
+	cachedNetPolSpecObj, netPolExists := c.rawNpSpecMap[key]
 	if netPolExists {
 		// if network policy does not have different states against lastly applied states stored in cachedNetPolObj,
 		// netPolController does not need to reconcile this update.
@@ -267,19 +267,19 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to update translated NPMNetworkPolicy into Dataplane due to %w", err)
 	}
 
-	_, ok := c.rawNpMap[netpolKey]
+	_, ok := c.rawNpSpecMap[netpolKey]
 	if !ok {
 		// inc metric for NumPolicies only if it a new network policy
 		metrics.IncNumPolicies()
 	}
 
-	c.rawNpMap[netpolKey] = &netPolObj.Spec
+	c.rawNpSpecMap[netpolKey] = &netPolObj.Spec
 	return nil
 }
 
 // DeleteNetworkPolicy handles deleting network policy based on netPolKey.
 func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
-	_, cachedNetPolObjExists := c.rawNpMap[netPolKey]
+	_, cachedNetPolObjExists := c.rawNpSpecMap[netPolKey]
 	// if there is no applied network policy with the netPolKey, do not need to clean up process.
 	if !cachedNetPolObjExists {
 		return nil
@@ -291,7 +291,7 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
 	}
 
 	// Success to clean up ipset and iptables operations in kernel and delete the cached network policy from RawNpMap
-	delete(c.rawNpMap, netPolKey)
+	delete(c.rawNpSpecMap, netPolKey)
 	metrics.DecNumPolicies()
 	return nil
 }
