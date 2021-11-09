@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
@@ -18,8 +19,10 @@ import (
 	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/containernetworking/cni/pkg/skel"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -139,14 +142,13 @@ func main() {
 
 	var (
 		config       common.PluginConfig
-		err          error
 		logDirectory string // This sets empty string i.e. current location
 		tb           *telemetry.TelemetryBuffer
 	)
 
 	log.SetName(name)
 	log.SetLevel(log.LevelInfo)
-	if err = log.SetTargetLogDirectory(log.TargetLogfile, logDirectory); err != nil {
+	if err := log.SetTargetLogDirectory(log.TargetLogfile, logDirectory); err != nil {
 		fmt.Printf("Failed to setup cni logging: %v\n", err)
 		return
 	}
@@ -187,7 +189,8 @@ func main() {
 
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
 
-		upTime, err := platform.GetLastRebootTime()
+		var upTime time.Time
+		upTime, err = platform.GetLastRebootTime()
 		if err == nil {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 		}
@@ -195,24 +198,33 @@ func main() {
 		// CNI Acquires lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
-			tb := telemetry.NewTelemetryBuffer()
-			if tberr := tb.Connect(); tberr == nil {
-				reportPluginError(reportManager, tb, err)
-				tb.Close()
+			tb = telemetry.NewTelemetryBuffer()
+			if tberr := tb.Connect(); tberr != nil {
+				log.Errorf("Cannot connect to telemetry service:%v", tberr)
+				return
 			}
 
-			if isSafe, _ := netPlugin.Plugin.IsSafeToRemoveLock(name); isSafe {
-				log.Printf("[CNI] Removing lock file as process holding lock exited")
-				if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(true); errUninit != nil {
-					log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
+			reportPluginError(reportManager, tb, err)
+
+			if errors.Is(err, store.ErrTimeoutLockingStore) {
+				var cniMetric telemetry.AIMetric
+				cniMetric.Metric = aitelemetry.Metric{
+					Name:             telemetry.CNILockTimeoutStr,
+					Value:            1.0,
+					CustomDimensions: make(map[string]string),
+				}
+				err = telemetry.SendCNIMetric(&cniMetric, tb)
+				if err != nil {
+					log.Errorf("Couldn't send cnilocktimeout metric: %v", err)
 				}
 			}
 
+			tb.Close()
 			return
 		}
 
 		defer func() {
-			if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(false); errUninit != nil {
+			if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
 				log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
 			}
 
@@ -270,7 +282,7 @@ func main() {
 	netPlugin.Stop()
 
 	// release cni lock
-	if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(false); errUninit != nil {
+	if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
 		log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
 	}
 

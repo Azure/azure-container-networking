@@ -28,11 +28,11 @@ func (ms *mockStore) Flush() error {
 	return nil
 }
 
-func (ms *mockStore) Lock(block bool) error {
+func (ms *mockStore) Lock(duration time.Duration) error {
 	return nil
 }
 
-func (ms *mockStore) Unlock(forceUnlock bool) error {
+func (ms *mockStore) Unlock() error {
 	return nil
 }
 

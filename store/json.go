@@ -9,55 +9,46 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/processlock"
+	"github.com/pkg/errors"
 )
 
 const (
 	// Default file name for backing persistent store.
 	defaultFileName = "azure-container-networking.json"
 
-	// Extension added to the file name for lock.
-	lockExtension = ".lock"
+	// LockExtension - Extension added to the file name for lock.
+	LockExtension = ".lock"
 
-	// Maximum number of retries before failing a lock call.
-	lockMaxRetries = 100
-
-	// Delay between lock retries.
-	lockRetryDelay = 100 * time.Millisecond
+	// DefaultLockTimeout - lock timeout in milliseconds
+	DefaultLockTimeout = 10000 * time.Millisecond
 )
 
 // jsonFileStore is an implementation of KeyValueStore using a local JSON file.
 type jsonFileStore struct {
-	fileName     string
-	lockFileName string
-	data         map[string]*json.RawMessage
-	inSync       bool
-	locked       bool
+	fileName    string
+	data        map[string]*json.RawMessage
+	inSync      bool
+	processLock processlock.Interface
 	sync.Mutex
 }
 
+//nolint:revive // ignoring name change
 // NewJsonFileStore creates a new jsonFileStore object, accessed as a KeyValueStore.
-func NewJsonFileStore(fileName string) (KeyValueStore, error) {
+func NewJsonFileStore(fileName string, lockclient processlock.Interface) (KeyValueStore, error) {
 	if fileName == "" {
 		fileName = defaultFileName
 	}
 
-	if platform.CNILockPath != "" {
-		err := os.MkdirAll(platform.CNILockPath, os.FileMode(0o664))
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	kvs := &jsonFileStore{
-		fileName:     fileName,
-		lockFileName: platform.CNILockPath + filepath.Base(fileName) + lockExtension,
-		data:         make(map[string]*json.RawMessage),
+		fileName:    fileName,
+		processLock: lockclient,
+		data:        make(map[string]*json.RawMessage),
 	}
 
 	return kvs, nil
@@ -174,84 +165,48 @@ func (kvs *jsonFileStore) flush() error {
 	return nil
 }
 
-// Lock locks the store for exclusive access.
-func (kvs *jsonFileStore) Lock(block bool) error {
-	var (
-		lockFile *os.File
-		err      error
-	)
+func (kvs *jsonFileStore) lockUtil(status chan error) {
+	err := kvs.processLock.Lock()
+	status <- err
+}
 
+// Lock locks the store for exclusive access.
+func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
 
-	if kvs.locked {
-		return ErrStoreLocked
-	}
+	afterTime := time.After(timeout)
+	status := make(chan error)
 
-	//nolint:gomnd // 0o664 - read write mode constant
-	lockPerm := os.FileMode(0o644) + os.FileMode(os.ModeExclusive)
+	log.Printf("Acquiring process lock")
+	go kvs.lockUtil(status)
 
-	// Try to acquire the lock file.
-	var lockRetryCount uint
-	var modTimeCur time.Time
-	var modTimePrev time.Time
-	for lockRetryCount < lockMaxRetries {
-		lockFile, err = os.OpenFile(kvs.lockFileName, os.O_CREATE|os.O_EXCL|os.O_RDWR, lockPerm)
-		if err == nil {
-			break
-		}
-
-		if !block {
-			return ErrNonBlockingLockIsAlreadyLocked
-		}
-
-		// Reset the lock retry count if the timestamp for the lock file changes.
-		if fileInfo, err := os.Stat(kvs.lockFileName); err == nil {
-			modTimeCur = fileInfo.ModTime()
-			if !modTimeCur.Equal(modTimePrev) {
-				lockRetryCount = 0
-			}
-			modTimePrev = modTimeCur
-		}
-
-		time.Sleep(lockRetryDelay)
-
-		lockRetryCount++
-	}
-
-	if lockRetryCount == lockMaxRetries {
+	var err error
+	select {
+	case <-afterTime:
 		return ErrTimeoutLockingStore
+	case err = <-status:
 	}
 
-	defer lockFile.Close()
-
-	// Write the process ID for easy identification.
-	if _, err = lockFile.WriteString(strconv.Itoa(os.Getpid())); err != nil {
-		return err
+	if err != nil {
+		return errors.Wrap(err, "processLock acquire error")
 	}
 
-	kvs.locked = true
-
+	log.Printf("Acquired process lock")
 	return nil
 }
 
 // Unlock unlocks the store.
-func (kvs *jsonFileStore) Unlock(forceUnlock bool) error {
+func (kvs *jsonFileStore) Unlock() error {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
 
-	if !forceUnlock && !kvs.locked {
-		return ErrStoreNotLocked
-	}
-
-	err := os.Remove(kvs.lockFileName)
+	err := kvs.processLock.Unlock()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "unlock error")
 	}
 
-	kvs.inSync = false
-	kvs.locked = false
-
+	log.Printf("Released process lock")
 	return nil
 }
 
@@ -267,24 +222,6 @@ func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
 	}
 
 	return info.ModTime().UTC(), nil
-}
-
-// GetLockFileModificationTime returns the modification time of the lock file of the persistent store.
-func (kvs *jsonFileStore) GetLockFileModificationTime() (time.Time, error) {
-	kvs.Mutex.Lock()
-	defer kvs.Mutex.Unlock()
-
-	info, err := os.Stat(kvs.lockFileName)
-	if err != nil {
-		log.Printf("os.stat() for file %v failed: %v", kvs.lockFileName, err)
-		return time.Time{}.UTC(), err
-	}
-
-	return info.ModTime().UTC(), nil
-}
-
-func (kvs *jsonFileStore) GetLockFileName() string {
-	return kvs.lockFileName
 }
 
 func (kvs *jsonFileStore) Remove() {

@@ -17,8 +17,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/store"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
@@ -26,6 +24,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/processlock"
+	"github.com/Azure/azure-container-networking/store"
 )
 
 const (
@@ -911,7 +911,7 @@ func startService() error {
 	// Create the service.
 	config := common.ServiceConfig{}
 	// Create the key value store.
-	if config.Store, err = store.NewJsonFileStore(cnsJsonFileName); err != nil {
+	if config.Store, err = store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false)); err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", cnsJsonFileName, err)
 		return err
 	}

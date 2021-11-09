@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 )
@@ -101,17 +102,31 @@ func getMetadata(th *telemetryHandle) {
 	th.metadata = metadata
 	th.rwmutex.Unlock()
 
+	lockclient, err := processlock.NewFileLock(metadataFile + store.LockExtension)
+	if err != nil {
+		log.Printf("Error initializing file lock:%v", err)
+		return
+	}
+
 	// Save metadata retrieved from wireserver to a file
-	kvs, err := store.NewJsonFileStore(metadataFile)
+	kvs, err := store.NewJsonFileStore(metadataFile, lockclient)
 	if err != nil {
 		debugLog("[AppInsights] Error initializing kvs store: %v", err)
 		return
 	}
 
-	kvs.Lock(true)
-	err = common.SaveHostMetadata(th.metadata, metadataFile)
-	kvs.Unlock(true)
+	err = kvs.Lock(store.DefaultLockTimeout)
 	if err != nil {
+		log.Errorf("getMetadata: Not able to acquire lock:%v", err)
+		return
+	}
+	metadataErr := common.SaveHostMetadata(th.metadata, metadataFile)
+	err = kvs.Unlock()
+	if err != nil {
+		log.Errorf("getMetadata: Not able to release lock:%v", err)
+	}
+
+	if metadataErr != nil {
 		debugLog("[AppInsights] saving host metadata failed with :%v", err)
 	}
 }
@@ -284,6 +299,7 @@ func (th *telemetryHandle) TrackMetric(metric Metric) {
 		aimetric.Properties[versionStr] = th.appVersion
 		aimetric.Properties[resourceGroupStr] = th.metadata.ResourceGroupName
 		aimetric.Properties[vmIDStr] = metadata.VMID
+		aimetric.Properties[osStr] = runtime.GOOS
 		aimetric.Tags.Session().SetId(metadata.VMID)
 	}
 

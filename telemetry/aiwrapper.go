@@ -3,8 +3,6 @@ package telemetry
 
 import (
 	"fmt"
-	"runtime"
-
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
 )
@@ -73,7 +71,6 @@ func SendAIMetric(aiMetric AIMetric) {
 		return
 	}
 
-	aiMetric.Metric.CustomDimensions[OSTypeStr] = runtime.GOOS
 	th.TrackMetric(aiMetric.Metric)
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 )
 
@@ -158,9 +159,15 @@ func main() {
 		return
 	}
 
+	lockclient, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
+	if err != nil {
+		log.Printf("Error initializing file lock:%v", err)
+		return
+	}
+
 	// Create the key value store.
 	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName)
+	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
 	if err != nil {
 		log.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return

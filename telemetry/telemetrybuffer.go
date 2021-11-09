@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 )
 
@@ -109,7 +110,11 @@ func (tb *TelemetryBuffer) StartServer() error {
 						reportStr, err := read(conn)
 						if err == nil {
 							var tmp map[string]interface{}
-							json.Unmarshal(reportStr, &tmp)
+							err = json.Unmarshal(reportStr, &tmp)
+							if err != nil {
+								log.Logf("StartServer: unmarshal error:%v", err)
+								return
+							}
 							if _, ok := tmp["CniSucceeded"]; ok {
 								var cniReport CNIReport
 								json.Unmarshal([]byte(reportStr), &cniReport)
@@ -118,6 +123,8 @@ func (tb *TelemetryBuffer) StartServer() error {
 								var aiMetric AIMetric
 								json.Unmarshal([]byte(reportStr), &aiMetric)
 								tb.data <- aiMetric
+							} else {
+								log.Logf("StartServer: default case:%+v...", tmp)
 							}
 						} else {
 							var index int
@@ -192,13 +199,14 @@ func read(conn net.Conn) (b []byte, err error) {
 	return
 }
 
-// Write - write to the file descriptor
+// Write - write to the file descriptor.
 func (tb *TelemetryBuffer) Write(b []byte) (c int, err error) {
 	buf := make([]byte, len(b))
-	copy(b, buf)
-	b = append(buf, Delimiter)
+	copy(buf, b)
+	//nolint:makezero //keeping old code
+	buf = append(buf, Delimiter)
 	w := bufio.NewWriter(tb.client)
-	c, err = w.Write(b)
+	c, err = w.Write(buf)
 	if err == nil {
 		err = w.Flush()
 	}
@@ -241,18 +249,35 @@ func push(x interface{}) {
 	metadata, err := common.GetHostMetadata(metadataFile)
 	if err != nil {
 		log.Logf("Error getting metadata %v", err)
-	} else {
-		kvs, err := store.NewJsonFileStore(metadataFile)
+
+		var lockclient processlock.Interface
+		lockclient, err = processlock.NewFileLock(metadataFile + store.LockExtension)
+		if err != nil {
+			log.Printf("Error initializing file lock:%v", err)
+			return
+		}
+
+		var kvs store.KeyValueStore
+		kvs, err = store.NewJsonFileStore(metadataFile, lockclient)
 		if err != nil {
 			log.Printf("Error acuiring lock for writing metadata file: %v", err)
 		}
 
-		kvs.Lock(true)
+		err = kvs.Lock(store.DefaultLockTimeout)
+		if err != nil {
+			log.Errorf("push: Not able to acquire lock:%v", err)
+			return
+		}
+
 		err = common.SaveHostMetadata(metadata, metadataFile)
 		if err != nil {
 			log.Logf("saving host metadata failed with :%v", err)
 		}
-		kvs.Unlock(true)
+
+		err = kvs.Unlock()
+		if err != nil {
+			log.Errorf("push: Not able to release lock:%v", err)
+		}
 	}
 
 	switch y := x.(type) {
@@ -262,6 +287,8 @@ func push(x interface{}) {
 
 	case AIMetric:
 		SendAIMetric(y)
+	default:
+		log.Printf("Push fn: Default case:%+v", y)
 	}
 }
 

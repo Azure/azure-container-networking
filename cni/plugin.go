@@ -6,15 +6,14 @@ package cni
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"runtime"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
-
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -155,8 +154,13 @@ func (plugin *Plugin) Errorf(format string, args ...interface{}) *cniTypes.Error
 func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error {
 	// Create the key value store.
 	if plugin.Store == nil {
-		var err error
-		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + plugin.Name + ".json")
+		lockclient, err := processlock.NewFileLock(platform.CNILockPath + plugin.Name + store.LockExtension)
+		if err != nil {
+			log.Printf("[cni] Error initializing file lock:%v", err)
+			return errors.Wrap(err, "error creating new filelock")
+		}
+
+		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient)
 		if err != nil {
 			log.Printf("[cni] Failed to create store: %v.", err)
 			return err
@@ -164,7 +168,7 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 	}
 
 	// Acquire store lock.
-	if err := plugin.Store.Lock(true); err != nil {
+	if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
 		log.Printf("[cni] Failed to lock store: %v.", err)
 		return err
 	}
@@ -175,9 +179,9 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 }
 
 // Uninitialize key-value store
-func (plugin *Plugin) UninitializeKeyValueStore(force bool) error {
+func (plugin *Plugin) UninitializeKeyValueStore() error {
 	if plugin.Store != nil {
-		err := plugin.Store.Unlock(force)
+		err := plugin.Store.Unlock()
 		if err != nil {
 			log.Printf("[cni] Failed to unlock store: %v.", err)
 			return err
@@ -186,68 +190,4 @@ func (plugin *Plugin) UninitializeKeyValueStore(force bool) error {
 	plugin.Store = nil
 
 	return nil
-}
-
-// check if safe to remove lockfile
-func (plugin *Plugin) IsSafeToRemoveLock(processName string) (bool, error) {
-	if plugin != nil && plugin.Store != nil {
-		// check if get process command supported
-		if cmdErr := platform.GetProcessSupport(); cmdErr != nil {
-			log.Errorf("Get process cmd not supported. Error %v", cmdErr)
-			return false, cmdErr
-		}
-
-		lockFileName := plugin.Store.GetLockFileName()
-		// Read pid from lockfile
-		lockFilePid, err := plugin.readLockFile(lockFileName)
-		if err != nil {
-			return false, errors.Wrap(err, "IsSafeToRemoveLock lockfile read failed")
-		}
-
-		log.Printf("Read from lockfile:%s", lockFilePid)
-		// Get the process name if running and
-		// check if that matches with our expected process
-		// if it returns non-nil error then process is not running
-		pName, err := platform.GetProcessNameByID(lockFilePid)
-		if err != nil {
-			var content string
-			content, err = plugin.readLockFile(lockFileName)
-			if err != nil {
-				return false, errors.Wrap(err, "IsSafeToRemoveLock lockfile 2nd read failed")
-			}
-
-			// pid in lockfile changed after getprocessnamebyid call. so some other process acquired lockfile in between.
-			// so its not safe to remove lockfile
-			if string(content) != lockFilePid {
-				log.Printf("Lockfile content changed from %s to %s. So not safe to remove lockfile", lockFilePid, content)
-				return false, nil
-			}
-
-			return true, nil
-		}
-
-		log.Printf("[CNI] Process name is %s", pName)
-
-		if pName != processName {
-			return true, nil
-		}
-	}
-
-	log.Errorf("Plugin store is nil")
-	return false, fmt.Errorf("plugin store nil")
-}
-
-func (plugin *Plugin) readLockFile(filename string) (string, error) {
-	content, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Errorf("Failed to read lockfile :%v", err)
-		return "", fmt.Errorf("readLockFile error:%w", err)
-	}
-
-	if len(content) == 0 {
-		log.Errorf("Num bytes read from lockfile is 0")
-		return "", errEmptyContent
-	}
-
-	return string(content), nil
 }
