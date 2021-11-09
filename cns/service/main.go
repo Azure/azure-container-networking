@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" //nolint:gosec,gci //ignore
 	"os"
 	"os/signal"
 	"runtime"
@@ -359,6 +360,12 @@ func sendRegisterNodeRequest(
 
 // Main is the entry point for CNS.
 func main() {
+	go func() {
+		fmt.Println("binding pprof")
+		fmt.Println(http.ListenAndServe(":6060", nil))
+		fmt.Println("unbound pprof")
+	}()
+
 	// Initialize and parse command line arguments.
 	acn.ParseArgs(&args, printVersion)
 
