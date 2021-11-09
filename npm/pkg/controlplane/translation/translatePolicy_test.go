@@ -1789,7 +1789,7 @@ func TestNameSpaceSelector(t *testing.T) {
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: util.KubeAllNamespacesFlag,
-						Type: ipsets.Namespace,
+						Type: ipsets.KeyLabelOfNamespace,
 					},
 					Members: []string{},
 				},
@@ -1798,7 +1798,7 @@ func TestNameSpaceSelector(t *testing.T) {
 				{
 					IPSet: &ipsets.IPSetMetadata{
 						Name: util.KubeAllNamespacesFlag,
-						Type: ipsets.Namespace,
+						Type: ipsets.KeyLabelOfNamespace,
 					},
 					Included:  included,
 					MatchType: matchType,

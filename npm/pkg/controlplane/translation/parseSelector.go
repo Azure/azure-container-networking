@@ -306,7 +306,7 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 
 	// #1. All namespaces case
 	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
-		parsedSelectors.addSelector(true, ipsets.Namespace, util.KubeAllNamespacesFlag)
+		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlag)
 		return parsedSelectors.labelSelectors
 	}
 
