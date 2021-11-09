@@ -257,16 +257,23 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// install translated rules into kernel
 	npmNetPolObj := translation.TranslatePolicy(netPolObj)
 	// install translated rules into Dataplane
+	// DP update policy call will check if this policy already exists in kernel
+	// if yes: then will delete old rules and program new rules
+	// if no: then will program add new rules
 	err = c.dp.UpdatePolicy(npmNetPolObj)
 	if err != nil {
+		// if error ocurred the key is re-queued in workqueue and process this function again,
+		// which eventually meets desired states of network policy
 		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to update translated NPMNetworkPolicy into Dataplane due to %w", err)
 	}
 
-	// Cache network object first before applying ipsets and iptables.
-	// If error happens while applying ipsets and iptables,
-	// the key is re-queued in workqueue and process this function again, which eventually meets desired states of network policy
+	_, ok := c.rawNpMap[netpolKey]
+	if !ok {
+		// inc metric for NumPolicies only if it a new network policy
+		metrics.IncNumPolicies()
+	}
+
 	c.rawNpMap[netpolKey] = netPolObj
-	metrics.IncNumPolicies()
 	return nil
 }
 
@@ -293,6 +300,5 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
 func isSameNetworkPolicy(old, newnetpol *networkingv1.NetworkPolicy) bool {
 	return old.ObjectMeta.Name == newnetpol.ObjectMeta.Name &&
 		old.ObjectMeta.Namespace == newnetpol.ObjectMeta.Namespace &&
-		reflect.DeepEqual(old.TypeMeta, newnetpol.TypeMeta) &&
 		reflect.DeepEqual(old.Spec, newnetpol.Spec)
 }
