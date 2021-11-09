@@ -262,7 +262,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// if no: then will program add new rules
 	err = c.dp.UpdatePolicy(npmNetPolObj)
 	if err != nil {
-		// if error ocurred the key is re-queued in workqueue and process this function again,
+		// if error occurred the key is re-queued in workqueue and process this function again,
 		// which eventually meets desired states of network policy
 		return fmt.Errorf("[syncAddAndUpdateNetPol] Error: failed to update translated NPMNetworkPolicy into Dataplane due to %w", err)
 	}

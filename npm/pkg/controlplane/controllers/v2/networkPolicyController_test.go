@@ -175,7 +175,7 @@ type expectedNetPolValues struct {
 
 func checkNetPolTestResult(testName string, f *netPolFixture, testCases []expectedNetPolValues) {
 	for _, test := range testCases {
-		if got := len(f.netPolController.rawNpMap); got != test.expectedLenOfRawNpMap {
+		if got := f.netPolController.LengthOfRawNpMap(); got != test.expectedLenOfRawNpMap {
 			f.t.Errorf("Test: %s, Raw NetPol Map length = %d, want %d", testName, got, test.expectedLenOfRawNpMap)
 		}
 
