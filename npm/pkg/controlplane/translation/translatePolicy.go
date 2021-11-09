@@ -473,14 +473,14 @@ func translateIngress(npmNetPol *policies.NPMNetworkPolicy, targetSelector *meta
 	klog.Info("finished parsing ingress rule")
 }
 
-func existIngress(npObj *networkingv1.NetworkPolicy) bool { //nolint:unused //it will be called from v2 networkPolicyController which will come in next PR
+func existIngress(npObj *networkingv1.NetworkPolicy) bool {
 	return !(npObj.Spec.Ingress != nil &&
 		len(npObj.Spec.Ingress) == 1 &&
 		len(npObj.Spec.Ingress[0].Ports) == 0 &&
 		len(npObj.Spec.Ingress[0].From) == 0)
 }
 
-func translatePolicy(npObj *networkingv1.NetworkPolicy) *policies.NPMNetworkPolicy { //nolint:deadcode,unused //it will be called from v2 networkPolicyController which will come in next PR
+func TranslatePolicy(npObj *networkingv1.NetworkPolicy) *policies.NPMNetworkPolicy {
 	npmNetPol := &policies.NPMNetworkPolicy{
 		Name:      npObj.ObjectMeta.Name,
 		NameSpace: npObj.ObjectMeta.Namespace,
