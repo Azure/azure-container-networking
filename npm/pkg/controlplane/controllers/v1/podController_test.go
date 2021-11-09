@@ -87,7 +87,7 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 	// f.kubeInformer.Start(stopCh)
 }
 
-func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNewtwork bool, podPhase corev1.PodPhase) *corev1.Pod {
+func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNetwork bool, podPhase corev1.PodPhase) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -96,7 +96,7 @@ func createPod(name, ns, rv, podIP string, labels map[string]string, isHostNewtw
 			ResourceVersion: rv,
 		},
 		Spec: corev1.PodSpec{
-			HostNetwork: isHostNewtwork,
+			HostNetwork: isHostNetwork,
 			Containers: []corev1.Container{
 				{
 					Ports: []corev1.ContainerPort{
@@ -696,9 +696,9 @@ func TestIsCompletePod(t *testing.T) {
 	var defaultGracePeriod int64 = 30
 
 	type podState struct {
-		Phase                      corev1.PodPhase
-		DeletionTimestamp          *metav1.Time
-		DeletionGracePeriodSeconds *int64
+		phase                      corev1.PodPhase
+		deletionTimestamp          *metav1.Time
+		deletionGracePeriodSeconds *int64
 	}
 
 	tests := []struct {
@@ -710,45 +710,45 @@ func TestIsCompletePod(t *testing.T) {
 		{
 			name: "pod is in running status",
 			podState: podState{
-				Phase:                      corev1.PodRunning,
-				DeletionTimestamp:          nil,
-				DeletionGracePeriodSeconds: nil,
+				phase:                      corev1.PodRunning,
+				deletionTimestamp:          nil,
+				deletionGracePeriodSeconds: nil,
 			},
 			expectedCompletedPod: false,
 		},
 		{
 			name: "pod is in completely terminating states after graceful shutdown period",
 			podState: podState{
-				Phase:                      corev1.PodRunning,
-				DeletionTimestamp:          &metav1.Time{},
-				DeletionGracePeriodSeconds: &zeroGracePeriod,
+				phase:                      corev1.PodRunning,
+				deletionTimestamp:          &metav1.Time{},
+				deletionGracePeriodSeconds: &zeroGracePeriod,
 			},
 			expectedCompletedPod: true,
 		},
 		{
 			name: "pod is in terminating states, but in graceful shutdown period",
 			podState: podState{
-				Phase:                      corev1.PodRunning,
-				DeletionTimestamp:          &metav1.Time{},
-				DeletionGracePeriodSeconds: &defaultGracePeriod,
+				phase:                      corev1.PodRunning,
+				deletionTimestamp:          &metav1.Time{},
+				deletionGracePeriodSeconds: &defaultGracePeriod,
 			},
 			expectedCompletedPod: false,
 		},
 		{
 			name: "pod is in PodSucceeded status",
 			podState: podState{
-				Phase:                      corev1.PodSucceeded,
-				DeletionTimestamp:          nil,
-				DeletionGracePeriodSeconds: nil,
+				phase:                      corev1.PodSucceeded,
+				deletionTimestamp:          nil,
+				deletionGracePeriodSeconds: nil,
 			},
 			expectedCompletedPod: true,
 		},
 		{
 			name: "pod is in PodFailed status",
 			podState: podState{
-				Phase:                      corev1.PodSucceeded,
-				DeletionTimestamp:          nil,
-				DeletionGracePeriodSeconds: nil,
+				phase:                      corev1.PodSucceeded,
+				deletionTimestamp:          nil,
+				deletionGracePeriodSeconds: nil,
 			},
 			expectedCompletedPod: true,
 		},
@@ -760,11 +760,11 @@ func TestIsCompletePod(t *testing.T) {
 			t.Parallel()
 			corev1Pod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					DeletionTimestamp:          tt.podState.DeletionTimestamp,
-					DeletionGracePeriodSeconds: tt.podState.DeletionGracePeriodSeconds,
+					DeletionTimestamp:          tt.podState.deletionTimestamp,
+					DeletionGracePeriodSeconds: tt.podState.deletionGracePeriodSeconds,
 				},
 				Status: corev1.PodStatus{
-					Phase: tt.podState.Phase,
+					Phase: tt.podState.phase,
 				},
 			}
 			isPodCompleted := isCompletePod(corev1Pod)
@@ -807,13 +807,13 @@ func TestWorkQueue(t *testing.T) {
 
 func TestNPMPodNoUpdate(t *testing.T) {
 	type podInfo struct {
-		podName        string
-		ns             string
-		rv             string
-		podIP          string
-		labels         map[string]string
-		isHostNewtwork bool
-		podPhase       corev1.PodPhase
+		podName       string
+		ns            string
+		rv            string
+		podIP         string
+		labels        map[string]string
+		isHostNetwork bool
+		podPhase      corev1.PodPhase
 	}
 
 	labels := map[string]string{
@@ -829,13 +829,13 @@ func TestNPMPodNoUpdate(t *testing.T) {
 		{
 			"Required update of NPMPod given Pod",
 			podInfo{
-				podName:        "test-pod-1",
-				ns:             "test-namespace",
-				rv:             "0",
-				podIP:          "1.2.3.4",
-				labels:         labels,
-				isHostNewtwork: NonHostNetwork,
-				podPhase:       corev1.PodRunning,
+				podName:       "test-pod-1",
+				ns:            "test-namespace",
+				rv:            "0",
+				podIP:         "1.2.3.4",
+				labels:        labels,
+				isHostNetwork: NonHostNetwork,
+				podPhase:      corev1.PodRunning,
 			},
 			false,
 			false,
@@ -843,13 +843,13 @@ func TestNPMPodNoUpdate(t *testing.T) {
 		{
 			"No required update of NPMPod given Pod",
 			podInfo{
-				podName:        "test-pod-2",
-				ns:             "test-namespace",
-				rv:             "0",
-				podIP:          "1.2.3.4",
-				labels:         labels,
-				isHostNewtwork: NonHostNetwork,
-				podPhase:       corev1.PodRunning,
+				podName:       "test-pod-2",
+				ns:            "test-namespace",
+				rv:            "0",
+				podIP:         "1.2.3.4",
+				labels:        labels,
+				isHostNetwork: NonHostNetwork,
+				podPhase:      corev1.PodRunning,
 			},
 			true,
 			true,
@@ -860,7 +860,7 @@ func TestNPMPodNoUpdate(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			corev1Pod := createPod(tt.podName, tt.ns, tt.rv, tt.podIP, tt.labels, tt.isHostNewtwork, tt.podPhase)
+			corev1Pod := createPod(tt.podName, tt.ns, tt.rv, tt.podIP, tt.labels, tt.isHostNetwork, tt.podPhase)
 			npmPod := newNpmPod(corev1Pod)
 			if tt.updatingNPMPod {
 				npmPod.appendLabels(corev1Pod.Labels, AppendToExistingLabels)
