@@ -3,7 +3,6 @@ package translation
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
@@ -189,61 +188,6 @@ func podSelectorWithNS(ns string, matchType policies.MatchType, selector *metav1
 	podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ns, ipsets.Namespace, nilSlices))
 	podSelectorList = append(podSelectorList, policies.NewSetInfo(ns, ipsets.Namespace, included, matchType))
 	return podSelectorIPSets, podSelectorList
-}
-
-func nsLabelType(label string) ipsets.SetType {
-	// TODO(jungukcho): this is unnecessary function which has extra computation
-	// will be removed after optimizing parseSelector function
-	labels := strings.Split(label, ":")
-	if len(labels) == onlyKeyLabel {
-		return ipsets.KeyLabelOfNamespace
-	} else if len(labels) == keyValueLabel {
-		return ipsets.KeyValueLabelOfNamespace
-	}
-
-	// (TODO): check whether this is possible
-	return ipsets.UnknownType
-}
-
-func nameSpaceSelectorRule(matchType policies.MatchType, ops, nsSelectorInfo []string) []policies.SetInfo {
-	nsSelectorList := []policies.SetInfo{}
-	for i := 0; i < len(nsSelectorInfo); i++ {
-		noOp := ops[i] == ""
-		labelType := nsLabelType(nsSelectorInfo[i])
-		setInfo := policies.NewSetInfo(nsSelectorInfo[i], labelType, noOp, matchType)
-		nsSelectorList = append(nsSelectorList, setInfo)
-	}
-	return nsSelectorList
-}
-
-func nameSpaceSelectorIPSets(singleValueLabels []string) []*ipsets.TranslatedIPSet {
-	nsSelectorIPSets := []*ipsets.TranslatedIPSet{}
-	for _, listSet := range singleValueLabels {
-		labelType := nsLabelType(listSet)
-		translatedIPSet := ipsets.NewTranslatedIPSet(listSet, labelType, []string{})
-		nsSelectorIPSets = append(nsSelectorIPSets, translatedIPSet)
-	}
-	return nsSelectorIPSets
-}
-
-func nameSpaceSelectorInfo(selector *metav1.LabelSelector) (ops, singleValueLabels []string) {
-	// parse namespace label selector.
-	// Ignore multiple values from parseSelector since Namespace selector does not have multiple values.
-	// TODO(jungukcho): will revise parseSelector for easy understanding between podSelector and namespaceSelector
-	singleValueLabelsWithOps, _ := parseSelector(selector)
-	ops, singleValueLabels = GetOperatorsAndLabels(singleValueLabelsWithOps)
-	return ops, singleValueLabels
-}
-
-// allNameSpaceRule returns translatedIPSet and SetInfo
-// in case namespaceSelector field has {} which means all namespaces.
-func allNameSpaceRule(matchType policies.MatchType) ([]*ipsets.TranslatedIPSet, []policies.SetInfo) {
-	translatedIPSet := ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.Namespace, []string{})
-	nsSelectorIPSets := []*ipsets.TranslatedIPSet{translatedIPSet}
-
-	setInfo := policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.Namespace, included, matchType)
-	nsSelectorList := []policies.SetInfo{setInfo}
-	return nsSelectorIPSets, nsSelectorList
 }
 
 // nameSpaceSelector translates namespaceSelector of NetworkPolicyPeer in networkpolicy object to translatedIPSet and SetInfo.
