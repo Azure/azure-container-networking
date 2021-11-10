@@ -108,7 +108,8 @@ type TranslatedIPSet struct {
 }
 
 // NewTranslatedIPSet creates TranslatedIPSet.
-func NewTranslatedIPSet(name string, setType SetType, members []string) *TranslatedIPSet {
+// Only nested labels from podSelector and IPBlock has members and others has nil slice.
+func NewTranslatedIPSet(name string, setType SetType, members ...string) *TranslatedIPSet {
 	translatedIPSet := &TranslatedIPSet{
 		Metadata: NewIPSetMetadata(name, setType),
 		Members:  members,

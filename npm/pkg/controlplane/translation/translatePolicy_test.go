@@ -199,7 +199,6 @@ func TestNamedPortRuleInfo(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
-					Members: []string{},
 				},
 				protocol: "TCP",
 			},
@@ -215,7 +214,6 @@ func TestNamedPortRuleInfo(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
-					Members: []string{},
 				},
 				protocol: "TCP",
 			},
@@ -272,7 +270,6 @@ func TestNamedPortRule(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
-					Members: []string{},
 				},
 				setInfo: policies.SetInfo{
 					IPSet: &ipsets.IPSetMetadata{
@@ -296,7 +293,6 @@ func TestNamedPortRule(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
-					Members: []string{},
 				},
 				setInfo: policies.SetInfo{
 					IPSet: &ipsets.IPSetMetadata{
@@ -582,7 +578,6 @@ func TestIPBlockRule(t *testing.T) {
 
 func TestPodSelector(t *testing.T) {
 	matchType := policies.DstMatch
-	var nilSlices []string
 	tests := []struct {
 		name              string
 		namespace         string
@@ -599,7 +594,7 @@ func TestPodSelector(t *testing.T) {
 				MatchLabels: map[string]string{},
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet("default", ipsets.Namespace, nilSlices),
+				ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("default", ipsets.Namespace, included, matchType),
@@ -613,7 +608,7 @@ func TestPodSelector(t *testing.T) {
 				MatchLabels: map[string]string{},
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet("test", ipsets.Namespace, nilSlices),
+				ipsets.NewTranslatedIPSet("test", ipsets.Namespace),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("test", ipsets.Namespace, included, matchType),
@@ -628,7 +623,7 @@ func TestPodSelector(t *testing.T) {
 				},
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod, nilSlices),
+				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
@@ -649,8 +644,8 @@ func TestPodSelector(t *testing.T) {
 				},
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod, nilSlices),
-				ipsets.NewTranslatedIPSet("label", ipsets.KeyLabelOfPod, nilSlices),
+				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+				ipsets.NewTranslatedIPSet("label", ipsets.KeyLabelOfPod),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
@@ -675,8 +670,8 @@ func TestPodSelector(t *testing.T) {
 				},
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod, nilSlices),
-				ipsets.NewTranslatedIPSet("labelIn:src", ipsets.KeyValueLabelOfPod, nilSlices),
+				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+				ipsets.NewTranslatedIPSet("labelIn:src", ipsets.KeyValueLabelOfPod),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
@@ -701,8 +696,8 @@ func TestPodSelector(t *testing.T) {
 				},
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod, nilSlices),
-				ipsets.NewTranslatedIPSet("labelNotIn:src", ipsets.KeyValueLabelOfPod, nilSlices),
+				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+				ipsets.NewTranslatedIPSet("labelNotIn:src", ipsets.KeyValueLabelOfPod),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
@@ -733,11 +728,11 @@ func TestPodSelector(t *testing.T) {
 				},
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod, nilSlices),
-				ipsets.NewTranslatedIPSet("k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}),
-				ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod, nilSlices),
-				ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod, nilSlices),
-				ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod, nilSlices),
+				ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
+				ipsets.NewTranslatedIPSet("k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
+				ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
+				ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
+				ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, matchType),
@@ -1096,7 +1091,6 @@ func TestAllowAllTraffic(t *testing.T) {
 					Name: util.KubeAllNamespacesFlag,
 					Type: ipsets.Namespace,
 				},
-				Members: []string{},
 			},
 			nsSelectorList: policies.SetInfo{
 				IPSet: &ipsets.IPSetMetadata{
@@ -1183,7 +1177,6 @@ func TestPortRuleWithNamedPort(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
-					Members: []string{},
 				},
 			},
 			acl: &policies.ACLPolicy{
@@ -1211,7 +1204,6 @@ func TestPortRuleWithNamedPort(t *testing.T) {
 						Name: util.NamedPortIPSetPrefix + "serve-tcp",
 						Type: ipsets.NamedPorts,
 					},
-					Members: []string{},
 				},
 			},
 			acl: &policies.ACLPolicy{
@@ -1438,7 +1430,6 @@ func TestPeerAndPortRule(t *testing.T) {
 							Name: util.NamedPortIPSetPrefix + "serve-tcp",
 							Type: ipsets.NamedPorts,
 						},
-						Members: []string{},
 					},
 				},
 				ACLs: []*policies.ACLPolicy{
@@ -1479,7 +1470,6 @@ func TestPeerAndPortRule(t *testing.T) {
 							Name: util.NamedPortIPSetPrefix + "serve-tcp",
 							Type: ipsets.NamedPorts,
 						},
-						Members: []string{},
 					},
 				},
 				ACLs: []*policies.ACLPolicy{
@@ -1529,7 +1519,6 @@ func TestPeerAndPortRule(t *testing.T) {
 							Name: util.NamedPortIPSetPrefix + "serve-tcp",
 							Type: ipsets.NamedPorts,
 						},
-						Members: []string{},
 					},
 				},
 				ACLs: []*policies.ACLPolicy{
@@ -1570,7 +1559,6 @@ func TestPeerAndPortRule(t *testing.T) {
 							Name: util.NamedPortIPSetPrefix + "serve-tcp",
 							Type: ipsets.NamedPorts,
 						},
-						Members: []string{},
 					},
 				},
 				ACLs: []*policies.ACLPolicy{
@@ -1617,8 +1605,6 @@ func TestTranslateIngress(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	targetPodMatchType := policies.DstMatch
 	peerMatchType := policies.SrcMatch
-	// TODO(jungukcho): this nilSlices will be removed.
-	var nilSlices []string
 	// TODO(jungukcho): add test cases with more complex rules
 	tests := []struct {
 		name           string
@@ -1646,8 +1632,8 @@ func TestTranslateIngress(t *testing.T) {
 				Name:      "serve-tcp",
 				NameSpace: "default",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod, nilSlices),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace, nilSlices),
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
@@ -1690,15 +1676,15 @@ func TestTranslateIngress(t *testing.T) {
 				Name:      "only-ipblock",
 				NameSpace: "default",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod, nilSlices),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace, nilSlices),
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24nomatch"}),
+					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24nomatch"}...),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
@@ -1736,16 +1722,16 @@ func TestTranslateIngress(t *testing.T) {
 				Name:      "only-peer-podSelector",
 				NameSpace: "default",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod, nilSlices),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace, nilSlices),
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("peer-podselector-kay:peer-podselector-value", ipsets.KeyValueLabelOfPod, nilSlices),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace, nilSlices),
+					ipsets.NewTranslatedIPSet("peer-podselector-kay:peer-podselector-value", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
@@ -1784,15 +1770,15 @@ func TestTranslateIngress(t *testing.T) {
 				Name:      "only-peer-nsSelector",
 				NameSpace: "default",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod, nilSlices),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace, nilSlices),
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, nilSlices),
+					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
