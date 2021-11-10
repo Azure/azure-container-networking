@@ -76,6 +76,8 @@ CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSIO
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_IMAGE_ARCHIVE_NAME = azure-cni-manager-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNS_IMAGE_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+NPM_IMAGE_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
@@ -93,7 +95,6 @@ AZURE_CNI_IMAGE = $(IMAGE_REGISTRY)/azure-cni-manager
 AZURE_CNS_IMAGE = $(IMAGE_REGISTRY)/azure-cns
 
 IMAGE_PLATFORM_ARCHES ?= linux/amd64,linux/arm64
-IMAGE_ACTION ?= push
 
 VERSION ?= $(shell git describe --tags --always --dirty)
 
@@ -181,6 +182,7 @@ azure-npm-binary:
 tools-images:
 	$(MKDIR) $(IMAGE_DIR)
 	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
+	sudo chown -R $$(whoami) $(IMAGE_DIR) || true; sudo chmod 777 -R $(IMAGE_DIR) || true
 	docker save $(AZURE_CNI_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNI_IMAGE_ARCHIVE_NAME)
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
@@ -220,19 +222,17 @@ azure-cnm-plugin-image: azure-cnm-plugin
 azure-npm-image:
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(IMAGE_DIR)
-	docker buildx create --use
-	docker buildx build \
+	docker build \
 	--no-cache \
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(VERSION) \
 	--build-arg VERSION=$(VERSION) \
 	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
 	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
-	--platform=$(IMAGE_PLATFORM_ARCHES) \
-	--$(IMAGE_ACTION) \
 	.
 	
-	echo $(AZURE_NPM_IMAGE):$(VERSION)
+	sudo chown -R $$(whoami) $(IMAGE_DIR) || true; sudo chmod 777 -R $(IMAGE_DIR) || true
+	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
 endif
 
 # Build the Azure CNS image
@@ -240,19 +240,17 @@ endif
 azure-cns-image:
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(IMAGE_DIR)
-	docker buildx create --use
-	docker buildx build \
+	docker build \
 	--no-cache \
 	-f cns/Dockerfile \
 	-t $(AZURE_CNS_IMAGE):$(VERSION) \
 	--build-arg VERSION=$(VERSION) \
 	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
-	--platform=$(IMAGE_PLATFORM_ARCHES) \
-	--$(IMAGE_ACTION) \
 	.
 
-	echo $(AZURE_CNS_IMAGE):$(VERSION)
+	sudo chown -R $$(whoami) $(IMAGE_DIR) || true; sudo chmod 777 -R $(IMAGE_DIR) || true
+	docker save $(AZURE_CNS_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNS_IMAGE_ARCHIVE_NAME)
 endif
 
 # Build the Azure CNS image windows
