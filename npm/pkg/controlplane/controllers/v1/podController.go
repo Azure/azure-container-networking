@@ -21,11 +21,10 @@ import (
 	coreinformer "k8s.io/client-go/informers/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
-
-	k8slabels "k8s.io/apimachinery/pkg/labels"
 )
 
 // NamedPortOperation decides opeartion (e.g., delete or add) for named port ipset in manageNamedPortIpsets

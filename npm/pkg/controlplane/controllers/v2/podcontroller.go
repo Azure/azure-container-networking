@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformer "k8s.io/client-go/informers/core/v1"
@@ -81,6 +82,18 @@ func (nPod *NpmPod) updateNpmPodAttributes(podObj *corev1.Pod) {
 	if nPod.Phase != podObj.Status.Phase {
 		nPod.Phase = podObj.Status.Phase
 	}
+}
+
+// noUpdate evaluates whether NpmPod is required to be update given podObj.
+func (nPod *NpmPod) noUpdate(podObj *corev1.Pod) bool {
+	return nPod.Namespace == podObj.ObjectMeta.Namespace &&
+		nPod.Name == podObj.ObjectMeta.Name &&
+		nPod.Phase == podObj.Status.Phase &&
+		nPod.PodIP == podObj.Status.PodIP &&
+		k8slabels.Equals(nPod.Labels, podObj.ObjectMeta.Labels) &&
+		// TODO(jungukcho) to avoid using DeepEqual for ContainerPorts,
+		// it needs a precise sorting. Will optimize it later if needed.
+		reflect.DeepEqual(nPod.ContainerPorts, getContainerPortList(podObj))
 }
 
 type PodController struct {
@@ -169,7 +182,8 @@ func (c *PodController) addPod(obj interface{}) {
 	}
 	podObj, _ := obj.(*corev1.Pod)
 
-	// If newPodObj status is either corev1.PodSucceeded or corev1.PodFailed or DeletionTimestamp is set, do not need to add it into workqueue.
+	// To check whether this pod is needed to queue or not.
+	// If the pod are in completely terminated states, the pod is not enqueued to avoid unnecessary computation.
 	if isCompletePod(podObj) {
 		return
 	}
@@ -333,7 +347,9 @@ func (c *PodController) syncPod(key string) error {
 		return err
 	}
 
-	// If newPodObj status is either corev1.PodSucceeded or corev1.PodFailed or DeletionTimestamp is set, start clean-up the lastly applied states.
+	// If this pod is completely in terminated states (which means pod is gracefully shutdown),
+	// NPM starts clean-up the lastly applied states even in update events.
+	// This proactive clean-up helps to miss stale pod object in case delete event is missed.
 	if isCompletePod(pod) {
 		if err = c.cleanUpDeletedPod(key); err != nil {
 			return fmt.Errorf("Error: %w when when pod is in completed state", err)
@@ -346,7 +362,7 @@ func (c *PodController) syncPod(key string) error {
 		// if pod does not have different states against lastly applied states stored in cachedNpmPod,
 		// podController does not need to reconcile this update.
 		// in this updatePod event, newPod was updated with states which PodController does not need to reconcile.
-		if isInvalidPodUpdate(cachedNpmPod, pod) {
+		if cachedNpmPod.noUpdate(pod) {
 			return nil
 		}
 	}
@@ -619,13 +635,20 @@ func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, p
 	return nil
 }
 
+// isCompletePod evaluates whether this pod is completely in terminated states,
+// which means pod is gracefully shutdown.
 func isCompletePod(podObj *corev1.Pod) bool {
-	if podObj.DeletionTimestamp != nil {
+	// DeletionTimestamp and DeletionGracePeriodSeconds in pod are not nil,
+	// which means pod is expected to be deleted and
+	// DeletionGracePeriodSeconds value is zero, which means the pod is gracefully terminated.
+	if podObj.DeletionTimestamp != nil && podObj.DeletionGracePeriodSeconds != nil && *podObj.DeletionGracePeriodSeconds == 0 {
 		return true
 	}
 
-	// K8s categorizes Succeeded and Failed pods as a terminated pod and will not restart them
+	// K8s categorizes Succeeded and Failed pods as a terminated pod and will not restart them.
 	// So NPM will ignorer adding these pods
+	// TODO(jungukcho): what are the values of DeletionTimestamp and podObj.DeletionGracePeriodSeconds
+	// in either below status?
 	if podObj.Status.Phase == corev1.PodSucceeded || podObj.Status.Phase == corev1.PodFailed {
 		return true
 	}
@@ -646,16 +669,4 @@ func getContainerPortList(podObj *corev1.Pod) []corev1.ContainerPort {
 		portList = append(portList, podObj.Spec.Containers[i].Ports...)
 	}
 	return portList
-}
-
-// (TODO): better naming?
-func isInvalidPodUpdate(npmPod *NpmPod, newPodObj *corev1.Pod) bool {
-	return npmPod.Namespace == newPodObj.ObjectMeta.Namespace &&
-		npmPod.Name == newPodObj.ObjectMeta.Name &&
-		npmPod.Phase == newPodObj.Status.Phase &&
-		npmPod.PodIP == newPodObj.Status.PodIP &&
-		newPodObj.ObjectMeta.DeletionTimestamp == nil &&
-		newPodObj.ObjectMeta.DeletionGracePeriodSeconds == nil &&
-		reflect.DeepEqual(npmPod.Labels, newPodObj.ObjectMeta.Labels) &&
-		reflect.DeepEqual(npmPod.ContainerPorts, getContainerPortList(newPodObj))
 }
