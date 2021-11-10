@@ -199,7 +199,7 @@ func nameSpaceSelector(matchType policies.MatchType, selector *metav1.LabelSelec
 
 	for i := 0; i < LenOfnsSelectors; i++ {
 		nsc := nsSelectors[i]
-		nsSelectorIPSets[i] = ipsets.NewTranslatedIPSet(nsc.setName, nsc.setType, []string{})
+		nsSelectorIPSets[i] = ipsets.NewTranslatedIPSet(nsc.setName, nsc.setType, nsc.members)
 		nsSelectorList[i] = policies.NewSetInfo(nsc.setName, nsc.setType, nsc.include, matchType)
 	}
 

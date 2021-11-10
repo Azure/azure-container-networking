@@ -785,7 +785,6 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: util.KubeAllNamespacesFlag,
 						Type: ipsets.KeyLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 			},
 			nsSelectorList: []policies.SetInfo{
@@ -803,7 +802,6 @@ func TestNameSpaceSelector(t *testing.T) {
 			name:      "namespaceSelector with one label in ingress",
 			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
-				// TODO(jungukcho): check this one
 				MatchLabels: map[string]string{
 					"test": "",
 				},
@@ -814,7 +812,6 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "test:",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 			},
 			nsSelectorList: []policies.SetInfo{
@@ -842,7 +839,6 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 			},
 			nsSelectorList: []policies.SetInfo{
@@ -876,14 +872,12 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "label",
 						Type: ipsets.KeyLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 			},
 			nsSelectorList: []policies.SetInfo{
@@ -928,14 +922,12 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "labelIn:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 			},
 			nsSelectorList: []policies.SetInfo{
@@ -980,14 +972,12 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "label:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "labelNotIn:src",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 			},
 			nsSelectorList: []policies.SetInfo{
@@ -1037,21 +1027,18 @@ func TestNameSpaceSelector(t *testing.T) {
 						Name: "k0:v0",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "k1:v10",
 						Type: ipsets.KeyValueLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 				{
 					Metadata: &ipsets.IPSetMetadata{
 						Name: "k2",
 						Type: ipsets.KeyLabelOfNamespace,
 					},
-					Members: []string{},
 				},
 			},
 			nsSelectorList: []policies.SetInfo{
@@ -1805,7 +1792,7 @@ func TestTranslateIngress(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, []string{}),
+					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, nilSlices),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
