@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 	"k8s.io/utils/exec"
 )
@@ -55,19 +56,26 @@ func newStartNPMCmd() *cobra.Command {
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := &npmconfig.Config{}
+			config := npmconfig.Config{}
 			err := viper.Unmarshal(config)
 			if err != nil {
 				return fmt.Errorf("failed to load config with error %w", err)
 			}
 
-			return start(*config)
+			flags := npmconfig.Flags{
+				KubeConfigPath: viper.GetString(FlagKubeConfigPath),
+			}
+
+			return start(config, flags)
 		},
 	}
+
+	startNPMCmd.Flags().String(FlagKubeConfigPath, FlagDefaults[FlagKubeConfigPath], "path to kubeconfig")
+
 	return startNPMCmd
 }
 
-func start(config npmconfig.Config) error {
+func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	klog.Infof("loaded config: %+v", config)
 	klog.Infof("Start NPM version: %s", version)
 
@@ -84,10 +92,20 @@ func start(config npmconfig.Config) error {
 
 	metrics.InitializeAll()
 
-	// Creates the in-cluster config
-	k8sConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load in cluster config: %w", err)
+	// Create the kubernetes client
+	var k8sConfig *rest.Config
+	if flags.KubeConfigPath != "" {
+		var err error
+		k8sConfig, err = rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load in cluster config: %w", err)
+		}
+	} else {
+		var err error
+		k8sConfig, err = clientcmd.BuildConfigFromFlags("", flags.KubeConfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to load kubeconfig [%s] with err config: %w", flags.KubeConfigPath, err)
+		}
 	}
 
 	// Creates the clientset

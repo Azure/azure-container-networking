@@ -34,3 +34,7 @@ type Toggles struct {
 	EnableHTTPDebugAPI      bool
 	EnableV2Controllers     bool
 }
+
+type Flags struct {
+	KubeConfigPath string `json:"KubeConfigPath"`
+}
