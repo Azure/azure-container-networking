@@ -75,9 +75,7 @@ CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(VERSION).$(ARC
 CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-NPM_IMAGE_INFO_FILE = azure-npm-$(VERSION).txt
 CNI_IMAGE_ARCHIVE_NAME = azure-cni-manager-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNS_IMAGE_INFO_FILE = azure-cns-$(VERSION).txt
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
@@ -234,7 +232,7 @@ ifeq ($(GOOS),linux)
 	--$(IMAGE_ACTION) \
 	.
 	
-	echo $(AZURE_NPM_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
+	echo $(AZURE_NPM_IMAGE):$(VERSION)
 endif
 
 # Build the Azure CNS image
@@ -254,7 +252,7 @@ ifeq ($(GOOS),linux)
 	--$(IMAGE_ACTION) \
 	.
 
-	echo $(AZURE_CNS_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
+	echo $(AZURE_CNS_IMAGE):$(VERSION)
 endif
 
 # Build the Azure CNS image windows
@@ -270,7 +268,7 @@ azure-cns-image-windows:
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
 	.
 
-	echo $(AZURE_CNS_IMAGE)-win:$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
+	echo $(AZURE_CNS_IMAGE)-win:$(VERSION)
 
 ########################### Archives ################################
 
