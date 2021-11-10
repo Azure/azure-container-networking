@@ -324,7 +324,7 @@ func translateIngress(npmNetPol *policies.NPMNetworkPolicy, targetSelector *meta
 
 			// #2.2 handle nameSpaceSelector and port if exist
 			if fromRule.PodSelector == nil && fromRule.NamespaceSelector != nil {
-				flattenNSSelctor := FlattenNameSpaceSelector(fromRule.NamespaceSelector)
+				flattenNSSelctor := flattenNameSpaceSelector(fromRule.NamespaceSelector)
 				for i := range flattenNSSelctor {
 					nsSelectorIPSets, nsSrcList := nameSpaceSelector(policies.SrcMatch, &flattenNSSelctor[i])
 					npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, nsSelectorIPSets...)
@@ -354,7 +354,7 @@ func translateIngress(npmNetPol *policies.NPMNetworkPolicy, targetSelector *meta
 			podSelectorIPSets, podSelectorSrcList := podSelector(policies.SrcMatch, fromRule.PodSelector)
 			npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, podSelectorIPSets...)
 
-			flattenNSSelctor := FlattenNameSpaceSelector(fromRule.NamespaceSelector)
+			flattenNSSelctor := flattenNameSpaceSelector(fromRule.NamespaceSelector)
 			for i := range flattenNSSelctor {
 				nsSelectorIPSets, nsSrcList := nameSpaceSelector(policies.SrcMatch, &flattenNSSelctor[i])
 				npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, nsSelectorIPSets...)

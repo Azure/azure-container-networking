@@ -7,9 +7,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// FlattenNameSpaceSelector will help flatten multiple nameSpace selector match Expressions values
+// flattenNameSpaceSelector will help flatten multiple nameSpace selector match Expressions values
 // into multiple label selectors helping with the OR condition.
-func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSelector {
+func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSelector {
 	/*
 			This function helps to create multiple labelSelectors when given a single multivalue nsSelector
 			Take below example: this nsSelector has 2 values in a matchSelector.
@@ -185,7 +185,7 @@ func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, set
 // parseNSSelector parses namespaceSelector and returns slice of labelSelector object
 // which includes operator, setType, ipset name and always nil members slice.
 // Member slices is always nil since parseNSSelector function is called
-// after FlattenNameSpaceSelector function is called, which guarantees
+// after flattenNameSpaceSelector function is called, which guarantees
 // there is no matchExpression with multiple values.
 // TODO: good to remove this dependency later if possible.
 func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
