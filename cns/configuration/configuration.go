@@ -3,7 +3,6 @@ package configuration
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -93,7 +92,7 @@ func ReadConfig() (*CNSConfig, error) {
 }
 
 func readConfigFromFile(f string) (*CNSConfig, error) {
-	content, err := ioutil.ReadFile(f)
+	content, err := os.ReadFile(f)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read config file %s", f)
 	}

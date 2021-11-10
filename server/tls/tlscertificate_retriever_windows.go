@@ -7,7 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/billgraziano/dpapi"
@@ -55,7 +55,7 @@ func (wtls *windowsTlsCertificateRetriever) GetPrivateKey() (crypto.PrivateKey, 
 
 // ReadFile reads a from disk
 func (wtls *windowsTlsCertificateRetriever) readFile() ([]byte, error) {
-	content, err := ioutil.ReadFile(wtls.settings.TLSCertificatePath)
+	content, err := os.ReadFile(wtls.settings.TLSCertificatePath)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading file from path %s with error: %+v ", wtls.settings.TLSCertificatePath, err)
 	}

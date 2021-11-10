@@ -6,7 +6,6 @@ package platform
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -38,7 +37,7 @@ const (
 
 // GetOSInfo returns OS version information.
 func GetOSInfo() string {
-	info, err := ioutil.ReadFile("/proc/version")
+	info, err := os.ReadFile("/proc/version")
 	if err != nil {
 		return "unknown"
 	}

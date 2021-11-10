@@ -6,7 +6,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"reflect"
 	"time"
@@ -78,7 +78,7 @@ func validateConfig(jsonBytes []byte) error {
 
 func getCmdArgsFromEnv() (string, *skel.CmdArgs, error) {
 	log.Printf("Going to read from stdin")
-	stdinData, err := ioutil.ReadAll(os.Stdin)
+	stdinData, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", nil, fmt.Errorf("error reading from stdin: %v", err)
 	}

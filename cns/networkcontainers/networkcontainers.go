@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"go/types"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -112,7 +111,7 @@ func DeleteLoopbackAdapter(adapterName string) error {
 
 // This function gets the flattened network configuration (compliant with azure cni) in byte array format
 func getNetworkConfig(configFilePath string) ([]byte, error) {
-	content, err := ioutil.ReadFile(configFilePath)
+	content, err := os.ReadFile(configFilePath)
 	if err != nil {
 		return nil, err
 	}

@@ -9,7 +9,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"testing"
@@ -25,7 +24,7 @@ func TestPemConsumptionLinux(t *testing.T) {
 	currentDirectory, _ := os.Getwd()
 	pemLocation := fmt.Sprintf("%s/%s.Pem", currentDirectory, commonName)
 
-	ioutil.WriteFile(pemLocation, pemContent, 0o644)
+	os.WriteFile(pemLocation, pemContent, 0o644)
 	defer os.Remove(pemLocation)
 
 	config := TlsSettings{

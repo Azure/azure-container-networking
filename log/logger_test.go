@@ -5,7 +5,6 @@ package log
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -65,7 +64,7 @@ func TestPid(t *testing.T) {
 	fn := l.GetLogDirectory() + logName + ".log"
 	defer os.Remove(fn)
 
-	logBytes, err := ioutil.ReadFile(fn)
+	logBytes, err := os.ReadFile(fn)
 	if err != nil {
 		t.Fatalf("Failed to read log, %v", err)
 	}

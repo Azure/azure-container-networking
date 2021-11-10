@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -1116,7 +1116,7 @@ func TestTranslateEgress(t *testing.T) {
 func readPolicyYaml(policyYaml string) (*networkingv1.NetworkPolicy, error) {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	policyYamlLocation := filepath.Join(testPolicyDir, policyYaml)
-	b, err := ioutil.ReadFile(policyYamlLocation)
+	b, err := os.ReadFile(policyYamlLocation)
 	if err != nil {
 		return nil, err
 	}
