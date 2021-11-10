@@ -205,8 +205,8 @@ func nameSpaceSelector(matchType policies.MatchType, selector *metav1.LabelSelec
 
 // allowAllTraffic returns translatedIPSet and SetInfo in case of allow all internal traffic.
 func allowAllTraffic(matchType policies.MatchType) (*ipsets.TranslatedIPSet, policies.SetInfo) {
-	allowAllIPSets := ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.Namespace)
-	setInfo := policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.Namespace, included, matchType)
+	allowAllIPSets := ipsets.NewTranslatedIPSet(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
+	setInfo := policies.NewSetInfo(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace, included, matchType)
 	return allowAllIPSets, setInfo
 }
 

@@ -1089,13 +1089,13 @@ func TestAllowAllTraffic(t *testing.T) {
 			nsSelectorIPSets: &ipsets.TranslatedIPSet{
 				Metadata: &ipsets.IPSetMetadata{
 					Name: util.KubeAllNamespacesFlag,
-					Type: ipsets.Namespace,
+					Type: ipsets.KeyLabelOfNamespace,
 				},
 			},
 			nsSelectorList: policies.SetInfo{
 				IPSet: &ipsets.IPSetMetadata{
 					Name: util.KubeAllNamespacesFlag,
-					Type: ipsets.Namespace,
+					Type: ipsets.KeyLabelOfNamespace,
 				},
 				Included:  included,
 				MatchType: matchType,
