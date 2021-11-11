@@ -56,17 +56,17 @@ func newStartNPMCmd() *cobra.Command {
 		},
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config := npmconfig.Config{}
+			config := &npmconfig.Config{}
 			err := viper.Unmarshal(config)
 			if err != nil {
-				return fmt.Errorf("failed to load config with error %w", err)
+				return fmt.Errorf("failed to load config with error: %w", err)
 			}
 
 			flags := npmconfig.Flags{
 				KubeConfigPath: viper.GetString(FlagKubeConfigPath),
 			}
 
-			return start(config, flags)
+			return start(*config, flags)
 		},
 	}
 
@@ -94,7 +94,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	// Create the kubernetes client
 	var k8sConfig *rest.Config
-	if flags.KubeConfigPath != "" {
+	if flags.KubeConfigPath == "" {
 		var err error
 		k8sConfig, err = rest.InClusterConfig()
 		if err != nil {

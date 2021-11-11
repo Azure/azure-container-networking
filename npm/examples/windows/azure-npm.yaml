@@ -83,16 +83,12 @@ spec:
           runAsUserName: "NT AUTHORITY\\SYSTEM"
       hostNetwork: true
 
-      #initContainers:
-     # - name: init-myservice
-      #  image:  acnpublic.azurecr.io/azure-npm:v8-windows-amd64
-       # command: ["powershell.exe"]
-        #args: ['.\setkubeconfigpath.ps1']
-
 
       containers:
         - name: azure-npm
-          image: acnpublic.azurecr.io/azure-npm:v8-windows-amd64
+          image: acnpublic.azurecr.io/azure-npm:v19-windows-amd64
+          command: ["powershell.exe"]
+          args: ['.\setkubeconfigpath.ps1', ';', 'powershell.exe', '.\npm.exe', "start", '--kubeconfig=.\kubeconfig']
           resources:
             limits:
               cpu: 250m
@@ -107,7 +103,7 @@ spec:
                   apiVersion: v1
                   fieldPath: spec.nodeName
             - name: NPM_CONFIG
-              value: /etc/azure-npm/azure-npm.json
+              value: azure-npm.json
           volumeMounts:
           - name: azure-npm-config
             mountPath: /etc/azure-npm

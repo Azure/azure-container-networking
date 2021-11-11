@@ -18,4 +18,4 @@ COPY --from=builder /usr/src/npm/npm/examples/windows/kubeconfigtemplate.yaml ku
 COPY --from=builder /usr/src/npm/npm/examples/windows/setkubeconfigpath.ps1 setkubeconfigpath.ps1
 COPY --from=builder /usr/bin/npm.exe npm.exe
 
-CMD ["npm.exe", "start" "--kubeconfig=.\kubeconfig"]
+CMD ["npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
