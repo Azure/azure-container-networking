@@ -163,7 +163,8 @@ func newParsedSelectors() parsedSelectors {
 func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, setName string, members ...string) {
 	setNameWithOp := setName
 	if !include {
-		setNameWithOp = "!" + setName
+		// adding setType.String() is not necessary, but it has more robust just in case.
+		setNameWithOp = "!" + setName + setType.String()
 	}
 
 	// in case setNameWithOp exists in a set, do not need to add it.

@@ -1601,7 +1601,7 @@ func TestPeerAndPortRule(t *testing.T) {
 	}
 }
 
-func TestTranslateIngress(t *testing.T) {
+func TestIngressPolicy(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	targetPodMatchType := policies.DstMatch
 	peerMatchType := policies.SrcMatch
@@ -1801,7 +1801,8 @@ func TestTranslateIngress(t *testing.T) {
 				Name:      tt.npmNetPol.Name,
 				NameSpace: tt.npmNetPol.NameSpace,
 			}
-			translateIngress(npmNetPol, tt.targetSelector, tt.rules)
+			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList = podSelectorWithNS(npmNetPol.NameSpace, policies.DstMatch, tt.targetSelector)
+			ingressPolicy(npmNetPol, tt.rules)
 			require.Equal(t, tt.npmNetPol, npmNetPol)
 		})
 	}
