@@ -193,6 +193,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 		return fmt.Errorf("[DataPlane] error while applying IPSets: %w", err)
 	}
 
+	klog.Infof("checking if should update pod")
 	if dp.shouldUpdatePod() {
 		for podKey, pod := range dp.updatePodCache {
 			err := dp.updatePod(pod)
@@ -202,6 +203,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 			delete(dp.updatePodCache, podKey)
 		}
 	}
+	klog.Infof("no need to update pod")
 	return nil
 }
 

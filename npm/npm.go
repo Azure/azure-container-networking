@@ -65,6 +65,7 @@ type NetworkPolicyManager struct {
 	// V2 controllers
 	podControllerV2       *controllersv2.PodController
 	namespaceControllerV2 *controllersv2.NamespaceController
+	netPolControllerV2    *controllersv2.NetworkPolicyController
 	npmNamespaceCacheV2   *controllersv2.NpmNamespaceCache
 
 	npInformer         networkinginformers.NetworkPolicyInformer
@@ -87,7 +88,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	exec utilexec.Interface,
 	npmVersion string,
 	k8sServerVersion *version.Info) *NetworkPolicyManager {
-	klog.Infof("API server version: %+v ai meta data %+v", k8sServerVersion, aiMetadata)
+	klog.Infof("API server version: %+v AI metadata %+v", k8sServerVersion, aiMetadata)
 
 	npMgr := &NetworkPolicyManager{
 		config:              config,
@@ -97,6 +98,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 		npInformer:          informerFactory.Networking().V1().NetworkPolicies(),
 		ipsMgr:              ipsm.NewIpsetManager(exec),
 		npmNamespaceCacheV1: &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*controllersv1.Namespace)},
+		npmNamespaceCacheV2: &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)},
 		k8sServerVersion:    k8sServerVersion,
 		NodeName:            GetNodeName(),
 		version:             npmVersion,
@@ -108,6 +110,8 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 		npMgr.podControllerV2 = controllersv2.NewPodController(npMgr.podInformer, dp, npMgr.npmNamespaceCacheV2)
 		// create NameSpace controller
 		npMgr.namespaceControllerV2 = controllersv2.NewNamespaceController(npMgr.nsInformer, dp, npMgr.npmNamespaceCacheV2)
+		// create Network Policy controller
+		npMgr.netPolControllerV2 = controllersv2.NewNetworkPolicyController(npMgr.npInformer, dp)
 		return npMgr
 	}
 
@@ -219,8 +223,10 @@ func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
 	// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
-	if err := npMgr.netPolControllerV1.ResetDataPlane(); err != nil {
-		return fmt.Errorf("Failed to initialized data plane")
+	if !config.Toggles.EnableV2Controllers {
+		if err := npMgr.netPolControllerV1.ResetDataPlane(); err != nil {
+			return fmt.Errorf("Failed to initialized data plane")
+		}
 	}
 
 	// Starts all informers manufactured by npMgr's informerFactory.
@@ -243,7 +249,7 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 		go npMgr.podControllerV2.Run(stopCh)
 		go npMgr.namespaceControllerV2.Run(stopCh)
 		// TODO add in netpol controller v2
-		// go npMgr.netPolControllerV1.Run(stopCh)
+		go npMgr.netPolControllerV2.Run(stopCh)
 		// go npMgr.netPolControllerV1.RunPeriodicTasks(stopCh)
 		return nil
 	}
