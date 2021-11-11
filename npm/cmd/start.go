@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 	"k8s.io/utils/exec"
 )
@@ -37,11 +38,12 @@ func newStartNPMCmd() *cobra.Command {
 			viper.AutomaticEnv() // read in environment variables that match
 			viper.SetDefault(npmconfig.ConfigEnvPath, npmconfig.GetConfigPath())
 			cfgFile := viper.GetString(npmconfig.ConfigEnvPath)
+
 			viper.SetConfigFile(cfgFile)
 
 			// If a config file is found, read it in.
 			if err := viper.ReadInConfig(); err == nil {
-				klog.Info("Using config file: ", viper.ConfigFileUsed())
+				klog.Info("Using config file: %+v", viper.ConfigFileUsed())
 			} else {
 				klog.Infof("Failed to load config from env %s: %v", npmconfig.ConfigEnvPath, err)
 				b, _ := json.Marshal(npmconfig.DefaultConfig)
@@ -58,25 +60,27 @@ func newStartNPMCmd() *cobra.Command {
 			config := &npmconfig.Config{}
 			err := viper.Unmarshal(config)
 			if err != nil {
-				return fmt.Errorf("failed to load config with error %w", err)
+				return fmt.Errorf("failed to load config with error: %w", err)
 			}
 
-			return start(*config)
+			flags := npmconfig.Flags{
+				KubeConfigPath: viper.GetString(FlagKubeConfigPath),
+			}
+
+			return start(*config, flags)
 		},
 	}
+
+	startNPMCmd.Flags().String(FlagKubeConfigPath, FlagDefaults[FlagKubeConfigPath], "path to kubeconfig")
+
 	return startNPMCmd
 }
 
-func start(config npmconfig.Config) error {
+func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	klog.Infof("loaded config: %+v", config)
 	klog.Infof("Start NPM version: %s", version)
 
 	var err error
-	defer func() {
-		if r := recover(); r != nil {
-			klog.Infof("recovered from error: %v", err)
-		}
-	}()
 
 	if err = initLogging(); err != nil {
 		return err
@@ -84,10 +88,20 @@ func start(config npmconfig.Config) error {
 
 	metrics.InitializeAll()
 
-	// Creates the in-cluster config
-	k8sConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load in cluster config: %w", err)
+	// Create the kubernetes client
+	var k8sConfig *rest.Config
+	if flags.KubeConfigPath == "" {
+		var err error
+		k8sConfig, err = rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load in cluster config: %w", err)
+		}
+	} else {
+		var err error
+		k8sConfig, err = clientcmd.BuildConfigFromFlags("", flags.KubeConfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to load kubeconfig [%s] with err config: %w", flags.KubeConfigPath, err)
+		}
 	}
 
 	// Creates the clientset
@@ -106,7 +120,11 @@ func start(config npmconfig.Config) error {
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	k8sServerVersion := k8sServerVersion(clientset)
+	k8sServerVersion, err := k8sServerVersion(clientset)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve kubernetes server version %w", err)
+
+	}
 
 	var dp dataplane.GenericDataplane
 	if config.Toggles.EnableV2Controllers {
@@ -125,8 +143,8 @@ func start(config npmconfig.Config) error {
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
 	if err = npMgr.Start(config, wait.NeverStop); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %s", err)
-		panic(err.Error)
+		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %w", err)
+		return err
 	}
 
 	select {}
@@ -143,7 +161,7 @@ func initLogging() error {
 	return nil
 }
 
-func k8sServerVersion(kubeclientset kubernetes.Interface) *k8sversion.Info {
+func k8sServerVersion(kubeclientset kubernetes.Interface) (*k8sversion.Info, error) {
 	var err error
 	var serverVersion *k8sversion.Info
 	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
@@ -156,12 +174,13 @@ func k8sServerVersion(kubeclientset kubernetes.Interface) *k8sversion.Info {
 
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
-		panic(err.Error)
+		return nil, fmt.Errorf("failed to discover kuberntes server version with err %w", err)
 	}
 
 	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
-		panic(err.Error)
+		return nil, fmt.Errorf("failed to check if new netowrk policy version is set with err %w", err)
 	}
-	return serverVersion
+
+	return serverVersion, err
 }
