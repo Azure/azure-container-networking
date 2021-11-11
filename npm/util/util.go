@@ -338,18 +338,3 @@ func CompareSlices(list1, list2 []string) bool {
 func SliceToString(list []string) string {
 	return strings.Join(list, SetPolicyDelimiter)
 }
-
-// IsSameLabels return if all pairs of key and value in two maps are same.
-// Otherwise, it returns false.
-func IsSameLabels(labelA, labelB map[string]string) bool {
-	if len(labelA) != len(labelB) {
-		return false
-	}
-
-	for labelKey, labelVal := range labelA {
-		if val, exist := labelB[labelKey]; !exist || labelVal != val {
-			return false
-		}
-	}
-	return true
-}

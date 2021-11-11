@@ -21,6 +21,7 @@ import (
 	coreinformer "k8s.io/client-go/informers/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -88,7 +89,7 @@ func (nPod *NpmPod) noUpdate(podObj *corev1.Pod) bool {
 		nPod.Name == podObj.ObjectMeta.Name &&
 		nPod.Phase == podObj.Status.Phase &&
 		nPod.PodIP == podObj.Status.PodIP &&
-		util.IsSameLabels(nPod.Labels, podObj.ObjectMeta.Labels) &&
+		k8slabels.Equals(nPod.Labels, podObj.ObjectMeta.Labels) &&
 		// TODO(jungukcho) to avoid using DeepEqual for ContainerPorts,
 		// it needs a precise sorting. Will optimize it later if needed.
 		reflect.DeepEqual(nPod.ContainerPorts, getContainerPortList(podObj))
