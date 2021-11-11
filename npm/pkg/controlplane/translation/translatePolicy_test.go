@@ -1106,7 +1106,7 @@ func TestAllowAllTraffic(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			nsSelectorIPSets, nsSelectorList := allowAllTraffic(tt.matchType)
+			nsSelectorIPSets, nsSelectorList := allowAllInternal(tt.matchType)
 			require.Equal(t, tt.nsSelectorIPSets, nsSelectorIPSets)
 			require.Equal(t, tt.nsSelectorList, nsSelectorList)
 		})
@@ -1595,7 +1595,7 @@ func TestPeerAndPortRule(t *testing.T) {
 				Name:      tt.npmNetPol.Name,
 				NameSpace: tt.npmNetPol.NameSpace,
 			}
-			peerAndPortRule(npmNetPol, tt.ports, setInfo)
+			peerAndPortRule(npmNetPol, policies.Ingress, tt.ports, setInfo)
 			require.Equal(t, tt.npmNetPol, npmNetPol)
 		})
 	}
@@ -1603,7 +1603,7 @@ func TestPeerAndPortRule(t *testing.T) {
 
 func TestIngressPolicy(t *testing.T) {
 	tcp := v1.ProtocolTCP
-	targetPodMatchType := policies.DstMatch
+	targetPodMatchType := policies.EitherMatch
 	peerMatchType := policies.SrcMatch
 	// TODO(jungukcho): add test cases with more complex rules
 	tests := []struct {
@@ -1650,6 +1650,7 @@ func TestIngressPolicy(t *testing.T) {
 						},
 						Protocol: "TCP",
 					},
+					defaultDropACL("default", "serve-tcp", policies.Ingress),
 				},
 			},
 		},
@@ -1695,6 +1696,7 @@ func TestIngressPolicy(t *testing.T) {
 							policies.NewSetInfo("only-ipblock-in-ns-default-0IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
+					defaultDropACL("default", "only-ipblock", policies.Ingress),
 				},
 			},
 		},
@@ -1743,6 +1745,7 @@ func TestIngressPolicy(t *testing.T) {
 							policies.NewSetInfo("default", ipsets.Namespace, included, peerMatchType),
 						},
 					},
+					defaultDropACL("default", "only-peer-podSelector", policies.Ingress),
 				},
 			},
 		},
@@ -1789,6 +1792,7 @@ func TestIngressPolicy(t *testing.T) {
 							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
 						},
 					},
+					defaultDropACL("default", "only-peer-nsSelector", policies.Ingress),
 				},
 			},
 		},
@@ -1801,7 +1805,7 @@ func TestIngressPolicy(t *testing.T) {
 				Name:      tt.npmNetPol.Name,
 				NameSpace: tt.npmNetPol.NameSpace,
 			}
-			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList = podSelectorWithNS(npmNetPol.NameSpace, policies.DstMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList = podSelectorWithNS(npmNetPol.NameSpace, policies.EitherMatch, tt.targetSelector)
 			ingressPolicy(npmNetPol, tt.rules)
 			require.Equal(t, tt.npmNetPol, npmNetPol)
 		})

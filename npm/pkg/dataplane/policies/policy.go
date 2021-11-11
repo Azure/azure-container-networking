@@ -183,9 +183,12 @@ const (
 // Possible MatchTypes.
 // MatchTypes with 2 locations (e.g. DstDst) are for ip and port respectively.
 const (
-	SrcMatch    MatchType = 0
-	DstMatch    MatchType = 1
+	SrcMatch MatchType = 0
+	DstMatch MatchType = 1
+	// TODO(jungukcho) Question - Why it is 3, not 2?
 	DstDstMatch MatchType = 3
+	// This is used for podSelector under spec. It can be Src or Dst based on existence of ingress or egress rule.
+	EitherMatch MatchType = 4
 )
 
 var matchTypeStrings = map[MatchType]string{
