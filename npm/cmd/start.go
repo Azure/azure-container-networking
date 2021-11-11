@@ -38,11 +38,12 @@ func newStartNPMCmd() *cobra.Command {
 			viper.AutomaticEnv() // read in environment variables that match
 			viper.SetDefault(npmconfig.ConfigEnvPath, npmconfig.GetConfigPath())
 			cfgFile := viper.GetString(npmconfig.ConfigEnvPath)
+
 			viper.SetConfigFile(cfgFile)
 
 			// If a config file is found, read it in.
 			if err := viper.ReadInConfig(); err == nil {
-				klog.Info("Using config file: ", viper.ConfigFileUsed())
+				klog.Info("Using config file: %+v", viper.ConfigFileUsed())
 			} else {
 				klog.Infof("Failed to load config from env %s: %v", npmconfig.ConfigEnvPath, err)
 				b, _ := json.Marshal(npmconfig.DefaultConfig)

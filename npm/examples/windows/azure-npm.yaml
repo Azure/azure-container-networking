@@ -76,17 +76,14 @@ spec:
         effect: NoSchedule
       - key: CriticalAddonsOnly
         operator: Exists
-
       securityContext:
         windowsOptions:
           hostProcess: true
           runAsUserName: "NT AUTHORITY\\SYSTEM"
       hostNetwork: true
-
-
       containers:
         - name: azure-npm
-          image: acnpublic.azurecr.io/azure-npm:v19-windows-amd64
+          image: acnpublic.azurecr.io/azure-npm:v22-windows-amd64
           command: ["powershell.exe"]
           args: ['.\setkubeconfigpath.ps1', ';', 'powershell.exe', '.\npm.exe', "start", '--kubeconfig=.\kubeconfig']
           resources:
@@ -95,7 +92,6 @@ spec:
               memory: 300Mi
             requests:
               cpu: 250m
-
           env:
             - name: HOSTNAME
               valueFrom:
@@ -103,10 +99,10 @@ spec:
                   apiVersion: v1
                   fieldPath: spec.nodeName
             - name: NPM_CONFIG
-              value: azure-npm.json
+              value: .\\etc\\azure-npm\\azure-npm.json
           volumeMounts:
           - name: azure-npm-config
-            mountPath: /etc/azure-npm
+            mountPath: .\\etc\\azure-npm
       nodeSelector:
         kubernetes.io/os: windows
       volumes:
@@ -147,23 +143,5 @@ data:
             "EnableV2Controllers":     true     
         }
     }
-  kubeconfigtemplate.yaml: |-
-    apiVersion: v1
-    kind: Config
-    clusters:
-      - name: <clustername>
-        cluster:
-          certificate-authority-data: <ca>
-          server: ${server}
-    contexts:
-      - name: <serviceaccount>@<clustername>
-        context:
-          cluster: <clustername>
-          namespace: ${namespace}
-          user: <serviceaccount>
-    users:
-      - name: ${serviceAccount}
-        user:
-          token: <token>
-    current-context: <serviceaccount>@<clustername>
+
     
