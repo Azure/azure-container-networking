@@ -80,11 +80,6 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	klog.Infof("Start NPM version: %s", version)
 
 	var err error
-	defer func() {
-		if r := recover(); r != nil {
-			klog.Infof("recovered from error: %v", err)
-		}
-	}()
 
 	if err = initLogging(); err != nil {
 		return err
@@ -124,7 +119,11 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	k8sServerVersion := k8sServerVersion(clientset)
+	k8sServerVersion, err := k8sServerVersion(clientset)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve kubernetes server version %w", err)
+
+	}
 
 	var dp dataplane.GenericDataplane
 	if config.Toggles.EnableV2Controllers {
@@ -143,8 +142,8 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
 	if err = npMgr.Start(config, wait.NeverStop); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %s", err)
-		panic(err.Error)
+		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %w", err)
+		return err
 	}
 
 	select {}
@@ -161,7 +160,7 @@ func initLogging() error {
 	return nil
 }
 
-func k8sServerVersion(kubeclientset kubernetes.Interface) *k8sversion.Info {
+func k8sServerVersion(kubeclientset kubernetes.Interface) (*k8sversion.Info, error) {
 	var err error
 	var serverVersion *k8sversion.Info
 	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
@@ -174,12 +173,13 @@ func k8sServerVersion(kubeclientset kubernetes.Interface) *k8sversion.Info {
 
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
-		panic(err.Error)
+		return nil, fmt.Errorf("failed to discover kuberntes server version with err %w", err)
 	}
 
 	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
-		panic(err.Error)
+		return nil, fmt.Errorf("failed to check if new netowrk policy version is set with err %w", err)
 	}
-	return serverVersion
+
+	return serverVersion, err
 }
