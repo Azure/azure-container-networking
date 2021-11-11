@@ -2,6 +2,7 @@ package translation
 
 import (
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -45,7 +46,6 @@ func GetOperatorsAndLabels(labelsWithOps []string) (ops, labelsWithoutOps []stri
 		ops[i] = op
 		labelsWithoutOps[i] = labelWithoutOp
 	}
-
 	return ops, labelsWithoutOps
 }
 
@@ -59,7 +59,7 @@ func getSetNameForMultiValueSelector(key string, vals []string) string {
 	return newIPSet
 }
 
-// FlattenNameSpaceSelector will help flatten multiple NameSpace selector match Expressions values
+// FlattenNameSpaceSelector will help flatten multiple nameSpace selector match Expressions values
 // into multiple label selectors helping with the OR condition.
 func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSelector {
 	/*
@@ -237,4 +237,149 @@ func parseSelector(selector *metav1.LabelSelector) (labels []string, vals map[st
 	}
 
 	return labels, vals
+}
+
+// labelSelector has parsed matchLabels and MatchExpressions information.
+type labelSelector struct {
+	// include is a flag to indicate whether Op exists or not.
+	include bool
+	setType ipsets.SetType
+	// setName is among
+	// 1. matchKey + ":" + matchVal (can be empty string) case
+	// 2. "matchKey" case
+	// or 3. "matchKey + : + multiple matchVals" case.
+	setName string
+	// members slice exists only if setType is only NestedLabelOfPod.
+	members []string
+}
+
+// parsedSelectors maintains slice of unique labelSelector.
+type parsedSelectors struct {
+	labelSelectors []labelSelector
+	// Use set data structure to avoid the duplicate setName among matchLabels and MatchExpression.
+	// The key of labelSet includes "!" if operator is "OpNotIn" or "OpDoesNotExist"
+	// to make difference when it has the same key (and value), but different operator
+	// while this is weird since it is not always matched, but K8s accepts this spec.
+	labelSet map[string]struct{}
+}
+
+func newParsedSelectors() parsedSelectors {
+	return parsedSelectors{
+		labelSelectors: []labelSelector{},
+		labelSet:       map[string]struct{}{},
+	}
+}
+
+// addSelector only adds non-duplicated labelSelector.
+// Only nested labels from podSelector has members fields.
+func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, setName string, members ...string) {
+	setNameWithOp := setName
+	if !include {
+		setNameWithOp = "!" + setName
+	}
+
+	// in case setNameWithOp exists in a set, do not need to add it.
+	if _, exist := ps.labelSet[setNameWithOp]; exist {
+		return
+	}
+
+	ls := labelSelector{
+		include: include,
+		setType: setType,
+		setName: setName,
+		members: members,
+	}
+
+	ps.labelSelectors = append(ps.labelSelectors, ls)
+	ps.labelSet[setNameWithOp] = struct{}{}
+}
+
+// parseNSSelector parses namespaceSelector and returns slice of labelSelector object
+// which includes operator, setType, ipset name and always nil members slice.
+// Member slices is always nil since parseNSSelector function is called
+// after FlattenNameSpaceSelector function is called, which guarantees
+// there is no matchExpression with multiple values.
+// TODO: good to remove this dependency later if possible.
+func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
+	parsedSelectors := newParsedSelectors()
+
+	// #1. All namespaces case
+	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
+		parsedSelectors.addSelector(true, ipsets.KeyLabelOfNamespace, util.KubeAllNamespacesFlag)
+		return parsedSelectors.labelSelectors
+	}
+
+	// #2. MatchLabels
+	for matchKey, matchVal := range selector.MatchLabels {
+		// matchKey + ":" + matchVal (can be empty string) case
+		setName := util.GetIpSetFromLabelKV(matchKey, matchVal)
+		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfNamespace, setName)
+	}
+
+	// #3. MatchExpressions
+	for _, req := range selector.MatchExpressions {
+		var setName string
+		var setType ipsets.SetType
+		switch op := req.Operator; op {
+		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
+			// "(!) + matchKey + : + matchVal" case
+			setName = util.GetIpSetFromLabelKV(req.Key, req.Values[0])
+			setType = ipsets.KeyValueLabelOfNamespace
+		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+			// "(!) + matchKey" case
+			setName = req.Key
+			setType = ipsets.KeyLabelOfNamespace
+		}
+
+		noNegativeOp := (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpExists)
+		parsedSelectors.addSelector(noNegativeOp, setType, setName)
+	}
+
+	return parsedSelectors.labelSelectors
+}
+
+// parsePodSelector parses podSelector and returns slice of labelSelector object
+// which includes operator, setType, ipset name and its members slice.
+// Members slice exists only if setType is only NestedLabelOfPod.
+func parsePodSelector(selector *metav1.LabelSelector) []labelSelector {
+	parsedSelectors := newParsedSelectors()
+
+	// #1. MatchLabels
+	for matchKey, matchVal := range selector.MatchLabels {
+		// matchKey + ":" + matchVal (can be empty string) case
+		setName := util.GetIpSetFromLabelKV(matchKey, matchVal)
+		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfPod, setName)
+	}
+
+	// #2. MatchExpressions
+	for _, req := range selector.MatchExpressions {
+		var setName string
+		var setType ipsets.SetType
+		var members []string
+		switch op := req.Operator; op {
+		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
+			// "(!) + matchKey + : + matchVal" case
+			if len(req.Values) == 1 {
+				setName = util.GetIpSetFromLabelKV(req.Key, req.Values[0])
+				setType = ipsets.KeyValueLabelOfPod
+			} else {
+				// "(!) + matchKey + : + multiple matchVals" case
+				setName = req.Key
+				for _, val := range req.Values {
+					setName = util.GetIpSetFromLabelKV(setName, val)
+					members = append(members, util.GetIpSetFromLabelKV(req.Key, val))
+				}
+				setType = ipsets.NestedLabelOfPod
+			}
+		case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
+			// "(!) + matchKey" case
+			setName = req.Key
+			setType = ipsets.KeyLabelOfPod
+		}
+
+		noNegativeOp := (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpExists)
+		parsedSelectors.addSelector(noNegativeOp, setType, setName, members...)
+	}
+
+	return parsedSelectors.labelSelectors
 }
