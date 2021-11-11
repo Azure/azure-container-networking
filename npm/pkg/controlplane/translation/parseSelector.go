@@ -243,7 +243,7 @@ func parseSelector(selector *metav1.LabelSelector) (labels []string, vals map[st
 type labelSelector struct {
 	// include is a flag to indicate whether Op exists or not.
 	include bool
-	settype ipsets.SetType
+	setType ipsets.SetType
 	// setName is among
 	// 1. matchKey + ":" + matchVal (can be empty string) case
 	// 2. "matchKey" case
@@ -257,7 +257,7 @@ type labelSelector struct {
 type parsedSelectors struct {
 	labelSelectors []labelSelector
 	// Use set data structure to avoid the duplicate setName among matchLabels and MatchExpression.
-	// The key of labelSet includes "!" if operator is "OpNOtIn" or "OpDoesNotExist"
+	// The key of labelSet includes "!" if operator is "OpNotIn" or "OpDoesNotExist"
 	// to make difference when it has the same key (and value), but different operator
 	// while this is weird since it is not always matched, but K8s accepts this spec.
 	labelSet map[string]struct{}
@@ -285,7 +285,7 @@ func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, set
 
 	ls := labelSelector{
 		include: include,
-		settype: setType,
+		setType: setType,
 		setName: setName,
 		members: members,
 	}
@@ -301,11 +301,6 @@ func (ps *parsedSelectors) addSelector(include bool, setType ipsets.SetType, set
 // there is no matchExpression with multiple values.
 // TODO: good to remove this dependency later if possible.
 func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
-	// TODO(jungukcho): This will not happen
-	if selector == nil {
-		return []labelSelector{}
-	}
-
 	parsedSelectors := newParsedSelectors()
 
 	// #1. All namespaces case
@@ -346,28 +341,17 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 // parsePodSelector parses podSelector and returns slice of labelSelector object
 // which includes operator, setType, ipset name and its members slice.
 // Members slice exists only if setType is only NestedLabelOfPod.
-func parsePodSelector(selector *metav1.LabelSelector, nsInPod string) []labelSelector {
-	// TODO(jungukcho): This will not happen
-	if selector == nil {
-		return []labelSelector{}
-	}
-
+func parsePodSelector(selector *metav1.LabelSelector) []labelSelector {
 	parsedSelectors := newParsedSelectors()
 
-	// #1. All pods in the nsInPod namespace
-	if len(selector.MatchLabels) == 0 && len(selector.MatchExpressions) == 0 {
-		parsedSelectors.addSelector(true, ipsets.Namespace, nsInPod)
-		return parsedSelectors.labelSelectors
-	}
-
-	// #2. MatchLabels
+	// #1. MatchLabels
 	for matchKey, matchVal := range selector.MatchLabels {
 		// matchKey + ":" + matchVal (can be empty string) case
 		setName := util.GetIpSetFromLabelKV(matchKey, matchVal)
 		parsedSelectors.addSelector(true, ipsets.KeyValueLabelOfPod, setName)
 	}
 
-	// #3. MatchExpressions
+	// #2. MatchExpressions
 	for _, req := range selector.MatchExpressions {
 		var setName string
 		var setType ipsets.SetType
