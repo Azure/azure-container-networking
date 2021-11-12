@@ -18,7 +18,6 @@ const (
 	namedPortStr string = "serve-tcp"
 )
 
-// TODO(jungukcho) - Create function to remove redundancy
 func TestPortType(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	port8000 := intstr.FromInt(8000)
@@ -181,7 +180,7 @@ func TestNamedPortRuleInfo(t *testing.T) {
 			name:     "empty",
 			portRule: nil,
 			want: &namedPortOutput{
-				translatedIPSet: nil, // (TODO): Need to check it
+				translatedIPSet: nil,
 				protocol:        "",
 			},
 		},
@@ -287,30 +286,44 @@ func TestNamedPortRule(t *testing.T) {
 	}
 }
 
+type ipBlockInfo struct {
+	policyName      string
+	namemspace      string
+	direction       policies.Direction
+	matchType       policies.MatchType
+	ipBlockSetIndex int
+}
+
+func createIPBlockInfo(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex int) *ipBlockInfo {
+	return &ipBlockInfo{
+		policyName:      policyName,
+		namemspace:      ns,
+		direction:       direction,
+		matchType:       matchType,
+		ipBlockSetIndex: ipBlockSetIndex,
+	}
+}
+
 func TestIPBlockSetName(t *testing.T) {
 	tests := []struct {
-		name            string
-		policyName      string
-		namemspace      string
-		direction       policies.Direction
-		ipBlockSetIndex int
-		want            string
+		name string
+		*ipBlockInfo
+		want string
 	}{
 		{
-			name:            "default/test",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
-			want:            "test-in-ns-default-0IN",
+			name:        "default/test (ingress)",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			want:        "test-in-ns-default-0IN",
 		},
 		{
-			name:            "testns/test",
-			policyName:      "test",
-			namemspace:      "testns",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
-			want:            "test-in-ns-testns-0IN",
+			name:        "default/test (ingress)",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 1),
+			want:        "test-in-ns-default-1IN",
+		},
+		{
+			name:        "testns/test (egress)",
+			ipBlockInfo: createIPBlockInfo("test", "testns", policies.Egress, policies.DstMatch, 0),
+			want:        "test-in-ns-testns-0OUT",
 		},
 	}
 
@@ -326,29 +339,20 @@ func TestIPBlockSetName(t *testing.T) {
 
 func TestIPBlockIPSet(t *testing.T) {
 	tests := []struct {
-		name            string
-		policyName      string
-		namemspace      string
-		direction       policies.Direction
-		ipBlockSetIndex int
+		name string
+		*ipBlockInfo
 		ipBlockRule     *networkingv1.IPBlock
 		translatedIPSet *ipsets.TranslatedIPSet
 	}{
 		{
 			name:            "empty ipblock rule",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			ipBlockInfo:     createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule:     nil,
 			translatedIPSet: nil,
 		},
 		{
-			name:            "incorrect ipblock rule with only except",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:        "incorrect ipblock rule with only except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "",
 				Except: []string{"172.17.1.0/24"},
@@ -356,22 +360,16 @@ func TestIPBlockIPSet(t *testing.T) {
 			translatedIPSet: nil,
 		},
 		{
-			name:            "only cidr",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:        "only cidr",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "172.17.0.0/16",
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
 		},
 		{
-			name:            "one cidr and one except",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:        "one cidr and one except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24"},
@@ -379,11 +377,8 @@ func TestIPBlockIPSet(t *testing.T) {
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24nomatch"}...),
 		},
 		{
-			name:            "one cidr and multiple except",
-			policyName:      "test-network-policy",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:        "one cidr and multiple except",
+			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
@@ -403,33 +398,23 @@ func TestIPBlockIPSet(t *testing.T) {
 }
 
 func TestIPBlockRule(t *testing.T) {
-	matchType := policies.SrcMatch
 	tests := []struct {
-		name            string
-		policyName      string
-		namemspace      string
-		direction       policies.Direction
-		ipBlockSetIndex int
+		name string
+		*ipBlockInfo
 		ipBlockRule     *networkingv1.IPBlock
 		translatedIPSet *ipsets.TranslatedIPSet
 		setInfo         policies.SetInfo
 	}{
 		{
-			name:            "empty ipblock rule",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:            "empty ipblock rule ",
+			ipBlockInfo:     createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule:     nil,
 			translatedIPSet: nil,
 			setInfo:         policies.SetInfo{},
 		},
 		{
-			name:            "incorrect ipblock rule with only except",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:        "incorrect ipblock rule with only except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "",
 				Except: []string{"172.17.1.0/24"},
@@ -438,42 +423,33 @@ func TestIPBlockRule(t *testing.T) {
 			setInfo:         policies.SetInfo{},
 		},
 		{
-			name:            "only cidr",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:        "only cidr",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "172.17.0.0/16",
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
-			setInfo:         policies.NewSetInfo("test-in-ns-default-0IN", ipsets.CIDRBlocks, included, matchType),
+			setInfo:         policies.NewSetInfo("test-in-ns-default-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 		},
 		{
-			name:            "one cidr and one except",
-			policyName:      "test",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:        "one cidr and one except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24nomatch"}...),
-			setInfo:         policies.NewSetInfo("test-in-ns-default-0IN", ipsets.CIDRBlocks, included, matchType),
+			setInfo:         policies.NewSetInfo("test-in-ns-default-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 		},
 		{
-			name:            "one cidr and multiple except",
-			policyName:      "test-network-policy",
-			namemspace:      "default",
-			direction:       policies.Ingress,
-			ipBlockSetIndex: 0,
+			name:        "one cidr and multiple except",
+			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24nomatch", "172.17.2.0/24nomatch"}...),
-			setInfo:         policies.NewSetInfo("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, included, matchType),
+			setInfo:         policies.NewSetInfo("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 		},
 	}
 
@@ -481,7 +457,7 @@ func TestIPBlockRule(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			translatedIPSet, setInfo := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockRule)
+			translatedIPSet, setInfo := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.matchType, tt.ipBlockSetIndex, tt.ipBlockRule)
 			require.Equal(t, tt.translatedIPSet, translatedIPSet)
 			require.Equal(t, tt.setInfo, setInfo)
 		})
@@ -946,7 +922,8 @@ func TestPortRuleWithNamedPort(t *testing.T) {
 				Port: &namedPort,
 			},
 			ruleIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet(util.NamedPortIPSetPrefix+"serve-tcp", ipsets.NamedPorts)},
+				ipsets.NewTranslatedIPSet(util.NamedPortIPSetPrefix+"serve-tcp", ipsets.NamedPorts),
+			},
 			acl: &policies.ACLPolicy{
 				DstList: []policies.SetInfo{
 					policies.NewSetInfo(util.NamedPortIPSetPrefix+"serve-tcp", ipsets.NamedPorts, included, matchType),

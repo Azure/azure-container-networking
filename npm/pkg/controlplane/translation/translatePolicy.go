@@ -13,7 +13,7 @@ import (
 )
 
 /*
-TODO
+TODO(jungukcho)
 1. namespace is default in label in K8s. Need to check whether I missed something.
 - Targeting a Namespace by its name
 (https://kubernetes.io/docs/concepts/services-networking/network-policies/#targeting-a-namespace-by-its-name)
@@ -382,10 +382,9 @@ func allowAllPolicy(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dir
 // isAllowAllToIngress returns true if this network policy allows all traffic from internal (i.e,. K8s cluster) and external (i.e., internet)
 // Otherwise, it returns false.
 func isAllowAllToIngress(ingress []networkingv1.NetworkPolicyIngressRule) bool {
-	return (ingress != nil &&
-		len(ingress) == 1 &&
+	return len(ingress) == 1 &&
 		len(ingress[0].Ports) == 0 &&
-		len(ingress[0].From) == 0)
+		len(ingress[0].From) == 0
 }
 
 // ingressPolicy traslates NetworkPolicyIngressRule in NetworkPolicy object
@@ -398,18 +397,20 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, ingress []networkingv1.
 		return
 	}
 
-	// #2. If ingress is nil (in yaml file, it is specified with '[]'), it means it does not allow receiving any traffic from others.
-	// In the case, skip translateRule function call and only need default drop ACL..
-	// If ingress is not nil, Ingress rule is not AllowAll (including internal and external) and DenyAll policy.
-	// So, start translating ingress policy.
-	if ingress != nil {
-		for i, rule := range ingress {
-			translateRule(npmNetPol, policies.Ingress, policies.SrcMatch, i, rule.Ports, rule.From)
-		}
+	// #2. If ingress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow receiving any traffic from others.
+	if ingress == nil {
+		// Except for allow all traffic case in #1, the rest of them should not have default drop rules.
+		dropACL := defaultDropACL(npmNetPol.NameSpace, npmNetPol.Name, policies.Ingress)
+		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
+		return
 	}
 
-	// #3. Except for allow all traffic case in #1, the rest of them should not have default drop rules.
-	// Add drop ACL to drop the rest of traffic which is not specified in Egress Spec.
+	// #3. Ingress rule is not AllowAll (including internal and external) and DenyAll policy.
+	// So, start translating ingress policy.
+	for i, rule := range ingress {
+		translateRule(npmNetPol, policies.Ingress, policies.SrcMatch, i, rule.Ports, rule.From)
+	}
+	// Except for allow all traffic case in #1, the rest of them should not have default drop rules.
 	dropACL := defaultDropACL(npmNetPol.NameSpace, npmNetPol.Name, policies.Ingress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 }
@@ -417,10 +418,9 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, ingress []networkingv1.
 // isAllowAllToEgress returns true if this network policy allows all traffic to internal (i.e,. K8s cluster) and external (i.e., internet)
 // Otherwise, it returns false.
 func isAllowAllToEgress(egress []networkingv1.NetworkPolicyEgressRule) bool {
-	return (egress != nil &&
-		len(egress) == 1 &&
+	return len(egress) == 1 &&
 		len(egress[0].Ports) == 0 &&
-		len(egress[0].To) == 0)
+		len(egress[0].To) == 0
 }
 
 // egressPolicy traslates NetworkPolicyEgressRule in networkpolicy object
@@ -433,14 +433,18 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, egress []networkingv1.Ne
 		return
 	}
 
-	// #2. If egress is nil (in yaml file, it is specified with '[]'), it means it does not allow sending traffic to others.
-	// In the case, skip translateRule function call and only need default drop ACL.
-	// If egress is not nil, Egress rule is not AllowAll (including internal and external) and DenyAll.
-	// So, start translating egress policy.
+	// #2. If egress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow sending traffic to others.
 	if egress != nil {
-		for i, rule := range egress {
-			translateRule(npmNetPol, policies.Egress, policies.DstMatch, i, rule.Ports, rule.To)
-		}
+		// Except for allow all traffic case in #1, the rest of them should not have default drop rules.
+		dropACL := defaultDropACL(npmNetPol.NameSpace, npmNetPol.Name, policies.Egress)
+		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
+		return
+	}
+
+	// #3. Egress rule is not AllowAll (including internal and external) and DenyAll.
+	// So, start translating egress policy.
+	for i, rule := range egress {
+		translateRule(npmNetPol, policies.Egress, policies.DstMatch, i, rule.Ports, rule.To)
 	}
 
 	// #3. Except for allow all traffic case in #1, the rest of them should not have default drop rules.
