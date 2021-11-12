@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := help
+
 # Default platform commands
 SHELL=/bin/bash
 MKDIR := mkdir -p
@@ -86,13 +88,13 @@ CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 IMAGE_REGISTRY ?= acnpublic.azurecr.io
 
 # Azure network policy manager parameters.
-AZURE_NPM_IMAGE ?= $(IMAGE_REGISTRY)/azure-npm
+AZURE_NPM_IMAGE ?= azure-npm
 
 # Azure CNI installer parameters
-AZURE_CNI_IMAGE = $(IMAGE_REGISTRY)/azure-cni-manager
+AZURE_CNI_IMAGE = azure-cni-manager
 
 # Azure container networking service image paramters.
-AZURE_CNS_IMAGE = $(IMAGE_REGISTRY)/azure-cns
+AZURE_CNS_IMAGE = azure-cns
 
 IMAGE_PLATFORM_ARCHES ?= linux/amd64,linux/arm64
 IMAGE_ACTION ?= push
@@ -111,7 +113,7 @@ all-binaries-platforms: ## Make all platform binaries
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
-all-images: azure-npm-image azure-cns-image
+all-images: azure-npm-image azure-cns-image tools-images
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images:
@@ -126,69 +128,141 @@ acncli: acncli-binary acncli-archive
 azure-cnms: azure-cnms-binary cnms-archive
 azure-npm: azure-npm-binary npm-archive
 
-# Clean all build artifacts.
-.PHONY: clean
-clean:
-	$(RMDIR) $(OUTPUT_DIR)
-	$(RMDIR) $(TOOLS_BIN_DIR)
 
-########################### Binaries ################################
+##@ Binaries 
 
 # Build the Azure CNM binary.
-.PHONY: cnm-binary
 cnm-binary:
 	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
-.PHONY: azure-vnet-binary
 azure-vnet-binary:
 	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAM binary.
-.PHONY: azure-vnet-ipam-binary
 azure-vnet-ipam-binary:
 	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAMV6 binary.
-.PHONY: azure-vnet-ipamv6-binary
 azure-vnet-ipamv6-binary:
 	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI telemetry binary.
-.PHONY: azure-vnet-telemetry-binary
 azure-vnet-telemetry-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
-.PHONY: acncli-binary
 acncli-binary:
 	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNS binary.
-.PHONY: azure-cns-binary
 azure-cns-binary:
 	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
-.PHONY: azure-npm-binary
 azure-npm-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 
-########################### Container Images ########################
+##@ Containers
+
+# prefer buildah, if available, but fall back to docker if that binary is not in the path.
+CONTAINER_BUILDER=buildah
+ifeq (, $(shell which $(CONTAINER_BUILDER)))
+CONTAINER_BUILDER=docker
+endif
+
+containerize-buildah: # util target to build container images using buildah. do not invoke directly.
+	buildah build \
+		--jobs 16 \
+		--platform $(PLATFORM) \
+		-f $(DOCKERFILE) \
+		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
+		-t $(REGISTRY)/$(IMAGE):$(TAG) \
+		.
+
+containerize-docker: # util target to build container images using docker buildx. do not invoke directly.
+	docker buildx build \
+		--platform $(PLATFORM) \
+		-f $(DOCKERFILE) \
+		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
+		-t $(REGISTRY)/$(IMAGE):$(TAG) \
+		.
+
+container-tag-test: # util target to retag an image with -test suffix. do not invoke directly.
+	$(CONTAINER_BUILDER) tag \
+		$(REGISTRY)/$(IMAGE):$(TAG) \
+		$(REGISTRY)/$(IMAGE):$(TAG)-test
+
+container-push: # util target to publish container image. do not invoke directly.
+	$(CONTAINER_BUILDER) push \
+		$(REGISTRY)/$(IMAGE):$(TAG)
+
+container-pull: # util target to pull container image. do not invoke directly.
+	$(CONTAINER_BUILDER) pull \
+		$(REGISTRY)/$(IMAGE):$(TAG)
+
+container-info: # util target to write container info file. do not invoke directly.
+	# these commands need to be root due to some ongoing perms issues in the pipeline.
+	sudo mkdir -p $(IMAGE_DIR) 
+	sudo chown -R $$(whoami) $(IMAGE_DIR) 
+	sudo chmod -R 777 $(IMAGE_DIR)
+	echo $(IMAGE):$(TAG) > $(IMAGE_DIR)/$(FILE)
+
+azure-cns-image: ## build azure-cns container image.
+	$(MAKE) containerize-$(CONTAINER_BUILDER) \
+		PLATFORM=$(GOOS)/$(GOARCH) \
+		DOCKERFILE=cns/Dockerfile \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(AZURE_CNS_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
+		TAG=$(VERSION)
+	$(MAKE) container-info IMAGE=$(AZURE_CNS_IMAGE) TAG=$(VERSION) FILE=$(CNS_IMAGE_INFO_FILE)
 
 # Build the tools images
-.PHONY: tools-images
-tools-images:
-	$(MKDIR) $(IMAGE_DIR)
-	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
+tools-images: ## build the acncli container image.
+	$(MAKE) containerize-docker \
+		PLATFORM=$(GOOS)/$(GOARCH) \
+		DOCKERFILE=tools/acncli/Dockerfile \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(AZURE_CNI_IMAGE) \
+		TAG=$(VERSION)
 	docker save $(AZURE_CNI_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNI_IMAGE_ARCHIVE_NAME)
 
+
+# Build the Azure NPM image.
+azure-npm-image: ## build the azure-npm container image.
+	$(MAKE) containerize-$(CONTAINER_BUILDER) \
+			PLATFORM=$(GOOS)/$(GOARCH) \
+			DOCKERFILE=npm/Dockerfile \
+			REGISTRY=$(IMAGE_REGISTRY) \
+			IMAGE=$(AZURE_NPM_IMAGE) \
+			EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
+			TAG=$(VERSION)
+	$(MAKE) container-info IMAGE=$(AZURE_NPM_IMAGE) TAG=$(VERSION) FILE=$(NPM_IMAGE_INFO_FILE)
+
+
+## can probably be combined with above with a GOOS.Dockerfile change?
+# Build the Azure CNS image windows
+azure-cns-image-windows:
+	$(MKDIR) $(IMAGE_DIR); 
+	docker build \
+	--no-cache \
+	-f cns/windows.Dockerfile \
+	-t $(IMAGE_REGISTRY)/$(AZURE_CNS_IMAGE)-win:$(VERSION) \
+	--build-arg VERSION=$(VERSION) \
+	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
+	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	.
+
+	echo $(AZURE_CNS_IMAGE)-win:$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
+
+
+## Legacy
+
 # Build the Azure CNM plugin image, installable with "docker plugin install".
-.PHONY: azure-cnm-plugin-image
-azure-cnm-plugin-image: azure-cnm-plugin
-	# Build the plugin image, keeping any old image during build for cache, but remove it afterwards.
+azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container image.
 	docker images -q $(CNM_PLUGIN_ROOTFS):$(VERSION) > cid
 	docker build --no-cache \
 		-f Dockerfile.cnm \
@@ -217,77 +291,6 @@ azure-cnm-plugin-image: azure-cnm-plugin
 	rm -rf $(OUTPUT_DIR)/$(CID)
 	rm cid
 
-# Build the Azure NPM image.
-.PHONY: azure-npm-image
-azure-npm-image:
-ifeq ($(GOOS),linux)
-	$(MKDIR) $(IMAGE_DIR)
-	docker buildx create --use
-	docker buildx build \
-	--no-cache \
-	-f npm/Dockerfile \
-	-t $(AZURE_NPM_IMAGE):$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
-	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
-	--platform=$(IMAGE_PLATFORM_ARCHES) \
-	--$(IMAGE_ACTION) \
-	.
-	
-	echo $(AZURE_NPM_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
-endif
-
-
-# Build the Azure NPM image, because the buildx command breaks other runtimes
-.PHONY: azure-npm-image-classic
-azure-npm-image-classic: azure-npm
-ifeq ($(GOOS),linux)
-	mkdir -p $(IMAGE_DIR)
-	docker build \
-	--no-cache \
-	-f npm/Dockerfile \
-	-t $(AZURE_NPM_IMAGE):$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
-	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
-	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
-	.
-endif
-
-# Build the Azure CNS image
-.PHONY: azure-cns-image
-azure-cns-image:
-ifeq ($(GOOS),linux)
-	$(MKDIR) $(IMAGE_DIR)
-	docker buildx create --use
-	docker buildx build \
-	--no-cache \
-	-f cns/Dockerfile \
-	-t $(AZURE_CNS_IMAGE):$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
-	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
-	--platform=$(IMAGE_PLATFORM_ARCHES) \
-	--$(IMAGE_ACTION) \
-	.
-
-	echo $(AZURE_CNS_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
-endif
-
-# Build the Azure CNS image windows
-.PHONY: azure-cns-image-windows
-azure-cns-image-windows:
-	$(MKDIR) $(IMAGE_DIR)
-	docker build \
-	--no-cache \
-	-f cns/windows.Dockerfile \
-	-t $(AZURE_CNS_IMAGE)-win:$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
-	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
-	.
-
-	echo $(AZURE_CNS_IMAGE)-win:$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
 
 ########################### Archives ################################
 
@@ -359,46 +362,51 @@ release:
 publish-azure-cnm-plugin-image:
 	docker plugin push $(CNM_PLUGIN_IMAGE):$(VERSION)
 
-############################ Linting ################################
 
-PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
+##@ Utils 
+
+clean: ## Clean build artifacts.
+	$(RMDIR) $(OUTPUT_DIR)
+	$(RMDIR) $(TOOLS_BIN_DIR)
+
 
 LINT_PKG ?= .
 
-lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues
+lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues.
 	$(GOLANGCI_LINT) run --new-from-rev master --timeout 10m -v $(LINT_PKG)/...
 
-lint-old: $(GOLANGCI_LINT) ## Fast lint including previous issues
+lint-all: $(GOLANGCI_LINT) ## Lint the current branch in entirety.
 	$(GOLANGCI_LINT) run -v $(LINT_PKG)/...
+
 
 FMT_PKG ?= cni cns npm
 
-fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
+fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm").
 	$(GOFUMPT) -s -w $(FMT_PKG)
+
+
+##@ Test 
 
 COVER_PKG ?= .
 
-# run all tests
 # COVER_FILTER omits folders with all files tagged with one of 'unit', '!ignore_uncovered', or '!ignore_autogenerated'
-.PHONY: test-all
-test-all:
+test-all: ## run all unit tests.
 	@$(eval COVER_FILTER=`go list --tags ignore_uncovered,ignore_autogenerated $(COVER_PKG)/... | tr '\n' ','`)
 	@echo Test coverpkg: $(COVER_FILTER)
 	go test -tags "unit" -coverpkg=$(COVER_FILTER) -v -race -covermode atomic -failfast -coverprofile=coverage.out $(COVER_PKG)/...
 
-# run all tests
-.PHONY: test-integration
-test-integration:
+
+test-integration: ## run all integration tests.
 	go test -timeout 1h -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
-.PHONY: test-cyclonus
-test-cyclonus:
+test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
 	cd ..
 
 .PHONY: kind
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
+
 
 ##@ Utilities
 
@@ -413,9 +421,8 @@ setup: tools install-hooks ## performs common required repo setup
 version: ## prints the version
 	@echo $(VERSION)
 
-######################## Build tools ################################
-.PHONY: tools
-tools: acncli
+
+##@ Tools 
 
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
@@ -461,4 +468,13 @@ mockgen: $(MOCKGEN) ## Build mockgen
 clean-tools: 
 	rm -r build/tools/bin
 
-tools: gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
+tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
+
+
+##@ Help 
+
+help: ## Display this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+version: ## prints the version
+	@echo $(VERSION)
