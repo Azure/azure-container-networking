@@ -11,9 +11,8 @@ data:
       "ListeningAddress": "0.0.0.0",
       "Toggles": {
         "EnablePrometheusMetrics": true,
-        "EnablePprof": true,
+        "EnablePprof": false,
         "EnableHTTPDebugAPI": true,
-        "EnableV2Controllers": true,
-        "PlaceAzureChainFirst": true
+        "EnableV2Controllers": true
       }
     }
