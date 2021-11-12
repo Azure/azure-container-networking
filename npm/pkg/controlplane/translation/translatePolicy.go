@@ -384,7 +384,7 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, ingress []networkingv1.
 		return
 	}
 
-	// #2. If ingress is nil (in yaml, it is specified with `[]``), it means it does not allow receiving any traffic from others.
+	// #2. If ingress is nil (in yaml, it is specified with '[]'), it means it does not allow receiving any traffic from others.
 	// In the case, skip translateRule function call and only need default drop ACL..
 	// If ingress is not nil, it is not AllowAll and DropAll. So, start translateRule ingress policy.
 	if ingress != nil {
@@ -416,7 +416,7 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, egress []networkingv1.Ne
 		return
 	}
 
-	// #2. If egress is nil (in yaml, it is specified with `[]``), it means it does not allow sending traffic to others.
+	// #2. If egress is nil (in yaml, it is specified with '[]'), it means it does not allow sending traffic to others.
 	// In the case, skip translateRule function call and only need default drop ACL..
 	// If egress is not nil, it is not AllowAll and DropAll. So, start translateRule egress policy.
 	if egress != nil {
