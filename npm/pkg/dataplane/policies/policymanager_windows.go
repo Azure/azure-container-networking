@@ -41,7 +41,7 @@ func (pMgr *PolicyManager) reset() error {
 	return nil
 }
 
-func (pMgr *PolicyManager) reconcile(stopChannel <-chan struct{}) {
+func (pMgr *PolicyManager) reconcile() {
 	// TODO
 }
 

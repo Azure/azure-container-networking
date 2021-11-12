@@ -168,7 +168,7 @@ func (pMgr *PolicyManager) removeNPMChains() error {
 // reconcile does the following:
 // - cleans up old policy chains
 // - creates the jump rule from FORWARD chain to AZURE-NPM chain (if it d.n.e) and makes sure it's after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
-func (pMgr *PolicyManager) reconcile(stopChannel <-chan struct{}) {
+func (pMgr *PolicyManager) reconcile() {
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
 		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
 	}

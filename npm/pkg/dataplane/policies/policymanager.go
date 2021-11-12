@@ -45,7 +45,6 @@ func (pMgr *PolicyManager) Reset() error {
 	return nil
 }
 
-// TODO Windows doesn't need this go routine
 func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 	go func() {
 		ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
@@ -58,7 +57,7 @@ func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 			case <-ticker.C:
 				pMgr.Lock()
 				defer pMgr.Unlock()
-				pMgr.reconcile(stopChannel)
+				pMgr.reconcile()
 			}
 		}
 	}()
