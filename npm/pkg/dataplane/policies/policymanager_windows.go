@@ -15,15 +15,15 @@ var (
 	ErrFailedUnMarshalACLSettings = errors.New("Failed to unmarshal ACL settings")
 )
 
-type osTools struct{}
+type staleChains struct{} // unused in Windows
 
 type endpointPolicyBuilder struct {
 	aclPolicies   []*NPMACLPolSettings
 	otherPolicies []hcn.EndpointPolicy
 }
 
-func makeTools() osTools {
-	return osTools{}
+func newStaleChains() *staleChains {
+	return &staleChains{}
 }
 
 func (pMgr *PolicyManager) reboot() error {

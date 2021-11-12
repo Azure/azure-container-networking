@@ -53,12 +53,35 @@ var (
 	ingressOrEgressPolicyChainPattern = fmt.Sprintf("'Chain %s-\\|Chain %s-'", util.IptablesAzureIngressPolicyChainPrefix, util.IptablesAzureEgressPolicyChainPrefix)
 )
 
-type osTools struct {
+type staleChains struct {
 	chainsToCleanup map[string]struct{}
 }
 
-func makeTools() osTools {
-	return osTools{make(map[string]struct{})}
+func newStaleChains() *staleChains {
+	return &staleChains{make(map[string]struct{})}
+}
+
+func (s *staleChains) add(chain string) {
+	s.chainsToCleanup[chain] = struct{}{}
+}
+
+func (s *staleChains) remove(chain string) {
+	delete(s.chainsToCleanup, chain)
+}
+
+func (s *staleChains) emptyAndGetAll() []string {
+	result := make([]string, len(s.chainsToCleanup))
+	k := 0
+	for chain := range s.chainsToCleanup {
+		result[k] = chain
+		s.remove(chain)
+		k++
+	}
+	return result
+}
+
+func (s *staleChains) empty() {
+	s.chainsToCleanup = make(map[string]struct{})
 }
 
 func (pMgr *PolicyManager) reboot() error {
@@ -83,7 +106,7 @@ func (pMgr *PolicyManager) reset() error {
 	if err := pMgr.removeNPMChains(); err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to remove NPM chains", err)
 	}
-	pMgr.chainsToCleanup = make(map[string]struct{})
+	pMgr.staleChains.empty()
 	return nil
 }
 
@@ -149,19 +172,9 @@ func (pMgr *PolicyManager) reconcile(stopChannel <-chan struct{}) {
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
 		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
 	}
-	if err := pMgr.cleanupChains(pMgr.oldPolicyChains()); err != nil {
+	if err := pMgr.cleanupChains(pMgr.staleChains.emptyAndGetAll()); err != nil {
 		klog.Errorf("failed to clean up old policy chains with the following error %s", err.Error())
 	}
-}
-
-func (pMgr *PolicyManager) oldPolicyChains() []string {
-	result := make([]string, len(pMgr.chainsToCleanup))
-	k := 0
-	for chain := range pMgr.chainsToCleanup {
-		result[k] = chain
-		k++
-	}
-	return result
 }
 
 // have to use slice argument for deterministic behavior for UTs
@@ -169,9 +182,8 @@ func (pMgr *PolicyManager) cleanupChains(chains []string) error {
 	var aggregateError error
 	for _, chain := range chains {
 		errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain) // TODO run the one that ignores doesNotExistErrorCode
-		if err == nil || errCode == doesNotExistErrorCode {
-			delete(pMgr.chainsToCleanup, chain)
-		} else {
+		if err != nil && errCode != doesNotExistErrorCode {
+			pMgr.staleChains.add(chain)
 			currentErrString := fmt.Sprintf("failed to clean up policy chain %s with err [%v]", chain, err)
 			if aggregateError == nil {
 				aggregateError = npmerrors.SimpleError(currentErrString)

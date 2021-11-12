@@ -28,7 +28,7 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
 	}
 	for _, chain := range allChainNames {
-		delete(pMgr.chainsToCleanup, chain)
+		pMgr.staleChains.remove(chain)
 	}
 	return nil
 }
@@ -45,7 +45,7 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
 	}
 	for _, chain := range allChainNames {
-		pMgr.chainsToCleanup[chain] = struct{}{}
+		pMgr.staleChains.add(chain)
 	}
 	return nil
 }

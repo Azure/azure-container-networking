@@ -18,14 +18,23 @@ const (
 	testChain3 = "chain3"
 )
 
-func TestOldPolicyChains(t *testing.T) {
+func TestEmptyAndGetAll(t *testing.T) {
 	pMgr := NewPolicyManager(common.NewMockIOShim(nil))
-	pMgr.chainsToCleanup[testChain1] = struct{}{}
-	pMgr.chainsToCleanup[testChain2] = struct{}{}
-	chainsToCleanup := pMgr.oldPolicyChains()
+	pMgr.staleChains.add(testChain1)
+	pMgr.staleChains.add(testChain2)
+	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
 	require.Equal(t, 2, len(chainsToCleanup))
 	require.True(t, chainsToCleanup[0] == testChain1 || chainsToCleanup[1] == testChain1)
 	require.True(t, chainsToCleanup[0] == testChain2 || chainsToCleanup[1] == testChain2)
+	assertStaleChainsContain(t, pMgr.staleChains)
+}
+
+func assertStaleChainsContain(t *testing.T, s *staleChains, expectedChains ...string) {
+	require.Equal(t, len(expectedChains), len(s.chainsToCleanup), "incorrectly tracking chains for cleanup")
+	for _, chain := range expectedChains {
+		_, exists := s.chainsToCleanup[chain]
+		require.True(t, exists, "incorrectly tracking chains for cleanup")
+	}
 }
 
 func TestCleanupChainsSuccess(t *testing.T) {
@@ -37,12 +46,12 @@ func TestCleanupChainsSuccess(t *testing.T) {
 	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
 	pMgr := NewPolicyManager(ioshim)
 
-	pMgr.chainsToCleanup[testChain1] = struct{}{}
-	pMgr.chainsToCleanup[testChain2] = struct{}{}
-	chainsToCleanup := pMgr.oldPolicyChains()
+	pMgr.staleChains.add(testChain1)
+	pMgr.staleChains.add(testChain2)
+	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
 	sort.Strings(chainsToCleanup)
 	require.NoError(t, pMgr.cleanupChains(chainsToCleanup))
-	assertEqualCleanupContents(t, pMgr)
+	assertStaleChainsContain(t, pMgr.staleChains)
 }
 
 func TestCleanupChainsFailure(t *testing.T) {
@@ -55,13 +64,13 @@ func TestCleanupChainsFailure(t *testing.T) {
 	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
 	pMgr := NewPolicyManager(ioshim)
 
-	pMgr.chainsToCleanup[testChain1] = struct{}{}
-	pMgr.chainsToCleanup[testChain2] = struct{}{}
-	pMgr.chainsToCleanup[testChain3] = struct{}{}
-	chainsToCleanup := pMgr.oldPolicyChains()
+	pMgr.staleChains.add(testChain1)
+	pMgr.staleChains.add(testChain2)
+	pMgr.staleChains.add(testChain3)
+	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
 	sort.Strings(chainsToCleanup)
 	require.Error(t, pMgr.cleanupChains(chainsToCleanup))
-	assertEqualCleanupContents(t, pMgr, testChain1, testChain3)
+	assertStaleChainsContain(t, pMgr.staleChains, testChain1, testChain3)
 }
 
 func TestInitChainsCreator(t *testing.T) {

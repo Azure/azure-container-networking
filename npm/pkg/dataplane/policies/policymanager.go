@@ -15,9 +15,9 @@ type PolicyMap struct {
 }
 
 type PolicyManager struct {
-	policyMap *PolicyMap
-	ioShim    *common.IOShim
-	osTools
+	policyMap   *PolicyMap
+	ioShim      *common.IOShim
+	staleChains *staleChains
 	sync.Mutex
 }
 
@@ -26,8 +26,8 @@ func NewPolicyManager(ioShim *common.IOShim) *PolicyManager {
 		policyMap: &PolicyMap{
 			cache: make(map[string]*NPMNetworkPolicy),
 		},
-		ioShim:  ioShim,
-		osTools: makeTools(),
+		ioShim:      ioShim,
+		staleChains: newStaleChains(),
 	}
 }
 
@@ -45,6 +45,7 @@ func (pMgr *PolicyManager) Reset() error {
 	return nil
 }
 
+// TODO Windows doesn't need this go routine
 func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 	go func() {
 		ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))

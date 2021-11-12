@@ -160,27 +160,19 @@ func TestUpdatingChainsToCleanup(t *testing.T) {
 	pMgr := NewPolicyManager(ioshim)
 
 	require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[0], nil))
-	assertEqualCleanupContents(t, pMgr)
+	assertStaleChainsContain(t, pMgr.staleChains)
 	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil))
-	assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain)
+	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
 
 	// TODO uncomment when grep stuff is fixed
 	// require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[1], nil))
-	// assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain)
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
 	// require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[1].Name, nil))
-	// assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain)
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
 	// require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[2], nil))
-	// assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain)
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
 	// require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[2].Name, nil))
-	// assertEqualCleanupContents(t, pMgr, testPolicy1IngressChain, testPolicy1EgressChain, testPolicy3EgressChain)
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain, testPolicy3EgressChain)
 	// require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[0], nil))
-	// assertEqualCleanupContents(t, pMgr, testPolicy3EgressChain)
-}
-
-func assertEqualCleanupContents(t *testing.T, pMgr *PolicyManager, expectedChains ...string) {
-	require.Equal(t, len(expectedChains), len(pMgr.chainsToCleanup), "incorrectly tracking chains for cleanup")
-	for _, chain := range expectedChains {
-		_, exists := pMgr.chainsToCleanup[chain]
-		require.True(t, exists, "incorrectly tracking chains for cleanup")
-	}
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy3EgressChain)
 }
