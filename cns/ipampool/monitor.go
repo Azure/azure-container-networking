@@ -103,29 +103,29 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	allocatedPodIPCount := len(pm.httpService.GetAllocatedIPConfigs())
 	pendingReleaseIPCount := len(pm.httpService.GetPendingReleaseIPConfigs())
 	availableIPConfigCount := len(pm.httpService.GetAvailableIPConfigs()) // TODO: add pending allocation count to real cns
-	requestedIPConfigCount := pm.spec.RequestedIPCount
-	unallocatedIPConfigCount := cnsPodIPConfigCount - allocatedPodIPCount
-	freeIPConfigCount := requestedIPConfigCount - int64(allocatedPodIPCount)
+	requestedIPConfigCount := int(pm.spec.RequestedIPCount)
+	unallocated := cnsPodIPConfigCount - allocatedPodIPCount
+	requestedUnallocated := requestedIPConfigCount - allocatedPodIPCount
 	batchSize := pm.scaler.BatchSize
 	maxIPCount := pm.scaler.MaxIPCount
 
-	msg := fmt.Sprintf("[ipam-pool-monitor] Pool Size: %v, Goal Size: %v, BatchSize: %v, MaxIPCount: %v, Allocated: %v, Available: %v, Pending Release: %v, Free: %v, Pending Program: %v",
-		cnsPodIPConfigCount, pm.spec.RequestedIPCount, batchSize, maxIPCount, allocatedPodIPCount, availableIPConfigCount, pendingReleaseIPCount, freeIPConfigCount, pendingProgramCount)
+	msg := fmt.Sprintf("[ipam-pool-monitor] Pool Size: %d, Goal Size: %d, BatchSize: %d, MaxIPCount: %d, Allocated: %d, Available: %d, Pending Release: %d, Unallocated: %d, Requested Unallocated: %d Pending Program: %d", //nolint:lll // ignore
+		cnsPodIPConfigCount, pm.spec.RequestedIPCount, batchSize, maxIPCount, allocatedPodIPCount, availableIPConfigCount, pendingReleaseIPCount, unallocated, requestedUnallocated, pendingProgramCount)
 
 	ipamAllocatedIPCount.Set(float64(allocatedPodIPCount))
 	ipamAvailableIPCount.Set(float64(availableIPConfigCount))
 	ipamBatchSize.Set(float64(batchSize))
-	ipamFreeIPCount.Set(float64(freeIPConfigCount))
 	ipamIPPool.Set(float64(cnsPodIPConfigCount))
 	ipamMaxIPCount.Set(float64(maxIPCount))
 	ipamPendingProgramIPCount.Set(float64(pendingProgramCount))
 	ipamPendingReleaseIPCount.Set(float64(pendingReleaseIPCount))
 	ipamRequestedIPConfigCount.Set(float64(requestedIPConfigCount))
-	ipamUnallocatedIPCount.Set(float64(unallocatedIPConfigCount))
+	ipamUnallocatedIPCount.Set(float64(unallocated))
+	ipamRequestedUnallocatedIPCount.Set(float64(requestedUnallocated))
 
 	switch {
 	// pod count is increasing
-	case freeIPConfigCount < int64(pm.state.minFreeCount):
+	case requestedUnallocated < pm.state.minFreeCount:
 		if pm.spec.RequestedIPCount == maxIPCount {
 			// If we're already at the maxIPCount, don't try to increase
 			return nil
@@ -135,7 +135,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return pm.increasePoolSize(ctx)
 
 	// pod count is decreasing
-	case freeIPConfigCount >= int64(pm.state.maxFreeCount):
+	case unallocated >= pm.state.maxFreeCount:
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...%s ", msg)
 		return pm.decreasePoolSize(ctx, pendingReleaseIPCount)
 
