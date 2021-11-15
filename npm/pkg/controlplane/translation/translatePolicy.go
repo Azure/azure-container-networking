@@ -103,7 +103,7 @@ func portRule(ruleIPSets []*ipsets.TranslatedIPSet, acl *policies.ACLPolicy, por
 	// port rule is always applied to destination side.
 	if portType == namedPortType {
 		namedPortIPSet, namedPortRuleDstList, protocol := namedPortRule(portRule)
-		acl.DstList = append(acl.DstList, namedPortRuleDstList)
+		acl.AddSetInfo([]policies.SetInfo{namedPortRuleDstList})
 		acl.Protocol = policies.Protocol(protocol)
 		ruleIPSets = append(ruleIPSets, namedPortIPSet)
 	} else if portType == numericPortType {
@@ -245,7 +245,7 @@ func ruleExists(ports []networkingv1.NetworkPolicyPort, peer []networkingv1.Netw
 func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, setInfo []policies.SetInfo) {
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(npmNetPol.NameSpace, npmNetPol.Name, policies.Allowed, direction)
-		acl.SrcList = setInfo
+		acl.AddSetInfo(setInfo)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
 		return
 	}
@@ -259,7 +259,7 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 		}
 
 		acl := policies.NewACLPolicy(npmNetPol.NameSpace, npmNetPol.Name, policies.Allowed, direction)
-		acl.SrcList = setInfo
+		acl.AddSetInfo(setInfo)
 		npmNetPol.RuleIPSets = portRule(npmNetPol.RuleIPSets, acl, &ports[i], portKind)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
 	}
@@ -273,13 +273,13 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 	allowExternal, portRuleExists, fromRuleExists := ruleExists(ports, peers)
 
 	// #0. TODO(jungukcho): cannot come up when this condition is met.
-	// The code inside if condition is to handleallowing all internal traffic, but the case is handled in #2.4.
+	// The code inside if condition is to handle allowing all internal traffic, but the case is handled in #2.4.
 	// So, this code may not execute. After confirming this, need to delete it.
 	if !portRuleExists && !fromRuleExists && !allowExternal {
 		acl := policies.NewACLPolicy(npmNetPol.NameSpace, npmNetPol.Name, policies.Allowed, direction)
-		ruleIPSets, setInfo := allowAllInternal(matchType)
+		ruleIPSets, allowAllInternalSetInfo := allowAllInternal(matchType)
 		npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ruleIPSets)
-		acl.SrcList = append(acl.SrcList, setInfo)
+		acl.AddSetInfo([]policies.SetInfo{allowAllInternalSetInfo})
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
 		return
 	}
@@ -328,18 +328,18 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 			// to handle multiple values in matchExpressions spec.
 			flattenNSSelector := flattenNameSpaceSelector(peer.NamespaceSelector)
 			for i := range flattenNSSelector {
-				nsSelectorIPSets, nsSrcList := nameSpaceSelector(matchType, &flattenNSSelector[i])
+				nsSelectorIPSets, nsSelectorList := nameSpaceSelector(matchType, &flattenNSSelector[i])
 				npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, nsSelectorIPSets...)
-				peerAndPortRule(npmNetPol, direction, ports, nsSrcList)
+				peerAndPortRule(npmNetPol, direction, ports, nsSelectorList)
 			}
 			continue
 		}
 
 		// #2.3 handle podSelector and port if exist
 		if peer.PodSelector != nil && peer.NamespaceSelector == nil {
-			podSelectorIPSets, podSelectorSrcList := podSelectorWithNS(npmNetPol.NameSpace, matchType, peer.PodSelector)
+			podSelectorIPSets, podSelectorList := podSelectorWithNS(npmNetPol.NameSpace, matchType, peer.PodSelector)
 			npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, podSelectorIPSets...)
-			peerAndPortRule(npmNetPol, direction, ports, podSelectorSrcList)
+			peerAndPortRule(npmNetPol, direction, ports, podSelectorList)
 			continue
 		}
 
@@ -352,17 +352,17 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 		}
 
 		// #2.4 handle namespaceSelector and podSelector and port if exist
-		podSelectorIPSets, podSelectorSrcList := podSelector(matchType, peer.PodSelector)
+		podSelectorIPSets, podSelectorList := podSelector(matchType, peer.PodSelector)
 		npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, podSelectorIPSets...)
 
 		// Before translating NamespaceSelector, flattenNameSpaceSelector function call should be called
 		// to handle multiple values in matchExpressions spec.
 		flattenNSSelector := flattenNameSpaceSelector(peer.NamespaceSelector)
 		for i := range flattenNSSelector {
-			nsSelectorIPSets, nsSrcList := nameSpaceSelector(matchType, &flattenNSSelector[i])
+			nsSelectorIPSets, nsSelectorList := nameSpaceSelector(matchType, &flattenNSSelector[i])
 			npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, nsSelectorIPSets...)
-			nsSrcList = append(nsSrcList, podSelectorSrcList...)
-			peerAndPortRule(npmNetPol, direction, ports, nsSrcList)
+			nsSelectorList = append(nsSelectorList, podSelectorList...)
+			peerAndPortRule(npmNetPol, direction, ports, nsSelectorList)
 		}
 	}
 }
