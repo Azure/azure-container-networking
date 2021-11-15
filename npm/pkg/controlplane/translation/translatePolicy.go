@@ -270,12 +270,12 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 	ports []networkingv1.NetworkPolicyPort, peers []networkingv1.NetworkPolicyPeer) {
 	// TODO(jungukcho): need to clean up it.
 	// Leave allowExternal variable now while the condition is checked before calling this function.
-	allowExternal, portRuleExists, fromRuleExists := ruleExists(ports, peers)
+	allowExternal, portRuleExists, peerRuleExists := ruleExists(ports, peers)
 
 	// #0. TODO(jungukcho): cannot come up when this condition is met.
 	// The code inside if condition is to handle allowing all internal traffic, but the case is handled in #2.4.
 	// So, this code may not execute. After confirming this, need to delete it.
-	if !portRuleExists && !fromRuleExists && !allowExternal {
+	if !portRuleExists && !peerRuleExists && !allowExternal {
 		acl := policies.NewACLPolicy(npmNetPol.NameSpace, npmNetPol.Name, policies.Allowed, direction)
 		ruleIPSets, allowAllInternalSetInfo := allowAllInternal(matchType)
 		npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ruleIPSets)
@@ -285,7 +285,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 	}
 
 	// #1. Only Ports fields exist in rule
-	if portRuleExists && !fromRuleExists && !allowExternal {
+	if portRuleExists && !peerRuleExists && !allowExternal {
 		for i := range ports {
 			portKind, err := portType(ports[i])
 			if err != nil {
