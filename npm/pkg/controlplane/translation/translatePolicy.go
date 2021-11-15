@@ -299,7 +299,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 		}
 	}
 
-	// #2. From fields exist in rule
+	// #2. From or To fields exist in rule
 	for j, peer := range peers {
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
@@ -326,9 +326,9 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 		if peer.PodSelector == nil && peer.NamespaceSelector != nil {
 			// Before translating NamespaceSelector, flattenNameSpaceSelector function call should be called
 			// to handle multiple values in matchExpressions spec.
-			flattenNSSelctor := flattenNameSpaceSelector(peer.NamespaceSelector)
-			for i := range flattenNSSelctor {
-				nsSelectorIPSets, nsSrcList := nameSpaceSelector(matchType, &flattenNSSelctor[i])
+			flattenNSSelector := flattenNameSpaceSelector(peer.NamespaceSelector)
+			for i := range flattenNSSelector {
+				nsSelectorIPSets, nsSrcList := nameSpaceSelector(matchType, &flattenNSSelector[i])
 				npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, nsSelectorIPSets...)
 				peerAndPortRule(npmNetPol, direction, ports, nsSrcList)
 			}
@@ -357,9 +357,9 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 
 		// Before translating NamespaceSelector, flattenNameSpaceSelector function call should be called
 		// to handle multiple values in matchExpressions spec.
-		flattenNSSelctor := flattenNameSpaceSelector(peer.NamespaceSelector)
-		for i := range flattenNSSelctor {
-			nsSelectorIPSets, nsSrcList := nameSpaceSelector(matchType, &flattenNSSelctor[i])
+		flattenNSSelector := flattenNameSpaceSelector(peer.NamespaceSelector)
+		for i := range flattenNSSelector {
+			nsSelectorIPSets, nsSrcList := nameSpaceSelector(matchType, &flattenNSSelector[i])
 			npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, nsSelectorIPSets...)
 			nsSrcList = append(nsSrcList, podSelectorSrcList...)
 			peerAndPortRule(npmNetPol, direction, ports, nsSrcList)
@@ -399,7 +399,7 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, ingress []networkingv1.
 
 	// #2. If ingress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow receiving any traffic from others.
 	if ingress == nil {
-		// Except for allow all traffic case in #1, the rest of them should not have default drop rules.
+		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
 		dropACL := defaultDropACL(npmNetPol.NameSpace, npmNetPol.Name, policies.Ingress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 		return
@@ -410,7 +410,7 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, ingress []networkingv1.
 	for i, rule := range ingress {
 		translateRule(npmNetPol, policies.Ingress, policies.SrcMatch, i, rule.Ports, rule.From)
 	}
-	// Except for allow all traffic case in #1, the rest of them should not have default drop rules.
+	// Except for allow all traffic case in #1, the rest of them should have default drop rules.
 	dropACL := defaultDropACL(npmNetPol.NameSpace, npmNetPol.Name, policies.Ingress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 }
@@ -435,7 +435,7 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, egress []networkingv1.Ne
 
 	// #2. If egress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow sending traffic to others.
 	if egress != nil {
-		// Except for allow all traffic case in #1, the rest of them should not have default drop rules.
+		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
 		dropACL := defaultDropACL(npmNetPol.NameSpace, npmNetPol.Name, policies.Egress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 		return
@@ -447,7 +447,7 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, egress []networkingv1.Ne
 		translateRule(npmNetPol, policies.Egress, policies.DstMatch, i, rule.Ports, rule.To)
 	}
 
-	// #3. Except for allow all traffic case in #1, the rest of them should not have default drop rules.
+	// #3. Except for allow all traffic case in #1, the rest of them should have default drop rules.
 	// Add drop ACL to drop the rest of traffic which is not specified in Egress Spec.
 	dropACL := defaultDropACL(npmNetPol.NameSpace, npmNetPol.Name, policies.Egress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
