@@ -18,7 +18,7 @@ var DefaultConfig = Config{
 		EnablePprof:             true,
 		EnableHTTPDebugAPI:      true,
 		EnableV2Controllers:     false,
-		PlaceAzureChainFirst:    true,
+		PlaceAzureChainFirst:    false,
 	},
 }
 
