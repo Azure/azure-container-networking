@@ -11,9 +11,6 @@ import (
 type NPMNetworkPolicy struct {
 	Name      string
 	NameSpace string
-	// TODO(jungukcho)
-	// ipsets.IPSetMetadata is common data in both PodSelectorIPSets and PodSelectorList.
-	// So, they can be one datastructure holding all information without redundancy.
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
 	// PodSelectorList holds target pod information to avoid duplicatoin in SrcList and DstList fields in ACLs
@@ -36,6 +33,10 @@ type ACLPolicy struct {
 	PolicyID string
 	// Comment is the string attached to rule to identity its representation
 	Comment string
+	// TODO(jungukcho): now I think we do not need to manage SrcList and DstList
+	// We may have just one PeerList to hold since it will depend on direction except for namedPort.
+	// They are exclusive and each SetInfo even have its own direction.
+	// PeerList []SetInfo
 	// SrcList source IPSets condition setinfos
 	SrcList []SetInfo
 	// DstList destination IPSets condition setinfos
@@ -68,6 +69,27 @@ func NewACLPolicy(policyNS, policyName string, target Verdict, direction Directi
 		Direction: direction,
 	}
 	return acl
+}
+
+// AddSetInfo is to add setInfo to SrcList or DstList based on direction
+// except for a setInfo for namedPort since namedPort is always for destination.
+// TODO(jungukcho): cannot come up with Both Direction.
+func (aclPolicy *ACLPolicy) AddSetInfo(peerList []SetInfo) {
+	for _, peer := range peerList {
+		// in case peer is a setInfo for namedPort, the peer is always added to DstList in aclPolicy
+		// regardless of direction since namePort is always for destination.
+		if peer.MatchType == DstDstMatch {
+			aclPolicy.DstList = append(aclPolicy.DstList, peer)
+			continue
+		}
+
+		// add peer into SrcList or DstList based on Direction
+		if aclPolicy.Direction == Ingress {
+			aclPolicy.SrcList = append(aclPolicy.SrcList, peer)
+		} else if aclPolicy.Direction == Egress {
+			aclPolicy.DstList = append(aclPolicy.DstList, peer)
+		}
+	}
 }
 
 func (aclPolicy *ACLPolicy) hasKnownDirection() bool {
@@ -181,11 +203,13 @@ const (
 )
 
 // Possible MatchTypes.
-// MatchTypes with 2 locations (e.g. DstDst) are for ip and port respectively.
 const (
-	SrcMatch    MatchType = 0
-	DstMatch    MatchType = 1
-	DstDstMatch MatchType = 3
+	SrcMatch MatchType = 0
+	DstMatch MatchType = 1
+	// MatchTypes with 2 locations (e.g. DstDst) are for ip and port respectively.
+	DstDstMatch MatchType = 2
+	// This is used for podSelector under spec. It can be Src or Dst based on existence of ingress or egress rule.
+	EitherMatch MatchType = 3
 )
 
 var matchTypeStrings = map[MatchType]string{

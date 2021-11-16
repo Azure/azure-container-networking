@@ -92,6 +92,7 @@ func (pMgr *PolicyManager) initializeNPMChains() error {
 func (pMgr *PolicyManager) removeNPMChains() error {
 	deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
 	hadDeleteError := deleteErr != nil && deleteErrCode != couldntLoadTargetErrorCode
+	// TODO check rule doesn't exist error code instead. The first call of dp.Reset() we will have exit code 2 (couldn't load target) since AZURE-NPM won't exist
 	if hadDeleteError {
 		baseErrString := "failed to delete jump from FORWARD chain to AZURE-NPM chain"
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s with exit code %d and error: %s", baseErrString, deleteErrCode, deleteErr.Error())
@@ -216,7 +217,7 @@ func (pMgr *PolicyManager) getCreatorForInitChains() *ioutil.FileCreator {
 func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 	kubeServicesLine, kubeServicesLineNumErr := pMgr.getChainLineNumber(util.IptablesKubeServicesChain)
 	if kubeServicesLineNumErr != nil {
-		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
+		// not possible to cover this branch currently because of testing limitations for PipeCommandToGrep()
 		baseErrString := "failed to get index of jump from KUBE-SERVICES chain to FORWARD chain with error"
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s: %s", baseErrString, kubeServicesLineNumErr.Error())
 		return npmerrors.SimpleErrorWrapper(baseErrString, kubeServicesLineNumErr)
@@ -253,7 +254,7 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 
 	npmChainLine, npmLineNumErr := pMgr.getChainLineNumber(util.IptablesAzureChain)
 	if npmLineNumErr != nil {
-		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
+		// not possible to cover this branch currently because of testing limitations for PipeCommandToGrep()
 		baseErrString := "failed to get index of jump from FORWARD chain to AZURE-NPM chain"
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s: %s", baseErrString, npmLineNumErr.Error())
 		// FIXME update ID
@@ -298,10 +299,10 @@ func (pMgr *PolicyManager) getChainLineNumber(chain string) (int, error) {
 		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
 		util.IptablesNumericFlag, util.IptablesListFlag, util.IptablesForwardChain, util.IptablesLineNumbersFlag,
 	)
-	grepCommand := pMgr.ioShim.Exec.Command("grep", chain)
-	searchResults, gotMatches, err := pipeCommandToGrep(listForwardEntriesCommand, grepCommand)
+	grepCommand := pMgr.ioShim.Exec.Command(ioutil.Grep, chain)
+	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(listForwardEntriesCommand, grepCommand)
 	if err != nil {
-		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
+		// not possible to cover this branch currently because of testing limitations for PipeCommandToGrep()
 		return 0, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to determine line number for jump from FORWARD chain to %s chain", chain), err)
 	}
 	if !gotMatches {
@@ -314,39 +315,11 @@ func (pMgr *PolicyManager) getChainLineNumber(chain string) (int, error) {
 	return 0, nil
 }
 
-func pipeCommandToGrep(command, grepCommand utilexec.Cmd) (searchResults []byte, gotMatches bool, commandError error) {
-	pipe, commandError := command.StdoutPipe()
-	if commandError != nil {
-		return
-	}
-
-	closePipe := func() { _ = pipe.Close() } // appease go lint
-	defer closePipe()
-
-	commandError = command.Start()
-	if commandError != nil {
-		return
-	}
-
-	// Without this wait, defunct iptable child process are created
-	wait := func() { _ = command.Wait() } // appease go lint
-	defer wait()
-
-	output, err := grepCommand.CombinedOutput()
-	if err != nil {
-		// grep returns err status 1 if nothing is found
-		return
-	}
-	searchResults = output
-	gotMatches = true
-	return
-}
-
 // make this a function for easier testing
 func (pMgr *PolicyManager) getCreatorAndChainsForReset() (creator *ioutil.FileCreator, chainsToFlush []string) {
 	oldPolicyChains, err := pMgr.getPolicyChainNames()
 	if err != nil {
-		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
+		// not possible to cover this branch currently because of testing limitations for PipeCommandToGrep()
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to determine NPM ingress/egress policy chains to delete")
 	}
 	chainsToFlush = iptablesOldAndNewChains
@@ -361,10 +334,10 @@ func (pMgr *PolicyManager) getPolicyChainNames() ([]string, error) {
 		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
 		util.IptablesNumericFlag, util.IptablesListFlag,
 	)
-	grepCommand := pMgr.ioShim.Exec.Command("grep", ingressOrEgressPolicyChainPattern)
-	searchResults, gotMatches, err := pipeCommandToGrep(iptablesListCommand, grepCommand)
+	grepCommand := pMgr.ioShim.Exec.Command(ioutil.Grep, ingressOrEgressPolicyChainPattern)
+	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(iptablesListCommand, grepCommand)
 	if err != nil {
-		// not possible to cover this branch currently because of testing limitations for pipeCommandToGrep()
+		// not possible to cover this branch currently because of testing limitations for PipeCommandToGrep()
 		return nil, npmerrors.SimpleErrorWrapper("failed to get policy chain names", err)
 	}
 	if !gotMatches {

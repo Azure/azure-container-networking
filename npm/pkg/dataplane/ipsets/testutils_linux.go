@@ -2,14 +2,25 @@ package ipsets
 
 import testutils "github.com/Azure/azure-container-networking/test/utils"
 
-var fakeRestoreSuccessCommand = testutils.TestCmd{
-	Cmd:      []string{"ipset", "restore"},
-	Stdout:   "success",
-	ExitCode: 0,
-}
+var (
+	ipsetRestoreStringSlice = []string{"ipset", "restore"}
+	ipsetSaveStringSlice    = []string{"ipset", "save"}
+
+	fakeRestoreSuccessCommand = testutils.TestCmd{
+		Cmd:      ipsetRestoreStringSlice,
+		Stdout:   "success",
+		ExitCode: 0,
+	}
+)
 
 func GetApplyIPSetsTestCalls(toAddOrUpdateIPSets, toDeleteIPSets []*IPSetMetadata) []testutils.TestCmd {
-	// TODO eventually call ipset save if there are toAddOrUpdateIPSets
+	if len(toAddOrUpdateIPSets) > 0 {
+		return []testutils.TestCmd{
+			{Cmd: ipsetSaveStringSlice, PipedToCommand: true},
+			{Cmd: []string{"grep", "azure-npm-"}, ExitCode: 1}, // grep didn't find anything
+			{Cmd: ipsetRestoreStringSlice},
+		}
+	}
 	return []testutils.TestCmd{fakeRestoreSuccessCommand}
 }
 

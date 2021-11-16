@@ -37,7 +37,7 @@ func TestAddPolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 	creator := pMgr.getCreatorForNewNetworkPolicies(TestNetworkPolicies...)
-	fileString := creator.ToString()
+	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
 		// all chains
@@ -60,8 +60,7 @@ func TestAddPolicies(t *testing.T) {
 		fmt.Sprintf("-I AZURE-NPM-EGRESS 2 %s", testPolicy3EgressJump),
 		"COMMIT\n",
 	}
-	expectedFileString := strings.Join(expectedLines, "\n")
-	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, fileString)
+	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 
 	err := pMgr.addPolicy(TestNetworkPolicies[0], nil)
 	require.NoError(t, err)
@@ -83,7 +82,7 @@ func TestRemovePolicies(t *testing.T) {
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 	creator := pMgr.getCreatorForRemovingPolicies(TestNetworkPolicies...)
-	fileString := creator.ToString()
+	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
 		fmt.Sprintf(":%s - -", testPolicy1IngressChain),
@@ -92,8 +91,7 @@ func TestRemovePolicies(t *testing.T) {
 		fmt.Sprintf(":%s - -", testPolicy3EgressChain),
 		"COMMIT\n",
 	}
-	expectedFileString := strings.Join(expectedLines, "\n")
-	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, fileString)
+	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil) // need the policy in the cache
 	require.NoError(t, err)

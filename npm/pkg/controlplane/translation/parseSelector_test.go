@@ -4,310 +4,20 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-func TestParseLabel(t *testing.T) {
-	label, isComplementSet := ParseLabel("test:frontend")
-	expectedLabel := "test:frontend"
-	if isComplementSet || label != expectedLabel {
-		t.Errorf("TestParseLabel failed @ label %s", label)
-	}
-
-	label, isComplementSet = ParseLabel("!test:frontend")
-	expectedLabel = "test:frontend"
-	if !isComplementSet || label != expectedLabel {
-		t.Errorf("TestParseLabel failed @ label %s", label)
-	}
-
-	label, isComplementSet = ParseLabel("test")
-	expectedLabel = "test"
-	if isComplementSet || label != expectedLabel {
-		t.Errorf("TestParseLabel failed @ label %s", label)
-	}
-
-	label, isComplementSet = ParseLabel("!test")
-	expectedLabel = "test"
-	if !isComplementSet || label != expectedLabel {
-		t.Errorf("TestParseLabel failed @ label %s", label)
-	}
-
-	label, isComplementSet = ParseLabel("!!test")
-	expectedLabel = "!test"
-	if !isComplementSet || label != expectedLabel {
-		t.Errorf("TestParseLabel failed @ label %s", label)
-	}
-
-	label, isComplementSet = ParseLabel("test:!frontend")
-	expectedLabel = "test:!frontend"
-	if isComplementSet || label != expectedLabel {
-		t.Errorf("TestParseLabel failed @ label %s", label)
-	}
-
-	label, isComplementSet = ParseLabel("!test:!frontend")
-	expectedLabel = "test:!frontend"
-	if !isComplementSet || label != expectedLabel {
-		t.Errorf("TestParseLabel failed @ label %s", label)
-	}
-}
-
-func TestGetOperatorAndLabel(t *testing.T) {
-	testLabels := []string{
-		"a",
-		"k:v",
-		"",
-		"!a:b",
-		"!a",
-	}
-
-	resultOperators, resultLabels := []string{}, []string{}
-	for _, testLabel := range testLabels {
-		resultOperator, resultLabel := GetOperatorAndLabel(testLabel)
-		resultOperators = append(resultOperators, resultOperator)
-		resultLabels = append(resultLabels, resultLabel)
-	}
-
-	expectedOperators := []string{
-		"",
-		"",
-		"",
-		util.IptablesNotFlag,
-		util.IptablesNotFlag,
-	}
-
-	expectedLabels := []string{
-		"a",
-		"k:v",
-		"",
-		"a:b",
-		"a",
-	}
-
-	if !reflect.DeepEqual(resultOperators, expectedOperators) {
-		t.Errorf("TestGetOperatorAndLabel failed @ operator comparison")
-	}
-
-	if !reflect.DeepEqual(resultLabels, expectedLabels) {
-		t.Errorf("TestGetOperatorAndLabel failed @ label comparison")
-	}
-}
-
-func TestGetOperatorsAndLabels(t *testing.T) {
-	testLabels := []string{
-		"k:v",
-		"",
-		"!a:b",
-	}
-
-	resultOps, resultLabels := GetOperatorsAndLabels(testLabels)
-	expectedOps := []string{
-		"",
-		"",
-		"!",
-	}
-	expectedLabels := []string{
-		"k:v",
-		"",
-		"a:b",
-	}
-
-	if !reflect.DeepEqual(resultOps, expectedOps) {
-		t.Errorf("TestGetOperatorsAndLabels failed @ op comparison")
-	}
-
-	if !reflect.DeepEqual(resultLabels, expectedLabels) {
-		t.Errorf("TestGetOperatorsAndLabels failed @ label comparison")
-	}
-}
-
-// TODO(jungukcho): check UT results.
-func TestParseSelector(t *testing.T) {
-	var selector, expectedSelector *metav1.LabelSelector
-	selector, expectedSelector = nil, nil
-	labels, vals := parseSelector(selector)
-	expectedLabels, expectedVals := []string{}, make(map[string][]string)
-
-	if len(labels) != len(expectedLabels) {
-		t.Errorf("TestparseSelector failed @ labels length comparison")
-	}
-
-	if len(vals) != len(expectedVals) {
-		t.Errorf("TestparseSelector failed @ vals length comparison")
-	}
-
-	if selector != expectedSelector {
-		t.Errorf("TestparseSelector failed @ vals length comparison")
-	}
-
-	selector = &metav1.LabelSelector{}
-	labels, vals = parseSelector(selector)
-	expectedLabels = []string{""}
-	if len(labels) != len(expectedLabels) {
-		t.Errorf("TestparseSelector failed @ labels length comparison")
-	}
-
-	if len(vals) != len(expectedVals) {
-		t.Errorf("TestparseSelector failed @ vals length comparison")
-	}
-
-	selector = &metav1.LabelSelector{
-		MatchExpressions: []metav1.LabelSelectorRequirement{
-			{
-				Key:      "testIn",
-				Operator: metav1.LabelSelectorOpIn,
-				Values: []string{
-					"frontend",
-					"backend",
-				},
-			},
-		},
-	}
-
-	labels, vals = parseSelector(selector)
-	expectedLabels = []string{}
-	expectedVals = map[string][]string{
-		"testIn": {
-			"frontend",
-			"backend",
-		},
-	}
-
-	if len(labels) != len(expectedLabels) {
-		t.Errorf("TestparseSelector failed @ labels length comparison")
-	}
-
-	if len(vals) != len(expectedVals) {
-		t.Errorf("TestparseSelector failed @ vals length comparison")
-	}
-
-	if len(labels) != 0 {
-		t.Errorf("TestparseSelector failed @ label comparison")
-	}
-	if !reflect.DeepEqual(vals, expectedVals) {
-		t.Errorf("TestparseSelector failed @ value comparison")
-	}
-
-	notIn := metav1.LabelSelectorRequirement{
-		Key:      "testNotIn",
-		Operator: metav1.LabelSelectorOpNotIn,
-		Values: []string{
-			"frontend",
-			"backend",
-		},
-	}
-
-	me := &selector.MatchExpressions
-	*me = append(*me, notIn)
-
-	labels, vals = parseSelector(selector)
-	addedLabels := []string{}
-	addedVals := map[string][]string{
-		"!testNotIn": {
-			"frontend",
-			"backend",
-		},
-	}
-
-	expectedLabels = append(expectedLabels, addedLabels...)
-	for k, v := range addedVals {
-		expectedVals[k] = append(expectedVals[k], v...)
-	}
-
-	if len(labels) != len(expectedLabels) {
-		t.Errorf("TestparseSelector failed @ labels length comparison")
-	}
-
-	if len(vals) != len(expectedVals) {
-		t.Errorf("TestparseSelector failed @ vals length comparison")
-	}
-
-	if len(labels) != 0 {
-		t.Errorf("TestparseSelector failed @ label comparison")
-	}
-	if !reflect.DeepEqual(vals, expectedVals) {
-		t.Errorf("TestparseSelector failed @ value comparison")
-	}
-
-	exists := metav1.LabelSelectorRequirement{
-		Key:      "testExists",
-		Operator: metav1.LabelSelectorOpExists,
-		Values:   []string{},
-	}
-
-	*me = append(*me, exists)
-
-	labels, vals = parseSelector(selector)
-	addedLabels = []string{
-		"testExists",
-	}
-	addedVals = map[string][]string{}
-	expectedLabels = append(expectedLabels, addedLabels...)
-	for k, v := range addedVals {
-		expectedVals[k] = append(expectedVals[k], v...)
-	}
-
-	if len(labels) != len(expectedLabels) {
-		t.Errorf("TestparseSelector failed @ labels length comparison")
-	}
-
-	if len(vals) != len(expectedVals) {
-		t.Errorf("TestparseSelector failed @ vals length comparison")
-	}
-
-	if !reflect.DeepEqual(labels, expectedLabels) {
-		t.Errorf("TestparseSelector failed @ label comparison")
-	}
-	if !reflect.DeepEqual(vals, expectedVals) {
-		t.Errorf("TestparseSelector failed @ value comparison")
-	}
-
-	doesNotExist := metav1.LabelSelectorRequirement{
-		Key:      "testDoesNotExist",
-		Operator: metav1.LabelSelectorOpDoesNotExist,
-		Values:   []string{},
-	}
-
-	*me = append(*me, doesNotExist)
-
-	labels, vals = parseSelector(selector)
-	addedLabels = []string{
-		"!testDoesNotExist",
-	}
-	addedVals = map[string][]string{}
-	expectedLabels = append(expectedLabels, addedLabels...)
-	for k, v := range addedVals {
-		expectedVals[k] = append(expectedVals[k], v...)
-	}
-
-	if len(labels) != len(expectedLabels) {
-		t.Errorf("TestparseSelector failed @ labels length comparison")
-	}
-
-	if len(vals) != len(expectedVals) {
-		t.Errorf("TestparseSelector failed @ vals length comparison")
-	}
-
-	if !reflect.DeepEqual(labels, expectedLabels) {
-		t.Errorf("TestparseSelector failed @ label comparison")
-	}
-
-	if !reflect.DeepEqual(vals, expectedVals) {
-		t.Errorf("TestparseSelector failed @ value comparison")
-	}
-}
 
 func TestFlattenNameSpaceSelectorCases(t *testing.T) {
 	firstSelector := &metav1.LabelSelector{}
 
-	testSelectors := FlattenNameSpaceSelector(firstSelector)
+	testSelectors := flattenNameSpaceSelector(firstSelector)
 	if len(testSelectors) != 1 {
 		t.Errorf("TestFlattenNameSpaceSelectorCases failed @ 1st selector length check %+v", testSelectors)
 	}
 
 	var secondSelector *metav1.LabelSelector
 
-	testSelectors = FlattenNameSpaceSelector(secondSelector)
+	testSelectors = flattenNameSpaceSelector(secondSelector)
 	if len(testSelectors) > 0 {
 		t.Errorf("TestFlattenNameSpaceSelectorCases failed @ 1st selector length check %+v", testSelectors)
 	}
@@ -351,7 +61,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 		MatchLabels: commonMatchLabel,
 	}
 
-	testSelectors := FlattenNameSpaceSelector(firstSelector)
+	testSelectors := flattenNameSpaceSelector(firstSelector)
 	if len(testSelectors) != 1 {
 		t.Errorf("TestFlattenNameSpaceSelector failed @ 1st selector length check %+v", testSelectors)
 	}
@@ -395,7 +105,7 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 		MatchLabels: commonMatchLabel,
 	}
 
-	testSelectors = FlattenNameSpaceSelector(secondSelector)
+	testSelectors = flattenNameSpaceSelector(secondSelector)
 	if len(testSelectors) != 8 {
 		t.Errorf("TestFlattenNameSpaceSelector failed @ 2nd selector length check %+v", testSelectors)
 	}
@@ -689,7 +399,7 @@ func TestFlattenNameSpaceSelectorWoMatchLabels(t *testing.T) {
 		},
 	}
 
-	testSelectors := FlattenNameSpaceSelector(firstSelector)
+	testSelectors := flattenNameSpaceSelector(firstSelector)
 	if len(testSelectors) != 2 {
 		t.Errorf("TestFlattenNameSpaceSelector failed @ 1st selector length check %+v", testSelectors)
 	}

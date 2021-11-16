@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -25,8 +24,8 @@ type CNSConfig struct {
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
 	MetricsBindAddress          string
-	SyncHostNCTimeoutMs         time.Duration
-	SyncHostNCVersionIntervalMs time.Duration
+	SyncHostNCTimeoutMs         int
+	SyncHostNCVersionIntervalMs int
 	TLSCertificatePath          string
 	TLSEndpoint                 string
 	TLSPort                     string
@@ -151,9 +150,9 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 		config.MetricsBindAddress = ":9090"
 	}
 	if config.SyncHostNCVersionIntervalMs == 0 {
-		config.SyncHostNCVersionIntervalMs = 1000 * time.Millisecond //nolint:gomnd // default times
+		config.SyncHostNCVersionIntervalMs = 1000 //nolint:gomnd // default times
 	}
 	if config.SyncHostNCTimeoutMs == 0 {
-		config.SyncHostNCTimeoutMs = 500 * time.Millisecond //nolint:gomnd // default times
+		config.SyncHostNCTimeoutMs = 500 //nolint:gomnd // default times
 	}
 }

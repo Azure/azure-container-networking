@@ -2,21 +2,59 @@ package ipsets
 
 import (
 	"fmt"
+	"regexp"
 
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/util"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	"k8s.io/klog"
 )
 
 const (
-	maxTryCount                    = 1
-	deletionPrefix                 = "delete"
-	creationPrefix                 = "create"
+	azureNPMPrefix = "azure-npm-"
+
+	ipsetCommand        = "ipset"
+	ipsetSaveFlag       = "save"
+	ipsetRestoreFlag    = "restore"
+	ipsetCreateFlag     = "-N"
+	ipsetFlushFlag      = "-F"
+	ipsetAddFlag        = "-A"
+	ipsetDeleteFlag     = "-D"
+	ipsetDestroyFlag    = "-X"
+	ipsetExistFlag      = "--exist"
+	ipsetNetHashFlag    = "nethash"
+	ipsetSetListFlag    = "setlist"
+	ipsetIPPortHashFlag = "hash:ip,port"
+	ipsetMaxelemName    = "maxelem"
+	ipsetMaxelemNum     = "4294967295"
+
+	// constants for parsing ipset save
+	ipsetAddString           = "add"
+	ipsetCreateString        = "create"
+	ipsetSetListString       = "list:set"
+	ipsetNetHashString       = "hash:net"
+	ipsetIPPortHashString    = ipsetIPPortHashFlag
+	lengthForSuccessfulMatch = 2
+
+	// creator constants
+	maxTryCount                    = 3
+	destroySectionPrefix           = "delete"
+	addOrUpdateSectionPrefix       = "add/update"
 	ipsetRestoreLineFailurePattern = "Error in line (\\d+):"
-	setAlreadyExistsPattern        = "Set cannot be created: set with the same name already exists"
-	setDoesntExistPattern          = "The set with the given name does not exist"
-	setInUseByKernelPattern        = "Set cannot be destroyed: it is in use by a kernel component"
-	memberSetDoesntExist           = "Set to be added/deleted/tested as element does not exist"
+)
+
+var (
+	// creator variables
+	setDoesntExistDefinition       = ioutil.NewErrorDefinition("The set with the given name does not exist")
+	setInUseByKernelDefinition     = ioutil.NewErrorDefinition("Set cannot be destroyed: it is in use by a kernel component")
+	setAlreadyExistsDefinition     = ioutil.NewErrorDefinition("Set cannot be created: set with the same name already exists")
+	memberSetDoesntExistDefinition = ioutil.NewErrorDefinition("Set to be added/deleted/tested as element does not exist")
+
+	// variables for parsing ipset save
+	hashedNamePattern  = fmt.Sprintf(`%s\d+`, azureNPMPrefix) // match azure-npm-<numbers>
+	nameForCreateRegex = regexp.MustCompile(fmt.Sprintf("%s (%s) ", ipsetCreateString, hashedNamePattern))
+	nameForAddRegex    = regexp.MustCompile(fmt.Sprintf("%s (%s) ", ipsetAddString, hashedNamePattern))
 )
 
 func (iMgr *IPSetManager) resetIPSets() error {
@@ -29,153 +67,414 @@ func (iMgr *IPSetManager) resetIPSets() error {
 	return nil
 }
 
-// don't need networkID
+/*
+overall error handling for ipset restore file.
+ipset restore will apply all lines to the kernel before a failure, so when recovering from a line failure, we must skip the lines that were already applied.
+below, "set" refers to either hashset or list, except in the sections for adding to (hash)set and adding to list
+
+for flush/delete:
+- abort the flush and delete calls if flush doesn't work
+  - checks if set doesn't exist, but performs the same handling for any error
+- skip the delete if it fails, and mark it as a failure (TODO)
+  - checks if the set is in use by kernel component, but performs the same handling for any error
+
+for create:
+- abort create and add/delete calls if create doesn't work
+  - checks if the set/list already exists, but performs the same handling for any error
+
+for add to set:
+- skip add if it fails
+
+for add to list:
+- skip the add if it fails, and mark it as a failure (TODO)
+  - checks if the member set can't be added to a list because it doesn't exist, but performs the same handling for any error
+
+for delete:
+- skip the delete if it fails for any reason
+
+overall format for ipset restore file:
+	[flushes]  (random order)
+	[destroys] (random order)
+	[creates]  (random order)
+	[deletes and adds for sets already in the kernel] (in order of occurrence in save file, deletes first (in random order), then adds (in random order))
+	[adds for new sets] (random order for sets and members)
+
+example where every set in add/update cache should have ip 1.2.3.4 and 2.3.4.5:
+	save file showing current kernel state:
+		create set-in-kernel-1 net:hash ...
+		add set-in-kernel-1 1.2.3.4
+		add set-in-kernel-1 8.8.8.8
+		add set-in-kernel-1 9.9.9.9
+		create set-in-kernel-2 net:hash ...
+		add set-in-kernel-1 3.3.3.3
+
+	restore file: [flag meanings: -F (flush), -X (destroy), -N (create), -D (delete), -A (add)]
+		-F set-to-delete2
+		-F set-to-delete3
+		-F set-to-delete1
+		-X set-to-delete2
+		-X set-to-delete3
+		-X set-to-delete1
+		-N new-set-2
+		-N set-in-kernel-2
+		-N set-in-kernel-1
+		-N new-set-1
+		-N new-set-3
+		-D set-in-kernel-1 8.8.8.8
+		-D set-in-kernel-1 9.9.9.9
+		-A set-in-kernel-1 2.3.4.5
+		-D set-in-kernel-2 3.3.3.3
+		-A set-in-kernel-2 2.3.4.5
+		-A set-in-kernel-2 1.2.3.4
+		-A new-set-2 1.2.3.4
+		-A new-set-2 2.3.4.5
+		-A new-set-1 2.3.4.5
+		-A new-set-1 1.2.3.4
+		-A new-set-3 1.2.3.4
+		-A new-set-3 2.3.4.5
+
+*/
+
 func (iMgr *IPSetManager) applyIPSets() error {
-	toDeleteSetNames := convertAndDeleteCache(iMgr.toDeleteCache)
-	toAddOrUpdateSetNames := convertAndDeleteCache(iMgr.toAddOrUpdateCache)
-	creator := iMgr.getFileCreator(maxTryCount, toDeleteSetNames, toAddOrUpdateSetNames)
-	err := creator.RunCommandWithFile(util.Ipset, util.IpsetRestoreFlag)
-	if err != nil {
-		return fmt.Errorf("%w", err)
+	var saveFile []byte
+	var saveError error
+	if len(iMgr.toAddOrUpdateCache) > 0 {
+		saveFile, saveError = iMgr.ipsetSave()
+		if saveError != nil {
+			return npmerrors.SimpleErrorWrapper("ipset save failed when applying ipsets", saveError)
+		}
+	}
+	creator := iMgr.fileCreator(maxTryCount, saveFile)
+	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
+	if restoreError != nil {
+		return npmerrors.SimpleErrorWrapper("ipset restore failed when applying ipsets", restoreError)
 	}
 	return nil
 }
 
-func convertAndDeleteCache(cache map[string]struct{}) []string {
-	result := make([]string, len(cache))
-	i := 0
-	for setName := range cache {
-		result[i] = setName
-		delete(cache, setName)
-		i++
+func (iMgr *IPSetManager) ipsetSave() ([]byte, error) {
+	command := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetSaveFlag)
+	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
+	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(command, grepCommand)
+	if err != nil {
+		return nil, npmerrors.SimpleErrorWrapper("failed to run ipset save", err)
 	}
-	return result
+	if !gotMatches {
+		return nil, nil
+	}
+	return searchResults, nil
 }
 
-// getFileCreator encodes an ipset restore file with error handling.
-// We use slices instead of maps so we can have determinstic behavior for
-// unit tests on the file creator i.e. check file contents before and after error handling.
-// Without slices, we could do unit tests on certain segments of the file,
-// but things would get complicated for checking error handling.
-// We can't escape the nondeterministic behavior of adding members,
-// but we can handle this in UTs with sorting.
-func (iMgr *IPSetManager) getFileCreator(maxTryCount int, toDeleteSetNames, toAddOrUpdateSetNames []string) *ioutil.FileCreator {
-	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
-	// creator.AddErrorToRetryOn(ioutil.NewErrorDefinition("something")) // TODO add file-level errors?
-	iMgr.handleDeletions(creator, toDeleteSetNames)
-	iMgr.handleAddOrUpdates(creator, toAddOrUpdateSetNames)
+func (iMgr *IPSetManager) fileCreator(maxTryCount int, saveFile []byte) *ioutil.FileCreator {
+	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern) // TODO make the line failure pattern into a definition constant eventually
+
+	// flush all sets first so we don't try to delete an ipset referenced by a list we're deleting too
+	for prefixedName := range iMgr.toDeleteCache {
+		iMgr.flushSetInFile(creator, prefixedName)
+	}
+	for prefixedName := range iMgr.toDeleteCache {
+		iMgr.destroySetInFile(creator, prefixedName)
+	}
+
+	// create all sets first so we don't try to add a member set to a list if it hasn't been created yet
+	for prefixedName := range iMgr.toAddOrUpdateCache {
+		set := iMgr.setMap[prefixedName]
+		iMgr.createSetInFile(creator, set)
+	}
+
+	// for dirty sets already in the kernel, update members (add members not in the kernel, and delete undesired members in the kernel)
+	iMgr.updateDirtyKernelSets(saveFile, creator)
+
+	// for the remaining dirty sets, add their members to the kernel
+	for prefixedName := range iMgr.toAddOrUpdateCache {
+		set := iMgr.setMap[prefixedName]
+		sectionID := sectionID(addOrUpdateSectionPrefix, prefixedName)
+		if set.Kind == HashSet {
+			for ip := range set.IPPodKey {
+				iMgr.addMemberInFile(creator, set, sectionID, ip)
+			}
+		} else {
+			for _, member := range set.MemberIPSets {
+				iMgr.addMemberInFile(creator, set, sectionID, member.HashedName)
+			}
+		}
+	}
 	return creator
 }
 
-func (iMgr *IPSetManager) handleDeletions(creator *ioutil.FileCreator, setNames []string) {
-	// flush all first so we don't try to delete an ipset referenced by a list we're deleting too
-	// error handling:
-	// - abort the flush and delete call for a set if the set doesn't exist
-	// - if the set is in use by a kernel component, then skip the delete and mark it as a failure
-	for _, setName := range setNames {
-		setName := setName // to appease golint complaints about function literal
-		errorHandlers := []*ioutil.LineErrorHandler{
-			{
-				Definition: ioutil.NewErrorDefinition(setDoesntExistPattern),
-				Method:     ioutil.AbortSection,
-				Callback: func() {
-					// no action needed since we expect that it's gone after applyIPSets()
-					log.Logf("was going to delete set %s but it doesn't exist", setName)
-				},
-			},
-		}
-		sectionID := getSectionID(deletionPrefix, setName)
-		hashedSetName := util.GetHashedName(setName)
-		creator.AddLine(sectionID, errorHandlers, util.IpsetFlushFlag, hashedSetName) // flush set
+// updates the creator (adds/deletes members) for dirty sets already in the kernel
+// updates the toAddOrUpdateCache: after calling this function, the cache will only consist of sets to create
+// error handling principal:
+// - if contract with ipset save (or grep) is breaking, salvage what we can, take a snapshot without grep, and log the failure
+// - have a background process for sending/removing snapshots intermittently
+func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil.FileCreator) {
+	toAddOrUpdateHashedNames := make(map[string]string) // map hashed names to prefixed names
+	for prefixedName := range iMgr.toAddOrUpdateCache {
+		hashedName := iMgr.setMap[prefixedName].HashedName
+		toAddOrUpdateHashedNames[hashedName] = prefixedName
 	}
 
-	for _, setName := range setNames {
-		setName := setName // to appease golint complaints about function literal
-		errorHandlers := []*ioutil.LineErrorHandler{
-			{
-				Definition: ioutil.NewErrorDefinition(setInUseByKernelPattern),
-				Method:     ioutil.SkipLine,
-				Callback: func() {
-					log.Errorf("was going to delete set %s but it is in use by a kernel component", setName)
-					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
-				},
-			},
-		}
-		sectionID := getSectionID(deletionPrefix, setName)
-		hashedSetName := util.GetHashedName(setName)
-		creator.AddLine(sectionID, errorHandlers, util.IpsetDestroyFlag, hashedSetName) // destroy set
+	klog.Infof("beginning to parse ipset save file:\nBEGIN-IPSET-SAVE-FILE-FOR-APPLY-IPSETS\n%s\nEND-IPSET-SAVE-FILE-FOR-APPLY-IPSETS", string(saveFile)) // TODO remove eventually
+
+	// each iteration reads a create line and any ensuing add lines
+	readIndex := 0
+	var line []byte
+	if readIndex < len(saveFile) {
+		line, readIndex = parse.Line(readIndex, saveFile)
 	}
-}
-
-func (iMgr *IPSetManager) handleAddOrUpdates(creator *ioutil.FileCreator, setNames []string) {
-	// create all sets first
-	// error handling:
-	// - abort the create, flush, and add calls if create doesn't work
-	//   Won't abort adding the set to a list. Will need another retry to handle that
-	//   TODO change this behavior?
-	for _, setName := range setNames {
-		set := iMgr.setMap[setName]
-
-		methodFlag := util.IpsetNetHashFlag
-		if set.Kind == ListSet {
-			methodFlag = util.IpsetSetListFlag
-		} else if set.Type == NamedPorts {
-			methodFlag = util.IpsetIPPortHashFlag
+	for readIndex < len(saveFile) {
+		createMatches := nameForCreateRegex.FindSubmatch(line)
+		if len(createMatches) != lengthForSuccessfulMatch {
+			klog.Errorf("expected a create line with an azure-npm set in ipset save file, but got the following line: %s", string(line))
+			// TODO send error snapshot
+			line, readIndex = nextCreateLine(readIndex, saveFile)
+			continue
 		}
 
-		specs := []string{util.IpsetCreationFlag, set.HashedName, util.IpsetExistFlag, methodFlag}
-		if set.Type == CIDRBlocks {
-			specs = append(specs, util.IpsetMaxelemName, util.IpsetMaxelemNum)
+		hashedName := string(createMatches[1])
+		prefixedName, shouldModify := toAddOrUpdateHashedNames[hashedName]
+		if !shouldModify {
+			line, readIndex = nextCreateLine(readIndex, saveFile)
+			continue
 		}
 
-		setName := setName // to appease golint complaints about function literal
-		errorHandlers := []*ioutil.LineErrorHandler{
-			{
-				Definition: ioutil.NewErrorDefinition(setAlreadyExistsPattern),
-				Method:     ioutil.AbortSection,
-				Callback: func() {
-					log.Errorf("was going to add/update set %s but couldn't create the set", setName)
-					// TODO mark the set as a failure and handle this
-				},
-			},
+		// update the set from the kernel
+		set := iMgr.setMap[prefixedName]
+		delete(iMgr.toAddOrUpdateCache, prefixedName) // remove from the dirty cache so we don't add it later
+		// not necessary, but improves performance? The TestUpdateWithBadSaveFile UT currently relies on this too (ignore create for set that we saw a create for earlier)
+		delete(toAddOrUpdateHashedNames, hashedName)
+
+		// check for consistent type
+		restOfLine := line[len(createMatches[0]):]
+		if haveTypeProblem(set, restOfLine) {
+			// error logging happens in the helper function
+			// TODO send error snapshot
+			line, readIndex = nextCreateLine(readIndex, saveFile)
+			continue
 		}
-		sectionID := getSectionID(creationPrefix, setName)
-		creator.AddLine(sectionID, errorHandlers, specs...) // create set
-	}
 
-	// flush and add all IPs/members for each set
-	// error handling:
-	// - if a member set can't be added to a list because it doesn't exist, then skip the add and mark it as a failure
-	for _, setName := range setNames {
-		set := iMgr.setMap[setName]
-		sectionID := getSectionID(creationPrefix, setName)
-		creator.AddLine(sectionID, nil, util.IpsetFlushFlag, set.HashedName) // flush set (no error handler needed)
-
+		// get desired members from cache
+		var membersToAdd map[string]struct{}
 		if set.Kind == HashSet {
+			membersToAdd = make(map[string]struct{}, len(set.IPPodKey))
 			for ip := range set.IPPodKey {
-				// TODO add error handler?
-				creator.AddLine(sectionID, nil, util.IpsetAppendFlag, set.HashedName, ip) // add IP
+				membersToAdd[ip] = struct{}{}
 			}
 		} else {
-			setName := setName // to appease golint complaints about function literal
+			membersToAdd = make(map[string]struct{}, len(set.IPPodKey))
 			for _, member := range set.MemberIPSets {
-				memberName := member.Name // to appease golint complaints about function literal
-				errorHandlers := []*ioutil.LineErrorHandler{
-					{
-						Definition: ioutil.NewErrorDefinition(memberSetDoesntExist),
-						Method:     ioutil.SkipLine,
-						Callback: func() {
-							log.Errorf("was going to add member set %s to list %s, but the member doesn't exist", memberName, setName)
-							// TODO handle error
-						},
-					},
-				}
-				creator.AddLine(sectionID, errorHandlers, util.IpsetAppendFlag, set.HashedName, member.HashedName) // add member
+				membersToAdd[member.HashedName] = struct{}{}
 			}
+		}
+
+		// determine which members to add/delete
+		membersToDelete := make(map[string]struct{})
+		for readIndex < len(saveFile) {
+			line, readIndex = parse.Line(readIndex, saveFile)
+			if hasPrefix(line, ipsetCreateString) {
+				break
+			}
+			addMatches := nameForAddRegex.FindSubmatch(line)
+			if len(addMatches) != lengthForSuccessfulMatch || string(addMatches[1]) != hashedName {
+				klog.Errorf("expected an add line for set %s in ipset save file, but got the following line: %s", hashedName, string(line))
+				// TODO send error snapshot
+				line, readIndex = nextCreateLine(readIndex, saveFile)
+				break
+			}
+			restOfLine = line[len(addMatches[0]):]
+			member := string(restOfLine)
+			_, shouldKeep := membersToAdd[member]
+			if shouldKeep {
+				delete(membersToAdd, member) // member already in the kernel, so don't add it later
+			} else {
+				membersToDelete[member] = struct{}{} // member should be deleted from the kernel
+			}
+		}
+
+		// delete undesired members from restore file
+		sectionID := sectionID(addOrUpdateSectionPrefix, prefixedName)
+		for member := range membersToDelete {
+			iMgr.deleteMemberInFile(creator, set, sectionID, member)
+		}
+		// add new members to restore file
+		for member := range membersToAdd {
+			iMgr.addMemberInFile(creator, set, sectionID, member)
 		}
 	}
 }
 
-func getSectionID(prefix, setName string) string {
-	return fmt.Sprintf("%s-%s", prefix, setName)
+func nextCreateLine(originalReadIndex int, saveFile []byte) (createLine []byte, nextReadIndex int) {
+	nextReadIndex = originalReadIndex
+	for nextReadIndex < len(saveFile) {
+		createLine, nextReadIndex = parse.Line(nextReadIndex, saveFile)
+		createMatches := nameForCreateRegex.FindSubmatch(createLine)
+		if len(createMatches) == lengthForSuccessfulMatch {
+			return
+		}
+	}
+	return
+}
+
+func haveTypeProblem(set *IPSet, restOfCreateLine []byte) bool {
+	// TODO check type based on maxelem for hash sets? CIDR blocks have a different maxelem
+	switch {
+	case hasPrefix(restOfCreateLine, ipsetSetListString):
+		if set.Kind != ListSet {
+			lineString := fmt.Sprintf("create %s %s", set.HashedName, string(restOfCreateLine)) // reconstruct the line for log
+			klog.Errorf("expected to find a ListSet but have the line: %s", lineString)
+			return true
+		}
+	case hasPrefix(restOfCreateLine, ipsetNetHashString):
+		if set.Kind != HashSet || set.Type == NamedPorts {
+			lineString := fmt.Sprintf("create %s %s", set.HashedName, string(restOfCreateLine)) // reconstruct the line for log
+			klog.Errorf("expected to find a non-NamedPorts HashSet but have the following line: %s", lineString)
+			return true
+		}
+	case hasPrefix(restOfCreateLine, ipsetIPPortHashString):
+		if set.Type != NamedPorts {
+			lineString := fmt.Sprintf("create %s %s", set.HashedName, string(restOfCreateLine)) // reconstruct the line for log
+			klog.Errorf("expected to find a NamedPorts set but have the following line: %s", lineString)
+			return true
+		}
+	}
+	return false
+}
+
+func hasPrefix(line []byte, prefix string) bool {
+	return len(line) >= len(prefix) && string(line[:len(prefix)]) == prefix
+}
+
+func (iMgr *IPSetManager) flushSetInFile(creator *ioutil.FileCreator, prefixedName string) {
+	errorHandlers := []*ioutil.LineErrorHandler{
+		{
+			Definition: setDoesntExistDefinition,
+			Method:     ioutil.ContinueAndAbortSection,
+			Callback: func() {
+				// no action needed
+				klog.Infof("skipping flush and upcoming delete for set %s since the set doesn't exist", prefixedName)
+			},
+		},
+		{
+			Definition: ioutil.AlwaysMatchDefinition,
+			Method:     ioutil.ContinueAndAbortSection,
+			Callback: func() {
+				klog.Errorf("skipping flush and upcoming delete for set %s due to unknown error", prefixedName)
+				// TODO mark as a failure
+				// would this ever happen?
+			},
+		},
+	}
+	sectionID := sectionID(destroySectionPrefix, prefixedName)
+	hashedName := util.GetHashedName(prefixedName)
+	creator.AddLine(sectionID, errorHandlers, ipsetFlushFlag, hashedName)
+}
+
+func (iMgr *IPSetManager) destroySetInFile(creator *ioutil.FileCreator, prefixedName string) {
+	errorHandlers := []*ioutil.LineErrorHandler{
+		{
+			Definition: setInUseByKernelDefinition,
+			Method:     ioutil.Continue,
+			Callback: func() {
+				klog.Errorf("skipping destroy line for set %s since the set is in use by a kernel component", prefixedName)
+				// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
+			},
+		},
+		{
+			Definition: ioutil.AlwaysMatchDefinition,
+			Method:     ioutil.Continue,
+			Callback: func() {
+				klog.Errorf("skipping destroy line for set %s due to unknown error", prefixedName)
+			},
+		},
+	}
+	sectionID := sectionID(destroySectionPrefix, prefixedName)
+	hashedName := util.GetHashedName(prefixedName)
+	creator.AddLine(sectionID, errorHandlers, ipsetDestroyFlag, hashedName) // destroy set
+}
+
+func (iMgr *IPSetManager) createSetInFile(creator *ioutil.FileCreator, set *IPSet) {
+	methodFlag := ipsetNetHashFlag
+	if set.Kind == ListSet {
+		methodFlag = ipsetSetListFlag
+	} else if set.Type == NamedPorts {
+		methodFlag = ipsetIPPortHashFlag
+	}
+
+	specs := []string{ipsetCreateFlag, set.HashedName, ipsetExistFlag, methodFlag}
+	if set.Type == CIDRBlocks {
+		specs = append(specs, ipsetMaxelemName, ipsetMaxelemNum)
+	}
+
+	prefixedName := set.Name // to appease golint complaints about function literal
+	errorHandlers := []*ioutil.LineErrorHandler{
+		{
+			Definition: setAlreadyExistsDefinition,
+			Method:     ioutil.ContinueAndAbortSection,
+			Callback: func() {
+				klog.Errorf("skipping create and any following adds/deletes for set %s since the set already exists with different specs", prefixedName)
+				// TODO mark the set as a failure and handle this
+			},
+		},
+		{
+			Definition: ioutil.AlwaysMatchDefinition,
+			Method:     ioutil.ContinueAndAbortSection,
+			Callback: func() {
+				klog.Errorf("skipping create and any following adds/deletes for set %s due to unknown error", prefixedName)
+				// TODO same as above error handler
+			},
+		},
+	}
+	sectionID := sectionID(addOrUpdateSectionPrefix, prefixedName)
+	creator.AddLine(sectionID, errorHandlers, specs...) // create set
+}
+
+func (iMgr *IPSetManager) deleteMemberInFile(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
+	errorHandlers := []*ioutil.LineErrorHandler{
+		{
+			Definition: ioutil.AlwaysMatchDefinition,
+			Method:     ioutil.Continue,
+			Callback: func() {
+				klog.Errorf("skipping delete line for set %s due to unknown error", set.Name)
+			},
+		},
+	}
+	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member)
+}
+
+func (iMgr *IPSetManager) addMemberInFile(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
+	var errorHandlers []*ioutil.LineErrorHandler
+	if set.Kind == ListSet {
+		errorHandlers = []*ioutil.LineErrorHandler{
+			{
+				Definition: memberSetDoesntExistDefinition,
+				Method:     ioutil.Continue,
+				Callback: func() {
+					klog.Errorf("skipping add of %s to list %s since the member doesn't exist", member, set.Name)
+					// TODO reconcile
+				},
+			},
+			{
+				Definition: ioutil.AlwaysMatchDefinition,
+				Method:     ioutil.Continue,
+				Callback: func() {
+					klog.Errorf("skipping add of %s to list %s due to unknown error", member, set.Name)
+				},
+			},
+		}
+	} else {
+		errorHandlers = []*ioutil.LineErrorHandler{
+			{
+				Definition: ioutil.AlwaysMatchDefinition,
+				Method:     ioutil.Continue,
+				Callback: func() {
+					klog.Errorf("skipping add line for hash set %s due to unknown error", set.Name)
+				},
+			},
+		}
+	}
+	creator.AddLine(sectionID, errorHandlers, ipsetAddFlag, set.HashedName, member)
+}
+
+func sectionID(prefix, prefixedName string) string {
+	return fmt.Sprintf("%s-%s", prefix, prefixedName)
 }
