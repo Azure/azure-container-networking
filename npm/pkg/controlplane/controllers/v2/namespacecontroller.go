@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"sync"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformer "k8s.io/client-go/informers/core/v1"
@@ -285,7 +285,7 @@ func (nsc *NamespaceController) syncNamespace(nsKey string) error {
 
 	cachedNsObj, nsExists := nsc.npmNamespaceCache.NsMap[nsKey]
 	if nsExists {
-		if reflect.DeepEqual(cachedNsObj.LabelsMap, nsObj.ObjectMeta.Labels) {
+		if k8slabels.Equals(cachedNsObj.LabelsMap, nsObj.ObjectMeta.Labels) {
 			klog.Infof("[NAMESPACE UPDATE EVENT] Namespace [%s] labels did not change", nsKey)
 			return nil
 		}

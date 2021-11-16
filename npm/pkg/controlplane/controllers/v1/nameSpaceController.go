@@ -5,7 +5,6 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"sync"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformer "k8s.io/client-go/informers/core/v1"
@@ -288,7 +288,7 @@ func (nsc *NamespaceController) syncNameSpace(key string) error {
 
 	cachedNsObj, nsExists := nsc.npmNamespaceCache.NsMap[cachedNsKey]
 	if nsExists {
-		if reflect.DeepEqual(cachedNsObj.LabelsMap, nsObj.ObjectMeta.Labels) {
+		if k8slabels.Equals(cachedNsObj.LabelsMap, nsObj.ObjectMeta.Labels) {
 			klog.Infof("[NAMESPACE UPDATE EVENT] Namespace [%s] labels did not change", key)
 			return nil
 		}
