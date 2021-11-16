@@ -7,8 +7,8 @@ import (
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
-func getMockIOShim(calls []testutils.TestCmd) *common.IOShim {
-	return common.NewMockIOShimWithFakeHNS(calls, GetHNSFake())
+func getMockIOShim(_ []testutils.TestCmd) *common.IOShim {
+	return common.NewMockIOShimWithFakeHNS(GetHNSFake())
 }
 
 func GetHNSFake() *hnswrapper.Hnsv2wrapperFake {

@@ -25,9 +25,9 @@ func NewMockIOShim(calls []testutils.TestCmd) *IOShim {
 	}
 }
 
-func NewMockIOShimWithFakeHNS(calls []testutils.TestCmd, hns *hnswrapper.Hnsv2wrapperFake) *IOShim {
+func NewMockIOShimWithFakeHNS(hns *hnswrapper.Hnsv2wrapperFake) *IOShim {
 	return &IOShim{
-		Exec: testutils.GetFakeExecWithScripts(calls),
+		Exec: testutils.GetFakeExecWithScripts([]testutils.TestCmd{}),
 		Hns:  hns,
 	}
 }
