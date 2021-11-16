@@ -107,7 +107,8 @@ func TestK8sServerVersion(t *testing.T) {
 				})
 			} else {
 				require.NotPanics(t, func() {
-					got := k8sServerVersion(fc)
+					got, err := k8sServerVersion(fc)
+					require.NoError(t, err)
 					require.Equal(t, got, tt.info)
 					require.Equal(t, util.IsNewNwPolicyVerFlag, tt.isNewNwPolicyVer)
 				})

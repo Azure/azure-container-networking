@@ -227,7 +227,7 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 	// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
 	if !config.Toggles.EnableV2Controllers {
 		if err := npMgr.netPolControllerV1.ResetDataPlane(); err != nil {
-			return fmt.Errorf("Failed to initialized data plane")
+			return fmt.Errorf("Failed to initialized data plane with err %w", err)
 		}
 	}
 

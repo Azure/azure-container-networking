@@ -43,7 +43,7 @@ func newStartNPMCmd() *cobra.Command {
 			// If a config file is found, read it in.
 			// NOTE: there is no config merging with default, if config is loaded, options must be set
 			if err := viper.ReadInConfig(); err == nil {
-				klog.Info("Using config file: %+v", viper.ConfigFileUsed())
+				klog.Infof("Using config file: %+v", viper.ConfigFileUsed())
 			} else {
 				klog.Infof("Failed to load config from env %s: %v", npmconfig.ConfigEnvPath, err)
 				b, _ := json.Marshal(npmconfig.DefaultConfig)
@@ -142,7 +142,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
 	if err = npMgr.Start(config, wait.NeverStop); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %w", err)
+		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %+v", err)
 		return err
 	}
 
