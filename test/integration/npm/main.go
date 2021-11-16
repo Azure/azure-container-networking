@@ -123,7 +123,7 @@ func main() {
 	panicOnError(dp.AddPolicy(testNetPol))
 	printAndWait(true)
 
-	podMetadataD := &dataplane.PodMetadata{
+	podMetadataD = &dataplane.PodMetadata{
 		PodKey:   "d",
 		PodIP:    "10.240.0.7",
 		NodeName: nodeName,
@@ -145,7 +145,7 @@ func testPolicyManager() {
 	printAndWait(false)
 
 	panicOnError(pMgr.Initialize())
-	printAndWait()
+	printAndWait(false)
 
 	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[0], nil))
 	printAndWait(false)
