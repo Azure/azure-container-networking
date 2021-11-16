@@ -1,3 +1,5 @@
+# example usage:
+# powershell.exe -command "& { . .\windows.ps1; azure-npm-image <imagetag> }"
 
 function azure-npm-image {
     $env:ACN_PACKAGE_PATH = "github.com/Azure/azure-container-networking"

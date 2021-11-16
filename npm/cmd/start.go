@@ -38,10 +38,10 @@ func newStartNPMCmd() *cobra.Command {
 			viper.AutomaticEnv() // read in environment variables that match
 			viper.SetDefault(npmconfig.ConfigEnvPath, npmconfig.GetConfigPath())
 			cfgFile := viper.GetString(npmconfig.ConfigEnvPath)
-
 			viper.SetConfigFile(cfgFile)
 
 			// If a config file is found, read it in.
+			// NOTE: there is no config merging with default, if config is loaded, options must be set
 			if err := viper.ReadInConfig(); err == nil {
 				klog.Info("Using config file: %+v", viper.ConfigFileUsed())
 			} else {
@@ -64,14 +64,14 @@ func newStartNPMCmd() *cobra.Command {
 			}
 
 			flags := npmconfig.Flags{
-				KubeConfigPath: viper.GetString(FlagKubeConfigPath),
+				KubeConfigPath: viper.GetString(flagKubeConfigPath),
 			}
 
 			return start(*config, flags)
 		},
 	}
 
-	startNPMCmd.Flags().String(FlagKubeConfigPath, FlagDefaults[FlagKubeConfigPath], "path to kubeconfig")
+	startNPMCmd.Flags().String(flagKubeConfigPath, FlagDefaults[flagKubeConfigPath], "path to kubeconfig")
 
 	return startNPMCmd
 }
@@ -89,15 +89,14 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	metrics.InitializeAll()
 
 	// Create the kubernetes client
+
 	var k8sConfig *rest.Config
 	if flags.KubeConfigPath == "" {
-		var err error
 		k8sConfig, err = rest.InClusterConfig()
 		if err != nil {
 			return fmt.Errorf("failed to load in cluster config: %w", err)
 		}
 	} else {
-		var err error
 		k8sConfig, err = clientcmd.BuildConfigFromFlags("", flags.KubeConfigPath)
 		if err != nil {
 			return fmt.Errorf("failed to load kubeconfig [%s] with err config: %w", flags.KubeConfigPath, err)

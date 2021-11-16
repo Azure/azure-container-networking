@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	FlagVersion        = "version"
-	FlagKubeConfigPath = "kubeconfig"
+	flagVersion        = "version"
+	flagKubeConfigPath = "kubeconfig"
 )
 
 var (
 	FlagDefaults = map[string]string{
-		FlagKubeConfigPath: "",
+		flagKubeConfigPath: "",
 	}
 )
 
@@ -26,7 +26,7 @@ func main() {
 	rootCmd := NewRootCmd()
 
 	if version != "" {
-		viper.Set(FlagVersion, version)
+		viper.Set(flagVersion, version)
 	}
 
 	cobra.OnInitialize(func() {

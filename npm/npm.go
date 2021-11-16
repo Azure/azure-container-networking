@@ -91,21 +91,21 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	klog.Infof("API server version: %+v AI metadata %+v", k8sServerVersion, aiMetadata)
 
 	npMgr := &NetworkPolicyManager{
-		config:              config,
-		informerFactory:     informerFactory,
-		podInformer:         informerFactory.Core().V1().Pods(),
-		nsInformer:          informerFactory.Core().V1().Namespaces(),
-		npInformer:          informerFactory.Networking().V1().NetworkPolicies(),
-		ipsMgr:              ipsm.NewIpsetManager(exec),
-		npmNamespaceCacheV1: &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*controllersv1.Namespace)},
-		npmNamespaceCacheV2: &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)},
-		k8sServerVersion:    k8sServerVersion,
-		NodeName:            GetNodeName(),
-		version:             npmVersion,
-		TelemetryEnabled:    true,
+		config:           config,
+		informerFactory:  informerFactory,
+		podInformer:      informerFactory.Core().V1().Pods(),
+		nsInformer:       informerFactory.Core().V1().Namespaces(),
+		npInformer:       informerFactory.Networking().V1().NetworkPolicies(),
+		ipsMgr:           ipsm.NewIpsetManager(exec),
+		k8sServerVersion: k8sServerVersion,
+		NodeName:         GetNodeName(),
+		version:          npmVersion,
+		TelemetryEnabled: true,
 	}
 
 	if npMgr.config.Toggles.EnableV2Controllers {
+		// initialize v2 cache
+		npMgr.npmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)}
 		// create pod controller
 		npMgr.podControllerV2 = controllersv2.NewPodController(npMgr.podInformer, dp, npMgr.npmNamespaceCacheV2)
 		// create NameSpace controller
@@ -115,6 +115,8 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 		return npMgr
 	}
 
+	// initialize V1 cache
+	npMgr.npmNamespaceCacheV1 = &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*controllersv1.Namespace)}
 	// create pod controller
 	npMgr.podControllerV1 = controllersv1.NewPodController(npMgr.podInformer, npMgr.ipsMgr, npMgr.npmNamespaceCacheV1)
 	// create NameSpace controller

@@ -1,3 +1,4 @@
+# pull the server value from the kubeconfig on host to construct our own kubeconfig, but using service principal settings
 $cpEndpoint = Get-Content C:\k\config | ForEach-Object -Process {if($_.Contains("server:")) {$_.Trim().Split()[1]}}
 $token = Get-Content -Path $env:CONTAINER_SANDBOX_MOUNT_POINT\var\run\secrets\kubernetes.io\serviceaccount\token
 $ca = Get-Content -Raw -Path $env:CONTAINER_SANDBOX_MOUNT_POINT\var\run\secrets\kubernetes.io\serviceaccount\ca.crt
