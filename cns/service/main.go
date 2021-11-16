@@ -786,11 +786,11 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs)
+		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		for {
 			select {
 			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, cnsconfig.SyncHostNCTimeoutMs)
+				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
 				httpRestServiceImpl.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
 				cancel()
 			case <-ctx.Done():
@@ -895,7 +895,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// initialize the ipam pool monitor
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &ipampool.Options{RefreshDelay: poolIPAMRefreshRateInMilliseconds})
+	poolOpts := ipampool.Options{
+		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
+	}
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &poolOpts)
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 	logger.Printf("Starting IPAM Pool Monitor")
 	go func() {
@@ -951,11 +954,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs)
+		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		for {
 			select {
 			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, cnsconfig.SyncHostNCTimeoutMs)
+				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
 				httpRestServiceImplementation.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
 				cancel()
 			case <-ctx.Done():

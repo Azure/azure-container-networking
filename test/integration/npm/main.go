@@ -98,6 +98,12 @@ func main() {
 
 	// remove members from some sets and delete some sets
 	panicOnError(dp.RemoveFromSets([]*ipsets.IPSetMetadata{ipsets.TestNSSet.Metadata}, podMetadataB))
+	podMetadataD := &dataplane.PodMetadata{
+		PodKey:   "d",
+		PodIP:    "1.2.3.4",
+		NodeName: "",
+	}
+	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestKeyPodSet.Metadata, ipsets.TestNSSet.Metadata}, podMetadataD))
 	dp.DeleteIPSet(ipsets.TestKVPodSet.Metadata)
 	panicOnError(dp.ApplyDataPlane())
 
@@ -137,6 +143,9 @@ func testPolicyManager() {
 
 	panicOnError(pMgr.Reset())
 	printAndWait(false)
+
+	panicOnError(pMgr.Initialize())
+	printAndWait()
 
 	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[0], nil))
 	printAndWait(false)

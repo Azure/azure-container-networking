@@ -14,12 +14,11 @@ import (
 func TestInitChainsCreator(t *testing.T) {
 	pMgr := NewPolicyManager(common.NewMockIOShim(nil))
 	creator := pMgr.getCreatorForInitChains() // doesn't make any exec calls
-	actualFileString := creator.ToString()
+	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{"*filter"}
 	for _, chain := range iptablesAzureChains {
 		expectedLines = append(expectedLines, fmt.Sprintf(":%s - -", chain))
 	}
-
 	expectedLines = append(expectedLines, []string{
 		"-A AZURE-NPM -j AZURE-NPM-INGRESS",
 		"-A AZURE-NPM -j AZURE-NPM-EGRESS",
@@ -33,8 +32,7 @@ func TestInitChainsCreator(t *testing.T) {
 		"-A AZURE-NPM-ACCEPT -j ACCEPT",
 		"COMMIT\n",
 	}...)
-	expectedFileString := strings.Join(expectedLines, "\n")
-	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 }
 
 func TestInitChainsSuccess(t *testing.T) {
@@ -100,14 +98,13 @@ func TestRemoveChainsCreator(t *testing.T) {
 		"AZURE-NPM-EGRESS-123456",
 	}
 	require.Equal(t, expectedChainsToFlush, chainsToFlush)
-	actualFileString := creator.ToString()
+	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{"*filter"}
 	for _, chain := range expectedChainsToFlush {
 		expectedLines = append(expectedLines, fmt.Sprintf(":%s - -", chain))
 	}
 	expectedLines = append(expectedLines, "COMMIT\n")
-	expectedFileString := strings.Join(expectedLines, "\n")
-	dptestutils.AssertEqualMultilineStrings(t, expectedFileString, actualFileString)
+	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 }
 
 func TestRemoveChainsSuccess(t *testing.T) {

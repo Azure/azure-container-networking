@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/stretchr/testify/assert"
@@ -188,8 +187,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					NodeSyncIntervalInSeconds: 30,
 				},
 				MetricsBindAddress:          ":9090",
-				SyncHostNCTimeoutMs:         500 * time.Millisecond,
-				SyncHostNCVersionIntervalMs: 1000 * time.Millisecond,
+				SyncHostNCTimeoutMs:         500,
+				SyncHostNCVersionIntervalMs: 1000,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      32768,
 					TelemetryBatchIntervalInSecs: 30,

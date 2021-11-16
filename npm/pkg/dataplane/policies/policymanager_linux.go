@@ -144,6 +144,7 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, isIngress bo
 	specs = append([]string{baseChainName}, specs...)
 	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
 	if err != nil && errCode != couldntLoadTargetErrorCode {
+		// TODO check rule doesn't exist error code instead because the chain should exist
 		errorString := fmt.Sprintf("failed to delete jump from %s chain to %s chain for policy %s with exit code %d", baseChainName, chainName, policy.Name, errCode)
 		log.Errorf(errorString+": %w", err)
 		return npmerrors.SimpleErrorWrapper(errorString, err)
