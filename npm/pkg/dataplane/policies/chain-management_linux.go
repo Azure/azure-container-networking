@@ -84,6 +84,9 @@ func (s *staleChains) empty() {
 	s.chainsToCleanup = make(map[string]struct{})
 }
 
+// A proactive approach to avoid time to install default chains when the first networkpolicy comes again.
+// Different from v1, which uninits when there are no policies and initializes when there are policies.
+// The dataplane also initializes when it's created, so this keeps the policymanager in-line with that philosophy of having chains initialized at all times.
 func (pMgr *PolicyManager) reboot() error {
 	// TODO for the sake of UTs, need to have a pMgr config specifying whether or not this reboot happens
 	// if err := pMgr.reset(); err != nil {
@@ -166,8 +169,8 @@ func (pMgr *PolicyManager) removeNPMChains() error {
 }
 
 // reconcile does the following:
-// - cleans up old policy chains
-// - creates the jump rule from FORWARD chain to AZURE-NPM chain (if it d.n.e) and makes sure it's after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
+// - cleans up stale policy chains
+// - creates the jump rule from FORWARD chain to AZURE-NPM chain (if it does not exist) and makes sure it's after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
 func (pMgr *PolicyManager) reconcile() {
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
 		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
