@@ -92,19 +92,19 @@ var (
 func (iMgr *IPSetManager) resetIPSets() error {
 	listCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
-	searchResults, gotMatches, grepError := ioutil.PipeCommandToGrep(listCommand, grepCommand)
-	if grepError != nil {
-		return npmerrors.SimpleErrorWrapper("failed to run ipset list for resetting IPSets", grepError)
+	azureIPSets, haveAzureIPSets, commandError := ioutil.PipeCommandToGrep(listCommand, grepCommand)
+	if commandError != nil {
+		return npmerrors.SimpleErrorWrapper("failed to run ipset list for resetting IPSets", commandError)
 	}
-	if !gotMatches {
+	if !haveAzureIPSets {
 		metrics.ResetNumIPSets()
 		metrics.ResetIPSetEntries()
 		return nil
 	}
-	creator, originalNumSets, destroyFailureCount := iMgr.fileCreatorForReset(searchResults)
+	creator, originalNumAzureSets, destroyFailureCount := iMgr.fileCreatorForReset(azureIPSets)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
-		metrics.SetNumIPSets(originalNumSets)
+		metrics.SetNumIPSets(originalNumAzureSets)
 		// NOTE: the num entries for sets may be incorrect if the restore fails
 		return npmerrors.SimpleErrorWrapper("failed to run ipset restore for resetting IPSets", restoreError)
 	}
@@ -118,7 +118,7 @@ func (iMgr *IPSetManager) resetIPSets() error {
 }
 
 // this needs to be a separate function because we need to check creator contents in UTs
-func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (creator *ioutil.FileCreator, numSets int, destroyFailureCount *int) {
+func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (creator *ioutil.FileCreator, originalNumAzureSets int, destroyFailureCount *int) {
 	zero := 0
 	destroyFailureCount = &zero
 	creator = ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
@@ -187,8 +187,8 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (creator *
 		sectionID := sectionID(destroySectionPrefix, hashedSetName)
 		creator.AddLine(sectionID, errorHandlers, ipsetDestroyFlag, hashedSetName) // destroy set
 	}
-	numSets = len(names)
-	return creator, numSets, destroyFailureCount
+	originalNumAzureSets = len(names)
+	return creator, originalNumAzureSets, destroyFailureCount
 }
 
 /*
@@ -278,14 +278,14 @@ func (iMgr *IPSetManager) applyIPSets() error {
 func (iMgr *IPSetManager) ipsetSave() ([]byte, error) {
 	command := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetSaveFlag)
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
-	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(command, grepCommand)
+	saveFile, haveAzureSets, err := ioutil.PipeCommandToGrep(command, grepCommand)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to run ipset save", err)
 	}
-	if !gotMatches {
+	if !haveAzureSets {
 		return nil, nil
 	}
-	return searchResults, nil
+	return saveFile, nil
 }
 
 func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) *ioutil.FileCreator {
