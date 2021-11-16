@@ -255,7 +255,7 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 		klog.Info("[Dataplane Windows] no set policies to apply on network")
 		return nil, nil
 	}
-	klog.Info("[Dataplane Windows] marshalling %s type of sets", policyType)
+	klog.Infof("[Dataplane Windows] marshalling %s type of sets", policyType)
 	policyNetworkRequest := &hcn.PolicyNetworkRequest{
 		Policies: make([]hcn.NetworkPolicy, 0),
 	}

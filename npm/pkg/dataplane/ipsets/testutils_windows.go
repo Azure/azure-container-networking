@@ -1,10 +1,15 @@
 package ipsets
 
 import (
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/Microsoft/hcsshim/hcn"
 )
+
+func getMockIOShim(calls []testutils.TestCmd) *common.IOShim {
+	return common.NewMockIOShimWithFakeHNS(calls, GetHNSFake())
+}
 
 func GetHNSFake() *hnswrapper.Hnsv2wrapperFake {
 	hns := hnswrapper.NewHnsv2wrapperFake()

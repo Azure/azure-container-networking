@@ -8,6 +8,10 @@ var fakeRestoreSuccessCommand = testutils.TestCmd{
 	ExitCode: 0,
 }
 
+func getMockIOShim(calls []testutils.TestCmd) *common.IOShim {
+	return common.NewMockIOShim([]testutils.TestCmd{})
+}
+
 func GetApplyIPSetsTestCalls(toAddOrUpdateIPSets, toDeleteIPSets []*IPSetMetadata) []testutils.TestCmd {
 	// TODO eventually call ipset save if there are toAddOrUpdateIPSets
 	return []testutils.TestCmd{fakeRestoreSuccessCommand}

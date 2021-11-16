@@ -14,21 +14,37 @@ import (
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
-type fakeHNSCache struct {
-	networks  map[string]hcn.HostComputeNetwork
-	endpoints map[string]hcn.HostComputeEndpoint
+type FakeHNSCache struct {
+	networks  map[string]*hcn.HostComputeNetwork
+	endpoints map[string]*hcn.HostComputeEndpoint
+}
+
+func (fCache FakeHNSCache) SetPolicyExists(setId string) bool {
+	for _, network := range fCache.networks {
+		for _, policy := range network.Policies {
+			var setPolSettings hcn.SetPolicySetting
+			err := json.Unmarshal(policy.Settings, &setPolSettings)
+			if err != nil {
+				return false
+			}
+			if setPolSettings.Name == setId {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type Hnsv2wrapperFake struct {
-	cache fakeHNSCache
+	Cache FakeHNSCache
 	sync.Mutex
 }
 
 func NewHnsv2wrapperFake() *Hnsv2wrapperFake {
 	return &Hnsv2wrapperFake{
-		cache: fakeHNSCache{
-			networks:  map[string]hcn.HostComputeNetwork{},
-			endpoints: map[string]hcn.HostComputeEndpoint{},
+		Cache: FakeHNSCache{
+			networks:  map[string]*hcn.HostComputeNetwork{},
+			endpoints: map[string]*hcn.HostComputeEndpoint{},
 		},
 	}
 }
@@ -37,7 +53,7 @@ func (f Hnsv2wrapperFake) CreateNetwork(network *hcn.HostComputeNetwork) (*hcn.H
 	f.Lock()
 	defer f.Unlock()
 
-	f.cache.networks[network.Name] = *network
+	f.Cache.networks[network.Name] = network
 	return network, nil
 }
 
@@ -107,8 +123,8 @@ func (Hnsv2wrapperFake) RemoveNetworkPolicy(network *hcn.HostComputeNetwork, net
 func (f Hnsv2wrapperFake) GetNetworkByName(networkName string) (*hcn.HostComputeNetwork, error) {
 	f.Lock()
 	defer f.Unlock()
-	if network, ok := f.cache.networks[networkName]; ok {
-		return &network, nil
+	if network, ok := f.Cache.networks[networkName]; ok {
+		return network, nil
 	}
 	return &hcn.HostComputeNetwork{}, nil
 }
@@ -116,9 +132,9 @@ func (f Hnsv2wrapperFake) GetNetworkByName(networkName string) (*hcn.HostCompute
 func (f Hnsv2wrapperFake) GetNetworkByID(networkID string) (*hcn.HostComputeNetwork, error) {
 	f.Lock()
 	defer f.Unlock()
-	for _, network := range f.cache.networks {
+	for _, network := range f.Cache.networks {
 		if network.Id == networkID {
-			return &network, nil
+			return network, nil
 		}
 	}
 	return &hcn.HostComputeNetwork{}, nil
@@ -127,8 +143,8 @@ func (f Hnsv2wrapperFake) GetNetworkByID(networkID string) (*hcn.HostComputeNetw
 func (f Hnsv2wrapperFake) GetEndpointByID(endpointID string) (*hcn.HostComputeEndpoint, error) {
 	f.Lock()
 	defer f.Unlock()
-	if ep, ok := f.cache.endpoints[endpointID]; ok {
-		return &ep, nil
+	if ep, ok := f.Cache.endpoints[endpointID]; ok {
+		return ep, nil
 	}
 	return &hcn.HostComputeEndpoint{}, nil
 }
@@ -136,14 +152,14 @@ func (f Hnsv2wrapperFake) GetEndpointByID(endpointID string) (*hcn.HostComputeEn
 func (f Hnsv2wrapperFake) CreateEndpoint(endpoint *hcn.HostComputeEndpoint) (*hcn.HostComputeEndpoint, error) {
 	f.Lock()
 	defer f.Unlock()
-	f.cache.endpoints[endpoint.Id] = *endpoint
+	f.Cache.endpoints[endpoint.Id] = endpoint
 	return endpoint, nil
 }
 
 func (f Hnsv2wrapperFake) DeleteEndpoint(endpoint *hcn.HostComputeEndpoint) error {
 	f.Lock()
 	defer f.Unlock()
-	delete(f.cache.endpoints, endpoint.Id)
+	delete(f.Cache.endpoints, endpoint.Id)
 	return nil
 }
 
@@ -164,9 +180,9 @@ func (f Hnsv2wrapperFake) ListEndpointsOfNetwork(networkId string) ([]hcn.HostCo
 	f.Lock()
 	defer f.Unlock()
 	endpoints := make([]hcn.HostComputeEndpoint, 0)
-	for _, endpoint := range f.cache.endpoints {
+	for _, endpoint := range f.Cache.endpoints {
 		if endpoint.HostComputeNetwork == networkId {
-			endpoints = append(endpoints, endpoint)
+			endpoints = append(endpoints, *endpoint)
 		}
 	}
 	return endpoints, nil
