@@ -13,11 +13,9 @@ const (
 	flagKubeConfigPath = "kubeconfig"
 )
 
-var (
-	FlagDefaults = map[string]string{
-		flagKubeConfigPath: "",
-	}
-)
+var flagDefaults = map[string]string{
+	flagKubeConfigPath: "",
+}
 
 // Version is populated by make during build.
 var version string
@@ -40,10 +38,14 @@ func main() {
 func initCommandFlags(commands []*cobra.Command) {
 	for _, cmd := range commands {
 		// bind vars from env or conf to pflags
-		viper.BindPFlags(cmd.Flags())
-		cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		err := viper.BindPFlags(cmd.Flags())
+		cobra.CheckErr(err)
+
+		c := cmd
+		c.Flags().VisitAll(func(flag *pflag.Flag) {
 			if viper.IsSet(flag.Name) && viper.GetString(flag.Name) != "" {
-				cmd.Flags().Set(flag.Name, viper.GetString(flag.Name))
+				err := c.Flags().Set(flag.Name, viper.GetString(flag.Name))
+				cobra.CheckErr(err)
 			}
 		})
 

@@ -4,9 +4,11 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math"
+	"math/big"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -71,7 +73,7 @@ func newStartNPMCmd() *cobra.Command {
 		},
 	}
 
-	startNPMCmd.Flags().String(flagKubeConfigPath, FlagDefaults[flagKubeConfigPath], "path to kubeconfig")
+	startNPMCmd.Flags().String(flagKubeConfigPath, flagDefaults[flagKubeConfigPath], "path to kubeconfig")
 
 	return startNPMCmd
 }
@@ -82,7 +84,8 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	var err error
 
-	if err = initLogging(); err != nil {
+	err = initLogging()
+	if err != nil {
 		return err
 	}
 
@@ -113,8 +116,12 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	// Setting reSyncPeriod
 	minResyncPeriod := time.Duration(config.ResyncPeriodInMinutes) * time.Minute
 
+	random, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		return fmt.Errorf("failed to generate random resyncPeriod with err %w", err)
+	}
 	// Adding some randomness so all NPM pods will not request for info at once.
-	factor := rand.Float64() + 1
+	factor := float64(random.Int64() + 1)
 	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
@@ -122,7 +129,6 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	k8sServerVersion, err := k8sServerVersion(clientset)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve kubernetes server version %w", err)
-
 	}
 
 	var dp dataplane.GenericDataplane
@@ -143,7 +149,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	if err = npMgr.Start(config, wait.NeverStop); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %+v", err)
-		return err
+		return fmt.Errorf("failed to start with err: %w", err)
 	}
 
 	select {}
@@ -161,25 +167,22 @@ func initLogging() error {
 }
 
 func k8sServerVersion(kubeclientset kubernetes.Interface) (*k8sversion.Info, error) {
-	var err error
 	var serverVersion *k8sversion.Info
 	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
 		<-ticker
+		var err error
 		serverVersion, err = kubeclientset.Discovery().ServerVersion()
-		if err == nil {
+		if err != nil {
+			metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version with err: %v", err)
+		} else {
 			break
 		}
 	}
 
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
-		return nil, fmt.Errorf("failed to discover kuberntes server version with err %w", err)
+	if err := util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag with err: %v", err)
+		return nil, fmt.Errorf("failed to check if new network policy version is set with err %w", err)
 	}
 
-	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
-		return nil, fmt.Errorf("failed to check if new netowrk policy version is set with err %w", err)
-	}
-
-	return serverVersion, err
+	return serverVersion, nil
 }
