@@ -254,7 +254,7 @@ var args = acn.ArgumentList{
 	{
 		Name:         acn.OptCNSConfigPath,
 		Shorthand:    acn.OptCNSConfigPathAlias,
-		Description:  "File path to the cns config file",
+		Description:  "Path to cns config file",
 		Type:         "string",
 		DefaultValue: "",
 	},
