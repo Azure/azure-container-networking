@@ -90,10 +90,9 @@ func (dp *DataPlane) InitializeDataPlane() error {
 	if err := dp.initializeDataPlane(); err != nil {
 		return npmerrors.ErrorWrapper(npmerrors.InitializeDataPlane, false, "failed to initialize overall dataplane", err)
 	}
-	// TODO update when piped error is fixed in fexec
-	// if err := dp.policyMgr.Initialize(); err != nil {
-	// 	return npmerrors.ErrorWrapper(npmerrors.InitializeDataPlane, false, "failed to initialize policy dataplane", err)
-	// }
+	if err := dp.policyMgr.Initialize(); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.InitializeDataPlane, false, "failed to initialize policy dataplane", err)
+	}
 	return nil
 }
 
@@ -103,10 +102,9 @@ func (dp *DataPlane) ResetDataPlane() error {
 	if err := dp.ipsetMgr.ResetIPSets(); err != nil {
 		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset ipsets dataplane", err)
 	}
-	// TODO update when piped error is fixed in fexec
-	// if err := dp.policyMgr.Reset(); err != nil {
-	// 	return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset policy dataplane", err)
-	// }
+	if err := dp.policyMgr.Reset(); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset policy dataplane", err)
+	}
 	return dp.resetDataPlane()
 }
 

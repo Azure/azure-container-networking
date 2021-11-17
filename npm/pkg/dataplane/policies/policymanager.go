@@ -10,7 +10,7 @@ import (
 	"k8s.io/klog"
 )
 
-const reconcileChainTimeInMinutes = 5
+const reconcileTimeInMinutes = 5
 
 type PolicyMap struct {
 	cache map[string]*NPMNetworkPolicy
@@ -47,9 +47,11 @@ func (pMgr *PolicyManager) Reset() error {
 	return nil
 }
 
+// TODO call this function in DP
+
 func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 	go func() {
-		ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
+		ticker := time.NewTicker(time.Minute * time.Duration(reconcileTimeInMinutes))
 		defer ticker.Stop()
 
 		for {

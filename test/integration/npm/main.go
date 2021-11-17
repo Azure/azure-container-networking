@@ -115,34 +115,15 @@ func main() {
 	printAndWait()
 
 	panicOnError(dp.AddPolicy(testNetPol))
-
-	testPolicyManager()
-}
-
-func testPolicyManager() {
-	pMgr := policies.NewPolicyManager(common.NewIOShim())
-
-	panicOnError(pMgr.Reset())
+	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[0]))
+	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[1]))
 	printAndWait()
 
-	panicOnError(pMgr.Initialize())
+	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[2].Name)) // no-op
+	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[2]))
 	printAndWait()
 
-	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[0], nil))
-	printAndWait()
-
-	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[1], nil))
-	printAndWait()
-
-	// remove something that doesn't exist
-	panicOnError(pMgr.RemovePolicy(policies.TestNetworkPolicies[2].Name, nil))
-	printAndWait()
-
-	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[2], nil))
-	printAndWait()
-
-	// remove something that exists
-	panicOnError(pMgr.RemovePolicy(policies.TestNetworkPolicies[1].Name, nil))
+	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[1].Name))
 }
 
 func panicOnError(err error) {
