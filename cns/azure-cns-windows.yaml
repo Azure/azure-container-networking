@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: azure-cns-win
+  namespace: kube-system
   labels:
     app: azure-cns-win
 spec:
@@ -20,8 +21,8 @@ spec:
       hostNetwork: true
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns-win:v1.4.13-13-gd5039ff8e-dirty
-          imagePullPolicy: Always # Change to IfNotPresent after development
+          image: acnpublic.azurecr.io/azure-cns-win:v1.4.15-1-g1b238a3f9
+          imagePullPolicy: IfNotPresent
           command:
             ["%CONTAINER_SANDBOX_MOUNT_POINT%/usr/local/bin/azure-cns.exe"]
           args:
@@ -79,6 +80,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cns-config
+  namespace: kube-system
 data:
   cns_config.json: |
     {
