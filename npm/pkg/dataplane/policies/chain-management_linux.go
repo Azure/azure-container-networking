@@ -16,7 +16,6 @@ import (
 
 const (
 	defaultlockWaitTimeInSeconds string = "60"
-	reconcileChainTimeInMinutes  int    = 5
 
 	doesNotExistErrorCode      int = 1 // Bad rule (does a matching rule exist in that chain?)
 	couldntLoadTargetErrorCode int = 2 // Couldn't load target `AZURE-NPM-EGRESS':No such file or directory

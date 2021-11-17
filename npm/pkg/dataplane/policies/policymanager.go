@@ -10,6 +10,8 @@ import (
 	"k8s.io/klog"
 )
 
+const reconcileChainTimeInMinutes = 5
+
 type PolicyMap struct {
 	cache map[string]*NPMNetworkPolicy
 }
