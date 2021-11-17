@@ -368,6 +368,59 @@ func TestIPBlockIPSet(t *testing.T) {
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
 		},
 		{
+			name:        "0.0.0.0/0 cidr",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR: "0.0.0.0/0",
+			},
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1"}...),
+		},
+		{
+			name:        "0.0.0.0/0 cidr and one 10.0.0.0/1 except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "0.0.0.0/0",
+				Except: []string{"10.0.0.0/1"},
+			},
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1", "10.0.0.0/1nomatch"}...),
+		},
+		{
+			name:        "0.0.0.0/0 cidr and one 0.0.0.0/1 except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "0.0.0.0/0",
+				Except: []string{"0.0.0.0/1"},
+			},
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1nomatch", "128.0.0.0/1"}...),
+		},
+		{
+			name:        "0.0.0.0/0 cidr and one 128.0.0.0/1 except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "0.0.0.0/0",
+				Except: []string{"128.0.0.0/1"},
+			},
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1nomatch"}...),
+		},
+		{
+			name:        "0.0.0.0/0 cidr and two 0.0.0.0/1 and 128.0.0.0/1 except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "0.0.0.0/0",
+				Except: []string{"0.0.0.0/1", "128.0.0.0/1"},
+			},
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1nomatch", "128.0.0.0/1nomatch"}...),
+		},
+		{
+			name:        "0.0.0.0/0 cidr and duplicated 0.0.0.0/1 and 128.0.0.0/1 except",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "0.0.0.0/0",
+				Except: []string{"0.0.0.0/1", "128.0.0.0/1", "128.0.0.0/1"},
+			},
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1nomatch", "128.0.0.0/1nomatch"}...),
+		},
+		{
 			name:        "one cidr and one except",
 			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
 			ipBlockRule: &networkingv1.IPBlock{
@@ -382,6 +435,15 @@ func TestIPBlockIPSet(t *testing.T) {
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+			},
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24nomatch", "172.17.2.0/24nomatch"}...),
+		},
+		{
+			name:        "one cidr and multiple and duplicated except",
+			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR:   "172.17.0.0/16",
+				Except: []string{"172.17.1.0/24", "172.17.2.0/24", "172.17.2.0/24"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24nomatch", "172.17.2.0/24nomatch"}...),
 		},
