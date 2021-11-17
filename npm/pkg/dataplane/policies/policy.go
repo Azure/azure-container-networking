@@ -188,8 +188,11 @@ const (
 	Allowed Verdict = "ALLOW"
 	// Dropped is denying a flow
 	Dropped Verdict = "DROP"
+)
 
-	// Currently supported protocols in networkpolicy are TCP, UDP, or SCTP.
+// Currently supported protocols in networkpolicy are TCP, UDP, or SCTP.
+// NPM is not fully tested with SCTP.
+const (
 	// TCP Protocol
 	TCP Protocol = "tcp"
 	// UDP Protocol
