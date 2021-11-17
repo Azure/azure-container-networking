@@ -322,7 +322,7 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		// Check if any CIDR block IPSets needs to be applied
 		setType := set.Metadata.Type
 		if setType == ipsets.CIDRBlocks {
-			// cidrInfo can have either cidr (CIDR in IPBlock) or "cidr + nomatch" (Except in IPBlock)
+			// cidrInfo can have either cidr (CIDR in IPBlock) or "cidr + " " (space) + nomatch" (Except in IPBlock)
 			for _, cidrInfo := range set.Members {
 				// TODO(jungukcho): This is an adhoc approach for linux, but need to refactor data structure for better management.
 				// onlyCidr has only cidr without "nomatch" to validate cidr format.

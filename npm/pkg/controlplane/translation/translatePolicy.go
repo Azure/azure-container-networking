@@ -122,6 +122,12 @@ func ipBlockSetName(policyName, ns string, direction policies.Direction, ipBlock
 	return fmt.Sprintf(ipBlocksetNameFormat, policyName, ns, ipBlockSetIndex, direction)
 }
 
+// exceptCidr returns "cidr + " " (space) + nomatch" format.
+// e.g., "10.0.0.0/1 nomatch"
+func exceptCidr(exceptCidr string) string {
+	return exceptCidr + " " + util.IpsetNomatch
+}
+
 // deDuplicateExcept removes redundance elements and return slices which has only unique element.
 func deDuplicateExcept(exceptInIPBlock []string) []string {
 	deDupExcepts := []string{}
@@ -155,7 +161,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	if ipBlockRule.CIDR == "0.0.0.0/0" {
 		// two cidrs (0.0.0.0/1 and 128.0.0.0/1) for 0.0.0.0/0 + except.
 		members = make([]string, lenOfDeDupExcepts+splitCIDRLen)
-		// in case of "0.0.0.0/0", "0.0.0.0/1" or "0.0.0.0/1nomatch" comes eariler than "128.0.0.0/1" or "128.0.0.0/1nomatch".
+		// in case of "0.0.0.0/0", "0.0.0.0/1" or "0.0.0.0/1 nomatch" comes eariler than "128.0.0.0/1" or "128.0.0.0/1 nomatch".
 		splitCIDRs := []string{"0.0.0.0/1", "128.0.0.0/1"}
 		for _, cidr := range splitCIDRs {
 			members[indexOfMembers] = cidr
@@ -173,11 +179,11 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 		except := deDupExcepts[i]
 		if splitCIDRIndex, exist := splitCIDRSet[except]; exist {
 			// replace stored splitCIDR with "nomatch" option
-			members[splitCIDRIndex] = except + util.IpsetNomatch
+			members[splitCIDRIndex] = exceptCidr(except)
 			indexOfMembers--
 			members = members[:len(members)-1]
 		} else {
-			members[i+indexOfMembers] = except + util.IpsetNomatch
+			members[i+indexOfMembers] = exceptCidr(except)
 		}
 	}
 
