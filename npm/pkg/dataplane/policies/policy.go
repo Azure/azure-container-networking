@@ -46,8 +46,9 @@ type ACLPolicy struct {
 	Target Verdict
 	// Direction defines the flow of traffic
 	Direction Direction
-	// DstPorts holds the destination port information
-	// TODO(jungukcho): It may be better to use pointer to differentiate default value.
+	// DstPorts always holds the destination port information.
+	// The valid value for port must be between 1 and 65535, inclusive
+	// and the endPort must be equal or greater than port.
 	DstPorts Ports
 	// Protocol is the value of traffic protocol
 	Protocol Protocol
@@ -110,7 +111,6 @@ func (aclPolicy *ACLPolicy) hasKnownProtocol() bool {
 	return aclPolicy.Protocol != "" && (aclPolicy.Protocol == TCP ||
 		aclPolicy.Protocol == UDP ||
 		aclPolicy.Protocol == SCTP ||
-		aclPolicy.Protocol == ICMP ||
 		aclPolicy.Protocol == AnyProtocol)
 }
 
@@ -119,7 +119,6 @@ func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
 }
 
 func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
-	// TODO(jungukcho): need to check second condition
 	return (aclPolicy.Protocol != AnyProtocol) || (aclPolicy.DstPorts.Port == 0 && aclPolicy.DstPorts.EndPort == 0)
 }
 
@@ -190,14 +189,13 @@ const (
 	// Dropped is denying a flow
 	Dropped Verdict = "DROP"
 
+	// Currently supported protocols in networkpolicy are TCP, UDP, or SCTP.
 	// TCP Protocol
 	TCP Protocol = "tcp"
 	// UDP Protocol
 	UDP Protocol = "udp"
 	// SCTP Protocol
 	SCTP Protocol = "sctp"
-	// ICMP Protocol
-	ICMP Protocol = "icmp"
 	// AnyProtocol can be used for all other protocols
 	AnyProtocol Protocol = "all"
 )

@@ -226,7 +226,7 @@ func matchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType Ma
 	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(networkPolicy.PodSelectorIPSets))
 	for _, translatedIPSet := range networkPolicy.PodSelectorIPSets {
 		matchString := matchType.toIPTablesString()
-		hashedSetName := util.GetHashedName(translatedIPSet.Metadata.GetPrefixName())
+		hashedSetName := translatedIPSet.Metadata.GetHashedName()
 		specs = append(specs, util.IptablesModuleFlag, util.IptablesSetModuleFlag, util.IptablesMatchSetFlag, hashedSetName, matchString)
 	}
 	return specs
@@ -240,7 +240,7 @@ func matchSetSpecsFromSetInfo(setInfoList []SetInfo) []string {
 		if !setInfo.Included {
 			specs = append(specs, util.IptablesNotFlag)
 		}
-		hashedSetName := util.GetHashedName(setInfo.IPSet.GetPrefixName())
+		hashedSetName := setInfo.IPSet.GetHashedName()
 		specs = append(specs, util.IptablesMatchSetFlag, hashedSetName, matchString)
 	}
 	return specs

@@ -148,7 +148,7 @@ func checkForErrors(networkPolicy *NPMNetworkPolicy) error {
 		}
 		if !aclPolicy.satisifiesPortAndProtocolConstraints() {
 			return npmerrors.SimpleError(fmt.Sprintf(
-				"ACL policy %s has multiple src or dst ports, so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s",
+				"ACL policy %s has dst port(s) (Port or Port and EndPort), so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s",
 				aclPolicy.PolicyID,
 				string(aclPolicy.Protocol),
 			))
