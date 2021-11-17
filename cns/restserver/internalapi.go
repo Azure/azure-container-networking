@@ -258,7 +258,7 @@ func (service *HTTPRestService) ReconcileNCState(
 
 	err := service.MarkExistingIPsAsPending(nnc.Spec.IPsNotInUse)
 	if err != nil {
-		logger.Errorf("[Azure CNS] Error. Failed to mark IP's as pending %v", nnc.Spec.IPsNotInUse)
+		logger.Errorf("[Azure CNS] Error. Failed to mark IPs as pending %v", nnc.Spec.IPsNotInUse)
 		return types.UnexpectedError
 	}
 
