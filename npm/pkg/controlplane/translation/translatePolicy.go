@@ -155,7 +155,7 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 	if ipBlockRule.CIDR == "0.0.0.0/0" {
 		// two cidrs (0.0.0.0/1 and 128.0.0.0/1) for 0.0.0.0/0 + except.
 		members = make([]string, lenOfDeDupExcepts+splitCIDRLen)
-		// in case of 0.0.0.0/0, 0.0.0.0/1 or 0.0.0.0/1nomatch comes eariler than 128.0.0.0/1 or 128.0.0.0/1nomatch.
+		// in case of "0.0.0.0/0", "0.0.0.0/1" or "0.0.0.0/1nomatch" comes eariler than "128.0.0.0/1" or "128.0.0.0/1nomatch".
 		splitCIDRs := []string{"0.0.0.0/1", "128.0.0.0/1"}
 		for _, cidr := range splitCIDRs {
 			members[indexOfMembers] = cidr
