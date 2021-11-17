@@ -118,10 +118,9 @@ func (iMgr *IPSetManager) resetIPSets() error {
 }
 
 // this needs to be a separate function because we need to check creator contents in UTs
-func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (creator *ioutil.FileCreator, originalNumAzureSets int, destroyFailureCount *int) {
-	zero := 0
-	destroyFailureCount = &zero
-	creator = ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
+func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.FileCreator, int, *int) {
+	destroyFailureCount := 0
+	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
 	names := make([]string, 0)
 	readIndex := 0
 	var line []byte
@@ -144,7 +143,7 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (creator *
 				Method:     ioutil.ContinueAndAbortSection,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking flush and upcoming destroy for set %s as a failure due to unknown error", hashedSetName)
-					*destroyFailureCount++
+					destroyFailureCount++
 					// TODO mark as a failure
 				},
 			},
@@ -163,7 +162,7 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (creator *
 				Method:     ioutil.Continue,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure since the set is in use by a kernel component", hashedSetName)
-					*destroyFailureCount++
+					destroyFailureCount++
 					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
 				},
 			},
@@ -179,7 +178,7 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (creator *
 				Method:     ioutil.Continue,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure due to unknown error", hashedSetName)
-					*destroyFailureCount++
+					destroyFailureCount++
 					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
 				},
 			},
@@ -187,8 +186,8 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (creator *
 		sectionID := sectionID(destroySectionPrefix, hashedSetName)
 		creator.AddLine(sectionID, errorHandlers, ipsetDestroyFlag, hashedSetName) // destroy set
 	}
-	originalNumAzureSets = len(names)
-	return creator, originalNumAzureSets, destroyFailureCount
+	originalNumAzureSets := len(names)
+	return creator, originalNumAzureSets, &destroyFailureCount
 }
 
 /*
