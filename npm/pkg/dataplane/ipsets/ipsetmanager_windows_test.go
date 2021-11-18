@@ -34,7 +34,7 @@ func TestAddToSetWindows(t *testing.T) {
 	err = iMgr.AddToSets([]*IPSetMetadata{listMetadata}, testPodIP, testPodKey)
 	require.Error(t, err)
 
-	err = iMgr.applyIPSets()
+	err = iMgr.ApplyIPSets()
 	require.NoError(t, err)
 }
 
@@ -113,13 +113,7 @@ func TestApplyCreationsAndAdds(t *testing.T) {
 			Values:     "",
 		},
 	}
-	toAddOrUpdateSetNames := make([]string, 0, len(toAddOrUpdateSetMap))
-	for setName := range toAddOrUpdateSetMap {
-		toAddOrUpdateSetNames = append(toAddOrUpdateSetNames, setName)
-	}
-
-	assertEqualContentsTestHelper(t, toAddOrUpdateSetNames, iMgr.toAddOrUpdateCache)
-	err := iMgr.applyIPSets()
+	err := iMgr.ApplyIPSets()
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 }
@@ -144,7 +138,6 @@ func TestApplyDeletions(t *testing.T) {
 	iMgr.DeleteIPSet(TestNestedLabelList.PrefixName)
 
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName, TestNestedLabelList.PrefixName}
-	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
 			Id:         TestNSSet.HashedName,
@@ -165,13 +158,8 @@ func TestApplyDeletions(t *testing.T) {
 			Values:     TestNSSet.HashedName,
 		},
 	}
-	toAddOrUpdateSetNames := make([]string, 0, len(toAddOrUpdateSetMap))
-	for setName := range toAddOrUpdateSetMap {
-		toAddOrUpdateSetNames = append(toAddOrUpdateSetNames, setName)
-	}
-	assertEqualContentsTestHelper(t, toAddOrUpdateSetNames, iMgr.toAddOrUpdateCache)
 
-	err := iMgr.applyIPSets()
+	err := iMgr.ApplyIPSets()
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
@@ -192,8 +180,6 @@ func TestFailureOnCreation(t *testing.T) {
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
 
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
-	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
-
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
 			Id:         TestNSSet.HashedName,
@@ -209,13 +195,7 @@ func TestFailureOnCreation(t *testing.T) {
 		},
 	}
 
-	toAddOrUpdateSetNames := make([]string, 0, len(toAddOrUpdateSetMap))
-	for setName := range toAddOrUpdateSetMap {
-		toAddOrUpdateSetNames = append(toAddOrUpdateSetNames, setName)
-	}
-	assertEqualContentsTestHelper(t, toAddOrUpdateSetNames, iMgr.toAddOrUpdateCache)
-
-	err := iMgr.applyIPSets()
+	err := iMgr.ApplyIPSets()
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
@@ -239,8 +219,6 @@ func TestFailureOnAddToList(t *testing.T) {
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
 
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
-	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
-
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
 			Id:         TestNSSet.HashedName,
@@ -267,13 +245,8 @@ func TestFailureOnAddToList(t *testing.T) {
 			Values:     TestNSSet.HashedName,
 		},
 	}
-	toAddOrUpdateSetNames := make([]string, 0, len(toAddOrUpdateSetMap))
-	for setName := range toAddOrUpdateSetMap {
-		toAddOrUpdateSetNames = append(toAddOrUpdateSetNames, setName)
-	}
-	assertEqualContentsTestHelper(t, toAddOrUpdateSetNames, iMgr.toAddOrUpdateCache)
 
-	err := iMgr.applyIPSets()
+	err := iMgr.ApplyIPSets()
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
@@ -294,8 +267,6 @@ func TestFailureOnFlush(t *testing.T) {
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
 
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
-	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
-
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
 			Id:         TestNSSet.HashedName,
@@ -305,13 +276,7 @@ func TestFailureOnFlush(t *testing.T) {
 		},
 	}
 
-	toAddOrUpdateSetNames := make([]string, 0, len(toAddOrUpdateSetMap))
-	for setName := range toAddOrUpdateSetMap {
-		toAddOrUpdateSetNames = append(toAddOrUpdateSetNames, setName)
-	}
-	assertEqualContentsTestHelper(t, toAddOrUpdateSetNames, iMgr.toAddOrUpdateCache)
-
-	err := iMgr.applyIPSets()
+	err := iMgr.ApplyIPSets()
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
@@ -331,8 +296,6 @@ func TestFailureOnDeletion(t *testing.T) {
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
 
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
-	assertEqualContentsTestHelper(t, toDeleteSetNames, iMgr.toDeleteCache)
-
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
 			Id:         TestNSSet.HashedName,
@@ -342,13 +305,7 @@ func TestFailureOnDeletion(t *testing.T) {
 		},
 	}
 
-	toAddOrUpdateSetNames := make([]string, 0, len(toAddOrUpdateSetMap))
-	for setName := range toAddOrUpdateSetMap {
-		toAddOrUpdateSetNames = append(toAddOrUpdateSetNames, setName)
-	}
-	assertEqualContentsTestHelper(t, toAddOrUpdateSetNames, iMgr.toAddOrUpdateCache)
-
-	err := iMgr.applyIPSets()
+	err := iMgr.ApplyIPSets()
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
@@ -356,7 +313,7 @@ func TestFailureOnDeletion(t *testing.T) {
 
 func verifyHNSCache(t *testing.T, expected map[string]hcn.SetPolicySetting, hns *hnswrapper.Hnsv2wrapperFake) {
 	for setName, setObj := range expected {
-		cacheObj := hns.Cache.Policy(setObj.Id)
+		cacheObj := hns.Cache.SetPolicy(setObj.Id)
 		require.NotNil(t, cacheObj)
 		require.Equal(t, setObj, *cacheObj, fmt.Sprintf("%s mismatch in cache", setName))
 	}
@@ -364,7 +321,7 @@ func verifyHNSCache(t *testing.T, expected map[string]hcn.SetPolicySetting, hns 
 
 func verifyDeletedHNSCache(t *testing.T, deleted []string, hns *hnswrapper.Hnsv2wrapperFake) {
 	for _, setName := range deleted {
-		cacheObj := hns.Cache.Policy(setName)
+		cacheObj := hns.Cache.SetPolicy(setName)
 		require.Nil(t, cacheObj)
 	}
 }

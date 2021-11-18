@@ -290,7 +290,7 @@ type FakeHNSCache struct {
 	endpoints map[string]*FakeHostComputeEndpoint
 }
 
-func (fCache FakeHNSCache) Policy(setID string) *hcn.SetPolicySetting {
+func (fCache FakeHNSCache) SetPolicy(setID string) *hcn.SetPolicySetting {
 	for _, network := range fCache.networks {
 		for _, policy := range network.Policies {
 			if policy.Id == setID {
@@ -299,6 +299,36 @@ func (fCache FakeHNSCache) Policy(setID string) *hcn.SetPolicySetting {
 		}
 	}
 	return nil
+}
+
+func (fCache FakeHNSCache) ACLPolicies(epList map[string]string, policyID string) (map[string][]*FakeEndpointPolicy, error) {
+	aclPols := make(map[string][]*FakeEndpointPolicy)
+	for ip, epID := range epList {
+		epCache, ok := fCache.endpoints[epID]
+		if !ok {
+			return nil, newErrorFakeHNS(fmt.Sprintf("[FakeHNS] could not find endpoint %s", epID))
+		}
+		if epCache.IPConfiguration != ip {
+			return nil, newErrorFakeHNS(fmt.Sprintf("[FakeHNS] Mismatch in IP addr of endpoint %s Got: %s, Expect %s",
+				epID, epCache.IPConfiguration, ip))
+		}
+		aclPols[epID] = make([]*FakeEndpointPolicy, 0)
+		for _, policy := range epCache.Policies {
+			if policy.ID == policyID {
+				aclPols[epID] = append(aclPols[epID], policy)
+			}
+		}
+
+	}
+	return aclPols, nil
+}
+
+func (fCache FakeHNSCache) GetAllACLs() map[string][]*FakeEndpointPolicy {
+	aclPols := make(map[string][]*FakeEndpointPolicy)
+	for _, ep := range fCache.endpoints {
+		aclPols[ep.ID] = ep.Policies
+	}
+	return aclPols
 }
 
 type FakeHostComputeNetwork struct {
@@ -331,10 +361,15 @@ type FakeHostComputeEndpoint struct {
 }
 
 func NewFakeHostComputeEndpoint(endpoint *hcn.HostComputeEndpoint) *FakeHostComputeEndpoint {
+	ip := ""
+	if endpoint.IpConfigurations != nil {
+		ip = endpoint.IpConfigurations[0].IpAddress
+	}
 	return &FakeHostComputeEndpoint{
 		ID:                 endpoint.Id,
 		Name:               endpoint.Name,
 		HostComputeNetwork: endpoint.HostComputeNetwork,
+		IPConfiguration:    ip,
 	}
 }
 
@@ -365,4 +400,5 @@ type FakeEndpointPolicy struct {
 	RemoteAddresses string            `json:",omitempty"`
 	LocalPorts      string            `json:",omitempty"`
 	RemotePorts     string            `json:",omitempty"`
+	Priority        int               `json:",omitempty"`
 }

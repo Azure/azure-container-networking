@@ -1,8 +1,6 @@
 package ipsets
 
-import (
-	"github.com/Azure/azure-container-networking/npm/util"
-)
+import "github.com/Azure/azure-container-networking/npm/util"
 
 type TestSet struct {
 	Metadata   *IPSetMetadata

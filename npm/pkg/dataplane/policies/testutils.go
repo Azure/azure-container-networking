@@ -56,7 +56,7 @@ var (
 			Protocol: TCP,
 		},
 		{
-			PolicyID: "test2",
+			PolicyID: "test1",
 			Comment:  "comment2",
 			SrcList: []SetInfo{
 				{
@@ -70,7 +70,7 @@ var (
 			Protocol:  UDP,
 		},
 		{
-			PolicyID: "test3",
+			PolicyID: "test1",
 			Comment:  "comment3",
 			SrcList: []SetInfo{
 				{
@@ -87,7 +87,7 @@ var (
 			Protocol: UDP,
 		},
 		{
-			PolicyID: "test4",
+			PolicyID: "test1",
 			Comment:  "comment4",
 			SrcList: []SetInfo{
 				{

@@ -80,7 +80,7 @@ func main() {
 	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestNSSet.Metadata}, podMetadataB))
 	podMetadataC := &dataplane.PodMetadata{
 		PodKey:   "c",
-		PodIP:    "10.240.0.20",
+		PodIP:    "10.240.0.28",
 		NodeName: nodeName,
 	}
 	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestKeyPodSet.Metadata, ipsets.TestNSSet.Metadata}, podMetadataC))
@@ -125,14 +125,14 @@ func main() {
 
 	podMetadataD = &dataplane.PodMetadata{
 		PodKey:   "d",
-		PodIP:    "10.240.0.7",
+		PodIP:    "10.240.0.27",
 		NodeName: nodeName,
 	}
 	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestKeyPodSet.Metadata, ipsets.TestNSSet.Metadata}, podMetadataD))
 	panicOnError(dp.ApplyDataPlane())
 	printAndWait(true)
 
-	// panicOnError(dp.RemovePolicy(testNetPol.Name))
+	panicOnError(dp.RemovePolicy(testNetPol.Name))
 
 	// testPolicyManager()
 
