@@ -109,7 +109,7 @@ func start(config npmconfig.Config) error {
 	k8sServerVersion := k8sServerVersion(clientset)
 
 	var dp dataplane.GenericDataplane
-	if config.Toggles.EnableV2Controllers {
+	if config.Toggles.EnableV2NPM {
 		dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim())
 		if err != nil {
 			return fmt.Errorf("failed to create dataplane with error %w", err)
