@@ -126,10 +126,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
-	k8sServerVersion, err := k8sServerVersion(clientset)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve kubernetes server version %w", err)
-	}
+	k8sServerVersion := k8sServerVersion(clientset)
 
 	var dp dataplane.GenericDataplane
 	if config.Toggles.EnableV2Controllers {
@@ -166,23 +163,25 @@ func initLogging() error {
 	return nil
 }
 
-func k8sServerVersion(kubeclientset kubernetes.Interface) (*k8sversion.Info, error) {
+func k8sServerVersion(kubeclientset kubernetes.Interface) *k8sversion.Info {
+	var err error
 	var serverVersion *k8sversion.Info
 	for ticker, start := time.NewTicker(1*time.Second).C, time.Now(); time.Since(start) < time.Minute*1; {
 		<-ticker
-		var err error
 		serverVersion, err = kubeclientset.Discovery().ServerVersion()
-		if err != nil {
-			metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version with err: %v", err)
-		} else {
+		if err == nil {
 			break
 		}
 	}
 
-	if err := util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag with err: %v", err)
-		return nil, fmt.Errorf("failed to check if new network policy version is set with err %w", err)
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
+		panic(err.Error)
 	}
 
-	return serverVersion, nil
+	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
+		panic(err.Error)
+	}
+	return serverVersion
 }

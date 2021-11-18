@@ -219,22 +219,15 @@ azure-cnm-plugin-image: azure-cnm-plugin
 
 # Build the Azure NPM image.
 .PHONY: azure-npm-image
-azure-npm-image:
+azure-npm-image: azure-npm
 ifeq ($(GOOS),linux)
-	$(MKDIR) $(IMAGE_DIR)
-	docker buildx create --use
-	docker buildx build \
+	docker build \
 	--no-cache \
 	-f npm/Dockerfile \
 	-t $(AZURE_NPM_IMAGE):$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
-	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
-	--platform=$(IMAGE_PLATFORM_ARCHES) \
-	--$(IMAGE_ACTION) \
+	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
 	.
-	
-	echo $(AZURE_NPM_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
+	docker save $(AZURE_NPM_IMAGE):$(VERSION) | gzip -c > $(NPM_BUILD_DIR)/$(NPM_IMAGE_ARCHIVE_NAME)
 endif
 
 # Build the Azure CNS image

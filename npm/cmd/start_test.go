@@ -24,7 +24,7 @@ func TestK8sServerVersion(t *testing.T) {
 	tests := []struct {
 		name             string
 		info             *k8sversion.Info
-		wantErr          bool
+		wantPanic        bool
 		isNewNwPolicyVer bool
 	}{
 		{
@@ -34,7 +34,7 @@ func TestK8sServerVersion(t *testing.T) {
 				Minor:      "2",
 				GitVersion: "v1.20.2",
 			},
-			wantErr:          false,
+			wantPanic:        false,
 			isNewNwPolicyVer: true,
 		},
 		{
@@ -44,7 +44,7 @@ func TestK8sServerVersion(t *testing.T) {
 				Minor:      "0",
 				GitVersion: "v1.11",
 			},
-			wantErr:          false,
+			wantPanic:        false,
 			isNewNwPolicyVer: true,
 		},
 		{
@@ -54,7 +54,7 @@ func TestK8sServerVersion(t *testing.T) {
 				Minor:      "1",
 				GitVersion: "v1.10.1",
 			},
-			wantErr:          false,
+			wantPanic:        false,
 			isNewNwPolicyVer: false,
 		},
 		{
@@ -64,7 +64,7 @@ func TestK8sServerVersion(t *testing.T) {
 				Minor:      "0",
 				GitVersion: "v0.0",
 			},
-			wantErr:          false,
+			wantPanic:        false,
 			isNewNwPolicyVer: false,
 		},
 		{
@@ -74,7 +74,7 @@ func TestK8sServerVersion(t *testing.T) {
 				Minor:      "0",
 				GitVersion: "v-1.11",
 			},
-			wantErr: true,
+			wantPanic: true,
 		},
 		{
 			name: "Test wrong alphabet version",
@@ -83,7 +83,7 @@ func TestK8sServerVersion(t *testing.T) {
 				Minor:      "cc",
 				GitVersion: "vab.cc",
 			},
-			wantErr: true,
+			wantPanic: true,
 		},
 		{
 			name: "Test wrong alphabet version",
@@ -92,7 +92,7 @@ func TestK8sServerVersion(t *testing.T) {
 				Minor:      "cc",
 				GitVersion: "v1.1.cc",
 			},
-			wantErr: true,
+			wantPanic: true,
 		},
 	}
 
@@ -101,14 +101,16 @@ func TestK8sServerVersion(t *testing.T) {
 		tt := tt
 		fc.Discovery().(*fakediscovery.FakeDiscovery).FakedServerVersion = tt.info
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.wantErr {
-				_, err := k8sServerVersion(fc)
-				require.Error(t, err)
+			if tt.wantPanic {
+				require.Panics(t, func() {
+					k8sServerVersion(fc)
+				})
 			} else {
-				got, err := k8sServerVersion(fc)
-				require.NoError(t, err)
-				require.Equal(t, got, tt.info)
-				require.Equal(t, util.IsNewNwPolicyVerFlag, tt.isNewNwPolicyVer)
+				require.NotPanics(t, func() {
+					got := k8sServerVersion(fc)
+					require.Equal(t, got, tt.info)
+					require.Equal(t, util.IsNewNwPolicyVerFlag, tt.isNewNwPolicyVer)
+				})
 			}
 		})
 	}
