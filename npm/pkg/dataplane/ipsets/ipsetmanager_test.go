@@ -45,9 +45,6 @@ func TestCreateIPSet(t *testing.T) {
 	require.NotNil(t, set)
 	assert.Equal(t, setMetadata.GetPrefixName(), set.Name)
 	assert.Equal(t, util.GetHashedName(setMetadata.GetPrefixName()), set.HashedName)
-
-	err := iMgr.applyIPSets()
-	require.NoError(t, err)
 }
 
 func TestCreateIPSetApplyAlways(t *testing.T) {
@@ -64,9 +61,6 @@ func TestCreateIPSetApplyAlways(t *testing.T) {
 	require.NotNil(t, set)
 	assert.Equal(t, setMetadata.GetPrefixName(), set.Name)
 	assert.Equal(t, util.GetHashedName(setMetadata.GetPrefixName()), set.HashedName)
-
-	err := iMgr.applyIPSets()
-	require.NoError(t, err)
 }
 
 func TestAddToSet(t *testing.T) {
@@ -89,9 +83,6 @@ func TestAddToSet(t *testing.T) {
 	iMgr.CreateIPSets([]*IPSetMetadata{listMetadata})
 	err = iMgr.AddToSets([]*IPSetMetadata{listMetadata}, testPodIP, testPodKey)
 	require.Error(t, err)
-
-	err = iMgr.applyIPSets()
-	require.NoError(t, err)
 }
 
 func TestRemoveFromSet(t *testing.T) {
@@ -103,18 +94,12 @@ func TestRemoveFromSet(t *testing.T) {
 	require.NoError(t, err)
 	err = iMgr.RemoveFromSets([]*IPSetMetadata{setMetadata}, testPodIP, testPodKey)
 	require.NoError(t, err)
-
-	err = iMgr.applyIPSets()
-	require.NoError(t, err)
 }
 
 func TestRemoveFromSetMissing(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	err := iMgr.RemoveFromSets([]*IPSetMetadata{setMetadata}, testPodIP, testPodKey)
-	require.NoError(t, err)
-
-	err = iMgr.applyIPSets()
 	require.NoError(t, err)
 }
 
@@ -123,9 +108,6 @@ func TestAddToListMissing(t *testing.T) {
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata("testlabel", KeyLabelOfNamespace)
 	err := iMgr.AddToLists([]*IPSetMetadata{listMetadata}, []*IPSetMetadata{setMetadata})
-	require.NoError(t, err)
-
-	err = iMgr.applyIPSets()
 	require.NoError(t, err)
 }
 
@@ -144,9 +126,6 @@ func TestAddToList(t *testing.T) {
 	assert.Equal(t, util.GetHashedName(listMetadata.GetPrefixName()), set.HashedName)
 	assert.Equal(t, 1, len(set.MemberIPSets))
 	assert.Equal(t, setMetadata.GetPrefixName(), set.MemberIPSets[setMetadata.GetPrefixName()].Name)
-
-	err = iMgr.applyIPSets()
-	require.NoError(t, err)
 }
 
 func TestRemoveFromList(t *testing.T) {
@@ -171,9 +150,6 @@ func TestRemoveFromList(t *testing.T) {
 	set = iMgr.GetIPSet(listMetadata.GetPrefixName())
 	assert.NotNil(t, set)
 	assert.Equal(t, 0, len(set.MemberIPSets))
-
-	err = iMgr.applyIPSets()
-	require.NoError(t, err)
 }
 
 func TestRemoveFromListMissing(t *testing.T) {
@@ -184,9 +160,6 @@ func TestRemoveFromListMissing(t *testing.T) {
 	iMgr.CreateIPSets([]*IPSetMetadata{listMetadata})
 
 	err := iMgr.RemoveFromList(listMetadata, []*IPSetMetadata{setMetadata})
-	require.NoError(t, err)
-
-	err = iMgr.applyIPSets()
 	require.NoError(t, err)
 }
 
