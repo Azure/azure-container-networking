@@ -6,16 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
-	"github.com/Azure/azure-container-networking/npm/metrics"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
-	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
@@ -186,48 +182,6 @@ func (npMgr *NetworkPolicyManager) GetAppVersion() string {
 // GetAIMetadata returns ai metadata number
 func GetAIMetadata() string {
 	return aiMetadata
-}
-
-// SendClusterMetrics :- send NPM cluster metrics using AppInsights
-// TODO(jungukcho): need to move codes into metrics packages
-func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
-	var (
-		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
-		customDimensions = map[string]string{
-			"ClusterID": util.GetClusterID(npMgr.NodeName),
-			"APIServer": npMgr.k8sServerVersion.String(),
-		}
-		podCount = aitelemetry.Metric{
-			Name:             "PodCount",
-			CustomDimensions: customDimensions,
-		}
-		nsCount = aitelemetry.Metric{
-			Name:             "NsCount",
-			CustomDimensions: customDimensions,
-		}
-		nwPolicyCount = aitelemetry.Metric{
-			Name:             "NwPolicyCount",
-			CustomDimensions: customDimensions,
-		}
-	)
-
-	for {
-		<-heartbeat
-
-		// Reducing one to remove all-namespaces ns obj
-		lenOfNsMap := len(npMgr.npmNamespaceCacheV1.NsMap)
-		nsCount.Value = float64(lenOfNsMap - 1)
-
-		lenOfRawNpMap := npMgr.netPolControllerV1.LengthOfRawNpMap()
-		nwPolicyCount.Value += float64(lenOfRawNpMap)
-
-		lenOfPodMap := npMgr.podControllerV1.LengthOfPodMap()
-		podCount.Value += float64(lenOfPodMap)
-
-		metrics.SendMetric(podCount)
-		metrics.SendMetric(nsCount)
-		metrics.SendMetric(nwPolicyCount)
-	}
 }
 
 // Start starts shared informers and waits for the shared informer cache to sync.
