@@ -247,9 +247,9 @@ func (service *HTTPRestService) handleDebugIPAddresses(w http.ResponseWriter, r 
 	logger.ResponseEx(service.Name, req, resp, resp.Response.ReturnCode, err)
 }
 
-// GetAllocatedIPConfigs returns a filtered list of IPs which are in
-// Allocated State.
-func (service *HTTPRestService) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
+// GetAssignedIPConfigs returns a filtered list of IPs which are in
+// Assigned State.
+func (service *HTTPRestService) GetAssignedIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
 	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StateAssigned)

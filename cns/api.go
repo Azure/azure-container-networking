@@ -42,7 +42,7 @@ type HTTPService interface {
 	SyncNodeStatus(string, string, string, json.RawMessage) (types.ResponseCode, string)
 	GetPendingProgramIPConfigs() []IPConfigurationStatus
 	GetAvailableIPConfigs() []IPConfigurationStatus
-	GetAllocatedIPConfigs() []IPConfigurationStatus
+	GetAssignedIPConfigs() []IPConfigurationStatus
 	GetPendingReleaseIPConfigs() []IPConfigurationStatus
 	GetPodIPConfigState() map[string]IPConfigurationStatus
 	MarkIPAsPendingRelease(numberToMark int) (map[string]IPConfigurationStatus, error)

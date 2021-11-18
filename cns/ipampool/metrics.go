@@ -9,7 +9,13 @@ var (
 	ipamAllocatedIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "ipam_allocated_ips",
-			Help: "Allocated IP count.",
+			Help: "CNS allocated IP pool size.",
+		},
+	)
+	ipamAssignedIPCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "ipam_assigned_ips",
+			Help: "Assigned IP count.",
 		},
 	)
 	ipamAvailableIPCount = prometheus.NewGauge(
@@ -22,12 +28,6 @@ var (
 		prometheus.GaugeOpts{
 			Name: "ipam_batch_size",
 			Help: "IPAM IP pool batch size.",
-		},
-	)
-	ipamIPPool = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "ipam_ip_pool_size",
-			Help: "IP pool size.",
 		},
 	)
 	ipamMaxIPCount = prometheus.NewGauge(
@@ -54,10 +54,16 @@ var (
 			Help: "Requested IP count.",
 		},
 	)
-	ipamUnallocatedIPCount = prometheus.NewGauge(
+	ipamRequestedUnassignedIPConfigCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_unallocated_ips",
-			Help: "Unallocated IP count.",
+			Name: "ipam_requested_unassigned_ips",
+			Help: "Requested IP count.",
+		},
+	)
+	ipamUnassignedIPCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "ipam_unassigned_ips",
+			Help: "Unassigned IP count.",
 		},
 	)
 	ipamRequestedUnallocatedIPCount = prometheus.NewGauge(
@@ -71,14 +77,27 @@ var (
 func init() {
 	metrics.Registry.MustRegister(
 		ipamAllocatedIPCount,
+		ipamAssignedIPCount,
 		ipamAvailableIPCount,
 		ipamBatchSize,
-		ipamIPPool,
 		ipamMaxIPCount,
 		ipamPendingProgramIPCount,
 		ipamPendingReleaseIPCount,
 		ipamRequestedIPConfigCount,
-		ipamRequestedUnallocatedIPCount,
-		ipamUnallocatedIPCount,
+		ipamRequestedUnassignedIPConfigCount,
+		ipamUnassignedIPCount,
 	)
+}
+
+func observeIPPoolState(state ipPoolState) {
+	ipamAllocatedIPCount.Set(float64(state.allocated))
+	ipamAssignedIPCount.Set(float64(state.assigned))
+	ipamAvailableIPCount.Set(float64(state.available))
+	ipamBatchSize.Set(float64(state.batch))
+	ipamMaxIPCount.Set(float64(state.max))
+	ipamPendingProgramIPCount.Set(float64(state.pendingProgramming))
+	ipamPendingReleaseIPCount.Set(float64(state.pendingRelease))
+	ipamRequestedIPConfigCount.Set(float64(state.requested))
+	ipamRequestedUnassignedIPConfigCount.Set(float64(state.requestedUnassigned))
+	ipamUnassignedIPCount.Set(float64(state.unassigned))
 }

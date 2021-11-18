@@ -502,7 +502,7 @@ func TestAvailableIPConfigs(t *testing.T) {
 	validateIpState(t, availableIps, desiredAvailableIps)
 
 	desiredAllocatedIpConfigs := make(map[string]cns.IPConfigurationStatus)
-	allocatedIps := svc.GetAllocatedIPConfigs()
+	allocatedIps := svc.GetAssignedIPConfigs()
 	validateIpState(t, allocatedIps, desiredAllocatedIpConfigs)
 
 	req := cns.IPConfigRequest{
@@ -525,7 +525,7 @@ func TestAvailableIPConfigs(t *testing.T) {
 	desiredState := NewPodState(testIP1, 24, testPod1GUID, testNCID, types.Assigned, 0)
 	desiredState.PodInfo = testPod1Info
 	desiredAllocatedIpConfigs[desiredState.ID] = desiredState
-	allocatedIps = svc.GetAllocatedIPConfigs()
+	allocatedIps = svc.GetAssignedIPConfigs()
 	validateIpState(t, allocatedIps, desiredAllocatedIpConfigs)
 }
 
@@ -727,7 +727,7 @@ func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {
 		t.Fatalf("Expected to fail when marking allocated ip as pending")
 	}
 
-	allocatedIPConfigs := svc.GetAllocatedIPConfigs()
+	allocatedIPConfigs := svc.GetAssignedIPConfigs()
 	if allocatedIPConfigs[0].ID != testPod1GUID {
 		t.Fatalf("Expected to see ID %v in pending release ipconfigs, actual %+v", testPod1GUID, allocatedIPConfigs)
 	}

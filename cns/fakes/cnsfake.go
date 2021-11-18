@@ -221,7 +221,7 @@ func (fake *HTTPServiceFake) GetAvailableIPConfigs() []cns.IPConfigurationStatus
 	return ipconfigs
 }
 
-func (fake *HTTPServiceFake) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
+func (fake *HTTPServiceFake) GetAssignedIPConfigs() []cns.IPConfigurationStatus {
 	ipconfigs := []cns.IPConfigurationStatus{}
 	for _, ipconfig := range fake.IPStateManager.AllocatedIPConfigState {
 		ipconfigs = append(ipconfigs, ipconfig)
