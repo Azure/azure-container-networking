@@ -449,8 +449,13 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 func (service *HTTPRestService) restoreNetworkState() error {
 	logger.Printf("[Azure CNS] Enter Restoring Network State")
 
-	if service.store == nil || !service.store.Exists() {
+	if service.store == nil {
 		logger.Printf("[Azure CNS] Store is not initialized, nothing to restore for network state.")
+		return nil
+	}
+
+	if !service.store.Exists() {
+		logger.Printf("[Azure CNS] Store does not exist, nothing to restore for network state.")
 		return nil
 	}
 
