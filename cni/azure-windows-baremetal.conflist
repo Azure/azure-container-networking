@@ -25,6 +25,9 @@
                     "svc.cluster.local"
                 ]
             },
+            windowsSettings: {
+                "disableLoopbackDSR": true
+            },
             "AdditionalArgs": [
                 {
                     "Name": "EndpointPolicy",

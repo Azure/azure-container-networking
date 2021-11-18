@@ -3,11 +3,13 @@ package policy
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -46,6 +48,11 @@ type KVPairL4WfpProxyPolicy struct {
 	FilterTuple        json.RawMessage `json:"FilterTuple"`
 	InboundExceptions  json.RawMessage `json:"InboundExceptions"`
 	OutboundExceptions json.RawMessage `json:"OutboundExceptions"`
+}
+
+type LoopbackDSR struct {
+	Type      CNIPolicyType `json:"Type"`
+	IPAddress net.IP        `json:"IPAddress"`
 }
 
 var ValidWinVerForDnsNat bool
@@ -241,6 +248,13 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 		}
 	}
 
+	// Check if the type is LoopbackDSRPolicy
+	var loopbackDsr LoopbackDSR
+	if err := json.Unmarshal(policy.Data, &loopbackDsr); err == nil {
+		if loopbackDsr.Type == LoopbackDSRPolicy {
+			return LoopbackDSRPolicy
+		}
+	}
 	// Return empty string if the policy type is invalid
 	log.Printf("Returning policyType INVALID")
 	return ""
@@ -427,6 +441,33 @@ func GetHcnL4WFPProxyPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 	return l4WfpEndpolicySetting, nil
 }
 
+// GetHcnLoopbackDSRPolicy policy is for pod to reach itself by cluster service IP.
+func GetHcnLoopbackDSRPolicy(policy Policy) (hcn.EndpointPolicy, error) {
+	var dsrData LoopbackDSR
+
+	if err := hcn.DSRSupported(); err != nil {
+		return hcn.EndpointPolicy{}, errors.Wrap(err, "hcn doesn't support DSR")
+	}
+
+	err := json.Unmarshal(policy.Data, &dsrData)
+	if err != nil {
+		return hcn.EndpointPolicy{}, errors.Wrap(err, "unmarshal dsr data failed")
+	}
+
+	log.Printf("DSR policy for ip:%s", dsrData.IPAddress.String())
+
+	hcnLoopbackRoute := hcn.OutboundNatPolicySetting{
+		Destinations: []string{dsrData.IPAddress.String()},
+	}
+	rawPolicy, _ := json.Marshal(hcnLoopbackRoute)
+	endpointPolicy := hcn.EndpointPolicy{
+		Type:     hcn.OutBoundNAT,
+		Settings: rawPolicy,
+	}
+
+	return endpointPolicy, nil
+}
+
 // GetHcnEndpointPolicies returns array of all endpoint policies.
 func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoData map[string]interface{}, enableSnatForDns, enableMultiTenancy bool, natInfo []NATInfo) ([]hcn.EndpointPolicy, error) {
 	var hcnEndPointPolicies []hcn.EndpointPolicy
@@ -449,6 +490,8 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 				endpointPolicy, err = GetHcnACLPolicy(policy)
 			case L4WFPProxyPolicy:
 				endpointPolicy, err = GetHcnL4WFPProxyPolicy(policy)
+			case LoopbackDSRPolicy:
+				endpointPolicy, err = GetHcnLoopbackDSRPolicy(policy)
 			default:
 				// return error as we should be able to parse all the policies specified
 				return hcnEndPointPolicies, fmt.Errorf("Failed to set Policy: Type: %s, Data: %s", policy.Type, policy.Data)

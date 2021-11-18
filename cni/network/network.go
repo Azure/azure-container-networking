@@ -693,17 +693,14 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		return epInfo, err
 	}
 
-	if opt.nwCfg.IPV6Mode == network.IPV6Nat {
-		var ipv6Policy policy.Policy
-
-		ipv6Policy, err = addIPV6EndpointPolicy(*opt.nwInfo)
-		if err != nil {
-			err = plugin.Errorf("Failed to set ipv6 endpoint policy: %v", err)
-			return epInfo, err
-		}
-
-		opt.policies = append(opt.policies, ipv6Policy)
+	endpointPolicies, err := getEndpointPolicies(opt.nwCfg, opt.nwInfo, opt.result.IPs)
+	if err != nil {
+		log.Errorf("Failed to get endpoint policies:%v", err)
+		return epInfo, err
 	}
+
+	opt.policies = append(opt.policies, endpointPolicies...)
+
 
 	vethName := fmt.Sprintf("%s.%s", opt.k8sNamespace, opt.k8sPodName)
 	if opt.nwCfg.Mode != opModeTransparent {
