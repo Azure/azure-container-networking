@@ -8,15 +8,16 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testPolicy1IngressChain = TestNetworkPolicies[0].getIngressChainName()
-	testPolicy1EgressChain  = TestNetworkPolicies[0].getEgressChainName()
-	testPolicy2IngressChain = TestNetworkPolicies[1].getIngressChainName()
-	testPolicy3EgressChain  = TestNetworkPolicies[2].getEgressChainName()
+	testPolicy1IngressChain = TestNetworkPolicies[0].ingressChainName()
+	testPolicy1EgressChain  = TestNetworkPolicies[0].egressChainName()
+	testPolicy2IngressChain = TestNetworkPolicies[1].ingressChainName()
+	testPolicy3EgressChain  = TestNetworkPolicies[2].egressChainName()
 
 	testPolicy1IngressJump = fmt.Sprintf("-j %s -m set --match-set %s dst", testPolicy1IngressChain, ipsets.TestKVNSList.HashedName)
 	testPolicy1EgressJump  = fmt.Sprintf("-j %s -m set --match-set %s src", testPolicy1EgressChain, ipsets.TestKVNSList.HashedName)
@@ -33,10 +34,17 @@ var (
 	testACLRule4 = fmt.Sprintf("-j AZURE-NPM-ACCEPT -p all -m set --match-set %s src -m comment --comment comment4", ipsets.TestCIDRSet.HashedName)
 )
 
+func TestChainNames(t *testing.T) {
+	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(TestNetworkPolicies[0].Name))
+	require.Equal(t, expectedName, TestNetworkPolicies[0].ingressChainName())
+	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(TestNetworkPolicies[0].Name))
+	require.Equal(t, expectedName, TestNetworkPolicies[0].egressChainName())
+}
+
 func TestAddPolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	creator := pMgr.getCreatorForNewNetworkPolicies(TestNetworkPolicies...)
+	creator := pMgr.creatorForNewNetworkPolicies(allChainNames(TestNetworkPolicies), TestNetworkPolicies...)
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
@@ -81,7 +89,7 @@ func TestRemovePolicies(t *testing.T) {
 		fakeIPTablesRestoreCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	creator := pMgr.getCreatorForRemovingPolicies(TestNetworkPolicies...)
+	creator := pMgr.creatorForRemovingPolicies(allChainNames(TestNetworkPolicies))
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
@@ -113,7 +121,7 @@ func TestRemovePoliciesErrorOnRestore(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRemovePoliciesErrorOnIngressRule(t *testing.T) {
+func TestRemovePoliciesErrorOnDeleteForIngress(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
 		getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", testPolicy1IngressJump, 1), // anything but 0 or 2
@@ -125,7 +133,7 @@ func TestRemovePoliciesErrorOnIngressRule(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRemovePoliciesErrorOnEgressRule(t *testing.T) {
+func TestRemovePoliciesErrorOnDeleteForEgress(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
 		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
@@ -136,4 +144,35 @@ func TestRemovePoliciesErrorOnEgressRule(t *testing.T) {
 	require.NoError(t, err)
 	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
 	require.Error(t, err)
+}
+
+func TestUpdatingChainsToCleanup(t *testing.T) {
+	calls := GetAddPolicyTestCalls(TestNetworkPolicies[0])
+	calls = append(calls, GetRemovePolicyTestCalls(TestNetworkPolicies[0])...)
+	calls = append(calls, GetAddPolicyTestCalls(TestNetworkPolicies[1])...)
+	calls = append(calls, GetRemovePolicyFailureTestCalls(TestNetworkPolicies[1])...)
+	calls = append(calls, GetAddPolicyTestCalls(TestNetworkPolicies[2])...)
+	calls = append(calls, GetRemovePolicyTestCalls(TestNetworkPolicies[2])...)
+	calls = append(calls, GetAddPolicyFailureTestCalls(TestNetworkPolicies[2])...)
+	calls = append(calls, GetAddPolicyTestCalls(TestNetworkPolicies[0])...)
+	ioshim := common.NewMockIOShim(calls)
+	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
+	pMgr := NewPolicyManager(ioshim)
+
+	require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[0], nil))
+	assertStaleChainsContain(t, pMgr.staleChains)
+	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil))
+	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
+
+	// TODO uncomment when grep stuff is fixed
+	// require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[1], nil))
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
+	// require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[1].Name, nil))
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
+	// require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[2], nil))
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
+	// require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[2].Name, nil))
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain, testPolicy3EgressChain)
+	// require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[0], nil))
+	// assertStaleChainsContain(t, pMgr.staleChains, testPolicy3EgressChain)
 }

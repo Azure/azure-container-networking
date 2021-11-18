@@ -116,7 +116,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	// create NameSpace controller
 	npMgr.namespaceControllerV1 = controllersv1.NewNameSpaceController(npMgr.nsInformer, npMgr.ipsMgr, npMgr.npmNamespaceCacheV1)
 	// create network policy controller
-	npMgr.netPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.npInformer, npMgr.ipsMgr)
+	npMgr.netPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.npInformer, npMgr.ipsMgr, config.Toggles.PlaceAzureChainFirst)
 
 	return npMgr
 }

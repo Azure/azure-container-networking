@@ -46,8 +46,9 @@ type ACLPolicy struct {
 	Target Verdict
 	// Direction defines the flow of traffic
 	Direction Direction
-	// DstPorts holds the destination port information
-	// TODO(jungukcho): It may be better to use pointer to differentiate default value.
+	// DstPorts always holds the destination port information.
+	// The valid value for port must be between 1 and 65535, inclusive
+	// and the endPort must be equal or greater than port.
 	DstPorts Ports
 	// Protocol is the value of traffic protocol
 	Protocol Protocol
@@ -110,7 +111,6 @@ func (aclPolicy *ACLPolicy) hasKnownProtocol() bool {
 	return aclPolicy.Protocol != "" && (aclPolicy.Protocol == TCP ||
 		aclPolicy.Protocol == UDP ||
 		aclPolicy.Protocol == SCTP ||
-		aclPolicy.Protocol == ICMP ||
 		aclPolicy.Protocol == AnyProtocol)
 }
 
@@ -119,7 +119,6 @@ func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
 }
 
 func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
-	// TODO(jungukcho): need to check second condition
 	return (aclPolicy.Protocol != AnyProtocol) || (aclPolicy.DstPorts.Port == 0 && aclPolicy.DstPorts.EndPort == 0)
 }
 
@@ -141,7 +140,7 @@ type SetInfo struct {
 // Ports represents a range of ports.
 // To specify one port, set Port and EndPort to the same value.
 // uint16 is used since there are 2^16 - 1 TCP/UDP ports (0 is invalid)
-// and 2^16 SCTP ports. ICMP is connectionless and doesn't use ports.
+// and 2^16 SCTP ports.
 // NewSetInfo creates SetInfo.
 func NewSetInfo(name string, setType ipsets.SetType, included bool, matchType MatchType) SetInfo {
 	return SetInfo{
@@ -169,13 +168,7 @@ func (portRange *Ports) toIPTablesString() string {
 	return start + ":" + end
 }
 
-type Verdict string
-
 type Direction string
-
-type Protocol string
-
-type MatchType int8
 
 const (
 	// Ingress when packet is entering a container
@@ -184,23 +177,33 @@ const (
 	Egress Direction = "OUT"
 	// Both applies to both directions
 	Both Direction = "BOTH"
+)
 
+type Verdict string
+
+const (
 	// Allowed is accept in linux
 	Allowed Verdict = "ALLOW"
 	// Dropped is denying a flow
 	Dropped Verdict = "DROP"
+)
 
+// Protocol can be TCP, UDP, SCTP, or ANY since they are currently supported in networkpolicy.
+// NPM is not fully tested with SCTP.
+type Protocol string
+
+const (
 	// TCP Protocol
 	TCP Protocol = "tcp"
 	// UDP Protocol
 	UDP Protocol = "udp"
 	// SCTP Protocol
 	SCTP Protocol = "sctp"
-	// ICMP Protocol
-	ICMP Protocol = "icmp"
 	// AnyProtocol can be used for all other protocols
 	AnyProtocol Protocol = "all"
 )
+
+type MatchType int8
 
 // Possible MatchTypes.
 const (

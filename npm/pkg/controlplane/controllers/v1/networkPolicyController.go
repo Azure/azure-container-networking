@@ -43,7 +43,7 @@ type NetworkPolicyController struct {
 	iptMgr                 *iptm.IptablesManager
 }
 
-func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, ipsMgr *ipsm.IpsetManager) *NetworkPolicyController {
+func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, ipsMgr *ipsm.IpsetManager, placeAzureChainFirst bool) *NetworkPolicyController {
 	netPolController := &NetworkPolicyController{
 		netPolLister: npInformer.Lister(),
 		workqueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
@@ -51,7 +51,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 		// ProcessedNpMap:         make(map[string]*networkingv1.NetworkPolicy),
 		isAzureNpmChainCreated: false,
 		ipsMgr:                 ipsMgr,
-		iptMgr:                 iptm.NewIptablesManager(exec.New(), iptm.NewIptOperationShim()),
+		iptMgr:                 iptm.NewIptablesManager(exec.New(), iptm.NewIptOperationShim(), placeAzureChainFirst),
 	}
 
 	npInformer.Informer().AddEventHandler(
@@ -468,10 +468,10 @@ func (c *NetworkPolicyController) createCidrsRule(direction, policyName, ns stri
 			return fmt.Errorf("[createCidrsRule] Error: creating ipset %s with err: %v", ipCidrSet, err)
 		}
 		for _, ipCidrEntry := range util.DropEmptyFields(ipCidrSet) {
-			// Ipset doesn't allow 0.0.0.0/0 to be added. A general solution is split 0.0.0.0/1 in half which convert to
-			// 1.0.0.0/1 and 128.0.0.0/1
+			// Ipset doesn't allow 0.0.0.0/0 to be added.
+			// A solution is split 0.0.0.0/0 in half which convert to 0.0.0.0/1 and 128.0.0.0/1.
 			if ipCidrEntry == "0.0.0.0/0" {
-				splitEntry := [2]string{"1.0.0.0/1", "128.0.0.0/1"}
+				splitEntry := [2]string{"0.0.0.0/1", "128.0.0.0/1"}
 				for _, entry := range splitEntry {
 					if err := c.ipsMgr.AddToSet(setName, entry, util.IpsetNetHashFlag, ""); err != nil {
 						return fmt.Errorf("[createCidrsRule] adding ip cidrs %s into ipset %s with err: %v", entry, ipCidrSet, err)

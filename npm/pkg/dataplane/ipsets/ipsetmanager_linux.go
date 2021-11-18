@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -15,6 +16,8 @@ const (
 	azureNPMPrefix = "azure-npm-"
 
 	ipsetCommand        = "ipset"
+	ipsetListFlag       = "list"
+	ipsetNameFlag       = "--name"
 	ipsetSaveFlag       = "save"
 	ipsetRestoreFlag    = "restore"
 	ipsetCreateFlag     = "-N"
@@ -57,14 +60,134 @@ var (
 	nameForAddRegex    = regexp.MustCompile(fmt.Sprintf("%s (%s) ", ipsetAddString, hashedNamePattern))
 )
 
+/*
+	based on ipset list output with azure-npm- prefix, create an ipset restore file where we flush all sets first, then destroy all sets
+
+	overall error handling:
+	- if flush fails because the set doesn't exist (should never happen because we're listing sets right before), then ignore it and the destroy
+	- if flush fails otherwise, then add to destroyFailureCount and continue (aborting the destroy too)
+	- if destroy fails because the set doesn't exist (should never happen since the flush operation would have worked), then ignore it
+	- if destroy fails for another reason, then ignore it and add to destroyFailureCount and mark for reconcile (TODO)
+
+	example:
+		grep output:
+			azure-npm-123456
+			azure-npm-987654
+			azure-npm-777777
+
+		example restore file [flag meanings: -F (flush), -X (destroy)]:
+			-F azure-npm-123456
+			-F azure-npm-987654
+			-F azure-npm-777777
+			-X azure-npm-123456
+			-X azure-npm-987654
+			-X azure-npm-777777
+
+	prometheus metrics:
+		After this function, NumIPSets should be 0 or the number of NPM IPSets that existed and failed to be destroyed.
+		When NPM restarts, Prometheus metrics will initialize at 0, but NPM IPSets may exist.
+		We will reset ipset entry metrics if the restore succeeds whether or not some flushes/destroys failed (NOTE: this is different behavior than v1).
+		If a flush fails, we could update the num entries for that set, but that would be a lot of overhead.
+*/
 func (iMgr *IPSetManager) resetIPSets() error {
-	// called on failure or when NPM is created
-	// so no ipset cache. need to use ipset list like in ipsm.go
-
-	// create restore file that flushes all sets, then deletes all sets
-	// technically don't need to flush a hashset
-
+	listCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
+	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
+	azureIPSets, haveAzureIPSets, commandError := ioutil.PipeCommandToGrep(listCommand, grepCommand)
+	if commandError != nil {
+		return npmerrors.SimpleErrorWrapper("failed to run ipset list for resetting IPSets", commandError)
+	}
+	if !haveAzureIPSets {
+		metrics.ResetNumIPSets()
+		metrics.ResetIPSetEntries()
+		return nil
+	}
+	creator, originalNumAzureSets, destroyFailureCount := iMgr.fileCreatorForReset(azureIPSets)
+	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
+	if restoreError != nil {
+		metrics.SetNumIPSets(originalNumAzureSets)
+		// NOTE: the num entries for sets may be incorrect if the restore fails
+		return npmerrors.SimpleErrorWrapper("failed to run ipset restore for resetting IPSets", restoreError)
+	}
+	if metrics.NumIPSetsIsPositive() {
+		metrics.SetNumIPSets(*destroyFailureCount)
+	} else {
+		metrics.ResetNumIPSets()
+	}
+	metrics.ResetIPSetEntries() // NOTE: the num entries for sets that fail to flush may be incorrect after this
 	return nil
+}
+
+// this needs to be a separate function because we need to check creator contents in UTs
+func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.FileCreator, int, *int) {
+	destroyFailureCount := 0
+	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
+	names := make([]string, 0)
+	readIndex := 0
+	var line []byte
+	// flush all the sets and create a list of the sets so we can destroy them
+	for readIndex < len(ipsetListOutput) {
+		line, readIndex = parse.Line(readIndex, ipsetListOutput)
+		hashedSetName := string(line)
+		names = append(names, hashedSetName)
+		// error handlers specific to resetting ipsets
+		errorHandlers := []*ioutil.LineErrorHandler{
+			{
+				Definition: setDoesntExistDefinition,
+				Method:     ioutil.ContinueAndAbortSection,
+				Callback: func() {
+					klog.Infof("[RESET-IPSETS] skipping flush and upcoming destroy for set %s since the set doesn't exist", hashedSetName)
+				},
+			},
+			{
+				Definition: ioutil.AlwaysMatchDefinition,
+				Method:     ioutil.ContinueAndAbortSection,
+				Callback: func() {
+					klog.Errorf("[RESET-IPSETS] marking flush and upcoming destroy for set %s as a failure due to unknown error", hashedSetName)
+					destroyFailureCount++
+					// TODO mark as a failure
+				},
+			},
+		}
+		sectionID := sectionID(destroySectionPrefix, hashedSetName)
+		creator.AddLine(sectionID, errorHandlers, ipsetFlushFlag, hashedSetName) // flush set
+	}
+
+	// destroy all the sets
+	for _, hashedSetName := range names {
+		hashedSetName := hashedSetName // to appease go lint
+		errorHandlers := []*ioutil.LineErrorHandler{
+			// error handlers specific to resetting ipsets
+			{
+				Definition: setInUseByKernelDefinition,
+				Method:     ioutil.Continue,
+				Callback: func() {
+					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure since the set is in use by a kernel component", hashedSetName)
+					destroyFailureCount++
+					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
+				},
+			},
+			{
+				Definition: setDoesntExistDefinition,
+				Method:     ioutil.Continue,
+				Callback: func() {
+					klog.Infof("[RESET-IPSETS] skipping destroy for set %s since the set does not exist", hashedSetName)
+				},
+			},
+			{
+				Definition: ioutil.AlwaysMatchDefinition,
+				Method:     ioutil.Continue,
+				Callback: func() {
+					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure due to unknown error", hashedSetName)
+					destroyFailureCount++
+					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
+				},
+			},
+		}
+		sectionID := sectionID(destroySectionPrefix, hashedSetName)
+		creator.AddLine(sectionID, errorHandlers, ipsetDestroyFlag, hashedSetName) // destroy set
+	}
+	originalNumAzureSets := len(names)
+	return creator, originalNumAzureSets, &destroyFailureCount
 }
 
 /*
@@ -134,7 +257,6 @@ example where every set in add/update cache should have ip 1.2.3.4 and 2.3.4.5:
 		-A new-set-3 2.3.4.5
 
 */
-
 func (iMgr *IPSetManager) applyIPSets() error {
 	var saveFile []byte
 	var saveError error
@@ -144,7 +266,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 			return npmerrors.SimpleErrorWrapper("ipset save failed when applying ipsets", saveError)
 		}
 	}
-	creator := iMgr.fileCreator(maxTryCount, saveFile)
+	creator := iMgr.fileCreatorForApply(maxTryCount, saveFile)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
 		return npmerrors.SimpleErrorWrapper("ipset restore failed when applying ipsets", restoreError)
@@ -155,17 +277,17 @@ func (iMgr *IPSetManager) applyIPSets() error {
 func (iMgr *IPSetManager) ipsetSave() ([]byte, error) {
 	command := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetSaveFlag)
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
-	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(command, grepCommand)
+	saveFile, haveAzureSets, err := ioutil.PipeCommandToGrep(command, grepCommand)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to run ipset save", err)
 	}
-	if !gotMatches {
+	if !haveAzureSets {
 		return nil, nil
 	}
-	return searchResults, nil
+	return saveFile, nil
 }
 
-func (iMgr *IPSetManager) fileCreator(maxTryCount int, saveFile []byte) *ioutil.FileCreator {
+func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) *ioutil.FileCreator {
 	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern) // TODO make the line failure pattern into a definition constant eventually
 
 	// flush all sets first so we don't try to delete an ipset referenced by a list we're deleting too
@@ -350,15 +472,14 @@ func (iMgr *IPSetManager) flushSetInFile(creator *ioutil.FileCreator, prefixedNa
 			Definition: setDoesntExistDefinition,
 			Method:     ioutil.ContinueAndAbortSection,
 			Callback: func() {
-				// no action needed
-				klog.Infof("skipping flush and upcoming delete for set %s since the set doesn't exist", prefixedName)
+				klog.Infof("skipping flush and upcoming destroy for set %s since the set doesn't exist", prefixedName)
 			},
 		},
 		{
 			Definition: ioutil.AlwaysMatchDefinition,
 			Method:     ioutil.ContinueAndAbortSection,
 			Callback: func() {
-				klog.Errorf("skipping flush and upcoming delete for set %s due to unknown error", prefixedName)
+				klog.Errorf("skipping flush and upcoming destroy for set %s due to unknown error", prefixedName)
 				// TODO mark as a failure
 				// would this ever happen?
 			},
@@ -366,7 +487,7 @@ func (iMgr *IPSetManager) flushSetInFile(creator *ioutil.FileCreator, prefixedNa
 	}
 	sectionID := sectionID(destroySectionPrefix, prefixedName)
 	hashedName := util.GetHashedName(prefixedName)
-	creator.AddLine(sectionID, errorHandlers, ipsetFlushFlag, hashedName)
+	creator.AddLine(sectionID, errorHandlers, ipsetFlushFlag, hashedName) // flush set
 }
 
 func (iMgr *IPSetManager) destroySetInFile(creator *ioutil.FileCreator, prefixedName string) {
@@ -438,7 +559,7 @@ func (iMgr *IPSetManager) deleteMemberInFile(creator *ioutil.FileCreator, set *I
 			},
 		},
 	}
-	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member)
+	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member) // delete member
 }
 
 func (iMgr *IPSetManager) addMemberInFile(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
@@ -472,7 +593,7 @@ func (iMgr *IPSetManager) addMemberInFile(creator *ioutil.FileCreator, set *IPSe
 			},
 		}
 	}
-	creator.AddLine(sectionID, errorHandlers, ipsetAddFlag, set.HashedName, member)
+	creator.AddLine(sectionID, errorHandlers, ipsetAddFlag, set.HashedName, member) // add member
 }
 
 func sectionID(prefix, prefixedName string) string {

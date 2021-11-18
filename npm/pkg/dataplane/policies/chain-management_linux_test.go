@@ -2,6 +2,7 @@ package policies
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
@@ -11,9 +12,70 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testChain1 = "chain1"
+	testChain2 = "chain2"
+	testChain3 = "chain3"
+)
+
+func TestEmptyAndGetAll(t *testing.T) {
+	pMgr := NewPolicyManager(common.NewMockIOShim(nil))
+	pMgr.staleChains.add(testChain1)
+	pMgr.staleChains.add(testChain2)
+	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
+	require.Equal(t, 2, len(chainsToCleanup))
+	require.True(t, chainsToCleanup[0] == testChain1 || chainsToCleanup[1] == testChain1)
+	require.True(t, chainsToCleanup[0] == testChain2 || chainsToCleanup[1] == testChain2)
+	assertStaleChainsContain(t, pMgr.staleChains)
+}
+
+func assertStaleChainsContain(t *testing.T, s *staleChains, expectedChains ...string) {
+	require.Equal(t, len(expectedChains), len(s.chainsToCleanup), "incorrectly tracking chains for cleanup")
+	for _, chain := range expectedChains {
+		_, exists := s.chainsToCleanup[chain]
+		require.True(t, exists, "incorrectly tracking chains for cleanup")
+	}
+}
+
+func TestCleanupChainsSuccess(t *testing.T) {
+	calls := []testutils.TestCmd{
+		getFakeDestroyCommand(testChain1),
+		getFakeDestroyCommandWithExitCode(testChain2, 1), // exit code 1 means the chain d.n.e.
+	}
+	ioshim := common.NewMockIOShim(calls)
+	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
+	pMgr := NewPolicyManager(ioshim)
+
+	pMgr.staleChains.add(testChain1)
+	pMgr.staleChains.add(testChain2)
+	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
+	sort.Strings(chainsToCleanup)
+	require.NoError(t, pMgr.cleanupChains(chainsToCleanup))
+	assertStaleChainsContain(t, pMgr.staleChains)
+}
+
+func TestCleanupChainsFailure(t *testing.T) {
+	calls := []testutils.TestCmd{
+		getFakeDestroyCommandWithExitCode(testChain1, 2),
+		getFakeDestroyCommand(testChain2),
+		getFakeDestroyCommandWithExitCode(testChain3, 2),
+	}
+	ioshim := common.NewMockIOShim(calls)
+	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
+	pMgr := NewPolicyManager(ioshim)
+
+	pMgr.staleChains.add(testChain1)
+	pMgr.staleChains.add(testChain2)
+	pMgr.staleChains.add(testChain3)
+	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
+	sort.Strings(chainsToCleanup)
+	require.Error(t, pMgr.cleanupChains(chainsToCleanup))
+	assertStaleChainsContain(t, pMgr.staleChains, testChain1, testChain3)
+}
+
 func TestInitChainsCreator(t *testing.T) {
 	pMgr := NewPolicyManager(common.NewMockIOShim(nil))
-	creator := pMgr.getCreatorForInitChains() // doesn't make any exec calls
+	creator := pMgr.creatorForInitChains() // doesn't make any exec calls
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{"*filter"}
 	for _, chain := range iptablesAzureChains {
@@ -77,7 +139,7 @@ func TestRemoveChainsCreator(t *testing.T) {
 	}
 
 	pMgr := NewPolicyManager(common.NewMockIOShim(creatorCalls))
-	creator, chainsToFlush := pMgr.getCreatorAndChainsForReset()
+	creator, chainsToFlush := pMgr.creatorAndChainsForReset()
 	expectedChainsToFlush := []string{
 		"AZURE-NPM",
 		"AZURE-NPM-INGRESS",
@@ -109,7 +171,7 @@ func TestRemoveChainsCreator(t *testing.T) {
 
 func TestRemoveChainsSuccess(t *testing.T) {
 	calls := GetResetTestCalls()
-	for _, chain := range iptablesOldAndNewChains {
+	for _, chain := range iptablesOldAndNewChains { // TODO write these out, don't use variable
 		calls = append(calls, getFakeDestroyCommand(chain))
 	}
 	calls = append(
@@ -162,7 +224,7 @@ func TestRemoveChainsFailureOnDestroy(t *testing.T) {
 		{Cmd: []string{"grep", ingressOrEgressPolicyChainPattern}}, // ExitCode 0 for the iptables restore command
 		fakeIPTablesRestoreCommand,
 	}
-	calls = append(calls, getFakeDestroyFailureCommand(iptablesOldAndNewChains[0])) // this ExitCode here will actually impact the next below
+	calls = append(calls, getFakeDestroyCommandWithExitCode(iptablesOldAndNewChains[0], 2)) // this ExitCode here will actually impact the next below
 	for _, chain := range iptablesOldAndNewChains[1:] {
 		calls = append(calls, getFakeDestroyCommand(chain))
 	}
@@ -355,7 +417,7 @@ func TestGetChainLineNumber(t *testing.T) {
 		grepCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	lineNum, err := pMgr.getChainLineNumber(testChainName)
+	lineNum, err := pMgr.chainLineNumber(testChainName)
 	require.Equal(t, 3, lineNum)
 	require.NoError(t, err)
 
@@ -368,7 +430,7 @@ func TestGetChainLineNumber(t *testing.T) {
 		grepCommand,
 	}
 	pMgr = NewPolicyManager(common.NewMockIOShim(calls))
-	lineNum, err = pMgr.getChainLineNumber(testChainName)
+	lineNum, err = pMgr.chainLineNumber(testChainName)
 	require.Equal(t, 0, lineNum)
 	require.NoError(t, err)
 }
@@ -384,7 +446,7 @@ func TestGetPolicyChainNames(t *testing.T) {
 		grepCommand,
 	}
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	chainNames, err := pMgr.getPolicyChainNames()
+	chainNames, err := pMgr.policyChainNames()
 	expectedChainNames := []string{
 		"AZURE-NPM-INGRESS-123456",
 		"AZURE-NPM-EGRESS-123456",
@@ -401,7 +463,7 @@ func TestGetPolicyChainNames(t *testing.T) {
 		grepCommand,
 	}
 	pMgr = NewPolicyManager(common.NewMockIOShim(calls))
-	chainNames, err = pMgr.getPolicyChainNames()
+	chainNames, err = pMgr.policyChainNames()
 	expectedChainNames = nil
 	require.Equal(t, expectedChainNames, chainNames)
 	require.NoError(t, err)
@@ -411,8 +473,8 @@ func getFakeDestroyCommand(chain string) testutils.TestCmd {
 	return testutils.TestCmd{Cmd: []string{"iptables", "-w", "60", "-X", chain}}
 }
 
-func getFakeDestroyFailureCommand(chain string) testutils.TestCmd {
+func getFakeDestroyCommandWithExitCode(chain string, exitCode int) testutils.TestCmd {
 	command := getFakeDestroyCommand(chain)
-	command.ExitCode = 1
+	command.ExitCode = exitCode
 	return command
 }

@@ -6,7 +6,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -71,7 +71,7 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 		}
 		defer file.Close()
 
-		b, err := ioutil.ReadAll(file)
+		b, err := io.ReadAll(file)
 		if err != nil {
 			return err
 		}
@@ -133,7 +133,7 @@ func (kvs *jsonFileStore) flush() error {
 		dir = "."
 	}
 
-	f, err := ioutil.TempFile(dir, file)
+	f, err := os.CreateTemp(dir, file)
 	if err != nil {
 		return fmt.Errorf("cannot create temp file: %v", err)
 	}

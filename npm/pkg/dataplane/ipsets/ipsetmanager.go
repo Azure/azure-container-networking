@@ -37,6 +37,8 @@ type IPSetManagerCfg struct {
 	NetworkName string
 }
 
+// TODO delegate prometheus metrics logic to OS-specific ones?
+
 func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetManager {
 	return &IPSetManager{
 		iMgrCfg:            iMgrCfg,

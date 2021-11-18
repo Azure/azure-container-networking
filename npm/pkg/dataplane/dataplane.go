@@ -3,6 +3,7 @@ package dataplane
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -321,12 +322,22 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		// Check if any CIDR block IPSets needs to be applied
 		setType := set.Metadata.Type
 		if setType == ipsets.CIDRBlocks {
-			for _, ip := range set.Members {
-				_, _, err := net.ParseCIDR(ip)
+			// cidrInfo can have either cidr (CIDR in IPBlock) or "cidr + " " (space) + nomatch" (Except in IPBlock)
+			for _, cidrInfo := range set.Members {
+				// TODO(jungukcho): This is an adhoc approach for linux, but need to refactor data structure for better management.
+				// onlyCidr has only cidr without "nomatch" to validate cidr format.
+				var onlyCidr string
+				if strings.Contains(cidrInfo, util.IpsetNomatch) {
+					onlyCidr = strings.Trim(onlyCidr, util.IpsetNomatch)
+				} else {
+					onlyCidr = cidrInfo
+				}
+
+				_, _, err := net.ParseCIDR(onlyCidr)
 				if err != nil {
 					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to parseCIDR in addIPSetReferences with err: %s", err.Error()))
 				}
-				err = dp.ipsetMgr.AddToSets([]*ipsets.IPSetMetadata{set.Metadata}, ip, "")
+				err = dp.ipsetMgr.AddToSets([]*ipsets.IPSetMetadata{set.Metadata}, cidrInfo, "")
 				if err != nil {
 					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to AddToSet in addIPSetReferences with err: %s", err.Error()))
 				}

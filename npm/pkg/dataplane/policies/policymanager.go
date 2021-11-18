@@ -2,6 +2,8 @@ package policies
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
@@ -17,6 +19,8 @@ const (
 	IPSetPolicyMode PolicyManagerMode = "IPSet"
 	// IPPolicyMode will replace ipset names with their value IPs in policies
 	IPPolicyMode PolicyManagerMode = "IP"
+
+	reconcileChainTimeInMinutes = 5
 )
 
 type PolicyMap struct {
@@ -24,9 +28,11 @@ type PolicyMap struct {
 }
 
 type PolicyManager struct {
-	policyMap *PolicyMap
-	ioShim    *common.IOShim
+	policyMap   *PolicyMap
+	ioShim      *common.IOShim
+	staleChains *staleChains
 	*PolicyManagerCfg
+	sync.Mutex
 }
 
 func NewPolicyManager(ioShim *common.IOShim) *PolicyManager {
@@ -34,7 +40,8 @@ func NewPolicyManager(ioShim *common.IOShim) *PolicyManager {
 		policyMap: &PolicyMap{
 			cache: make(map[string]*NPMNetworkPolicy),
 		},
-		ioShim: ioShim,
+		ioShim:      ioShim,
+		staleChains: newStaleChains(),
 	}
 }
 
@@ -54,6 +61,24 @@ func (pMgr *PolicyManager) Reset() error {
 		return npmerrors.ErrorWrapper(npmerrors.ResetPolicyMgr, false, "failed to reset policy manager", err)
 	}
 	return nil
+}
+
+func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
+	go func() {
+		ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-stopChannel:
+				return
+			case <-ticker.C:
+				pMgr.Lock()
+				defer pMgr.Unlock()
+				pMgr.reconcile()
+			}
+		}
+	}()
 }
 
 func (pMgr *PolicyManager) PolicyExists(name string) bool {
@@ -103,6 +128,12 @@ func (pMgr *PolicyManager) RemovePolicy(name string, endpointList map[string]str
 	}
 
 	delete(pMgr.policyMap.cache, name)
+	if len(pMgr.policyMap.cache) == 0 {
+		klog.Infof("rebooting policy manager since there are no policies remaining in the cache")
+		if err := pMgr.reboot(); err != nil {
+			klog.Errorf("failed to reboot when there were no policies remaining")
+		}
+	}
 
 	return nil
 }
@@ -133,7 +164,7 @@ func checkForErrors(networkPolicy *NPMNetworkPolicy) error {
 		}
 		if !aclPolicy.satisifiesPortAndProtocolConstraints() {
 			return npmerrors.SimpleError(fmt.Sprintf(
-				"ACL policy %s has multiple src or dst ports, so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s",
+				"ACL policy %s has dst port(s) (Port or Port and EndPort), so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s",
 				aclPolicy.PolicyID,
 				string(aclPolicy.Protocol),
 			))

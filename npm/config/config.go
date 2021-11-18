@@ -18,6 +18,7 @@ var DefaultConfig = Config{
 		EnablePprof:             true,
 		EnableHTTPDebugAPI:      true,
 		EnableV2Controllers:     false,
+		PlaceAzureChainFirst:    false,
 	},
 }
 
@@ -33,4 +34,5 @@ type Toggles struct {
 	EnablePprof             bool
 	EnableHTTPDebugAPI      bool
 	EnableV2Controllers     bool
+	PlaceAzureChainFirst    bool
 }
