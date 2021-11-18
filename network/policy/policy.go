@@ -2,8 +2,6 @@ package policy
 
 import (
 	"encoding/json"
-
-	"github.com/pkg/errors"
 )
 
 const (
@@ -29,6 +27,3 @@ type NATInfo struct {
 	Destinations []string
 	VirtualIP    string
 }
-
-// ErrIpv4NotFound ipv4 address not found in endpoint info
-var ErrIpv4NotFound = errors.New("ipv4 not found in endpoint info")
