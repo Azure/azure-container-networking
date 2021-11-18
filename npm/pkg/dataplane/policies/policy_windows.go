@@ -12,7 +12,6 @@ var (
 	protocolNumMap = map[Protocol]string{
 		TCP:  "6",
 		UDP:  "17",
-		ICMP: "1",
 		SCTP: "132",
 		// HNS thinks 256 as ANY protocol
 		AnyProtocol: "256",

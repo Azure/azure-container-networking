@@ -140,7 +140,7 @@ type SetInfo struct {
 // Ports represents a range of ports.
 // To specify one port, set Port and EndPort to the same value.
 // uint16 is used since there are 2^16 - 1 TCP/UDP ports (0 is invalid)
-// and 2^16 SCTP ports. ICMP is connectionless and doesn't use ports.
+// and 2^16 SCTP ports.
 // NewSetInfo creates SetInfo.
 func NewSetInfo(name string, setType ipsets.SetType, included bool, matchType MatchType) SetInfo {
 	return SetInfo{
