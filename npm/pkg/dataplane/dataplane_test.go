@@ -288,7 +288,7 @@ func getInitializeTestCalls() []testutils.TestCmd {
 }
 
 func getResetTestCalls() []testutils.TestCmd {
-	return append(ipsets.GetResetTestCalls(), policies.GetResetTestCalls()...)
+	return append(policies.GetResetTestCalls(), ipsets.GetResetTestCalls()...)
 }
 
 func getAddPolicyTestCallsForDP(networkPolicy *policies.NPMNetworkPolicy) []testutils.TestCmd {
