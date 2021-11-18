@@ -13,20 +13,6 @@ var (
 
 	listLineNumbersCommandStrings      = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L", "FORWARD", "--line-numbers"}
 	listPolicyChainNamesCommandStrings = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}
-
-	grepOutputAzureChainsWithoutPolicies = `Chain AZURE-NPM (1 references)
-Chain AZURE-NPM-ACCEPT (1 references)
-Chain AZURE-NPM-EGRESS (1 references)
-Chain AZURE-NPM-INGRESS (1 references)
-Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)`
-
-	grepOutputAzureChainsWithPolicies = `Chain AZURE-NPM (1 references)
-Chain AZURE-NPM-ACCEPT (1 references)
-Chain AZURE-NPM-EGRESS (1 references)
-Chain AZURE-NPM-EGRESS-123456 (1 references)
-Chain AZURE-NPM-INGRESS (1 references)
-Chain AZURE-NPM-INGRESS-123456 (1 references)
-Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)`
 )
 
 func GetAddPolicyTestCalls(_ *NPMNetworkPolicy) []testutils.TestCmd {

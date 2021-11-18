@@ -16,6 +16,20 @@ const (
 	testChain1 = "chain1"
 	testChain2 = "chain2"
 	testChain3 = "chain3"
+
+	grepOutputAzureChainsWithoutPolicies = `Chain AZURE-NPM (1 references)
+Chain AZURE-NPM-ACCEPT (1 references)
+Chain AZURE-NPM-EGRESS (1 references)
+Chain AZURE-NPM-INGRESS (1 references)
+Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)`
+
+	grepOutputAzureChainsWithPolicies = `Chain AZURE-NPM (1 references)
+Chain AZURE-NPM-ACCEPT (1 references)
+Chain AZURE-NPM-EGRESS (1 references)
+Chain AZURE-NPM-EGRESS-123456 (1 references)
+Chain AZURE-NPM-INGRESS (1 references)
+Chain AZURE-NPM-INGRESS-123456 (1 references)
+Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)`
 )
 
 func TestEmptyAndGetAll(t *testing.T) {
@@ -450,12 +464,24 @@ func TestAllCurrentAzureChains(t *testing.T) {
 			wantErr:        false,
 		},
 		{
-			name: "ignore chain that isn't long enough",
+			name: "ignore unexpected grep output (chain name too short)",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
-					Stdout: "Chain abc",
+					Stdout: "Chain abc (1 references)",
+				},
+			},
+			expectedChains: []string{},
+			wantErr:        false,
+		},
+		{
+			name: "ignore unexpected grep output (no space)",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: "abc",
 				},
 			},
 			expectedChains: []string{},

@@ -21,10 +21,12 @@ const (
 	doesNotExistErrorCode      int = 1 // Bad rule (does a matching rule exist in that chain?)
 	couldntLoadTargetErrorCode int = 2 // Couldn't load target `AZURE-NPM-EGRESS':No such file or directory
 
-	minLineNumberStringLength int    = 3
-	azureChainGrepPattern     string = "Chain AZURE-NPM"
-	minAzureChainStringLength int    = len(azureChainGrepPattern)
-	azureChainStartIndex      int    = 6
+	minLineNumberStringLength int = 3 // TODO transferred from iptm.go and not sure why this length is important, but will update the function its used in later anyways
+
+	azureChainGrepPattern   string = "Chain AZURE-NPM"
+	minAzureChainNameLength int    = len("AZURE-NPM")
+	// the minimum number of sections when "Chain NAME (1 references)" is split on spaces (" ")
+	minSpacedSectionsForChainLine int = 2
 )
 
 var (
@@ -129,8 +131,11 @@ func (pMgr *PolicyManager) initializeNPMChains() error {
 // and flushes and deletes all NPM Chains.
 func (pMgr *PolicyManager) removeNPMChains() error {
 	deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
-	hadDeleteError := deleteErr != nil && deleteErrCode != couldntLoadTargetErrorCode // couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
+	// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
+	// we can ignore this error code, since there's no problem if the rule doesn't exist
+	hadDeleteError := deleteErr != nil && deleteErrCode != couldntLoadTargetErrorCode
 	if hadDeleteError {
+		// log as an error because this is unexpected, but don't return an error because for example, we could have AZURE-NPM chain exists but the jump to it doesn't exist
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to delete jump from FORWARD chain to AZURE-NPM chain with exit code %d and error: %s", deleteErrCode, deleteErr.Error())
 		// FIXME update ID
 	}
@@ -263,18 +268,22 @@ func (pMgr *PolicyManager) creatorForInitChains() *ioutil.FileCreator {
 	return creator
 }
 
-// add/reposition AZURE-NPM chain after KUBE-FORWARD and KUBE-SERVICE chains if they exist
-// this function has a direct comparison in NPM v1 iptables manager (iptm.go)
+// add/reposition the jump from FORWARD chain to AZURE-NPM chain so that it is the first rule in the chain
 func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
-	npmLineNum, npmLineNumErr := pMgr.chainLineNumber(util.IptablesAzureChain)
-	if npmLineNumErr != nil {
+	azureChainLineNum, lineNumErr := pMgr.chainLineNumber(util.IptablesAzureChain)
+	if lineNumErr != nil {
 		baseErrString := "failed to get index of jump from FORWARD chain to AZURE-NPM chain"
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s: %s", baseErrString, npmLineNumErr.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s: %s", baseErrString, lineNumErr.Error())
 		// FIXME update ID
-		return npmerrors.SimpleErrorWrapper(baseErrString, npmLineNumErr)
+		return npmerrors.SimpleErrorWrapper(baseErrString, lineNumErr)
 	}
-	jumpRuleExists := npmLineNum > 0
-	if !jumpRuleExists {
+
+	// 1. the jump to azure chain is already the first rule , as it should be
+	if azureChainLineNum == 1 {
+		return nil
+	}
+	// 2. the jump to auzre chain does not exist, so we need to add it
+	if azureChainLineNum == 0 {
 		klog.Infof("Inserting jump from FORWARD chain to AZURE-NPM chain")
 		if insertErrCode, insertErr := pMgr.runIPTablesCommand(util.IptablesInsertionFlag, jumpFromForwardToAzureChainArgs...); insertErr != nil {
 			baseErrString := "failed to insert jump from FORWARD chain to AZURE-NPM chain"
@@ -284,10 +293,7 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 		}
 		return nil
 	}
-	if npmLineNum == 1 {
-		return nil
-	}
-	// delete existing jump rule and add it at the top
+	// 3. the jump to azure chain is not the first rule, so we need to reposition it
 	metrics.SendErrorLogAndMetric(util.IptmID, "Info: Reconciler deleting and re-adding jump from FORWARD chain to AZURE-NPM chain table.")
 	if deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...); deleteErr != nil {
 		baseErrString := "failed to delete jump from FORWARD chain to AZURE-NPM chain"
@@ -304,7 +310,7 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 	return nil
 }
 
-// returns 0 if the chain d.n.e.
+// returns 0 if the chain does not exist
 // this function has a direct comparison in NPM v1 iptables manager (iptm.go)
 func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
 	listForwardEntriesCommand := pMgr.ioShim.Exec.Command(util.Iptables,
@@ -354,12 +360,12 @@ func (pMgr *PolicyManager) allCurrentAzureChains() ([]string, error) {
 	lines := strings.Split(string(searchResults), "\n")
 	chainNames := make([]string, 0, len(lines)) // don't want to preallocate size in case of have malformed lines
 	for _, line := range lines {
-		if len(line) < minAzureChainStringLength {
+		// line of the form "Chain NAME (1 references)"
+		spaceSeparatedLine := strings.Split(line, " ")
+		if len(spaceSeparatedLine) < minSpacedSectionsForChainLine || len(spaceSeparatedLine[1]) < minAzureChainNameLength {
 			klog.Errorf("got unexpected grep output [%s] for ingress/egress policy chains", line)
 		} else {
-			chainNameWithRestOfLine := line[azureChainStartIndex:] // e.g. "AZURE-NPM-INGRESS-ALLOW-MARK (1 reference)"
-			chainName := strings.Split(chainNameWithRestOfLine, " ")[0]
-			chainNames = append(chainNames, chainName)
+			chainNames = append(chainNames, spaceSeparatedLine[1])
 		}
 	}
 	return chainNames, nil

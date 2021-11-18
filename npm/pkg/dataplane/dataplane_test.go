@@ -70,7 +70,6 @@ func TestNewDataPlane(t *testing.T) {
 
 	calls := getNewDataplaneTestCalls()
 	ioshim := common.NewMockIOShim(calls)
-	fmt.Println(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
