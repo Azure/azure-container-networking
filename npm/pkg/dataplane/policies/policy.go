@@ -168,13 +168,7 @@ func (portRange *Ports) toIPTablesString() string {
 	return start + ":" + end
 }
 
-type Verdict string
-
 type Direction string
-
-type Protocol string
-
-type MatchType int8
 
 const (
 	// Ingress when packet is entering a container
@@ -183,15 +177,21 @@ const (
 	Egress Direction = "OUT"
 	// Both applies to both directions
 	Both Direction = "BOTH"
+)
 
+type Verdict string
+
+const (
 	// Allowed is accept in linux
 	Allowed Verdict = "ALLOW"
 	// Dropped is denying a flow
 	Dropped Verdict = "DROP"
 )
 
-// Currently supported protocols in networkpolicy are TCP, UDP, or SCTP.
+// Protocol can be TCP, UDP, SCTP, or ANY since they are currently supported in networkpolicy.
 // NPM is not fully tested with SCTP.
+type Protocol string
+
 const (
 	// TCP Protocol
 	TCP Protocol = "tcp"
@@ -202,6 +202,8 @@ const (
 	// AnyProtocol can be used for all other protocols
 	AnyProtocol Protocol = "all"
 )
+
+type MatchType int8
 
 // Possible MatchTypes.
 const (
