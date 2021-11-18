@@ -3,6 +3,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -21,16 +23,20 @@ var flagDefaults = map[string]string{
 var version string
 
 func main() {
+	fmt.Println("start here")
+
 	rootCmd := NewRootCmd()
 
 	if version != "" {
 		viper.Set(flagVersion, version)
 	}
 
+	fmt.Println("made it here")
 	cobra.OnInitialize(func() {
 		viper.AutomaticEnv()
 		initCommandFlags(rootCmd.Commands())
 	})
+	fmt.Println("made it here2")
 
 	cobra.CheckErr(rootCmd.Execute())
 }
