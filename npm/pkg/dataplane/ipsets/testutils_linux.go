@@ -1,9 +1,6 @@
 package ipsets
 
-import (
-	"github.com/Azure/azure-container-networking/common"
-	testutils "github.com/Azure/azure-container-networking/test/utils"
-)
+import testutils "github.com/Azure/azure-container-networking/test/utils"
 
 var (
 	ipsetRestoreStringSlice = []string{"ipset", "restore"}
