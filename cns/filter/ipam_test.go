@@ -5,39 +5,40 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/stretchr/testify/assert"
 )
 
 var testStatuses = []struct {
-	State  cns.IPConfigState
+	State  types.IPState
 	Status cns.IPConfigurationStatus
 }{
 	{
-		State: cns.Allocated,
+		State: types.Assigned,
 		Status: cns.IPConfigurationStatus{
 			ID:    "allocated",
-			State: cns.Allocated,
+			State: types.Assigned,
 		},
 	},
 	{
-		State: cns.Available,
+		State: types.Available,
 		Status: cns.IPConfigurationStatus{
 			ID:    "available",
-			State: cns.Available,
+			State: types.Available,
 		},
 	},
 	{
-		State: cns.PendingProgramming,
+		State: types.PendingProgramming,
 		Status: cns.IPConfigurationStatus{
 			ID:    "pending-programming",
-			State: cns.PendingProgramming,
+			State: types.PendingProgramming,
 		},
 	},
 	{
-		State: cns.PendingRelease,
+		State: types.PendingRelease,
 		Status: cns.IPConfigurationStatus{
 			ID:    "pending-release",
-			State: cns.PendingRelease,
+			State: types.PendingRelease,
 		},
 	},
 }

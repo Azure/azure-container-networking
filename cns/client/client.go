@@ -303,8 +303,8 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 }
 
 // GetIPAddressesMatchingStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states
-// usage GetIPAddressesWithStates(cns.Available, cns.Allocated)
-func (c *Client) GetIPAddressesMatchingStates(ctx context.Context, stateFilter ...cns.IPConfigState) ([]cns.IPConfigurationStatus, error) {
+// usage GetIPAddressesWithStates(types.Available, cns.Allocated)
+func (c *Client) GetIPAddressesMatchingStates(ctx context.Context, stateFilter ...types.IPState) ([]cns.IPConfigurationStatus, error) {
 	if len(stateFilter) == 0 {
 		return nil, nil
 	}

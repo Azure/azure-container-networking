@@ -225,7 +225,7 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
 			// pod ip exists, validate if state is not allocated, else fail
-			if ipConfigStatus.State == cns.Allocated {
+			if ipConfigStatus.State == types.Assigned {
 				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
 				return types.InconsistentIPConfigState, errMsg
 			}
@@ -277,11 +277,11 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVe
 			ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
 		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
 		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
-		var newIPCNSStatus cns.IPConfigState
+		var newIPCNSStatus types.IPState
 		if hostVersion < ipconfig.NCVersion {
-			newIPCNSStatus = cns.PendingProgramming
+			newIPCNSStatus = types.PendingProgramming
 		} else {
-			newIPCNSStatus = cns.Available
+			newIPCNSStatus = types.Available
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
@@ -321,7 +321,7 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
 			// pod ip exists, validate if state is not allocated, else fail
-			if ipConfigStatus.State == cns.Allocated {
+			if ipConfigStatus.State == types.Assigned {
 				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
 				return types.InconsistentIPConfigState, errMsg
 			}

@@ -7,6 +7,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/Azure/azure-container-networking/cns/types"
 )
 
 // Container Network Service DNC Contract
@@ -58,20 +60,6 @@ const (
 const (
 	Vlan  = "Vlan"
 	Vxlan = "Vxlan"
-)
-
-// IPConfig States for CNS IPAM
-type IPConfigState string
-
-const (
-	// Available IPConfigState for available IPs.
-	Available IPConfigState = "Available"
-	// Allocated IPConfigState for allocated IPs.
-	Allocated IPConfigState = "Allocated"
-	// PendingRelease IPConfigState for pending release IPs.
-	PendingRelease IPConfigState = "PendingRelease"
-	// PendingProgramming IPConfigState for pending programming IPs.
-	PendingProgramming IPConfigState = "PendingProgramming"
 )
 
 // ChannelMode :- CNS channel modes
@@ -373,7 +361,7 @@ type IPConfigResponse struct {
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs
 // The IPConfigStateFilter is a slice of IPs to fetch from CNS that match those states
 type GetIPAddressesRequest struct {
-	IPConfigStateFilter []IPConfigState
+	IPConfigStateFilter []types.IPState
 }
 
 // GetIPAddressStateResponse is used in CNS IPAM mode as a response to get IP address state

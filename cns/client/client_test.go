@@ -284,12 +284,12 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	assert.Equal(t, desired, resultIPnet, "Desired result not matching actual result")
 
 	// checking for allocated IP address and pod context printing before ReleaseIPAddress is called
-	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(context.TODO(), cns.Allocated)
+	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(context.TODO(), types.Assigned)
 	assert.NoError(t, err, "Get allocated IP addresses failed")
 
 	assert.Len(t, ipaddresses, 1, "Number of available IP addresses expected to be 1")
 	assert.Equal(t, desiredIpAddress, ipaddresses[0].IPAddress, "Available IP address does not match expected, address state")
-	assert.Equal(t, cns.Allocated, ipaddresses[0].State, "Available IP address does not match expected, address state")
+	assert.Equal(t, types.Assigned, ipaddresses[0].State, "Available IP address does not match expected, address state")
 
 	t.Log(ipaddresses)
 
@@ -356,7 +356,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	podConfig := inmemory.HTTPRestServiceData.PodIPConfigState
 	for _, v := range podConfig {
 		assert.Equal(t, "10.0.0.5", v.IPAddress, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
-		assert.Equal(t, cns.Allocated, v.State, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
+		assert.Equal(t, types.Assigned, v.State, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 		assert.Equal(t, "testNcId1", v.NCID, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 	}
 	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPConfigState), 1, "PodIpConfigState with at least 1 entry expected")
@@ -1108,7 +1108,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 	tests := []struct {
 		name        string
 		ctx         context.Context
-		stateFilter []cns.IPConfigState
+		stateFilter []types.IPState
 		mockdo      *mockdo
 		routes      map[string]url.URL
 		want        []cns.IPConfigurationStatus
@@ -1117,7 +1117,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 		{
 			name:        "happy case",
 			ctx:         context.TODO(),
-			stateFilter: []cns.IPConfigState{cns.Available},
+			stateFilter: []types.IPState{types.Available},
 			mockdo: &mockdo{
 				errToReturn: nil,
 				objToReturn: &cns.GetIPAddressStatusResponse{
@@ -1132,7 +1132,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 		{
 			name:        "length of zero",
 			ctx:         context.TODO(),
-			stateFilter: []cns.IPConfigState{},
+			stateFilter: []types.IPState{},
 			mockdo:      &mockdo{},
 			routes:      emptyRoutes,
 			want:        nil,
@@ -1141,7 +1141,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 		{
 			name:        "bad request",
 			ctx:         context.TODO(),
-			stateFilter: []cns.IPConfigState{"garbage"},
+			stateFilter: []types.IPState{"garbage"},
 			mockdo: &mockdo{
 				errToReturn:            errBadRequest,
 				objToReturn:            nil,
@@ -1154,7 +1154,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 		{
 			name:        "bad decoding",
 			ctx:         context.TODO(),
-			stateFilter: []cns.IPConfigState{cns.Available},
+			stateFilter: []types.IPState{types.Available},
 			mockdo: &mockdo{
 				errToReturn:            nil,
 				objToReturn:            []cns.GetIPAddressStatusResponse{},
@@ -1167,7 +1167,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 		{
 			name:        "http status not ok",
 			ctx:         context.TODO(),
-			stateFilter: []cns.IPConfigState{cns.Available},
+			stateFilter: []types.IPState{types.Available},
 			mockdo: &mockdo{
 				errToReturn:            nil,
 				objToReturn:            nil,
@@ -1180,7 +1180,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 		{
 			name:        "cns return code not zero",
 			ctx:         context.TODO(),
-			stateFilter: []cns.IPConfigState{cns.Available},
+			stateFilter: []types.IPState{types.Available},
 			mockdo: &mockdo{
 				errToReturn: nil,
 				objToReturn: &cns.GetIPAddressStatusResponse{
@@ -1197,7 +1197,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 		{
 			name:        "nil context",
 			ctx:         nil,
-			stateFilter: []cns.IPConfigState{cns.Available},
+			stateFilter: []types.IPState{types.Available},
 			mockdo:      &mockdo{},
 			routes:      emptyRoutes,
 			wantErr:     true,

@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 )
@@ -55,7 +56,7 @@ func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPCo
 		ipconfigCNS := cns.IPConfigurationStatus{
 			ID:        ipconfigCRD.Name,
 			IPAddress: ipconfigCRD.IP,
-			State:     cns.Available,
+			State:     types.Available,
 		}
 		cnsIPConfigs = append(cnsIPConfigs, ipconfigCNS)
 

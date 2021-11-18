@@ -112,8 +112,8 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	defer service.Unlock()
 
 	for uuid, existingIpConfig := range service.PodIPConfigState {
-		if existingIpConfig.State == cns.PendingProgramming {
-			updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.PodInfo)
+		if existingIpConfig.State == types.PendingProgramming {
+			updatedIpConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
 			if err != nil {
 				return nil, err
 			}
@@ -127,8 +127,8 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 
 	// if not all expected IPs are set to PendingRelease, then check the Available IPs
 	for uuid, existingIpConfig := range service.PodIPConfigState {
-		if existingIpConfig.State == cns.Available {
-			updatedIpConfig, err := service.updateIPConfigState(uuid, cns.PendingRelease, existingIpConfig.PodInfo)
+		if existingIpConfig.State == types.Available {
+			updatedIpConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
 			if err != nil {
 				return nil, err
 			}
@@ -145,7 +145,7 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	return pendingReleasedIps, nil
 }
 
-func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState cns.IPConfigState, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
+func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState types.IPState, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	if ipConfig, found := service.PodIPConfigState[ipID]; found {
 		logger.Printf("[updateIPConfigState] Changing IpId [%s] state to [%s], podInfo [%+v]. Current config [%+v]", ipID, updatedState, podInfo, ipConfig)
 		ipConfig.State = updatedState
@@ -175,8 +175,8 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
 				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
 					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
-				} else if ipConfigStatus.State == cns.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
-					_, err := service.updateIPConfigState(uuid, cns.Available, nil)
+				} else if ipConfigStatus.State == types.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
+					_, err := service.updateIPConfigState(uuid, types.Available, nil)
 					if err != nil {
 						logger.Errorf("Error updating IPConfig [%+v] state to Available, err: %+v", ipConfigStatus, err)
 					}
@@ -184,7 +184,7 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 					// Following 2 sentence assign new host version to secondary ip config.
 					secondaryIPConfigs.NCVersion = newHostNCVersion
 					ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
-					logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %+v", ipConfigStatus.IPAddress, uuid, cns.Available,
+					logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %+v", ipConfigStatus.IPAddress, uuid, types.Available,
 						ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid])
 				}
 			}
@@ -252,7 +252,7 @@ func (service *HTTPRestService) handleDebugIPAddresses(w http.ResponseWriter, r 
 func (service *HTTPRestService) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
 	service.RLock()
 	defer service.RUnlock()
-	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StateAllocated)
+	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StateAssigned)
 }
 
 // GetAvailableIPConfigs returns a filtered list of IPs which are in
@@ -282,7 +282,7 @@ func (service *HTTPRestService) GetPendingReleaseIPConfigs() []cns.IPConfigurati
 // SetIPConfigAsAllocated takes a lock of the service, and sets the ipconfig in the CNS state as allocated.
 // Does not take a lock.
 func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) error {
-	ipconfig, err := service.updateIPConfigState(ipconfig.ID, cns.Allocated, podInfo)
+	ipconfig, err := service.updateIPConfigState(ipconfig.ID, types.Assigned, podInfo)
 	if err != nil {
 		return err
 	}
@@ -293,7 +293,7 @@ func (service *HTTPRestService) setIPConfigAsAllocated(ipconfig cns.IPConfigurat
 
 // SetIPConfigAsAllocated and sets the ipconfig in the CNS state as allocated, does not take a lock
 func (service *HTTPRestService) setIPConfigAsAvailable(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
-	ipconfig, err := service.updateIPConfigState(ipconfig.ID, cns.Available, nil)
+	ipconfig, err := service.updateIPConfigState(ipconfig.ID, types.Available, nil)
 	if err != nil {
 		return cns.IPConfigurationStatus{}, err
 	}
@@ -340,12 +340,12 @@ func (service *HTTPRestService) MarkExistingIPsAsPending(pendingIPIDs []string) 
 
 	for _, id := range pendingIPIDs {
 		if ipconfig, exists := service.PodIPConfigState[id]; exists {
-			if ipconfig.State == cns.Allocated {
+			if ipconfig.State == types.Assigned {
 				return fmt.Errorf("Failed to mark IP [%v] as pending, currently allocated", id)
 			}
 
 			logger.Printf("[MarkExistingIPsAsPending]: Marking IP [%+v] to PendingRelease", ipconfig)
-			ipconfig.State = cns.PendingRelease
+			ipconfig.State = types.PendingRelease
 			service.PodIPConfigState[id] = ipconfig
 		} else {
 			logger.Errorf("Inconsistent state, ipconfig with ID [%v] marked as pending release, but does not exist in state", id)
@@ -385,7 +385,7 @@ func (service *HTTPRestService) AllocateDesiredIPConfig(podInfo cns.PodInfo, des
 	found := false
 	for _, ipConfig := range service.PodIPConfigState {
 		if ipConfig.IPAddress == desiredIpAddress {
-			if ipConfig.State == cns.Allocated {
+			if ipConfig.State == types.Assigned {
 				// This IP has already been allocated, if it is allocated to same pod, then return the same
 				// IPconfiguration
 				if ipConfig.PodInfo.Key() == podInfo.Key() {
@@ -394,7 +394,7 @@ func (service *HTTPRestService) AllocateDesiredIPConfig(podInfo cns.PodInfo, des
 				} else {
 					return podIpInfo, fmt.Errorf("[AllocateDesiredIPConfig] Desired IP is already allocated %+v, requested for pod %+v", ipConfig, podInfo)
 				}
-			} else if ipConfig.State == cns.Available || ipConfig.State == cns.PendingProgramming {
+			} else if ipConfig.State == types.Available || ipConfig.State == types.PendingProgramming {
 				// This race can happen during restart, where CNS state is lost and thus we have lost the NC programmed version
 				// As part of reconcile, we mark IPs as Allocated which are already allocated to PODs (listed from APIServer)
 				if err := service.setIPConfigAsAllocated(ipConfig, podInfo); err != nil {
@@ -419,7 +419,7 @@ func (service *HTTPRestService) AllocateAnyAvailableIPConfig(podInfo cns.PodInfo
 	defer service.Unlock()
 
 	for _, ipState := range service.PodIPConfigState {
-		if ipState.State == cns.Available {
+		if ipState.State == types.Available {
 			if err := service.setIPConfigAsAllocated(ipState, podInfo); err != nil {
 				return cns.PodIpInfo{}, err
 			}

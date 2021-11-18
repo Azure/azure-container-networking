@@ -154,8 +154,8 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	}
 	for i := range receivedSecondaryIPConfigs {
 		podIPConfigState := svc.PodIPConfigState[i]
-		if podIPConfigState.State != cns.PendingProgramming {
-			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, cns.PendingProgramming, podIPConfigState.State, podIPConfigState.IPAddress)
+		if podIPConfigState.State != types.PendingProgramming {
+			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, types.PendingProgramming, podIPConfigState.State, podIPConfigState.IPAddress)
 		}
 	}
 	svc.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -167,8 +167,8 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	}
 	for i := range receivedSecondaryIPConfigs {
 		podIPConfigState := svc.PodIPConfigState[i]
-		if podIPConfigState.State != cns.Available {
-			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, cns.Available, podIPConfigState.State, podIPConfigState.IPAddress)
+		if podIPConfigState.State != types.Available {
+			t.Errorf("Unexpected State %s, expeted State is %s, received %s, IP address is %s", podIPConfigState.State, types.Available, podIPConfigState.State, podIPConfigState.IPAddress)
 		}
 	}
 }
@@ -462,12 +462,12 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 		t.Fatalf("Failed as Secondary IP count doesnt match in PodIpConfig state, expected:%d, actual %d", len(req.SecondaryIPConfigs), len(svc.PodIPConfigState))
 	}
 
-	var expectedIPStatus cns.IPConfigState
+	var expectedIPStatus types.IPState
 	// 0 is the default NMAgent version return from fake GetNetworkContainerInfoFromHost
 	if containerStatus.CreateNetworkContainerRequest.Version > "0" {
-		expectedIPStatus = cns.PendingProgramming
+		expectedIPStatus = types.PendingProgramming
 	} else {
-		expectedIPStatus = cns.Available
+		expectedIPStatus = types.Available
 	}
 	t.Logf("NC version in container status is %s, HostVersion is %s", containerStatus.CreateNetworkContainerRequest.Version, containerStatus.HostVersion)
 	alreadyValidated := make(map[string]string)
@@ -483,7 +483,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 				// Validate IP state
 				if ipStatus.PodInfo != nil {
 					if _, exists := svc.PodIPIDByPodInterfaceKey[ipStatus.PodInfo.Key()]; exists {
-						if ipStatus.State != cns.Allocated {
+						if ipStatus.State != types.Assigned {
 							t.Fatalf("IPId: %s State is not Allocated, ipStatus: %+v", ipid, ipStatus)
 						}
 					} else {
@@ -552,7 +552,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 		ipId := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
 		ipConfigstate := svc.PodIPConfigState[ipId]
 
-		if ipConfigstate.State != cns.Allocated {
+		if ipConfigstate.State != types.Assigned {
 			t.Fatalf("IpAddress %s is not marked as allocated for Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)
 		}
 
@@ -582,7 +582,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 
 			// Validate IP state
 			if secIpConfigState, found := svc.PodIPConfigState[secIpId]; found {
-				if secIpConfigState.State != cns.Available {
+				if secIpConfigState.State != types.Available {
 					t.Fatalf("IPId: %s State is not Available, ipStatus: %+v", secIpId, secIpConfigState)
 				}
 			} else {

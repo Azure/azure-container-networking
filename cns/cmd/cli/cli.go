@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/types"
 )
 
 const (
@@ -41,26 +42,26 @@ func HandleCNSClientCommands(ctx context.Context, cmd string, arg string) error 
 }
 
 func getCmd(ctx context.Context, client *client.Client, arg string) error {
-	var states []cns.IPConfigState
+	var states []types.IPState
 
-	switch cns.IPConfigState(arg) {
-	case cns.Available:
-		states = append(states, cns.Available)
+	switch types.IPState(arg) {
+	case types.Available:
+		states = append(states, types.Available)
 
-	case cns.Allocated:
-		states = append(states, cns.Allocated)
+	case types.Assigned:
+		states = append(states, types.Assigned)
 
-	case cns.PendingRelease:
-		states = append(states, cns.PendingRelease)
+	case types.PendingRelease:
+		states = append(states, types.PendingRelease)
 
-	case cns.PendingProgramming:
-		states = append(states, cns.PendingProgramming)
+	case types.PendingProgramming:
+		states = append(states, types.PendingProgramming)
 
 	default:
-		states = append(states, cns.Allocated)
-		states = append(states, cns.Available)
-		states = append(states, cns.PendingRelease)
-		states = append(states, cns.PendingProgramming)
+		states = append(states, types.Assigned)
+		states = append(states, types.Available)
+		states = append(states, types.PendingRelease)
+		states = append(states, types.PendingProgramming)
 	}
 
 	addr, err := client.GetIPAddressesMatchingStates(ctx, states...)
