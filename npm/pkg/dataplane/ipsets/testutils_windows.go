@@ -1,24 +1,23 @@
 package ipsets
 
 import (
-	"github.com/Azure/azure-container-networking/common"
+	"testing"
+
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	"github.com/Azure/azure-container-networking/vendor/github.com/stretchr/testify/require"
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
-func getMockIOShim(_ []testutils.TestCmd) *common.IOShim {
-	return common.NewMockIOShimWithFakeHNS(GetHNSFake())
-}
-
-func GetHNSFake() *hnswrapper.Hnsv2wrapperFake {
+func GetHNSFake(t *testing.T) *hnswrapper.Hnsv2wrapperFake {
 	hns := hnswrapper.NewHnsv2wrapperFake()
 	network := &hcn.HostComputeNetwork{
 		Id:   "1234",
 		Name: "azure",
 	}
 
-	hns.CreateNetwork(network)
+	_, err := hns.CreateNetwork(network)
+	require.NoError(t, err)
 
 	return hns
 }

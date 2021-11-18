@@ -131,7 +131,7 @@ func TestRemovePolicies(t *testing.T) {
 // Helper functions for UTS
 
 func getPMgr(t *testing.T) (*PolicyManager, *hnswrapper.Hnsv2wrapperFake) {
-	hns := ipsets.GetHNSFake()
+	hns := ipsets.GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 
 	for ip, epID := range endPointIDList {

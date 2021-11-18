@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
@@ -31,7 +32,26 @@ var (
 )
 
 func TestCreateIPSet(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
+
+	setMetadata := NewIPSetMetadata(testSetName, Namespace)
+	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
+	// creating twice
+	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
+
+	assert.True(t, iMgr.exists(setMetadata.GetPrefixName()))
+
+	set := iMgr.GetIPSet(setMetadata.GetPrefixName())
+	require.NotNil(t, set)
+	assert.Equal(t, setMetadata.GetPrefixName(), set.Name)
+	assert.Equal(t, util.GetHashedName(setMetadata.GetPrefixName()), set.HashedName)
+
+	err := iMgr.applyIPSets()
+	require.NoError(t, err)
+}
+
+func TestCreateIPSetApplyAlways(t *testing.T) {
+	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
@@ -50,7 +70,7 @@ func TestCreateIPSet(t *testing.T) {
 }
 
 func TestAddToSet(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
@@ -75,7 +95,7 @@ func TestAddToSet(t *testing.T) {
 }
 
 func TestRemoveFromSet(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
@@ -89,7 +109,7 @@ func TestRemoveFromSet(t *testing.T) {
 }
 
 func TestRemoveFromSetMissing(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	err := iMgr.RemoveFromSets([]*IPSetMetadata{setMetadata}, testPodIP, testPodKey)
 	require.NoError(t, err)
@@ -99,7 +119,7 @@ func TestRemoveFromSetMissing(t *testing.T) {
 }
 
 func TestAddToListMissing(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata("testlabel", KeyLabelOfNamespace)
 	err := iMgr.AddToLists([]*IPSetMetadata{listMetadata}, []*IPSetMetadata{setMetadata})
@@ -110,7 +130,7 @@ func TestAddToListMissing(t *testing.T) {
 }
 
 func TestAddToList(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata(testListName, KeyLabelOfNamespace)
 	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata, listMetadata})
@@ -130,7 +150,7 @@ func TestAddToList(t *testing.T) {
 }
 
 func TestRemoveFromList(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata(testListName, KeyLabelOfNamespace)
 	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata, listMetadata})
@@ -157,7 +177,7 @@ func TestRemoveFromList(t *testing.T) {
 }
 
 func TestRemoveFromListMissing(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	listMetadata := NewIPSetMetadata(testListName, KeyLabelOfNamespace)
@@ -171,7 +191,7 @@ func TestRemoveFromListMissing(t *testing.T) {
 }
 
 func TestDeleteIPSet(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
 
@@ -180,7 +200,7 @@ func TestDeleteIPSet(t *testing.T) {
 }
 
 func TestGetIPsFromSelectorIPSets(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setsTocreate := []*IPSetMetadata{
 		{
 			Name: "setNs1",
@@ -229,7 +249,7 @@ func TestGetIPsFromSelectorIPSets(t *testing.T) {
 }
 
 func TestAddDeleteSelectorReferences(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setsTocreate := []*IPSetMetadata{
 		{
 			Name: "setNs1",
@@ -305,7 +325,7 @@ func TestAddDeleteSelectorReferences(t *testing.T) {
 }
 
 func TestAddDeleteNetPolReferences(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, getMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	setsTocreate := []*IPSetMetadata{
 		{
 			Name: "setNs1",
@@ -381,12 +401,4 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 
 	os.Exit(exitCode)
-}
-
-func assertEqualContentsTestHelper(t *testing.T, setNames []string, cache map[string]struct{}) {
-	require.Equal(t, len(setNames), len(cache), "cache is different than list of set names")
-	for _, setName := range setNames {
-		_, exists := cache[setName]
-		require.True(t, exists, "cache is different than list of set names")
-	}
 }

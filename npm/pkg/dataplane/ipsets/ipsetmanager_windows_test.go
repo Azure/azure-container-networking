@@ -12,7 +12,7 @@ import (
 )
 
 func TestAddToSetWindows(t *testing.T) {
-	hns := GetHNSFake()
+	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
 
@@ -39,14 +39,13 @@ func TestAddToSetWindows(t *testing.T) {
 }
 
 func TestDestroyNPMIPSets(t *testing.T) {
-	calls := []testutils.TestCmd{} // TODO
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, getMockIOShim(calls))
+	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	require.NoError(t, iMgr.resetIPSets())
 }
 
 // create all possible SetTypes
 func TestApplyCreationsAndAdds(t *testing.T) {
-	hns := GetHNSFake()
+	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
 
@@ -119,7 +118,7 @@ func TestApplyCreationsAndAdds(t *testing.T) {
 }
 
 func TestApplyDeletions(t *testing.T) {
-	hns := GetHNSFake()
+	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
 
@@ -167,7 +166,7 @@ func TestApplyDeletions(t *testing.T) {
 
 // TODO test that a reconcile list is updated
 func TestFailureOnCreation(t *testing.T) {
-	hns := GetHNSFake()
+	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
 
@@ -204,7 +203,7 @@ func TestFailureOnCreation(t *testing.T) {
 // TODO test that a reconcile list is updated
 func TestFailureOnAddToList(t *testing.T) {
 	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
-	hns := GetHNSFake()
+	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
 
@@ -255,7 +254,7 @@ func TestFailureOnAddToList(t *testing.T) {
 // TODO test that a reconcile list is updated
 func TestFailureOnFlush(t *testing.T) {
 	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
-	hns := GetHNSFake()
+	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
 
@@ -284,7 +283,7 @@ func TestFailureOnFlush(t *testing.T) {
 
 // TODO test that a reconcile list is updated
 func TestFailureOnDeletion(t *testing.T) {
-	hns := GetHNSFake()
+	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
 

@@ -134,8 +134,7 @@ func main() {
 
 	panicOnError(dp.RemovePolicy(testNetPol.Name))
 
-	// testPolicyManager()
-
+	testPolicyManager()
 }
 
 func testPolicyManager() {

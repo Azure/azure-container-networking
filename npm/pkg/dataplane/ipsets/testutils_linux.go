@@ -16,10 +16,6 @@ var (
 	}
 )
 
-func getMockIOShim(calls []testutils.TestCmd) *common.IOShim {
-	return common.NewMockIOShim([]testutils.TestCmd{})
-}
-
 func GetApplyIPSetsTestCalls(toAddOrUpdateIPSets, toDeleteIPSets []*IPSetMetadata) []testutils.TestCmd {
 	if len(toAddOrUpdateIPSets) > 0 {
 		return []testutils.TestCmd{
