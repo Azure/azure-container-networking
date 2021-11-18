@@ -152,6 +152,8 @@ data:
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
-            "EnableHTTPDebugAPI":      true
+            "EnableHTTPDebugAPI":      true,
+            "EnableV2NPM":             false,
+            "PlaceAzureChainFirst":    false
         }
     }
