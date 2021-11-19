@@ -50,32 +50,21 @@ func GetRemovePolicyFailureTestCalls(policy *NPMNetworkPolicy) []testutils.TestC
 
 func GetInitializeTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{
-		fakeIPTablesRestoreCommand, // gives correct exit code
-		{
-			Cmd:      listLineNumbersCommandStrings,
-			ExitCode: 1, // grep call gets this exit code (exit code 1 means grep found nothing)
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{
-			Cmd:      []string{"grep", "KUBE-SERVICES"},
-			Stdout:   "iptables: No chain/target/match by that name.", // this Stdout and ExitCode are for the iptables check command below
-			ExitCode: 1,
-		},
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "1", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+		fakeIPTablesRestoreCommand,
+		{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+		{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 	}
 }
 
 func GetResetTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+		{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
 		{
-			Cmd:    listPolicyChainNamesCommandStrings,
-			Stdout: "Chain AZURE-NPM-INGRESS-123456\nChain AZURE-NPM-EGRESS-123456",
+			Cmd:      []string{"grep", "Chain AZURE-NPM"},
+			ExitCode: 1,
 		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", ingressOrEgressPolicyChainPattern}}, // ExitCode 0 for the iptables restore command
-		fakeIPTablesRestoreCommand,
 	}
 }
 

@@ -1,7 +1,6 @@
 package policies
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -99,7 +98,6 @@ func TestGetPolicy(t *testing.T) {
 
 func TestRemovePolicy(t *testing.T) {
 	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyTestCalls(testNetPol)...)
-	fmt.Println(calls)
 	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
 
 	require.NoError(t, pMgr.AddPolicy(testNetPol, epList))

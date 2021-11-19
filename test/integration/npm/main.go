@@ -133,6 +133,15 @@ func main() {
 	printAndWait(true)
 
 	panicOnError(dp.RemovePolicy(testNetPol.Name))
+	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[0]))
+	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[1]))
+	printAndWait(true)
+
+	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[2].Name)) // no-op
+	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[2]))
+	printAndWait(true)
+
+	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[1].Name))
 
 	testPolicyManager()
 }
@@ -158,9 +167,6 @@ func testPolicyManager() {
 
 	panicOnError(pMgr.AddPolicy(policies.TestNetworkPolicies[2], nil))
 	printAndWait(false)
-
-	// remove something that exists
-	panicOnError(pMgr.RemovePolicy(policies.TestNetworkPolicies[1].Name, nil))
 }
 
 func panicOnError(err error) {

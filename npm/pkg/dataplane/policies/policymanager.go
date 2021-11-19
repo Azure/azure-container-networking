@@ -20,7 +20,7 @@ const (
 	// IPPolicyMode will replace ipset names with their value IPs in policies
 	IPPolicyMode PolicyManagerMode = "IP"
 
-	reconcileChainTimeInMinutes = 5
+	reconcileTimeInMinutes = 5
 )
 
 type PolicyMap struct {
@@ -63,9 +63,11 @@ func (pMgr *PolicyManager) Reset() error {
 	return nil
 }
 
+// TODO call this function in DP
+
 func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 	go func() {
-		ticker := time.NewTicker(time.Minute * time.Duration(reconcileChainTimeInMinutes))
+		ticker := time.NewTicker(time.Minute * time.Duration(reconcileTimeInMinutes))
 		defer ticker.Stop()
 
 		for {

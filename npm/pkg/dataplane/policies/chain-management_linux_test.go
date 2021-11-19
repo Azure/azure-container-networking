@@ -16,6 +16,20 @@ const (
 	testChain1 = "chain1"
 	testChain2 = "chain2"
 	testChain3 = "chain3"
+
+	grepOutputAzureChainsWithoutPolicies = `Chain AZURE-NPM (1 references)
+Chain AZURE-NPM-ACCEPT (1 references)
+Chain AZURE-NPM-EGRESS (1 references)
+Chain AZURE-NPM-INGRESS (1 references)
+Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)`
+
+	grepOutputAzureChainsWithPolicies = `Chain AZURE-NPM (1 references)
+Chain AZURE-NPM-ACCEPT (1 references)
+Chain AZURE-NPM-EGRESS (1 references)
+Chain AZURE-NPM-EGRESS-123456 (1 references)
+Chain AZURE-NPM-INGRESS (1 references)
+Chain AZURE-NPM-INGRESS-123456 (1 references)
+Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)`
 )
 
 func TestEmptyAndGetAll(t *testing.T) {
@@ -43,7 +57,7 @@ func TestCleanupChainsSuccess(t *testing.T) {
 		getFakeDestroyCommandWithExitCode(testChain2, 1), // exit code 1 means the chain d.n.e.
 	}
 	ioshim := common.NewMockIOShim(calls)
-	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
+	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
 
 	pMgr.staleChains.add(testChain1)
@@ -61,7 +75,7 @@ func TestCleanupChainsFailure(t *testing.T) {
 		getFakeDestroyCommandWithExitCode(testChain3, 2),
 	}
 	ioshim := common.NewMockIOShim(calls)
-	// TODO defer ioshim.VerifyCalls(t, ioshim, calls)
+	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
 
 	pMgr.staleChains.add(testChain1)
@@ -97,67 +111,68 @@ func TestInitChainsCreator(t *testing.T) {
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 }
 
-func TestInitChainsSuccess(t *testing.T) {
-	calls := GetInitializeTestCalls()
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.NoError(t, pMgr.initializeNPMChains())
-}
-
-func TestInitChainsFailureOnRestore(t *testing.T) {
-	calls := []testutils.TestCmd{fakeIPTablesRestoreFailureCommand}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.Error(t, pMgr.initializeNPMChains())
-}
-
-func TestInitChainsFailureOnPosition(t *testing.T) {
-	calls := []testutils.TestCmd{
-		fakeIPTablesRestoreCommand, // gives correct exit code
+func TestInitChains(t *testing.T) {
+	tests := []struct {
+		name    string
+		calls   []testutils.TestCmd
+		wantErr bool
+	}{
 		{
-			Cmd:      listLineNumbersCommandStrings,
-			ExitCode: 1, // grep call gets this exit code (exit code 1 means grep found nothing)
+			name:    "success",
+			calls:   GetInitializeTestCalls(),
+			wantErr: false,
 		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
 		{
-			Cmd:      []string{"grep", "KUBE-SERVICES"},
-			Stdout:   "iptables: No chain/target/match by that name.", // this Stdout and ExitCode are for the iptables check command below
-			ExitCode: 2,                                               // Check failed for unknown reason
+			name:    "failure on restore",
+			calls:   []testutils.TestCmd{fakeIPTablesRestoreFailureCommand},
+			wantErr: true,
 		},
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+		{
+			name: "failure on position",
+			calls: []testutils.TestCmd{
+				fakeIPTablesRestoreCommand,
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
+				{Cmd: []string{"grep", "AZURE-NPM"}},
+			},
+			wantErr: true,
+		},
 	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.Error(t, pMgr.initializeNPMChains())
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ioshim := common.NewMockIOShim(tt.calls)
+			defer ioshim.VerifyCalls(t, tt.calls)
+			pMgr := NewPolicyManager(ioshim)
+			err := pMgr.initializeNPMChains()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
-func TestRemoveChainsCreator(t *testing.T) {
+func TestRemoveNPMChainsCreator(t *testing.T) {
 	creatorCalls := []testutils.TestCmd{
+		{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
 		{
-			Cmd:    listPolicyChainNamesCommandStrings,
-			Stdout: "Chain AZURE-NPM-INGRESS-123456\nChain AZURE-NPM-EGRESS-123456",
+			Cmd:    []string{"grep", "Chain AZURE-NPM"},
+			Stdout: grepOutputAzureChainsWithPolicies,
 		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", ingressOrEgressPolicyChainPattern}},
 	}
-
-	pMgr := NewPolicyManager(common.NewMockIOShim(creatorCalls))
+	ioshim := common.NewMockIOShim(creatorCalls)
+	defer ioshim.VerifyCalls(t, creatorCalls)
+	pMgr := NewPolicyManager(ioshim)
 	creator, chainsToFlush := pMgr.creatorAndChainsForReset()
 	expectedChainsToFlush := []string{
 		"AZURE-NPM",
-		"AZURE-NPM-INGRESS",
-		"AZURE-NPM-INGRESS-ALLOW-MARK",
-		"AZURE-NPM-EGRESS",
 		"AZURE-NPM-ACCEPT",
-		// deprecated
-		"AZURE-NPM-INGRESS-FROM",
-		"AZURE-NPM-INGRESS-PORT",
-		"AZURE-NPM-INGRESS-DROPS",
-		"AZURE-NPM-EGRESS-TO",
-		"AZURE-NPM-EGRESS-PORT",
-		"AZURE-NPM-EGRESS-DROPS",
-		"AZURE-NPM-TARGET-SETS",
-		"AZURE-NPM-INRGESS-DROPS",
-		// policy chains
-		"AZURE-NPM-INGRESS-123456",
+		"AZURE-NPM-EGRESS",
 		"AZURE-NPM-EGRESS-123456",
+		"AZURE-NPM-INGRESS",
+		"AZURE-NPM-INGRESS-123456",
+		"AZURE-NPM-INGRESS-ALLOW-MARK",
 	}
 	require.Equal(t, expectedChainsToFlush, chainsToFlush)
 	actualLines := strings.Split(creator.ToString(), "\n")
@@ -169,304 +184,343 @@ func TestRemoveChainsCreator(t *testing.T) {
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 }
 
-func TestRemoveChainsSuccess(t *testing.T) {
-	calls := GetResetTestCalls()
-	for _, chain := range iptablesOldAndNewChains { // TODO write these out, don't use variable
-		calls = append(calls, getFakeDestroyCommand(chain))
+func TestRemoveNPMChains(t *testing.T) {
+	tests := []struct {
+		name    string
+		calls   []testutils.TestCmd
+		wantErr bool
+	}{
+		{
+			name: "success when there are chains currently",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputAzureChainsWithoutPolicies,
+				},
+				fakeIPTablesRestoreCommand,
+				getFakeDestroyCommand("AZURE-NPM"),
+				getFakeDestroyCommand("AZURE-NPM-ACCEPT"),
+				getFakeDestroyCommand("AZURE-NPM-EGRESS"),
+				getFakeDestroyCommand("AZURE-NPM-INGRESS"),
+				getFakeDestroyCommand("AZURE-NPM-INGRESS-ALLOW-MARK"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "success when there are no chains currently",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+			},
+			wantErr: false,
+		},
+		{
+			name: "no error on failure to delete",
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1, // delete failure
+				},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+			},
+			wantErr: false,
+		},
+		{
+			name: "failure on restore",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputAzureChainsWithoutPolicies,
+				},
+				fakeIPTablesRestoreFailureCommand,
+			},
+			wantErr: true,
+		},
+		{
+			name: "failure on destroy",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputAzureChainsWithoutPolicies,
+				},
+				fakeIPTablesRestoreCommand,
+				getFakeDestroyCommandWithExitCode("AZURE-NPM", 2),
+				getFakeDestroyCommandWithExitCode("AZURE-NPM-ACCEPT", 2),
+				getFakeDestroyCommand("AZURE-NPM-EGRESS"),
+				getFakeDestroyCommand("AZURE-NPM-INGRESS"),
+				getFakeDestroyCommand("AZURE-NPM-INGRESS-ALLOW-MARK"),
+			},
+			wantErr: true,
+		},
 	}
-	calls = append(
-		calls,
-		getFakeDestroyCommand("AZURE-NPM-INGRESS-123456"),
-		getFakeDestroyCommand("AZURE-NPM-EGRESS-123456"),
-	)
-
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.NoError(t, pMgr.removeNPMChains())
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ioshim := common.NewMockIOShim(tt.calls)
+			defer ioshim.VerifyCalls(t, tt.calls)
+			pMgr := NewPolicyManager(ioshim)
+			err := pMgr.removeNPMChains()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
-func TestRemoveChainsFailureOnDelete(t *testing.T) {
-	calls := []testutils.TestCmd{
+func TestPositionAzureChainJumpRule(t *testing.T) {
+	tests := []struct {
+		name    string
+		calls   []testutils.TestCmd
+		wantErr bool
+	}{
 		{
-			Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-			ExitCode: 1, // delete failure
+			name: "no jump rule yet",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "no jump rule yet and insert fails",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+			},
+			wantErr: true,
+		},
+		{
+			name: "command error while grepping",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
+				{Cmd: []string{"grep", "AZURE-NPM"}},
+			},
+			wantErr: true,
+		},
+		{
+			name: "jump rule already at top",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "1    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "jump rule not at top",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "jump rule not at top and delete fails",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+			},
+			wantErr: true,
+		},
+		{
+			name: "jump rule not at top and insert fails",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+			},
+			wantErr: true,
 		},
 	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.Error(t, pMgr.removeNPMChains())
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ioshim := common.NewMockIOShim(tt.calls)
+			defer ioshim.VerifyCalls(t, tt.calls)
+			pMgr := NewPolicyManager(ioshim)
+			err := pMgr.positionAzureChainJumpRule()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
-func TestRemoveChainsFailureOnRestore(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{
-			Cmd:    listPolicyChainNamesCommandStrings,
-			Stdout: "Chain AZURE-NPM-INGRESS-123456\nChain AZURE-NPM-EGRESS-123456",
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{
-			Cmd:      []string{"grep", ingressOrEgressPolicyChainPattern},
-			ExitCode: 1, // ExitCode 1 for the iptables restore command
-		},
-		fakeIPTablesRestoreFailureCommand, // the exit code doesn't matter for this command since it receives the exit code of the command above
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.Error(t, pMgr.removeNPMChains())
-}
-
-func TestRemoveChainsFailureOnDestroy(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{
-			Cmd:    listPolicyChainNamesCommandStrings,
-			Stdout: "Chain AZURE-NPM-INGRESS-123456\nChain AZURE-NPM-EGRESS-123456",
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", ingressOrEgressPolicyChainPattern}}, // ExitCode 0 for the iptables restore command
-		fakeIPTablesRestoreCommand,
-	}
-	calls = append(calls, getFakeDestroyCommandWithExitCode(iptablesOldAndNewChains[0], 2)) // this ExitCode here will actually impact the next below
-	for _, chain := range iptablesOldAndNewChains[1:] {
-		calls = append(calls, getFakeDestroyCommand(chain))
-	}
-	calls = append(
-		calls,
-		getFakeDestroyCommand("AZURE-NPM-INGRESS-123456"),
-		getFakeDestroyCommand("AZURE-NPM-EGRESS-123456"),
-	)
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.Error(t, pMgr.removeNPMChains())
-}
-
-func TestPositionJumpWhenNoChainsExist(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{
-			Cmd:      listLineNumbersCommandStrings,
-			ExitCode: 1, // grep call gets this exit code (exit code 1 means grep found nothing)
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{
-			Cmd:      []string{"grep", "KUBE-SERVICES"},
-			Stdout:   "iptables: No chain/target/match by that name.", // this Stdout and ExitCode are for the iptables check command below
-			ExitCode: 1,
-		},
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "1", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.NoError(t, pMgr.positionAzureChainJumpRule())
-}
-
-func TestPositionJumpWhenOnlyAzureExists(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{
-			Cmd:      listLineNumbersCommandStrings,
-			ExitCode: 1, // grep call gets this exit code (exit code 1 means grep found nothing)
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", "KUBE-SERVICES"}}, // ExitCode 0 for the iptables check command below
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.NoError(t, pMgr.positionAzureChainJumpRule())
-}
-
-func TestPositionJumpWhenOnlyKubeServicesExists(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{
-			Cmd:    listLineNumbersCommandStrings,
-			Stdout: "3    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call gets this Stdout
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{
-			Cmd:      []string{"grep", "KUBE-SERVICES"},
-			Stdout:   "iptables: No chain/target/match by that name.", // this Stdout and ExitCode are for the iptables check command below
-			ExitCode: 1,
-		},
-		{Cmd: []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.NoError(t, pMgr.positionAzureChainJumpRule())
-}
-
-func TestPositionJumpWhenOnlyKubeServicesExistsAndInsertFails(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{
-			Cmd:    listLineNumbersCommandStrings,
-			Stdout: "3    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call gets this Stdout
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{
-			Cmd:      []string{"grep", "KUBE-SERVICES"},
-			Stdout:   "iptables: No chain/target/match by that name.", // this Stdout and ExitCode are for the iptables check command below
-			ExitCode: 1,
-		},
-		{
-			Cmd:      []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-			ExitCode: 1, // ExitCode 1 for insert below
-		},
-		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.Error(t, pMgr.positionAzureChainJumpRule())
-}
-
-func TestPositionJumpWhenAzureAfterKubeServices(t *testing.T) {
-	// don't move the rule for AZURE-NPM
-	calls := []testutils.TestCmd{
-		{
-			Cmd:    listLineNumbersCommandStrings,
-			Stdout: "3    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call gets this Stdout
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", "KUBE-SERVICES"}}, // ExitCode 0 for the iptables check command below
-		{
-			Cmd:    []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-			Stdout: "4    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call below gets this Stdout
-		},
-		{Cmd: listLineNumbersCommandStrings},
-		{Cmd: []string{"grep", "AZURE-NPM"}},
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.NoError(t, pMgr.positionAzureChainJumpRule())
-}
-
-func TestPositionJumpWhenAzureBeforeKubeServices(t *testing.T) {
-	// move the rule for AZURE-NPM
-	calls := []testutils.TestCmd{
-		{
-			Cmd:    listLineNumbersCommandStrings,
-			Stdout: "3    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call gets this Stdout
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", "KUBE-SERVICES"}}, // ExitCode 0 for the iptables check command below
-		{
-			Cmd:    []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-			Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call below gets this Stdout
-		},
-		{Cmd: listLineNumbersCommandStrings},
-		{Cmd: []string{"grep", "AZURE-NPM"}},
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.NoError(t, pMgr.positionAzureChainJumpRule())
-}
-
-func TestPositionJumpWhenAzureBeforeKubeServicesAndDeleteFails(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{
-			Cmd:    listLineNumbersCommandStrings,
-			Stdout: "3    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call gets this Stdout
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", "KUBE-SERVICES"}}, // ExitCode 0 for the iptables check command below
-		{
-			Cmd:    []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-			Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call below gets this Stdout
-		},
-		{
-			Cmd:      listLineNumbersCommandStrings,
-			ExitCode: 1,
-			// NOTE: now MockIOShim is off by 2 for ExitCodes and Stdout
-			// ExitCode 1 for delete command below
-		},
-		{Cmd: []string{"grep", "AZURE-NPM"}},
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.Error(t, pMgr.positionAzureChainJumpRule())
-}
-
-func TestPositionJumpWhenAzureBeforeKubeServicesAndInsertFails(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{
-			Cmd:    listLineNumbersCommandStrings,
-			Stdout: "3    KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call gets this Stdout
-		},
-		// NOTE: after the StdOut pipe used for grep, MockIOShim gets confused and each command's ExitCode and Stdout are applied to the ensuing command
-		{Cmd: []string{"grep", "KUBE-SERVICES"}}, // ExitCode 0 for the iptables check command below
-		{
-			Cmd:    []string{"iptables", "-w", "60", "-C", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-			Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0 ", // grep call below gets this Stdout
-		},
-		{Cmd: listLineNumbersCommandStrings}, // NOTE: now MockIOShim is off by 2 for ExitCodes and Stdout
-		// ExitCode 0 for delete command below
-		{
-			Cmd:      []string{"grep", "AZURE-NPM"},
-			ExitCode: 1, // ExitCode 1 for insert command below
-		},
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	require.Error(t, pMgr.positionAzureChainJumpRule())
-}
-
-func TestGetChainLineNumber(t *testing.T) {
+func TestChainLineNumber(t *testing.T) {
 	testChainName := "TEST-CHAIN-NAME"
-	grepCommand := testutils.TestCmd{Cmd: []string{"grep", testChainName}}
-
-	// chain exists at line 3
-	calls := []testutils.TestCmd{
+	tests := []struct {
+		name            string
+		calls           []testutils.TestCmd
+		expectedLineNum int
+		wantErr         bool
+	}{
 		{
-			Cmd:      listLineNumbersCommandStrings,
-			Stdout:   fmt.Sprintf("3    %s  all  --  0.0.0.0/0            0.0.0.0/0 ", testChainName),
-			ExitCode: 0,
+			name: "chain exists",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", testChainName},
+					Stdout: fmt.Sprintf("3    %s  all  --  0.0.0.0/0            0.0.0.0/0 ", testChainName),
+				},
+			},
+			expectedLineNum: 3,
+			wantErr:         false,
 		},
-		grepCommand,
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	lineNum, err := pMgr.chainLineNumber(testChainName)
-	require.Equal(t, 3, lineNum)
-	require.NoError(t, err)
-
-	// chain doesn't exist
-	calls = []testutils.TestCmd{
+		// TODO test for chain line number with 2+ digits
 		{
-			Cmd:      listLineNumbersCommandStrings,
-			ExitCode: 1, // grep found nothing
+			name: "ignore unexpected grep output",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", testChainName},
+					Stdout: "3",
+				},
+			},
+			expectedLineNum: 0,
+			wantErr:         false,
 		},
-		grepCommand,
+		{
+			name: "chain doesn't exist",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", testChainName}, ExitCode: 1},
+			},
+			expectedLineNum: 0,
+			wantErr:         false,
+		},
+		{
+			name: "command error while grepping",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
+				{Cmd: []string{"grep", testChainName}},
+			},
+			expectedLineNum: 0,
+			wantErr:         true,
+		},
 	}
-	pMgr = NewPolicyManager(common.NewMockIOShim(calls))
-	lineNum, err = pMgr.chainLineNumber(testChainName)
-	require.Equal(t, 0, lineNum)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ioshim := common.NewMockIOShim(tt.calls)
+			defer ioshim.VerifyCalls(t, tt.calls)
+			pMgr := NewPolicyManager(ioshim)
+			lineNum, err := pMgr.chainLineNumber(testChainName)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.expectedLineNum, lineNum)
+		})
+	}
 }
 
-func TestGetPolicyChainNames(t *testing.T) {
-	// grep that finds results
-	grepCommand := testutils.TestCmd{Cmd: []string{"grep", ingressOrEgressPolicyChainPattern}}
-	calls := []testutils.TestCmd{
+func TestAllCurrentAzureChains(t *testing.T) {
+	tests := []struct {
+		name           string
+		calls          []testutils.TestCmd
+		expectedChains []string
+		wantErr        bool
+	}{
 		{
-			Cmd:    listPolicyChainNamesCommandStrings,
-			Stdout: "Chain AZURE-NPM-INGRESS-123456\nChain AZURE-NPM-EGRESS-123456",
+			name: "success with chains",
+			calls: []testutils.TestCmd{
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputAzureChainsWithPolicies,
+				},
+			},
+			expectedChains: []string{"AZURE-NPM", "AZURE-NPM-ACCEPT", "AZURE-NPM-EGRESS", "AZURE-NPM-EGRESS-123456", "AZURE-NPM-INGRESS", "AZURE-NPM-INGRESS-123456", "AZURE-NPM-INGRESS-ALLOW-MARK"},
+			wantErr:        false,
 		},
-		grepCommand,
-	}
-	pMgr := NewPolicyManager(common.NewMockIOShim(calls))
-	chainNames, err := pMgr.policyChainNames()
-	expectedChainNames := []string{
-		"AZURE-NPM-INGRESS-123456",
-		"AZURE-NPM-EGRESS-123456",
-	}
-	require.Equal(t, expectedChainNames, chainNames)
-	require.NoError(t, err)
-
-	// grep with no results
-	calls = []testutils.TestCmd{
 		{
-			Cmd:      listPolicyChainNamesCommandStrings,
-			ExitCode: 1, // grep found nothing
+			name: "ignore unexpected grep output (chain name too short)",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: "Chain abc (1 references)",
+				},
+			},
+			expectedChains: []string{},
+			wantErr:        false,
 		},
-		grepCommand,
+		{
+			name: "ignore unexpected grep output (no space)",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: "abc",
+				},
+			},
+			expectedChains: []string{},
+			wantErr:        false,
+		},
+		{
+			name: "success with no chains",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+			},
+			expectedChains: nil,
+			wantErr:        false,
+		},
+		{
+			name: "failure",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}},
+			},
+			expectedChains: nil,
+			wantErr:        true,
+		},
 	}
-	pMgr = NewPolicyManager(common.NewMockIOShim(calls))
-	chainNames, err = pMgr.policyChainNames()
-	expectedChainNames = nil
-	require.Equal(t, expectedChainNames, chainNames)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ioshim := common.NewMockIOShim(tt.calls)
+			defer ioshim.VerifyCalls(t, tt.calls)
+			pMgr := NewPolicyManager(ioshim)
+			chains, err := pMgr.allCurrentAzureChains()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.expectedChains, chains)
+		})
+	}
 }
 
 func getFakeDestroyCommand(chain string) testutils.TestCmd {

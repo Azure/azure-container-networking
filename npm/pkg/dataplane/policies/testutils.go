@@ -8,15 +8,15 @@ var (
 		{
 			Name: "test1",
 			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
-				{Metadata: ipsets.TestKVNSList.Metadata},
+				{Metadata: ipsets.TestKeyPodSet.Metadata},
 			},
 			ACLs: testACLs,
 		},
 		{
 			Name: "test2",
 			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
-				{Metadata: ipsets.TestKVNSList.Metadata},
 				{Metadata: ipsets.TestKeyPodSet.Metadata},
+				{Metadata: ipsets.TestKVPodSet.Metadata},
 			},
 			ACLs: []*ACLPolicy{
 				testACLs[0],
