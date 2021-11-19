@@ -693,14 +693,13 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		return epInfo, err
 	}
 
-	endpointPolicies, err := getEndpointPolicies(opt.nwCfg, opt.nwInfo, opt.result.IPs)
+	endpointPolicies, err := getEndpointPolicies(opt.nwCfg, opt.args.Netns, opt.nwInfo, opt.result.IPs)
 	if err != nil {
 		log.Errorf("Failed to get endpoint policies:%v", err)
 		return epInfo, err
 	}
 
 	opt.policies = append(opt.policies, endpointPolicies...)
-
 
 	vethName := fmt.Sprintf("%s.%s", opt.k8sNamespace, opt.k8sPodName)
 	if opt.nwCfg.Mode != opModeTransparent {

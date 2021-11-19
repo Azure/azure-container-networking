@@ -296,7 +296,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 	return policies
 }
 
-func getEndpointPolicies(nwCfg *cni.NetworkConfig, nwInfo *network.NetworkInfo, ipconfigs []*cniTypesCurr.IPConfig) ([]policy.Policy, error) {
+func getEndpointPolicies(nwCfg *cni.NetworkConfig, netns string, nwInfo *network.NetworkInfo, ipconfigs []*cniTypesCurr.IPConfig) ([]policy.Policy, error) {
 	var policies []policy.Policy
 
 	if nwCfg.IPV6Mode == network.IPV6Nat {
@@ -308,6 +308,10 @@ func getEndpointPolicies(nwCfg *cni.NetworkConfig, nwInfo *network.NetworkInfo, 
 	}
 
 	if !nwCfg.WindowsSettings.DisableLoopbackDSR {
+		if isv2, _ := network.UseHnsV2(netns); !isv2 {
+			log.Printf("hnsv2 not supported. so skip adding dsr policy")
+			return nil, nil
+		}
 		for _, config := range ipconfigs {
 			// consider DSR policy only for ipv4 address. Add for ipv6 when required
 			if config.Address.IP.To4() != nil {
