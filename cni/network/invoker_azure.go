@@ -32,22 +32,22 @@ func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.NetworkInfo) *AzureI
 	}
 }
 
-func (invoker *AzureIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
+func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
 	var (
-		addResult = IPAMAddResult{hostSubnetPrefix: &net.IPNet{}}
+		addResult = IPAMAddResult{}
 		err       error
 	)
 
-	if opt.nwCfg == nil {
+	if addConfig.nwCfg == nil {
 		return addResult, invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
 	}
 
 	if len(invoker.nwInfo.Subnets) > 0 {
-		opt.nwCfg.Ipam.Subnet = invoker.nwInfo.Subnets[0].Prefix.String()
+		addConfig.nwCfg.Ipam.Subnet = invoker.nwInfo.Subnets[0].Prefix.String()
 	}
 
 	// Call into IPAM plugin to allocate an address pool for the network.
-	addResult.ipv4Result, err = invoker.plugin.DelegateAdd(opt.nwCfg.Ipam.Type, opt.nwCfg)
+	addResult.ipv4Result, err = invoker.plugin.DelegateAdd(addConfig.nwCfg.Ipam.Type, addConfig.nwCfg)
 	if err != nil {
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
 		return addResult, err
@@ -56,7 +56,7 @@ func (invoker *AzureIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
 	defer func() {
 		if err != nil {
 			if len(addResult.ipv4Result.IPs) > 0 {
-				if er := invoker.Delete(&addResult.ipv4Result.IPs[0].Address, opt.nwCfg, nil, opt.options); er != nil {
+				if er := invoker.Delete(&addResult.ipv4Result.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
@@ -65,8 +65,8 @@ func (invoker *AzureIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
 		}
 	}()
 
-	if opt.nwCfg.IPV6Mode != "" {
-		nwCfg6 := *opt.nwCfg
+	if addConfig.nwCfg.IPV6Mode != "" {
+		nwCfg6 := *addConfig.nwCfg
 		nwCfg6.Ipam.Environment = common.OptEnvironmentIPv6NodeIpam
 		nwCfg6.Ipam.Type = ipamV6
 
@@ -81,7 +81,7 @@ func (invoker *AzureIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
 		}
 	}
 
-	*addResult.hostSubnetPrefix = addResult.ipv4Result.IPs[0].Address
+	addResult.hostSubnetPrefix = addResult.ipv4Result.IPs[0].Address
 
 	return addResult, err
 }

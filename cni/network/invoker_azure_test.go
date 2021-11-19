@@ -224,7 +224,7 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				nwInfo: tt.fields.nwInfo,
 			}
 
-			ipamAddResult, err := invoker.Add(IPAMAddOpt{nwCfg: tt.args.nwCfg, args: tt.args.in1, options: tt.args.options})
+			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.in1, options: tt.args.options})
 			if tt.wantErr {
 				require.NotNil(err) // use NotNil since *cniTypes.Error is not of type Error
 			} else {

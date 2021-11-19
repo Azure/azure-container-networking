@@ -291,7 +291,7 @@ func getInfraVnetIP(
 		nwCfg.Ipam.Subnet = ipNet.String()
 
 		log.Printf("call ipam to allocate ip from subnet %v", nwCfg.Ipam.Subnet)
-		ipamAddOpt := IPAMAddOpt{nwCfg: nwCfg, options: make(map[string]interface{})}
+		ipamAddOpt := IPAMAddConfig{nwCfg: nwCfg, options: make(map[string]interface{})}
 		ipamAddResult, err := plugin.ipamInvoker.Add(ipamAddOpt)
 		if err != nil {
 			err = plugin.Errorf("Failed to allocate address: %v", err)
@@ -302,24 +302,6 @@ func getInfraVnetIP(
 	}
 
 	return nil, nil
-}
-
-func cleanupInfraVnetIP(
-	enableInfraVnet bool,
-	infraIPNet *net.IPNet,
-	nwCfg *cni.NetworkConfig,
-	plugin *NetPlugin) {
-
-	log.Printf("Cleanup infravnet ip")
-
-	if enableInfraVnet {
-		_, ipNet, _ := net.ParseCIDR(infraIPNet.String())
-		nwCfg.Ipam.Subnet = ipNet.String()
-		nwCfg.Ipam.Address = infraIPNet.IP.String()
-		if err := plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg); err != nil {
-			log.Errorf("failed to cleanup infravnet ip with err %w", err)
-		}
-	}
 }
 
 func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNetworkConfig *cns.GetNetworkContainerResponse) bool {
@@ -370,10 +352,4 @@ func (m *Multitenancy) GetMultiTenancyCNIResult(
 	}
 
 	return result, cnsNetworkConfig, subnetPrefix, nil
-}
-
-func CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig, azIpamResult *cniTypesCurr.Result, plugin *NetPlugin) {
-	if azIpamResult != nil && azIpamResult.IPs != nil {
-		cleanupInfraVnetIP(enableInfraVnet, &azIpamResult.IPs[0].Address, nwCfg, plugin)
-	}
 }

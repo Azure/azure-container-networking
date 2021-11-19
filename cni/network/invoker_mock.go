@@ -38,12 +38,12 @@ func NewMockIpamInvoker(ipv6, v4Fail, v6Fail bool) *MockIpamInvoker {
 	}
 }
 
-func (invoker *MockIpamInvoker) Add(opt IPAMAddOpt) (ipamAddResult IPAMAddResult, err error) {
+func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddResult, err error) {
 	if invoker.v4Fail {
 		return ipamAddResult, errV4
 	}
 
-	ipamAddResult.hostSubnetPrefix = &net.IPNet{}
+	ipamAddResult.hostSubnetPrefix = net.IPNet{}
 
 	ipv4Str := "10.240.0.5"
 	if _, ok := invoker.ipMap["10.240.0.5/24"]; ok {

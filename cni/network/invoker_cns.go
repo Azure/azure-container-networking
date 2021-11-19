@@ -3,7 +3,6 @@ package network
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 
@@ -16,16 +15,13 @@ import (
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/pkg/errors"
 )
 
 var (
 	errEmtpyHostSubnetPrefix = errors.New("empty host subnet prefix not allowed")
 	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
 	errInvalidArgs           = errors.New("invalid arg(s)")
-)
-
-const (
-	cnsPort = 10090
 )
 
 type CNSIPAMInvoker struct {
@@ -55,7 +51,7 @@ func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, multitenancyC
 }
 
 // Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
-func (invoker *CNSIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
+func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
@@ -65,27 +61,21 @@ func (invoker *CNSIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
 	log.Printf(podInfo.PodName)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
-		return IPAMAddResult{}, fmt.Errorf("Failed to unmarshal orchestrator context during add: %w", err)
+		return IPAMAddResult{}, errors.Wrap(err, "Failed to unmarshal orchestrator context during add: %w")
 	}
 
-	if opt.args == nil {
+	if addConfig.args == nil {
 		return IPAMAddResult{}, errEmptyCNIArgs
 	}
 
-	addResult := IPAMAddResult{hostSubnetPrefix: &net.IPNet{}}
+	addResult := IPAMAddResult{}
 
-	if opt.nwCfg.MultiTenancy {
-		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
-		if addResult.enableSnatForDNS, opt.nwCfg.EnableSnatOnHost, err = invoker.multitenancyClient.DetermineSnatFeatureOnHost(
-			snatConfigFileName, nmAgentSupportedApisURL); err != nil {
-			return IPAMAddResult{}, fmt.Errorf("%w", err)
-		}
-
-		addResult.ipv4Result, addResult.ncResponse, *addResult.hostSubnetPrefix, err = invoker.multitenancyClient.GetMultiTenancyCNIResult(
-			context.TODO(), opt.nwCfg, invoker.podName, invoker.podNamespace, opt.args.IfName)
+	if addConfig.nwCfg.MultiTenancy {
+		addResult.ipv4Result, addResult.ncResponse, addResult.hostSubnetPrefix, err = invoker.multitenancyClient.GetMultiTenancyCNIResult(
+			context.TODO(), addConfig.nwCfg, invoker.podName, invoker.podNamespace, addConfig.args.IfName)
 		if err != nil {
 			log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
-			return IPAMAddResult{}, fmt.Errorf("GetMultiTenancyCNIResult failed:%w", err)
+			return IPAMAddResult{}, errors.Wrap(err, "GetMultiTenancyCNIResult failed: %w")
 		}
 
 		log.Printf("Result from multitenancy %+v", addResult.ipv4Result)
@@ -94,15 +84,15 @@ func (invoker *CNSIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
 
 	ipconfig := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
-		PodInterfaceID:      GetEndpointID(opt.args),
-		InfraContainerID:    opt.args.ContainerID,
+		PodInterfaceID:      GetEndpointID(addConfig.args),
+		InfraContainerID:    addConfig.args.ContainerID,
 	}
 
 	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
 	response, err := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfig)
 	if err != nil {
 		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
-		return IPAMAddResult{}, fmt.Errorf("Failed to get IP address from CNS with error: %w", err)
+		return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
 	}
 
 	info := IPv4ResultInfo{
@@ -116,19 +106,19 @@ func (invoker *CNSIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
 	}
 
 	// set the NC Primary IP in options
-	opt.options[network.SNATIPKey] = info.ncPrimaryIP
+	addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
 
 	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
 	ncgw := net.ParseIP(info.ncGatewayIPAddress)
 	if ncgw == nil {
-		return IPAMAddResult{}, fmt.Errorf("%w: Gateway address %v from response is invalid", errInvalidArgs, info.ncGatewayIPAddress)
+		return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
 	}
 
 	// set result ipconfigArgument from CNS Response Body
 	ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
 	if ip == nil {
-		return IPAMAddResult{}, fmt.Errorf("Unable to parse IP from response: %v with err %w", info.podIPAddress, err)
+		return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
 	}
 
 	// construct ipnet for result
@@ -154,7 +144,7 @@ func (invoker *CNSIPAMInvoker) Add(opt IPAMAddOpt) (IPAMAddResult, error) {
 	}
 
 	// set subnet prefix for host vm
-	err = setHostOptions(addResult.hostSubnetPrefix, ncipnet, opt.options, &info)
+	err = setHostOptions(&addResult.hostSubnetPrefix, ncipnet, addConfig.options, &info)
 	if err != nil {
 		return IPAMAddResult{}, err
 	}
@@ -215,7 +205,7 @@ func setHostOptions(hostSubnetPrefix, ncSubnetPrefix *net.IPNet, options map[str
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, _ *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error {
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
@@ -244,7 +234,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, _ *cni.NetworkConfig, 
 	}
 
 	if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
-		return fmt.Errorf("failed to release IP %v with err %w", address, err)
+		return errors.Wrap(err, fmt.Sprintf("failed to release IP %v with err ", address)+"%w")
 	}
 
 	return nil

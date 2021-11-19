@@ -208,7 +208,6 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			CleanupMultitenancyResources(tt.args.enableInfraVnet, tt.args.nwCfg, tt.args.infraIPNet, tt.args.plugin)
 			require.Exactly(tt.expected.nwCfg, tt.args.nwCfg)
 			require.Exactly(tt.expected.infraIPNet, tt.args.infraIPNet)
 			require.Exactly(tt.expected.plugin, tt.args.plugin)

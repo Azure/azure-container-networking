@@ -137,7 +137,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				podNamespace: tt.fields.podNamespace,
 				cnsClient:    tt.fields.cnsClient,
 			}
-			ipamAddResult, err := invoker.Add(IPAMAddOpt{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
+			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {
 				require.Error(err)
 			} else {
@@ -230,7 +230,7 @@ func Test_setHostOptions(t *testing.T) {
 		hostSubnetPrefix *net.IPNet
 		ncSubnetPrefix   *net.IPNet
 		options          map[string]interface{}
-		info             *IPv4ResultInfo
+		info             IPv4ResultInfo
 	}
 	tests := []struct {
 		name        string
@@ -244,7 +244,7 @@ func Test_setHostOptions(t *testing.T) {
 				hostSubnetPrefix: getCIDRNotationForAddress("10.0.1.0/24"),
 				ncSubnetPrefix:   getCIDRNotationForAddress("10.0.1.0/24"),
 				options:          map[string]interface{}{},
-				info: &IPv4ResultInfo{
+				info: IPv4ResultInfo{
 					podIPAddress:       "10.0.1.10",
 					ncSubnetPrefix:     24,
 					ncPrimaryIP:        "10.0.1.20",
@@ -286,7 +286,7 @@ func Test_setHostOptions(t *testing.T) {
 		{
 			name: "test error on bad host subnet",
 			args: args{
-				info: &IPv4ResultInfo{
+				info: IPv4ResultInfo{
 					hostSubnet: "",
 				},
 			},
@@ -295,7 +295,7 @@ func Test_setHostOptions(t *testing.T) {
 		{
 			name: "test error on nil hostsubnetprefix",
 			args: args{
-				info: &IPv4ResultInfo{
+				info: IPv4ResultInfo{
 					hostSubnet: "10.0.0.0/24",
 				},
 			},
@@ -305,7 +305,7 @@ func Test_setHostOptions(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := setHostOptions(tt.args.hostSubnetPrefix, tt.args.ncSubnetPrefix, tt.args.options, tt.args.info)
+			err := setHostOptions(tt.args.hostSubnetPrefix, tt.args.ncSubnetPrefix, tt.args.options, &tt.args.info)
 			if tt.wantErr {
 				require.Error(err)
 				return

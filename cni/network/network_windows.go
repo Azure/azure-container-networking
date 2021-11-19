@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -140,7 +141,7 @@ func setEndpointOptions(cnsNwConfig *cns.GetNetworkContainerResponse, epInfo *ne
 func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 }
 
-func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkNameFromCNS(podName, podNs, ifName, netNs string, nwCfg *cni.NetworkConfig) (string, error) {
 	// For singletenancy, the network name is simply the nwCfg.Name
 	if !nwCfg.MultiTenancy {
 		return nwCfg.Name, nil
@@ -152,10 +153,8 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nw
 		return "", fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s, NetNs: %s", podName, podNs, netNs)
 	}
 
-	// First try to build the network name from the cns response if present
-	// This will happen during ADD call
 	var (
-		networkName      = nwCfg.Name
+		networkName      string
 		err              error
 		result           *cniTypesCurr.Result
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
@@ -163,23 +162,34 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nw
 
 	result, cnsNetworkConfig, _, err = plugin.multitenancyClient.GetContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
 	if err != nil {
-		log.Printf(
-			"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v",
-			podName,
-			podNs,
-			err)
-		// If no cnsResponse was present, try to get the network name from the state file
-		// This will happen during DEL call
-		networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs)
-		if err != nil {
-			log.Printf("Error getting network name from state: %v.", err)
-			return "", fmt.Errorf("error getting network name from state: %w", err)
-		}
+		err = errors.Wrapf(err, "GetContainerNetworkConfiguration failed for podname %v namespace %v", podName, podNs)
+		log.Printf("%+v", err)
 	} else {
 		subnet := result.IPs[0].Address
 		networkName = strings.Replace(subnet.String(), ".", "-", -1)
 		networkName = strings.Replace(networkName, "/", "_", -1)
 		networkName = fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, cnsNetworkConfig.MultiTenancyInfo.ID, networkName)
+	}
+
+	return networkName, err
+}
+
+func (plugin *NetPlugin) getNetworkNameFromNetNS(podName, podNs, _, netNs string, nwCfg *cni.NetworkConfig) (string, error) {
+	// For singletenancy, the network name is simply the nwCfg.Name
+	if !nwCfg.MultiTenancy {
+		return nwCfg.Name, nil
+	}
+
+	// in multitenancy case, the network name will be in the state file or can be built from cnsResponse
+	determineWinVer()
+	if len(strings.TrimSpace(netNs)) == 0 || len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
+		return "", fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s, NetNs: %s", podName, podNs, netNs)
+	}
+
+	networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs)
+	if err != nil {
+		log.Printf("Error getting network name from state: %v.", err)
+		return "", fmt.Errorf("error getting network name from state: %w", err)
 	}
 
 	return networkName, nil
