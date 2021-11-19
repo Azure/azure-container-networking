@@ -16,6 +16,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrlcli "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Scheme is a runtime scheme containing the client-go scheme and the NodeNetworkConfig scheme.
@@ -24,6 +25,12 @@ var Scheme = runtime.NewScheme()
 func init() {
 	_ = clientgoscheme.AddToScheme(Scheme)
 	_ = v1alpha.AddToScheme(Scheme)
+}
+
+type OwnerExistsError struct{}
+
+func (*OwnerExistsError) Error() string {
+	return "OwnerRef already exists and does not match"
 }
 
 // Client is provided to interface with the NodeNetworkConfig CRDs.
@@ -135,4 +142,21 @@ func (c *Client) UpdateSpec(ctx context.Context, key types.NamespacedName, spec 
 		return nil, errors.Wrap(err, "failed to update nnc")
 	}
 	return nnc, nil
+}
+
+// SetOwnerRef sets the owner of the NodeNetworkConfig to the given object, using HTTP Patch
+func (c *Client) SetOwnerRef(ctx context.Context, nnc *v1alpha.NodeNetworkConfig, owner metav1.Object) error {
+	newNNC := nnc.DeepCopy()
+	if err := ctrlutil.SetControllerReference(owner, newNNC, Scheme); err != nil {
+		// SetControllerReference returns an error if the object already has a different owner or
+		// if there are issues with the scheme. Since we control the scheme in this package, we can safely
+		// assume than any error is caused by an owner already existing
+		return &OwnerExistsError{}
+	}
+
+	if err := c.nnccli.Patch(ctx, newNNC, ctrlcli.MergeFrom(nnc)); err != nil {
+		return err
+	}
+
+	return nil
 }
