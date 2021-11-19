@@ -1,6 +1,8 @@
 package common
 
 import (
+	"testing"
+
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	utilexec "k8s.io/utils/exec"
@@ -31,3 +33,6 @@ func NewMockIOShimWithFakeHNS(hns *hnswrapper.Hnsv2wrapperFake) *IOShim {
 		Hns:  hns,
 	}
 }
+
+// VerifyCalls is used for Unit Testing of linux. In windows this is no-op
+func (ioshim *IOShim) VerifyCalls(_ *testing.T, _ []testutils.TestCmd) {}
