@@ -237,6 +237,23 @@ ifeq ($(GOOS),linux)
 	echo $(AZURE_NPM_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
 endif
 
+
+# Build the Azure NPM image, because the buildx command breaks other runtimes
+.PHONY: azure-npm-image-classic
+azure-npm-image-classic: azure-npm
+ifeq ($(GOOS),linux)
+	mkdir -p $(IMAGE_DIR)
+	docker build \
+	--no-cache \
+	-f npm/Dockerfile \
+	-t $(AZURE_NPM_IMAGE):$(VERSION) \
+	--build-arg VERSION=$(VERSION) \
+	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
+	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
+	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
+	.
+endif
+
 # Build the Azure CNS image
 .PHONY: azure-cns-image
 azure-cns-image:
