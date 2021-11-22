@@ -13,6 +13,6 @@ data:
         "EnablePrometheusMetrics": true,
         "EnablePprof": false,
         "EnableHTTPDebugAPI": true,
-        "EnableV2Controllers": true
+        "EnableV2NPM": true
       }
     }
