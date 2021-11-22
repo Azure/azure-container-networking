@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	fakeIPTablesRestoreCommand        = testutils.TestCmd{Cmd: []string{"iptables-restore", "-T", "filter", "--noflush"}}
-	fakeIPTablesRestoreFailureCommand = testutils.TestCmd{Cmd: []string{"iptables-restore", "-T", "filter", "--noflush"}, ExitCode: 1}
+	fakeIPTablesRestoreCommand        = testutils.TestCmd{Cmd: []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"}}
+	fakeIPTablesRestoreFailureCommand = testutils.TestCmd{Cmd: []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"}, ExitCode: 1}
 
 	listLineNumbersCommandStrings      = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L", "FORWARD", "--line-numbers"}
 	listPolicyChainNamesCommandStrings = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}
