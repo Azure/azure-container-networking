@@ -1,7 +1,6 @@
 package processlock
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -73,7 +72,7 @@ func TestFileLock(t *testing.T) {
 				require.NoError(t, err, "Calling Release lock again should not throw error for already released lock:%v", err)
 
 				// read lockfile contents to check if contents match with pid of current process
-				b, errRead := ioutil.ReadFile(tt.lockfileName)
+				b, errRead := os.ReadFile(tt.lockfileName)
 				require.NoError(t, errRead, "Got error reading lockfile:%v", errRead)
 				pidStr := string(b)
 				pid, _ := strconv.Atoi(pidStr)

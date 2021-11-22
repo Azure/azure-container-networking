@@ -7,7 +7,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -323,7 +322,7 @@ func StartTelemetryService(path string, args []string) error {
 func ReadConfigFile(filePath string) (TelemetryConfig, error) {
 	config := TelemetryConfig{}
 
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Logf("[Telemetry] Failed to read telemetry config: %v", err)
 		return config, err

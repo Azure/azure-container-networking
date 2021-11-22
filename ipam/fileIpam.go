@@ -6,8 +6,8 @@ package ipam
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 
@@ -123,7 +123,7 @@ func (source *fileIpamSource) refresh() error {
 }
 
 func getSDNInterfaces(fileLocation string) (*NetworkInterfaces, error) {
-	data, err := ioutil.ReadFile(fileLocation)
+	data, err := os.ReadFile(fileLocation)
 	if err != nil {
 		return nil, err
 	}

@@ -12,6 +12,8 @@ spec:
       labels:
         acn: azure-cni-manager
     spec:
+      nodeSelector:
+        "beta.kubernetes.io/os": linux
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/master

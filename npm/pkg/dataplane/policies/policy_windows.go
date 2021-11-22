@@ -8,11 +8,15 @@ import (
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
+const (
+	blockRulePriotity = 3000
+	allowRulePriotity = 222
+)
+
 var (
 	protocolNumMap = map[Protocol]string{
 		TCP:  "6",
 		UDP:  "17",
-		ICMP: "1",
 		SCTP: "132",
 		// HNS thinks 256 as ANY protocol
 		AnyProtocol: "256",
@@ -70,9 +74,9 @@ func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
 	policySettings.Action = getHCNAction(acl.Target)
 
 	// TODO need to have better priority handling
-	policySettings.Priority = uint16(222)
+	policySettings.Priority = uint16(allowRulePriotity)
 	if policySettings.Action == hcn.ActionTypeBlock {
-		policySettings.Priority = uint16(3000)
+		policySettings.Priority = uint16(blockRulePriotity)
 	}
 	if acl.Protocol == "" {
 		acl.Protocol = AnyProtocol
@@ -101,9 +105,11 @@ func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
 	policySettings.LocalAddresses = srcListStr
 	policySettings.RemoteAddresses = dstListStr
 	policySettings.RemotePorts = dstPortStr
+	policySettings.LocalPorts = ""
 	if policySettings.Direction == hcn.DirectionTypeOut {
 		policySettings.LocalAddresses = dstListStr
 		policySettings.LocalPorts = dstPortStr
+		policySettings.RemotePorts = ""
 		policySettings.RemoteAddresses = srcListStr
 	}
 

@@ -35,7 +35,6 @@ func NewIPSetMetadata(name string, setType SetType) *IPSetMetadata {
 }
 
 func (setMetadata *IPSetMetadata) GetHashedName() string {
-	// TODO(jungukcho): I think this is unnecessary code.
 	prefixedName := setMetadata.GetPrefixName()
 	if prefixedName == Unknown {
 		return Unknown

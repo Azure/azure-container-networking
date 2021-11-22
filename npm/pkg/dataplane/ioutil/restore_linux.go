@@ -126,6 +126,7 @@ func (creator *FileCreator) ToString() string {
 
 func (creator *FileCreator) RunCommandWithFile(cmd string, args ...string) error {
 	fileString := creator.ToString()
+	klog.Infof("beginning to run command for restorer:\nEND-CREATOR-FILE-FOR-COMMAND-%s\n%s\nEND-CREATOR-FILE-FOR-COMMAND-%s", cmd, fileString, cmd) // TODO remove
 	wasFileAltered, err := creator.runCommandOnceWithFile(fileString, cmd, args...)
 	if err == nil {
 		return nil

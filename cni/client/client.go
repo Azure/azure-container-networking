@@ -9,12 +9,9 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/platform"
 	semver "github.com/hashicorp/go-version"
 	utilexec "k8s.io/utils/exec"
-)
-
-const (
-	azureVnetExecutable = "/opt/cni/bin/azure-vnet"
 )
 
 type Client interface {
@@ -32,7 +29,7 @@ func New(exec utilexec.Interface) *client {
 }
 
 func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
-	cmd := c.exec.Command(azureVnetExecutable)
+	cmd := c.exec.Command(platform.CNIBinaryPath)
 
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
@@ -54,7 +51,7 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 }
 
 func (c *client) GetVersion() (*semver.Version, error) {
-	cmd := c.exec.Command(azureVnetExecutable, "-v")
+	cmd := c.exec.Command(platform.CNIBinaryPath, "-v")
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

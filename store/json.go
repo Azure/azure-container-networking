@@ -6,7 +6,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -54,6 +54,13 @@ func NewJsonFileStore(fileName string, lockclient processlock.Interface) (KeyVal
 	return kvs, nil
 }
 
+func (kvs *jsonFileStore) Exists() bool {
+	if _, err := os.Stat(kvs.fileName); err != nil {
+		return false
+	}
+	return true
+}
+
 // Read restores the value for the given key from persistent store.
 func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 	kvs.Mutex.Lock()
@@ -71,7 +78,7 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 		}
 		defer file.Close()
 
-		b, err := ioutil.ReadAll(file)
+		b, err := io.ReadAll(file)
 		if err != nil {
 			return err
 		}
@@ -133,7 +140,7 @@ func (kvs *jsonFileStore) flush() error {
 		dir = "."
 	}
 
-	f, err := ioutil.TempFile(dir, file)
+	f, err := os.CreateTemp(dir, file)
 	if err != nil {
 		return fmt.Errorf("cannot create temp file: %v", err)
 	}

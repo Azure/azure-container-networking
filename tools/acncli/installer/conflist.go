@@ -6,7 +6,7 @@ package installer
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -33,7 +33,7 @@ func LoadConfList(conflistpath string) (rawConflist, error) {
 	}
 	defer jsonFile.Close()
 
-	byteValue, err := ioutil.ReadAll(jsonFile)
+	byteValue, err := io.ReadAll(jsonFile)
 	if err != nil {
 		return conflist, err
 	}
@@ -99,7 +99,7 @@ func ModifyConflists(conflistpath string, installerConf InstallerConfig, perm os
 	}
 
 	fmt.Printf("🚛 - Installing %v...\n", dstFile)
-	return ioutil.WriteFile(dstFile, filebytes, perm)
+	return os.WriteFile(dstFile, filebytes, perm)
 }
 
 func PrettyPrint(o interface{}) {

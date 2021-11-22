@@ -19,13 +19,36 @@ const (
 	testPodIP    = "10.0.0.0"
 )
 
-var iMgrApplyOnNeedCfg = &IPSetManagerCfg{
-	IPSetMode:   ApplyOnNeed,
-	NetworkName: "azure",
-}
+var (
+	iMgrApplyOnNeedCfg = &IPSetManagerCfg{
+		IPSetMode:   ApplyOnNeed,
+		NetworkName: "azure",
+	}
+
+	iMgrApplyAlwaysCfg = &IPSetManagerCfg{
+		IPSetMode:   ApplyAllIPSets,
+		NetworkName: "azure",
+	}
+)
 
 func TestCreateIPSet(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
+
+	setMetadata := NewIPSetMetadata(testSetName, Namespace)
+	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
+	// creating twice
+	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
+
+	assert.True(t, iMgr.exists(setMetadata.GetPrefixName()))
+
+	set := iMgr.GetIPSet(setMetadata.GetPrefixName())
+	require.NotNil(t, set)
+	assert.Equal(t, setMetadata.GetPrefixName(), set.Name)
+	assert.Equal(t, util.GetHashedName(setMetadata.GetPrefixName()), set.HashedName)
+}
+
+func TestCreateIPSetApplyAlways(t *testing.T) {
+	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})

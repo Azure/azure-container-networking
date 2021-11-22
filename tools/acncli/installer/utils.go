@@ -5,7 +5,6 @@ package installer
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -62,12 +61,12 @@ func copyBinaries(filePaths []string, installerConf InstallerConfig, perm os.Fil
 }
 
 func copyFile(src string, dst string, perm os.FileMode) error {
-	data, err := ioutil.ReadFile(src)
+	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile(dst, data, perm)
+	err = os.WriteFile(dst, data, perm)
 	if err != nil {
 		return err
 	}

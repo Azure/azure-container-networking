@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -14,7 +15,7 @@ import (
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	realexec := exec.New()
-	iptMgr := iptm.NewIptablesManager(realexec, iptm.NewFakeIptOperationShim())
+	iptMgr := iptm.NewIptablesManager(realexec, iptm.NewFakeIptOperationShim(), npmconfig.DefaultConfig.Toggles.PlaceAzureChainFirst)
 	err := iptMgr.UninitNpmChains()
 	if err != nil {
 		fmt.Println("uninitnpmchains failed with %w", err)

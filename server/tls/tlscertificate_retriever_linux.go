@@ -7,7 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"os"
 )
 
 const (
@@ -52,7 +52,7 @@ func (fcert *linuxTlsCertificateRetriever) GetPrivateKey() (crypto.PrivateKey, e
 
 // ReadFile reads a from disk
 func (fcert *linuxTlsCertificateRetriever) readFile() ([]byte, error) {
-	content, err := ioutil.ReadFile(fcert.settings.TLSCertificatePath)
+	content, err := os.ReadFile(fcert.settings.TLSCertificatePath)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading file from path %s with error: %+v ", fcert.settings.TLSCertificatePath, err)
 	}

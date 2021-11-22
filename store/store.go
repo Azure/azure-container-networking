@@ -10,6 +10,7 @@ import (
 
 // KeyValueStore represents a persistent store of (key,value) pairs.
 type KeyValueStore interface {
+	Exists() bool
 	Read(key string, value interface{}) error
 	Write(key string, value interface{}) error
 	Flush() error

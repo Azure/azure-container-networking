@@ -69,7 +69,9 @@ func TestNewDataPlane(t *testing.T) {
 	metrics.InitializeAll()
 
 	calls := getNewDataplaneTestCalls()
-	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
 
 	if dp == nil {
@@ -84,7 +86,9 @@ func TestInitializeDataPlane(t *testing.T) {
 	metrics.InitializeAll()
 
 	calls := append(getNewDataplaneTestCalls(), policies.GetInitializeTestCalls()...)
-	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
 
 	assert.NotNil(t, dp)
@@ -97,7 +101,9 @@ func TestResetDataPlane(t *testing.T) {
 
 	calls := append(getNewDataplaneTestCalls(), getInitializeTestCalls()...)
 	calls = append(calls, getResetTestCalls()...)
-	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
 
 	assert.NotNil(t, dp)
@@ -111,7 +117,9 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 	metrics.InitializeAll()
 
 	calls := getNewDataplaneTestCalls()
-	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
 	assert.NotNil(t, dp)
 	setsTocreate := []*ipsets.IPSetMetadata{
@@ -151,7 +159,9 @@ func TestAddToSet(t *testing.T) {
 	metrics.InitializeAll()
 
 	calls := getNewDataplaneTestCalls()
-	dp, err := NewDataPlane("testnode", common.NewMockIOShim(calls))
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
 
 	setsTocreate := []*ipsets.IPSetMetadata{
@@ -213,8 +223,9 @@ func TestApplyPolicy(t *testing.T) {
 	metrics.InitializeAll()
 
 	calls := append(getNewDataplaneTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
-	ioShim := common.NewMockIOShim(calls)
-	dp, err := NewDataPlane("testnode", ioShim)
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
 
 	err = dp.AddPolicy(&testPolicyobj)
@@ -226,8 +237,9 @@ func TestRemovePolicy(t *testing.T) {
 
 	calls := append(getNewDataplaneTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
 	calls = append(calls, getRemovePolicyTestCallsForDP(&testPolicyobj)...)
-	ioShim := common.NewMockIOShim(calls)
-	dp, err := NewDataPlane("testnode", ioShim)
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
 
 	err = dp.AddPolicy(&testPolicyobj)
@@ -255,8 +267,9 @@ func TestUpdatePolicy(t *testing.T) {
 	for _, call := range calls {
 		fmt.Println(call)
 	}
-	ioShim := common.NewMockIOShim(calls)
-	dp, err := NewDataPlane("testnode", ioShim)
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	dp, err := NewDataPlane("testnode", ioshim)
 	require.NoError(t, err)
 
 	err = dp.AddPolicy(&testPolicyobj)
@@ -271,15 +284,11 @@ func getNewDataplaneTestCalls() []testutils.TestCmd {
 }
 
 func getInitializeTestCalls() []testutils.TestCmd {
-	return []testutils.TestCmd{}
-	// TODO update when piped error is fixed in fexec
-	// return policies.GetInitializeTestCalls()
+	return policies.GetInitializeTestCalls()
 }
 
 func getResetTestCalls() []testutils.TestCmd {
-	return ipsets.GetResetTestCalls()
-	// TODO update when piped error is fixed in fexec
-	// return append(ipsets.GetResetTestCalls(), policies.GetResetTestCalls()...)
+	return append(policies.GetResetTestCalls(), ipsets.GetResetTestCalls()...)
 }
 
 func getAddPolicyTestCallsForDP(networkPolicy *policies.NPMNetworkPolicy) []testutils.TestCmd {

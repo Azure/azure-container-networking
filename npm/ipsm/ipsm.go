@@ -644,6 +644,9 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	} else {
 		metrics.ResetNumIPSets()
 	}
+	// NOTE: in v2, we reset ipset entries, but in v1 we only remove entries for ipsets we delete.
+	// So v2 may underestimate the number of entries if there are destroy failures,
+	// but v1 may miss removing entries if some sets are in the prometheus metric but not in the kernel.
 
 	return nil
 }

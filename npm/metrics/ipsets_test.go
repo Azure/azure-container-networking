@@ -94,11 +94,19 @@ func assertNumEntriesAndCounts(t *testing.T, sets ...*testSet) {
 	expectedTotal := 0
 	for _, set := range sets {
 		val, exists := ipsetInventoryMap[set.name]
-		if !exists {
+		if exists && set.entryCount == 0 {
+			require.FailNowf(t, "", "expected set %s to not exist since we expect an entry count of 0", set.name)
+		}
+		if !exists && set.entryCount > 0 {
 			require.FailNowf(t, "", "expected set %s to exist in map for ipset entries", set.name)
 		}
 		if set.entryCount != val {
-			require.FailNowf(t, "", "set %s has incorrect number of entries. Expected %d, got %d", set.name, set.entryCount, val)
+			require.FailNowf(t, "", "set %s has incorrect number of entries in the map. Expected %d, got %d", set.name, set.entryCount, val)
+		}
+		prometheusVal, err := GetNumEntriesForIPSet(set.name)
+		require.NoError(t, err, "unexpectedly got an error when getting prometheus num entries for set %s", set.name)
+		if set.entryCount != prometheusVal {
+			require.FailNow(t, "", "set %s has incorrect number of entries in the Prometheus metric. Expected %d, got %d", set.name, set.entryCount, prometheusVal)
 		}
 		expectedTotal += val
 	}
@@ -107,15 +115,6 @@ func assertNumEntriesAndCounts(t *testing.T, sets ...*testSet) {
 	promutil.NotifyIfErrors(t, err)
 	if numEntries != expectedTotal {
 		require.FailNowf(t, "", "incorrect numver of entries. Expected %d, got %d", expectedTotal, numEntries)
-	}
-}
-
-func assertNotInMap(t *testing.T, setNames ...string) {
-	for _, setName := range setNames {
-		_, exists := ipsetInventoryMap[setName]
-		if exists {
-			require.FailNowf(t, "", "expected set %s to not exist in map for ipset entries", setName)
-		}
 	}
 }
 
@@ -160,8 +159,7 @@ func TestRemoveAllEntriesFromIPSet(t *testing.T) {
 	AddEntryToIPSet(testName1)
 	AddEntryToIPSet(testName2)
 	RemoveAllEntriesFromIPSet(testName1)
-	assertNotInMap(t, testName1)
-	assertNumEntriesAndCounts(t, &testSet{testName2, 1})
+	assertNumEntriesAndCounts(t, &testSet{testName1, 0}, &testSet{testName2, 1})
 	assertMapIsGood(t)
 }
 
@@ -175,8 +173,7 @@ func TestDeleteIPSet(t *testing.T) {
 	AddEntryToIPSet(testName2)
 	DeleteIPSet(testName1)
 	assertNumSets(t, 1)
-	assertNotInMap(t, testName1)
-	assertNumEntriesAndCounts(t, &testSet{testName2, 1})
+	assertNumEntriesAndCounts(t, &testSet{testName1, 0}, &testSet{testName2, 1})
 	assertMapIsGood(t)
 }
 
@@ -193,6 +190,6 @@ func TestResetIPSetEntries(t *testing.T) {
 	AddEntryToIPSet(testName1)
 	AddEntryToIPSet(testName2)
 	ResetIPSetEntries()
-	assertNotInMap(t, testName1, testName2)
+	assertNumEntriesAndCounts(t, &testSet{testName1, 0}, &testSet{testName2, 0})
 	assertMapIsGood(t)
 }

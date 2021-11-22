@@ -81,6 +81,9 @@ func DeleteIPSet(setName string) {
 // It doesn't ever update the number of IPSets.
 func ResetIPSetEntries() {
 	numIPSetEntries.Set(0)
+	for setName := range ipsetInventoryMap {
+		removeFromIPSetInventory(setName)
+	}
 	ipsetInventoryMap = make(map[string]int)
 }
 

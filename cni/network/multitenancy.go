@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -86,7 +86,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 
 	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
 	if jsonFile, retrieveSnatConfigErr = os.Open(snatFile); retrieveSnatConfigErr == nil {
-		bytes, _ := ioutil.ReadAll(jsonFile)
+		bytes, _ := io.ReadAll(jsonFile)
 		jsonFile.Close()
 		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
 			log.Errorf("[cni-net] failed to unmarshal to snatConfig with error %v",
@@ -110,7 +110,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 			if resp.StatusCode == http.StatusOK {
 				var bodyBytes []byte
 				// if the list of APIs (strings) contains the nmAgentSnatSupportAPI we will disable snat on host
-				if bodyBytes, retrieveSnatConfigErr = ioutil.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
+				if bodyBytes, retrieveSnatConfigErr = io.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
 					bodyStr := string(bodyBytes)
 					if !strings.Contains(bodyStr, nmAgentSnatAndDnsSupportAPI) {
 						snatConfig.EnableSnatForDns = true

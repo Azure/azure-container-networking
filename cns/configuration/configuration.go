@@ -3,7 +3,6 @@ package configuration
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -67,7 +66,12 @@ type ManagedSettings struct {
 	NodeSyncIntervalInSeconds int
 }
 
-func getConfigFilePath() (string, error) {
+func getConfigFilePath(cmdLineConfigPath string) (string, error) {
+	// If config path is set from cmd line, return that
+	if cmdLineConfigPath != "" {
+		return cmdLineConfigPath, nil
+	}
+
 	// Check if env set for config path otherwise use default path
 	configpath, found := os.LookupEnv(EnvCNSConfig)
 	if !found {
@@ -81,8 +85,8 @@ func getConfigFilePath() (string, error) {
 }
 
 // ReadConfig returns a CNS config from file or an error.
-func ReadConfig() (*CNSConfig, error) {
-	configpath, err := getConfigFilePath()
+func ReadConfig(cmdLineConfigPath string) (*CNSConfig, error) {
+	configpath, err := getConfigFilePath(cmdLineConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +97,7 @@ func ReadConfig() (*CNSConfig, error) {
 }
 
 func readConfigFromFile(f string) (*CNSConfig, error) {
-	content, err := ioutil.ReadFile(f)
+	content, err := os.ReadFile(f)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read config file %s", f)
 	}

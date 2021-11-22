@@ -6,16 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
-	"github.com/Azure/azure-container-networking/npm/metrics"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
-	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
@@ -56,20 +52,19 @@ type NetworkPolicyManager struct {
 	informerFactory informers.SharedInformerFactory
 	podInformer     coreinformers.PodInformer
 	nsInformer      coreinformers.NamespaceInformer
+	npInformer      networkinginformers.NetworkPolicyInformer
 
 	// V1 controllers (to be deprecated)
 	podControllerV1       *controllersv1.PodController
 	namespaceControllerV1 *controllersv1.NamespaceController
 	npmNamespaceCacheV1   *controllersv1.NpmNamespaceCache
+	netPolControllerV1    *controllersv1.NetworkPolicyController
 
 	// V2 controllers
 	podControllerV2       *controllersv2.PodController
 	namespaceControllerV2 *controllersv2.NamespaceController
-	netPolControllerV2    *controllersv2.NetworkPolicyController
 	npmNamespaceCacheV2   *controllersv2.NpmNamespaceCache
-
-	npInformer         networkinginformers.NetworkPolicyInformer
-	netPolControllerV1 *controllersv1.NetworkPolicyController
+	netPolControllerV2    *controllersv2.NetworkPolicyController
 
 	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management
 	// and uses lock to avoid unintentional race condictions in IpsetManager.
@@ -96,53 +91,62 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 		podInformer:      informerFactory.Core().V1().Pods(),
 		nsInformer:       informerFactory.Core().V1().Namespaces(),
 		npInformer:       informerFactory.Networking().V1().NetworkPolicies(),
-		ipsMgr:           ipsm.NewIpsetManager(exec),
 		k8sServerVersion: k8sServerVersion,
 		NodeName:         GetNodeName(),
 		version:          npmVersion,
 		TelemetryEnabled: true,
 	}
 
-	if npMgr.config.Toggles.EnableV2Controllers {
-		// initialize v2 cache
+	// create v2 NPM specific components.
+	if npMgr.config.Toggles.EnableV2NPM {
 		npMgr.npmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)}
-		// create pod controller
 		npMgr.podControllerV2 = controllersv2.NewPodController(npMgr.podInformer, dp, npMgr.npmNamespaceCacheV2)
-		// create NameSpace controller
 		npMgr.namespaceControllerV2 = controllersv2.NewNamespaceController(npMgr.nsInformer, dp, npMgr.npmNamespaceCacheV2)
-		// create Network Policy controller
+		// Question(jungukcho): Is config.Toggles.PlaceAzureChainFirst needed for v2?
 		npMgr.netPolControllerV2 = controllersv2.NewNetworkPolicyController(npMgr.npInformer, dp)
 		return npMgr
 	}
 
-	// initialize V1 cache
+	// create v1 NPM specific components.
+	npMgr.ipsMgr = ipsm.NewIpsetManager(exec)
 	npMgr.npmNamespaceCacheV1 = &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*controllersv1.Namespace)}
-	// create pod controller
 	npMgr.podControllerV1 = controllersv1.NewPodController(npMgr.podInformer, npMgr.ipsMgr, npMgr.npmNamespaceCacheV1)
-	// create NameSpace controller
 	npMgr.namespaceControllerV1 = controllersv1.NewNameSpaceController(npMgr.nsInformer, npMgr.ipsMgr, npMgr.npmNamespaceCacheV1)
-	// create network policy controller
-	npMgr.netPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.npInformer, npMgr.ipsMgr)
-
+	npMgr.netPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.npInformer, npMgr.ipsMgr, config.Toggles.PlaceAzureChainFirst)
 	return npMgr
 }
 
 func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 	m := map[CacheKey]json.RawMessage{}
 
-	npmNamespaceCacheRaw, err := json.Marshal(npMgr.npmNamespaceCacheV1)
+	var npmNamespaceCacheRaw []byte
+	var err error
+	if npMgr.config.Toggles.EnableV2NPM {
+		npmNamespaceCacheRaw, err = json.Marshal(npMgr.npmNamespaceCacheV2)
+	} else {
+		npmNamespaceCacheRaw, err = json.Marshal(npMgr.npmNamespaceCacheV1)
+	}
+
 	if err != nil {
 		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
 	}
 	m[NsMap] = npmNamespaceCacheRaw
 
-	podControllerRaw, err := json.Marshal(npMgr.podControllerV1)
+	var podControllerRaw []byte
+	if npMgr.config.Toggles.EnableV2NPM {
+		podControllerRaw, err = json.Marshal(npMgr.podControllerV2)
+	} else {
+		podControllerRaw, err = json.Marshal(npMgr.podControllerV1)
+	}
+
 	if err != nil {
 		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
 	}
 	m[PodMap] = podControllerRaw
 
-	if npMgr.ipsMgr != nil {
+	// TODO(jungukcho): NPM debug may be broken.
+	// Will fix it later after v2 controller and linux test if it is broken.
+	if !npMgr.config.Toggles.EnableV2NPM && npMgr.ipsMgr != nil {
 		listMapRaw, listMapMarshalErr := npMgr.ipsMgr.MarshalListMapJSON()
 		if listMapMarshalErr != nil {
 			return nil, errors.Errorf("%s: %v", errMarshalNPMCache, listMapMarshalErr)
@@ -180,52 +184,10 @@ func GetAIMetadata() string {
 	return aiMetadata
 }
 
-// SendClusterMetrics :- send NPM cluster metrics using AppInsights
-// TODO(jungukcho): need to move codes into metrics packages
-func (npMgr *NetworkPolicyManager) SendClusterMetrics() {
-	var (
-		heartbeat        = time.NewTicker(time.Minute * heartbeatIntervalInMinutes).C
-		customDimensions = map[string]string{
-			"ClusterID": util.GetClusterID(npMgr.NodeName),
-			"APIServer": npMgr.k8sServerVersion.String(),
-		}
-		podCount = aitelemetry.Metric{
-			Name:             "PodCount",
-			CustomDimensions: customDimensions,
-		}
-		nsCount = aitelemetry.Metric{
-			Name:             "NsCount",
-			CustomDimensions: customDimensions,
-		}
-		nwPolicyCount = aitelemetry.Metric{
-			Name:             "NwPolicyCount",
-			CustomDimensions: customDimensions,
-		}
-	)
-
-	for {
-		<-heartbeat
-
-		// Reducing one to remove all-namespaces ns obj
-		lenOfNsMap := len(npMgr.npmNamespaceCacheV1.NsMap)
-		nsCount.Value = float64(lenOfNsMap - 1)
-
-		lenOfRawNpMap := npMgr.netPolControllerV1.LengthOfRawNpMap()
-		nwPolicyCount.Value += float64(lenOfRawNpMap)
-
-		lenOfPodMap := npMgr.podControllerV1.LengthOfPodMap()
-		podCount.Value += float64(lenOfPodMap)
-
-		metrics.SendMetric(podCount)
-		metrics.SendMetric(nsCount)
-		metrics.SendMetric(nwPolicyCount)
-	}
-}
-
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
-	// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
-	if !config.Toggles.EnableV2Controllers {
+	if !config.Toggles.EnableV2NPM {
+		// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
 		if err := npMgr.netPolControllerV1.ResetDataPlane(); err != nil {
 			return fmt.Errorf("Failed to initialized data plane with err %w", err)
 		}
@@ -247,16 +209,15 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 		return fmt.Errorf("Network policy informer failed to sync")
 	}
 
-	if config.Toggles.EnableV2Controllers {
+	// start v2 NPM controllers after synced
+	if config.Toggles.EnableV2NPM {
 		go npMgr.podControllerV2.Run(stopCh)
 		go npMgr.namespaceControllerV2.Run(stopCh)
-		// TODO add in netpol controller v2
 		go npMgr.netPolControllerV2.Run(stopCh)
-		// go npMgr.netPolControllerV1.RunPeriodicTasks(stopCh)
 		return nil
 	}
 
-	// start controllers after synced
+	// start v1 NPM controllers after synced
 	go npMgr.podControllerV1.Run(stopCh)
 	go npMgr.namespaceControllerV1.Run(stopCh)
 	go npMgr.netPolControllerV1.Run(stopCh)

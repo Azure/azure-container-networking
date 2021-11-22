@@ -37,6 +37,8 @@ type IPSetManagerCfg struct {
 	NetworkName string
 }
 
+// TODO delegate prometheus metrics logic to OS-specific ones?
+
 func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetManager {
 	return &IPSetManager{
 		iMgrCfg:            iMgrCfg,
@@ -67,6 +69,7 @@ func (iMgr *IPSetManager) CreateIPSets(setMetadatas []*IPSetMetadata) {
 }
 
 func (iMgr *IPSetManager) createIPSet(setMetadata *IPSetMetadata) {
+	// TODO (vamsi) check for os specific restrictions on ipsets
 	prefixedName := setMetadata.GetPrefixName()
 	if iMgr.exists(prefixedName) {
 		return

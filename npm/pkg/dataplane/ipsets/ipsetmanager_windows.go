@@ -172,27 +172,43 @@ func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
 
 func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, operation hcn.RequestType, setPolicies map[string]*hcn.SetPolicySetting) error {
 	klog.Infof("[IPSetManager Windows] %s operation on set policies is called", operation)
-	policyRequest, err := getPolicyNetworkRequestMarshal(setPolicies, operation)
-	if err != nil {
-		klog.Infof("[IPSetManager Windows] Failed to marshal %s operations sets with error %s", operation, err.Error())
-		return err
-	}
+	/*
+		Due to complexities in HNS, we need to do the following:
+		for (Add)
+			1. Add 1st level set policies to HNS
+			2. then add nested set policies to HNS
 
-	if policyRequest == nil {
-		klog.Infof("[IPSetManager Windows] No Policies to apply")
-		return nil
+		for (delete)
+			1. delete nested set policies from HNS
+			2. then delete 1st level set policies from HNS
+	*/
+	policySettingsOrder := []hcn.SetPolicyType{hcn.SetPolicyTypeIpSet, SetPolicyTypeNestedIPSet}
+	if operation == hcn.RequestTypeRemove {
+		policySettingsOrder = []hcn.SetPolicyType{SetPolicyTypeNestedIPSet, hcn.SetPolicyTypeIpSet}
 	}
+	for _, policyType := range policySettingsOrder {
+		policyRequest, err := getPolicyNetworkRequestMarshal(setPolicies, policyType)
+		if err != nil {
+			klog.Infof("[IPSetManager Windows] Failed to marshal %s operations sets with error %s", operation, err.Error())
+			return err
+		}
 
-	requestMessage := &hcn.ModifyNetworkSettingRequest{
-		ResourceType: hcn.NetworkResourceTypePolicy,
-		RequestType:  operation,
-		Settings:     policyRequest,
-	}
+		if policyRequest == nil {
+			klog.Infof("[IPSetManager Windows] No Policies to apply")
+			return nil
+		}
 
-	err = iMgr.ioShim.Hns.ModifyNetworkSettings(network, requestMessage)
-	if err != nil {
-		klog.Infof("[IPSetManager Windows] %s operation has failed with error %s", operation, err.Error())
-		return err
+		requestMessage := &hcn.ModifyNetworkSettingRequest{
+			ResourceType: hcn.NetworkResourceTypePolicy,
+			RequestType:  operation,
+			Settings:     policyRequest,
+		}
+
+		err = iMgr.ioShim.Hns.ModifyNetworkSettings(network, requestMessage)
+		if err != nil {
+			klog.Infof("[IPSetManager Windows] %s operation has failed with error %s", operation, err.Error())
+			return err
+		}
 	}
 	return nil
 }
@@ -234,37 +250,32 @@ func (setPolicyBuilder *networkPolicyBuilder) setNameExists(setName string) bool
 	return ok
 }
 
-func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicySetting, operation hcn.RequestType) ([]byte, error) {
-	policyNetworkRequest := &hcn.PolicyNetworkRequest{
-		Policies: make([]hcn.NetworkPolicy, len(setPolicySettings)),
-	}
-
+func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicySetting, policyType hcn.SetPolicyType) ([]byte, error) {
 	if len(setPolicySettings) == 0 {
 		klog.Info("[Dataplane Windows] no set policies to apply on network")
 		return nil, nil
 	}
-
-	idx := 0
-	policySettingsOrder := []hcn.SetPolicyType{SetPolicyTypeNestedIPSet, hcn.SetPolicyTypeIpSet}
-	if operation == hcn.RequestTypeRemove {
-		policySettingsOrder = []hcn.SetPolicyType{hcn.SetPolicyTypeIpSet, SetPolicyTypeNestedIPSet}
+	klog.Infof("[Dataplane Windows] marshalling %s type of sets", policyType)
+	policyNetworkRequest := &hcn.PolicyNetworkRequest{
+		Policies: make([]hcn.NetworkPolicy, 0),
 	}
-	for _, policyType := range policySettingsOrder {
-		for setPol := range setPolicySettings {
-			if setPolicySettings[setPol].PolicyType != policyType {
-				continue
-			}
-			klog.Infof("Found set pol %+v", setPolicySettings[setPol])
-			rawSettings, err := json.Marshal(setPolicySettings[setPol])
-			if err != nil {
-				return nil, err
-			}
-			policyNetworkRequest.Policies[idx] = hcn.NetworkPolicy{
+
+	for setPol := range setPolicySettings {
+		if setPolicySettings[setPol].PolicyType != policyType {
+			continue
+		}
+		klog.Infof("Found set pol %+v", setPolicySettings[setPol])
+		rawSettings, err := json.Marshal(setPolicySettings[setPol])
+		if err != nil {
+			return nil, err
+		}
+		policyNetworkRequest.Policies = append(
+			policyNetworkRequest.Policies,
+			hcn.NetworkPolicy{
 				Type:     hcn.SetPolicy,
 				Settings: rawSettings,
-			}
-			idx++
-		}
+			},
+		)
 	}
 
 	policyReqSettings, err := json.Marshal(policyNetworkRequest)

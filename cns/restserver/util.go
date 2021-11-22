@@ -454,6 +454,11 @@ func (service *HTTPRestService) restoreNetworkState() error {
 		return nil
 	}
 
+	if !service.store.Exists() {
+		logger.Printf("[Azure CNS] Store does not exist, nothing to restore for network state.")
+		return nil
+	}
+
 	rebooted := false
 	modTime, err := service.store.GetModificationTime()
 

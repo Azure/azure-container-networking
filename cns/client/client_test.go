@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -55,7 +55,7 @@ type mockdo struct {
 
 func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 	byteArray, _ := json.Marshal(m.objToReturn)
-	body := ioutil.NopCloser(bytes.NewReader(byteArray))
+	body := io.NopCloser(bytes.NewReader(byteArray))
 
 	return &http.Response{
 		StatusCode: m.httpStatusCodeToReturn,
@@ -146,8 +146,8 @@ func TestMain(m *testing.M) {
 		res  *http.Response
 	)
 
-	tmpFileState, err := ioutil.TempFile(os.TempDir(), "cns-*.json")
-	tmpLogDir, err := ioutil.TempDir("", "cns-")
+	tmpFileState, err := os.CreateTemp(os.TempDir(), "cns-*.json")
+	tmpLogDir, err := os.MkdirTemp("", "cns-")
 	fmt.Printf("logdir: %+v", tmpLogDir)
 
 	if err != nil {

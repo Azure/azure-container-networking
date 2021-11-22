@@ -21,6 +21,9 @@ const (
 
 // iptables related constants.
 const (
+	PlaceAzureChainAfterKubeServices = false
+	PlaceAzureChainFirst             = true
+
 	Iptables                   string = "iptables"
 	Ip6tables                  string = "ip6tables" //nolint (avoid warning to capitalize this p)
 	IptablesSave               string = "iptables-save"

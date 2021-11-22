@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -31,7 +32,7 @@ type Converter struct {
 
 // NpmCacheFromFile initialize NPM cache from file.
 func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
-	byteArray, err := ioutil.ReadFile(npmCacheJSONFile)
+	byteArray, err := os.ReadFile(npmCacheJSONFile)
 	if err != nil {
 		return fmt.Errorf("failed to read %s file : %w", npmCacheJSONFile, err)
 	}
@@ -60,7 +61,7 @@ func (c *Converter) NpmCache() error {
 		return fmt.Errorf("failed to request NPM Cache : %w", err)
 	}
 	defer resp.Body.Close()
-	byteArray, err := ioutil.ReadAll(resp.Body)
+	byteArray, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response's data : %w", err)
 	}

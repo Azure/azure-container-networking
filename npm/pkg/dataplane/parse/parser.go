@@ -3,7 +3,7 @@ package parse
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
@@ -44,7 +44,7 @@ func Iptables(tableName string) (*NPMIPtable.Table, error) {
 // IptablesFile creates a Go object from specified iptable by reading from an iptables-save file.
 func IptablesFile(tableName string, iptableSaveFile string) (*NPMIPtable.Table, error) {
 	iptableBuffer := bytes.NewBuffer(nil)
-	byteArray, err := ioutil.ReadFile(iptableSaveFile)
+	byteArray, err := os.ReadFile(iptableSaveFile)
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
