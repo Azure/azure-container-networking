@@ -192,7 +192,7 @@ type NPMSimpleError struct {
 }
 
 func SimpleError(errstring string) *NPMSimpleError {
-	return nil
+	return &NPMSimpleError{fmt.Errorf("%s", errstring)}
 }
 
 func SimpleErrorWrapper(errstring string, err error) *NPMSimpleError {
