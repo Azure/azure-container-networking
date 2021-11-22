@@ -56,8 +56,8 @@ type PolicyManagerCfg struct {
 	Mode PolicyManagerMode
 }
 
-func (pMgr *PolicyManager) Reset() error {
-	if err := pMgr.reset(); err != nil {
+func (pMgr *PolicyManager) Reset(epIDs []string) error {
+	if err := pMgr.reset(epIDs); err != nil {
 		return npmerrors.ErrorWrapper(npmerrors.ResetPolicyMgr, false, "failed to reset policy manager", err)
 	}
 	return nil

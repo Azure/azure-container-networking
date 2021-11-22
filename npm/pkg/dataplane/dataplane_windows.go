@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Microsoft/hcsshim/hcn"
 	"k8s.io/klog"
 )
@@ -39,6 +40,24 @@ func (dp *DataPlane) initializeDataPlane() error {
 		return err
 	}
 
+	return nil
+}
+
+func (dp *DataPlane) resetDataPlane() error {
+	// initialize the DP so the podendpoints will get updated.
+	if err := dp.initializeDataPlane(); err != nil {
+		return err
+	}
+
+	epIDs := dp.getAllEndpointIDs()
+
+	// It is important to keep order to clean-up ACLs before ipsets. Otherwise we won't be able to delete ipsets referenced by ACLs
+	if err := dp.policyMgr.Reset(epIDs); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset policy dataplane", err)
+	}
+	if err := dp.ipsetMgr.ResetIPSets(); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset ipsets dataplane", err)
+	}
 	return nil
 }
 
@@ -195,10 +214,6 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 	return endpointList, nil
 }
 
-func (dp *DataPlane) resetDataPlane() error {
-	return nil
-}
-
 func (dp *DataPlane) getAllPodEndpoints() ([]hcn.HostComputeEndpoint, error) {
 	klog.Infof("Getting all endpoints for Network ID %s", dp.networkID)
 	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
@@ -268,4 +283,12 @@ func (dp *DataPlane) getEndpointByIP(podIP string) (*NPMEndpoint, error) {
 	}
 
 	return nil, nil
+}
+
+func (dp *DataPlane) getAllEndpointIDs() []string {
+	endpointIDs := make([]string, 0, len(dp.endpointCache))
+	for _, endpoint := range dp.endpointCache {
+		endpointIDs = append(endpointIDs, endpoint.ID)
+	}
+	return endpointIDs
 }

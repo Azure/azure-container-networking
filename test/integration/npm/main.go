@@ -149,7 +149,7 @@ func main() {
 func testPolicyManager() {
 	pMgr := policies.NewPolicyManager(common.NewIOShim())
 
-	panicOnError(pMgr.Reset())
+	panicOnError(pMgr.Reset(nil))
 	printAndWait(false)
 
 	panicOnError(pMgr.Initialize())

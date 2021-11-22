@@ -4,17 +4,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Microsoft/hcsshim/hcn"
 	"k8s.io/klog"
 )
 
 var (
-	ErrFailedMarshalACLSettings   = errors.New("Failed to marshal ACL settings")
-	ErrFailedUnMarshalACLSettings = errors.New("Failed to unmarshal ACL settings")
+	ErrFailedMarshalACLSettings                      = errors.New("Failed to marshal ACL settings")
+	ErrFailedUnMarshalACLSettings                    = errors.New("Failed to unmarshal ACL settings")
+	resetAllACLs                  shouldResetAllACLs = true
+	removeOnlyGivenPolicy         shouldResetAllACLs = false
 )
 
 type staleChains struct{} // unused in Windows
+
+type shouldResetAllACLs bool
 
 type endpointPolicyBuilder struct {
 	aclPolicies   []*NPMACLPolSettings
@@ -35,9 +40,16 @@ func (pMgr *PolicyManager) initialize() error {
 	return nil
 }
 
-func (pMgr *PolicyManager) reset() error {
-	// TODO
-	return nil
+func (pMgr *PolicyManager) reset(epIDs []string) error {
+	var aggregateErr error
+	for _, epID := range epIDs {
+		err := pMgr.removePolicyByEndpointID("", epID, 0, resetAllACLs)
+		if err != nil {
+			aggregateErr = fmt.Errorf("[DataPlane Windows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
+			continue
+		}
+	}
+	return aggregateErr
 }
 
 func (pMgr *PolicyManager) reconcile() {
@@ -120,37 +132,11 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 	// but if the bug is not solved then get all existing policies and remove relevant policies from list
 	// then apply remaining policies onto the endpoint
 	var aggregateErr error
+	noOfRulesToRemove := len(rulesToRemove)
 	for epIPAddr, epID := range endpointList {
-		epObj, err := pMgr.getEndpointByID(epID)
-		if err != nil {
-			// Do not return if one endpoint fails, try all endpoints.
-			// aggregate the error message and return it at the end
-			aggregateErr = fmt.Errorf("[DataPlane Windows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
-			continue
-		}
-		if len(epObj.Policies) == 0 {
-			klog.Infof("[DataPlanewindows] No Policies to remove on %s ID Endpoint", epID)
-			continue
-		}
-
-		epBuilder, err := splitEndpointPolicies(epObj.Policies)
+		err := pMgr.removePolicyByEndpointID(rulesToRemove[0].Id, epID, noOfRulesToRemove, removeOnlyGivenPolicy)
 		if err != nil {
 			aggregateErr = fmt.Errorf("[DataPlane Windows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
-			continue
-		}
-
-		epBuilder.compareAndRemovePolicies(rulesToRemove[0].Id, len(rulesToRemove))
-		klog.Infof("[DataPlanewindows] Epbuilder ACL policies before removing %+v", epBuilder.aclPolicies)
-		klog.Infof("[DataPlanewindows] Epbuilder Other policies before removing %+v", epBuilder.otherPolicies)
-		epPolicies, err := epBuilder.getHCNPolicyRequest()
-		if err != nil {
-			aggregateErr = fmt.Errorf("[DataPlanewindows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
-			continue
-		}
-
-		err = pMgr.updatePoliciesOnEndpoint(epObj, epPolicies)
-		if err != nil {
-			aggregateErr = fmt.Errorf("[DataPlanewindows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
 			continue
 		}
 
@@ -158,6 +144,50 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 		delete(policy.PodEndpoints, epIPAddr)
 	}
 
+	return aggregateErr
+}
+
+func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRulesToRemove int, resetAllACL shouldResetAllACLs) error {
+	epObj, err := pMgr.getEndpointByID(epID)
+	var aggregateErr error
+	if err != nil {
+		// Do not return if one endpoint fails, try all endpoints.
+		// aggregate the error message and return it at the end
+		aggregateErr = fmt.Errorf("[DataPlane Windows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
+	}
+	if len(epObj.Policies) == 0 {
+		klog.Infof("[DataPlanewindows] No Policies to remove on %s ID Endpoint", epID)
+	}
+
+	epBuilder, err := splitEndpointPolicies(epObj.Policies)
+	if err != nil {
+		aggregateErr = fmt.Errorf("[DataPlane Windows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
+	}
+
+	if resetAllACL {
+		klog.Infof("[DataPlane Windows] Resetting all ACL Policies on %s ID Endpoint", epID)
+		if !epBuilder.resetAllNPMAclPolicies() {
+			klog.Infof("[DataPlane Windows] No Azure-NPM ACL Policies on %s ID Endpoint to reset", epID)
+			return nil
+		}
+	} else {
+		klog.Infof("[DataPlane Windows] Resetting only ACL Policies with %s ID on %s ID Endpoint", ruleID, epID)
+		if !epBuilder.compareAndRemovePolicies(ruleID, noOfRulesToRemove) {
+			klog.Infof("[DataPlane Windows] No Policies with ID %s on %s ID Endpoint", ruleID, epID)
+			return nil
+		}
+	}
+	klog.Infof("[DataPlanewindows] Epbuilder ACL policies before removing %+v", epBuilder.aclPolicies)
+	klog.Infof("[DataPlanewindows] Epbuilder Other policies before removing %+v", epBuilder.otherPolicies)
+	epPolicies, err := epBuilder.getHCNPolicyRequest()
+	if err != nil {
+		aggregateErr = fmt.Errorf("[DataPlanewindows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
+	}
+
+	err = pMgr.updatePoliciesOnEndpoint(epObj, epPolicies)
+	if err != nil {
+		aggregateErr = fmt.Errorf("[DataPlanewindows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
+	}
 	return aggregateErr
 }
 
@@ -283,12 +313,13 @@ func (epBuilder *endpointPolicyBuilder) compareAndRemovePolicies(ruleIDToRemove 
 			aclFound = true
 		}
 	}
-	epBuilder.removeACLPolicyAtIndex(toDeleteIndexes)
 	// If ACl Policies are not found, it means that we might have removed them earlier
 	// or never applied them
 	if !aclFound {
 		klog.Infof("[DataPlane Windows] ACL with ID %s is not Found in Dataplane", ruleIDToRemove)
+		return aclFound
 	}
+	epBuilder.removeACLPolicyAtIndex(toDeleteIndexes)
 	// if there are still rules to remove, it means that we might have not added all the policies in the add
 	// case and were only able to find a portion of the rules to remove
 	if lenOfRulesToRemove > 0 {
@@ -297,11 +328,33 @@ func (epBuilder *endpointPolicyBuilder) compareAndRemovePolicies(ruleIDToRemove 
 	return aclFound
 }
 
-func (epBuilder *endpointPolicyBuilder) resetAllNPMAclPolicies() {
-	epBuilder.aclPolicies = []*NPMACLPolSettings{}
+func (epBuilder *endpointPolicyBuilder) resetAllNPMAclPolicies() bool {
+	if len(epBuilder.aclPolicies) == 0 {
+		return false
+	}
+	aclFound := false
+	toDeleteIndexes := map[int]struct{}{}
+	for i, acl := range epBuilder.aclPolicies {
+		// First check if ID is present and equal, this saves compute cycles to compare both objects
+		if strings.HasPrefix(acl.Id, policyIDPrefix) {
+			// Remove the ACL policy from the list
+			klog.Infof("[DataPlane Windows] Found ACL with ID %s and removing it", acl.Id)
+			toDeleteIndexes[i] = struct{}{}
+			aclFound = true
+		}
+	}
+	if len(toDeleteIndexes) == len(epBuilder.aclPolicies) {
+		epBuilder.aclPolicies = []*NPMACLPolSettings{}
+		return aclFound
+	}
+	epBuilder.removeACLPolicyAtIndex(toDeleteIndexes)
+	return aclFound
 }
 
 func (epBuilder *endpointPolicyBuilder) removeACLPolicyAtIndex(indexes map[int]struct{}) {
+	if len(indexes) == 0 {
+		return
+	}
 	tempAclPolicies := []*NPMACLPolSettings{}
 	for i, acl := range epBuilder.aclPolicies {
 		if _, ok := indexes[i]; !ok {

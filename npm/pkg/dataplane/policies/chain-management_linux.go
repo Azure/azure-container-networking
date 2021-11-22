@@ -100,7 +100,7 @@ func (pMgr *PolicyManager) initialize() error {
 	return nil
 }
 
-func (pMgr *PolicyManager) reset() error {
+func (pMgr *PolicyManager) reset(_ []string) error {
 	if err := pMgr.removeNPMChains(); err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to remove NPM chains", err)
 	}

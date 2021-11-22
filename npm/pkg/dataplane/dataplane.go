@@ -101,13 +101,6 @@ func (dp *DataPlane) InitializeDataPlane() error {
 // ResetDataPlane helps in cleaning up dataplane sets and policies programmed
 // by NPM, returning a clean slate
 func (dp *DataPlane) ResetDataPlane() error {
-	// It is important to keep order to clean-up ACLs before ipsets. Otherwise we won't be able to delete ipsets referenced by ACLs
-	if err := dp.policyMgr.Reset(); err != nil {
-		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset policy dataplane", err)
-	}
-	if err := dp.ipsetMgr.ResetIPSets(); err != nil {
-		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset ipsets dataplane", err)
-	}
 	return dp.resetDataPlane()
 }
 
