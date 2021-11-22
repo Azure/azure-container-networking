@@ -29,7 +29,7 @@ var (
 		ipsets.TestCIDRSet.HashedName,
 		ipsets.TestKeyPodSet.HashedName,
 	)
-	testACLRule2 = fmt.Sprintf("-j AZURE-NPM-EGRESS -p udp -m set --match-set %s src -m comment --comment comment2", ipsets.TestCIDRSet.HashedName)
+	testACLRule2 = fmt.Sprintf("-j AZURE-NPM-INGRESS-ALLOW-MARK -p udp -m set --match-set %s src -m comment --comment comment2", ipsets.TestCIDRSet.HashedName)
 	testACLRule3 = fmt.Sprintf("-j MARK --set-mark 0x5000 -p udp --dport 144 -m set --match-set %s src -m comment --comment comment3", ipsets.TestCIDRSet.HashedName)
 	testACLRule4 = fmt.Sprintf("-j AZURE-NPM-ACCEPT -p all -m set --match-set %s src -m comment --comment comment4", ipsets.TestCIDRSet.HashedName)
 )
