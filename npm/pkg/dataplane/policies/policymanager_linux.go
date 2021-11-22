@@ -183,7 +183,7 @@ func writeNetworkPolicyRules(creator *ioutil.FileCreator, networkPolicy *NPMNetw
 		if aclPolicy.hasIngress() {
 			chainName = networkPolicy.ingressChainName()
 			if aclPolicy.Target == Allowed {
-				actionSpecs = []string{util.IptablesJumpFlag, util.IptablesAzureEgressChain}
+				actionSpecs = []string{util.IptablesJumpFlag, util.IptablesAzureIngressAllowMarkChain}
 			} else {
 				actionSpecs = setMarkSpecs(util.IptablesAzureIngressDropMarkHex)
 			}
