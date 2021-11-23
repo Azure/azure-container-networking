@@ -108,10 +108,10 @@ func (aclPolicy *ACLPolicy) hasEgress() bool {
 }
 
 func (aclPolicy *ACLPolicy) hasKnownProtocol() bool {
-	return aclPolicy.Protocol != "" && (aclPolicy.Protocol == TCP ||
+	return aclPolicy.Protocol == TCP ||
 		aclPolicy.Protocol == UDP ||
 		aclPolicy.Protocol == SCTP ||
-		aclPolicy.Protocol == AnyProtocol)
+		aclPolicy.Protocol == AnyProtocol
 }
 
 func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
