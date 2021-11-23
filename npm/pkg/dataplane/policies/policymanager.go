@@ -99,7 +99,7 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return nil
 	}
 	normalizePolicy(policy)
-	if err := checkForErrors(policy); err != nil {
+	if err := validatePolicy(policy); err != nil {
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("couldn't add malformed policy: %s", err.Error()))
 	}
 
@@ -153,16 +153,16 @@ func normalizePolicy(networkPolicy *NPMNetworkPolicy) {
 }
 
 // TODO do verification in controller?
-func checkForErrors(networkPolicy *NPMNetworkPolicy) error {
+func validatePolicy(networkPolicy *NPMNetworkPolicy) error {
 	for _, aclPolicy := range networkPolicy.ACLs {
 		if !aclPolicy.hasKnownTarget() {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown target", aclPolicy.PolicyID))
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown target [%s]", aclPolicy.PolicyID, aclPolicy.Target))
 		}
 		if !aclPolicy.hasKnownDirection() {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown direction", aclPolicy.PolicyID))
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown direction [%s]", aclPolicy.PolicyID, aclPolicy.Direction))
 		}
 		if !aclPolicy.hasKnownProtocol() {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown protocol (set to All if desired)", aclPolicy.PolicyID))
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown protocol [%s]", aclPolicy.PolicyID, aclPolicy.Protocol))
 		}
 		if !aclPolicy.satisifiesPortAndProtocolConstraints() {
 			return npmerrors.SimpleError(fmt.Sprintf(
