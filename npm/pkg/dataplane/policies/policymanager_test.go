@@ -106,3 +106,48 @@ func TestRemovePolicy(t *testing.T) {
 
 	require.NoError(t, pMgr.RemovePolicy("test/test-netpol", nil))
 }
+
+func TestNormalizeAndValidatePolicy(t *testing.T) {
+	tests := []struct {
+		name    string
+		acl     *ACLPolicy
+		wantErr bool
+	}{
+		{
+			name: "valid policy",
+			acl: &ACLPolicy{
+				PolicyID:  "valid-acl",
+				Target:    Dropped,
+				Direction: Ingress,
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid protocol",
+			acl: &ACLPolicy{
+				PolicyID:  "bad-protocol-acl",
+				Target:    Dropped,
+				Direction: Ingress,
+				Protocol:  "invalid",
+			},
+			wantErr: true,
+		},
+		// TODO add other invalid cases
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			netPol := &NPMNetworkPolicy{
+				Name: "test-netpol",
+				ACLs: []*ACLPolicy{tt.acl},
+			}
+			normalizePolicy(netPol)
+			err := validatePolicy(netPol)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
