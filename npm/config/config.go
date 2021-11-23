@@ -1,7 +1,7 @@
 package npmconfig
 
 const (
-	defaultResyncPeriod  = 15
+	defaultResyncPeriod  = 0
 	defaultListeningPort = 10091
 
 	// ConfigEnvPath is what's used by viper to load config path

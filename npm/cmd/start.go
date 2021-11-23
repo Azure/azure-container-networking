@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -99,10 +98,7 @@ func start(config npmconfig.Config) error {
 
 	// Setting reSyncPeriod
 	minResyncPeriod := time.Duration(config.ResyncPeriodInMinutes) * time.Minute
-
-	// Adding some randomness so all NPM pods will not request for info at once.
-	factor := rand.Float64() + 1
-	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
+	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()))
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
