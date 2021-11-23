@@ -216,11 +216,11 @@ for delete:
 - skip the delete if it fails for any reason
 
 overall format for ipset restore file:
-	[flushes]  (random order)
-	[destroys] (random order)
 	[creates]  (random order)
 	[deletes and adds for sets already in the kernel] (in order of occurrence in save file, deletes first (in random order), then adds (in random order))
 	[adds for new sets] (random order for sets and members)
+	[flushes]  (random order)
+	[destroys] (random order)
 
 example where every set in add/update cache should have ip 1.2.3.4 and 2.3.4.5:
 	save file showing current kernel state:
@@ -232,12 +232,6 @@ example where every set in add/update cache should have ip 1.2.3.4 and 2.3.4.5:
 		add set-in-kernel-1 3.3.3.3
 
 	restore file: [flag meanings: -F (flush), -X (destroy), -N (create), -D (delete), -A (add)]
-		-F set-to-delete2
-		-F set-to-delete3
-		-F set-to-delete1
-		-X set-to-delete2
-		-X set-to-delete3
-		-X set-to-delete1
 		-N new-set-2
 		-N set-in-kernel-2
 		-N set-in-kernel-1
@@ -255,6 +249,12 @@ example where every set in add/update cache should have ip 1.2.3.4 and 2.3.4.5:
 		-A new-set-1 1.2.3.4
 		-A new-set-3 1.2.3.4
 		-A new-set-3 2.3.4.5
+		-F set-to-delete2
+		-F set-to-delete3
+		-F set-to-delete1
+		-X set-to-delete2
+		-X set-to-delete3
+		-X set-to-delete1
 
 */
 func (iMgr *IPSetManager) applyIPSets() error {
@@ -290,36 +290,44 @@ func (iMgr *IPSetManager) ipsetSave() ([]byte, error) {
 func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) *ioutil.FileCreator {
 	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern) // TODO make the line failure pattern into a definition constant eventually
 
-	// flush all sets first so we don't try to delete an ipset referenced by a list we're deleting too
-	for prefixedName := range iMgr.toDeleteCache {
-		iMgr.flushSetInFile(creator, prefixedName)
-	}
-	for prefixedName := range iMgr.toDeleteCache {
-		iMgr.destroySetInFile(creator, prefixedName)
-	}
-
-	// create all sets first so we don't try to add a member set to a list if it hasn't been created yet
+	// 1. create all sets first so we don't try to add a member set to a list if it hasn't been created yet
 	for prefixedName := range iMgr.toAddOrUpdateCache {
 		set := iMgr.setMap[prefixedName]
-		iMgr.createSetInFile(creator, set)
+		iMgr.createSetForApply(creator, set)
 	}
 
-	// for dirty sets already in the kernel, update members (add members not in the kernel, and delete undesired members in the kernel)
+	// 2. for dirty sets already in the kernel, update members (add members not in the kernel, and delete undesired members in the kernel)
 	iMgr.updateDirtyKernelSets(saveFile, creator)
 
-	// for the remaining dirty sets, add their members to the kernel
+	// 3. for the remaining dirty sets, add their members to the kernel
 	for prefixedName := range iMgr.toAddOrUpdateCache {
 		set := iMgr.setMap[prefixedName]
 		sectionID := sectionID(addOrUpdateSectionPrefix, prefixedName)
 		if set.Kind == HashSet {
 			for ip := range set.IPPodKey {
-				iMgr.addMemberInFile(creator, set, sectionID, ip)
+				iMgr.addMemberForApply(creator, set, sectionID, ip)
 			}
 		} else {
 			for _, member := range set.MemberIPSets {
-				iMgr.addMemberInFile(creator, set, sectionID, member.HashedName)
+				iMgr.addMemberForApply(creator, set, sectionID, member.HashedName)
 			}
 		}
+	}
+
+	/*
+		4. flush and destroy sets in the original delete cache
+
+		We must perform this step after member deletions because of the following scenario:
+		Suppose we want to destroy set A, which is referenced by list L. For set A to be in the toDeleteCache,
+		we must have deleted the reference in list L, so list L is in the toAddOrUpdateCache. In step 2, we will delete this reference,
+		but until then, set A is in use by a kernel component and can't be destroyed.
+	*/
+	// flush all sets first in case a set we're destroying is referenced by a list we're destroying
+	for prefixedName := range iMgr.toDeleteCache {
+		iMgr.flushSetForApply(creator, prefixedName)
+	}
+	for prefixedName := range iMgr.toDeleteCache {
+		iMgr.destroySetForApply(creator, prefixedName)
 	}
 	return creator
 }
@@ -416,11 +424,11 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil
 		// delete undesired members from restore file
 		sectionID := sectionID(addOrUpdateSectionPrefix, prefixedName)
 		for member := range membersToDelete {
-			iMgr.deleteMemberInFile(creator, set, sectionID, member)
+			iMgr.deleteMemberForApply(creator, set, sectionID, member)
 		}
 		// add new members to restore file
 		for member := range membersToAdd {
-			iMgr.addMemberInFile(creator, set, sectionID, member)
+			iMgr.addMemberForApply(creator, set, sectionID, member)
 		}
 	}
 }
@@ -466,7 +474,7 @@ func hasPrefix(line []byte, prefix string) bool {
 	return len(line) >= len(prefix) && string(line[:len(prefix)]) == prefix
 }
 
-func (iMgr *IPSetManager) flushSetInFile(creator *ioutil.FileCreator, prefixedName string) {
+func (iMgr *IPSetManager) flushSetForApply(creator *ioutil.FileCreator, prefixedName string) {
 	errorHandlers := []*ioutil.LineErrorHandler{
 		{
 			Definition: setDoesntExistDefinition,
@@ -490,7 +498,7 @@ func (iMgr *IPSetManager) flushSetInFile(creator *ioutil.FileCreator, prefixedNa
 	creator.AddLine(sectionID, errorHandlers, ipsetFlushFlag, hashedName) // flush set
 }
 
-func (iMgr *IPSetManager) destroySetInFile(creator *ioutil.FileCreator, prefixedName string) {
+func (iMgr *IPSetManager) destroySetForApply(creator *ioutil.FileCreator, prefixedName string) {
 	errorHandlers := []*ioutil.LineErrorHandler{
 		{
 			Definition: setInUseByKernelDefinition,
@@ -513,7 +521,7 @@ func (iMgr *IPSetManager) destroySetInFile(creator *ioutil.FileCreator, prefixed
 	creator.AddLine(sectionID, errorHandlers, ipsetDestroyFlag, hashedName) // destroy set
 }
 
-func (iMgr *IPSetManager) createSetInFile(creator *ioutil.FileCreator, set *IPSet) {
+func (iMgr *IPSetManager) createSetForApply(creator *ioutil.FileCreator, set *IPSet) {
 	methodFlag := ipsetNetHashFlag
 	if set.Kind == ListSet {
 		methodFlag = ipsetSetListFlag
@@ -549,7 +557,7 @@ func (iMgr *IPSetManager) createSetInFile(creator *ioutil.FileCreator, set *IPSe
 	creator.AddLine(sectionID, errorHandlers, specs...) // create set
 }
 
-func (iMgr *IPSetManager) deleteMemberInFile(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
+func (iMgr *IPSetManager) deleteMemberForApply(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
 	errorHandlers := []*ioutil.LineErrorHandler{
 		{
 			Definition: ioutil.AlwaysMatchDefinition,
@@ -562,7 +570,7 @@ func (iMgr *IPSetManager) deleteMemberInFile(creator *ioutil.FileCreator, set *I
 	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member) // delete member
 }
 
-func (iMgr *IPSetManager) addMemberInFile(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
+func (iMgr *IPSetManager) addMemberForApply(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
 	var errorHandlers []*ioutil.LineErrorHandler
 	if set.Kind == ListSet {
 		errorHandlers = []*ioutil.LineErrorHandler{
