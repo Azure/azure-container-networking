@@ -143,7 +143,7 @@ func (pMgr *PolicyManager) RemovePolicy(name string, endpointList map[string]str
 func normalizePolicy(networkPolicy *NPMNetworkPolicy) {
 	for _, aclPolicy := range networkPolicy.ACLs {
 		if aclPolicy.Protocol == "" {
-			aclPolicy.Protocol = AnyProtocol
+			aclPolicy.Protocol = UnspecifiedProtocol
 		}
 
 		if aclPolicy.DstPorts.EndPort == 0 {
