@@ -221,9 +221,9 @@ type IPAMPoolMonitor interface {
 
 // IpamPoolMonitorStateSnapshot struct to expose state values for IPAMPoolMonitor struct
 type IpamPoolMonitorStateSnapshot struct {
-	MinimumFreeIps           int
-	MaximumFreeIps           int
-	UpdatingIpsNotInUseCount int
+	MinimumFreeIps           int64
+	MaximumFreeIps           int64
+	UpdatingIpsNotInUseCount int64
 	CachedNNC                v1alpha.NodeNetworkConfig
 }
 

@@ -89,12 +89,12 @@ func init() {
 	)
 }
 
-func observeIPPoolState(state ipPoolState) {
+func observeIPPoolState(state ipPoolState, meta metaState) {
 	ipamAllocatedIPCount.Set(float64(state.allocated))
 	ipamAssignedIPCount.Set(float64(state.assigned))
 	ipamAvailableIPCount.Set(float64(state.available))
-	ipamBatchSize.Set(float64(state.batch))
-	ipamMaxIPCount.Set(float64(state.max))
+	ipamBatchSize.Set(float64(meta.batch))
+	ipamMaxIPCount.Set(float64(meta.max))
 	ipamPendingProgramIPCount.Set(float64(state.pendingProgramming))
 	ipamPendingReleaseIPCount.Set(float64(state.pendingRelease))
 	ipamRequestedIPConfigCount.Set(float64(state.requested))

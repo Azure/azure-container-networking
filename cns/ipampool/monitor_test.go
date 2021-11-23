@@ -27,8 +27,9 @@ type directUpdatePoolMonitor struct {
 }
 
 func (d *directUpdatePoolMonitor) Update(nnc *v1alpha.NodeNetworkConfig) {
-	d.m.scaler, d.m.spec = nnc.Status.Scaler, nnc.Spec
-	d.m.state.minFreeCount, d.m.state.maxFreeCount = CalculateMinFreeIPs(d.m.scaler), CalculateMaxFreeIPs(d.m.scaler)
+	scaler := nnc.Status.Scaler
+	d.m.spec = nnc.Spec
+	d.m.metastate.minFreeCount, d.m.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
 }
 
 type state struct {
