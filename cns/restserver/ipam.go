@@ -113,12 +113,12 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 
 	for uuid, existingIpConfig := range service.PodIPConfigState {
 		if existingIpConfig.State == types.PendingProgramming {
-			updatedIpConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
+			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
 			if err != nil {
 				return nil, err
 			}
 
-			pendingReleasedIps[uuid] = updatedIpConfig
+			pendingReleasedIps[uuid] = updatedIPConfig
 			if len(pendingReleasedIps) == totalIpsToRelease {
 				return pendingReleasedIps, nil
 			}
@@ -128,12 +128,12 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	// if not all expected IPs are set to PendingRelease, then check the Available IPs
 	for uuid, existingIpConfig := range service.PodIPConfigState {
 		if existingIpConfig.State == types.Available {
-			updatedIpConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
+			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
 			if err != nil {
 				return nil, err
 			}
 
-			pendingReleasedIps[uuid] = updatedIpConfig
+			pendingReleasedIps[uuid] = updatedIPConfig
 
 			if len(pendingReleasedIps) == totalIpsToRelease {
 				return pendingReleasedIps, nil
@@ -382,33 +382,28 @@ func (service *HTTPRestService) AllocateDesiredIPConfig(podInfo cns.PodInfo, des
 	service.Lock()
 	defer service.Unlock()
 
-	found := false
 	for _, ipConfig := range service.PodIPConfigState {
 		if ipConfig.IPAddress == desiredIpAddress {
-			if ipConfig.State == types.Assigned {
+			switch ipConfig.State { //nolint:exhaustive // ignoring PendingRelease case intentionally
+			case types.Assigned:
 				// This IP has already been allocated, if it is allocated to same pod, then return the same
 				// IPconfiguration
 				if ipConfig.PodInfo.Key() == podInfo.Key() {
 					logger.Printf("[AllocateDesiredIPConfig]: IP Config [%+v] is already allocated to this Pod [%+v]", ipConfig, podInfo)
-					found = true
 				} else {
 					return podIpInfo, fmt.Errorf("[AllocateDesiredIPConfig] Desired IP is already allocated %+v, requested for pod %+v", ipConfig, podInfo)
 				}
-			} else if ipConfig.State == types.Available || ipConfig.State == types.PendingProgramming {
+			case types.Available, types.PendingProgramming:
 				// This race can happen during restart, where CNS state is lost and thus we have lost the NC programmed version
 				// As part of reconcile, we mark IPs as Allocated which are already allocated to PODs (listed from APIServer)
 				if err := service.setIPConfigAsAllocated(ipConfig, podInfo); err != nil {
 					return podIpInfo, err
 				}
-				found = true
-			} else {
+			default:
 				return podIpInfo, fmt.Errorf("[AllocateDesiredIPConfig] Desired IP is not available %+v", ipConfig)
 			}
-
-			if found {
-				err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo)
-				return podIpInfo, err
-			}
+			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo)
+			return podIpInfo, err
 		}
 	}
 	return podIpInfo, fmt.Errorf("Requested IP not found in pool")

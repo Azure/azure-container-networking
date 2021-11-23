@@ -47,21 +47,14 @@ func getCmd(ctx context.Context, client *client.Client, arg string) error {
 	switch types.IPState(arg) {
 	case types.Available:
 		states = append(states, types.Available)
-
 	case types.Assigned:
 		states = append(states, types.Assigned)
-
-	case types.PendingRelease:
-		states = append(states, types.PendingRelease)
-
 	case types.PendingProgramming:
 		states = append(states, types.PendingProgramming)
-
-	default:
-		states = append(states, types.Assigned)
-		states = append(states, types.Available)
+	case types.PendingRelease:
 		states = append(states, types.PendingRelease)
-		states = append(states, types.PendingProgramming)
+	default:
+		states = append(states, types.Assigned, types.Available, types.PendingProgramming, types.PendingRelease)
 	}
 
 	addr, err := client.GetIPAddressesMatchingStates(ctx, states...)
