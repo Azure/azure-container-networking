@@ -364,7 +364,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	testIpamPoolMonitor := inmemory.HTTPRestServiceData.IPAMPoolMonitor
 	assert.EqualValues(t, 5, testIpamPoolMonitor.MinimumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
 	assert.EqualValues(t, 15, testIpamPoolMonitor.MaximumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
-	assert.Equal(t, 13, testIpamPoolMonitor.UpdatingIpsNotInUseCount, "IPAMPoolMonitor state is not reflecting the initial set values")
+	assert.EqualValues(t, 13, testIpamPoolMonitor.UpdatingIpsNotInUseCount, "IPAMPoolMonitor state is not reflecting the initial set values")
 
 	// check for cached NNC Spec struct values
 	assert.EqualValues(t, 16, testIpamPoolMonitor.CachedNNC.Spec.RequestedIPCount, "IPAMPoolMonitor cached NNC Spec is not reflecting the initial set values")

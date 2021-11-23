@@ -33,7 +33,7 @@ func (d *directUpdatePoolMonitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 }
 
 type state struct {
-	allocatedIPCount        int
+	assignedIPCount         int
 	batchSize               int
 	ipConfigCount           int
 	maxIPCount              int
@@ -56,9 +56,14 @@ func initFakes(initState state) (*fakes.HTTPServiceFake, *fakes.RequestControlle
 	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, initState.ipConfigCount)
 
 	poolmonitor := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC}, &Options{RefreshDelay: 100 * time.Second})
-
+	poolmonitor.metastate = metaState{
+		batch: int64(initState.batchSize),
+		max:   int64(initState.maxIPCount),
+	}
 	fakecns.PoolMonitor = &directUpdatePoolMonitor{m: poolmonitor}
-	_ = fakecns.SetNumberOfAllocatedIPs(initState.allocatedIPCount)
+	if err := fakecns.SetNumberOfAssignedIPs(initState.assignedIPCount); err != nil {
+		logger.Printf("%s", err)
+	}
 
 	return fakecns, fakerc, poolmonitor
 }
@@ -66,7 +71,7 @@ func initFakes(initState state) (*fakes.HTTPServiceFake, *fakes.RequestControlle
 func TestPoolSizeIncrease(t *testing.T) {
 	initState := state{
 		batchSize:               10,
-		allocatedIPCount:        8,
+		assignedIPCount:         8,
 		ipConfigCount:           10,
 		requestThresholdPercent: 50,
 		releaseThresholdPercent: 150,
@@ -99,7 +104,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 	initState := state{
 		batchSize:               10,
-		allocatedIPCount:        8,
+		assignedIPCount:         8,
 		ipConfigCount:           10,
 		requestThresholdPercent: 30,
 		releaseThresholdPercent: 150,
@@ -112,8 +117,8 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// increase number of allocated IPs in CNS, within allocatable size but still inside trigger threshold
-	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(9))
+	// increase number of allocated IP's in CNS, within allocatable size but still inside trigger threshold
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(9))
 
 	// poolmonitor reconciles, but doesn't actually update the CRD, because there is already a pending update
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
@@ -138,7 +143,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 	initState := state{
 		batchSize:               10,
-		allocatedIPCount:        8,
+		assignedIPCount:         8,
 		ipConfigCount:           10,
 		requestThresholdPercent: 30,
 		releaseThresholdPercent: 150,
@@ -164,7 +169,7 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 func TestPoolIncreasePastNodeLimit(t *testing.T) {
 	initState := state{
 		batchSize:               16,
-		allocatedIPCount:        9,
+		assignedIPCount:         9,
 		ipConfigCount:           16,
 		requestThresholdPercent: 50,
 		releaseThresholdPercent: 150,
@@ -184,7 +189,7 @@ func TestPoolIncreasePastNodeLimit(t *testing.T) {
 func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	initState := state{
 		batchSize:               50,
-		allocatedIPCount:        16,
+		assignedIPCount:         16,
 		ipConfigCount:           16,
 		requestThresholdPercent: 50,
 		releaseThresholdPercent: 150,
@@ -205,7 +210,7 @@ func TestPoolDecrease(t *testing.T) {
 	initState := state{
 		batchSize:               10,
 		ipConfigCount:           20,
-		allocatedIPCount:        15,
+		assignedIPCount:         15,
 		requestThresholdPercent: 50,
 		releaseThresholdPercent: 150,
 		maxIPCount:              30,
@@ -217,8 +222,8 @@ func TestPoolDecrease(t *testing.T) {
 	// Pool monitor does nothing, as the current number of IPs falls in the threshold
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Decrease the number of allocated IPs down to 5. This should trigger a scale down
-	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(4))
+	// Decrease the number of allocated IP's down to 5. This should trigger a scale down
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(4))
 
 	// Pool monitor will adjust the spec so the pool size will be 1 batch size smaller
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
@@ -238,7 +243,7 @@ func TestPoolDecrease(t *testing.T) {
 func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 	initState := state{
 		batchSize:               10,
-		allocatedIPCount:        5,
+		assignedIPCount:         5,
 		ipConfigCount:           20,
 		requestThresholdPercent: 30,
 		releaseThresholdPercent: 100,
@@ -258,7 +263,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 	assert.Equal(t, int64(initState.ipConfigCount-initState.batchSize), poolmonitor.spec.RequestedIPCount)
 
 	// Update pods with IP count, ensure pool monitor stays the same until request controller reconciles
-	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(6))
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(6))
 
 	// Ensure the size of the requested spec is still the same
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, initState.ipConfigCount-initState.batchSize)
@@ -277,7 +282,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 func TestDecreaseAndIncreaseToSameCount(t *testing.T) {
 	initState := state{
 		batchSize:               10,
-		allocatedIPCount:        7,
+		assignedIPCount:         7,
 		ipConfigCount:           10,
 		requestThresholdPercent: 50,
 		releaseThresholdPercent: 150,
@@ -294,14 +299,14 @@ func TestDecreaseAndIncreaseToSameCount(t *testing.T) {
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// Release all IPs
-	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(0))
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(0))
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.Equal(t, int64(10), poolmonitor.spec.RequestedIPCount)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, 10)
 
 	// Increase it back to 20
 	// initial pool count is 10, set 5 of them to be allocated
-	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(7))
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(7))
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.Equal(t, int64(20), poolmonitor.spec.RequestedIPCount)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, 10)
@@ -322,7 +327,7 @@ func TestDecreaseAndIncreaseToSameCount(t *testing.T) {
 func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 	initState := state{
 		batchSize:               10,
-		allocatedIPCount:        23,
+		assignedIPCount:         23,
 		ipConfigCount:           30,
 		requestThresholdPercent: 30,
 		releaseThresholdPercent: 100,
@@ -336,7 +341,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// Now Drop the Allocated count to really low, say 3. This should trigger release in 2 batches
-	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(3))
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(3))
 
 	// Pool monitor does nothing, as the current number of IPs falls in the threshold
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
@@ -364,7 +369,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 	initState := state{
 		batchSize:               16,
-		allocatedIPCount:        30,
+		assignedIPCount:         20,
 		ipConfigCount:           30,
 		requestThresholdPercent: 50,
 		releaseThresholdPercent: 150,
@@ -376,7 +381,7 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// Trigger a batch release
-	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(5))
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(5))
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// Ensure poolmonitor asked for a multiple of batch size
@@ -387,7 +392,7 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	initState := state{
 		batchSize:               31,
-		allocatedIPCount:        30,
+		assignedIPCount:         30,
 		ipConfigCount:           30,
 		requestThresholdPercent: 50,
 		releaseThresholdPercent: 150,
@@ -401,7 +406,7 @@ func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// Trigger a batch release
-	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(1))
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(1))
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.Equal(t, int64(initState.maxIPCount), poolmonitor.spec.RequestedIPCount)
 }
@@ -410,8 +415,8 @@ func TestCalculateIPs(t *testing.T) {
 	tests := []struct {
 		name        string
 		in          v1alpha.Scaler
-		wantMinFree int
-		wantMaxFree int
+		wantMinFree int64
+		wantMaxFree int64
 	}{
 		{
 			name: "normal",
