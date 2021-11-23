@@ -204,7 +204,9 @@ func writeNetworkPolicyRules(creator *ioutil.FileCreator, networkPolicy *NPMNetw
 
 func iptablesRuleSpecs(aclPolicy *ACLPolicy) []string {
 	specs := make([]string, 0)
-	specs = append(specs, util.IptablesProtFlag, string(aclPolicy.Protocol)) // NOTE: protocol must be ALL instead of nil
+	if aclPolicy.Protocol != UnspecifiedProtocol {
+		specs = append(specs, util.IptablesProtFlag, string(aclPolicy.Protocol))
+	}
 	specs = append(specs, dstPortSpecs(aclPolicy.DstPorts)...)
 	specs = append(specs, matchSetSpecsFromSetInfo(aclPolicy.SrcList)...)
 	specs = append(specs, matchSetSpecsFromSetInfo(aclPolicy.DstList)...)

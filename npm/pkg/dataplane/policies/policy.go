@@ -111,7 +111,7 @@ func (aclPolicy *ACLPolicy) hasKnownProtocol() bool {
 	return aclPolicy.Protocol == TCP ||
 		aclPolicy.Protocol == UDP ||
 		aclPolicy.Protocol == SCTP ||
-		aclPolicy.Protocol == AnyProtocol
+		aclPolicy.Protocol == UnspecifiedProtocol
 }
 
 func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
@@ -119,7 +119,7 @@ func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
 }
 
 func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
-	return (aclPolicy.Protocol != AnyProtocol) || (aclPolicy.DstPorts.Port == 0 && aclPolicy.DstPorts.EndPort == 0)
+	return (aclPolicy.Protocol != UnspecifiedProtocol) || (aclPolicy.DstPorts.Port == 0 && aclPolicy.DstPorts.EndPort == 0)
 }
 
 // SetInfo helps capture additional details in a matchSet.
@@ -199,8 +199,8 @@ const (
 	UDP Protocol = "udp"
 	// SCTP Protocol
 	SCTP Protocol = "sctp"
-	// AnyProtocol can be used for all other protocols
-	AnyProtocol Protocol = "all"
+	// UnspecifiedProtocol leaves protocol unspecified. For a named port, this represents its protocol. Otherwise, this represents any protocol.
+	UnspecifiedProtocol Protocol = "unspecified"
 )
 
 type MatchType int8

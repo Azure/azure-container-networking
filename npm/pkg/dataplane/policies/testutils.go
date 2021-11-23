@@ -98,7 +98,7 @@ var (
 			},
 			Target:    Allowed,
 			Direction: Egress,
-			Protocol:  AnyProtocol,
+			Protocol:  UnspecifiedProtocol,
 		},
 	}
 )
