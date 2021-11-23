@@ -188,17 +188,20 @@ const (
 	Dropped Verdict = "DROP"
 )
 
-// Protocol can be TCP, UDP, SCTP, or ANY since they are currently supported in networkpolicy.
+// Protocol can be TCP, UDP, SCTP, or unspecified since they are currently supported in networkpolicy.
+// Protocol value is case-sensitive (Capital now).
+// TODO: Need to remove this dependency on case-sensitivity.
 // NPM is not fully tested with SCTP.
 type Protocol string
 
 const (
+
 	// TCP Protocol
-	TCP Protocol = "tcp"
+	TCP Protocol = "TCP"
 	// UDP Protocol
-	UDP Protocol = "udp"
+	UDP Protocol = "UDP"
 	// SCTP Protocol
-	SCTP Protocol = "sctp"
+	SCTP Protocol = "SCTP"
 	// UnspecifiedProtocol leaves protocol unspecified. For a named port, this represents its protocol. Otherwise, this represents any protocol.
 	UnspecifiedProtocol Protocol = "unspecified"
 )
