@@ -19,123 +19,135 @@ import (
 const testPolicyDir = "../../../../"
 
 func TestCraftPartialIptEntrySpecFromPort(t *testing.T) {
-	portRule := networkingv1.NetworkPolicyPort{}
+	port := intstr.FromInt(8000)
+	TCP := v1.ProtocolTCP
+	var endPort int32 = 8002
 
-	iptEntrySpec := craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
-	expectedIptEntrySpec := []string{}
-
-	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
-		t.Errorf("TestCraftPartialIptEntrySpecFromPort failed @ empty iptEntrySpec comparison")
-		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
-		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	testCases := map[networkingv1.NetworkPolicyPort][]string{
+		{}: {},
+		{
+			Port: &port,
+		}: {
+			util.IptablesDstPortFlag,
+			"8000",
+		},
+		{
+			Protocol: &TCP,
+		}: {
+			util.IptablesProtFlag,
+			string(TCP),
+		},
+		{
+			Protocol: &TCP,
+			Port:     &port,
+		}: {
+			util.IptablesProtFlag,
+			string(TCP),
+			util.IptablesDstPortFlag,
+			"8000",
+		},
+		{
+			Protocol: &TCP,
+			Port:     &port,
+			EndPort:  nil,
+		}: {
+			util.IptablesProtFlag,
+			string(TCP),
+			util.IptablesDstPortFlag,
+			"8000",
+		},
+		{
+			Protocol: &TCP,
+			Port:     &port,
+			EndPort:  &endPort,
+		}: {
+			util.IptablesProtFlag,
+			string(TCP),
+			util.IptablesDstPortFlag,
+			"8000:8002",
+		},
 	}
 
-	tcp := v1.ProtocolTCP
-	portRule = networkingv1.NetworkPolicyPort{
-		Protocol: &tcp,
-	}
-
-	iptEntrySpec = craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
-	expectedIptEntrySpec = []string{
-		util.IptablesProtFlag,
-		"TCP",
-	}
-
-	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
-		t.Errorf("TestCraftPartialIptEntrySpecFromPort failed @ tcp iptEntrySpec comparison")
-		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
-		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
-	}
-
-	port8000 := intstr.FromInt(8000)
-	portRule = networkingv1.NetworkPolicyPort{
-		Port: &port8000,
-	}
-
-	iptEntrySpec = craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
-	expectedIptEntrySpec = []string{
-		util.IptablesDstPortFlag,
-		"8000",
-	}
-
-	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
-		t.Errorf("TestCraftPartialIptEntrySpecFromPort failed @ port 8000 iptEntrySpec comparison")
-		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
-		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
-	}
-
-	portRule = networkingv1.NetworkPolicyPort{
-		Protocol: &tcp,
-		Port:     &port8000,
-	}
-
-	iptEntrySpec = craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
-	expectedIptEntrySpec = []string{
-		util.IptablesProtFlag,
-		"TCP",
-		util.IptablesDstPortFlag,
-		"8000",
-	}
-
-	if !reflect.DeepEqual(iptEntrySpec, expectedIptEntrySpec) {
-		t.Errorf("TestCraftPartialIptEntrySpecFromPort failed @ tcp port 8000 iptEntrySpec comparison")
-		t.Errorf("iptEntrySpec:\n%v", iptEntrySpec)
-		t.Errorf("expectedIptEntrySpec:\n%v", expectedIptEntrySpec)
+	for portRule, expected := range testCases {
+		iptEntrySpec := craftPartialIptEntrySpecFromPort(portRule, util.IptablesDstPortFlag)
+		if !reflect.DeepEqual(iptEntrySpec, expected) {
+			t.Errorf("TestCraftPartialIptEntrySpecFromPort failed")
+			t.Errorf("Got iptEntrySpec:%v", iptEntrySpec)
+			t.Errorf("Expected iptEntrySpec:%v", expected)
+		}
 	}
 }
 
+func TestGetPortRange(t *testing.T) {
+	port := intstr.FromInt(8000)
+	TCP := v1.ProtocolTCP
+	var endPort int32 = 8002
+
+	testCases := map[networkingv1.NetworkPolicyPort]struct {
+		portRange     string
+		portRuleExist bool
+	}{
+		{}: {"", false},
+		{
+			Port: &port,
+		}: {"8000", true},
+		{
+			Protocol: &TCP,
+			Port:     &port,
+		}: {"8000", true},
+		{
+			Protocol: &TCP,
+			Port:     &port,
+			EndPort:  nil,
+		}: {"8000", true},
+		{
+			Protocol: &TCP,
+			Port:     &port,
+			EndPort:  &endPort,
+		}: {"8000:8002", true},
+	}
+
+	for portRule, expected := range testCases {
+		portRange, exist := getPortRange(portRule)
+		if portRange != expected.portRange || exist != expected.portRuleExist {
+			t.Errorf("TestGetPortRange failed got = %s (%v), want %s (%v)", portRange, exist, expected.portRange, expected.portRuleExist)
+		}
+	}
+}
 func TestCraftPartialIptablesCommentFromPort(t *testing.T) {
-	portRule := networkingv1.NetworkPolicyPort{}
+	port := intstr.FromInt(8000)
+	TCP := v1.ProtocolTCP
+	var endPort int32 = 8002
 
-	comment := craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
-	expectedComment := ""
-
-	if !reflect.DeepEqual(comment, expectedComment) {
-		t.Errorf("TestCraftPartialIptablesCommentFromPort failed @ empty comment comparison")
-		t.Errorf("comment:\n%v", comment)
-		t.Errorf("expectedComment:\n%v", expectedComment)
+	testCases := map[networkingv1.NetworkPolicyPort]string{
+		{}: "",
+		{
+			Port: &port,
+		}: "PORT-8000",
+		{
+			Protocol: &TCP,
+		}: string(TCP),
+		{
+			Protocol: &TCP,
+			Port:     &port,
+		}: "TCP-PORT-8000",
+		{
+			Protocol: &TCP,
+			Port:     &port,
+			EndPort:  nil,
+		}: "TCP-PORT-8000",
+		{
+			Protocol: &TCP,
+			Port:     &port,
+			EndPort:  &endPort,
+		}: "TCP-PORT-8000:8002",
 	}
 
-	tcp := v1.ProtocolTCP
-	portRule = networkingv1.NetworkPolicyPort{
-		Protocol: &tcp,
-	}
-
-	comment = craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
-	expectedComment = "TCP"
-
-	if !reflect.DeepEqual(comment, expectedComment) {
-		t.Errorf("TestCraftPartialIptablesCommentFromPort failed @ tcp comment comparison")
-		t.Errorf("comment:\n%v", comment)
-		t.Errorf("expectedComment:\n%v", expectedComment)
-	}
-
-	port8000 := intstr.FromInt(8000)
-	portRule = networkingv1.NetworkPolicyPort{
-		Port: &port8000,
-	}
-
-	comment = craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
-	expectedComment = "PORT-8000"
-
-	if !reflect.DeepEqual(comment, expectedComment) {
-		t.Errorf("TestCraftPartialIptablesCommentFromPort failed @ port 8000 comment comparison")
-		t.Errorf("comment:\n%v", comment)
-		t.Errorf("expectedIptEntrySpec:\n%v", expectedComment)
-	}
-
-	portRule = networkingv1.NetworkPolicyPort{
-		Protocol: &tcp,
-		Port:     &port8000,
-	}
-
-	comment = craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)
-	expectedComment = "TCP-PORT-8000"
-
-	if !reflect.DeepEqual(comment, expectedComment) {
-		t.Errorf("TestCraftPartialIptablesCommentFromPort failed @ tcp port 8000 comment comparison")
-		t.Errorf("comment:\n%v", comment)
-		t.Errorf("expectedIptEntrySpec:\n%v", expectedComment)
+	for portRule, expected := range testCases {
+		portRuleComments := craftPartialIptablesCommentFromPort(portRule)
+		if portRuleComments != expected {
+			t.Errorf("TestCraftPartialIptablesCommentFromPort failed got= %s want= %s", portRuleComments, expected)
+		}
 	}
 }
 

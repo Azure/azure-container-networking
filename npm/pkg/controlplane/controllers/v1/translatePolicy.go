@@ -3,6 +3,7 @@
 package controllers
 
 import (
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,6 +15,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// getPortRange returns a specific port (only portRule.Port exist) or port ranges (when EndPort exists as well) based on portRule
+func getPortRange(portRule networkingv1.NetworkPolicyPort) (string, bool) {
+	if portRule.Port == nil {
+		return "", false
+	}
+
+	portRange := portRule.Port.String()
+	if portRule.EndPort != nil {
+		portRange = fmt.Sprintf("%s:%d", portRange, *portRule.EndPort)
+	}
+	return portRange, true
+}
+
 func craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort, sPortOrDPortFlag string) []string {
 	partialSpec := []string{}
 	if portRule.Protocol != nil {
@@ -24,11 +38,11 @@ func craftPartialIptEntrySpecFromPort(portRule networkingv1.NetworkPolicyPort, s
 		)
 	}
 
-	if portRule.Port != nil {
+	if portRange, exist := getPortRange(portRule); exist {
 		partialSpec = append(
 			partialSpec,
 			sPortOrDPortFlag,
-			portRule.Port.String(),
+			portRange,
 		)
 	}
 
@@ -44,7 +58,7 @@ func getPortType(portRule networkingv1.NetworkPolicyPort) string {
 	return "invalid"
 }
 
-func craftPartialIptablesCommentFromPort(portRule networkingv1.NetworkPolicyPort, sPortOrDPortFlag string) string {
+func craftPartialIptablesCommentFromPort(portRule networkingv1.NetworkPolicyPort) string {
 	partialComment := ""
 	if portRule.Protocol != nil {
 		partialComment += string(*portRule.Protocol)
@@ -53,9 +67,8 @@ func craftPartialIptablesCommentFromPort(portRule networkingv1.NetworkPolicyPort
 		}
 	}
 
-	if portRule.Port != nil {
-		partialComment += "PORT-"
-		partialComment += portRule.Port.String()
+	if portRange, exist := getPortRange(portRule); exist {
+		partialComment += "PORT-" + portRange
 	}
 
 	return partialComment
@@ -333,7 +346,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
 						"ALLOW-ALL-"+
-							craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+							craftPartialIptablesCommentFromPort(portRule)+
 							"-TO-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
@@ -353,7 +366,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
 						"ALLOW-ALL-"+
-							craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+							craftPartialIptablesCommentFromPort(portRule)+
 							"-TO-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
@@ -420,7 +433,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+cidrIpsetName+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 										"-TO-"+targetSelectorComment,
 								)
 								fromRuleEntries = append(fromRuleEntries, entry)
@@ -451,7 +464,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+cidrIpsetName+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 										"-TO-"+targetSelectorComment,
 								)
 								fromRuleEntries = append(fromRuleEntries, entry)
@@ -544,7 +557,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+iptPartialNsComment+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 										"-TO-"+targetSelectorComment,
 								)
 								entries = append(entries, entry)
@@ -571,7 +584,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+iptPartialNsComment+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 										"-TO-"+targetSelectorComment,
 								)
 								entries = append(entries, entry)
@@ -654,7 +667,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -681,7 +694,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -778,7 +791,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialNsComment+
 									"-AND-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -810,7 +823,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialNsComment+
 									"-AND-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 									"-TO-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -990,7 +1003,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
 						"ALLOW-ALL-TO-"+
-							craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+							craftPartialIptablesCommentFromPort(portRule)+
 							"-FROM-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
@@ -1010,7 +1023,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 						util.IptablesCommentModuleFlag,
 						util.IptablesCommentFlag,
 						"ALLOW-ALL-TO-"+
-							craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+							craftPartialIptablesCommentFromPort(portRule)+
 							"-FROM-"+targetSelectorComment,
 					)
 					entries = append(entries, entry)
@@ -1077,7 +1090,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+cidrIpsetName+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 										"-FROM-"+targetSelectorComment,
 								)
 								toRuleEntries = append(toRuleEntries, entry)
@@ -1108,7 +1121,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+cidrIpsetName+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 										"-FROM-"+targetSelectorComment,
 								)
 								toRuleEntries = append(toRuleEntries, entry)
@@ -1207,7 +1220,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+iptPartialNsComment+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 										"-FROM-"+targetSelectorComment,
 								)
 								entries = append(entries, entry)
@@ -1234,7 +1247,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 									util.IptablesCommentModuleFlag,
 									util.IptablesCommentFlag,
 									"ALLOW-"+iptPartialNsComment+
-										"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+										"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 										"-FROM-"+targetSelectorComment,
 								)
 								entries = append(entries, entry)
@@ -1316,7 +1329,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 									"-FROM-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -1343,7 +1356,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 								util.IptablesCommentModuleFlag,
 								util.IptablesCommentFlag,
 								"ALLOW-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag)+
+									"-AND-"+craftPartialIptablesCommentFromPort(portRule)+
 									"-FROM-"+targetSelectorComment,
 							)
 							entries = append(entries, entry)
@@ -1442,7 +1455,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 								"ALLOW-"+targetSelectorComment+
 									"-TO-"+iptPartialNsComment+
 									"-AND-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag),
+									"-AND-"+craftPartialIptablesCommentFromPort(portRule),
 							)
 							entries = append(entries, entry)
 						case "validport":
@@ -1474,7 +1487,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 								"ALLOW-"+targetSelectorComment+
 									"-TO-"+iptPartialNsComment+
 									"-AND-"+iptPartialPodComment+
-									"-AND-"+craftPartialIptablesCommentFromPort(portRule, util.IptablesDstPortFlag),
+									"-AND-"+craftPartialIptablesCommentFromPort(portRule),
 							)
 							entries = append(entries, entry)
 						default:
