@@ -1,5 +1,3 @@
--include setup
-
 # Default platform commands
 SHELL=/bin/bash
 MKDIR := mkdir -p
