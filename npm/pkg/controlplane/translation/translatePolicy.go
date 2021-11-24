@@ -80,7 +80,7 @@ func namedPortRuleInfo(portRule *networkingv1.NetworkPolicyPort) (namedPortIPSet
 		return nil, protocol
 	}
 
-	namedPortIPSet = ipsets.NewTranslatedIPSet(util.NamedPortIPSetPrefix+portRule.Port.String(), ipsets.NamedPorts)
+	namedPortIPSet = ipsets.NewTranslatedIPSet(portRule.Port.String(), ipsets.NamedPorts)
 	return namedPortIPSet, protocol
 }
 
@@ -90,7 +90,7 @@ func namedPortRule(portRule *networkingv1.NetworkPolicyPort) (*ipsets.Translated
 	}
 
 	namedPortIPSet, protocol := namedPortRuleInfo(portRule)
-	setInfo := policies.NewSetInfo(util.NamedPortIPSetPrefix+portRule.Port.String(), ipsets.NamedPorts, included, policies.DstDstMatch)
+	setInfo := policies.NewSetInfo(portRule.Port.String(), ipsets.NamedPorts, included, policies.DstDstMatch)
 	return namedPortIPSet, setInfo, protocol
 }
 
