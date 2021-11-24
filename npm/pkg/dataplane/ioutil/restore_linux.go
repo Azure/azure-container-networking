@@ -126,7 +126,7 @@ func (creator *FileCreator) ToString() string {
 
 func (creator *FileCreator) RunCommandWithFile(cmd string, args ...string) error {
 	fileString := creator.ToString()
-	klog.Infof("beginning to run command for restorer:\nEND-CREATOR-FILE-FOR-COMMAND-%s\n%s\nEND-CREATOR-FILE-FOR-COMMAND-%s", cmd, fileString, cmd) // TODO remove
+	klog.Infof("beginning to run command for restorer:\nBEGIN-CREATOR-FILE-FOR-COMMAND-%s\n%s\nEND-CREATOR-FILE-FOR-COMMAND-%s", cmd, fileString, cmd) // TODO remove
 	wasFileAltered, err := creator.runCommandOnceWithFile(fileString, cmd, args...)
 	if err == nil {
 		return nil
@@ -177,11 +177,11 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 
 	// run the command
 	stdErrBytes, err := command.CombinedOutput()
+	creator.tryCount++
 	if err == nil {
 		// success
 		return false, nil
 	}
-	creator.tryCount++
 
 	stdErr := string(stdErrBytes)
 	klog.Errorf("on try number %d, failed to run command [%s] with error [%v] and stdErr [%s]. Used file:\n%s", creator.tryCount, commandString, err, stdErr, fileString)
