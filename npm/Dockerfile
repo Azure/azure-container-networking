@@ -26,6 +26,7 @@ RUN apt-get install -y iptables
 RUN apt-get install -y ipset
 RUN apt-get install -y ca-certificates
 RUN apt-get upgrade -y
+RUN update-alternatives --set ip6tables /usr/sbin/ip6tables-nft
 
 RUN chmod +x /usr/bin/azure-npm
 
