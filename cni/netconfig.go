@@ -79,7 +79,7 @@ type NetworkConfig struct {
 }
 
 type WindowsSettings struct {
-	DisableLoopbackDSR bool `json:"disableLoopbackDSR,omitempty"`
+	EnableLoopbackDSR bool `json:"enableLoopbackDSR,omitempty"`
 }
 
 type K8SPodEnvArgs struct {

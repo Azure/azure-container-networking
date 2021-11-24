@@ -117,7 +117,7 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 	return getNetworkDNSSettings(nwCfg, result)
 }
 
-func getEndpointPolicies(nwCfg *cni.NetworkConfig, netns string, nwInfo *network.NetworkInfo, ipconfigs []*cniTypesCurr.IPConfig) ([]policy.Policy, error) {
+func getEndpointPolicies(PolicyArgs) ([]policy.Policy, error) {
 	return nil, nil
 }
 

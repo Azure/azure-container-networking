@@ -66,7 +66,9 @@ func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData m
 
 	for _, policy := range policies {
 		if policy.Type == policyType {
-			if isPolicyTypeOutBoundNAT := IsPolicyTypeOutBoundNAT(policy); isPolicyTypeOutBoundNAT {
+			endpointPolicyType := GetPolicyType(policy)
+			switch endpointPolicyType {
+			case OutBoundNatPolicy:
 				if snatAndSerialize || !enableMultiTenancy {
 					if serializedOutboundNatPolicy, err := SerializeOutBoundNATPolicy(policy, epInfoData); err != nil {
 						log.Printf("Failed to serialize OutBoundNAT policy")
@@ -74,14 +76,20 @@ func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData m
 						jsonPolicies = append(jsonPolicies, serializedOutboundNatPolicy)
 					}
 				}
-			} else if isPolicyTypeNAT := IsPolicyTypeNAT(policy); isPolicyTypeNAT {
+			case PortMappingPolicy:
 				// NATPolicy comes as a HNSv2 type, it needs to be converted to HNSv1
 				if serializedNatPolicy, err := SerializeNATPolicy(policy); err != nil {
 					log.Printf("Failed to serialize NatPolicy")
 				} else {
 					jsonPolicies = append(jsonPolicies, serializedNatPolicy)
 				}
-			} else {
+			case LoopbackDSRPolicy:
+				if dsrPolicy, err := SerializeLoopbackDSRPolicy(policy); err != nil {
+					log.Printf("Failed to serialize DSR policy")
+				} else {
+					jsonPolicies = append(jsonPolicies, dsrPolicy)
+				}
+			default:
 				jsonPolicies = append(jsonPolicies, policy.Data)
 			}
 		}
@@ -116,36 +124,6 @@ func GetOutBoundNatExceptionList(policy Policy) ([]string, error) {
 
 	log.Printf("OutBoundNAT policy not set")
 	return nil, nil
-}
-
-// IsPolicyTypeOutBoundNAT return true if the policy type is OutBoundNAT
-func IsPolicyTypeOutBoundNAT(policy Policy) bool {
-	if policy.Type == EndpointPolicy {
-		var data KVPairOutBoundNAT
-		if err := json.Unmarshal(policy.Data, &data); err != nil {
-			return false
-		}
-
-		if data.Type == OutBoundNatPolicy {
-			return true
-		}
-	}
-
-	return false
-}
-
-// IsPolicyTypeNAT returns true if the policy type is NAT
-func IsPolicyTypeNAT(policy Policy) bool {
-	if policy.Type == EndpointPolicy {
-		var endpointPolicy hcn.EndpointPolicy
-		if err := json.Unmarshal(policy.Data, &endpointPolicy); err != nil {
-			return false
-		}
-		if endpointPolicy.Type == hcn.PortMapping {
-			return true
-		}
-	}
-	return false
 }
 
 func SerializeNATPolicy(policy Policy) (json.RawMessage, error) {
@@ -206,6 +184,32 @@ func SerializeOutBoundNATPolicy(policy Policy, epInfoData map[string]interface{}
 	return nil, fmt.Errorf("OutBoundNAT policy not set")
 }
 
+func SerializeLoopbackDSRPolicy(policy Policy) (json.RawMessage, error) {
+	var dsrData LoopbackDSR
+
+	if err := hcn.DSRSupported(); err != nil {
+		return []byte{}, errors.Wrap(err, "hcn doesn't support DSR")
+	}
+
+	if err := json.Unmarshal(policy.Data, &dsrData); err != nil {
+		return []byte{}, errors.Wrap(err, "unmarshal dsr data failed")
+	}
+
+	log.Printf("DSR policy for ip:%s", dsrData.IPAddress.String())
+
+	hnsLoopbackRoute := hcsshim.OutboundNatPolicy{
+		Policy:       hcsshim.Policy{Type: hcsshim.OutboundNat},
+		Destinations: []string{dsrData.IPAddress.String()},
+	}
+
+	rawPolicy, err := json.Marshal(hnsLoopbackRoute)
+	if err != nil {
+		return []byte{}, errors.Wrap(err, "marshal error for loopbackdsr policy")
+	}
+
+	return rawPolicy, nil
+}
+
 // GetPolicyType parses the policy and returns the policy type
 func GetPolicyType(policy Policy) CNIPolicyType {
 	// Check if the type is OutBoundNAT
@@ -215,7 +219,6 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 			return OutBoundNatPolicy
 		}
 	}
-
 	// Check if the type is Route
 	var dataRoute KVPairRoute
 	if err := json.Unmarshal(policy.Data, &dataRoute); err == nil {
@@ -449,8 +452,7 @@ func GetHcnLoopbackDSRPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 		return hcn.EndpointPolicy{}, errors.Wrap(err, "hcn doesn't support DSR")
 	}
 
-	err := json.Unmarshal(policy.Data, &dsrData)
-	if err != nil {
+	if err := json.Unmarshal(policy.Data, &dsrData); err != nil {
 		return hcn.EndpointPolicy{}, errors.Wrap(err, "unmarshal dsr data failed")
 	}
 
