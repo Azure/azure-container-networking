@@ -428,7 +428,7 @@ func TestCreateForAllSetTypes(t *testing.T) {
 	creator := iMgr.fileCreatorForApply(len(calls), nil)
 	actualLines := testAndSortRestoreFileString(t, creator.ToString())
 
-	lines := []string{
+	expectedLines := []string{
 		fmt.Sprintf("-N %s --exist nethash", TestNSSet.HashedName),
 		fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
 		fmt.Sprintf("-N %s --exist nethash", TestKVPodSet.HashedName),
@@ -445,7 +445,7 @@ func TestCreateForAllSetTypes(t *testing.T) {
 		fmt.Sprintf("-A %s %s", TestKVNSList.HashedName, TestKVPodSet.HashedName),
 		"",
 	}
-	sortedExpectedLines := testAndSortRestoreFileLines(t, lines)
+	sortedExpectedLines := testAndSortRestoreFileLines(t, expectedLines)
 
 	dptestutils.AssertEqualLines(t, sortedExpectedLines, actualLines)
 	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
@@ -475,19 +475,19 @@ func TestDestroy(t *testing.T) {
 	creator := iMgr.fileCreatorForApply(len(calls), nil)
 	actualLines := testAndSortRestoreFileString(t, creator.ToString())
 
-	lines := []string{
-		fmt.Sprintf("-F %s", TestCIDRSet.HashedName),
-		fmt.Sprintf("-F %s", TestNestedLabelList.HashedName),
-		fmt.Sprintf("-X %s", TestCIDRSet.HashedName),
-		fmt.Sprintf("-X %s", TestNestedLabelList.HashedName),
+	expectedLines := []string{
 		fmt.Sprintf("-N %s --exist nethash", TestNSSet.HashedName),
 		fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
 		fmt.Sprintf("-N %s --exist setlist", TestKeyNSList.HashedName),
 		fmt.Sprintf("-A %s 10.0.0.0", TestNSSet.HashedName),
 		fmt.Sprintf("-A %s %s", TestKeyNSList.HashedName, TestNSSet.HashedName),
+		fmt.Sprintf("-F %s", TestCIDRSet.HashedName),
+		fmt.Sprintf("-F %s", TestNestedLabelList.HashedName),
+		fmt.Sprintf("-X %s", TestCIDRSet.HashedName),
+		fmt.Sprintf("-X %s", TestNestedLabelList.HashedName),
 		"",
 	}
-	sortedExpectedLines := testAndSortRestoreFileLines(t, lines)
+	sortedExpectedLines := testAndSortRestoreFileLines(t, expectedLines)
 
 	dptestutils.AssertEqualLines(t, sortedExpectedLines, actualLines)
 	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
@@ -529,7 +529,7 @@ func TestUpdateWithIdenticalSaveFile(t *testing.T) {
 	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
 	actualLines := testAndSortRestoreFileString(t, creator.ToString())
 
-	lines := []string{
+	expectedLines := []string{
 		fmt.Sprintf("-N %s --exist nethash", TestNSSet.HashedName),
 		fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
 		fmt.Sprintf("-N %s --exist nethash", TestKVPodSet.HashedName),
@@ -539,7 +539,7 @@ func TestUpdateWithIdenticalSaveFile(t *testing.T) {
 		fmt.Sprintf("-N %s --exist setlist", TestNestedLabelList.HashedName),
 		"",
 	}
-	sortedExpectedLines := testAndSortRestoreFileLines(t, lines)
+	sortedExpectedLines := testAndSortRestoreFileLines(t, expectedLines)
 
 	dptestutils.AssertEqualLines(t, sortedExpectedLines, actualLines)
 	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
@@ -591,9 +591,7 @@ func TestUpdateWithRealisticSaveFile(t *testing.T) {
 	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
 	actualLines := testAndSortRestoreFileString(t, creator.ToString()) // adding NSSet and KeyPodSet (should be keeping NSSet and deleting NamedportSet)
 
-	lines := []string{
-		fmt.Sprintf("-F %s", TestNestedLabelList.HashedName),
-		fmt.Sprintf("-X %s", TestNestedLabelList.HashedName),
+	expectedLines := []string{
 		fmt.Sprintf("-N %s --exist nethash", TestNSSet.HashedName),
 		fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
 		fmt.Sprintf("-N %s --exist setlist", TestKeyNSList.HashedName),
@@ -609,9 +607,11 @@ func TestUpdateWithRealisticSaveFile(t *testing.T) {
 		fmt.Sprintf("-A %s 10.0.0.5", TestNSSet.HashedName),
 		fmt.Sprintf("-D %s %s", TestKeyNSList.HashedName, TestNamedportSet.HashedName),
 		fmt.Sprintf("-A %s %s", TestKeyNSList.HashedName, TestKeyPodSet.HashedName),
+		fmt.Sprintf("-F %s", TestNestedLabelList.HashedName),
+		fmt.Sprintf("-X %s", TestNestedLabelList.HashedName),
 		"",
 	}
-	sortedExpectedLines := testAndSortRestoreFileLines(t, lines)
+	sortedExpectedLines := testAndSortRestoreFileLines(t, expectedLines)
 
 	dptestutils.AssertEqualLines(t, sortedExpectedLines, actualLines)
 	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
@@ -718,7 +718,7 @@ func TestFailureOnCreateForNewSet(t *testing.T) {
 	// test logic:
 	// - delete a set
 	// - create three sets, each with two members. the second set to appear will fail to be created
-	errorLineNum := 4
+	errorLineNum := 2
 	setToCreateAlreadyExistsCommand := testutils.TestCmd{
 		Cmd:      ipsetRestoreStringSlice,
 		Stdout:   fmt.Sprintf("Error in line %d: Set cannot be created: set with the same name already exists", errorLineNum),
@@ -767,7 +767,7 @@ func TestFailureOnCreateForSetInKernel(t *testing.T) {
 	// test logic:
 	// - delete a set
 	// - update three sets already in the kernel, each with a delete and add line. the second set to appear will fail to be created
-	errorLineNum := 4
+	errorLineNum := 2
 	setToCreateAlreadyExistsCommand := testutils.TestCmd{
 		Cmd:      ipsetRestoreStringSlice,
 		Stdout:   fmt.Sprintf("Error in line %d: Set cannot be created: set with the same name already exists", errorLineNum),
@@ -827,7 +827,7 @@ func TestFailureOnAddToListInKernel(t *testing.T) {
 	// - delete a set
 	// - update three lists already in the set, each with a delete and add line. the second list to appear will have the failed add
 	// - create a set and add a member to it
-	errorLineNum := 10
+	errorLineNum := 8
 	memberDoesNotExistCommand := testutils.TestCmd{
 		Cmd:      ipsetRestoreStringSlice,
 		Stdout:   fmt.Sprintf("Error in line %d: Set to be added/deleted/tested as element does not exist", errorLineNum), // this error might happen if the cache is out of date with the kernel
@@ -884,7 +884,7 @@ func TestFailureOnAddToNewList(t *testing.T) {
 	// - delete a set
 	// - update a set already in the kernel with a delete and add line
 	// - create three lists in the set, each with an add line. the second list to appear will have the failed add
-	errorLineNum := 10
+	errorLineNum := 8
 	memberDoesNotExistCommand := testutils.TestCmd{
 		Cmd:      ipsetRestoreStringSlice,
 		Stdout:   fmt.Sprintf("Error in line %d: Set to be added/deleted/tested as element does not exist", errorLineNum), // this error might happen if the cache is out of date with the kernel
@@ -939,7 +939,7 @@ func TestFailureOnFlush(t *testing.T) {
 	// - delete two sets. the first to appear will fail to flush
 	// - update a set by deleting a member
 	// - create a set with a member
-	errorLineNum := 1
+	errorLineNum := 5
 	setDoesNotExistCommand := testutils.TestCmd{
 		Cmd:      ipsetRestoreStringSlice,
 		Stdout:   fmt.Sprintf("Error in line %d: The set with the given name does not exist", errorLineNum), // this error might happen if the cache is out of date with the kernel
@@ -992,7 +992,7 @@ func TestFailureOnDestroy(t *testing.T) {
 	// - delete two sets. the first to appear will fail to delete
 	// - update a set by deleting a member
 	// - create a set with a member
-	errorLineNum := 3
+	errorLineNum := 7
 	inUseByKernelCommand := testutils.TestCmd{
 		Cmd:      ipsetRestoreStringSlice,
 		Stdout:   fmt.Sprintf("Error in line %d: Set cannot be destroyed: it is in use by a kernel component", errorLineNum),
@@ -1072,72 +1072,45 @@ func testAndSortRestoreFileString(t *testing.T, multilineString string) []string
 	return testAndSortRestoreFileLines(t, strings.Split(multilineString, "\n"))
 }
 
-// make sure file goes in order of flushes, destroys, creates, then adds/deletes,
+// make sure file goes in order of creates, adds/deletes, flushes, then destroys
 // then sort those sections and return the lines in an array
 func testAndSortRestoreFileLines(t *testing.T, lines []string) []string {
 	require.True(t, lines[len(lines)-1] == "", "restore file must end with blank line")
 	lines = lines[:len(lines)-1] // remove the blank line
 
-	flushIndices := [2]int{0, len(lines)}
-	destroyIndices := [2]int{-1, len(lines)} // -1 means the file ended with the previous operation
-	createIndices := [2]int{-1, len(lines)}
-	addDeleteIndices := [2]int{-1, len(lines)}
+	// order of operation groups in restore file (can have groups with multiple possible operatoins)
+	operationGroups := [][]string{
+		{"-N"},       // creates
+		{"-A", "-D"}, // adds/deletes
+		{"-F"},       // flushes
+		{"-X"},       // destroys
+	}
+	result := make([]string, 0, len(lines))
+	groupIndex := 0
+	groupStartIndex := 0
 	k := 0
 	for k < len(lines) {
-		operation := lines[k][0:2]
-		if operation != "-F" {
-			flushIndices[1] = k
-			destroyIndices[0] = k
-			break
+		for k < len(lines) {
+			// iterate until we reach an operation not in the current operation group
+			operation := lines[k][0:2]
+			expectedOperations := operationGroups[groupIndex]
+			if !isStringInSlice(operation, expectedOperations) {
+				require.True(t, groupIndex < len(operationGroups)-1, "ran out of operation groups. got operation %s", operation)
+				operationLines := lines[groupStartIndex:k]
+				sort.Strings(operationLines)
+				result = append(result, operationLines...)
+				groupStartIndex = k
+				groupIndex++
+				break
+			}
+			k++
 		}
-		k++
 	}
-	for k < len(lines) {
-		operation := lines[k][0:2]
-		require.False(t, operation == "-F", "should not get -F operation in the restore file after flush section")
-		if operation != "-X" {
-			destroyIndices[1] = k
-			createIndices[0] = k
-			break
-		}
-		k++
-	}
-	for k < len(lines) {
-		operation := lines[k][0:2]
-		require.False(t, operation == "-F" || operation == "-X", "should not get %s operation in the restore file after destroy section")
-		if operation != "-N" {
-			createIndices[1] = k
-			addDeleteIndices[0] = k
-			break
-		}
-		k++
-	}
-	for k < len(lines) {
-		operation := lines[k][0:2]
-		require.True(t, operation == "-D" || operation == "-A", "should not get %s operation in the restore file after create section", operation)
-		k++
-	}
-	flushLines := lines[flushIndices[0]:flushIndices[1]]
-	var destroyLines []string
-	var createLines []string
-	var addDeleteLines []string
-	if destroyIndices[0] != -1 {
-		destroyLines = lines[destroyIndices[0]:destroyIndices[1]]
-	}
-	if createIndices[0] != -1 {
-		createLines = lines[createIndices[0]:createIndices[1]]
-	}
-	if addDeleteIndices[0] != -1 {
-		addDeleteLines = lines[addDeleteIndices[0]:addDeleteIndices[1]]
-	}
-	sort.Strings(flushLines)
-	sort.Strings(destroyLines)
-	sort.Strings(createLines)
-	sort.Strings(addDeleteLines)
-	result := flushLines
-	result = append(result, destroyLines...)
-	result = append(result, createLines...)
-	result = append(result, addDeleteLines...)
+	// add the remaining lines since the final operation group won't pass through the if statement in the loop above
+	operatrionLines := lines[groupStartIndex:]
+	sort.Strings(operatrionLines)
+	result = append(result, operatrionLines...)
+	result = append(result, "") // add the blank line
 	return result
 }
 
@@ -1162,15 +1135,19 @@ func memberNameOfSetImpacted(t *testing.T, lines []string, lineNum int) string {
 	return member
 }
 
-func requireStringInSlice(t *testing.T, item string, possibleValues []string) {
+func isStringInSlice(item string, values []string) bool {
 	success := false
-	for _, value := range possibleValues {
+	for _, value := range values {
 		if item == value {
 			success = true
 			break
 		}
 	}
-	require.Truef(t, success, "item %s was not one of the possible values", item)
+	return success
+}
+
+func requireStringInSlice(t *testing.T, item string, values []string) {
+	require.Truef(t, isStringInSlice(item, values), "item %s was not one of the possible values %+v", item, values)
 }
 
 // remove lines that start with the operation (include the dash in the operations) e.g.

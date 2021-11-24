@@ -25,12 +25,12 @@ var (
 	testPolicy3EgressJump  = fmt.Sprintf("-j %s", testPolicy3EgressChain)
 
 	testACLRule1 = fmt.Sprintf(
-		"-j MARK --set-mark 0x4000 -p tcp --dport 222:333 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment comment1",
+		"-j MARK --set-mark 0x4000 -p TCP --dport 222:333 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment comment1",
 		ipsets.TestCIDRSet.HashedName,
 		ipsets.TestKeyPodSet.HashedName,
 	)
-	testACLRule2 = fmt.Sprintf("-j AZURE-NPM-INGRESS-ALLOW-MARK -p udp -m set --match-set %s src -m comment --comment comment2", ipsets.TestCIDRSet.HashedName)
-	testACLRule3 = fmt.Sprintf("-j MARK --set-mark 0x5000 -p udp --dport 144 -m set --match-set %s src -m comment --comment comment3", ipsets.TestCIDRSet.HashedName)
+	testACLRule2 = fmt.Sprintf("-j AZURE-NPM-INGRESS-ALLOW-MARK -p UDP -m set --match-set %s src -m comment --comment comment2", ipsets.TestCIDRSet.HashedName)
+	testACLRule3 = fmt.Sprintf("-j MARK --set-mark 0x5000 -p UDP --dport 144 -m set --match-set %s src -m comment --comment comment3", ipsets.TestCIDRSet.HashedName)
 	testACLRule4 = fmt.Sprintf("-j AZURE-NPM-ACCEPT -m set --match-set %s src -m comment --comment comment4", ipsets.TestCIDRSet.HashedName)
 )
 
@@ -68,7 +68,8 @@ func TestAddPolicies(t *testing.T) {
 		// policy 3
 		fmt.Sprintf("-A %s %s", testPolicy3EgressChain, testACLRule4),
 		fmt.Sprintf("-I AZURE-NPM-EGRESS 2 %s", testPolicy3EgressJump),
-		"COMMIT\n",
+		"COMMIT",
+		"",
 	}
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 
@@ -103,7 +104,8 @@ func TestRemovePolicies(t *testing.T) {
 		fmt.Sprintf(":%s - -", testPolicy1EgressChain),
 		fmt.Sprintf(":%s - -", testPolicy2IngressChain),
 		fmt.Sprintf(":%s - -", testPolicy3EgressChain),
-		"COMMIT\n",
+		"COMMIT",
+		"",
 	}
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 
