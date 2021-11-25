@@ -102,6 +102,7 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	if err := validatePolicy(policy); err != nil {
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("couldn't add malformed policy: %s", err.Error()))
 	}
+	klog.Infof("PRINTING-CONTENTS-FOR-ADDING-POLICY:\n%s", policy.String())
 
 	// Call actual dataplane function to apply changes
 	err := pMgr.addPolicy(policy, endpointList)
@@ -115,7 +116,11 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 
 func (pMgr *PolicyManager) RemovePolicy(name string, endpointList map[string]string) error {
 	policy, ok := pMgr.GetPolicy(name)
+	klog.Infof("PRINTING-CONTENTS-FOR-REMOVING-POLICY:\n%s", policy.String())
+
 	if !ok {
+		klog.Infof("DEBUGME-POLICY-DOESN'T-EXIST-WHEN-DELETING")
+		klog.Infof("POLICY-CACHE: %+v", pMgr.policyMap.cache)
 		return nil
 	}
 

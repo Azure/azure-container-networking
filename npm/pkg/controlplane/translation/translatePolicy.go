@@ -481,7 +481,7 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, egress []networkingv1.Ne
 	}
 
 	// #2. If egress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow sending traffic to others.
-	if egress != nil {
+	if egress == nil {
 		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
 		dropACL := defaultDropACL(npmNetPol.NameSpace, npmNetPol.Name, policies.Egress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
@@ -522,6 +522,7 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy) *policies.NPMNetworkPoli
 			egressPolicy(npmNetPol, npObj.Spec.Egress)
 		}
 	}
-
+	klog.Infof("JUST-TRANSLATED-THIS-POLICY:\n%s", npmNetPol.String())
+	klog.Infof("THIS-NPOBJ:\n%+v", npObj)
 	return npmNetPol
 }

@@ -3,9 +3,11 @@ package policies
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"k8s.io/klog"
 )
 
 type NPMNetworkPolicy struct {
@@ -122,6 +124,37 @@ func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
 	return (aclPolicy.Protocol != UnspecifiedProtocol) || (aclPolicy.DstPorts.Port == 0 && aclPolicy.DstPorts.EndPort == 0)
 }
 
+func (netPol *NPMNetworkPolicy) String() string {
+	var infoStrings []string
+	if netPol == nil {
+		klog.Infof("NPMNetworkPolicy is nil!!!")
+		return "nil NPMNetworkPolicy"
+	}
+	for _, item := range netPol.ACLs {
+		infoStrings = append(infoStrings, item.String())
+	}
+	aclArrayString := strings.Join(infoStrings, "\n--\n")
+	format := `Name:%s  Namespace:%s
+ACLs:
+%s`
+	return fmt.Sprintf(format, netPol.Name, netPol.NameSpace, aclArrayString)
+}
+
+func (acl *ACLPolicy) String() string {
+	format := `Target:%s  Direction:%s  Protocol:%s  Ports:%+v
+SrcList: %s
+DstList: %s`
+	return fmt.Sprintf(format, acl.Target, acl.Direction, acl.Protocol, acl.DstPorts, infoArrayToString(acl.SrcList), infoArrayToString(acl.DstList))
+}
+
+func infoArrayToString(items []SetInfo) string {
+	var infoStrings []string
+	for _, item := range items {
+		infoStrings = append(infoStrings, fmt.Sprintf("{%s}", item.String()))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(infoStrings, ","))
+}
+
 // SetInfo helps capture additional details in a matchSet.
 // Included flag captures the negative or positive match.
 // Included is true when match set does not have "!".
@@ -148,6 +181,10 @@ func NewSetInfo(name string, setType ipsets.SetType, included bool, matchType Ma
 		Included:  included,
 		MatchType: matchType,
 	}
+}
+
+func (info SetInfo) String() string {
+	return fmt.Sprintf("Name:%s  HashedName:%s  MatchType:%v  Included:%v", info.IPSet.GetPrefixName(), info.IPSet.GetHashedName(), info.MatchType, info.Included)
 }
 
 type Ports struct {
