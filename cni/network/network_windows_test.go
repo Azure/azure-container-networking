@@ -51,7 +51,7 @@ func TestAddWithRunTimeNetPolicies(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := addIPV6EndpointPolicy(&tt.nwInfo)
+			p, err := getIPV6EndpointPolicy(&tt.nwInfo)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -247,39 +247,41 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 func TestDSRPolciy(t *testing.T) {
 	tests := []struct {
 		name      string
-		nwCfg     cni.NetworkConfig
-		nwInfo    network.NetworkInfo
-		ipconfig  []*cniTypesCurr.IPConfig
+		args      PolicyArgs
 		wantCount int
 	}{
 		{
-			name:   "test enable dsr policy",
-			nwCfg:  cni.NetworkConfig{},
-			nwInfo: network.NetworkInfo{},
-			ipconfig: []*cniTypesCurr.IPConfig{
-				{
-					Address: func() net.IPNet {
-						_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
-						return *ipnet
-					}(),
+			name: "test enable dsr policy",
+			args: PolicyArgs{
+				nwCfg: &cni.NetworkConfig{
+					WindowsSettings: cni.WindowsSettings{
+						EnableLoopbackDSR: true,
+					},
+				},
+				nwInfo: &network.NetworkInfo{},
+				ipconfigs: []*cniTypesCurr.IPConfig{
+					{
+						Address: func() net.IPNet {
+							_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
+							return *ipnet
+						}(),
+					},
 				},
 			},
 			wantCount: 1,
 		},
 		{
 			name: "test disable dsr policy",
-			nwCfg: cni.NetworkConfig{
-				WindowsSettings: cni.WindowsSettings{
-					DisableLoopbackDSR: true,
-				},
-			},
-			nwInfo: network.NetworkInfo{},
-			ipconfig: []*cniTypesCurr.IPConfig{
-				{
-					Address: func() net.IPNet {
-						_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
-						return *ipnet
-					}(),
+			args: PolicyArgs{
+				nwCfg:  &cni.NetworkConfig{},
+				nwInfo: &network.NetworkInfo{},
+				ipconfigs: []*cniTypesCurr.IPConfig{
+					{
+						Address: func() net.IPNet {
+							_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
+							return *ipnet
+						}(),
+					},
 				},
 			},
 			wantCount: 0,
@@ -289,7 +291,7 @@ func TestDSRPolciy(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			policies, err := getEndpointPolicies(&tt.nwCfg, &tt.nwInfo, tt.ipconfig)
+			policies, err := getEndpointPolicies(tt.args)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantCount, len(policies))
 		})
