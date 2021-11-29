@@ -12,6 +12,7 @@ const (
 	PortMappingPolicy CNIPolicyType = "NAT"
 	ACLPolicy         CNIPolicyType = "ACL"
 	L4WFPProxyPolicy  CNIPolicyType = "L4WFPPROXY"
+	LoopbackDSRPolicy CNIPolicyType = "LoopbackDSR"
 )
 
 type CNIPolicyType string

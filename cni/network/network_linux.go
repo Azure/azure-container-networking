@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
-
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
@@ -116,6 +115,10 @@ func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result
 
 func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, _ string) (network.DNSInfo, error) {
 	return getNetworkDNSSettings(nwCfg, result)
+}
+
+func getEndpointPolicies(PolicyArgs) ([]policy.Policy, error) {
+	return nil, nil
 }
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.

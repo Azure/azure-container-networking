@@ -19,11 +19,11 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 	hnsv2 "github.com/Microsoft/hcsshim/hcn"
-	"golang.org/x/sys/windows/registry"
-
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/pkg/errors"
+	"golang.org/x/sys/windows/registry"
 )
 
 var (
@@ -296,7 +296,54 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 	return policies
 }
 
-func addIPV6EndpointPolicy(nwInfo network.NetworkInfo) (policy.Policy, error) {
+func getEndpointPolicies(args PolicyArgs) ([]policy.Policy, error) {
+	var policies []policy.Policy
+
+	if args.nwCfg.IPV6Mode == network.IPV6Nat {
+		ipv6Policy, err := getIPV6EndpointPolicy(args.nwInfo)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get ipv6 endpoint policy")
+		}
+		policies = append(policies, ipv6Policy)
+	}
+
+	if args.nwCfg.WindowsSettings.EnableLoopbackDSR {
+		dsrPolicies, err := getLoopbackDSRPolicy(args)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get loopback dsr policy")
+		}
+		policies = append(policies, dsrPolicies...)
+	}
+
+	return policies, nil
+}
+
+func getLoopbackDSRPolicy(args PolicyArgs) ([]policy.Policy, error) {
+	var policies []policy.Policy
+	for _, config := range args.ipconfigs {
+		// consider DSR policy only for ipv4 address. Add for ipv6 when required
+		if config.Address.IP.To4() != nil {
+			dsrData := policy.LoopbackDSR{
+				Type:      policy.LoopbackDSRPolicy,
+				IPAddress: config.Address.IP,
+			}
+
+			dsrDataBytes, err := json.Marshal(dsrData)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to marshal dsr data")
+			}
+			dsrPolicy := policy.Policy{
+				Type: policy.EndpointPolicy,
+				Data: dsrDataBytes,
+			}
+			policies = append(policies, dsrPolicy)
+		}
+	}
+
+	return policies, nil
+}
+
+func getIPV6EndpointPolicy(nwInfo *network.NetworkInfo) (policy.Policy, error) {
 	var eppolicy policy.Policy
 
 	if len(nwInfo.Subnets) < 2 {

@@ -24,12 +24,6 @@ var (
 			Help: "IPAM IP pool batch size.",
 		},
 	)
-	ipamFreeIPCount = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "ipam_free_ips",
-			Help: "Free IP count.",
-		},
-	)
 	ipamIPPool = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "ipam_ip_pool_size",
@@ -66,6 +60,12 @@ var (
 			Help: "Unallocated IP count.",
 		},
 	)
+	ipamRequestedUnallocatedIPCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "ipam_requested_unallocated_ips",
+			Help: "Unallocated IP count using total requested IPs.",
+		},
+	)
 )
 
 func init() {
@@ -73,10 +73,12 @@ func init() {
 		ipamAllocatedIPCount,
 		ipamAvailableIPCount,
 		ipamBatchSize,
-		ipamFreeIPCount,
 		ipamIPPool,
 		ipamMaxIPCount,
 		ipamPendingProgramIPCount,
 		ipamPendingReleaseIPCount,
+		ipamRequestedIPConfigCount,
+		ipamRequestedUnallocatedIPCount,
+		ipamUnallocatedIPCount,
 	)
 }
