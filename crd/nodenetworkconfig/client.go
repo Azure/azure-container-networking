@@ -28,12 +28,6 @@ func init() {
 	_ = v1alpha.AddToScheme(Scheme)
 }
 
-type OwnerExistsError struct{}
-
-func (*OwnerExistsError) Error() string {
-	return "OwnerRef already exists and does not match"
-}
-
 // Client is provided to interface with the NodeNetworkConfig CRDs.
 type Client struct {
 	nnccli ctrlcli.Client
@@ -146,18 +140,15 @@ func (c *Client) UpdateSpec(ctx context.Context, key types.NamespacedName, spec 
 }
 
 // SetOwnerRef sets the owner of the NodeNetworkConfig to the given object, using HTTP Patch
-func (c *Client) SetOwnerRef(ctx context.Context, nnc *v1alpha.NodeNetworkConfig, owner metav1.Object) error {
+func (c *Client) SetOwnerRef(ctx context.Context, nnc *v1alpha.NodeNetworkConfig, owner metav1.Object) (*v1alpha.NodeNetworkConfig, error) {
 	newNNC := nnc.DeepCopy()
 	if err := ctrlutil.SetControllerReference(owner, newNNC, Scheme); err != nil {
-		// SetControllerReference returns an error if the object already has a different owner or
-		// if there are issues with the scheme. Since we control the scheme in this package, we can safely
-		// assume than any error is caused by an owner already existing
-		return &OwnerExistsError{}
+		return nil, fmt.Errorf("could not set controller reference for NNC %s/%s: %w", nnc.Namespace, nnc.Name, err)
 	}
 
 	if err := c.nnccli.Patch(ctx, newNNC, ctrlcli.MergeFrom(nnc)); err != nil {
-		return fmt.Errorf("could not PATCH NNC %s: %w", nnc.Name, err)
+		return nil, fmt.Errorf("could not patch NNC %s/%s: %w", nnc.Namespace, nnc.Name, err)
 	}
 
-	return nil
+	return newNNC, nil
 }
