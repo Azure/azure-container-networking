@@ -321,22 +321,14 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		// Check if any CIDR block IPSets needs to be applied
 		setType := set.Metadata.Type
 		if setType == ipsets.CIDRBlocks {
-			// cidrInfo can have either cidr (CIDR in IPBlock) or "cidr + " " (space) + nomatch" (Except in IPBlock)
-			for _, cidrInfo := range set.Members {
-				// TODO(jungukcho): This is an adhoc approach for linux, but need to refactor data structure for better management.
-				// onlyCidr has only cidr without "nomatch" to validate cidr format.
-				var onlyCidr string
-				if strings.Contains(cidrInfo, util.IpsetNomatch) {
-					onlyCidr = strings.Trim(onlyCidr, util.IpsetNomatch)
-				} else {
-					onlyCidr = cidrInfo
-				}
-
-				_, _, err := net.ParseCIDR(onlyCidr)
+			// ipblock can have either cidr (CIDR in IPBlock) or "cidr + " " (space) + nomatch" (Except in IPBlock)
+			// (TODO) need to revise it for windows
+			for _, ipblock := range set.Members {
+				err := validateIPBlock(ipblock)
 				if err != nil {
 					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to parseCIDR in addIPSetReferences with err: %s", err.Error()))
 				}
-				err = dp.ipsetMgr.AddToSets([]*ipsets.IPSetMetadata{set.Metadata}, cidrInfo, "")
+				err = dp.ipsetMgr.AddToSets([]*ipsets.IPSetMetadata{set.Metadata}, ipblock, "")
 				if err != nil {
 					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to AddToSet in addIPSetReferences with err: %s", err.Error()))
 				}
@@ -377,12 +369,14 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		// Check if any CIDR block IPSets needs to be applied
 		setType := set.Metadata.Type
 		if setType == ipsets.CIDRBlocks {
-			for _, ip := range set.Members {
-				_, _, err := net.ParseCIDR(ip)
+			// ipblock can have either cidr (CIDR in IPBlock) or "cidr + " " (space) + nomatch" (Except in IPBlock)
+			// (TODO) need to revise it for windows
+			for _, ipblock := range set.Members {
+				err := validateIPBlock(ipblock)
 				if err != nil {
 					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to parseCIDR in deleteIPSetReferences with err: %s", err.Error()))
 				}
-				err = dp.ipsetMgr.RemoveFromSets([]*ipsets.IPSetMetadata{set.Metadata}, ip, "")
+				err = dp.ipsetMgr.RemoveFromSets([]*ipsets.IPSetMetadata{set.Metadata}, ipblock, "")
 				if err != nil {
 					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to RemoveFromSet in deleteIPSetReferences with err: %s", err.Error()))
 				}
@@ -400,6 +394,15 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName())
 	}
 	return nil
+}
+
+// TODO: This is an adhoc approach for linux, but need to refactor data structure for better management.
+func validateIPBlock(ipblock string) error {
+	// TODO: This is fragile code with strong dependency with " "(space).
+	// onlyCidr has only cidr without "space" and "nomatch" in case except ipblock to validate cidr format.
+	onlyCidr := strings.Split(ipblock, " ")[0]
+	_, _, err := net.ParseCIDR(onlyCidr)
+	return err
 }
 
 func getMembersOfTranslatedSets(members []string) []*ipsets.IPSetMetadata {
