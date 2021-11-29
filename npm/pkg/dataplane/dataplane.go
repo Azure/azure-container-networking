@@ -402,7 +402,7 @@ func validateIPBlock(ipblock string) error {
 	// onlyCidr has only cidr without "space" and "nomatch" in case except ipblock to validate cidr format.
 	onlyCidr := strings.Split(ipblock, " ")[0]
 	_, _, err := net.ParseCIDR(onlyCidr)
-	return err
+	return err //nolint:wrapcheck // will resolve it in this PR
 }
 
 func getMembersOfTranslatedSets(members []string) []*ipsets.IPSetMetadata {
