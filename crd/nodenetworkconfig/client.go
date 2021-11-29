@@ -2,6 +2,7 @@ package nodenetworkconfig
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/Azure/azure-container-networking/crd"
@@ -155,7 +156,7 @@ func (c *Client) SetOwnerRef(ctx context.Context, nnc *v1alpha.NodeNetworkConfig
 	}
 
 	if err := c.nnccli.Patch(ctx, newNNC, ctrlcli.MergeFrom(nnc)); err != nil {
-		return err
+		return fmt.Errorf("could not PATCH NNC %s: %w", nnc.Name, err)
 	}
 
 	return nil
