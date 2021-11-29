@@ -503,10 +503,7 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, egress []networkingv1.Ne
 // TranslatePolicy traslates networkpolicy object to NPMNetworkPolicy object
 // and return the NPMNetworkPolicy object.
 func TranslatePolicy(npObj *networkingv1.NetworkPolicy) *policies.NPMNetworkPolicy {
-	npmNetPol := &policies.NPMNetworkPolicy{
-		Name:      npObj.ObjectMeta.Name,
-		NameSpace: npObj.ObjectMeta.Namespace,
-	}
+	npmNetPol := policies.NewNPMNetworkPolicy(npObj.Name, npObj.Namespace)
 
 	// podSelector in spec.PodSelector is common for ingress and egress.
 	// Process this podSelector first.

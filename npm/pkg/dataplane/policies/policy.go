@@ -13,6 +13,8 @@ import (
 type NPMNetworkPolicy struct {
 	Name      string
 	NameSpace string
+	// NetPolKey is a unique combination of "namespace/name" of network policy
+	PolicyKey string
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
 	// PodSelectorList holds target pod information to avoid duplicatoin in SrcList and DstList fields in ACLs
@@ -24,6 +26,14 @@ type NPMNetworkPolicy struct {
 	// podIP is key and endpoint ID as value
 	// Will be populated by dataplane and policy manager
 	PodEndpoints map[string]string
+}
+
+func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {
+	return &NPMNetworkPolicy{
+		Name:      netPolName,
+		NameSpace: netPolNamespace,
+		PolicyKey: fmt.Sprintf("%s/%s", netPolNamespace, netPolName),
+	}
 }
 
 // ACLPolicy equivalent to a single iptable rule in linux

@@ -22,6 +22,6 @@ func (networkPolicy *NPMNetworkPolicy) ingressChainName() string {
 }
 
 func (networkPolicy *NPMNetworkPolicy) chainName(prefix string) string {
-	policyHash := util.Hash(networkPolicy.Name) // assuming the name is unique
+	policyHash := util.Hash(networkPolicy.PolicyKey)
 	return joinWithDash(prefix, policyHash)
 }

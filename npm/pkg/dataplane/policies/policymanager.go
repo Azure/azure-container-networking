@@ -83,19 +83,19 @@ func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 	}()
 }
 
-func (pMgr *PolicyManager) PolicyExists(name string) bool {
-	_, ok := pMgr.policyMap.cache[name]
+func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {
+	_, ok := pMgr.policyMap.cache[policyKey]
 	return ok
 }
 
-func (pMgr *PolicyManager) GetPolicy(name string) (*NPMNetworkPolicy, bool) {
-	policy, ok := pMgr.policyMap.cache[name]
+func (pMgr *PolicyManager) GetPolicy(policyKey string) (*NPMNetworkPolicy, bool) {
+	policy, ok := pMgr.policyMap.cache[policyKey]
 	return policy, ok
 }
 
 func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
 	if len(policy.ACLs) == 0 {
-		klog.Infof("[DataPlane] No ACLs in policy %s to apply", policy.Name)
+		klog.Infof("[DataPlane] No ACLs in policy %s to apply", policy.PolicyKey)
 		return nil
 	}
 	normalizePolicy(policy)
@@ -110,12 +110,12 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to add policy: %v", err))
 	}
 
-	pMgr.policyMap.cache[policy.Name] = policy
+	pMgr.policyMap.cache[policy.PolicyKey] = policy
 	return nil
 }
 
-func (pMgr *PolicyManager) RemovePolicy(name string, endpointList map[string]string) error {
-	policy, ok := pMgr.GetPolicy(name)
+func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[string]string) error {
+	policy, ok := pMgr.GetPolicy(policyKey)
 	klog.Infof("PRINTING-CONTENTS-FOR-REMOVING-POLICY:\n%s", policy.String())
 
 	if !ok {
@@ -125,7 +125,7 @@ func (pMgr *PolicyManager) RemovePolicy(name string, endpointList map[string]str
 	}
 
 	if len(policy.ACLs) == 0 {
-		klog.Infof("[DataPlane] No ACLs in policy %s to remove", policy.Name)
+		klog.Infof("[DataPlane] No ACLs in policy %s to remove", policyKey)
 		return nil
 	}
 	// Call actual dataplane function to apply changes
@@ -134,7 +134,7 @@ func (pMgr *PolicyManager) RemovePolicy(name string, endpointList map[string]str
 		return npmerrors.Errorf(npmerrors.RemovePolicy, false, fmt.Sprintf("failed to remove policy: %v", err))
 	}
 
-	delete(pMgr.policyMap.cache, name)
+	delete(pMgr.policyMap.cache, policyKey)
 	if len(pMgr.policyMap.cache) == 0 {
 		klog.Infof("rebooting policy manager since there are no policies remaining in the cache")
 		if err := pMgr.reboot(); err != nil {
