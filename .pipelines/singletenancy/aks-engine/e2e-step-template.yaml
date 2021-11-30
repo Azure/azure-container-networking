@@ -97,13 +97,12 @@ steps:
         export IS_JENKINS=false 
         export DEBUG_CRASHING_PODS=true
         export AZURE_CORE_ONLY_SHOW_ERRORS=True
+        export GINKGO_FOCUS="should apply various network policies and enforce access to nginx"
         echo Cluster Def $CLUSTER_DEFINITION
         cat $CLUSTER_DEFINITION
         make test-kubernetes
     name: DeployAKSEngine
     displayName: Run AKS-Engine E2E Tests
-      
-
 
   - task: CopyFiles@2
     inputs:
@@ -116,4 +115,3 @@ steps:
       artifactName: ${{ parameters.name }}
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/${{ parameters.name }}"
     condition: always()
-    

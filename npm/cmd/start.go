@@ -91,7 +91,6 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	metrics.InitializeAll()
 
 	// Create the kubernetes client
-	klog.Infof("loading kubeconfig")
 	var k8sConfig *rest.Config
 	if flags.KubeConfigPath == "" {
 		klog.Infof("loading in cluster kubeconfig")
@@ -100,7 +99,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 			return fmt.Errorf("failed to load in cluster config: %w", err)
 		}
 	} else {
-		klog.Infof("loading kubeconfig from flags")
+		klog.Infof("loading kubeconfig from flag: %s", flags.KubeConfigPath)
 		k8sConfig, err = clientcmd.BuildConfigFromFlags("", flags.KubeConfigPath)
 		if err != nil {
 			return fmt.Errorf("failed to load kubeconfig [%s] with err config: %w", flags.KubeConfigPath, err)
@@ -114,13 +113,11 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 		return fmt.Errorf("failed to generate clientset with cluster config: %w", err)
 	}
 
-	klog.Infof("received clientset %+v", clientset)
-
 	// Setting reSyncPeriod
 	minResyncPeriod := time.Duration(config.ResyncPeriodInMinutes) * time.Minute
 
 	// Adding some randomness so all NPM pods will not request for info at once.
-	factor := rand.Float64() + 1
+	factor := rand.Float64() + 1 //nolint
 	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
