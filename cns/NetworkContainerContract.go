@@ -371,7 +371,7 @@ type IPConfigResponse struct {
 }
 
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs
-// The IPConfigStateFilter is a slice of IP's to fetch from CNS that match those states
+// The IPConfigStateFilter is a slice of IPs to fetch from CNS that match those states
 type GetIPAddressesRequest struct {
 	IPConfigStateFilter []IPConfigState
 }
@@ -394,7 +394,7 @@ type GetPodContextResponse struct {
 	Response   Response
 }
 
-// IPAddressState Only used in the GetIPConfig API to return IP's that match a filter
+// IPAddressState Only used in the GetIPConfig API to return IPs that match a filter
 type IPAddressState struct {
 	IPAddress string
 	State     string

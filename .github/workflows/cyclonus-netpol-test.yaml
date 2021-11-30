@@ -17,6 +17,10 @@ on:
 jobs:
   cyclonus-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # run cyclonus tests in parallel for NPM with the given ConfigMaps
+        profile: [v1-default.yaml, v1-place-azure-chain-first.yaml]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -41,10 +45,15 @@ jobs:
           VERSION=cyclonus IMAGE_PLATFORM_ARCHES=linux/amd64 IMAGE_ACTION=load make azure-npm-image
       
       - name: Install Azure NPM
+        # set the ConfigMap based on the build matrix
+        # currently have to restart the daemonset because changing the ConfigMap doesn't restart NPM
         run: |
           sed -i 's/mcr.microsoft.com\/containernetworking\/azure-npm:.*/acnpublic.azurecr.io\/azure-npm:cyclonus/' ./npm/azure-npm.yaml
           kind load docker-image acnpublic.azurecr.io/azure-npm:cyclonus --name npm-kind
           kubectl apply -f ./npm/azure-npm.yaml
+          echo "Applying profile: ${{ matrix.profile }}"
+          kubectl apply -f ./npm/profiles/${{ matrix.profile }}
+          kubectl rollout restart ds azure-npm -n kube-system
     
       - name: Check Cluster Components
         run: |

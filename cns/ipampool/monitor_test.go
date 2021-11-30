@@ -81,7 +81,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 	// ensure pool monitor has reached quorum with cns
 	assert.Equal(t, int64(initState.ipConfigCount+(1*initState.batchSize)), poolmonitor.spec.RequestedIPCount)
 
-	// request controller reconciles, carves new IP's from the test subnet and adds to CNS state
+	// request controller reconciles, carves new IPs from the test subnet and adds to CNS state
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// when poolmonitor reconciles again here, the IP count will be within the thresholds
@@ -111,7 +111,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// increase number of allocated IP's in CNS, within allocatable size but still inside trigger threshold
+	// increase number of allocated IPs in CNS, within allocatable size but still inside trigger threshold
 	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(9))
 
 	// poolmonitor reconciles, but doesn't actually update the CRD, because there is already a pending update
@@ -120,7 +120,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 	// ensure pool monitor has reached quorum with cns
 	assert.Equal(t, int64(initState.ipConfigCount+(1*initState.batchSize)), poolmonitor.spec.RequestedIPCount)
 
-	// request controller reconciles, carves new IP's from the test subnet and adds to CNS state
+	// request controller reconciles, carves new IPs from the test subnet and adds to CNS state
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// when poolmonitor reconciles again here, the IP count will be within the thresholds
@@ -213,10 +213,10 @@ func TestPoolDecrease(t *testing.T) {
 	fakecns, fakerc, poolmonitor := initFakes(initState)
 	assert.NoError(t, fakerc.Reconcile(true))
 
-	// Pool monitor does nothing, as the current number of IP's falls in the threshold
+	// Pool monitor does nothing, as the current number of IPs falls in the threshold
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Decrease the number of allocated IP's down to 5. This should trigger a scale down
+	// Decrease the number of allocated IPs down to 5. This should trigger a scale down
 	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(4))
 
 	// Pool monitor will adjust the spec so the pool size will be 1 batch size smaller
@@ -247,7 +247,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 	fakecns, fakerc, poolmonitor := initFakes(initState)
 	assert.NoError(t, fakerc.Reconcile(true))
 
-	// Pool monitor does nothing, as the current number of IP's falls in the threshold
+	// Pool monitor does nothing, as the current number of IPs falls in the threshold
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// Ensure the size of the requested spec is still the same
@@ -331,13 +331,13 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 	fakecns, fakerc, poolmonitor := initFakes(initState)
 	assert.NoError(t, fakerc.Reconcile(true))
 
-	// Pool monitor does nothing, as the current number of IP's falls in the threshold
+	// Pool monitor does nothing, as the current number of IPs falls in the threshold
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// Now Drop the Allocated count to really low, say 3. This should trigger release in 2 batches
 	assert.NoError(t, fakecns.SetNumberOfAllocatedIPs(3))
 
-	// Pool monitor does nothing, as the current number of IP's falls in the threshold
+	// Pool monitor does nothing, as the current number of IPs falls in the threshold
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// Ensure the size of the requested spec is still the same
@@ -363,7 +363,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 	initState := state{
 		batchSize:               16,
-		allocatedIPCount:        20,
+		allocatedIPCount:        30,
 		ipConfigCount:           30,
 		requestThresholdPercent: 50,
 		releaseThresholdPercent: 150,

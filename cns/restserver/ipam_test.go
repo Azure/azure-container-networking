@@ -196,7 +196,7 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 	}
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	req := cns.IPConfigRequest{
@@ -228,7 +228,7 @@ func TestIPAMGetAlreadyAllocatedIPConfigForSamePod(t *testing.T) {
 	}
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	req := cns.IPConfigRequest{
@@ -261,7 +261,7 @@ func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
 
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	req := cns.IPConfigRequest{
@@ -289,7 +289,7 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	req := cns.IPConfigRequest{
@@ -323,7 +323,7 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAllocatedSpecfiedIP(t *testing.T
 	}
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	// request the already allocated ip with a new context
@@ -354,7 +354,7 @@ func TestIPAMFailToGetIPWhenAllIPsAreAllocated(t *testing.T) {
 	}
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	// request the already allocated ip with a new context
@@ -364,7 +364,7 @@ func TestIPAMFailToGetIPWhenAllIPsAreAllocated(t *testing.T) {
 
 	_, err = requestIpAddressAndGetState(t, req)
 	if err == nil {
-		t.Fatalf("Expected failure requesting IP when there are no more IP's: %+v", err)
+		t.Fatalf("Expected failure requesting IP when there are no more IPs: %+v", err)
 	}
 }
 
@@ -383,7 +383,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	desiredIpAddress := testIP1
@@ -399,7 +399,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 
 	_, err = requestIpAddressAndGetState(t, req)
 	if err == nil {
-		t.Fatal("Expected failure requesting IP when there are no more IP's")
+		t.Fatal("Expected failure requesting IP when there are no more IPs")
 	}
 
 	// Release Test Pod 1
@@ -442,7 +442,7 @@ func TestIPAMReleaseIPIdempotency(t *testing.T) {
 
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	// Release Test Pod 1
@@ -469,12 +469,12 @@ func TestIPAMAllocateIPIdempotency(t *testing.T) {
 
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	err = UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 }
 
@@ -559,7 +559,7 @@ func TestIPAMMarkIPCountAsPending(t *testing.T) {
 
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	// Release Test Pod 1
@@ -704,7 +704,7 @@ func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {
 	}
 	err := UpdatePodIpConfigState(t, svc, ipconfigs)
 	if err != nil {
-		t.Fatalf("Expected to not fail adding IP's to state: %+v", err)
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	// mark available ip as as pending

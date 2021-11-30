@@ -140,9 +140,9 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return pm.decreasePoolSize(ctx, pendingReleaseIPCount)
 
 	// CRD has reconciled CNS state, and target spec is now the same size as the state
-	// free to remove the IP's from the CRD
+	// free to remove the IPs from the CRD
 	case len(pm.spec.IPsNotInUse) != pendingReleaseIPCount:
-		logger.Printf("[ipam-pool-monitor] Removing Pending Release IP's from CRD...%s ", msg)
+		logger.Printf("[ipam-pool-monitor] Removing Pending Release IPs from CRD...%s ", msg)
 		return pm.cleanPendingRelease(ctx)
 
 	// no pods scheduled
@@ -175,7 +175,8 @@ func (pm *Monitor) increasePoolSize(ctx context.Context) error {
 		return nil
 	}
 
-	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Updated Requested IP Count: %v, Pods with IP's:%v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
+	logger.Printf("[ipam-pool-monitor] Increasing pool size, Current Pool Size: %v, Updated Requested IP Count: %v, Pods with IPs:%v, ToBeDeleted Count: %v",
+		len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
 	if _, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
@@ -191,7 +192,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context) error {
 }
 
 func (pm *Monitor) decreasePoolSize(ctx context.Context, existingPendingReleaseIPCount int) error {
-	// mark n number of IP's as pending
+	// mark n number of IPs as pending
 	var newIpsMarkedAsPending bool
 	var pendingIPAddresses map[string]cns.IPConfigurationStatus
 	var updatedRequestedIPCount int64
@@ -241,7 +242,8 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, existingPendingReleaseI
 		len(pendingIPAddresses), pm.state.notInUseCount)
 
 	tempNNCSpec.RequestedIPCount -= int64(len(pendingIPAddresses))
-	logger.Printf("[ipam-pool-monitor] Decreasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IP's: %v, ToBeDeleted Count: %v", len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
+	logger.Printf("[ipam-pool-monitor] Decreasing pool size, Current Pool Size: %v, Requested IP Count: %v, Pods with IPs: %v, ToBeDeleted Count: %v",
+		len(pm.httpService.GetPodIPConfigState()), tempNNCSpec.RequestedIPCount, len(pm.httpService.GetAllocatedIPConfigs()), len(tempNNCSpec.IPsNotInUse))
 
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
 	if err != nil {

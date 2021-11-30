@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: azure-npm-config
+  namespace: kube-system
+data:
+  azure-npm.json: |
+    {
+      "ResyncPeriodInMinutes": 15,
+      "ListeningPort": 10091,
+      "ListeningAddress": "0.0.0.0",
+      "Toggles": {
+        "EnablePrometheusMetrics": true,
+        "EnablePprof": false,
+        "EnableHTTPDebugAPI": true,
+        "EnableV2NPM": true
+      }
+    }

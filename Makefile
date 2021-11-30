@@ -455,4 +455,7 @@ $(MOCKGEN): $(TOOLS_DIR)/go.mod
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
+clean-tools: 
+	rm -r build/tools/bin
+
 tools: gocov gocov-xml go-junit-report golangci-lint gofmt ## Build bins for build tools

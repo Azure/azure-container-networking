@@ -2,6 +2,7 @@ package nodenetworkconfig
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/Azure/azure-container-networking/crd"
@@ -16,6 +17,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrlcli "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Scheme is a runtime scheme containing the client-go scheme and the NodeNetworkConfig scheme.
@@ -135,4 +137,18 @@ func (c *Client) UpdateSpec(ctx context.Context, key types.NamespacedName, spec 
 		return nil, errors.Wrap(err, "failed to update nnc")
 	}
 	return nnc, nil
+}
+
+// SetOwnerRef sets the owner of the NodeNetworkConfig to the given object, using HTTP Patch
+func (c *Client) SetOwnerRef(ctx context.Context, nnc *v1alpha.NodeNetworkConfig, owner metav1.Object) (*v1alpha.NodeNetworkConfig, error) {
+	newNNC := nnc.DeepCopy()
+	if err := ctrlutil.SetControllerReference(owner, newNNC, Scheme); err != nil {
+		return nil, fmt.Errorf("could not set controller reference for NNC %s/%s: %w", nnc.Namespace, nnc.Name, err)
+	}
+
+	if err := c.nnccli.Patch(ctx, newNNC, ctrlcli.MergeFrom(nnc)); err != nil {
+		return nil, fmt.Errorf("could not patch NNC %s/%s: %w", nnc.Namespace, nnc.Name, err)
+	}
+
+	return newNNC, nil
 }
