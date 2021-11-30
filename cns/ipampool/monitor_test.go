@@ -117,7 +117,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// increase number of allocated IP's in CNS, within allocatable size but still inside trigger threshold
+	// increase number of allocated IPs in CNS, within allocatable size but still inside trigger threshold
 	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(9))
 
 	// poolmonitor reconciles, but doesn't actually update the CRD, because there is already a pending update
@@ -222,7 +222,7 @@ func TestPoolDecrease(t *testing.T) {
 	// Pool monitor does nothing, as the current number of IPs falls in the threshold
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Decrease the number of allocated IP's down to 5. This should trigger a scale down
+	// Decrease the number of allocated IPs down to 5. This should trigger a scale down
 	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(4))
 
 	// Pool monitor will adjust the spec so the pool size will be 1 batch size smaller
@@ -340,7 +340,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 	// Pool monitor does nothing, as the current number of IPs falls in the threshold
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Now Drop the Allocated count to really low, say 3. This should trigger release in 2 batches
+	// Now Drop the Assigned count to really low, say 3. This should trigger release in 2 batches
 	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(3))
 
 	// Pool monitor does nothing, as the current number of IPs falls in the threshold

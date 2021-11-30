@@ -224,9 +224,9 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	for ipID := range tobeDeletedIPConfigs {
 		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
-			// pod ip exists, validate if state is not allocated, else fail
+			// pod ip exists, validate if state is not assigned, else fail
 			if ipConfigStatus.State == types.Assigned {
-				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
+				errMsg := fmt.Sprintf("Failed to delete an Assigned IP %v", ipConfigStatus)
 				return types.InconsistentIPConfigState, errMsg
 			}
 		}
@@ -320,9 +320,9 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 	if !skipValidation {
 		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
-			// pod ip exists, validate if state is not allocated, else fail
+			// pod ip exists, validate if state is not assigned, else fail
 			if ipConfigStatus.State == types.Assigned {
-				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
+				errMsg := fmt.Sprintf("Failed to delete an Assigned IP %v", ipConfigStatus)
 				return types.InconsistentIPConfigState, errMsg
 			}
 		}

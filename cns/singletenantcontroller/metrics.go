@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	assignedIPs = prometheus.NewGauge(
+	allocatedIPs = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "allocated_ips",
 			Help: "Allocated IP count.",
@@ -28,7 +28,7 @@ var (
 
 func init() {
 	metrics.Registry.MustRegister(
-		assignedIPs,
+		allocatedIPs,
 		requestedIPs,
 		unusedIPs,
 	)

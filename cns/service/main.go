@@ -240,7 +240,7 @@ var args = acn.ArgumentList{
 	{
 		Name:         acn.OptDebugCmd,
 		Shorthand:    acn.OptDebugCmdAlias,
-		Description:  "Debug flag to retrieve IPconfigs, available values: allocated, available, all",
+		Description:  "Debug flag to retrieve IPconfigs, available values: assigned, available, all",
 		Type:         "string",
 		DefaultValue: "",
 	},

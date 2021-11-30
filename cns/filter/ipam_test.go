@@ -16,7 +16,7 @@ var testStatuses = []struct {
 	{
 		State: types.Assigned,
 		Status: cns.IPConfigurationStatus{
-			ID:    "allocated",
+			ID:    "assigned",
 			State: types.Assigned,
 		},
 	},

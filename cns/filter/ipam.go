@@ -8,7 +8,7 @@ import (
 type IPConfigStatePredicate func(ipconfig cns.IPConfigurationStatus) bool
 
 var (
-	// StateAssigned is a preset filter for cns.Allocated.
+	// StateAssigned is a preset filter for types.Assigned.
 	StateAssigned = ipConfigStatePredicate(types.Assigned)
 	// StateAvailable is a preset filter for types.Available.
 	StateAvailable = ipConfigStatePredicate(types.Available)

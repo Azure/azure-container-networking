@@ -9,7 +9,7 @@ var (
 	ipamAllocatedIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "ipam_allocated_ips",
-			Help: "CNS allocated IP pool size.",
+			Help: "CNS's allocated IP pool size.",
 		},
 	)
 	ipamAssignedIPCount = prometheus.NewGauge(

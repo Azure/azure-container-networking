@@ -22,10 +22,10 @@ var httpRequestLatency = prometheus.NewHistogramVec(
 	[]string{"url", "verb"},
 )
 
-var ipAllocationLatency = prometheus.NewHistogram(
+var ipAssignmentLatency = prometheus.NewHistogram(
 	prometheus.HistogramOpts{
-		Name: "ip_allocation_latency_seconds",
-		Help: "IP allocation latency in seconds",
+		Name: "ip_assignment_latency_seconds",
+		Help: "Pod IP assignment latency in seconds",
 		//nolint:gomnd // default bucket consts
 		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1 ms to ~16 seconds
 	},
@@ -34,7 +34,7 @@ var ipAllocationLatency = prometheus.NewHistogram(
 func init() {
 	metrics.Registry.MustRegister(
 		httpRequestLatency,
-		ipAllocationLatency,
+		ipAssignmentLatency,
 	)
 }
 

@@ -283,9 +283,9 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	assert.Equal(t, desired, resultIPnet, "Desired result not matching actual result")
 
-	// checking for allocated IP address and pod context printing before ReleaseIPAddress is called
+	// checking for assigned IP address and pod context printing before ReleaseIPAddress is called
 	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(context.TODO(), types.Assigned)
-	assert.NoError(t, err, "Get allocated IP addresses failed")
+	assert.NoError(t, err, "Get assigned IP addresses failed")
 
 	assert.Len(t, ipaddresses, 1, "Number of available IP addresses expected to be 1")
 	assert.Equal(t, desiredIpAddress, ipaddresses[0].IPAddress, "Available IP address does not match expected, address state")

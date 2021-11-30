@@ -222,17 +222,17 @@ func (service *HTTPRestService) ReconcileNCState(
 		return types.Success
 	}
 
-	// If the NC was created successfully, then reconcile the allocated pod state
+	// If the NC was created successfully, then reconcile the assigned pod state
 	returnCode := service.CreateOrUpdateNetworkContainerInternal(ncRequest)
 	if returnCode != types.Success {
 		return returnCode
 	}
 	service.IPAMPoolMonitor.Update(nnc)
 
-	// now parse the secondaryIP list, if it exists in PodInfo list, then allocate that ip
+	// now parse the secondaryIP list, if it exists in PodInfo list, then assign that ip.
 	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
 		if podInfo, exists := podInfoByIP[secIpConfig.IPAddress]; exists {
-			logger.Printf("SecondaryIP %+v is allocated to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
+			logger.Printf("SecondaryIP %+v is assigned to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
 
 			jsonContext, err := podInfo.OrchestratorContext()
 			if err != nil {
@@ -252,7 +252,7 @@ func (service *HTTPRestService) ReconcileNCState(
 				return types.FailedToAllocateIPConfig
 			}
 		} else {
-			logger.Printf("SecondaryIP %+v is not allocated. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
+			logger.Printf("SecondaryIP %+v is not assigned. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
 		}
 	}
 

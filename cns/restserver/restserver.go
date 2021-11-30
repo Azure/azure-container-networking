@@ -56,7 +56,7 @@ type HTTPRestService struct {
 	routingTable             *routes.RoutingTable
 	store                    store.KeyValueStore
 	state                    *httpRestServiceState
-	podsPendingIPAllocation  *bounded.TimedSet
+	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
 	dncPartitionKey string
 }
@@ -157,7 +157,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		PodIPConfigState:         podIPConfigState,
 		routingTable:             routingTable,
 		state:                    serviceState,
-		podsPendingIPAllocation:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
+		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 	}, nil
 }
 

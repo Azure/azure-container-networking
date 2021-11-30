@@ -303,7 +303,7 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 }
 
 // GetIPAddressesMatchingStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states
-// usage GetIPAddressesWithStates(types.Available, cns.Allocated)
+// usage GetIPAddressesWithStates(ctx, types.Available...)
 func (c *Client) GetIPAddressesMatchingStates(ctx context.Context, stateFilter ...types.IPState) ([]cns.IPConfigurationStatus, error) {
 	if len(stateFilter) == 0 {
 		return nil, nil
