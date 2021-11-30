@@ -225,11 +225,16 @@ func dstPortSpecs(portRange Ports) []string {
 
 func matchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType MatchType) []string {
 	// TODO update to use included boolean/new data structure from Junguk's PR
-	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(networkPolicy.PodSelectorIPSets))
-	for _, translatedIPSet := range networkPolicy.PodSelectorIPSets {
-		matchString := matchType.toIPTablesString()
-		hashedSetName := translatedIPSet.Metadata.GetHashedName()
-		specs = append(specs, util.IptablesModuleFlag, util.IptablesSetModuleFlag, util.IptablesMatchSetFlag, hashedSetName, matchString)
+	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(networkPolicy.PodSelectorList))
+	matchString := matchType.toIPTablesString()
+	for _, setInfo := range networkPolicy.PodSelectorList {
+		// TODO consolidate this code with that in matchSetSpecsFromSetInfo
+		specs = append(specs, util.IptablesModuleFlag, util.IptablesSetModuleFlag)
+		if !setInfo.Included {
+			specs = append(specs, util.IptablesNotFlag)
+		}
+		hashedSetName := setInfo.IPSet.GetHashedName()
+		specs = append(specs, util.IptablesMatchSetFlag, hashedSetName, matchString)
 	}
 	return specs
 }
