@@ -19,7 +19,7 @@ type RequestControllerFake struct {
 	ip     net.IP
 }
 
-func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar v1alpha.Scaler, subnetAddressSpace string, numberOfIPConfigs int) *RequestControllerFake {
+func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar v1alpha.Scaler, subnetAddressSpace string, numberOfIPConfigs int64) *RequestControllerFake {
 	rc := &RequestControllerFake{
 		cnscli: cnsService,
 		NNC: &v1alpha.NodeNetworkConfig{
@@ -38,14 +38,14 @@ func NewRequestControllerFake(cnsService *HTTPServiceFake, scalar v1alpha.Scaler
 	rc.ip, _, _ = net.ParseCIDR(subnetAddressSpace)
 
 	rc.CarveIPConfigsAndAddToStatusAndCNS(numberOfIPConfigs)
-	rc.NNC.Spec.RequestedIPCount = int64(numberOfIPConfigs)
+	rc.NNC.Spec.RequestedIPCount = numberOfIPConfigs
 
 	return rc
 }
 
-func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPConfigs int) []cns.IPConfigurationStatus {
+func (rc *RequestControllerFake) CarveIPConfigsAndAddToStatusAndCNS(numberOfIPConfigs int64) []cns.IPConfigurationStatus {
 	var cnsIPConfigs []cns.IPConfigurationStatus
-	for i := 0; i < numberOfIPConfigs; i++ {
+	for i := int64(0); i < numberOfIPConfigs; i++ {
 
 		ipconfigCRD := v1alpha.IPAssignment{
 			Name: uuid.New().String(),
@@ -85,7 +85,7 @@ func remove(slice []v1alpha.IPAssignment, s int) []v1alpha.IPAssignment {
 }
 
 func (rc *RequestControllerFake) Reconcile(removePendingReleaseIPs bool) error {
-	diff := int(rc.NNC.Spec.RequestedIPCount) - len(rc.cnscli.GetPodIPConfigState())
+	diff := rc.NNC.Spec.RequestedIPCount - int64(len(rc.cnscli.GetPodIPConfigState()))
 
 	if diff > 0 {
 		// carve the difference of test IPs and add them to CNS, assume dnc has populated the CRD status

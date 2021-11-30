@@ -165,7 +165,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return pm.decreasePoolSize(ctx, state)
 
 	// CRD has reconciled CNS state, and target spec is now the same size as the state
-	// free to remove the IP's from the CRD
+	// free to remove the IPs from the CRD
 	case int64(len(pm.spec.IPsNotInUse)) != state.pendingRelease:
 		logger.Printf("[ipam-pool-monitor] Removing Pending Release IPs from CRD...")
 		return pm.cleanPendingRelease(ctx)
@@ -215,7 +215,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, state ipPoolState) erro
 }
 
 func (pm *Monitor) decreasePoolSize(ctx context.Context, state ipPoolState) error {
-	// mark n number of IP's as pending
+	// mark n number of IPs as pending
 	var newIpsMarkedAsPending bool
 	var pendingIPAddresses map[string]cns.IPConfigurationStatus
 	var updatedRequestedIPCount int64

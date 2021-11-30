@@ -57,19 +57,13 @@ var (
 	ipamRequestedUnassignedIPConfigCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "ipam_requested_unassigned_ips",
-			Help: "Requested IP count.",
+			Help: "Future unassigned IP count assuming the Requested IP count is honored.",
 		},
 	)
 	ipamUnassignedIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "ipam_unassigned_ips",
 			Help: "Unassigned IP count.",
-		},
-	)
-	ipamRequestedUnallocatedIPCount = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "ipam_requested_unallocated_ips",
-			Help: "Unallocated IP count using total requested IPs.",
 		},
 	)
 )
