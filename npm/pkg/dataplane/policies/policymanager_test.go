@@ -14,7 +14,9 @@ var (
 	testNSSet     = ipsets.NewIPSetMetadata("test-ns-set", ipsets.Namespace)
 	testKeyPodSet = ipsets.NewIPSetMetadata("test-keyPod-set", ipsets.KeyLabelOfPod)
 	testNetPol    = &NPMNetworkPolicy{
-		Name: "test/test-netpol",
+		Name:      "test-netpol",
+		NameSpace: "x",
+		PolicyKey: "x/test-netpol",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
 				Metadata: testNSSet,
@@ -74,7 +76,9 @@ func TestAddPolicy(t *testing.T) {
 
 func TestGetPolicy(t *testing.T) {
 	netpol := &NPMNetworkPolicy{
-		Name: "test",
+		Name:      "test-netpol",
+		NameSpace: "x",
+		PolicyKey: "x/test-netpol",
 		ACLs: []*ACLPolicy{
 			{
 				PolicyID:  "azure-acl-123",
@@ -89,11 +93,11 @@ func TestGetPolicy(t *testing.T) {
 
 	require.NoError(t, pMgr.AddPolicy(netpol, epList))
 
-	require.True(t, pMgr.PolicyExists("test"))
+	require.True(t, pMgr.PolicyExists("x/test-netpol"))
 
-	policy, ok := pMgr.GetPolicy("test")
+	policy, ok := pMgr.GetPolicy("x/test-netpol")
 	require.True(t, ok)
-	require.Equal(t, "test", policy.Name)
+	require.Equal(t, "x/test-netpol", policy.PolicyKey)
 }
 
 func TestRemovePolicy(t *testing.T) {
@@ -138,8 +142,10 @@ func TestNormalizeAndValidatePolicy(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			netPol := &NPMNetworkPolicy{
-				Name: "test-netpol",
-				ACLs: []*ACLPolicy{tt.acl},
+				Name:      "test-netpol",
+				NameSpace: "x",
+				PolicyKey: "x/test-netpol",
+				ACLs:      []*ACLPolicy{tt.acl},
 			}
 			normalizePolicy(netPol)
 			err := validatePolicy(netPol)

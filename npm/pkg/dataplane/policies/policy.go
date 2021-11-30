@@ -13,7 +13,8 @@ import (
 type NPMNetworkPolicy struct {
 	Name      string
 	NameSpace string
-	// NetPolKey is a unique combination of "namespace/name" of network policy
+	// TODO remove Name and Namespace field
+	// PolicyKey is a unique combination of "namespace/name" of network policy
 	PolicyKey string
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
@@ -135,34 +136,48 @@ func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
 }
 
 func (netPol *NPMNetworkPolicy) String() string {
-	var infoStrings []string
 	if netPol == nil {
-		klog.Infof("NPMNetworkPolicy is nil!!!")
+		klog.Infof("NPMNetworkPolicy is nil when trying to print string")
 		return "nil NPMNetworkPolicy"
 	}
+	itemStrings := make([]string, 0, len(netPol.ACLs))
 	for _, item := range netPol.ACLs {
-		infoStrings = append(infoStrings, item.String())
+		itemStrings = append(itemStrings, item.String())
 	}
-	aclArrayString := strings.Join(infoStrings, "\n--\n")
+	aclArrayString := strings.Join(itemStrings, "\n--\n")
+
+	podSelectorIPSetString := translatedIPSetsToString(netPol.PodSelectorIPSets)
+	podSelectorListString := infoArrayToString(netPol.PodSelectorList)
 	format := `Name:%s  Namespace:%s
+PodSelectorIPSets: %s
+PodSelectorList: %s
 ACLs:
 %s`
-	return fmt.Sprintf(format, netPol.Name, netPol.NameSpace, aclArrayString)
+	return fmt.Sprintf(format, netPol.Name, netPol.NameSpace, podSelectorIPSetString, podSelectorListString, aclArrayString)
 }
 
-func (acl *ACLPolicy) String() string {
+func (aclPolicy *ACLPolicy) String() string {
 	format := `Target:%s  Direction:%s  Protocol:%s  Ports:%+v
 SrcList: %s
 DstList: %s`
-	return fmt.Sprintf(format, acl.Target, acl.Direction, acl.Protocol, acl.DstPorts, infoArrayToString(acl.SrcList), infoArrayToString(acl.DstList))
+	return fmt.Sprintf(format, aclPolicy.Target, aclPolicy.Direction, aclPolicy.Protocol, aclPolicy.DstPorts, infoArrayToString(aclPolicy.SrcList), infoArrayToString(aclPolicy.DstList))
 }
 
 func infoArrayToString(items []SetInfo) string {
-	var infoStrings []string
+	itemStrings := make([]string, 0, len(items))
 	for _, item := range items {
-		infoStrings = append(infoStrings, fmt.Sprintf("{%s}", item.String()))
+		itemStrings = append(itemStrings, fmt.Sprintf("{%s}", item.String()))
 	}
-	return fmt.Sprintf("[%s]", strings.Join(infoStrings, ","))
+	return fmt.Sprintf("[%s]", strings.Join(itemStrings, ","))
+}
+
+func translatedIPSetsToString(items []*ipsets.TranslatedIPSet) string {
+	itemStrings := make([]string, 0, len(items))
+	for _, item := range items {
+		ipset := ipsets.NewIPSet(item.Metadata)
+		itemStrings = append(itemStrings, fmt.Sprintf("{%s}", ipset.String()))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(itemStrings, ","))
 }
 
 // SetInfo helps capture additional details in a matchSet.

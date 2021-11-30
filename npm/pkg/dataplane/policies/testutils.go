@@ -6,24 +6,49 @@ var (
 	// TestNetworkPolicies for testing
 	TestNetworkPolicies = []*NPMNetworkPolicy{
 		{
-			Name: "test1",
+			Name:      "test1",
+			NameSpace: "x",
+			PolicyKey: "x/test1",
 			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 				{Metadata: ipsets.TestKeyPodSet.Metadata},
+			},
+			PodSelectorList: []SetInfo{
+				{
+					IPSet:     ipsets.TestKeyPodSet.Metadata,
+					Included:  true,
+					MatchType: EitherMatch,
+				},
 			},
 			ACLs: testACLs,
 		},
 		{
-			Name: "test2",
+			Name:      "test2",
+			NameSpace: "y",
+			PolicyKey: "y/test2",
 			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 				{Metadata: ipsets.TestKeyPodSet.Metadata},
 				{Metadata: ipsets.TestKVPodSet.Metadata},
+			},
+			PodSelectorList: []SetInfo{
+				{
+					IPSet:     ipsets.TestKeyPodSet.Metadata,
+					Included:  true,
+					MatchType: EitherMatch,
+				},
+				{
+					IPSet:     ipsets.TestKVPodSet.Metadata,
+					Included:  true,
+					MatchType: EitherMatch,
+				},
 			},
 			ACLs: []*ACLPolicy{
 				testACLs[0],
 			},
 		},
 		{
-			Name: "test3",
+			Name:      "test3",
+			NameSpace: "z",
+			PolicyKey: "z/test3",
 			ACLs: []*ACLPolicy{
 				testACLs[3],
 			},

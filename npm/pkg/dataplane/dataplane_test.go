@@ -25,7 +25,9 @@ var (
 		Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
 	}
 	testPolicyobj = policies.NPMNetworkPolicy{
-		Name: "ns1/testpolicy",
+		Name:      "testpolicy",
+		NameSpace: "ns1",
+		PolicyKey: "ns1/testpolicy",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
 				Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.Namespace),
@@ -245,7 +247,7 @@ func TestRemovePolicy(t *testing.T) {
 	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
 
-	err = dp.RemovePolicy(testPolicyobj.Name)
+	err = dp.RemovePolicy(testPolicyobj.PolicyKey)
 	require.NoError(t, err)
 }
 

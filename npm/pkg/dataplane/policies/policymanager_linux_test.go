@@ -35,9 +35,9 @@ var (
 )
 
 func TestChainNames(t *testing.T) {
-	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(TestNetworkPolicies[0].Name))
+	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(TestNetworkPolicies[0].PolicyKey))
 	require.Equal(t, expectedName, TestNetworkPolicies[0].ingressChainName())
-	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(TestNetworkPolicies[0].Name))
+	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(TestNetworkPolicies[0].PolicyKey))
 	require.Equal(t, expectedName, TestNetworkPolicies[0].egressChainName())
 }
 
@@ -111,7 +111,7 @@ func TestRemovePolicies(t *testing.T) {
 
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil) // need the policy in the cache
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
 	require.NoError(t, err)
 }
 
@@ -127,7 +127,7 @@ func TestRemovePoliciesErrorOnRestore(t *testing.T) {
 	pMgr := NewPolicyManager(ioshim)
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
 	require.Error(t, err)
 }
 
@@ -141,7 +141,7 @@ func TestRemovePoliciesErrorOnDeleteForIngress(t *testing.T) {
 	pMgr := NewPolicyManager(ioshim)
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
 	require.Error(t, err)
 }
 
@@ -156,7 +156,7 @@ func TestRemovePoliciesErrorOnDeleteForEgress(t *testing.T) {
 	pMgr := NewPolicyManager(ioshim)
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
 	require.Error(t, err)
 }
 
@@ -178,7 +178,7 @@ func TestUpdatingChainsToCleanup(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains)
 
 	// successful removal, so mark the policy's chains as stale
-	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil))
+	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil))
 	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
 
 	// successful add, so keep the same stale chains
@@ -186,7 +186,7 @@ func TestUpdatingChainsToCleanup(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
 
 	// failure to remove, so keep the same stale chains
-	require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[1].Name, nil))
+	require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[1].PolicyKey, nil))
 	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
 
 	// successfully add a new policy. keep the same stale chains
@@ -194,7 +194,7 @@ func TestUpdatingChainsToCleanup(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
 
 	// successful removal, so mark the policy's chains as stale
-	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[2].Name, nil))
+	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[2].PolicyKey, nil))
 	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain, testPolicy3EgressChain)
 
 	// failure to add, so keep the same stale chains the same
