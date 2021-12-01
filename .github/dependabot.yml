@@ -1,6 +1,6 @@
 # https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 
-version: 2
+version: 1
 updates:
   - package-ecosystem: "gomod"
     directory: "/"
