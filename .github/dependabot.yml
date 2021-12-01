@@ -10,4 +10,4 @@ updates:
       - "matmerr"
       - "rbtr"
     commit-message:
-      prefix: "vendor: "
+      prefix: "vendor"
