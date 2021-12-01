@@ -4,6 +4,7 @@ version: 1
 updates:
   - package-ecosystem: "gomod"
     directory: "/"
+    vendor: true
     schedule:
       interval: "daily"
     assignees:
