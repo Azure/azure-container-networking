@@ -577,6 +577,14 @@ func TestExtractHost(t *testing.T) {
 	if host != expected {
 		t.Fatalf("expected host %q, got %q", expected, host)
 	}
+
+	joinURL = "http://168.63.129.16/joinedVirtualNetworks/4941a21f-1a8d-4d0f-8256-cc6e73a8cd22/api-version/1"
+
+	host = extractHostFromJoinNetworkURL(joinURL)
+	expected = "168.63.129.16"
+	if host != expected {
+		t.Fatalf("expected host %q, got %q", expected, host)
+	}
 }
 
 func TestUnpublishNCViaCNS(t *testing.T) {
