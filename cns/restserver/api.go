@@ -1082,7 +1082,7 @@ func getAuthTokenFromCreateNetworkContainerURL(
 	return strings.Split(strings.Split(createNetworkContainerURL, "authenticationToken/")[1], "/")[0]
 }
 
-var rgx = regexp.MustCompile("^http[s]?://(.*?)/joinedVirtualNetworks.*?$")
+var rgx = regexp.MustCompile("^http[s]?://(.*?)/machine/plugins/.*?$")
 
 func extractHostFromJoinNetworkURL(url string) string {
 	submatches := rgx.FindStringSubmatch(url)
