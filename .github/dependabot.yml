@@ -1,10 +1,9 @@
 # https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 
-version: 1
+version: 2
 updates:
   - package-ecosystem: "gomod"
     directory: "/"
-    vendor: true
     schedule:
       interval: "daily"
     assignees:
