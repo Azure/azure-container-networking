@@ -13,32 +13,193 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// ACLs
+// Don't care about PolicyID for Linux
 var (
-	testPolicy1IngressChain = TestNetworkPolicies[0].ingressChainName()
-	testPolicy1EgressChain  = TestNetworkPolicies[0].egressChainName()
-	testPolicy2IngressChain = TestNetworkPolicies[1].ingressChainName()
-	testPolicy3EgressChain  = TestNetworkPolicies[2].egressChainName()
-
-	testPolicy1IngressJump = fmt.Sprintf("-j %s -m set --match-set %s dst", testPolicy1IngressChain, ipsets.TestKeyPodSet.HashedName)
-	testPolicy1EgressJump  = fmt.Sprintf("-j %s -m set --match-set %s src", testPolicy1EgressChain, ipsets.TestKeyPodSet.HashedName)
-	testPolicy2IngressJump = fmt.Sprintf("-j %s -m set --match-set %s dst -m set --match-set %s dst", testPolicy2IngressChain, ipsets.TestKeyPodSet.HashedName, ipsets.TestKVPodSet.HashedName)
-	testPolicy3EgressJump  = fmt.Sprintf("-j %s", testPolicy3EgressChain)
-
-	testACLRule1 = fmt.Sprintf(
-		"-j MARK --set-mark 0x4000 -p TCP --dport 222:333 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment comment1",
-		ipsets.TestCIDRSet.HashedName,
-		ipsets.TestKeyPodSet.HashedName,
-	)
-	testACLRule2 = fmt.Sprintf("-j AZURE-NPM-INGRESS-ALLOW-MARK -p UDP -m set --match-set %s src -m comment --comment comment2", ipsets.TestCIDRSet.HashedName)
-	testACLRule3 = fmt.Sprintf("-j MARK --set-mark 0x5000 -p UDP --dport 144 -m set --match-set %s src -m comment --comment comment3", ipsets.TestCIDRSet.HashedName)
-	testACLRule4 = fmt.Sprintf("-j AZURE-NPM-ACCEPT -m set --match-set %s src -m comment --comment comment4", ipsets.TestCIDRSet.HashedName)
+	ingressDeniedACL = &ACLPolicy{
+		SrcList: []SetInfo{
+			{
+				ipsets.TestCIDRSet.Metadata,
+				true,
+				SrcMatch,
+			},
+			{
+				ipsets.TestKeyPodSet.Metadata,
+				false,
+				DstMatch,
+			},
+		},
+		Target:    Dropped,
+		Direction: Ingress,
+		DstPorts: Ports{
+			222, 333,
+		},
+		Protocol: TCP,
+	}
+	ingressAllowedACL = &ACLPolicy{
+		SrcList: []SetInfo{
+			{
+				ipsets.TestCIDRSet.Metadata,
+				true,
+				SrcMatch,
+			},
+		},
+		Target:    Allowed,
+		Direction: Ingress,
+		Protocol:  UnspecifiedProtocol,
+	}
+	egressDeniedACL = &ACLPolicy{
+		PolicyID: "acl3",
+		DstList: []SetInfo{
+			{
+				ipsets.TestCIDRSet.Metadata,
+				true,
+				DstMatch,
+			},
+		},
+		Target:    Dropped,
+		Direction: Egress,
+		DstPorts:  Ports{144, 144},
+		Protocol:  UDP,
+	}
+	egressAllowedACL = &ACLPolicy{
+		PolicyID: "acl4",
+		DstList: []SetInfo{
+			{
+				ipsets.TestNamedportSet.Metadata,
+				true,
+				DstMatch,
+			},
+		},
+		Target:    Allowed,
+		Direction: Egress,
+		Protocol:  UnspecifiedProtocol,
+	}
 )
 
+// iptables rule constants for ACLs
+const (
+	// TODO
+	ingressDropComment  = "DROP-FROM-cidr-test-cidr-set-AND-!podlabel-test-keyPod-set-ON-TCP-TO-PORT-222:333"
+	ingressAllowComment = "ALLOW-FROM-cidr-test-cidr-set"
+	egressDropComment   = "DROP-TO-cidr-test-cidr-set-ON-UDP-TO-PORT-144"
+	egressAllowComment  = "ALLOW-ALL-TO-namedport:test-namedport-set"
+)
+
+// iptables rule variables for ACLs
+var (
+	ingressDropRule = fmt.Sprintf(
+		"-j MARK --set-mark 0x4000 -p TCP --dport 222:333 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment %s",
+		ipsets.TestCIDRSet.HashedName,
+		ipsets.TestKeyPodSet.HashedName,
+		ingressDropComment,
+	)
+	ingressAllowRule = fmt.Sprintf("-j AZURE-NPM-INGRESS-ALLOW-MARK -m set --match-set %s src -m comment --comment %s", ipsets.TestCIDRSet.HashedName, ingressAllowComment)
+	egressDropRule   = fmt.Sprintf("-j MARK --set-mark 0x5000 -p UDP --dport 144 -m set --match-set %s dst -m comment --comment %s", ipsets.TestCIDRSet.HashedName, egressDropComment)
+	egressAllowRule  = fmt.Sprintf("-j AZURE-NPM-ACCEPT -m set --match-set %s dst -m comment --comment %s", ipsets.TestNamedportSet.HashedName, egressAllowComment)
+)
+
+// NetworkPolicies
+var (
+	bothDirectionsNetPol = &NPMNetworkPolicy{
+		Name:      "test1",
+		NameSpace: "x",
+		PolicyKey: "x/test1",
+		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+			{Metadata: ipsets.TestKeyPodSet.Metadata},
+		},
+		PodSelectorList: []SetInfo{
+			{
+				IPSet:     ipsets.TestKeyPodSet.Metadata,
+				Included:  true,
+				MatchType: EitherMatch,
+			},
+		},
+		ACLs: []*ACLPolicy{
+			ingressDeniedACL,
+			ingressAllowedACL,
+			egressDeniedACL,
+			egressAllowedACL,
+		},
+	}
+	ingressNetPol = &NPMNetworkPolicy{
+		Name:      "test2",
+		NameSpace: "y",
+		PolicyKey: "y/test2",
+		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+			{Metadata: ipsets.TestKeyPodSet.Metadata},
+			{Metadata: ipsets.TestNSSet.Metadata},
+		},
+		PodSelectorList: []SetInfo{
+			{
+				IPSet:     ipsets.TestKeyPodSet.Metadata,
+				Included:  true,
+				MatchType: EitherMatch,
+			},
+			{
+				IPSet:     ipsets.TestNSSet.Metadata,
+				Included:  true,
+				MatchType: EitherMatch,
+			},
+		},
+		ACLs: []*ACLPolicy{
+			ingressDeniedACL,
+		},
+	}
+	egressNetPol = &NPMNetworkPolicy{
+		Name:      "test3",
+		NameSpace: "z",
+		PolicyKey: "z/test3",
+		ACLs: []*ACLPolicy{
+			egressAllowedACL,
+		},
+	}
+)
+
+// iptables rule constants for NetworkPolicies
+const (
+	bothDirectionsNetPolIngressJumpComment = "INGRESS-POLICY-x/test1-TO-podlabel-test-keyPod-set-IN-ns-x"
+	bothDirectionsNetPolEgressJumpComment  = "EGRESS-POLICY-x/test1-FROM-podlabel-test-keyPod-set-IN-ns-x"
+	ingressNetPolJumpComment               = "INGRESS-POLICY-y/test2-TO-podlabel-test-keyPod-set-AND-ns-test-ns-set-IN-ns-y"
+	egressNetPolJumpComment                = "EGRESS-POLICY-z/test3-FROM-all-IN-ns-z"
+)
+
+// iptable rule variables for NetworkPolicies
+var (
+	bothDirectionsNetPolIngressChain = bothDirectionsNetPol.ingressChainName()
+	bothDirectionsNetPolEgressChain  = bothDirectionsNetPol.egressChainName()
+	ingressNetPolChain               = ingressNetPol.ingressChainName()
+	egressNetPolChain                = egressNetPol.egressChainName()
+
+	ingressEgressNetPolIngressJump = fmt.Sprintf(
+		"-j %s -m set --match-set %s dst -m comment --comment %s",
+		bothDirectionsNetPolIngressChain,
+		ipsets.TestKeyPodSet.HashedName,
+		bothDirectionsNetPolIngressJumpComment,
+	)
+	ingressEgressNetPolEgressJump = fmt.Sprintf(
+		"-j %s -m set --match-set %s src -m comment --comment %s",
+		bothDirectionsNetPolEgressChain,
+		ipsets.TestKeyPodSet.HashedName,
+		bothDirectionsNetPolEgressJumpComment,
+	)
+	ingressNetPolJump = fmt.Sprintf(
+		"-j %s -m set --match-set %s dst -m set --match-set %s dst -m comment --comment %s",
+		ingressNetPolChain,
+		ipsets.TestKeyPodSet.HashedName,
+		ipsets.TestNSSet.HashedName,
+		ingressNetPolJumpComment,
+	)
+	egressNetPolJump = fmt.Sprintf("-j %s -m comment --comment %s", egressNetPolChain, egressNetPolJumpComment)
+)
+
+var allTestNetworkPolicies = []*NPMNetworkPolicy{bothDirectionsNetPol, ingressNetPol, egressNetPol}
+
 func TestChainNames(t *testing.T) {
-	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(TestNetworkPolicies[0].PolicyKey))
-	require.Equal(t, expectedName, TestNetworkPolicies[0].ingressChainName())
-	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(TestNetworkPolicies[0].PolicyKey))
-	require.Equal(t, expectedName, TestNetworkPolicies[0].egressChainName())
+	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(bothDirectionsNetPol.PolicyKey))
+	require.Equal(t, expectedName, bothDirectionsNetPol.ingressChainName())
+	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(bothDirectionsNetPol.PolicyKey))
+	require.Equal(t, expectedName, bothDirectionsNetPol.egressChainName())
 }
 
 func TestAddPolicies(t *testing.T) {
@@ -46,34 +207,34 @@ func TestAddPolicies(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
-	creator := pMgr.creatorForNewNetworkPolicies(allChainNames(TestNetworkPolicies), TestNetworkPolicies...)
+	creator := pMgr.creatorForNewNetworkPolicies(allChainNames(allTestNetworkPolicies), allTestNetworkPolicies...)
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
 		// all chains
-		fmt.Sprintf(":%s - -", testPolicy1IngressChain),
-		fmt.Sprintf(":%s - -", testPolicy1EgressChain),
-		fmt.Sprintf(":%s - -", testPolicy2IngressChain),
-		fmt.Sprintf(":%s - -", testPolicy3EgressChain),
+		fmt.Sprintf(":%s - -", bothDirectionsNetPolIngressChain),
+		fmt.Sprintf(":%s - -", bothDirectionsNetPolEgressChain),
+		fmt.Sprintf(":%s - -", ingressNetPolChain),
+		fmt.Sprintf(":%s - -", egressNetPolChain),
 		// policy 1
-		fmt.Sprintf("-A %s %s", testPolicy1IngressChain, testACLRule1),
-		fmt.Sprintf("-A %s %s", testPolicy1IngressChain, testACLRule2),
-		fmt.Sprintf("-A %s %s", testPolicy1EgressChain, testACLRule3),
-		fmt.Sprintf("-A %s %s", testPolicy1EgressChain, testACLRule4),
-		fmt.Sprintf("-I AZURE-NPM-INGRESS 1 %s", testPolicy1IngressJump),
-		fmt.Sprintf("-I AZURE-NPM-EGRESS 1 %s", testPolicy1EgressJump),
+		fmt.Sprintf("-A %s %s", bothDirectionsNetPolIngressChain, ingressDropRule),
+		fmt.Sprintf("-A %s %s", bothDirectionsNetPolIngressChain, ingressAllowRule),
+		fmt.Sprintf("-A %s %s", bothDirectionsNetPolEgressChain, egressDropRule),
+		fmt.Sprintf("-A %s %s", bothDirectionsNetPolEgressChain, egressAllowRule),
+		fmt.Sprintf("-I AZURE-NPM-INGRESS 1 %s", ingressEgressNetPolIngressJump),
+		fmt.Sprintf("-I AZURE-NPM-EGRESS 1 %s", ingressEgressNetPolEgressJump),
 		// policy 2
-		fmt.Sprintf("-A %s %s", testPolicy2IngressChain, testACLRule1),
-		fmt.Sprintf("-I AZURE-NPM-INGRESS 2 %s", testPolicy2IngressJump),
+		fmt.Sprintf("-A %s %s", ingressNetPolChain, ingressDropRule),
+		fmt.Sprintf("-I AZURE-NPM-INGRESS 2 %s", ingressNetPolJump),
 		// policy 3
-		fmt.Sprintf("-A %s %s", testPolicy3EgressChain, testACLRule4),
-		fmt.Sprintf("-I AZURE-NPM-EGRESS 2 %s", testPolicy3EgressJump),
+		fmt.Sprintf("-A %s %s", egressNetPolChain, egressAllowRule),
+		fmt.Sprintf("-I AZURE-NPM-EGRESS 2 %s", egressNetPolJump),
 		"COMMIT",
 		"",
 	}
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 
-	err := pMgr.addPolicy(TestNetworkPolicies[0], nil)
+	err := pMgr.AddPolicy(bothDirectionsNetPol, nil)
 	require.NoError(t, err)
 }
 
@@ -82,126 +243,126 @@ func TestAddPoliciesError(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
-	err := pMgr.addPolicy(TestNetworkPolicies[0], nil)
+	err := pMgr.addPolicy(bothDirectionsNetPol, nil)
 	require.Error(t, err)
 }
 
 func TestRemovePolicies(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
-		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
-		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", testPolicy1EgressJump, 2), // if the policy chain doesn't exist, we shouldn't error
+		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump),
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 2), // if the policy chain doesn't exist, we shouldn't error
 		fakeIPTablesRestoreCommand,
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
-	creator := pMgr.creatorForRemovingPolicies(allChainNames(TestNetworkPolicies))
+	creator := pMgr.creatorForRemovingPolicies(allChainNames(allTestNetworkPolicies))
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
-		fmt.Sprintf(":%s - -", testPolicy1IngressChain),
-		fmt.Sprintf(":%s - -", testPolicy1EgressChain),
-		fmt.Sprintf(":%s - -", testPolicy2IngressChain),
-		fmt.Sprintf(":%s - -", testPolicy3EgressChain),
+		fmt.Sprintf(":%s - -", bothDirectionsNetPolIngressChain),
+		fmt.Sprintf(":%s - -", bothDirectionsNetPolEgressChain),
+		fmt.Sprintf(":%s - -", ingressNetPolChain),
+		fmt.Sprintf(":%s - -", egressNetPolChain),
 		"COMMIT",
 		"",
 	}
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil) // need the policy in the cache
+	err := pMgr.AddPolicy(bothDirectionsNetPol, nil) // need the policy in the cache
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
+	err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil)
 	require.NoError(t, err)
 }
 
 func TestRemovePoliciesErrorOnRestore(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
-		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
-		getFakeDeleteJumpCommand("AZURE-NPM-EGRESS", testPolicy1EgressJump),
+		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump),
+		getFakeDeleteJumpCommand("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump),
 		fakeIPTablesRestoreFailureCommand,
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
+	err := pMgr.AddPolicy(bothDirectionsNetPol, nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
+	err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil)
 	require.Error(t, err)
 }
 
 func TestRemovePoliciesErrorOnDeleteForIngress(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
-		getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", testPolicy1IngressJump, 1), // anything but 0 or 2
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump, 1), // anything but 0 or 2
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
+	err := pMgr.AddPolicy(bothDirectionsNetPol, nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
+	err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil)
 	require.Error(t, err)
 }
 
 func TestRemovePoliciesErrorOnDeleteForEgress(t *testing.T) {
 	calls := []testutils.TestCmd{
 		fakeIPTablesRestoreCommand,
-		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", testPolicy1IngressJump),
-		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", testPolicy1EgressJump, 1), // anything but 0 or 2
+		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump),
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 1), // anything but 0 or 2
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], nil)
+	err := pMgr.AddPolicy(bothDirectionsNetPol, nil)
 	require.NoError(t, err)
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
+	err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil)
 	require.Error(t, err)
 }
 
 func TestUpdatingChainsToCleanup(t *testing.T) {
-	calls := GetAddPolicyTestCalls(TestNetworkPolicies[0])
-	calls = append(calls, GetRemovePolicyTestCalls(TestNetworkPolicies[0])...)
-	calls = append(calls, GetAddPolicyTestCalls(TestNetworkPolicies[1])...)
-	calls = append(calls, GetRemovePolicyFailureTestCalls(TestNetworkPolicies[1])...)
-	calls = append(calls, GetAddPolicyTestCalls(TestNetworkPolicies[2])...)
-	calls = append(calls, GetRemovePolicyTestCalls(TestNetworkPolicies[2])...)
-	calls = append(calls, GetAddPolicyFailureTestCalls(TestNetworkPolicies[0])...)
-	calls = append(calls, GetAddPolicyTestCalls(TestNetworkPolicies[0])...)
+	calls := GetAddPolicyTestCalls(bothDirectionsNetPol)
+	calls = append(calls, GetRemovePolicyTestCalls(bothDirectionsNetPol)...)
+	calls = append(calls, GetAddPolicyTestCalls(ingressNetPol)...)
+	calls = append(calls, GetRemovePolicyFailureTestCalls(ingressNetPol)...)
+	calls = append(calls, GetAddPolicyTestCalls(egressNetPol)...)
+	calls = append(calls, GetRemovePolicyTestCalls(egressNetPol)...)
+	calls = append(calls, GetAddPolicyFailureTestCalls(bothDirectionsNetPol)...)
+	calls = append(calls, GetAddPolicyTestCalls(bothDirectionsNetPol)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim)
 
 	// add so we can remove. no stale chains to start
-	require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[0], nil))
+	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
 	assertStaleChainsContain(t, pMgr.staleChains)
 
 	// successful removal, so mark the policy's chains as stale
-	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil))
-	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
+	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil))
+	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successful add, so keep the same stale chains
-	require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[1], nil))
-	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
+	require.NoError(t, pMgr.AddPolicy(ingressNetPol, nil))
+	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// failure to remove, so keep the same stale chains
-	require.Error(t, pMgr.RemovePolicy(TestNetworkPolicies[1].PolicyKey, nil))
-	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
+	require.Error(t, pMgr.RemovePolicy(ingressNetPol.PolicyKey, nil))
+	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successfully add a new policy. keep the same stale chains
-	require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[2], nil))
-	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain)
+	require.NoError(t, pMgr.AddPolicy(egressNetPol, nil))
+	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successful removal, so mark the policy's chains as stale
-	require.NoError(t, pMgr.RemovePolicy(TestNetworkPolicies[2].PolicyKey, nil))
-	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain, testPolicy3EgressChain)
+	require.NoError(t, pMgr.RemovePolicy(egressNetPol.PolicyKey, nil))
+	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain, egressNetPolChain)
 
 	// failure to add, so keep the same stale chains the same
-	require.Error(t, pMgr.AddPolicy(TestNetworkPolicies[0], nil))
-	assertStaleChainsContain(t, pMgr.staleChains, testPolicy1IngressChain, testPolicy1EgressChain, testPolicy3EgressChain)
+	require.Error(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
+	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain, egressNetPolChain)
 
 	// successful add, so remove the policy's chains from the stale chains
-	require.NoError(t, pMgr.AddPolicy(TestNetworkPolicies[0], nil))
-	assertStaleChainsContain(t, pMgr.staleChains, testPolicy3EgressChain)
+	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
+	assertStaleChainsContain(t, pMgr.staleChains, egressNetPolChain)
 }

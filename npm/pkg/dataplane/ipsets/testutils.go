@@ -2,6 +2,8 @@ package ipsets
 
 import "github.com/Azure/azure-container-networking/npm/util"
 
+// TODO deprecate the TestSet type and replace TestNSSet etc. with just their metadata
+// since you can get prefix name and hashed name with metadata methods
 type TestSet struct {
 	Metadata   *IPSetMetadata
 	PrefixName string

@@ -139,13 +139,17 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, isIngress bo
 func ingressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
 	chainName := networkPolicy.ingressChainName()
 	specs := []string{util.IptablesJumpFlag, chainName}
-	return append(specs, matchSetSpecsForNetworkPolicy(networkPolicy, DstMatch)...)
+	specs = append(specs, matchSetSpecsForNetworkPolicy(networkPolicy, DstMatch)...)
+	specs = append(specs, commentSpecs(networkPolicy.commentForJumpToIngress())...)
+	return specs
 }
 
 func egressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
 	chainName := networkPolicy.egressChainName()
 	specs := []string{util.IptablesJumpFlag, chainName}
-	return append(specs, matchSetSpecsForNetworkPolicy(networkPolicy, SrcMatch)...)
+	specs = append(specs, matchSetSpecsForNetworkPolicy(networkPolicy, SrcMatch)...)
+	specs = append(specs, commentSpecs(networkPolicy.commentForJumpToEgress())...)
+	return specs
 }
 
 // noflush add to chains impacted
@@ -210,9 +214,7 @@ func iptablesRuleSpecs(aclPolicy *ACLPolicy) []string {
 	specs = append(specs, dstPortSpecs(aclPolicy.DstPorts)...)
 	specs = append(specs, matchSetSpecsFromSetInfo(aclPolicy.SrcList)...)
 	specs = append(specs, matchSetSpecsFromSetInfo(aclPolicy.DstList)...)
-	if aclPolicy.Comment != "" {
-		specs = append(specs, commentSpecs(aclPolicy.Comment)...)
-	}
+	specs = append(specs, commentSpecs(aclPolicy.comment())...)
 	return specs
 }
 

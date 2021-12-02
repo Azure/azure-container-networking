@@ -1,6 +1,10 @@
 package policies
 
-import "github.com/Azure/azure-container-networking/npm/util"
+import (
+	"strconv"
+
+	"github.com/Azure/azure-container-networking/npm/util"
+)
 
 // returns two booleans indicating whether the network policy has ingress and egress respectively
 func (networkPolicy *NPMNetworkPolicy) hasIngressAndEgress() (hasIngress, hasEgress bool) {
@@ -24,4 +28,13 @@ func (networkPolicy *NPMNetworkPolicy) ingressChainName() string {
 func (networkPolicy *NPMNetworkPolicy) chainName(prefix string) string {
 	policyHash := util.Hash(networkPolicy.PolicyKey)
 	return joinWithDash(prefix, policyHash)
+}
+
+func (portRange *Ports) toIPTablesString() string {
+	start := strconv.Itoa(int(portRange.Port))
+	if portRange.Port == portRange.EndPort {
+		return start
+	}
+	end := strconv.Itoa(int(portRange.EndPort))
+	return start + ":" + end
 }
