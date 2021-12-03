@@ -261,7 +261,7 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 	}
 
 	for setPol := range setPolicySettings {
-		if setPolicySettings[setPol].PolicyType != policyType {
+		if setPolicySettings[setPol].Type != policyType {
 			continue
 		}
 		klog.Infof("Found set pol %+v", setPolicySettings[setPol])
@@ -324,10 +324,10 @@ func convertToSetPolicy(set *IPSet) (*hcn.SetPolicySetting, error) {
 	}
 
 	setPolicy := &hcn.SetPolicySetting{
-		Id:         set.HashedName,
-		Name:       set.Name,
-		PolicyType: getSetPolicyType(set),
-		Values:     util.SliceToString(setContents),
+		Id:     set.HashedName,
+		Name:   set.Name,
+		Type:   getSetPolicyType(set),
+		Values: util.SliceToString(setContents),
 	}
 	return setPolicy, nil
 }
