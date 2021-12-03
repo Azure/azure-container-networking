@@ -64,52 +64,52 @@ func TestApplyCreationsAndAdds(t *testing.T) {
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNestedLabelList.Metadata})
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:     TestNSSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestNSSet.PrefixName,
-			Values: "10.0.0.0,10.0.0.1",
+			Id:         TestNSSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestNSSet.PrefixName,
+			Values:     "10.0.0.0,10.0.0.1",
 		},
 		TestKeyPodSet.PrefixName: {
-			Id:     TestKeyPodSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestKeyPodSet.PrefixName,
-			Values: "10.0.0.5",
+			Id:         TestKeyPodSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestKeyPodSet.PrefixName,
+			Values:     "10.0.0.5",
 		},
 		TestKVPodSet.PrefixName: {
-			Id:     TestKVPodSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestKVPodSet.PrefixName,
-			Values: "",
+			Id:         TestKVPodSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestKVPodSet.PrefixName,
+			Values:     "",
 		},
 		TestNamedportSet.PrefixName: {
-			Id:     TestNamedportSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestNamedportSet.PrefixName,
-			Values: "",
+			Id:         TestNamedportSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestNamedportSet.PrefixName,
+			Values:     "",
 		},
 		TestCIDRSet.PrefixName: {
-			Id:     TestCIDRSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestCIDRSet.PrefixName,
-			Values: "",
+			Id:         TestCIDRSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestCIDRSet.PrefixName,
+			Values:     "",
 		},
 		TestKeyNSList.PrefixName: {
-			Id:     TestKeyNSList.HashedName,
-			Type:   SetPolicyTypeNestedIPSet,
-			Name:   TestKeyNSList.PrefixName,
-			Values: fmt.Sprintf("%s,%s", TestNSSet.HashedName, TestKeyPodSet.HashedName),
+			Id:         TestKeyNSList.HashedName,
+			PolicyType: SetPolicyTypeNestedIPSet,
+			Name:       TestKeyNSList.PrefixName,
+			Values:     fmt.Sprintf("%s,%s", TestNSSet.HashedName, TestKeyPodSet.HashedName),
 		},
 		TestKVNSList.PrefixName: {
-			Id:     TestKVNSList.HashedName,
-			Type:   SetPolicyTypeNestedIPSet,
-			Name:   TestKVNSList.PrefixName,
-			Values: TestKVPodSet.HashedName,
+			Id:         TestKVNSList.HashedName,
+			PolicyType: SetPolicyTypeNestedIPSet,
+			Name:       TestKVNSList.PrefixName,
+			Values:     TestKVPodSet.HashedName,
 		},
 		TestNestedLabelList.PrefixName: {
-			Id:     TestNestedLabelList.HashedName,
-			Type:   SetPolicyTypeNestedIPSet,
-			Name:   TestNestedLabelList.PrefixName,
-			Values: "",
+			Id:         TestNestedLabelList.HashedName,
+			PolicyType: SetPolicyTypeNestedIPSet,
+			Name:       TestNestedLabelList.PrefixName,
+			Values:     "",
 		},
 	}
 	err := iMgr.ApplyIPSets()
@@ -139,22 +139,22 @@ func TestApplyDeletions(t *testing.T) {
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName, TestNestedLabelList.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:     TestNSSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestNSSet.PrefixName,
-			Values: "10.0.0.0",
+			Id:         TestNSSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestNSSet.PrefixName,
+			Values:     "10.0.0.0",
 		},
 		TestKeyPodSet.PrefixName: {
-			Id:     TestKeyPodSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestKeyPodSet.PrefixName,
-			Values: "",
+			Id:         TestKeyPodSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestKeyPodSet.PrefixName,
+			Values:     "",
 		},
 		TestKeyNSList.PrefixName: {
-			Id:     TestKeyNSList.HashedName,
-			Type:   SetPolicyTypeNestedIPSet,
-			Name:   TestKeyNSList.PrefixName,
-			Values: TestNSSet.HashedName,
+			Id:         TestKeyNSList.HashedName,
+			PolicyType: SetPolicyTypeNestedIPSet,
+			Name:       TestKeyNSList.PrefixName,
+			Values:     TestNSSet.HashedName,
 		},
 	}
 
@@ -181,16 +181,16 @@ func TestFailureOnCreation(t *testing.T) {
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:     TestNSSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestNSSet.PrefixName,
-			Values: "10.0.0.0,10.0.0.1",
+			Id:         TestNSSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestNSSet.PrefixName,
+			Values:     "10.0.0.0,10.0.0.1",
 		},
 		TestKeyPodSet.PrefixName: {
-			Id:     TestKeyPodSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestKeyPodSet.PrefixName,
-			Values: "10.0.0.5",
+			Id:         TestKeyPodSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestKeyPodSet.PrefixName,
+			Values:     "10.0.0.5",
 		},
 	}
 
@@ -220,28 +220,28 @@ func TestFailureOnAddToList(t *testing.T) {
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:     TestNSSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestNSSet.PrefixName,
-			Values: "10.0.0.0",
+			Id:         TestNSSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestNSSet.PrefixName,
+			Values:     "10.0.0.0",
 		},
 		TestKeyPodSet.PrefixName: {
-			Id:     TestKeyPodSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestKeyPodSet.PrefixName,
-			Values: "",
+			Id:         TestKeyPodSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestKeyPodSet.PrefixName,
+			Values:     "",
 		},
 		TestKeyNSList.PrefixName: {
-			Id:     TestKeyNSList.HashedName,
-			Type:   SetPolicyTypeNestedIPSet,
-			Name:   TestKeyNSList.PrefixName,
-			Values: fmt.Sprintf("%s,%s", TestNSSet.HashedName, TestKeyPodSet.HashedName),
+			Id:         TestKeyNSList.HashedName,
+			PolicyType: SetPolicyTypeNestedIPSet,
+			Name:       TestKeyNSList.PrefixName,
+			Values:     fmt.Sprintf("%s,%s", TestNSSet.HashedName, TestKeyPodSet.HashedName),
 		},
 		TestKVNSList.PrefixName: {
-			Id:     TestKVNSList.HashedName,
-			Type:   SetPolicyTypeNestedIPSet,
-			Name:   TestKVNSList.PrefixName,
-			Values: TestNSSet.HashedName,
+			Id:         TestKVNSList.HashedName,
+			PolicyType: SetPolicyTypeNestedIPSet,
+			Name:       TestKVNSList.PrefixName,
+			Values:     TestNSSet.HashedName,
 		},
 	}
 
@@ -268,10 +268,10 @@ func TestFailureOnFlush(t *testing.T) {
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:     TestNSSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestNSSet.PrefixName,
-			Values: "10.0.0.0",
+			Id:         TestNSSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestNSSet.PrefixName,
+			Values:     "10.0.0.0",
 		},
 	}
 
@@ -297,10 +297,10 @@ func TestFailureOnDeletion(t *testing.T) {
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:     TestNSSet.HashedName,
-			Type:   hcn.SetPolicyTypeIpSet,
-			Name:   TestNSSet.PrefixName,
-			Values: "10.0.0.0",
+			Id:         TestNSSet.HashedName,
+			PolicyType: hcn.SetPolicyTypeIpSet,
+			Name:       TestNSSet.PrefixName,
+			Values:     "10.0.0.0",
 		},
 	}
 

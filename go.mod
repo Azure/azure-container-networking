@@ -6,7 +6,7 @@ require (
 	code.cloudfoundry.org/clock v1.0.0 // indirect
 	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim v0.8.21
+	github.com/Microsoft/hcsshim v0.8.23
 	github.com/billgraziano/dpapi v0.3.0
 	github.com/containernetworking/cni v0.8.1
 	github.com/docker/docker v20.10.8+incompatible // indirect
@@ -106,7 +106,7 @@ require github.com/avast/retry-go v3.0.0+incompatible // indirect
 
 replace (
 	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.9.1-0.20211110232913-9e3ba9c81183
+	github.com/Microsoft/hcsshim => github.com/vakalapa/hcsshim v0.9.1-0.20211203205307-837d4d06df77
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )

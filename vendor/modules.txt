@@ -10,7 +10,7 @@ github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid
 github.com/Microsoft/go-winio/pkg/security
 github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.8.21 => github.com/microsoft/hcsshim v0.9.1-0.20211110232913-9e3ba9c81183
+# github.com/Microsoft/hcsshim v0.8.23 => github.com/vakalapa/hcsshim v0.9.1-0.20211203205307-837d4d06df77
 ## explicit; go 1.13
 github.com/Microsoft/hcsshim
 github.com/Microsoft/hcsshim/computestorage
@@ -922,6 +922,6 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
-# github.com/Microsoft/hcsshim => github.com/microsoft/hcsshim v0.9.1-0.20211110232913-9e3ba9c81183
+# github.com/Microsoft/hcsshim => github.com/vakalapa/hcsshim v0.9.1-0.20211203205307-837d4d06df77
 # github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 # github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
