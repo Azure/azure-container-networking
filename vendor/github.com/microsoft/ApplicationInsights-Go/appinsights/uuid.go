@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/satori/go.uuid"
+	"github.com/gofrs/uuid"
 )
 
-// uuidGenerator is a wrapper for satori/go.uuid, used for a few reasons:
+// uuidGenerator is a wrapper for gofrs/uuid, an active fork of satori/go.uuid used for a few reasons:
 //   - Avoids build failures due to version differences when a project imports us but
 //     does not respect our vendoring. (satori/go.uuid#77, #71, #66, ...)
 //   - Avoids error output when creaing new UUID's: if the crypto reader fails,
@@ -46,13 +46,13 @@ func newUuidGenerator(reader io.Reader) *uuidGenerator {
 
 // newUUID generates a new V4 UUID
 func (gen *uuidGenerator) newUUID() uuid.UUID {
-	u := uuid.UUID{}
-	if _, err := io.ReadFull(gen.reader, u[:]); err != nil {
+	//call the standard generator
+	u, err := uuid.NewV4()
+	//err will be either EOF or unexpected EOF
+	if err != nil {
 		gen.fallback(&u)
 	}
 
-	u.SetVersion(uuid.V4)
-	u.SetVersion(uuid.VariantRFC4122)
 	return u
 }
 
@@ -60,9 +60,10 @@ func (gen *uuidGenerator) newUUID() uuid.UUID {
 func (gen *uuidGenerator) fallback(u *uuid.UUID) {
 	gen.Lock()
 	defer gen.Unlock()
-
 	// This does not fail as per documentation
 	gen.fallbackRand.Read(u[:])
+	u.SetVersion(uuid.V4)
+	u.SetVariant(uuid.VariantRFC4122)
 }
 
 // newUUID generates a new V4 UUID
