@@ -99,7 +99,13 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 )
 
-require github.com/gofrs/uuid v3.3.0+incompatible // indirect
+require go.uber.org/zap v1.18.1
+
+require (
+	github.com/gofrs/uuid v3.3.0+incompatible // indirect
+	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
+)
 
 replace (
 	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
