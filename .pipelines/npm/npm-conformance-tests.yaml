@@ -189,15 +189,13 @@ jobs:
       npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
       mkdir -p $(System.DefaultWorkingDirectory)/npmLogs
       for npm in $npmPodList; do ./kubectl logs -n kube-system $npm --kubeconfig=./kubeconfig > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
+      mv ./kubeconfig $(System.DefaultWorkingDirectory)/npmLogs/kubeconfig
     displayName: "Gather NPM Logs"
     condition: always()
 
   - publish: $(System.DefaultWorkingDirectory)/npmLogs
     condition: always()
     artifact: NpmLogs
-  - publish: $(System.DefaultWorkingDirectory)/kubeconfig
-    condition: always()
-    artifact: KubeConfig
 
 - job: Clean_up
   displayName: "Cleanup"
