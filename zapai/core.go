@@ -48,7 +48,7 @@ func (c *Core) WithFieldMappers(fieldMappers ...map[string]string) *Core {
 	clone := c.clone()
 	for _, fieldMapper := range fieldMappers {
 		for field, tag := range fieldMapper {
-			field, tag := field, tag // anchor vars in the closure
+			tag := tag // anchor tag var in the closure
 			clone.fieldMappers[field] = func(t *appinsights.TraceTelemetry, val string) {
 				// set the tag to the value of the field
 				t.Tags[tag] = val
