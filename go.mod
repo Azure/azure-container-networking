@@ -99,7 +99,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 )
 
-require go.uber.org/zap v1.18.1
+require (
+	github.com/jsternberg/zap-logfmt v1.2.0
+	go.uber.org/zap v1.18.1
+)
 
 require (
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
