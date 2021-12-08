@@ -48,31 +48,29 @@ func (dp *DataPlane) initializeDataPlane() error {
 }
 
 func (dp *DataPlane) getNetworkInfo() error {
-	err := dp.setNetworkIDByName(AzureNetworkName)
-	if err == nil {
-		return nil
-	}
+	retryNumber := 0
+	ticker := time.NewTicker(time.Second * time.Duration(maxNoNetSleepTime))
+	defer ticker.Stop()
 
-	if isNetworkNotFoundErr(err) {
-		retryNumber := 0
-		ticker := time.NewTicker(time.Second * time.Duration(maxNoNetSleepTime))
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				err := dp.setNetworkIDByName(AzureNetworkName)
-				if err == nil || !isNetworkNotFoundErr(err) {
-					return nil
-				}
-				retryNumber++
-				if retryNumber >= maxNoNetRetryCount {
-					return fmt.Errorf("failed to get network info after %d retries with err %w", maxNoNetRetryCount, err)
-				}
-			}
+	var err error
+	for ; true; <-ticker.C {
+		err = dp.setNetworkIDByName(AzureNetworkName)
+		if err == nil || !isNetworkNotFoundErr(err) {
+			return err
 		}
+		retryNumber++
+		if retryNumber >= maxNoNetRetryCount {
+			break
+		}
+		klog.Infof("[DataPlane Windows] Network with name %s not found. Retrying in %d seconds, Current retry number %d, max retries: %d",
+			AzureNetworkName,
+			maxNoNetSleepTime,
+			retryNumber,
+			maxNoNetRetryCount,
+		)
 	}
-	return err
+
+	return fmt.Errorf("failed to get network info after %d retries with err %w", maxNoNetRetryCount, err)
 }
 
 func (dp *DataPlane) resetDataPlane() error {
