@@ -89,118 +89,118 @@ stages:
           - publish: ./test/apimodels/
             artifact: clusterdefinitions
 
-      - job: build_images
-        displayName: Build Images
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - task: Docker@2
-            displayName: Docker Login
-            inputs:
-              containerRegistry: $(ACR_SERVICE_CONNECTION)
-              command: 'login'
-              addPipelineData: false
-
-          - script: |
-              echo Tag is $(TAG)
-              sudo make tools-images VERSION=$(TAG)
-              docker run --privileged --rm tonistiigi/binfmt --install arm64
-              make all-images VERSION=$(TAG)
-            name: "BuildImages"
-            displayName: "Build Images"
-
-          - script: |
-              wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
-              tar -zxvf trivy*.tar.gz
-              mkdir -p ./trivy-cache
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-npm:$(TAG) 
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cns:$(TAG) 
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cni-manager:$(TAG) 
-            name: "TrivyScan"
-            displayName: "Image Vulnerability Scan"
-
-          - script: |
-              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(TAG) $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
-              docker push $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
-
-              function auto-retry()
-              {
-                  export i="1"
-                  export attempts="300"
-                  false
-                  while [[ $? -ne 0 ]] && [[ $i -lt $attempts ]]; do
-                    printf "Attempt $i/$attempts - " && "$@" && break ||  sleep 3 &&  i=$[$i+1] && false
-                  done
-              }
-
-              auto-retry docker pull $IMAGE_REGISTRY/azure-npm:$(TAG)
-              auto-retry docker pull $IMAGE_REGISTRY/azure-cns:$(TAG)
-              auto-retry docker pull $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
-            name: "mcrreplication"
-            displayName: "Push NPM Image and Wait for Repository"
-
-          - task: Docker@2
-            displayName: Docker Logout
-            inputs:
-              containerRegistry: $(ACR_SERVICE_CONNECTION)
-              command: 'logout'
-              addPipelineData: false
-
-          - task: CopyFiles@2
-            inputs:
-              sourceFolder: "output"
-              targetFolder: $(Build.ArtifactStagingDirectory)
-            condition: succeeded()
-
-          - task: PublishBuildArtifacts@1
-            inputs:
-              artifactName: "output"
-              pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-            condition: succeeded()
-
-      - job: test
-        displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-
-          - script: |
-              make tools
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
-              { { { { 
-                    sudo -E env "PATH=$PATH" make test-all; 
-                    echo $? >&3; 
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4; 
-                  } 3>&1; 
-                } | { read xs; exit $xs; } 
-              } 4>&1
-            name: "Test"
-            displayName: "Run Tests"
-
-          - bash: |
-              build/tools/bin/gocov convert coverage.out > coverage.json
-              build/tools/bin/gocov-xml < coverage.json > coverage.xml
-            name: "Coverage"
-            displayName: "Generate Coverage Reports"
-            condition: always()
-
-          - task: PublishTestResults@2
-            inputs:
-              testRunner: JUnit
-              testResultsFiles: report.xml
-            displayName: "Publish Test Results"
-            condition: always()
-
-          - task: PublishCodeCoverageResults@1
-            inputs:
-              codeCoverageTool: Cobertura
-              summaryFileLocation: coverage.xml
-            displayName: "Publish Code Coverage Results"
-            condition: always()
+#      - job: build_images
+#        displayName: Build Images
+#        variables:
+#          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+#        pool:
+#          name: "$(BUILD_POOL_NAME_DEFAULT)"
+#        steps:
+#          - task: Docker@2
+#            displayName: Docker Login
+#            inputs:
+#              containerRegistry: $(ACR_SERVICE_CONNECTION)
+#              command: 'login'
+#              addPipelineData: false
+#
+#          - script: |
+#              echo Tag is $(TAG)
+#              sudo make tools-images VERSION=$(TAG)
+#              docker run --privileged --rm tonistiigi/binfmt --install arm64
+#              make all-images VERSION=$(TAG)
+#            name: "BuildImages"
+#            displayName: "Build Images"
+#
+#          - script: |
+#              wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
+#              tar -zxvf trivy*.tar.gz
+#              mkdir -p ./trivy-cache
+#              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-npm:$(TAG)
+#              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cns:$(TAG)
+#              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
+#            name: "TrivyScan"
+#            displayName: "Image Vulnerability Scan"
+#
+#          - script: |
+#              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(TAG) $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
+#              docker push $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
+#
+#              function auto-retry()
+#              {
+#                  export i="1"
+#                  export attempts="300"
+#                  false
+#                  while [[ $? -ne 0 ]] && [[ $i -lt $attempts ]]; do
+#                    printf "Attempt $i/$attempts - " && "$@" && break ||  sleep 3 &&  i=$[$i+1] && false
+#                  done
+#              }
+#
+#              auto-retry docker pull $IMAGE_REGISTRY/azure-npm:$(TAG)
+#              auto-retry docker pull $IMAGE_REGISTRY/azure-cns:$(TAG)
+#              auto-retry docker pull $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
+#            name: "mcrreplication"
+#            displayName: "Push NPM Image and Wait for Repository"
+#
+#          - task: Docker@2
+#            displayName: Docker Logout
+#            inputs:
+#              containerRegistry: $(ACR_SERVICE_CONNECTION)
+#              command: 'logout'
+#              addPipelineData: false
+#
+#          - task: CopyFiles@2
+#            inputs:
+#              sourceFolder: "output"
+#              targetFolder: $(Build.ArtifactStagingDirectory)
+#            condition: succeeded()
+#
+#          - task: PublishBuildArtifacts@1
+#            inputs:
+#              artifactName: "output"
+#              pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+#            condition: succeeded()
+#
+#      - job: test
+#        displayName: Run Tests
+#        variables:
+#          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+#        pool:
+#          name: "$(BUILD_POOL_NAME_DEFAULT)"
+#        steps:
+#
+#          - script: |
+#              make tools
+#              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
+#              { { { {
+#                    sudo -E env "PATH=$PATH" make test-all;
+#                    echo $? >&3;
+#                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
+#                  } 3>&1;
+#                } | { read xs; exit $xs; }
+#              } 4>&1
+#            name: "Test"
+#            displayName: "Run Tests"
+#
+#          - bash: |
+#              build/tools/bin/gocov convert coverage.out > coverage.json
+#              build/tools/bin/gocov-xml < coverage.json > coverage.xml
+#            name: "Coverage"
+#            displayName: "Generate Coverage Reports"
+#            condition: always()
+#
+#          - task: PublishTestResults@2
+#            inputs:
+#              testRunner: JUnit
+#              testResultsFiles: report.xml
+#            displayName: "Publish Test Results"
+#            condition: always()
+#
+#          - task: PublishCodeCoverageResults@1
+#            inputs:
+#              codeCoverageTool: Cobertura
+#              summaryFileLocation: coverage.xml
+#            displayName: "Publish Code Coverage Results"
+#            condition: always()
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
