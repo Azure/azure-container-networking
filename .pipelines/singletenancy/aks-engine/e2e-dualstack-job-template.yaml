@@ -141,6 +141,7 @@ stages:
               else
                 echo "Skip SCTP Tests"
                 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="SCTP" --kubeconfig=$(Pipeline.Workspace)/kubeoutput/kubeconfig/kubeconfig.json
+              fi
             displayName: "Run Test Suite"
           - task: AzureCLI@2
             displayName: "Delete Test Cluster Resource Group"
