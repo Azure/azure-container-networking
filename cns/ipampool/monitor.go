@@ -8,7 +8,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/metric"
-	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -100,78 +99,30 @@ func (pm *Monitor) Start(ctx context.Context) error {
 	}
 }
 
-// ipPoolState is the current actual state of the CNS IP pool.
-type ipPoolState struct {
-	// allocated are the IPs given to CNS.
-	allocated int64
-	// assigned are the IPs CNS gives to Pods.
-	assigned int64
-	// available are the allocated IPs in state "Available".
-	available int64
-	// pendingProgramming are the allocated IPs in state "PendingProgramming".
-	pendingProgramming int64
-	// pendingRelease are the allocated IPs in state "PendingRelease".
-	pendingRelease int64
-	// requested are the IPs CNS has requested that it be allocated.
-	requested int64
-	// requestedUnassigned are the "future" unassigned IPs, if the requested IP count is honored: requested - assigned.
-	requestedUnassigned int64
-	// unassigned are the currently unassigned IPs: allocated - assigned.
-	unassigned int64
-}
-
-func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.NodeNetworkConfigSpec) ipPoolState {
-	state := ipPoolState{
-		allocated: int64(len(ips)),
-		requested: spec.RequestedIPCount,
-	}
-	for _, v := range ips {
-		switch v.GetState() {
-		case types.Assigned:
-			state.assigned++
-		case types.Available:
-			state.available++
-		case types.PendingProgramming:
-			state.pendingProgramming++
-		case types.PendingRelease:
-			state.pendingRelease++
-		}
-	}
-	state.unassigned = state.allocated - state.assigned
-	state.requestedUnassigned = state.requested - state.assigned
-	return state
-}
-
 func (pm *Monitor) reconcile(ctx context.Context) error {
 	allocatedIPs := pm.httpService.GetPodIPConfigState()
-	state := buildIPPoolState(allocatedIPs, pm.spec)
-	logger.Printf("ipam-pool-monitor state %+v", state)
-	observeIPPoolState(state, pm.metastate)
+	pool := newIPPool(allocatedIPs, pm.spec)
+	logger.Printf("ipam-pool-monitor state %+v", pool)
+	observeIPPoolState(pool, pm.metastate)
 
 	switch {
 	// pod count is increasing
-	case state.requestedUnassigned < pm.metastate.minFreeCount:
-		if state.requested == pm.metastate.max {
-			// If we're already at the maxIPCount, don't try to increase
-			return nil
-		}
-
+	case pool.shouldScaleUp(pm.metastate.minFreeCount, pm.metastate.max):
 		logger.Printf("[ipam-pool-monitor] Increasing pool size...")
-		return pm.increasePoolSize(ctx, state)
+		return pm.increasePoolSize(ctx, pool)
 
-	// pod count is decreasing
-	case state.unassigned >= pm.metastate.maxFreeCount:
+	case pool.shouldScaleDown(pm.metastate.maxFreeCount):
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...")
-		return pm.decreasePoolSize(ctx, state)
+		return pm.decreasePoolSize(ctx, pool)
 
 	// CRD has reconciled CNS state, and target spec is now the same size as the state
 	// free to remove the IPs from the CRD
-	case int64(len(pm.spec.IPsNotInUse)) != state.pendingRelease:
+	case pool.shouldCleanPendingRelease(int64(len(pm.spec.IPsNotInUse))):
 		logger.Printf("[ipam-pool-monitor] Removing Pending Release IPs from CRD...")
 		return pm.cleanPendingRelease(ctx)
 
 	// no pods scheduled
-	case state.assigned == 0:
+	case pool.assigned == 0:
 		logger.Printf("[ipam-pool-monitor] No pods scheduled")
 		return nil
 	}
@@ -179,7 +130,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	return nil
 }
 
-func (pm *Monitor) increasePoolSize(ctx context.Context, state ipPoolState) error {
+func (pm *Monitor) increasePoolSize(ctx context.Context, pool ipPool) error {
 	tempNNCSpec := pm.createNNCSpecForCRD()
 
 	// Query the max IP count
@@ -199,7 +150,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, state ipPoolState) erro
 		return nil
 	}
 
-	logger.Printf("[ipam-pool-monitor] Increasing pool size, pool %+v, spec %+v", state, tempNNCSpec)
+	logger.Printf("[ipam-pool-monitor] Increasing pool size, pool %+v, spec %+v", pool, tempNNCSpec)
 
 	if _, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
@@ -214,7 +165,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, state ipPoolState) erro
 	return nil
 }
 
-func (pm *Monitor) decreasePoolSize(ctx context.Context, state ipPoolState) error {
+func (pm *Monitor) decreasePoolSize(ctx context.Context, pool ipPool) error {
 	// mark n number of IPs as pending
 	var newIpsMarkedAsPending bool
 	var pendingIPAddresses map[string]cns.IPConfigurationStatus
@@ -242,7 +193,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, state ipPoolState) erro
 
 	logger.Printf("[ipam-pool-monitor] updatedRequestedIPCount %d", updatedRequestedIPCount)
 
-	if pm.metastate.notInUseCount == 0 || pm.metastate.notInUseCount < state.pendingRelease {
+	if pm.metastate.notInUseCount == 0 || pm.metastate.notInUseCount < pool.pendingRelease {
 		logger.Printf("[ipam-pool-monitor] Marking IPs as PendingRelease, ipsToBeReleasedCount %d", decreaseIPCountBy)
 		var err error
 		if pendingIPAddresses, err = pm.httpService.MarkIPAsPendingRelease(int(decreaseIPCountBy)); err != nil {
@@ -263,7 +214,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, state ipPoolState) erro
 		len(pendingIPAddresses), pm.metastate.notInUseCount)
 
 	tempNNCSpec.RequestedIPCount -= int64(len(pendingIPAddresses))
-	logger.Printf("[ipam-pool-monitor] Decreasing pool size, pool %+v, spec %+v", state, tempNNCSpec)
+	logger.Printf("[ipam-pool-monitor] Decreasing pool size, pool %+v, spec %+v", pool, tempNNCSpec)
 
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
 	if err != nil {

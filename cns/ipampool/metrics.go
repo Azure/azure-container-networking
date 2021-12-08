@@ -83,15 +83,15 @@ func init() {
 	)
 }
 
-func observeIPPoolState(state ipPoolState, meta metaState) {
-	ipamAllocatedIPCount.Set(float64(state.allocated))
-	ipamAssignedIPCount.Set(float64(state.assigned))
-	ipamAvailableIPCount.Set(float64(state.available))
-	ipamBatchSize.Set(float64(meta.batch))
-	ipamMaxIPCount.Set(float64(meta.max))
-	ipamPendingProgramIPCount.Set(float64(state.pendingProgramming))
-	ipamPendingReleaseIPCount.Set(float64(state.pendingRelease))
-	ipamRequestedIPConfigCount.Set(float64(state.requested))
-	ipamRequestedUnassignedIPConfigCount.Set(float64(state.requestedUnassigned))
-	ipamUnassignedIPCount.Set(float64(state.unassigned))
+func observeIPPoolState(pool ipPool, state metaState) {
+	ipamAllocatedIPCount.Set(float64(pool.allocated))
+	ipamAssignedIPCount.Set(float64(pool.assigned))
+	ipamAvailableIPCount.Set(float64(pool.available))
+	ipamBatchSize.Set(float64(state.batch))
+	ipamMaxIPCount.Set(float64(state.max))
+	ipamPendingProgramIPCount.Set(float64(pool.pendingProgramming))
+	ipamPendingReleaseIPCount.Set(float64(pool.pendingRelease))
+	ipamRequestedIPConfigCount.Set(float64(pool.requested))
+	ipamRequestedUnassignedIPConfigCount.Set(float64(pool.expectedUnassigned()))
+	ipamUnassignedIPCount.Set(float64(pool.unassigned()))
 }
