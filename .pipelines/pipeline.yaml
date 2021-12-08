@@ -36,7 +36,7 @@ stages:
   - template: windows-image.yaml
 
   - stage: build_and_test
-    displayName: ACN
+    displayName: Build ACN and Test
     dependsOn:
       - "setup"
     jobs:
@@ -240,6 +240,16 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
+  - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
+    parameters:
+      name: "windows_20_04_dualstack_e2e"
+      displayName: "Windows 20.04 Dualstack"
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      clusterDefinition: "cniWindowsDualstack2004.json"
+      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+      clusterDefinitionCniBuildOS: "windows"
+      clusterDefinitionCniBuildExt: ".zip"
+
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
@@ -247,6 +257,7 @@ stages:
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
+      - "windows_20_04_dualstack_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

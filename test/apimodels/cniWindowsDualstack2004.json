@@ -1,0 +1,68 @@
+{
+  "apiVersion": "vlabs",
+  "properties": {
+    "featureFlags": {
+      "enableIPv6DualStack": true
+    },
+    "orchestratorProfile": {
+      "orchestratorType": "Kubernetes",
+      "orchestratorRelease": "1.21",
+      "kubernetesConfig": {
+        "loadBalancerSku": "Standard",
+        "excludeMasterFromStandardLB": true,
+        "clusterSubnet": "10.240.0.0/12,fc00::/48",
+        "serviceCidr": "10.0.0.0/16,fd00::/108",
+        "dnsServiceIP": "10.0.0.10",
+        "networkPlugin": "azure",
+        "apiServerConfig": {
+          "--feature-gates": "IPv6DualStack=true",
+          "--tls-min-version": "VersionTLS12",
+          "--tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
+
+        },
+        "kubeletConfig": {
+          "--feature-gates": "IPv6DualStack=true"
+        },
+        "controllerManagerConfig": {
+          "--feature-gates": "IPv6DualStack=true"
+        }
+      }
+    },
+    "masterProfile": {
+      "count": 1,
+      "dnsPrefix": "windual",
+      "vmSize": "Standard_D2_v2"
+    },
+    "agentPoolProfiles": [
+      {
+        "name": "cnidualwin",
+        "count": 3,
+        "vmSize": "Standard_D2_v2",
+        "availabilityProfile": "AvailabilitySet",
+        "osType": "Windows"
+      }
+    ],
+    "linuxProfile": {
+      "adminUsername": "azureuser",
+      "ssh": {
+        "publicKeys": [
+          {
+            "keyData":""
+          }
+        ]
+      }
+    },
+    "windowsProfile": {
+      "adminUsername": "azureuser",
+      "adminPassword": "azureTest@!",
+      "windowsPublisher": "MicrosoftWindowsServer",
+      "windowsOffer": "WindowsServer",
+      "windowsSku": "Datacenter-Core-2004-with-Containers-smalldisk",
+      "imageVersion": "latest"
+    },
+    "servicePrincipalProfile": {
+      "clientId":"",
+      "secret":""
+    }
+  }
+}
