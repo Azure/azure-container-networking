@@ -59,6 +59,7 @@ func GetInitializeTestCalls() []testutils.TestCmd {
 
 func GetResetTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{
+		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
 		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 		{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
 		{
