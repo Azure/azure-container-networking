@@ -19,18 +19,14 @@ const (
 	AzureNetworkName = "azure"
 )
 
-type policyMode string
+type PolicyMode string
 
-type dataplaneCfg struct {
-	policyMode policyMode
+// TODO put NodeName in DataplaneCfg?
+type DataplaneCfg struct {
+	PolicyMode PolicyMode
+	*ipsets.IPSetManagerCfg
+	*policies.PolicyManagerCfg
 }
-
-var (
-	iMgrDefaultCfg = &ipsets.IPSetManagerCfg{
-		IPSetMode:   ipsets.ApplyAllIPSets,
-		NetworkName: AzureNetworkName,
-	}
-)
 
 type DataPlane struct {
 	policyMgr *policies.PolicyManager
@@ -41,7 +37,7 @@ type DataPlane struct {
 	endpointCache  map[string]*NPMEndpoint
 	ioShim         *common.IOShim
 	updatePodCache map[string]*updateNPMPod
-	dataplaneCfg
+	*DataplaneCfg
 }
 
 type NPMEndpoint struct {
@@ -54,19 +50,16 @@ type NPMEndpoint struct {
 	NetPolReference map[string]struct{}
 }
 
-func NewDataPlane(nodeName string, ioShim *common.IOShim, policyManagerCfg *policies.PolicyManagerCfg) (*DataPlane, error) {
+func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *DataplaneCfg) (*DataPlane, error) {
 	metrics.InitializeAll()
 	dp := &DataPlane{
-		policyMgr:      policies.NewPolicyManager(ioShim, policyManagerCfg),
-		ipsetMgr:       ipsets.NewIPSetManager(iMgrDefaultCfg, ioShim),
+		policyMgr:      policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
+		ipsetMgr:       ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
 		endpointCache:  make(map[string]*NPMEndpoint),
 		nodeName:       nodeName,
 		ioShim:         ioShim,
 		updatePodCache: make(map[string]*updateNPMPod),
-		dataplaneCfg: dataplaneCfg{
-			// For linux this policyMode is not used
-			policyMode: "",
-		},
+		DataplaneCfg:   cfg,
 	}
 
 	err := dp.ResetDataPlane()
@@ -87,6 +80,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, policyManagerCfg *poli
 // InitializeDataPlane helps in setting up dataplane for NPM
 func (dp *DataPlane) InitializeDataPlane() error {
 	// Create Kube-All-NS IPSet
+	// TODO investigate why this set doesn't get created for ApplyAlwaysCfg or just remove these two lines (controller will create the set)
 	kubeAllSet := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
 	dp.CreateIPSets([]*ipsets.IPSetMetadata{kubeAllSet})
 	if err := dp.initializeDataPlane(); err != nil {

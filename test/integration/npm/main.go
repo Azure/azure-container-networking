@@ -11,12 +11,16 @@ import (
 )
 
 const (
-	MaxSleepTime = 1
-	includeLists = false
+	MaxSleepTime = 10
+	includeLists = true
 )
 
 var (
-	policyManagerCfg = policies.IPSetAndRebootConfig
+	dpCfg = &dataplane.DataplaneCfg{
+		PolicyMode:       "",
+		IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
+		PolicyManagerCfg: policies.IPSetAndNoRebootConfig,
+	}
 
 	nodeName   = "testNode"
 	testNetPol = &policies.NPMNetworkPolicy{
@@ -65,7 +69,7 @@ var (
 )
 
 func main() {
-	dp, err := dataplane.NewDataPlane(nodeName, common.NewIOShim(), policyManagerCfg)
+	dp, err := dataplane.NewDataPlane(nodeName, common.NewIOShim(), dpCfg)
 	panicOnError(err)
 	printAndWait(true)
 

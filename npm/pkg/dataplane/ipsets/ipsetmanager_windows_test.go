@@ -14,7 +14,7 @@ import (
 func TestAddToSetWindows(t *testing.T) {
 	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
+	iMgr := NewIPSetManager(ApplyAlwaysCfg, io)
 
 	setMetadata := NewIPSetMetadata(testSetName, Namespace)
 	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
@@ -39,7 +39,7 @@ func TestAddToSetWindows(t *testing.T) {
 }
 
 func TestDestroyNPMIPSets(t *testing.T) {
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, common.NewMockIOShim([]testutils.TestCmd{}))
+	iMgr := NewIPSetManager(ApplyAlwaysCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	require.NoError(t, iMgr.resetIPSets())
 }
 
@@ -47,7 +47,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 func TestApplyCreationsAndAdds(t *testing.T) {
 	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
+	iMgr := NewIPSetManager(ApplyAlwaysCfg, io)
 
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
@@ -120,7 +120,7 @@ func TestApplyCreationsAndAdds(t *testing.T) {
 func TestApplyDeletions(t *testing.T) {
 	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
+	iMgr := NewIPSetManager(ApplyAlwaysCfg, io)
 
 	// Remove members and delete others
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
@@ -168,7 +168,7 @@ func TestApplyDeletions(t *testing.T) {
 func TestFailureOnCreation(t *testing.T) {
 	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
+	iMgr := NewIPSetManager(ApplyAlwaysCfg, io)
 
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
@@ -205,7 +205,7 @@ func TestFailureOnAddToList(t *testing.T) {
 	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
 	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
+	iMgr := NewIPSetManager(ApplyAlwaysCfg, io)
 
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
@@ -256,7 +256,7 @@ func TestFailureOnFlush(t *testing.T) {
 	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
 	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
+	iMgr := NewIPSetManager(ApplyAlwaysCfg, io)
 
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
@@ -285,7 +285,7 @@ func TestFailureOnFlush(t *testing.T) {
 func TestFailureOnDeletion(t *testing.T) {
 	hns := GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(iMgrApplyAlwaysCfg, io)
+	iMgr := NewIPSetManager(ApplyAlwaysCfg, io)
 
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
