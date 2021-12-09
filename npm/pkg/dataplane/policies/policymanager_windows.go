@@ -25,7 +25,12 @@ func newStaleChains() *staleChains {
 	return &staleChains{}
 }
 
-func (pMgr *PolicyManager) reboot() error {
+func (pMgr *PolicyManager) deactivate() error {
+	// TODO should we something here?
+	return nil
+}
+
+func (pMgr *PolicyManager) activate() error {
 	// TODO should we something here?
 	return nil
 }

@@ -29,6 +29,7 @@ type PolicyManagerCfg struct {
 }
 
 var (
+	// TODO rename these to IPSetAndActivateCfg and IPSetCfg
 	IPSetAndRebootConfig = &PolicyManagerCfg{
 		Mode:               IPSetPolicyMode,
 		RebootOnNoPolicies: true,
@@ -123,6 +124,12 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to add policy: %v", err))
 	}
 
+	if len(pMgr.policyMap.cache) == 0 {
+		klog.Infof("activating policy manager since we just added the first policy")
+		if err := pMgr.activate(); err != nil {
+			return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to activate policy manager: %v", err))
+		}
+	}
 	pMgr.policyMap.cache[policy.PolicyKey] = policy
 	return nil
 }
@@ -149,9 +156,9 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 
 	delete(pMgr.policyMap.cache, policyKey)
 	if pMgr.RebootOnNoPolicies && len(pMgr.policyMap.cache) == 0 {
-		klog.Infof("rebooting policy manager since there are no policies remaining in the cache")
-		if err := pMgr.reboot(); err != nil {
-			klog.Errorf("failed to reboot when there were no policies remaining")
+		klog.Infof("deactivating policy manager since there are no policies remaining in the cache")
+		if err := pMgr.deactivate(); err != nil {
+			klog.Errorf("failed to deactivate when there were no policies remaining")
 		}
 	}
 

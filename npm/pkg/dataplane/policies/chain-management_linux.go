@@ -51,6 +51,11 @@ var (
 		util.IptablesNewState,
 	}
 
+	deactivateRuleSpecs = append(
+		[]string{util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesReturn},
+		commentSpecs("LET-TRAFFIC-THROUGH-WHEN-THERE-ARE-NO-POLICIES")...,
+	)
+
 	errInvalidGrepResult = errors.New("unexpectedly got no lines while grepping for current Azure chains")
 )
 
@@ -151,12 +156,23 @@ func (pMgr *PolicyManager) reset() error {
 	return nil
 }
 
-// FIXME in dp, should we forgo resetting and then initializing for just rebooting in order to minimize OS calls?
-// reboot performs reset and initialize, but minimizes the number of OS calls by not deleting the base NPM chains.
-// Different from v1, which uninits when there are no policies and initializes when there are policies.
-// This version is a proactive approach to avoid time to install default chains when the first networkpolicy comes again.
-// The dataplane also initializes when it's created, so this version keeps the policymanager in-line with that philosophy of having chains initialized at all times.
-func (pMgr *PolicyManager) reboot() error {
+// FIXME we should minimize OS calls done when the dp is created. We call reset, and initialize,
+// but we should just perform the below deactivate logic for initialize and do nothing for reset (except delete the deprecated jump rule).
+
+/*
+	deactivate resets and initializes the NPM chains, but minimizes the number of OS calls by not deleting the base NPM chains (if they exist).
+	It adds a RETURN rule to the top of the AZURE-NPM chain.
+
+	In v1, we uninit when there are no policies and init when there are policies.
+	In v2, we activate and deactivate.
+	The only difference between deactivated and activated mode, is that the deactivated mode has a RETURN rule at the top of AZURE-NPM chain.
+	Therefore, we have a proactive approach to avoid time to install default chains when the first networkpolicy comes again.
+	The dataplane also initializes when it's created, so we keep the policymanager in-line with that philosophy of having chains initialized at all times.
+
+	We could just make an append call for the RETURN rule, but instead we reinit the NPM chains (in case of perturbations to our base logic - malicious or otherwise)
+	and flush lingering policy chains in case we lost track of any. This requires 2 OS calls (iptables -L, then iptables-restore).
+*/
+func (pMgr *PolicyManager) deactivate() error {
 	creator, chainsToDelete, err := pMgr.creatorAndChainsForReboot()
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to create restore file for reboot", err)
@@ -180,6 +196,19 @@ func (pMgr *PolicyManager) reboot() error {
 		return npmerrors.SimpleErrorWrapper(baseErrString, err) // we used to ignore this error in v1
 	}
 
+	return nil
+}
+
+// activate removes the RETURN jump rule from the top of AZURE-NPM chain (if it exists) so that AZURE-NPM chain processes packets.
+func (pMgr *PolicyManager) activate() error {
+	deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, deactivateRuleSpecs...)
+	if deleteErr != nil {
+		if deleteErrCode == doesNotExistErrorCode {
+			klog.Warningf("while activating NPM, expected npm to be deactivated, yet no RETURN rule exists in AZURE-NPM chain. Got exit code %d with error: %s", deleteErrCode, deleteErr.Error())
+		} else {
+			return npmerrors.SimpleErrorWrapper("while activating NPM, failed to delete RETURN rule from top of AZURE-NPM chain with exit code %d and error", deleteErr)
+		}
+	}
 	return nil
 }
 
@@ -376,6 +405,10 @@ func (pMgr *PolicyManager) creatorAndChainsForReboot() (creator *ioutil.FileCrea
 		}
 	}
 	creator = pMgr.newCreatorWithChains(chainsForCreator)
+	// important that this rule is before the other appends to AZURE-NPM chain
+	specs := []string{util.IptablesAppendFlag}
+	specs = append(specs, deactivateRuleSpecs...)
+	creator.AddLine("", nil, specs...)
 	addLinesForInitChains(creator)
 	return
 }
