@@ -13,8 +13,12 @@
 			"NODE_VERSION": "none"
 		}
 	},
-	"runArgs": [ "--init", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined" ],
-
+	"runArgs": [
+		"--init",
+		"--cap-add=SYS_PTRACE",
+		"--security-opt",
+		"seccomp=unconfined"
+	],
 	// Set *default* container specific settings.json values on container create.
 	"settings": {
 		"go.toolsManagement.checkForUpdates": "local",
@@ -22,18 +26,14 @@
 		"go.gopath": "/go",
 		"go.goroot": "/usr/local/go"
 	},
-
 	// Add the IDs of extensions you want installed when the container is created.
 	"extensions": [
 		"golang.Go"
 	],
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "go version",
-
+	"postCreateCommand": "make setup",
 	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
 	"features": {

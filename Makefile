@@ -408,7 +408,7 @@ $(REPO_ROOT)/.git/hooks/pre-push:
 
 install-hooks: $(REPO_ROOT)/.git/hooks/pre-push ## installs git hooks
 
-setup: install-hooks ## performs common required repo setup
+setup: tools install-hooks ## performs common required repo setup
 
 version: ## prints the version
 	@echo $(VERSION)
@@ -438,7 +438,7 @@ gocov-xml: $(GOCOV_XML) ## Build gocov-xml
 $(GOFUMPT): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gofumpt mvdan.cc/gofumpt
 
-gofmt gofumpt: $(GOFUMPT) ## Build gofumpt
+gofumpt: $(GOFUMPT) ## Build gofumpt
 
 $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
@@ -458,4 +458,4 @@ mockgen: $(MOCKGEN) ## Build mockgen
 clean-tools: 
 	rm -r build/tools/bin
 
-tools: gocov gocov-xml go-junit-report golangci-lint gofmt ## Build bins for build tools
+tools: gocov gocov-xml go-junit-report golangci-lint gofumpt ## Build bins for build tools
