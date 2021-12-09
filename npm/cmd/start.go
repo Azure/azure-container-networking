@@ -16,6 +16,7 @@ import (
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/spf13/cobra"
@@ -28,6 +29,12 @@ import (
 	"k8s.io/klog"
 	"k8s.io/utils/exec"
 )
+
+var npmV2DataplaneCfg = &dataplane.Config{
+	PolicyMode:       "",
+	IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
+	PolicyManagerCfg: policies.IPSetAndNoRebootConfig,
+}
 
 func newStartNPMCmd() *cobra.Command {
 	// getTuplesCmd represents the getTuples command
@@ -111,7 +118,7 @@ func start(config npmconfig.Config) error {
 
 	var dp dataplane.GenericDataplane
 	if config.Toggles.EnableV2NPM {
-		dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim(), policies.IPSetAndNoRebootConfig)
+		dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg)
 		if err != nil {
 			return fmt.Errorf("failed to create dataplane with error %w", err)
 		}

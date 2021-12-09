@@ -21,8 +21,8 @@ const (
 
 type PolicyMode string
 
-// TODO put NodeName in DataplaneCfg?
-type DataplaneCfg struct {
+// TODO put NodeName in Config?
+type Config struct {
 	PolicyMode PolicyMode
 	*ipsets.IPSetManagerCfg
 	*policies.PolicyManagerCfg
@@ -37,7 +37,7 @@ type DataPlane struct {
 	endpointCache  map[string]*NPMEndpoint
 	ioShim         *common.IOShim
 	updatePodCache map[string]*updateNPMPod
-	*DataplaneCfg
+	*Config
 }
 
 type NPMEndpoint struct {
@@ -50,7 +50,7 @@ type NPMEndpoint struct {
 	NetPolReference map[string]struct{}
 }
 
-func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *DataplaneCfg) (*DataPlane, error) {
+func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config) (*DataPlane, error) {
 	metrics.InitializeAll()
 	dp := &DataPlane{
 		policyMgr:      policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
@@ -59,7 +59,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *DataplaneCfg) (*D
 		nodeName:       nodeName,
 		ioShim:         ioShim,
 		updatePodCache: make(map[string]*updateNPMPod),
-		DataplaneCfg:   cfg,
+		Config:         cfg,
 	}
 
 	err := dp.ResetDataPlane()

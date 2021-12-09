@@ -16,7 +16,7 @@ const (
 )
 
 var (
-	dpCfg = &dataplane.DataplaneCfg{
+	dpCfg = &dataplane.Config{
 		PolicyMode:       "",
 		IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
 		PolicyManagerCfg: policies.IPSetAndNoRebootConfig,

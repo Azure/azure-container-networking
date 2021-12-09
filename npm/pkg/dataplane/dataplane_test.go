@@ -17,7 +17,7 @@ import (
 var (
 	nodeName = "testnode"
 
-	dpCfg = &DataplaneCfg{
+	dpCfg = &Config{
 		PolicyMode:       "",
 		IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
 		PolicyManagerCfg: policies.IPSetAndNoRebootConfig,
