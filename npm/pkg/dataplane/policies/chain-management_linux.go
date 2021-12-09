@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	// NOTE any update to this variable should be reflected in the map below, and vice versa
+	// Must loop through a slice because we need a deterministic order for fexec commands for UTs.
 	iptablesAzureChains = []string{
 		util.IptablesAzureChain,
 		util.IptablesAzureIngressChain,
@@ -38,13 +38,8 @@ var (
 		util.IptablesAzureEgressChain,
 		util.IptablesAzureAcceptChain,
 	}
-	iptablesAzureChainsMap = map[string]struct{}{
-		util.IptablesAzureChain:                 {},
-		util.IptablesAzureIngressChain:          {},
-		util.IptablesAzureIngressAllowMarkChain: {},
-		util.IptablesAzureEgressChain:           {},
-		util.IptablesAzureAcceptChain:           {},
-	}
+	// Should not be used directly. Initialized from iptablesAzureChains on first use of isAzureChain().
+	iptablesAzureChainsMap map[string]struct{}
 
 	jumpFromForwardToAzureChainArgs = []string{
 		util.IptablesForwardChain,
@@ -67,11 +62,10 @@ func newStaleChains() *staleChains {
 	return &staleChains{make(map[string]struct{})}
 }
 
-// add adds the chain if it isn't one of the iptablesAzureChains.
+// Adds the chain if it isn't one of the iptablesAzureChains.
 // This protects against trying to delete any core NPM chain.
 func (s *staleChains) add(chain string) {
-	_, exist := iptablesAzureChainsMap[chain]
-	if !exist {
+	if !isAzureChain(chain) {
 		s.chainsToCleanup[chain] = struct{}{}
 	}
 }
@@ -93,6 +87,17 @@ func (s *staleChains) emptyAndGetAll() []string {
 
 func (s *staleChains) empty() {
 	s.chainsToCleanup = make(map[string]struct{})
+}
+
+func isAzureChain(chain string) bool {
+	if iptablesAzureChainsMap == nil {
+		iptablesAzureChainsMap = make(map[string]struct{})
+		for _, chain := range iptablesAzureChains {
+			iptablesAzureChainsMap[chain] = struct{}{}
+		}
+	}
+	_, exist := iptablesAzureChainsMap[chain]
+	return exist
 }
 
 // initialize creates all chains/rules and makes sure the jump from FORWARD chain to AZURE-NPM chain is the first rule.
@@ -194,7 +199,7 @@ func (pMgr *PolicyManager) reconcile() {
 }
 
 // cleanupChains deletes all the chains in the given list.
-// if a chain fails to delete and it isn't one of the iptablesAzureChains, then it is added to the staleChains.
+// If a chain fails to delete and it isn't one of the iptablesAzureChains, then it is added to the staleChains.
 func (pMgr *PolicyManager) cleanupChains(chains []string) error {
 	var aggregateError error
 	for _, chain := range chains {
@@ -365,8 +370,7 @@ func (pMgr *PolicyManager) creatorAndChainsForReboot() (creator *ioutil.FileCrea
 	chainsForCreator := make([]string, 0, len(currentChains))
 	chainsForCreator = append(chainsForCreator, iptablesAzureChains...)
 	for _, chain := range currentChains {
-		_, exist := iptablesAzureChainsMap[chain]
-		if !exist {
+		if !isAzureChain(chain) {
 			chainsForCreator = append(chainsForCreator, chain)
 			chainsToDelete = append(chainsToDelete, chain)
 		}
@@ -411,7 +415,7 @@ func (pMgr *PolicyManager) allCurrentAzureChains() ([]string, error) {
 	lastLine := lines[lastIndex]
 	if lastLine == "" {
 		// remove the last empty line (since each line ends with a newline)
-		lines = lines[:lastIndex]
+		lines = lines[:lastIndex] // this line doesn't impact the array that the slice references
 	} else {
 		klog.Errorf(`while grepping for current Azure chains, expected last line to end in "" but got [%s]. full grep output: [%s]`, lastLine, string(searchResults))
 	}
