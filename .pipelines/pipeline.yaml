@@ -89,6 +89,20 @@ stages:
           - publish: ./test/apimodels/
             artifact: clusterdefinitions
 
+      - job: build_images
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: Docker@2
+            displayName: Docker Login
+            inputs:
+              containerRegistry: $(ACR_SERVICE_CONNECTION)
+              command: 'login'
+              addPipelineData: false
+              
           - script: |
               echo Tag is $(TAG)
               sudo make tools-images VERSION=$(TAG)
