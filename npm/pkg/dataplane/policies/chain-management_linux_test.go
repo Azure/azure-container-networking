@@ -324,15 +324,15 @@ func TestResetLinux(t *testing.T) {
 	}
 }
 
-func TestCreatorAndChainsForRebootSuccess(t *testing.T) {
+func TestCreatorAndChainsForConfigureDeactivatedSuccess(t *testing.T) {
 	// TODO
 }
 
-func TestCreatorAndChainsForRebootFailure(t *testing.T) {
+func TestCreatorAndChainsForConfigureDeactivatedFailure(t *testing.T) {
 	// TODO
 }
 
-func TestRebootLinux(t *testing.T) {
+func TestConfigureDeactivated(t *testing.T) {
 	// TODO
 }
 

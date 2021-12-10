@@ -53,7 +53,7 @@ var (
 
 	deactivateRuleSpecs = append(
 		[]string{util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesReturn},
-		commentSpecs("LET-TRAFFIC-THROUGH-WHEN-THERE-ARE-NO-POLICIES")...,
+		commentSpecs("LET-TRAFFIC-THROUGH-SINCE-THERE-ARE-NO-POLICIES")...,
 	)
 
 	errInvalidGrepResult = errors.New("unexpectedly got no lines while grepping for current Azure chains")
@@ -107,6 +107,7 @@ func isAzureChain(chain string) bool {
 
 // initialize creates all chains/rules and makes sure the jump from FORWARD chain to AZURE-NPM chain is the first rule.
 func (pMgr *PolicyManager) initialize() error {
+	// TODO do nothing in this method after updating reset to use configureForDeactivatedMode()
 	klog.Infof("Initializing AZURE-NPM chains.")
 	creator := pMgr.creatorForInitChains()
 
@@ -125,6 +126,8 @@ func (pMgr *PolicyManager) initialize() error {
 
 // reset removes the jump rule from FORWARD chain to AZURE-NPM chain, then flushes and deletes all NPM Chains.
 func (pMgr *PolicyManager) reset() error {
+	// TODO just delete the deprecated jump and call on configureForDeactivatedMode(). Also update the function comment. Until then we log error messages when trying to delete the RETURN rule
+
 	deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
 	// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
 	// we can ignore this error code, since there's no problem if the rule doesn't exist
@@ -159,23 +162,36 @@ func (pMgr *PolicyManager) reset() error {
 // FIXME we should minimize OS calls done when the dp is created. We call reset, and initialize,
 // but we should just perform the below deactivate logic for initialize and do nothing for reset (except delete the deprecated jump rule).
 
-/*
-	deactivate resets and initializes the NPM chains, but minimizes the number of OS calls by not deleting the base NPM chains (if they exist).
-	It adds a RETURN rule to the top of the AZURE-NPM chain.
+// See notes about configureDeactivatedMode().
+// We could just make an append call for the RETURN rule, but instead we reinit the NPM chains (in case of perturbations to our base logic - malicious or otherwise)
+// and flush lingering policy chains in case we lost track of any. This requires 2 OS calls (iptables -L, then iptables-restore).
+func (pMgr *PolicyManager) deactivate() error {
+	if err := pMgr.configureDeactivatedMode(); err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to turn on deactivated mode", err)
+	}
+	return nil
+}
 
-	In v1, we uninit when there are no policies and init when there are policies.
-	In v2, we activate and deactivate.
-	The only difference between deactivated and activated mode, is that the deactivated mode has a RETURN rule at the top of AZURE-NPM chain.
+/*
+	Resets/initializes the NPM chains, but minimizes the number of OS calls by not deleting the base NPM chains (if they exist).
+	It also adds a RETURN rule to the top of the AZURE-NPM chain (hence the name "deactivated"),
+	and positions the jump rule from FORWARD to AZURE-NPM chain (if needed).
+
+	In v1, we uninit (delete all chains) when there are no policies and init when there are policies.
+	In v2, we deactivate and activate.
+	The difference between activation modes is that the deactivated mode has a RETURN rule at the top of AZURE-NPM chain.
 	Therefore, we have a proactive approach to avoid time to install default chains when the first networkpolicy comes again.
 	The dataplane also initializes when it's created, so we keep the policymanager in-line with that philosophy of having chains initialized at all times.
 
-	We could just make an append call for the RETURN rule, but instead we reinit the NPM chains (in case of perturbations to our base logic - malicious or otherwise)
-	and flush lingering policy chains in case we lost track of any. This requires 2 OS calls (iptables -L, then iptables-restore).
+	Instead of using the RETURN rule, deactivated mode could remove the jump rule from FORWARD to AZURE-NPM chain, but we don't do this because:
+	1. This would require extra logic in the reconcile loop since we position the jump rule within the loop.
+	2. This would require an extra OS call, since we can't run iptables-restore on FORWARD table without possibly harming other rules in the table.
+	3. It's safer not to touch the communal FORWARD chain unless necessary.
 */
-func (pMgr *PolicyManager) deactivate() error {
-	creator, chainsToDelete, err := pMgr.creatorAndChainsForReboot()
+func (pMgr *PolicyManager) configureDeactivatedMode() error {
+	creator, chainsToDelete, err := pMgr.creatorAndChainsForDeactivate()
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to create restore file for reboot", err)
+		return npmerrors.SimpleErrorWrapper("failed to create restore file for configuring deactivated mode", err)
 	}
 
 	if err := restore(creator); err != nil {
@@ -183,7 +199,7 @@ func (pMgr *PolicyManager) deactivate() error {
 	}
 
 	// FIXME: should we delete these chains in the background instead (in the reconcile loop) since they're empty/harmless after restore?
-	// delete all azure chains, including stale chains, except for chains in iptablesAzureChains
+	// deletes all azure chains, including stale chains, except for chains in iptablesAzureChains
 	pMgr.staleChains.empty()
 	if err := pMgr.cleanupChains(chainsToDelete); err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to delete some old chains", err)
@@ -315,7 +331,7 @@ func addLinesForInitChains(creator *ioutil.FileCreator) {
 	// add AZURE-NPM-ACCEPT chain rules
 	clearSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureAcceptChain}
 	clearSpecs = append(clearSpecs, setMarkSpecs(util.IptablesAzureClearMarkHex)...)
-	clearSpecs = append(clearSpecs, commentSpecs("Clear-AZURE-NPM-MARKS")...)
+	clearSpecs = append(clearSpecs, commentSpecs("CLEAR-AZURE-NPM-MARKS")...)
 	creator.AddLine("", nil, clearSpecs...)
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureAcceptChain, util.IptablesJumpFlag, util.IptablesAccept)
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
@@ -386,7 +402,7 @@ func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
 }
 
 // make this a function for easier testing
-func (pMgr *PolicyManager) creatorAndChainsForReboot() (creator *ioutil.FileCreator, chainsToDelete []string, err error) {
+func (pMgr *PolicyManager) creatorAndChainsForDeactivate() (creator *ioutil.FileCreator, chainsToDelete []string, err error) {
 	currentChains, err := pMgr.allCurrentAzureChains()
 	if err != nil {
 		err = npmerrors.SimpleErrorWrapper("failed to get current chains", err)

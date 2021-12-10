@@ -11,15 +11,15 @@ import (
 )
 
 const (
-	MaxSleepTime = 10
-	includeLists = true
+	MaxSleepTime = 2
+	includeLists = false
 )
 
 var (
 	dpCfg = &dataplane.Config{
 		PolicyMode:       "",
 		IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
-		PolicyManagerCfg: policies.IPSetAndNoRebootConfig,
+		PolicyManagerCfg: policies.IPSetAndRebootConfig,
 	}
 
 	nodeName   = "testNode"
@@ -154,6 +154,10 @@ func main() {
 	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[0].PolicyKey))
 	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[1].PolicyKey))
 	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[2].PolicyKey))
+	fmt.Println("If the pMgr is configured for deactivating, there should be a RETURN rule at the top of AZURE-NPM right now.")
+	printAndWait(true)
+	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[0]))
+	print("there should be no RETURN rule in AZURE-NPM now")
 }
 
 func panicOnError(err error) {
