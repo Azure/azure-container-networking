@@ -102,7 +102,7 @@ stages:
               containerRegistry: $(ACR_SERVICE_CONNECTION)
               command: 'login'
               addPipelineData: false
-              
+
           - script: |
               echo Tag is $(TAG)
               sudo make tools-images VERSION=$(TAG)

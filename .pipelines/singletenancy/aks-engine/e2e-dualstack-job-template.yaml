@@ -94,7 +94,7 @@ stages:
             name: DeployAKSEngine
             displayName: "Deploy aks-engine cluster"
           - publish: ./dualstack-ws/kubeoutput
-            artifact: kubeoutput
+            artifact: kubeoutput-${{ parameters.clusterDefinitionCniBuildOS }}
 
       - job: Build_kubernetes
         displayName: Build kubernetes upstream
@@ -112,7 +112,7 @@ stages:
               make WHAT=test/e2e/e2e.test
             displayName: 'Build Kubernetes e2e.test'
           - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
-            artifact: Test
+            artifact: Test-${{ parameters.clusterDefinitionCniBuildOS }}
 
       - job: Run_test
         displayName: Run upstream e2e test
@@ -137,10 +137,10 @@ stages:
             echo "os: ${{ parameters.clusterDefinitionCniBuildOS }}"
             if [ "${{ parameters.clusterDefinitionCniBuildOS }}" == "windows" ]; then
               echo "Skip LinuxOnly Tests"
-              $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="LinuxOnly" --kubeconfig=$(Pipeline.Workspace)/kubeoutput/kubeconfig/kubeconfig.json
+              $(Pipeline.Workspace)/Test-$(Build.BuildNumber)/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="LinuxOnly" --kubeconfig=$(Pipeline.Workspace)/kubeoutput-$(Build.BuildNumber)/kubeconfig/kubeconfig.json
             else
               echo "Skip SCTP Tests"
-              $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="SCTP" --kubeconfig=$(Pipeline.Workspace)/kubeoutput/kubeconfig/kubeconfig.json
+              $(Pipeline.Workspace)/Test-$(Build.BuildNumber)/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="SCTP" --kubeconfig=$(Pipeline.Workspace)/kubeoutput-$(Build.BuildNumber)/kubeconfig/kubeconfig.json
             fi
           displayName: "Run Test Suite"
         - task: AzureCLI@2
