@@ -266,9 +266,9 @@ func TestRemoveNPMChains(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "no AZURE-NPM chain while deleting jump",
+			name: "no AZURE-NPM chain while deleting both jumps",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // same code as delete below
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // same code as the next command
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 2, // couldn't load target error code

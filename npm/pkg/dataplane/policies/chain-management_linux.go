@@ -136,12 +136,20 @@ func (pMgr *PolicyManager) initializeNPMChains() error {
 // and flushes and deletes all NPM Chains.
 func (pMgr *PolicyManager) removeNPMChains() error {
 	// 1.1 delete the deprecated jump rule from FORWARD chain to AZURE-NPM chain, if it exists
-	deprecatedDeleteErrCode, deprecatedDeleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
-	if deprecatedDeleteErr == nil {
+	deprecatedErrCode, deprecatedErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
+	if deprecatedErr == nil {
 		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
-	} else if deprecatedDeleteErrCode == couldntLoadTargetErrorCode || deprecatedDeleteErrCode == doesNotExistErrorCode {
-		// see explanation of error codes in switch statement below
-		klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedDeleteErrCode, deprecatedDeleteErr.Error())
+	} else {
+		switch deprecatedErrCode {
+		case couldntLoadTargetErrorCode:
+			// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
+			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist. Exit code %d and error: %s", deprecatedErrCode, deprecatedErr)
+		case doesNotExistErrorCode:
+			// doesNotExistErrorCode happens when AZURE-NPM chain exists, but this jump rule doesn't exist
+			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because NPM v1 was not used prior. Exit code %d and error: %s", deprecatedErrCode, deprecatedErr)
+		default:
+			klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
+		}
 	}
 
 	// 1.2 delete the jump rule that has ctstate NEW
@@ -149,10 +157,8 @@ func (pMgr *PolicyManager) removeNPMChains() error {
 	if deleteErr != nil {
 		switch deleteErrCode {
 		case couldntLoadTargetErrorCode:
-			// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
 			klog.Infof("didn't delete jump from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist. Exit code %d and error: %s", deleteErrCode, deleteErr.Error())
 		case doesNotExistErrorCode:
-			// doesNotExistErrorCode happens when AZURE-NPM chain exists, but this jump rule doesn't exist
 			klog.Infof("didn't delete jump from FORWARD chain to AZURE-NPM chain likely because we're transitioning from v1.4.9 or older. Exit code %d and error: %s", deleteErrCode, deleteErr.Error())
 		default:
 			klog.Errorf("failed to delete jump from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deleteErrCode, deleteErr.Error())
