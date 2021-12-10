@@ -2,7 +2,6 @@ package nodenetworkconfig
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/Azure/azure-container-networking/crd"
@@ -105,23 +104,12 @@ func (c *Client) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinit
 }
 
 // PatchSpec performs a server-side patch of the passed NodeNetworkConfigSpec to the NodeNetworkConfig specified by the NamespacedName.
-func (c *Client) PatchSpec(ctx context.Context, key types.NamespacedName, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
-	obj := &v1alpha.NodeNetworkConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      key.Name,
-			Namespace: key.Namespace,
-		},
-	}
-
-	patch, err := specToJSON(spec)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := c.nnccli.Patch(ctx, obj, ctrlcli.RawPatch(types.ApplyPatchType, patch)); err != nil {
+func (c *Client) PatchSpec(ctx context.Context, key types.NamespacedName, spec *v1alpha.NodeNetworkConfigSpec, fieldManager string) (*v1alpha.NodeNetworkConfig, error) {
+	obj := genPatchSkel(key)
+	obj.Spec = *spec
+	if err := c.nnccli.Patch(ctx, obj, ctrlcli.Apply, ctrlcli.ForceOwnership, ctrlcli.FieldOwner(fieldManager)); err != nil {
 		return nil, errors.Wrap(err, "failed to patch nnc")
 	}
-
 	return obj, nil
 }
 
@@ -140,15 +128,26 @@ func (c *Client) UpdateSpec(ctx context.Context, key types.NamespacedName, spec 
 }
 
 // SetOwnerRef sets the owner of the NodeNetworkConfig to the given object, using HTTP Patch
-func (c *Client) SetOwnerRef(ctx context.Context, nnc *v1alpha.NodeNetworkConfig, owner metav1.Object) (*v1alpha.NodeNetworkConfig, error) {
-	newNNC := nnc.DeepCopy()
-	if err := ctrlutil.SetControllerReference(owner, newNNC, Scheme); err != nil {
-		return nil, fmt.Errorf("could not set controller reference for NNC %s/%s: %w", nnc.Namespace, nnc.Name, err)
+func (c *Client) SetOwnerRef(ctx context.Context, key types.NamespacedName, owner metav1.Object, fieldManager string) (*v1alpha.NodeNetworkConfig, error) {
+	obj := genPatchSkel(key)
+	if err := ctrlutil.SetControllerReference(owner, obj, Scheme); err != nil {
+		return nil, errors.Wrapf(err, "failed to set controller reference for nnc")
 	}
-
-	if err := c.nnccli.Patch(ctx, newNNC, ctrlcli.MergeFrom(nnc)); err != nil {
-		return nil, fmt.Errorf("could not patch NNC %s/%s: %w", nnc.Namespace, nnc.Name, err)
+	if err := c.nnccli.Patch(ctx, obj, ctrlcli.Apply, ctrlcli.ForceOwnership, ctrlcli.FieldOwner(fieldManager)); err != nil {
+		return nil, errors.Wrapf(err, "failed to patch nnc")
 	}
+	return obj, nil
+}
 
-	return newNNC, nil
+func genPatchSkel(key types.NamespacedName) *v1alpha.NodeNetworkConfig {
+	return &v1alpha.NodeNetworkConfig{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: v1alpha.GroupVersion.String(),
+			Kind:       "NodeNetworkConfig",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      key.Name,
+			Namespace: key.Namespace,
+		},
+	}
 }

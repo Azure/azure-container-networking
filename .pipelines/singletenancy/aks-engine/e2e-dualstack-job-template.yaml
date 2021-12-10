@@ -10,7 +10,7 @@ parameters:
 stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    dependsOn:
+    dependsOn: 
       - setup
       - build_and_test
     jobs:
@@ -19,9 +19,9 @@ stages:
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands:
-            - agent.os -equals Linux
-            - Role -equals Build
+          demands: 
+          - agent.os -equals Linux
+          - Role -equals Build
         container:
           image: mcr.microsoft.com/oss/azcu/go-dev:$(GO_DEV_IMAGE_TAG)
         variables:
@@ -126,30 +126,30 @@ stages:
         variables:
           RESOURCE_GROUP: $[ dependencies.Create_cluster.outputs['DeployAKSEngine.RESOURCE_GROUP'] ]
         steps:
-          - checkout: none
-          - download: current
-            artifact: Test
-          - download: current
-            artifact: kubeoutput
-          - bash: |
-              echo "rgname is:$(RESOURCE_GROUP)"
-              chmod +x $(Pipeline.Workspace)/Test/e2e.test
-              echo "os: ${{ parameters.clusterDefinitionCniBuildOS }}"
-              if [ "${{ parameters.clusterDefinitionCniBuildOS }}" == "windows" ]; then
-                echo "Skip LinuxOnly Tests"
-                $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="LinuxOnly" --kubeconfig=$(Pipeline.Workspace)/kubeoutput/kubeconfig/kubeconfig.json
-              else
-                echo "Skip SCTP Tests"
-                $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="SCTP" --kubeconfig=$(Pipeline.Workspace)/kubeoutput/kubeconfig/kubeconfig.json
-              fi
-            displayName: "Run Test Suite"
-          - task: AzureCLI@2
-            displayName: "Delete Test Cluster Resource Group"
-            condition: always()
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                echo "Deleting: $(RESOURCE_GROUP)"
-                az group delete -n $(RESOURCE_GROUP) --yes
+        - checkout: none
+        - download: current
+          artifact: Test
+        - download: current
+          artifact: kubeoutput
+        - bash: |
+            echo "rgname is:$(RESOURCE_GROUP)"
+            chmod +x $(Pipeline.Workspace)/Test/e2e.test
+            echo "os: ${{ parameters.clusterDefinitionCniBuildOS }}"
+            if [ "${{ parameters.clusterDefinitionCniBuildOS }}" == "windows" ]; then
+              echo "Skip LinuxOnly Tests"
+              $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="LinuxOnly" --kubeconfig=$(Pipeline.Workspace)/kubeoutput/kubeconfig/kubeconfig.json
+            else
+              echo "Skip SCTP Tests"
+              $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="SCTP" --kubeconfig=$(Pipeline.Workspace)/kubeoutput/kubeconfig/kubeconfig.json
+            fi
+          displayName: "Run Test Suite"
+        - task: AzureCLI@2
+          displayName: "Delete Test Cluster Resource Group"
+          condition: always()
+          inputs:
+            azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            scriptType: 'bash'
+            scriptLocation: 'inlineScript'
+            inlineScript: |
+              echo "Deleting: $(RESOURCE_GROUP)"
+              az group delete -n $(RESOURCE_GROUP) --yes

@@ -742,6 +742,7 @@ func main() {
 func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
 	var multiTenantController multitenantcontroller.RequestController
 	kubeConfig, err := ctrl.GetConfig()
+	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
 	if err != nil {
 		return err
 	}
@@ -888,6 +889,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
 
 	kubeConfig, err := ctrl.GetConfig()
+	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
 		return err

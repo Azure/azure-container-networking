@@ -23,7 +23,10 @@ import (
 	"k8s.io/klog"
 )
 
-var errNetPolKeyFormat = errors.New("invalid network policy key format")
+var (
+	errNetPolKeyFormat          = errors.New("invalid network policy key format")
+	errNetPolTranslationFailure = errors.New("failed to translate network policy")
+)
 
 type NetworkPolicyController struct {
 	netPolLister netpollister.NetworkPolicyLister
@@ -255,7 +258,17 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	}
 
 	// install translated rules into kernel
-	npmNetPolObj := translation.TranslatePolicy(netPolObj)
+	npmNetPolObj, err := translation.TranslatePolicy(netPolObj)
+	if err != nil {
+		if errors.Is(err, translation.ErrUnsupportedNamedPort) || errors.Is(err, translation.ErrUnsupportedNegativeMatch) {
+			// We can safely suppress unsupported network policy because re-Queuing will result in same error
+			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it has unsupported translated features of Windows.", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace)
+			return nil
+		}
+		klog.Errorf("Failed to translate podSelector in NetworkPolicy %s in namespace %s: %s", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
+		return errNetPolTranslationFailure
+	}
+
 	// install translated rules into Dataplane
 	// DP update policy call will check if this policy already exists in kernel
 	// if yes: then will delete old rules and program new rules

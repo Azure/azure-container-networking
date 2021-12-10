@@ -2,12 +2,8 @@ trigger:
 - master
 
 variables:
-- name: AZURE_CLUSTER
-  value: azure-npm
 - name: VNET_NAME
   value: npm-vnet
-- name: FQDN
-  value: empty
 
 jobs:
 - job: setup
@@ -94,9 +90,8 @@ jobs:
   - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
     artifact: Test
 
-
-- job: Create_cluster
-  displayName: "Deploy AKS Cluster"
+- job: Create_RG
+  displayName: "Create AKS Resource Group"
   pool:
     name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
@@ -105,7 +100,6 @@ jobs:
   dependsOn: [setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
-    TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
   steps:
   - script: |
       sudo rm -rf ./*
@@ -123,23 +117,28 @@ jobs:
         az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
         echo created RG $(RESOURCE_GROUP) in $(LOCATION)
         az version
-        az aks create --no-ssh-key \
-        --resource-group $(RESOURCE_GROUP) \
-        --name $(AZURE_CLUSTER) \
-        --network-plugin azure
 
-- job: Run_test
+- job: Create_Cluster_and_Run_Test
   timeoutInMinutes: 360
   displayName: "Run Kubernetes Network Policy Test Suite"
+  strategy:
+    matrix:
+      v1-default:
+        AZURE_CLUSTER: 'v1-default-cluster'
+        PROFILE: 'v1-default.yaml'
+      v2-default:
+        AZURE_CLUSTER: 'v2-default-cluster'
+        PROFILE: 'v2-default.yaml'
   pool:
     name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  dependsOn: [Create_cluster, Build_test, setup]
+  dependsOn: [Create_RG, Build_test, setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
     TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
+    FQDN: empty
   steps:
   - checkout: none
   - download: current
@@ -151,6 +150,11 @@ jobs:
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
+        az aks create --no-ssh-key \
+        --resource-group $(RESOURCE_GROUP) \
+        --name $(AZURE_CLUSTER) \
+        --network-plugin azure
+
         echo Cluster $(AZURE_CLUSTER)
         echo Resource $(RESOURCE_GROUP)
 
@@ -164,6 +168,10 @@ jobs:
 
         # swap azure-npm image with one built during run
         ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
+
+        # swap NPM profile with one specified as parameter
+        ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/profiles/$(PROFILE)
+        ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
 
         ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
 
@@ -181,6 +189,7 @@ jobs:
       npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
       mkdir -p $(System.DefaultWorkingDirectory)/npmLogs
       for npm in $npmPodList; do ./kubectl logs -n kube-system $npm --kubeconfig=./kubeconfig > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
+      mv ./kubeconfig $(System.DefaultWorkingDirectory)/npmLogs/kubeconfig
     displayName: "Gather NPM Logs"
     condition: always()
 
@@ -195,8 +204,7 @@ jobs:
     demands: 
     - agent.os -equals Linux
     - Role -equals Build
-  condition: always()
-  dependsOn: [Run_test, setup]
+  dependsOn: [Create_Cluster_and_Run_Test, setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
     TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
