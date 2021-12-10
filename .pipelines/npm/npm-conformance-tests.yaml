@@ -125,10 +125,10 @@ jobs:
     matrix:
       v1-default:
         AZURE_CLUSTER: 'v1-default-cluster'
-        PROFILE: 'v1-default.yaml'
+        PROFILE: 'v1-default'
       v2-default:
         AZURE_CLUSTER: 'v2-default-cluster'
-        PROFILE: 'v2-default.yaml'
+        PROFILE: 'v2-default'
   pool:
     name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
@@ -170,7 +170,7 @@ jobs:
         ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
 
         # swap NPM profile with one specified as parameter
-        ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/profiles/$(PROFILE)
+        ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/profiles/$(PROFILE).yaml
         ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
 
         ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
@@ -187,13 +187,13 @@ jobs:
       curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
       chmod +x kubectl
       npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
-      mkdir -p $(System.DefaultWorkingDirectory)/npmLogs
+      mkdir -p $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
       for npm in $npmPodList; do ./kubectl logs -n kube-system $npm --kubeconfig=./kubeconfig > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
-      mv ./kubeconfig $(System.DefaultWorkingDirectory)/npmLogs/kubeconfig
+      mv ./kubeconfig $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)/kubeconfig
     displayName: "Gather NPM Logs"
     condition: always()
 
-  - publish: $(System.DefaultWorkingDirectory)/npmLogs
+  - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
     condition: always()
     artifact: NpmLogs
 
