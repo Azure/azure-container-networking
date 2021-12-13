@@ -181,7 +181,7 @@ jobs:
   - bash: |
       echo $FQDN
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
-      sleep 15
+      KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
     displayName: "Run Test Suite"
   - bash: |
       curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
