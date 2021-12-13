@@ -181,7 +181,7 @@ jobs:
   - bash: |
       echo $FQDN
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
-      KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+      sleep 15
     displayName: "Run Test Suite"
   - bash: |
       curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
@@ -195,7 +195,7 @@ jobs:
 
   - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
     condition: always()
-    artifact: NpmLogs
+    artifact: NpmLogs_$(PROFILE)
 
 - job: Clean_up
   displayName: "Cleanup"
