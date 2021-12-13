@@ -91,22 +91,29 @@ import (
 				[!]label1-AND-[!]label2...-AND-ns-[!]labelM-IN-ns-name
 */
 
+type UniqueDirection bool
+
+const (
+	forIngress UniqueDirection = true
+	forEgress  UniqueDirection = false
+)
+
 func (networkPolicy *NPMNetworkPolicy) commentForJumpToIngress() string {
-	return networkPolicy.commentForJump(true)
+	return networkPolicy.commentForJump(forIngress)
 }
 
 func (networkPolicy *NPMNetworkPolicy) commentForJumpToEgress() string {
-	return networkPolicy.commentForJump(false)
+	return networkPolicy.commentForJump(forEgress)
 }
 
-func (networkPolicy *NPMNetworkPolicy) commentForJump(isIngress bool) string {
+func (networkPolicy *NPMNetworkPolicy) commentForJump(direction UniqueDirection) string {
 	prefix := "EGRESS"
-	if isIngress {
+	if direction == forIngress {
 		prefix = "INGRESS"
 	}
 
 	toFrom := "FROM"
-	if isIngress {
+	if direction == forIngress {
 		toFrom = "TO"
 	}
 

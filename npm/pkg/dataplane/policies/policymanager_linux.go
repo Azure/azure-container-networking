@@ -111,11 +111,11 @@ func (pMgr *PolicyManager) deleteOldJumpRulesOnRemove(policy *NPMNetworkPolicy) 
 	return nil
 }
 
-func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, isIngress bool) error {
+func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, direction UniqueDirection) error {
 	var specs []string
 	var baseChainName string
 	var chainName string
-	if isIngress {
+	if direction == forIngress {
 		specs = ingressJumpSpecs(policy)
 		baseChainName = util.IptablesAzureIngressChain
 		chainName = policy.ingressChainName()
