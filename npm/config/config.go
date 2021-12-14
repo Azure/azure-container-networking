@@ -36,3 +36,7 @@ type Toggles struct {
 	EnableV2NPM             bool
 	PlaceAzureChainFirst    bool
 }
+
+type Flags struct {
+	KubeConfigPath string `json:"KubeConfigPath"`
+}

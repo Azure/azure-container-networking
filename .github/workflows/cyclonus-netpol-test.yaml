@@ -67,8 +67,8 @@ jobs:
       - name: Fetch logs
         if: always()
         run: |
-          kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > npm-logs.txt
-          mv ./test/cyclonus/cyclonus-test.txt ./cyclonus-test.txt
+          kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > npm-logs_${{ matrix.profile }}.txt
+          mv ./test/cyclonus/cyclonus-test.txt ./cyclonus-test_${{ matrix.profile }}.txt
 
       - name: 'Upload Logs'
         uses: actions/upload-artifact@v2
@@ -76,5 +76,5 @@ jobs:
         with:
           name: logs
           path: |
-            ./npm-logs.txt
-            ./cyclonus-test.txt
+            ./npm-logs_${{ matrix.profile }}.txt
+            ./cyclonus-test_${{ matrix.profile }}.txt

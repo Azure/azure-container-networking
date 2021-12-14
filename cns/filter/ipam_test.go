@@ -5,44 +5,44 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/stretchr/testify/assert"
 )
 
 var testStatuses = []struct {
-	State  cns.IPConfigState
+	State  types.IPState
 	Status cns.IPConfigurationStatus
 }{
 	{
-		State: cns.Allocated,
+		State: types.Assigned,
 		Status: cns.IPConfigurationStatus{
-			ID:    "allocated",
-			State: cns.Allocated,
+			ID: "assigned",
 		},
 	},
 	{
-		State: cns.Available,
+		State: types.Available,
 		Status: cns.IPConfigurationStatus{
-			ID:    "available",
-			State: cns.Available,
+			ID: "available",
 		},
 	},
 	{
-		State: cns.PendingProgramming,
+		State: types.PendingProgramming,
 		Status: cns.IPConfigurationStatus{
-			ID:    "pending-programming",
-			State: cns.PendingProgramming,
+			ID: "pending-programming",
 		},
 	},
 	{
-		State: cns.PendingRelease,
+		State: types.PendingRelease,
 		Status: cns.IPConfigurationStatus{
-			ID:    "pending-release",
-			State: cns.PendingRelease,
+			ID: "pending-release",
 		},
 	},
 }
 
 func TestMatchesAnyIPConfigState(t *testing.T) {
+	for i := range testStatuses {
+		testStatuses[i].Status.SetState(testStatuses[i].State)
+	}
 	for i := range testStatuses {
 		status := testStatuses[i].Status
 		failStatus := testStatuses[(i+1)%len(testStatuses)].Status
@@ -53,6 +53,9 @@ func TestMatchesAnyIPConfigState(t *testing.T) {
 }
 
 func TestMatchAnyIPConfigState(t *testing.T) {
+	for i := range testStatuses {
+		testStatuses[i].Status.SetState(testStatuses[i].State)
+	}
 	m := map[string]cns.IPConfigurationStatus{}
 	for i := range testStatuses {
 		key := strconv.Itoa(i)

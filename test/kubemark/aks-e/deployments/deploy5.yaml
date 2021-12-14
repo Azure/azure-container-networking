@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploy5
+  namespace: default
+  labels:
+    app: deploy5
+spec:
+  replicas: 500
+  selector:
+    matchLabels:
+      app: deploy5
+  template:
+    metadata:
+      labels:
+        role: deploy5
+        app: deploy5
+    spec:
+      nodeSelector:
+        hollow-node: ""
+      containers:
+      - name: deploy5
+        command: [ "sleep" ]
+        args: [ "infinity" ]
+        image: acnpublic.azurecr.io/toolbox:latest
+        imagePullPolicy: IfNotPresent

@@ -83,7 +83,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	exec utilexec.Interface,
 	npmVersion string,
 	k8sServerVersion *version.Info) *NetworkPolicyManager {
-	klog.Infof("API server version: %+v ai meta data %+v", k8sServerVersion, aiMetadata)
+	klog.Infof("API server version: %+v AI metadata %+v", k8sServerVersion, aiMetadata)
 
 	npMgr := &NetworkPolicyManager{
 		config:           config,

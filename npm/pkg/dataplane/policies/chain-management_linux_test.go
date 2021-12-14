@@ -239,6 +239,7 @@ func TestResetLinux(t *testing.T) {
 		{
 			name: "success when there are chains currently",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
 				{
@@ -257,19 +258,8 @@ func TestResetLinux(t *testing.T) {
 		{
 			name: "success when there are no chains currently",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
-			},
-			wantErr: false,
-		},
-		{
-			name: "no error on failure to delete",
-			calls: []testutils.TestCmd{
-				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-					ExitCode: 1, // delete failure
-				},
 				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
 			},
@@ -278,6 +268,7 @@ func TestResetLinux(t *testing.T) {
 		{
 			name: "failure on restore",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
 				{
@@ -291,6 +282,7 @@ func TestResetLinux(t *testing.T) {
 		{
 			name: "failure on destroy",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
 				{
@@ -305,6 +297,65 @@ func TestResetLinux(t *testing.T) {
 				getFakeDestroyCommand("AZURE-NPM-INGRESS-ALLOW-MARK"),
 			},
 			wantErr: true,
+		},
+		{
+			name: "does not exist error while deleting jump",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1, // does not exist error code
+				},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+			},
+			wantErr: false,
+		},
+		{
+			name: "no AZURE-NPM chain while deleting both jumps",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // same code as the next command
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 2, // couldn't load target error code
+				},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+			},
+			wantErr: false,
+		},
+		{
+			name: "unknown error while deleting jump",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 3, // unknown delete failure
+				},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+			},
+			wantErr: false,
+		},
+		{
+			name: "successfully delete deprecated jump",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+			},
+			wantErr: false,
+		},
+		{
+			name: "unknown error while deleting deprecated jump",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 3},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+			},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {

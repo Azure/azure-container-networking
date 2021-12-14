@@ -56,7 +56,12 @@ var (
 		commentSpecs("LET-TRAFFIC-THROUGH-SINCE-THERE-ARE-NO-POLICIES")...,
 	)
 
-	errInvalidGrepResult = errors.New("unexpectedly got no lines while grepping for current Azure chains")
+	errInvalidGrepResult                      = errors.New("unexpectedly got no lines while grepping for current Azure chains")
+	deprecatedJumpFromForwardToAzureChainArgs = []string{
+		util.IptablesForwardChain,
+		util.IptablesJumpFlag,
+		util.IptablesAzureChain,
+	}
 )
 
 type staleChains struct {
@@ -125,19 +130,40 @@ func (pMgr *PolicyManager) initialize() error {
 }
 
 // reset removes the jump rule from FORWARD chain to AZURE-NPM chain, then flushes and deletes all NPM Chains.
-func (pMgr *PolicyManager) reset() error {
+func (pMgr *PolicyManager) reset(_ []string) error {
 	// TODO just delete the deprecated jump and call on configureForDeactivatedMode(). Also update the function comment. Until then we log error messages when trying to delete the RETURN rule
 
-	deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
-	// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
-	// we can ignore this error code, since there's no problem if the rule doesn't exist
-	hadDeleteError := deleteErr != nil && deleteErrCode != couldntLoadTargetErrorCode
-	if hadDeleteError {
-		// log as an error because this is unexpected, but don't return an error because for example, we could have AZURE-NPM chain exists but the jump to it doesn't exist
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to delete jump from FORWARD chain to AZURE-NPM chain with exit code %d and error: %s", deleteErrCode, deleteErr.Error())
-		// FIXME update ID
+	// 1.1 delete the deprecated jump rule from FORWARD chain to AZURE-NPM chain, if it exists
+	deprecatedErrCode, deprecatedErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
+	if deprecatedErr == nil {
+		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
+	} else {
+		switch deprecatedErrCode {
+		case couldntLoadTargetErrorCode:
+			// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
+			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist. Exit code %d and error: %s", deprecatedErrCode, deprecatedErr)
+		case doesNotExistErrorCode:
+			// doesNotExistErrorCode happens when AZURE-NPM chain exists, but this jump rule doesn't exist
+			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because NPM v1 was not used prior. Exit code %d and error: %s", deprecatedErrCode, deprecatedErr)
+		default:
+			klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
+		}
 	}
 
+	// 1.2 delete the jump rule that has ctstate NEW
+	deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
+	if deleteErr != nil {
+		switch deleteErrCode {
+		case couldntLoadTargetErrorCode:
+			klog.Infof("didn't delete jump from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist. Exit code %d and error: %s", deleteErrCode, deleteErr.Error())
+		case doesNotExistErrorCode:
+			klog.Infof("didn't delete jump from FORWARD chain to AZURE-NPM chain likely because we're transitioning from v1.4.9 or older. Exit code %d and error: %s", deleteErrCode, deleteErr.Error())
+		default:
+			klog.Errorf("failed to delete jump from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deleteErrCode, deleteErr.Error())
+		}
+	}
+
+	// 2. flush current NPM chains
 	creatorToFlush, chainsToDelete, err := pMgr.creatorAndChainsForReset()
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to create restore file for reset", err)
@@ -150,8 +176,8 @@ func (pMgr *PolicyManager) reset() error {
 		return npmerrors.SimpleErrorWrapper("failed to flush chains", err)
 	}
 
+	// 3. delete current NPM chains
 	// FIXME: should we delete these chains in the background instead (in the reconcile loop) since they're empty/harmless after restore?
-	// delete all azure chains, including stale chains
 	pMgr.staleChains.empty()
 	if err := pMgr.cleanupChains(chainsToDelete); err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to delete some old chains", err)

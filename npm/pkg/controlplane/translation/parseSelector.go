@@ -230,7 +230,7 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 // parsePodSelector parses podSelector and returns slice of labelSelector object
 // which includes operator, setType, ipset name and its members slice.
 // Members slice exists only if setType is only NestedLabelOfPod.
-func parsePodSelector(selector *metav1.LabelSelector) []labelSelector {
+func parsePodSelector(selector *metav1.LabelSelector) ([]labelSelector, error) {
 	parsedSelectors := newParsedSelectors()
 
 	// #1. MatchLabels
@@ -245,7 +245,11 @@ func parsePodSelector(selector *metav1.LabelSelector) []labelSelector {
 		var setName string
 		var setType ipsets.SetType
 		var members []string
-		switch op := req.Operator; op {
+		op := req.Operator
+		if unsupportedOpsInWindows(op) {
+			return nil, ErrUnsupportedNegativeMatch
+		}
+		switch op {
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
 			// "(!) + matchKey + : + matchVal" case
 			if len(req.Values) == 1 {
@@ -270,5 +274,10 @@ func parsePodSelector(selector *metav1.LabelSelector) []labelSelector {
 		parsedSelectors.addSelector(noNegativeOp, setType, setName, members...)
 	}
 
-	return parsedSelectors.labelSelectors
+	return parsedSelectors.labelSelectors, nil
+}
+
+func unsupportedOpsInWindows(op metav1.LabelSelectorOperator) bool {
+	return util.IsWindowsDP() &&
+		(op == metav1.LabelSelectorOpNotIn || op == metav1.LabelSelectorOpDoesNotExist)
 }

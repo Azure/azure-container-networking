@@ -115,9 +115,9 @@ stages:
               wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
               tar -zxvf trivy*.tar.gz
               mkdir -p ./trivy-cache
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-npm:$(TAG) 
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cns:$(TAG) 
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cni-manager:$(TAG) 
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-npm:$(TAG)
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cns:$(TAG)
+              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
             name: "TrivyScan"
             displayName: "Image Vulnerability Scan"
 
@@ -171,12 +171,12 @@ stages:
           - script: |
               make tools
               # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
-              { { { { 
-                    sudo -E env "PATH=$PATH" make test-all; 
-                    echo $? >&3; 
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4; 
-                  } 3>&1; 
-                } | { read xs; exit $xs; } 
+              { { { {
+                    sudo -E env "PATH=$PATH" make test-all;
+                    echo $? >&3;
+                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
+                  } 3>&1;
+                } | { read xs; exit $xs; }
               } 4>&1
             name: "Test"
             displayName: "Run Tests"
@@ -240,6 +240,16 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
+  - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
+    parameters:
+      name: "ubuntu_18_04_linux_dualstack_e2e"
+      displayName: "Ubuntu 18.04 Dualstack"
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      clusterDefinition: "cniLinuxDualstack1804.json"
+      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
+      clusterDefinitionCniBuildOS: "linux"
+      clusterDefinitionCniBuildExt: ".tgz"
+
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
@@ -247,6 +257,7 @@ stages:
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
+      - "ubuntu_18_04_linux_dualstack_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

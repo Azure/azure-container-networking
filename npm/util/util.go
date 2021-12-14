@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"os"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,10 @@ var IsNewNwPolicyVerFlag = false
 
 // regex to get minor version
 var re = regexp.MustCompile("[0-9]+")
+
+func IsWindowsDP() bool {
+	return runtime.GOOS == "windows"
+}
 
 // Exists reports whether the named file or directory exists.
 func Exists(filePath string) bool {

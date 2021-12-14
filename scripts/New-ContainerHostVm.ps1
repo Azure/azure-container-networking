@@ -1,4 +1,4 @@
-﻿<#
+<#
     .SYNOPSIS
         Creates an Azure VM with given number of network interfaces and IP addresses.
 

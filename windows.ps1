@@ -1,3 +1,5 @@
+# example usage:
+# powershell.exe -command "& { . .\windows.ps1; azure-npm-image <imagetag> }"
 # Retry({azure-npm-image $(tag)-windows-amd64})
 
 function Retry([Action]$action) {

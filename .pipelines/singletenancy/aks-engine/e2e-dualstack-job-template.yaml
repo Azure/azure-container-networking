@@ -1,0 +1,148 @@
+parameters:
+  name: ""
+  displayName: ""
+  pipelineBuildImage: "$(BUILD_IMAGE)"
+  clusterDefinition: ""
+  clusterDefinitionCniTypeKey: ""
+  clusterDefinitionCniBuildOS: ""
+  clusterDefinitionCniBuildExt: ""
+
+stages:
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn: 
+      - setup
+      - build_and_test
+    jobs:
+      - job: Create_cluster
+        displayName: Create Dualstack cluster
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands: 
+          - agent.os -equals Linux
+          - Role -equals Build
+        container:
+          image: mcr.microsoft.com/oss/azcu/go-dev:$(GO_DEV_IMAGE_TAG)
+        variables:
+          GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+          GOBIN: "$(GOPATH)/bin" # Go binaries path
+          acnPath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+          Tag: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+          CommitHash: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.CommitHash'] ]
+          StorageID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+        steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: current
+              artifactName: clusterdefinitions
+              targetPath: $(Pipeline.Workspace)
+          - bash: |
+              ls -lah
+              export CNI_URL=https://$(ARTIFACT_STORAGE).blob.core.windows.net/acn-$(StorageID)/azure-vnet-cni-${{ parameters.clusterDefinitionCniBuildOS }}-amd64-$(Tag)${{ parameters.clusterDefinitionCniBuildExt }}
+              export CNI_TYPE=${{ parameters.clusterDefinitionCniTypeKey }}
+              echo CNI type is $CNI_TYPE
+              echo Tag is $(Tag)
+              echo CNI_URL is $CNI_URL
+              echo Config: '${{ parameters.clusterDefinition }}'
+              cat '${{ parameters.clusterDefinition }}'
+              cat '${{ parameters.clusterDefinition }}' | jq --arg cnikey $CNI_TYPE --arg cniurl $CNI_URL '.properties.orchestratorProfile.kubernetesConfig[$cnikey]= $cniurl' > '${{ parameters.clusterDefinition }}'.tmp
+              cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
+              mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
+              echo "Running E2E tests against a cluster built with the following API model:"
+              cp ${{ parameters.clusterDefinition }} clusterDefinition.json
+            displayName: "Configure AKS-Engine Cluster definition"
+            workingDirectory: $(Pipeline.Workspace)
+          - bash: |
+              echo Currently set AKS-Engine Version '$(AKS_ENGINE_VERSION)'
+              if [ -z '$(AKS_ENGINE_VERSION)' ]
+              then
+                echo Found set AKS-Engine version '$(AKS_ENGINE_VERSION)'...
+                export aksEVersion='$(AKS_ENGINE_VERSION)'
+              else
+                echo No AKS-Engine version set, using latest...
+                export aksEVersion=$(curl -L -s -H 'Accept: application/json' https://github.com/Azure/aks-engine/releases/latest | sed -e 's/.*"tag_name":"\([^"]*\)".*/\1/')
+              fi
+              echo Using AKS-Engine version $aksEVersion
+
+              # download binary
+              #wget https://github.com/Azure/aks-engine/releases/download/$aksEVersion/aks-engine-$aksEVersion-linux-amd64.tar.gz
+              wget https://github.com/tamilmani1989/aks-engine/releases/download/v1.1.0/aks-engine-tamanoha-linux-amd64.tar.gz
+              rm -rf ./dualstack-ws
+              mkdir ./dualstack-ws
+
+              #extract binary
+              #tar -zxvf aks-engine-$aksEVersion-linux-amd64.tar.gz -C dualstack-ws
+              tar -zxvf aks-engine-tamanoha-linux-amd64.tar.gz -C dualstack-ws
+              mv ./dualstack-ws/aks-engine-*/* ./dualstack-ws/
+              ls -l ./dualstack-ws
+              ./dualstack-ws/aks-engine version
+            displayName: "Install aks-engine binary"
+
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(AKS_ENGINE_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              addSpnToEnvironment: true
+              inlineScript: |
+                RG=kubernetes-$(echo "dualstack-e2e-`date "+%Y-%m-%d-%S"`")
+                echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true;]$RG"
+                region=$(echo $(AKS_ENGINE_REGION)|cut -d',' -f1)
+                echo "running: ./dualstack-ws/aks-engine deploy -m $(Pipeline.Workspace)/clusterDefinition.json --location $region -g $RG --subscription-id $(AKS_ENGINE_SUBSCRIPTION_ID) --client-id $servicePrincipalId --client-secret $servicePrincipalKey --output-directory ./dualstack-ws/kubeoutput"
+                ./dualstack-ws/aks-engine deploy -m $(Pipeline.Workspace)/clusterDefinition.json --location $region  -g $RG --subscription-id $(AKS_ENGINE_SUBSCRIPTION_ID) --client-id $servicePrincipalId --client-secret $servicePrincipalKey --output-directory ./dualstack-ws/kubeoutput --auto-suffix
+                mv ./dualstack-ws/kubeoutput/kubeconfig/kubeconfig.* ./dualstack-ws/kubeoutput/kubeconfig/kubeconfig.json
+            name: DeployAKSEngine
+            displayName: "Deploy aks-engine cluster"
+          - publish: ./dualstack-ws/kubeoutput
+            artifact: kubeoutput
+
+      - job: Build_kubernetes
+        displayName: Build kubernetes upstream
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+            - agent.os -equals Linux
+            - Role -equals Build
+        steps:
+          - bash: |
+              git clone https://github.com/kubernetes/kubernetes.git
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: 'Build Kubernetes e2e.test'
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: Test
+
+      - job: Run_test
+        displayName: Run upstream e2e test
+        dependsOn: [Create_cluster, Build_kubernetes]
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+            - agent.os -equals Linux
+            - Role -equals Build
+        variables:
+          RESOURCE_GROUP: $[ dependencies.Create_cluster.outputs['DeployAKSEngine.RESOURCE_GROUP'] ]
+        steps:
+        - checkout: none
+        - download: current
+          artifact: Test
+        - download: current
+          artifact: kubeoutput
+        - bash: |
+            echo "rgname is:$(RESOURCE_GROUP)"
+            chmod +x $(Pipeline.Workspace)/Test/e2e.test
+            $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="Feature:IPv6DualStack" --ginkgo.skip="SCTP" --kubeconfig=$(Pipeline.Workspace)/kubeoutput/kubeconfig/kubeconfig.json
+          displayName: "Run Test Suite"
+        - task: AzureCLI@2
+          displayName: "Delete Test Cluster Resource Group"
+          condition: always()
+          inputs:
+            azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            scriptType: 'bash'
+            scriptLocation: 'inlineScript'
+            inlineScript: |
+              echo "Deleting: $(RESOURCE_GROUP)"
+              az group delete -n $(RESOURCE_GROUP) --yes

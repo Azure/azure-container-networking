@@ -1,32 +1,35 @@
 package filter
 
-import "github.com/Azure/azure-container-networking/cns"
+import (
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/types"
+)
 
 type IPConfigStatePredicate func(ipconfig cns.IPConfigurationStatus) bool
 
 var (
-	// StateAllocated is a preset filter for cns.Allocated.
-	StateAllocated = ipConfigStatePredicate(cns.Allocated)
-	// StateAvailable is a preset filter for cns.Available.
-	StateAvailable = ipConfigStatePredicate(cns.Available)
-	// StatePendingProgramming is a preset filter for cns.PendingProgramming.
-	StatePendingProgramming = ipConfigStatePredicate(cns.PendingProgramming)
-	// StatePendingRelease is a preset filter for cns.PendingRelease.
-	StatePendingRelease = ipConfigStatePredicate(cns.PendingRelease)
+	// StateAssigned is a preset filter for types.Assigned.
+	StateAssigned = ipConfigStatePredicate(types.Assigned)
+	// StateAvailable is a preset filter for types.Available.
+	StateAvailable = ipConfigStatePredicate(types.Available)
+	// StatePendingProgramming is a preset filter for types.PendingProgramming.
+	StatePendingProgramming = ipConfigStatePredicate(types.PendingProgramming)
+	// StatePendingRelease is a preset filter for types.PendingRelease.
+	StatePendingRelease = ipConfigStatePredicate(types.PendingRelease)
 )
 
-var filters = map[cns.IPConfigState]IPConfigStatePredicate{
-	cns.Allocated:          StateAllocated,
-	cns.Available:          StateAvailable,
-	cns.PendingProgramming: StatePendingProgramming,
-	cns.PendingRelease:     StatePendingRelease,
+var filters = map[types.IPState]IPConfigStatePredicate{
+	types.Assigned:           StateAssigned,
+	types.Available:          StateAvailable,
+	types.PendingProgramming: StatePendingProgramming,
+	types.PendingRelease:     StatePendingRelease,
 }
 
 // ipConfigStatePredicate returns a predicate function that compares an IPConfigurationStatus.State to
 // the passed State string and returns true when equal.
-func ipConfigStatePredicate(test cns.IPConfigState) IPConfigStatePredicate {
+func ipConfigStatePredicate(test types.IPState) IPConfigStatePredicate {
 	return func(ipconfig cns.IPConfigurationStatus) bool {
-		return ipconfig.State == test
+		return ipconfig.GetState() == test
 	}
 }
 
@@ -58,7 +61,7 @@ func MatchAnyIPConfigState(in map[string]cns.IPConfigurationStatus, predicates .
 
 // PredicatesForStates returns a slice of IPConfigStatePredicates matches
 // that map to the input IPConfigStates.
-func PredicatesForStates(states ...cns.IPConfigState) []IPConfigStatePredicate {
+func PredicatesForStates(states ...types.IPState) []IPConfigStatePredicate {
 	var predicates []IPConfigStatePredicate
 	for _, state := range states {
 		if f, ok := filters[state]; ok {

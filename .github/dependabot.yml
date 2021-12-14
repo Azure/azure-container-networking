@@ -2,14 +2,12 @@
 
 version: 2
 updates:
-  - package-ecosystem: "gomod" 
+  - package-ecosystem: "gomod"
     directory: "/"
-    vendor: true
     schedule:
       interval: "daily"
     assignees:
       - "matmerr"
       - "rbtr"
     commit-message:
-      prefix: "vendor: "
-      
+      prefix: "vendor"
