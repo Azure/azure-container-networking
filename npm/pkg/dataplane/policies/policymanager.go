@@ -24,21 +24,12 @@ const (
 )
 
 type PolicyManagerCfg struct {
-	Mode               PolicyManagerMode
-	RebootOnNoPolicies bool
+	Mode PolicyManagerMode
 }
 
-var (
-	// TODO rename these to IPSetAndActivateCfg and IPSetCfg
-	IPSetAndRebootConfig = &PolicyManagerCfg{
-		Mode:               IPSetPolicyMode,
-		RebootOnNoPolicies: true,
-	}
-	IPSetAndNoRebootConfig = &PolicyManagerCfg{
-		Mode:               IPSetPolicyMode,
-		RebootOnNoPolicies: false,
-	}
-)
+var IPSetConfig = &PolicyManagerCfg{
+	Mode: IPSetPolicyMode,
+}
 
 type PolicyMap struct {
 	cache map[string]*NPMNetworkPolicy
@@ -63,16 +54,9 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 	}
 }
 
-func (pMgr *PolicyManager) Initialize() error {
-	if err := pMgr.initialize(); err != nil {
-		return npmerrors.ErrorWrapper(npmerrors.InitializePolicyMgr, false, "failed to initialize policy manager", err)
-	}
-	return nil
-}
-
-func (pMgr *PolicyManager) Reset(epIDs []string) error {
-	if err := pMgr.reset(epIDs); err != nil {
-		return npmerrors.ErrorWrapper(npmerrors.ResetPolicyMgr, false, "failed to reset policy manager", err)
+func (pMgr *PolicyManager) Bootup(epIDs []string) error {
+	if err := pMgr.bootup(epIDs); err != nil {
+		return npmerrors.ErrorWrapper(npmerrors.BootupPolicyMgr, false, "failed to bootup policy manager", err)
 	}
 	return nil
 }
@@ -124,14 +108,12 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to add policy: %v", err))
 	}
 
-	if len(pMgr.policyMap.cache) == 0 {
-		klog.Infof("activating policy manager since we just added the first policy")
-		if err := pMgr.activate(); err != nil {
-			return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to activate policy manager: %v", err))
-		}
-	}
 	pMgr.policyMap.cache[policy.PolicyKey] = policy
 	return nil
+}
+
+func (pMgr *PolicyManager) shouldActivate() bool {
+	return len(pMgr.policyMap.cache) == 0
 }
 
 func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[string]string) error {
@@ -155,14 +137,13 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 	}
 
 	delete(pMgr.policyMap.cache, policyKey)
-	if pMgr.RebootOnNoPolicies && len(pMgr.policyMap.cache) == 0 {
-		klog.Infof("deactivating policy manager since there are no policies remaining in the cache")
-		if err := pMgr.deactivate(); err != nil {
-			klog.Errorf("failed to deactivate when there were no policies remaining")
-		}
-	}
-
 	return nil
+}
+
+func (pMgr *PolicyManager) shouldDeactivate() bool {
+	// if change our code to delete more than one policy at once, we can specify numPoliciesToDelete as an argument
+	numPoliciesToDelete := 1
+	return len(pMgr.policyMap.cache) == numPoliciesToDelete
 }
 
 func normalizePolicy(networkPolicy *NPMNetworkPolicy) {

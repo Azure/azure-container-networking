@@ -20,7 +20,7 @@ var (
 	dpCfg = &Config{
 		PolicyMode:       "",
 		IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
-		PolicyManagerCfg: policies.IPSetAndNoRebootConfig,
+		PolicyManagerCfg: policies.IPSetConfig,
 	}
 
 	fakeIPSetRestoreSuccess = testutils.TestCmd{
@@ -77,55 +77,18 @@ var (
 func TestNewDataPlane(t *testing.T) {
 	metrics.InitializeAll()
 
-	calls := getNewDataplaneTestCalls()
+	calls := getBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	dp, err := NewDataPlane("testnode", ioshim, dpCfg)
 	require.NoError(t, err)
-
-	if dp == nil {
-		t.Error("NewDataPlane() returned nil")
-	}
-
-	setMetadata := ipsets.NewIPSetMetadata("test", ipsets.Namespace)
-	dp.CreateIPSets([]*ipsets.IPSetMetadata{setMetadata})
-}
-
-func TestInitializeDataPlane(t *testing.T) {
-	metrics.InitializeAll()
-
-	calls := append(getNewDataplaneTestCalls(), policies.GetInitializeTestCalls()...)
-	ioshim := common.NewMockIOShim(calls)
-	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg)
-	require.NoError(t, err)
-
 	assert.NotNil(t, dp)
-	err = dp.InitializeDataPlane()
-	require.NoError(t, err)
-}
-
-func TestResetDataPlane(t *testing.T) {
-	metrics.InitializeAll()
-
-	calls := append(getNewDataplaneTestCalls(), getInitializeTestCalls()...)
-	calls = append(calls, getResetTestCalls()...)
-	ioshim := common.NewMockIOShim(calls)
-	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg)
-	require.NoError(t, err)
-
-	assert.NotNil(t, dp)
-	err = dp.InitializeDataPlane()
-	require.NoError(t, err)
-	err = dp.ResetDataPlane()
-	require.NoError(t, err)
 }
 
 func TestCreateAndDeleteIpSets(t *testing.T) {
 	metrics.InitializeAll()
 
-	calls := getNewDataplaneTestCalls()
+	calls := getBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	dp, err := NewDataPlane("testnode", ioshim, dpCfg)
@@ -167,7 +130,7 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 func TestAddToSet(t *testing.T) {
 	metrics.InitializeAll()
 
-	calls := getNewDataplaneTestCalls()
+	calls := getBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	dp, err := NewDataPlane("testnode", ioshim, dpCfg)
@@ -231,7 +194,7 @@ func TestAddToSet(t *testing.T) {
 func TestApplyPolicy(t *testing.T) {
 	metrics.InitializeAll()
 
-	calls := append(getNewDataplaneTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
+	calls := append(getBootupTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	dp, err := NewDataPlane("testnode", ioshim, dpCfg)
@@ -244,7 +207,7 @@ func TestApplyPolicy(t *testing.T) {
 func TestRemovePolicy(t *testing.T) {
 	metrics.InitializeAll()
 
-	calls := append(getNewDataplaneTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
+	calls := append(getBootupTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
 	calls = append(calls, getRemovePolicyTestCallsForDP(&testPolicyobj)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
@@ -270,7 +233,7 @@ func TestUpdatePolicy(t *testing.T) {
 		},
 	}
 
-	calls := append(getNewDataplaneTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
+	calls := append(getBootupTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
 	calls = append(calls, getRemovePolicyTestCallsForDP(&testPolicyobj)...)
 	calls = append(calls, getAddPolicyTestCallsForDP(&updatedTestPolicyobj)...)
 	for _, call := range calls {
@@ -288,16 +251,8 @@ func TestUpdatePolicy(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func getNewDataplaneTestCalls() []testutils.TestCmd {
-	return append(getResetTestCalls(), getInitializeTestCalls()...)
-}
-
-func getInitializeTestCalls() []testutils.TestCmd {
-	return policies.GetInitializeTestCalls()
-}
-
-func getResetTestCalls() []testutils.TestCmd {
-	return append(policies.GetResetTestCalls(), ipsets.GetResetTestCalls()...)
+func getBootupTestCalls() []testutils.TestCmd {
+	return append(policies.GetBootupTestCalls(), ipsets.GetResetTestCalls()...)
 }
 
 func getAddPolicyTestCallsForDP(networkPolicy *policies.NPMNetworkPolicy) []testutils.TestCmd {

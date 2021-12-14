@@ -32,12 +32,25 @@ Chain AZURE-NPM-INGRESS (1 references)
 Chain AZURE-NPM-INGRESS-123456 (1 references)
 Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)
 `
+
+	grepOutputAzureV1Chains = `Chain AZURE-NPM
+Chain AZURE-NPM (1 references)
+Chain AZURE-NPM-INGRESS (1 references)
+Chain AZURE-NPM-INGRESS-DROPS (1 references)
+Chain AZURE-NPM-INGRESS-TO (1 references)
+Chain AZURE-NPM-INGRESS-PORTS (1 references)
+Chain AZURE-NPM-EGRESS (1 references)
+Chain AZURE-NPM-EGRESS-DROPS (1 references)
+Chain AZURE-NPM-EGRESS-FROM (1 references)
+Chain AZURE-NPM-EGRESS-PORTS (1 references)
+Chain AZURE-NPM-ACCEPT (1 references)
+`
 )
 
 func TestStaleChainsAddAndRemove(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+	pMgr := NewPolicyManager(ioshim, IPSetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	assertStaleChainsContain(t, pMgr.staleChains, testChain1)
@@ -62,7 +75,7 @@ func TestStaleChainsAddAndRemove(t *testing.T) {
 func TestStaleChainsEmptyAndGetAll(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+	pMgr := NewPolicyManager(ioshim, IPSetConfig)
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
 	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
@@ -83,11 +96,11 @@ func assertStaleChainsContain(t *testing.T, s *staleChains, expectedChains ...st
 func TestCleanupChainsSuccess(t *testing.T) {
 	calls := []testutils.TestCmd{
 		getFakeDestroyCommand(testChain1),
-		getFakeDestroyCommandWithExitCode(testChain2, 1), // exit code 1 means the chain d.n.e.
+		getFakeDestroyCommandWithExitCode(testChain2, 1), // exit code 1 means the chain does not exist
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+	pMgr := NewPolicyManager(ioshim, IPSetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -105,7 +118,7 @@ func TestCleanupChainsFailure(t *testing.T) {
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+	pMgr := NewPolicyManager(ioshim, IPSetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -116,246 +129,282 @@ func TestCleanupChainsFailure(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains, testChain1, testChain3)
 }
 
-func TestInitChainsCreator(t *testing.T) {
-	ioshim := common.NewMockIOShim(nil)
-	defer ioshim.VerifyCalls(t, nil)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
-	creator := pMgr.creatorForInitChains() // doesn't make any exec calls
-	actualLines := strings.Split(creator.ToString(), "\n")
-	expectedLines := []string{"*filter"}
-	expectedLines = append(expectedLines, []string{
-		":AZURE-NPM - -",
-		":AZURE-NPM-INGRESS - -",
-		":AZURE-NPM-INGRESS-ALLOW-MARK - -",
-		":AZURE-NPM-EGRESS - -",
-		":AZURE-NPM-ACCEPT - -",
-		"-A AZURE-NPM -j AZURE-NPM-INGRESS",
-		"-A AZURE-NPM -j AZURE-NPM-EGRESS",
-		"-A AZURE-NPM -j AZURE-NPM-ACCEPT",
-		"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
-		"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
-		"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
-		"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
-		"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
-		"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment Clear-AZURE-NPM-MARKS",
-		"-A AZURE-NPM-ACCEPT -j ACCEPT",
-		"COMMIT\n",
-	}...)
-	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
-}
+func TestCreatorForBootup(t *testing.T) {
+	v1Chains := []string{
+		"AZURE-NPM-INGRESS-DROPS",
+		"AZURE-NPM-INGRESS-TO",
+		"AZURE-NPM-INGRESS-PORTS",
+		"AZURE-NPM-EGRESS-DROPS",
+		"AZURE-NPM-EGRESS-FROM",
+		"AZURE-NPM-EGRESS-PORTS",
+	}
 
-func TestInitChains(t *testing.T) {
 	tests := []struct {
-		name    string
-		calls   []testutils.TestCmd
-		wantErr bool
+		name                string
+		currentChains       []string
+		expectedLines       []string
+		expectedStaleChains []string
 	}{
 		{
-			name:    "success",
-			calls:   GetInitializeTestCalls(),
-			wantErr: false,
-		},
-		{
-			name:    "failure on restore",
-			calls:   []testutils.TestCmd{fakeIPTablesRestoreFailureCommand},
-			wantErr: true,
-		},
-		{
-			name: "failure on position",
-			calls: []testutils.TestCmd{
-				fakeIPTablesRestoreCommand,
-				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
-				{Cmd: []string{"grep", "AZURE-NPM"}},
+			name:          "no NPM prior",
+			currentChains: []string{},
+			expectedLines: []string{
+				"*filter",
+				":AZURE-NPM - -",
+				":AZURE-NPM-INGRESS - -",
+				":AZURE-NPM-INGRESS-ALLOW-MARK - -",
+				":AZURE-NPM-EGRESS - -",
+				":AZURE-NPM-ACCEPT - -",
+				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
+				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
+				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment CLEAR-AZURE-NPM-MARKS",
+				"-A AZURE-NPM-ACCEPT -j ACCEPT",
+				"COMMIT",
+				"",
 			},
-			wantErr: true,
+			expectedStaleChains: []string{},
+		},
+		{
+			name: "NPM v2 existed before with old v2 policy chains",
+			currentChains: []string{
+				"AZURE-NPM",
+				"AZURE-NPM-INGRESS",
+				"AZURE-NPM-INGRESS-ALLOW-MARK",
+				"AZURE-NPM-EGRESS",
+				"AZURE-NPM-ACCEPT",
+				"AZURE-NPM-INGRESS-123456",
+				"AZURE-NPM-EGRESS-123456",
+			},
+			// same expected lines as "no NPM prior", except for the old v2 policy chains in the header
+			expectedLines: []string{
+				"*filter",
+				"-F AZURE-NPM",
+				"-F AZURE-NPM-INGRESS",
+				"-F AZURE-NPM-INGRESS-ALLOW-MARK",
+				"-F AZURE-NPM-EGRESS",
+				"-F AZURE-NPM-ACCEPT",
+				"-F AZURE-NPM-INGRESS-123456",
+				"-F AZURE-NPM-EGRESS-123456",
+				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
+				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
+				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment CLEAR-AZURE-NPM-MARKS",
+				"-A AZURE-NPM-ACCEPT -j ACCEPT",
+				"COMMIT",
+				"",
+			},
+			expectedStaleChains: []string{
+				"AZURE-NPM-EGRESS-123456",
+				"AZURE-NPM-INGRESS-123456",
+			},
+		},
+		{
+			name: "NPM v2 existed before but some chains are missing",
+			currentChains: []string{
+				"AZURE-NPM-INGRESS",
+				"AZURE-NPM-INGRESS-ALLOW-MARK",
+				"AZURE-NPM-ACCEPT",
+			},
+			// same expected lines as "no NPM prior", except for the old v2 policy chains in the header
+			expectedLines: []string{
+				"*filter",
+				":AZURE-NPM - -",
+				":AZURE-NPM-EGRESS - -",
+				"-F AZURE-NPM-ACCEPT",
+				"-F AZURE-NPM-INGRESS",
+				"-F AZURE-NPM-INGRESS-ALLOW-MARK",
+				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
+				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
+				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment CLEAR-AZURE-NPM-MARKS",
+				"-A AZURE-NPM-ACCEPT -j ACCEPT",
+				"COMMIT",
+				"",
+			},
+			expectedStaleChains: []string{},
+		},
+		{
+			name:          "NPM v1 existed prior",
+			currentChains: v1Chains,
+			// same expected lines as "no NPM prior", except for the deprecated chains in the header
+			expectedLines: []string{
+				"*filter",
+				":AZURE-NPM - -",
+				":AZURE-NPM-INGRESS - -",
+				":AZURE-NPM-INGRESS-ALLOW-MARK - -",
+				":AZURE-NPM-EGRESS - -",
+				":AZURE-NPM-ACCEPT - -",
+				"-F AZURE-NPM-INGRESS-DROPS",
+				"-F AZURE-NPM-INGRESS-TO",
+				"-F AZURE-NPM-INGRESS-PORTS",
+				"-F AZURE-NPM-EGRESS-DROPS",
+				"-F AZURE-NPM-EGRESS-FROM",
+				"-F AZURE-NPM-EGRESS-PORTS",
+				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
+				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
+				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment CLEAR-AZURE-NPM-MARKS",
+				"-A AZURE-NPM-ACCEPT -j ACCEPT",
+				"COMMIT",
+				"",
+			},
+			expectedStaleChains: v1Chains,
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ioshim := common.NewMockIOShim(tt.calls)
-			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
-			err := pMgr.initialize()
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			ioshim := common.NewMockIOShim(nil)
+			defer ioshim.VerifyCalls(t, nil)
+			pMgr := NewPolicyManager(ioshim, IPSetConfig)
+			creator := pMgr.creatorForBootup(stringsToMap(tt.currentChains))
+			actualLines := strings.Split(creator.ToString(), "\n")
+			sortedActualLines := sortFlushes(actualLines)
+			sortedExpectedLines := sortFlushes(tt.expectedLines)
+			dptestutils.AssertEqualLines(t, sortedExpectedLines, sortedActualLines)
+			assertStaleChainsContain(t, pMgr.staleChains, tt.expectedStaleChains...)
 		})
 	}
 }
 
-func TestCreatorAndChainsForResetSuccess(t *testing.T) {
-	creatorCalls := []testutils.TestCmd{
-		{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
-		{
-			Cmd:    []string{"grep", "Chain AZURE-NPM"},
-			Stdout: grepOutputAzureChainsWithPolicies,
-		},
+func sortFlushes(lines []string) []string {
+	result := make([]string, len(lines))
+	copy(result, lines)
+	flushStart := len(lines)
+	for i, line := range lines {
+		if len(line) > 2 && line[:2] == "-F" {
+			flushStart = i
+			break
+		}
 	}
-	ioshim := common.NewMockIOShim(creatorCalls)
-	defer ioshim.VerifyCalls(t, creatorCalls)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
-	creator, chainsToFlush, err := pMgr.creatorAndChainsForReset()
-	require.NoError(t, err)
-	expectedChainsToFlush := []string{
-		"AZURE-NPM",
-		"AZURE-NPM-ACCEPT",
-		"AZURE-NPM-EGRESS",
-		"AZURE-NPM-EGRESS-123456",
-		"AZURE-NPM-INGRESS",
-		"AZURE-NPM-INGRESS-123456",
-		"AZURE-NPM-INGRESS-ALLOW-MARK",
+	flushLines := make([]string, 0)
+	for i := flushStart; i < len(lines); i++ {
+		line := lines[i]
+		if line[:2] != "-F" {
+			break
+		}
+		flushLines = append(flushLines, line)
 	}
-	require.Equal(t, expectedChainsToFlush, chainsToFlush)
-	actualLines := strings.Split(creator.ToString(), "\n")
-	expectedLines := []string{"*filter"}
-	for _, chain := range expectedChainsToFlush {
-		expectedLines = append(expectedLines, fmt.Sprintf(":%s - -", chain))
+	sort.Strings(flushLines)
+	for i, line := range flushLines {
+		result[i+flushStart] = line
 	}
-	expectedLines = append(expectedLines, "COMMIT\n")
-	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
+	return result
 }
 
-func TestCreatorAndChainsForResetFailure(t *testing.T) {
-	creatorCalls := []testutils.TestCmd{
-		{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
-		{Cmd: []string{"grep", "Chain AZURE-NPM"}},
-	}
-	ioshim := common.NewMockIOShim(creatorCalls)
-	defer ioshim.VerifyCalls(t, creatorCalls)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
-	_, _, err := pMgr.creatorAndChainsForReset()
-	require.Error(t, err)
-}
-
-func TestResetLinux(t *testing.T) {
+func TestBootupLinux(t *testing.T) {
 	tests := []struct {
 		name    string
 		calls   []testutils.TestCmd
 		wantErr bool
 	}{
+		// all tests with "no NPM prior" work for any situation (with v1 or v2 prior),
+		// but the fake command exit codes and stdouts are in line with having no NPM prior
 		{
-			name: "success when there are chains currently",
+			name:    "success (no NPM prior)",
+			calls:   GetBootupTestCalls(),
+			wantErr: false,
+		},
+		{
+			name: "success: v2 existed prior",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputAzureChainsWithoutPolicies,
 				},
 				fakeIPTablesRestoreCommand,
-				getFakeDestroyCommand("AZURE-NPM"),
-				getFakeDestroyCommand("AZURE-NPM-ACCEPT"),
-				getFakeDestroyCommand("AZURE-NPM-EGRESS"),
-				getFakeDestroyCommand("AZURE-NPM-INGRESS"),
-				getFakeDestroyCommand("AZURE-NPM-INGRESS-ALLOW-MARK"),
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
 		},
 		{
-			name: "success when there are no chains currently",
+			name: "v1 existed prior: successfully delete deprecated jump",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
-			},
-			wantErr: false,
-		},
-		{
-			name: "failure on restore",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
+				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
-					Stdout: grepOutputAzureChainsWithoutPolicies,
+					Stdout: grepOutputAzureV1Chains,
 				},
+				fakeIPTablesRestoreCommand,
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: grepOutputAzureV1Chains,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "v1 existed prior: unknown error while deleting deprecated jump",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 3}, // unknown error
+				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputAzureV1Chains,
+				},
+				fakeIPTablesRestoreCommand,
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: grepOutputAzureV1Chains,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "failure while finding current chains (no NPM prior)",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{Cmd: listAllCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}},
+			},
+			wantErr: true,
+		},
+		{
+			name: "failure on restore (no NPM prior)",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
 				fakeIPTablesRestoreFailureCommand,
 			},
 			wantErr: true,
 		},
 		{
-			name: "failure on destroy",
+			name: "failure on position (no NPM prior)",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputAzureChainsWithoutPolicies,
 				},
 				fakeIPTablesRestoreCommand,
-				getFakeDestroyCommandWithExitCode("AZURE-NPM", 2),
-				getFakeDestroyCommandWithExitCode("AZURE-NPM-ACCEPT", 2),
-				getFakeDestroyCommand("AZURE-NPM-EGRESS"),
-				getFakeDestroyCommand("AZURE-NPM-INGRESS"),
-				getFakeDestroyCommand("AZURE-NPM-INGRESS-ALLOW-MARK"),
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
 			},
 			wantErr: true,
-		},
-		{
-			name: "does not exist error while deleting jump",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
-				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-					ExitCode: 1, // does not exist error code
-				},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
-			},
-			wantErr: false,
-		},
-		{
-			name: "no AZURE-NPM chain while deleting both jumps",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // same code as the next command
-				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-					ExitCode: 2, // couldn't load target error code
-				},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
-			},
-			wantErr: false,
-		},
-		{
-			name: "unknown error while deleting jump",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
-				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
-					ExitCode: 3, // unknown delete failure
-				},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
-			},
-			wantErr: false,
-		},
-		{
-			name: "successfully delete deprecated jump",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
-			},
-			wantErr: false,
-		},
-		{
-			name: "unknown error while deleting deprecated jump",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 3},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
-			},
-			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -363,28 +412,15 @@ func TestResetLinux(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
-			err := pMgr.reset()
+			pMgr := NewPolicyManager(ioshim, IPSetConfig)
+			err := pMgr.bootup(nil)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-			assertStaleChainsContain(t, pMgr.staleChains)
 		})
 	}
-}
-
-func TestCreatorAndChainsForConfigureDeactivatedSuccess(t *testing.T) {
-	// TODO
-}
-
-func TestCreatorAndChainsForConfigureDeactivatedFailure(t *testing.T) {
-	// TODO
-}
-
-func TestConfigureDeactivated(t *testing.T) {
-	// TODO
 }
 
 func TestPositionAzureChainJumpRule(t *testing.T) {
@@ -474,7 +510,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+			pMgr := NewPolicyManager(ioshim, IPSetConfig)
 			err := pMgr.positionAzureChainJumpRule()
 			if tt.wantErr {
 				require.Error(t, err)
@@ -542,7 +578,7 @@ func TestChainLineNumber(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+			pMgr := NewPolicyManager(ioshim, IPSetConfig)
 			lineNum, err := pMgr.chainLineNumber(testChainName)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -564,7 +600,7 @@ func TestAllCurrentAzureChains(t *testing.T) {
 		{
 			name: "success with chains",
 			calls: []testutils.TestCmd{
-				{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputAzureChainsWithPolicies,
@@ -651,14 +687,14 @@ Chain AZURE-NPM-INGRESS (1 references)
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+			pMgr := NewPolicyManager(ioshim, IPSetConfig)
 			chains, err := pMgr.allCurrentAzureChains()
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, tt.expectedChains, chains)
+			require.Equal(t, stringsToMap(tt.expectedChains), chains)
 		})
 	}
 }
@@ -671,4 +707,15 @@ func getFakeDestroyCommandWithExitCode(chain string, exitCode int) testutils.Tes
 	command := getFakeDestroyCommand(chain)
 	command.ExitCode = exitCode
 	return command
+}
+
+func stringsToMap(items []string) map[string]struct{} {
+	if items == nil {
+		return nil
+	}
+	m := make(map[string]struct{})
+	for _, s := range items {
+		m[s] = struct{}{}
+	}
+	return m
 }

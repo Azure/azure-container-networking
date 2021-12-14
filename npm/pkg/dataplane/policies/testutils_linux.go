@@ -11,8 +11,8 @@ var (
 	fakeIPTablesRestoreCommand        = testutils.TestCmd{Cmd: []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"}}
 	fakeIPTablesRestoreFailureCommand = testutils.TestCmd{Cmd: []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"}, ExitCode: 1}
 
-	listLineNumbersCommandStrings      = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L", "FORWARD", "--line-numbers"}
-	listPolicyChainNamesCommandStrings = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}
+	listLineNumbersCommandStrings = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L", "FORWARD", "--line-numbers"}
+	listAllCommandStrings         = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}
 )
 
 func GetAddPolicyTestCalls(_ *NPMNetworkPolicy) []testutils.TestCmd {
@@ -41,12 +41,6 @@ func GetRemovePolicyTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
 	return calls
 }
 
-func GetRemovePolicyWithRebootTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
-	calls := GetRemovePolicyTestCalls(policy)
-	// TODO add reboot test calls
-	return calls
-}
-
 // GetRemovePolicyFailureTestCalls fails on the restore
 func GetRemovePolicyFailureTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
 	calls := GetRemovePolicyTestCalls(policy)
@@ -54,24 +48,18 @@ func GetRemovePolicyFailureTestCalls(policy *NPMNetworkPolicy) []testutils.TestC
 	return calls
 }
 
-func GetInitializeTestCalls() []testutils.TestCmd {
+func GetBootupTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{
-		fakeIPTablesRestoreCommand,
-		{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
-		{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
-		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-	}
-}
-
-func GetResetTestCalls() []testutils.TestCmd {
-	return []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-		{Cmd: listPolicyChainNamesCommandStrings, PipedToCommand: true},
+		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+		{Cmd: listAllCommandStrings, PipedToCommand: true},
 		{
 			Cmd:      []string{"grep", "Chain AZURE-NPM"},
 			ExitCode: 1,
 		},
+		fakeIPTablesRestoreCommand,
+		{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+		{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+		{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 	}
 }
 

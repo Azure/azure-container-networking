@@ -44,8 +44,7 @@ var (
 const (
 	InitializeDataPlane     = "InitializeDataPlane"
 	ResetDataPlane          = "ResetDataPlane"
-	InitializePolicyMgr     = "InitializePolicyManager"
-	ResetPolicyMgr          = "ResetPolicyManager"
+	BootupPolicyMgr         = "BootupPolicyManager"
 	ResetIPSets             = "ResetIPSets"
 	CreateIPSet             = "CreateIPSet"
 	AppendIPSet             = "AppendIPSet"

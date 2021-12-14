@@ -34,7 +34,7 @@ import (
 var npmV2DataplaneCfg = &dataplane.Config{
 	PolicyMode:       "",
 	IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
-	PolicyManagerCfg: policies.IPSetAndNoRebootConfig,
+	PolicyManagerCfg: policies.IPSetConfig,
 }
 
 func newStartNPMCmd() *cobra.Command {

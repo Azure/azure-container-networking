@@ -19,7 +19,7 @@ var (
 	dpCfg = &dataplane.Config{
 		PolicyMode:       "",
 		IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
-		PolicyManagerCfg: policies.IPSetAndRebootConfig,
+		PolicyManagerCfg: policies.IPSetConfig,
 	}
 
 	nodeName   = "testNode"

@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
-	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -67,35 +66,21 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config) (*DataPla
 		klog.Errorf("Failed to reset dataplane: %v", err)
 		return nil, err
 	}
-
-	err = dp.InitializeDataPlane()
-	if err != nil {
-		klog.Errorf("Failed to initialize dataplane: %v", err)
-		return nil, err
-	}
-
 	return dp, nil
 }
 
 // InitializeDataPlane helps in setting up dataplane for NPM
 func (dp *DataPlane) InitializeDataPlane() error {
-	// Create Kube-All-NS IPSet
-	// TODO investigate why this set doesn't get created for ApplyAlwaysCfg or just remove these two lines (controller will create the set)
-	kubeAllSet := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)
-	dp.CreateIPSets([]*ipsets.IPSetMetadata{kubeAllSet})
-	if err := dp.initializeDataPlane(); err != nil {
-		return npmerrors.ErrorWrapper(npmerrors.InitializeDataPlane, false, "failed to initialize overall dataplane", err)
-	}
-	if err := dp.policyMgr.Initialize(); err != nil {
-		return npmerrors.ErrorWrapper(npmerrors.InitializeDataPlane, false, "failed to initialize policy dataplane", err)
-	}
+	// TODO deprecate this function
 	return nil
 }
 
 // ResetDataPlane helps in cleaning up dataplane sets and policies programmed
 // by NPM, returning a clean slate
 func (dp *DataPlane) ResetDataPlane() error {
-	return dp.resetDataPlane()
+	// TODO rename this function to BootupDataplane
+	// NOTE: used to create an all-namespaces set, but there's no need since it will be created by the control plane
+	return dp.bootupDataPlane()
 }
 
 // CreateIPSets takes in a set object and updates local cache with this set

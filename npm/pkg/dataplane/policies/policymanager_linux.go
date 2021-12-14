@@ -18,33 +18,40 @@ const (
 	maxLengthForMatchSetSpecs = 6       // 5-6 elements depending on Included boolean
 )
 
-// shouldn't call this if the np has no ACLs (check in generic)
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
-	// TODO check for newPolicy errors
-	allChainNames := allChainNames([]*NPMNetworkPolicy{networkPolicy})
-	creator := pMgr.creatorForNewNetworkPolicies(allChainNames, networkPolicy)
+	// 1. Add rules for the network policies and activate NPM (if necessary).
+	chainsToCreate := allChainNames([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, []*NPMNetworkPolicy{networkPolicy})
 	err := restore(creator)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
 	}
-	for _, chain := range allChainNames {
+
+	// 2. Make sure the new chains don't get deleted in the background
+	for _, chain := range chainsToCreate {
 		pMgr.staleChains.remove(chain)
 	}
 	return nil
 }
 
 func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
+	// 1. Delete jump rules from ingress/egress chains to ingress/egress policy chains.
+	// We ought to delete these jump rules here in the foreground since if we add an NP back after deleting, iptables-restore --noflush can add duplicate jump rules.
 	deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
 	if deleteErr != nil {
 		return npmerrors.SimpleErrorWrapper("failed to delete jumps to policy chains", deleteErr)
 	}
-	allChainNames := allChainNames([]*NPMNetworkPolicy{networkPolicy})
-	creator := pMgr.creatorForRemovingPolicies(allChainNames)
+
+	// 2. Flush the policy chains and deactivate NPM (if necessary).
+	chainsToDelete := allChainNames([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.creatorForRemovingPolicies(chainsToDelete)
 	restoreErr := restore(creator)
 	if restoreErr != nil {
 		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
 	}
-	for _, chain := range allChainNames {
+
+	// 3. Delete policy chains in the background.
+	for _, chain := range chainsToDelete {
 		pMgr.staleChains.add(chain)
 	}
 	return nil
@@ -58,9 +65,17 @@ func restore(creator *ioutil.FileCreator) error {
 	return nil
 }
 
-// TODO use array instead of ...
 func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *ioutil.FileCreator {
-	creator := pMgr.newCreatorWithChains(allChainNames)
+	creator := pMgr.newCreatorWithChains(nil)
+	// 1. Deactivate NPM (if necessary).
+	if pMgr.shouldDeactivate() {
+		creator.AddLine("", nil, util.IptablesFlushFlag, util.IptablesAzureChain)
+	}
+
+	// 2. Flush the policy chains.
+	for _, chainName := range allChainNames {
+		creator.AddLine("", nil, util.IptablesFlushFlag, chainName)
+	}
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
 	return creator
 }
@@ -88,7 +103,7 @@ func (pMgr *PolicyManager) newCreatorWithChains(chainNames []string) *ioutil.Fil
 	for _, chainName := range chainNames {
 		// add chain headers
 		sectionID := joinWithDash(chainSectionPrefix, chainName)
-		counters := "-" // TODO specify counters eventually? would need iptables-save file
+		counters := "-"
 		creator.AddLine(sectionID, nil, ":"+chainName, "-", counters)
 		// TODO remove sections??
 	}
@@ -148,17 +163,25 @@ func egressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
 	return append(specs, matchSetSpecsForNetworkPolicy(networkPolicy, SrcMatch)...)
 }
 
-// noflush add to chains impacted
-// TODO use array instead of ...
-func (pMgr *PolicyManager) creatorForNewNetworkPolicies(allChainNames []string, networkPolicies ...*NPMNetworkPolicy) *ioutil.FileCreator {
-	creator := pMgr.newCreatorWithChains(allChainNames)
+func (pMgr *PolicyManager) creatorForNewNetworkPolicies(policyChains []string, networkPolicies []*NPMNetworkPolicy) *ioutil.FileCreator {
+	creator := pMgr.newCreatorWithChains(policyChains)
 
+	// 1. Activate NPM if necessary
+	if pMgr.shouldActivate() {
+		creator.AddLine("", nil, util.IptablesFlushFlag, util.IptablesAzureChain) // flush just in case there are old rules
+		creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureIngressChain)
+		creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureEgressChain)
+		creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureAcceptChain)
+	}
+
+	// 2. Add all rules for the network policies
 	ingressJumpLineNumber := 1
 	egressJumpLineNumber := 1
 	for _, networkPolicy := range networkPolicies {
+		// 2.1 add all rules for the policy chain(s)
 		writeNetworkPolicyRules(creator, networkPolicy)
 
-		// add jump rule(s) to policy chain(s)
+		// 2.2 add jump rule(s) to the policy chain(s)
 		hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()
 		if hasIngress {
 			ingressJumpSpecs := insertSpecs(util.IptablesAzureIngressChain, ingressJumpLineNumber, ingressJumpSpecs(networkPolicy))

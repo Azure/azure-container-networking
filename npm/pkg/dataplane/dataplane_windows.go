@@ -73,7 +73,7 @@ func (dp *DataPlane) getNetworkInfo() error {
 	return fmt.Errorf("failed to get network info after %d retries with err %w", maxNoNetRetryCount, err)
 }
 
-func (dp *DataPlane) resetDataPlane() error {
+func (dp *DataPlane) bootupDataPlane() error {
 	// initialize the DP so the podendpoints will get updated.
 	if err := dp.initializeDataPlane(); err != nil {
 		return err

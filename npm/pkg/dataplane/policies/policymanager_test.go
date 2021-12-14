@@ -69,7 +69,7 @@ func TestAddPolicy(t *testing.T) {
 	calls := GetAddPolicyTestCalls(netpol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+	pMgr := NewPolicyManager(ioshim, IPSetConfig)
 
 	require.NoError(t, pMgr.AddPolicy(netpol, epList))
 
@@ -93,7 +93,7 @@ func TestGetPolicy(t *testing.T) {
 	calls := GetAddPolicyTestCalls(netpol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+	pMgr := NewPolicyManager(ioshim, IPSetConfig)
 
 	require.NoError(t, pMgr.AddPolicy(netpol, epList))
 
@@ -108,25 +108,13 @@ func TestRemovePolicy(t *testing.T) {
 	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyTestCalls(testNetPol)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
+	pMgr := NewPolicyManager(ioshim, IPSetConfig)
 
 	require.NoError(t, pMgr.AddPolicy(testNetPol, epList))
 
 	require.NoError(t, pMgr.RemovePolicy("wrong-policy-key", epList))
 
 	require.NoError(t, pMgr.RemovePolicy("x/test-netpol", nil))
-}
-
-func TestRemovePolicyWithReboot(t *testing.T) {
-	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyWithRebootTestCalls(testNetPol)...)
-	ioshim := common.NewMockIOShim(calls)
-	defer ioshim.VerifyCalls(t, calls)
-	// FIXME use IPSetAndRebootConfig
-	pMgr := NewPolicyManager(ioshim, IPSetAndNoRebootConfig)
-
-	require.NoError(t, pMgr.AddPolicy(testNetPol, epList))
-
-	require.NoError(t, pMgr.RemovePolicy("x/test-netpol", epList))
 }
 
 func TestNormalizeAndValidatePolicy(t *testing.T) {
