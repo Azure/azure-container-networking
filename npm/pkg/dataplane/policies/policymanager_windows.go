@@ -30,22 +30,7 @@ func newStaleChains() *staleChains {
 	return &staleChains{}
 }
 
-func (pMgr *PolicyManager) deactivate() error {
-	// TODO should we something here?
-	return nil
-}
-
-func (pMgr *PolicyManager) activate() error {
-	// TODO should we something here?
-	return nil
-}
-
-func (pMgr *PolicyManager) initialize() error {
-	// TODO
-	return nil
-}
-
-func (pMgr *PolicyManager) reset(epIDs []string) error {
+func (pMgr *PolicyManager) bootup(epIDs []string) error {
 	var aggregateErr error
 	for _, epID := range epIDs {
 		err := pMgr.removePolicyByEndpointID("", epID, 0, resetAllACLs)
