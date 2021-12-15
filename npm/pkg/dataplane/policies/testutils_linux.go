@@ -50,7 +50,7 @@ func GetRemovePolicyFailureTestCalls(policy *NPMNetworkPolicy) []testutils.TestC
 
 func GetBootupTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, //nolint // AZURE-NPM chain didn't exist
 		{Cmd: listAllCommandStrings, PipedToCommand: true},
 		{
 			Cmd:      []string{"grep", "Chain AZURE-NPM"},
