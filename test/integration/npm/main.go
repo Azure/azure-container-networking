@@ -154,10 +154,10 @@ func main() {
 	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[0].PolicyKey))
 	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[1].PolicyKey))
 	panicOnError(dp.RemovePolicy(policies.TestNetworkPolicies[2].PolicyKey))
-	fmt.Println("If the pMgr is configured for deactivating, there should be a RETURN rule at the top of AZURE-NPM right now.")
+	fmt.Println("there should be no rules in AZURE-NPM right now.")
 	printAndWait(true)
 	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[0]))
-	print("there should be no RETURN rule in AZURE-NPM now")
+	fmt.Println("AZURE-NPM should have rules now")
 }
 
 func panicOnError(err error) {
