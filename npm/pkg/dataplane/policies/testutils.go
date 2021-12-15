@@ -2,6 +2,7 @@ package policies
 
 import "github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 
+// TODO: deprecate this file. Updating this file impacts multiple tests.
 var (
 	// TestNetworkPolicies for testing
 	TestNetworkPolicies = []*NPMNetworkPolicy{

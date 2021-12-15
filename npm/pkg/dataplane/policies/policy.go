@@ -2,7 +2,6 @@ package policies
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
@@ -69,6 +68,7 @@ type ACLPolicy struct {
 
 const policyIDPrefix = "azure-acl"
 
+// FIXME this impacts windows DP if it isn't equivalent to netPol.PolicyKey
 // aclPolicyID returns azure-acl-<network policy namespace>-<network policy name> format
 // to differentiate ACLs among different network policies,
 // but aclPolicy in the same network policy has the same aclPolicyID.
@@ -76,6 +76,7 @@ func aclPolicyID(policyNS, policyName string) string {
 	return fmt.Sprintf("%s-%s-%s", policyIDPrefix, policyNS, policyName)
 }
 
+// TODO make this a method of NPMNetworkPolicy, and just use netPol.PolicyKey as the PolicyID
 func NewACLPolicy(policyNS, policyName string, target Verdict, direction Direction) *ACLPolicy {
 	acl := &ACLPolicy{
 		PolicyID:  aclPolicyID(policyNS, policyName),
@@ -132,7 +133,19 @@ func (aclPolicy *ACLPolicy) hasKnownTarget() bool {
 }
 
 func (aclPolicy *ACLPolicy) satisifiesPortAndProtocolConstraints() bool {
-	return (aclPolicy.Protocol != UnspecifiedProtocol) || (aclPolicy.DstPorts.Port == 0 && aclPolicy.DstPorts.EndPort == 0)
+	// namedports handle protocol constraints
+	return (aclPolicy.hasNamedPort() && aclPolicy.Protocol == UnspecifiedProtocol) ||
+		aclPolicy.Protocol != UnspecifiedProtocol ||
+		aclPolicy.DstPorts.isUnspecified()
+}
+
+func (aclPolicy *ACLPolicy) hasNamedPort() bool {
+	for _, peer := range aclPolicy.DstList {
+		if peer.IPSet.Type == ipsets.NamedPorts {
+			return true
+		}
+	}
+	return false
 }
 
 func (netPol *NPMNetworkPolicy) String() string {
@@ -221,13 +234,8 @@ func (portRange *Ports) isValidRange() bool {
 	return portRange.Port <= portRange.EndPort
 }
 
-func (portRange *Ports) toIPTablesString() string {
-	start := strconv.Itoa(int(portRange.Port))
-	if portRange.Port == portRange.EndPort {
-		return start
-	}
-	end := strconv.Itoa(int(portRange.EndPort))
-	return start + ":" + end
+func (portRange *Ports) isUnspecified() bool {
+	return portRange.Port == 0
 }
 
 type Direction string

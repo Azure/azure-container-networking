@@ -42,6 +42,7 @@ func (setMetadata *IPSetMetadata) GetHashedName() string {
 	return util.GetHashedName(prefixedName)
 }
 
+// TODO join with colon instead of dash for easier readability?
 func (setMetadata *IPSetMetadata) GetPrefixName() string {
 	switch setMetadata.Type {
 	case CIDRBlocks:

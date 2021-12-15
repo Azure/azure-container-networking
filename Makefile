@@ -425,6 +425,9 @@ $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
+protoc: 
+	source ${REPO_ROOT}/scripts/install-protoc.sh
+
 $(GOCOV): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov github.com/axw/gocov/gocov
 
@@ -458,4 +461,4 @@ mockgen: $(MOCKGEN) ## Build mockgen
 clean-tools: 
 	rm -r build/tools/bin
 
-tools: gocov gocov-xml go-junit-report golangci-lint gofumpt ## Build bins for build tools
+tools: gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
