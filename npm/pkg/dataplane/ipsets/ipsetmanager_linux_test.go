@@ -22,6 +22,10 @@ const (
 azure-npm-987654
 azure-npm-777777`
 	resetIPSetsNumGreppedSets = 3
+
+	createNethashFormat  = "create %s hash:net family inet hashsize 1024 maxelem 65536"
+	createPorthashFormat = "create %s hash:ip,port family inet hashsize 1024 maxelem 65536"
+	createListFormat     = "create %s list:set size 8"
 )
 
 var (
@@ -35,6 +39,55 @@ var (
 
 // TODO test that a reconcile list is updated for all the TestFailure UTs
 // TODO same exact TestFailure UTs for unknown errors
+
+func TestNextCreateLine(t *testing.T) {
+	createLine := "create test-list1 list:set size 8"
+	addLine := "add test-set1 1.2.3.4"
+	createLineWithNewline := createLine + "\n"
+	addLineWithNewline := addLine + "\n"
+	tests := []struct {
+		name              string
+		lines             []string
+		expectedReadIndex int
+		expectedLine      []byte
+	}{
+		// parse.Line will omit the newline at the end of the line unless it's the last line
+		{
+			name:              "empty save file",
+			lines:             []string{},
+			expectedReadIndex: 0,
+			expectedLine:      nil,
+		},
+		{
+			name:              "no creates",
+			lines:             []string{addLineWithNewline},
+			expectedReadIndex: len(addLineWithNewline),
+			expectedLine:      []byte(addLineWithNewline),
+		},
+		{
+			name:              "start with create",
+			lines:             []string{createLine, addLineWithNewline},
+			expectedReadIndex: len(createLineWithNewline),
+			expectedLine:      []byte(createLine),
+		},
+		{
+			name:              "create after adds",
+			lines:             []string{addLine, addLine, createLineWithNewline},
+			expectedReadIndex: 2*len(addLine+"\n") + len(createLine+"\n"),
+			expectedLine:      []byte(createLineWithNewline),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			saveFile := []byte(strings.Join(tt.lines, "\n"))
+			line, readIndex := nextCreateLine(0, saveFile)
+			require.Equal(t, tt.expectedReadIndex, readIndex)
+			require.Equal(t, tt.expectedLine, line)
+		})
+	}
+	// fmt.Println(string([]byte(addLine + addLine, createLineWithNewline})[:78]))
+}
 
 func TestDestroyNPMIPSetsCreatorSuccess(t *testing.T) {
 	calls := []testutils.TestCmd{fakeRestoreSuccessCommand}
@@ -140,7 +193,6 @@ func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 			dptestutils.AssertEqualLines(t, tt.expectedLines, actualLines)
 			require.Equal(t, tt.expectedFailureCount, *destroyFailureCount, "got unexpected failure count")
 		})
-		break
 	}
 }
 
@@ -502,18 +554,18 @@ func TestUpdateWithIdenticalSaveFile(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
 
 	saveFileLines := []string{
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName),
+		fmt.Sprintf(createNethashFormat, TestNSSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.0", TestNSSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.1", TestNSSet.HashedName),
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKeyPodSet.HashedName),
+		fmt.Sprintf(createNethashFormat, TestKeyPodSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.5", TestKeyPodSet.HashedName),
-		fmt.Sprintf("create %s hash:ip,port family inet hashsize 1024 maxelem 65536", TestNamedportSet.HashedName),
-		fmt.Sprintf("create %s list:set size 8", TestKeyNSList.HashedName),
+		fmt.Sprintf(createPorthashFormat, TestNamedportSet.HashedName),
+		fmt.Sprintf(createListFormat, TestKeyNSList.HashedName),
 		fmt.Sprintf("add %s %s", TestKeyNSList.HashedName, TestNSSet.HashedName),
 		fmt.Sprintf("add %s %s", TestKeyNSList.HashedName, TestKeyPodSet.HashedName),
-		fmt.Sprintf("create %s list:set size 8", TestKVNSList.HashedName),
+		fmt.Sprintf(createListFormat, TestKVNSList.HashedName),
 		fmt.Sprintf("add %s %s", TestKVNSList.HashedName, TestKVPodSet.HashedName),
-		fmt.Sprintf("create %s list:set size 8", TestNestedLabelList.HashedName),
+		fmt.Sprintf(createListFormat, TestNestedLabelList.HashedName),
 	}
 	saveFileString := strings.Join(saveFileLines, "\n")
 	saveFileBytes := []byte(saveFileString)
@@ -559,18 +611,18 @@ func TestUpdateWithRealisticSaveFile(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
 
 	saveFileLines := []string{
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName),            // should add 10.0.0.1-5 to this set
-		fmt.Sprintf("add %s 10.0.0.0", TestNSSet.HashedName),                                                       // keep this member
-		fmt.Sprintf("add %s 5.6.7.8", TestNSSet.HashedName),                                                        // delete this member
-		fmt.Sprintf("add %s 5.6.7.9", TestNSSet.HashedName),                                                        // delete this member
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKeyPodSet.HashedName),        // dirty but no member changes in the end
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKVPodSet.HashedName),         // ignore this set since it's not dirty
-		fmt.Sprintf("add %s 1.2.3.4", TestKVPodSet.HashedName),                                                     // ignore this set since it's not dirty
-		fmt.Sprintf("create %s list:set size 8", TestKeyNSList.HashedName),                                         // should add TestKeyPodSet to this set
-		fmt.Sprintf("add %s %s", TestKeyNSList.HashedName, TestNSSet.HashedName),                                   // keep this member
-		fmt.Sprintf("add %s %s", TestKeyNSList.HashedName, TestNamedportSet.HashedName),                            // delete this member
-		fmt.Sprintf("create %s hash:ip,port family inet hashsize 1024 maxelem 65536", TestNamedportSet.HashedName), // ignore this set since it's not dirty
-		fmt.Sprintf("create %s list:set size 8", TestNestedLabelList.HashedName),                                   // this set will be deleted
+		fmt.Sprintf(createNethashFormat, TestNSSet.HashedName),                          // should add 10.0.0.1-5 to this set
+		fmt.Sprintf("add %s 10.0.0.0", TestNSSet.HashedName),                            // keep this member
+		fmt.Sprintf("add %s 5.6.7.8", TestNSSet.HashedName),                             // delete this member
+		fmt.Sprintf("add %s 5.6.7.9", TestNSSet.HashedName),                             // delete this member
+		fmt.Sprintf(createNethashFormat, TestKeyPodSet.HashedName),                      // dirty but no member changes in the end
+		fmt.Sprintf(createNethashFormat, TestKVPodSet.HashedName),                       // ignore this set since it's not dirty
+		fmt.Sprintf("add %s 1.2.3.4", TestKVPodSet.HashedName),                          // ignore this set since it's not dirty
+		fmt.Sprintf(createListFormat, TestKeyNSList.HashedName),                         // should add TestKeyPodSet to this set
+		fmt.Sprintf("add %s %s", TestKeyNSList.HashedName, TestNSSet.HashedName),        // keep this member
+		fmt.Sprintf("add %s %s", TestKeyNSList.HashedName, TestNamedportSet.HashedName), // delete this member
+		fmt.Sprintf(createPorthashFormat, TestNamedportSet.HashedName),                  // ignore this set since it's not dirty
+		fmt.Sprintf(createListFormat, TestNestedLabelList.HashedName),                   // this set will be deleted
 	}
 	saveFileString := strings.Join(saveFileLines, "\n")
 	saveFileBytes := []byte(saveFileString)
@@ -620,97 +672,258 @@ func TestUpdateWithRealisticSaveFile(t *testing.T) {
 }
 
 func TestHaveTypeProblem(t *testing.T) {
-	testTypeProblem := func(shouldHaveProblem bool, metadata *IPSetMetadata, lineString string) {
-		set := NewIPSet(metadata)
-		line := []byte(lineString)
-		createMatches := nameForCreateRegex.FindSubmatch(line)
-		require.Equal(t, 2, len(createMatches), "didn't find match for line: %s", string(line))
-		restOfLine := line[len(createMatches[0]):]
-		if shouldHaveProblem {
-			require.True(t, haveTypeProblem(set, restOfLine))
-		} else {
-			require.False(t, haveTypeProblem(set, restOfLine))
-		}
+	type args struct {
+		metadata *IPSetMetadata
+		format   string
 	}
-	testTypeProblem(false, TestNSSet.Metadata, fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName))
-	testTypeProblem(true, TestNamedportSet.Metadata, fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNamedportSet.HashedName))
-	testTypeProblem(true, TestKeyNSList.Metadata, fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKeyNSList.HashedName))
-	testTypeProblem(false, TestNamedportSet.Metadata, fmt.Sprintf("create %s hash:ip,port family inet hashsize 1024 maxelem 65536", TestNamedportSet.HashedName))
-	testTypeProblem(true, TestNSSet.Metadata, fmt.Sprintf("create %s hash:ip,port family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName))
-	testTypeProblem(true, TestKeyNSList.Metadata, fmt.Sprintf("create %s hash:ip,port family inet hashsize 1024 maxelem 65536", TestKeyNSList.HashedName))
-	testTypeProblem(false, TestKeyNSList.Metadata, fmt.Sprintf("create %s list:set size 8", TestKeyNSList.HashedName))
-	testTypeProblem(true, TestNSSet.Metadata, fmt.Sprintf("create %s list:set size 8", TestNSSet.HashedName))
-	testTypeProblem(true, TestNamedportSet.Metadata, fmt.Sprintf("create %s list:set size 8", TestNamedportSet.HashedName))
+	tests := []struct {
+		name        string
+		args        args
+		wantProblem bool
+	}{
+		{
+			name: "correct type for nethash",
+			args: args{
+				TestNSSet.Metadata,
+				createNethashFormat,
+			},
+			wantProblem: false,
+		},
+		{
+			name: "nethash instead of porthash",
+			args: args{
+				TestNamedportSet.Metadata,
+				createNethashFormat,
+			},
+			wantProblem: true,
+		},
+		{
+			name: "nethash instead of list",
+			args: args{
+				TestKeyNSList.Metadata,
+				createNethashFormat,
+			},
+			wantProblem: true,
+		},
+		{
+			name: "correct type for porthash",
+			args: args{
+				TestNamedportSet.Metadata,
+				createPorthashFormat,
+			},
+			wantProblem: false,
+		},
+		{
+			name: "porthash instead of nethash",
+			args: args{
+				TestNSSet.Metadata,
+				createPorthashFormat,
+			},
+			wantProblem: true,
+		},
+		{
+			name: "porthash instead of list",
+			args: args{
+				TestKeyNSList.Metadata,
+				createPorthashFormat,
+			},
+			wantProblem: true,
+		},
+		{
+			name: "correct type for list",
+			args: args{
+				TestKeyNSList.Metadata,
+				createListFormat,
+			},
+			wantProblem: false,
+		},
+		{
+			name: "list instead of nethash",
+			args: args{
+				TestNSSet.Metadata,
+				createListFormat,
+			},
+			wantProblem: true,
+		},
+		{
+			name: "list instead of porthash",
+			args: args{
+				TestNamedportSet.Metadata,
+				createListFormat,
+			},
+			wantProblem: true,
+		},
+		{
+			name: "unknown type",
+			args: args{
+				TestKeyNSList.Metadata,
+				"create %s unknown-type",
+			},
+			wantProblem: true,
+		},
+		{
+			name: "no rest of line",
+			args: args{
+				TestKeyNSList.Metadata,
+				"create %s",
+			},
+			wantProblem: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			set := NewIPSet(tt.args.metadata)
+			line := fmt.Sprintf(tt.args.format, set.HashedName)
+			splitLine := strings.Split(line, " ")
+			restOfLine := splitLine[2:]
+			if tt.wantProblem {
+				require.True(t, haveTypeProblem(set, restOfLine))
+			} else {
+				require.False(t, haveTypeProblem(set, restOfLine))
+			}
+		})
+	}
 }
 
 func TestUpdateWithBadSaveFile(t *testing.T) {
-	calls := []testutils.TestCmd{fakeRestoreSuccessCommand}
-	ioshim := common.NewMockIOShim(calls)
-	defer ioshim.VerifyCalls(t, calls)
-	iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
+	type args struct {
+		dirtySet      []*IPSetMetadata
+		saveFileLines []string
+	}
+	tests := []struct {
+		name          string
+		args          args
+		expectedLines []string
+	}{
+		{
+			name: "no create line",
+			args: args{
+				[]*IPSetMetadata{TestKeyPodSet.Metadata},
+				[]string{
+					fmt.Sprintf("add %s 1.1.1.1", TestKeyPodSet.HashedName),
+					fmt.Sprintf("add %s 1.1.1.1", TestKeyPodSet.HashedName),
+				},
+			},
+			expectedLines: []string{
+				fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
+				"",
+			},
+		},
+		{
+			name: "unexpected verb after create",
+			args: args{
+				[]*IPSetMetadata{TestKeyPodSet.Metadata},
+				[]string{
+					fmt.Sprintf(createNethashFormat, TestKeyPodSet.HashedName),
+					"wrong-verb ...",
+				},
+			},
+			expectedLines: []string{
+				fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
+				"",
+			},
+		},
+		{
+			name: "non-NPM set",
+			args: args{
+				[]*IPSetMetadata{TestKeyPodSet.Metadata},
+				[]string{
+					"create test-set1 hash:net family inet hashsize 1024 maxelem 65536",
+					"add test-set1 1.2.3.4",
+				},
+			},
+			expectedLines: []string{
+				fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
+				"",
+			},
+		},
+		{
+			name: "ignore set we've already parsed",
+			args: args{
+				[]*IPSetMetadata{TestKeyPodSet.Metadata},
+				[]string{
+					fmt.Sprintf(createNethashFormat, TestKeyPodSet.HashedName), // include
+					fmt.Sprintf("add %s 4.4.4.4", TestKeyPodSet.HashedName),    // include this add (will DELETE this member)
+					fmt.Sprintf(createNethashFormat, TestKeyPodSet.HashedName), // ignore this create and ensuing adds since we already included this set
+					fmt.Sprintf("add %s 5.5.5.5", TestKeyPodSet.HashedName),    // ignore this add (will NO-OP [no delete])
+				},
+			},
+			expectedLines: []string{
+				fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
+				fmt.Sprintf("-D %s 4.4.4.4", TestKeyPodSet.HashedName),
+				"",
+			},
+		},
+		{
+			name: "set with wrong type",
+			args: args{
+				[]*IPSetMetadata{TestKeyPodSet.Metadata},
+				[]string{
+					fmt.Sprintf(createPorthashFormat, TestKeyPodSet.HashedName), // ignore since wrong type
+					fmt.Sprintf("add %s 1.2.3.4,tcp", TestKeyPodSet.HashedName), // ignore this add (will NO-OP [no delete])
+				},
+			},
+			expectedLines: []string{
+				// TODO ideally we shouldn't create this set because the line will fail in the first try for ipset restore
+				fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
+				"",
+			},
+		},
+		{
+			name: "ignore after add with bad parent",
+			args: args{
+				[]*IPSetMetadata{TestKeyPodSet.Metadata},
+				[]string{
+					fmt.Sprintf(createNethashFormat, TestKeyPodSet.HashedName), // include this
+					fmt.Sprintf("add %s 7.7.7.7", TestKeyPodSet.HashedName),    // include this add (will DELETE this member)
+					fmt.Sprintf("add %s 8.8.8.8", TestNSSet.HashedName),        // ignore this and jump to next create since it's an unexpected set (will NO-OP [no delete])
+					fmt.Sprintf("add %s 9.9.9.9", TestKeyPodSet.HashedName),    // ignore add because of error above (will NO-OP [no delete])
+				},
+			},
+			expectedLines: []string{
+				fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
+				fmt.Sprintf("-D %s 7.7.7.7", TestKeyPodSet.HashedName),
+				"",
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			calls := []testutils.TestCmd{fakeRestoreSuccessCommand}
+			ioshim := common.NewMockIOShim(calls)
+			defer ioshim.VerifyCalls(t, calls)
+			iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
+
+			saveFileString := strings.Join(tt.args.saveFileLines, "\n")
+			saveFileBytes := []byte(saveFileString)
+
+			iMgr.CreateIPSets(tt.args.dirtySet)
+
+			creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
+			actualLines := testAndSortRestoreFileString(t, creator.ToString())
+			sortedExpectedLines := testAndSortRestoreFileLines(t, tt.expectedLines)
+
+			dptestutils.AssertEqualLines(t, sortedExpectedLines, actualLines)
+			wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
+			require.NoError(t, err, "ipset restore should be successful")
+			require.False(t, wasFileAltered, "file should not be altered")
+		})
+	}
 
 	// will have every set in save file in the dirty cache, all with no members
 	cidrSet2 := CreateTestSet("test2", CIDRBlocks)
 	nsSet2 := CreateTestSet("test2", Namespace)
 	saveFileLines := []string{
-		fmt.Sprintf("add %s 1.1.1.1", TestCIDRSet.HashedName),                                                   // file should start with a create. jump to the first create (will NO-OP [no delete])
-		fmt.Sprintf("add %s 2.2.2.2", TestCIDRSet.HashedName),                                                   // will have a no-op for same reason as above
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName),         // include
-		fmt.Sprintf("add %s 3.3.3.3", TestNSSet.HashedName),                                                     // include this add (will DELETE this member)
-		"create test-set1 hash:net family inet hashsize 1024 maxelem 65536",                                     // ignore this set since it isn't part of NPM
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKeyPodSet.HashedName),     // include
-		fmt.Sprintf("add %s 4.4.4.4", TestKeyPodSet.HashedName),                                                 // include this add (will DELETE this member)
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKeyPodSet.HashedName),     // ignore this create and ensuing adds since we already included this set
-		fmt.Sprintf("add %s 5.5.5.5", TestKeyPodSet.HashedName),                                                 // ignore this add (will NO-OP [no delete])
-		"create test-set1 hash:net family inet hashsize 1024 maxelem 65536",                                     // ignore this set since it isn't part of NPM
-		fmt.Sprintf("create %s hash:ip,port family inet hashsize 1024 maxelem 65536", TestKVPodSet.HashedName),  // ignore since wrong type
-		fmt.Sprintf("add %s 1.2.3.4,tcp", TestKVPodSet.HashedName),                                              // ignore this add (will NO-OP [no delete])
-		fmt.Sprintf("create %s hash:ip,port family inet hashsize 1024 maxelem 65536", TestKeyNSList.HashedName), // ignore since wrong type (will NO-OP [no delete])
-		fmt.Sprintf("add %s 2.3.4.5,tcp", TestKVPodSet.HashedName),                                              // ignore this add (will NO-OP [no delete])
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNamedportSet.HashedName),  // ignore since wrong type (will NO-OP [no delete])
-		fmt.Sprintf("add %s 1.2.2.1", TestNamedportSet.HashedName),                                              // ignore this add (will NO-OP [no delete])
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKeyNSList.HashedName),     // ignore since wrong type (will NO-OP [no delete])
-		fmt.Sprintf("add %s 1.3.3.1", TestKeyNSList.HashedName),                                                 // ignore this add (will NO-OP [no delete])
-		fmt.Sprintf("create %s list:set size 8", TestNamedportSet.HashedName),                                   // ignore since wrong type (will NO-OP [no delete])
-		fmt.Sprintf("add %s %s", TestNamedportSet.HashedName, TestNSSet.HashedName),                             // ignore this add (will NO-OP [no delete])
-		fmt.Sprintf("create %s list:set size 8", TestKVPodSet.HashedName),                                       // ignore since wrong type (will NO-OP [no delete])
-		fmt.Sprintf("add %s %s", TestKVPodSet.HashedName, TestKeyPodSet.HashedName),                             // ignore this add (will NO-OP [no delete])
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", cidrSet2.HashedName),          // include this and adds up to unexpected add
-		fmt.Sprintf("add %s 7.7.7.7", cidrSet2.HashedName),                                                      // include this add (will DELETE this member)
-		fmt.Sprintf("add %s 8.8.8.8", nsSet2.HashedName),                                                        // ignore this and jump to next create since it's an unexpected set (will NO-OP [no delete])
-		fmt.Sprintf("add %s 9.9.9.9", cidrSet2.HashedName),                                                      // ignore add because of error above (will NO-OP [no delete])
+		fmt.Sprintf(createNethashFormat, cidrSet2.HashedName), // include this and adds up to unexpected add
+		fmt.Sprintf("add %s 7.7.7.7", cidrSet2.HashedName),    // include this add (will DELETE this member)
+		fmt.Sprintf("add %s 8.8.8.8", nsSet2.HashedName),      // ignore this and jump to next create since it's an unexpected set (will NO-OP [no delete])
+		fmt.Sprintf("add %s 9.9.9.9", cidrSet2.HashedName),    // ignore add because of error above (will NO-OP [no delete])
+		// TODO ignore an non-add/create line
+		// TODO ignore an add with no member
 	}
-	saveFileString := strings.Join(saveFileLines, "\n")
-	saveFileBytes := []byte(saveFileString)
-
-	iMgr.CreateIPSets([]*IPSetMetadata{
-		TestCIDRSet.Metadata, TestNSSet.Metadata, TestKeyPodSet.Metadata, TestKVPodSet.Metadata,
-		TestKeyNSList.Metadata, TestNamedportSet.Metadata, cidrSet2.Metadata, nsSet2.Metadata,
-	})
-
-	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
-	actualLines := testAndSortRestoreFileString(t, creator.ToString())
-
-	expectedLines := []string{
-		fmt.Sprintf("-N %s --exist nethash", TestNSSet.HashedName),
-		fmt.Sprintf("-N %s --exist nethash", nsSet2.HashedName),
-		fmt.Sprintf("-N %s --exist nethash", TestKeyPodSet.HashedName),
-		fmt.Sprintf("-N %s --exist nethash", TestKVPodSet.HashedName),
-		fmt.Sprintf("-N %s --exist hash:ip,port", TestNamedportSet.HashedName),
-		fmt.Sprintf("-N %s --exist nethash maxelem 4294967295", TestCIDRSet.HashedName),
-		fmt.Sprintf("-N %s --exist nethash maxelem 4294967295", cidrSet2.HashedName),
-		fmt.Sprintf("-N %s --exist setlist", TestKeyNSList.HashedName),
-		fmt.Sprintf("-D %s 3.3.3.3", TestNSSet.HashedName),
-		fmt.Sprintf("-D %s 4.4.4.4", TestKeyPodSet.HashedName),
-		fmt.Sprintf("-D %s 7.7.7.7", cidrSet2.HashedName),
-		"",
-	}
-	sortedExpectedLines := testAndSortRestoreFileLines(t, expectedLines)
-
-	dptestutils.AssertEqualLines(t, sortedExpectedLines, actualLines)
-	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
-	require.NoError(t, err, "ipset restore should be successful")
-	require.False(t, wasFileAltered, "file should not be altered")
+	fmt.Println(saveFileLines)
 }
 
 func TestFailureOnCreateForNewSet(t *testing.T) {
@@ -779,11 +992,11 @@ func TestFailureOnCreateForSetInKernel(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
 
 	saveFileLines := []string{
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName),
+		fmt.Sprintf(createNethashFormat, TestNSSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.0", TestNSSet.HashedName), // delete
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKeyPodSet.HashedName),
+		fmt.Sprintf(createNethashFormat, TestKeyPodSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.0", TestKeyPodSet.HashedName), // delete
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestKVPodSet.HashedName),
+		fmt.Sprintf(createNethashFormat, TestKVPodSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.0", TestKVPodSet.HashedName), // delete
 	}
 	saveFileString := strings.Join(saveFileLines, "\n")
@@ -839,11 +1052,11 @@ func TestFailureOnAddToListInKernel(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
 
 	saveFileLines := []string{
-		fmt.Sprintf("create %s list:set size 8", TestKeyNSList.HashedName),
+		fmt.Sprintf(createListFormat, TestKeyNSList.HashedName),
 		fmt.Sprintf("add %s %s", TestKeyNSList.HashedName, TestNSSet.HashedName), // delete this member
-		fmt.Sprintf("create %s list:set size 8", TestKVNSList.HashedName),
+		fmt.Sprintf(createListFormat, TestKVNSList.HashedName),
 		fmt.Sprintf("add %s %s", TestKVNSList.HashedName, TestNSSet.HashedName), // delete this member
-		fmt.Sprintf("create %s list:set size 8", TestNestedLabelList.HashedName),
+		fmt.Sprintf(createListFormat, TestNestedLabelList.HashedName),
 		fmt.Sprintf("add %s %s", TestNestedLabelList.HashedName, TestNSSet.HashedName), // delete this member
 
 	}
@@ -896,7 +1109,7 @@ func TestFailureOnAddToNewList(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
 
 	saveFileLines := []string{
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName),
+		fmt.Sprintf(createNethashFormat, TestNSSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.0", TestNSSet.HashedName), // delete this member
 	}
 	saveFileString := strings.Join(saveFileLines, "\n")
@@ -951,7 +1164,7 @@ func TestFailureOnFlush(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
 
 	saveFileLines := []string{
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName),
+		fmt.Sprintf(createNethashFormat, TestNSSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.0", TestNSSet.HashedName), // keep this member
 		fmt.Sprintf("add %s 10.0.0.1", TestNSSet.HashedName), // delete this member
 	}
@@ -1004,7 +1217,7 @@ func TestFailureOnDestroy(t *testing.T) {
 	iMgr := NewIPSetManager(iMgrApplyAllCfg, ioshim)
 
 	saveFileLines := []string{
-		fmt.Sprintf("create %s hash:net family inet hashsize 1024 maxelem 65536", TestNSSet.HashedName),
+		fmt.Sprintf(createNethashFormat, TestNSSet.HashedName),
 		fmt.Sprintf("add %s 10.0.0.0", TestNSSet.HashedName), // keep this member
 		fmt.Sprintf("add %s 10.0.0.1", TestNSSet.HashedName), // delete this member
 	}
@@ -1075,6 +1288,9 @@ func testAndSortRestoreFileString(t *testing.T, multilineString string) []string
 // make sure file goes in order of creates, adds/deletes, flushes, then destroys
 // then sort those sections and return the lines in an array
 func testAndSortRestoreFileLines(t *testing.T, lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
 	require.True(t, lines[len(lines)-1] == "", "restore file must end with blank line")
 	lines = lines[:len(lines)-1] // remove the blank line
 
