@@ -33,11 +33,9 @@ const (
 	ipsetMaxelemNum     = "4294967295"
 
 	// constants for parsing ipset save
-	createStringWithSpace    = "create "
-	lenCreateStringWithSpace = len(createStringWithSpace)
-	space                    = " "
-	addStringWithSpace       = "add "
-	lenAddStringWithSpace    = len(addStringWithSpace)
+	createStringWithSpace = "create "
+	space                 = " "
+	addStringWithSpace    = "add "
 
 	ipsetSetListString    = "list:set"
 	ipsetNetHashString    = "hash:net"
@@ -360,7 +358,7 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil
 	}
 	for readIndex < len(saveFile) {
 		// 1. get the hashed name
-		lineAfterCreate := string(line[lenCreateStringWithSpace:])
+		lineAfterCreate := string(line[len(createStringWithSpace):])
 		spaceSplitLineAfterCreate := strings.Split(lineAfterCreate, space)
 		hashedName := spaceSplitLineAfterCreate[0]
 
@@ -414,10 +412,9 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil
 				line, readIndex = nextCreateLine(readIndex, saveFile)
 				break
 			}
-			lineAfterAdd := string(line[lenAddStringWithSpace:])
+			lineAfterAdd := string(line[len(addStringWithSpace):])
 			spaceSplitLineAfterAdd := strings.Split(lineAfterAdd, space)
 			parent := spaceSplitLineAfterAdd[0]
-			fmt.Println("DEBUGME", prefixedName, parent, hashedName)
 			if len(spaceSplitLineAfterAdd) != 2 || parent != hashedName {
 				klog.Errorf("expected an add line for set %s in ipset save file, but got the following line: %s", hashedName, string(line))
 				// TODO send error snapshot
