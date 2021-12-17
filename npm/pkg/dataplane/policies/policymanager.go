@@ -27,10 +27,6 @@ type PolicyManagerCfg struct {
 	Mode PolicyManagerMode
 }
 
-var IPSetConfig = &PolicyManagerCfg{
-	Mode: IPSetPolicyMode,
-}
-
 type PolicyMap struct {
 	cache map[string]*NPMNetworkPolicy
 }
@@ -112,7 +108,7 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	return nil
 }
 
-func (pMgr *PolicyManager) shouldActivate() bool {
+func (pMgr *PolicyManager) isFirstPolicy() bool {
 	return len(pMgr.policyMap.cache) == 0
 }
 
@@ -140,7 +136,7 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 	return nil
 }
 
-func (pMgr *PolicyManager) shouldDeactivate() bool {
+func (pMgr *PolicyManager) isLastPolicy() bool {
 	// if change our code to delete more than one policy at once, we can specify numPoliciesToDelete as an argument
 	numPoliciesToDelete := 1
 	return len(pMgr.policyMap.cache) == numPoliciesToDelete

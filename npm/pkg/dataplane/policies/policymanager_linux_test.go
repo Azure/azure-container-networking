@@ -205,7 +205,7 @@ func TestCreatorForAddPolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	// 1. test with activation
 	policies := []*NPMNetworkPolicy{allTestNetworkPolicies[0]}
@@ -268,7 +268,7 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	// 1. test without deactivation
 	// hack: the cache is empty (and len(cache) != len(allTestNetworkPolicies)), so shouldDeactivate will be false
@@ -337,7 +337,7 @@ func TestRemovePoliciesError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetConfig)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			err := pMgr.AddPolicy(bothDirectionsNetPol, nil)
 			require.NoError(t, err)
 			err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil)
@@ -357,7 +357,7 @@ func TestUpdatingStaleChains(t *testing.T) {
 	calls = append(calls, GetAddPolicyTestCalls(bothDirectionsNetPol)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	// add so we can remove. no stale chains to start
 	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))

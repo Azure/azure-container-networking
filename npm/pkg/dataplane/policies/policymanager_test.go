@@ -9,6 +9,10 @@ import (
 )
 
 var (
+	ipsetConfig = &PolicyManagerCfg{
+		Mode: IPSetPolicyMode,
+	}
+
 	// below epList is no-op for linux
 	epList        = map[string]string{"10.0.0.1": "test123", "10.0.0.2": "test456"}
 	testNSSet     = ipsets.NewIPSetMetadata("test-ns-set", ipsets.Namespace)
@@ -69,7 +73,7 @@ func TestAddPolicy(t *testing.T) {
 	calls := GetAddPolicyTestCalls(netpol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	require.NoError(t, pMgr.AddPolicy(netpol, epList))
 
@@ -93,7 +97,7 @@ func TestGetPolicy(t *testing.T) {
 	calls := GetAddPolicyTestCalls(netpol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	require.NoError(t, pMgr.AddPolicy(netpol, epList))
 
@@ -108,7 +112,7 @@ func TestRemovePolicy(t *testing.T) {
 	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyTestCalls(testNetPol)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	require.NoError(t, pMgr.AddPolicy(testNetPol, epList))
 

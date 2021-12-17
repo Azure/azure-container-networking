@@ -37,18 +37,6 @@ type IPSetManagerCfg struct {
 	NetworkName string
 }
 
-var (
-	ApplyOnNeedCfg = &IPSetManagerCfg{
-		IPSetMode:   ApplyOnNeed,
-		NetworkName: "azure",
-	}
-
-	ApplyAlwaysCfg = &IPSetManagerCfg{
-		IPSetMode:   ApplyAllIPSets,
-		NetworkName: "azure",
-	}
-)
-
 // TODO delegate prometheus metrics logic to OS-specific ones?
 
 func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetManager {

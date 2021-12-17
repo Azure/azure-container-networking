@@ -50,7 +50,7 @@ Chain AZURE-NPM-ACCEPT (1 references)
 func TestStaleChainsAddAndRemove(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	assertStaleChainsContain(t, pMgr.staleChains, testChain1)
@@ -75,7 +75,7 @@ func TestStaleChainsAddAndRemove(t *testing.T) {
 func TestStaleChainsEmptyAndGetAll(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
 	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
@@ -100,7 +100,7 @@ func TestCleanupChainsSuccess(t *testing.T) {
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -118,7 +118,7 @@ func TestCleanupChainsFailure(t *testing.T) {
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, IPSetConfig)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -265,7 +265,7 @@ func TestCreatorForBootup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(nil)
 			defer ioshim.VerifyCalls(t, nil)
-			pMgr := NewPolicyManager(ioshim, IPSetConfig)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			creator := pMgr.creatorForBootup(stringsToMap(tt.currentChains))
 			actualLines := strings.Split(creator.ToString(), "\n")
 			sortedActualLines := sortFlushes(actualLines)
@@ -412,7 +412,7 @@ func TestBootupLinux(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetConfig)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			err := pMgr.bootup(nil)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -510,7 +510,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetConfig)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			err := pMgr.positionAzureChainJumpRule()
 			if tt.wantErr {
 				require.Error(t, err)
@@ -578,7 +578,7 @@ func TestChainLineNumber(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetConfig)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			lineNum, err := pMgr.chainLineNumber(testChainName)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -687,7 +687,7 @@ Chain AZURE-NPM-INGRESS (1 references)
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, IPSetConfig)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			chains, err := pMgr.allCurrentAzureChains()
 			if tt.wantErr {
 				require.Error(t, err)

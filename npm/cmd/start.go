@@ -32,9 +32,13 @@ import (
 )
 
 var npmV2DataplaneCfg = &dataplane.Config{
-	PolicyMode:       "",
-	IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
-	PolicyManagerCfg: policies.IPSetConfig,
+	IPSetManagerCfg: &ipsets.IPSetManagerCfg{
+		IPSetMode:   ipsets.ApplyAllIPSets,
+		NetworkName: "azure", // FIXME  should be specified in DP config instead
+	},
+	PolicyManagerCfg: &policies.PolicyManagerCfg{
+		Mode: policies.IPSetPolicyMode,
+	},
 }
 
 func newStartNPMCmd() *cobra.Command {

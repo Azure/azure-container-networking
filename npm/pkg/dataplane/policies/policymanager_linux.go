@@ -68,7 +68,7 @@ func restore(creator *ioutil.FileCreator) error {
 func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *ioutil.FileCreator {
 	creator := pMgr.newCreatorWithChains(nil)
 	// 1. Deactivate NPM (if necessary).
-	if pMgr.shouldDeactivate() {
+	if pMgr.isLastPolicy() {
 		creator.AddLine("", nil, util.IptablesFlushFlag, util.IptablesAzureChain)
 	}
 
@@ -171,7 +171,7 @@ func (pMgr *PolicyManager) creatorForNewNetworkPolicies(policyChains []string, n
 	creator := pMgr.newCreatorWithChains(policyChains)
 
 	// 1. Activate NPM if necessary
-	if pMgr.shouldActivate() {
+	if pMgr.isFirstPolicy() {
 		creator.AddLine("", nil, util.IptablesFlushFlag, util.IptablesAzureChain) // flush just in case there are old rules
 		creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureIngressChain)
 		creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureChain, util.IptablesJumpFlag, util.IptablesAzureEgressChain)

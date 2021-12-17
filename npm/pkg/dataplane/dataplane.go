@@ -22,7 +22,6 @@ type PolicyMode string
 
 // TODO put NodeName in Config?
 type Config struct {
-	PolicyMode PolicyMode
 	*ipsets.IPSetManagerCfg
 	*policies.PolicyManagerCfg
 }

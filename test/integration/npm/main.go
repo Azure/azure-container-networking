@@ -17,9 +17,13 @@ const (
 
 var (
 	dpCfg = &dataplane.Config{
-		PolicyMode:       "",
-		IPSetManagerCfg:  ipsets.ApplyAlwaysCfg,
-		PolicyManagerCfg: policies.IPSetConfig,
+		IPSetManagerCfg: &ipsets.IPSetManagerCfg{
+			IPSetMode:   ipsets.ApplyAllIPSets,
+			NetworkName: "azure",
+		},
+		PolicyManagerCfg: &policies.PolicyManagerCfg{
+			Mode: policies.IPSetPolicyMode,
+		},
 	}
 
 	nodeName   = "testNode"
