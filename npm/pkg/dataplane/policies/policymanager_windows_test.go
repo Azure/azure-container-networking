@@ -147,7 +147,10 @@ func getPMgr(t *testing.T) (*PolicyManager, *hnswrapper.Hnsv2wrapperFake) {
 		_, err := hns.CreateEndpoint(ep)
 		require.NoError(t, err)
 	}
-	return NewPolicyManager(io, IpsetAndNoRebootConfig), hns
+	cfg := &PolicyManagerCfg{
+		PolicyMode: IPSetPolicyMode,
+	}
+	return NewPolicyManager(io, cfg), hns
 }
 
 func verifyFakeHNSCacheACLs(t *testing.T, expected, actual []*hnswrapper.FakeEndpointPolicy) bool {

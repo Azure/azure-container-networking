@@ -10,10 +10,6 @@ func GetRemovePolicyTestCalls(_ *NPMNetworkPolicy) []testutils.TestCmd {
 	return []testutils.TestCmd{}
 }
 
-func GetInitializeTestCalls() []testutils.TestCmd {
-	return []testutils.TestCmd{}
-}
-
-func GetResetTestCalls() []testutils.TestCmd {
+func GetBootupTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{}
 }

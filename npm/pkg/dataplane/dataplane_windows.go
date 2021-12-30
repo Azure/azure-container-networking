@@ -12,25 +12,22 @@ import (
 )
 
 const (
-	policyWithSets     policyMode = "policyWithSets"
-	policyWithIPs      policyMode = "policyWithIPs"
-	maxNoNetRetryCount int        = 240 // max wait time 240*5 == 20 mins
-	maxNoNetSleepTime  int        = 5   // in seconds
+	maxNoNetRetryCount int = 240 // max wait time 240*5 == 20 mins
+	maxNoNetSleepTime  int = 5   // in seconds
 )
 
 func (dp *DataPlane) setPolicyMode() {
-	dp.policyMode = policyWithSets
+	dp.PolicyMode = policies.IPSetPolicyMode
 	err := hcn.SetPolicySupported()
 	if err != nil {
-		dp.policyMode = policyWithIPs
+		dp.PolicyMode = policies.IPPolicyMode
 	}
 }
 
 // initializeDataPlane will help gather network and endpoint details
 func (dp *DataPlane) initializeDataPlane() error {
 	klog.Infof("[DataPlane] Initializing dataplane for windows")
-	// policy mode is only needed for windows, move this to a more central position.
-	if dp.policyMode == "" {
+	if dp.PolicyMode == "" {
 		dp.setPolicyMode()
 	}
 
@@ -82,7 +79,7 @@ func (dp *DataPlane) bootupDataPlane() error {
 	epIDs := dp.getAllEndpointIDs()
 
 	// It is important to keep order to clean-up ACLs before ipsets. Otherwise we won't be able to delete ipsets referenced by ACLs
-	if err := dp.policyMgr.Reset(epIDs); err != nil {
+	if err := dp.policyMgr.Bootup(epIDs); err != nil {
 		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset policy dataplane", err)
 	}
 	if err := dp.ipsetMgr.ResetIPSets(); err != nil {

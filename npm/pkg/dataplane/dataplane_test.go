@@ -23,7 +23,7 @@ var (
 			NetworkName: "azure",
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
-			Mode: policies.IPSetPolicyMode,
+			PolicyMode: policies.IPSetPolicyMode,
 		},
 	}
 

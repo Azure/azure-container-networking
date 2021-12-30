@@ -24,7 +24,8 @@ const (
 )
 
 type PolicyManagerCfg struct {
-	Mode PolicyManagerMode
+	// PolicyMode only affects Windows
+	PolicyMode PolicyManagerMode
 }
 
 type PolicyMap struct {

@@ -10,7 +10,7 @@ import (
 
 var (
 	ipsetConfig = &PolicyManagerCfg{
-		Mode: IPSetPolicyMode,
+		PolicyMode: IPSetPolicyMode,
 	}
 
 	// below epList is no-op for linux
