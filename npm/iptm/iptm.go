@@ -488,7 +488,6 @@ func (iptMgr *IptablesManager) run(entry *IptEntry) (int, error) {
 
 		return errCode, err
 	}
-	fmt.Println(output)
 
 	return 0, nil
 }
