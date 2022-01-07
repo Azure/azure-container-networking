@@ -1,0 +1,78 @@
+{
+  "apiVersion": "vlabs",
+  "properties": {
+    "featureFlags": {
+      "enableTelemetry": true
+    },
+    "orchestratorProfile": {
+      "orchestratorType": "Kubernetes",
+      "orchestratorRelease": "1.22",
+      "kubernetesConfig": {
+        "useManagedIdentity": true,
+        "azureCNIURLLinux": "https://github.com/Azure/azure-container-networking/releases/download/v1.4.9/azure-vnet-cni-linux-amd64-v1.4.9.tgz",
+        "azureCNIURLWindows": "https://github.com/Azure/azure-container-networking/releases/download/v1.4.9/azure-vnet-cni-windows-amd64-v1.4.9.zip",
+        "kubeletConfig": {
+          "--feature-gates": "ExecProbeTimeout=true,KubeletPodResources=false,WindowsHostProcessContainers=true"
+        },
+        "apiServerConfig": {
+          "--feature-gates": "WindowsHostProcessContainers=true",
+          "--runtime-config": "extensions/v1beta1/podsecuritypolicies=true"
+        },
+        "networkPlugin": "azure",
+        "containerRuntime": "containerd",
+        "windowsContainerdURL": "https://github.com/containerd/containerd/releases/download/v1.6.0-beta.3/containerd-1.6.0-beta.3-windows-amd64.tar.gz"
+      }
+    },
+    "masterProfile": {
+      "count": 1,
+      "vmSize": "Standard_D2_v3",
+      "distro": "aks-ubuntu-18.04",
+      "extensions": [
+        {
+          "name": "master_extension"
+        }
+      ]
+    },
+    "agentPoolProfiles": [
+      {
+        "name": "windowspool1",
+        "count": 2,
+        "vmSize": "Standard_D2s_v3",
+        "osDiskSizeGB": 128,
+        "availabilityProfile": "AvailabilitySet",
+        "osType": "Windows"
+      }
+    ],
+    "windowsProfile": {
+      "adminUsername": "azureuser",
+      "adminPassword": " ",
+      "sshEnabled": false,
+      "imageReference": {
+        "name": "test",
+        "resourceGroup": "matmerr-win-npm",
+        "subscriptionID": "test"
+      },
+      "alwaysPullWindowsPauseImage": true,
+      "windowsPauseImageURL": "mcr.microsoft.com/oss/kubernetes/pause:3.6"
+    },
+    "linuxProfile": {
+      "adminUsername": "azureuser",
+      "ssh": {
+        "publicKeys": [
+          {
+            "keyData": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDfSANhO1uEOtpDnYZJmp2SGpe8CSaEAa5VCZhu3mOXdaIYAzA9uGWKa10yc6bB5JjlG3t/1OflQ34GY7qDsvqfk7QTXxrNvKlG1Y3ekLK+XAVD/8r1VL56yP8zQbHexyafsC7vzwwHdtiFBeA5X0X1cmHIAUDbnNQlnrGXGaRPjjxEs1o1aUjmKoUBL8p2+WWK2UyhGuPtx0auiekEP2TOjqveq7eZNHBHc+RMSWR5sgsbqSK5vBYCivNFO5LNuQiAosplGyJHbZA/Lwd9oCQKnA1rrM/gevYtXM5G52VHIwDdqTPgJm0FDBXg0+LMeuQvKTS11rRItY83ftgaW2ElSSM9ZeshwQs3Neq/sdppPSc3tih3EKUEamFmtO7i84hanyWpMjgQ1RIbR+/glRcnDpYbo3mZ8a2dG+Ds0PXphkeLw1D3BjBuWvw3VgUN1xuXhc2DpopssCuJeo7xD3xA12QikbJUDaQivpsUVC2a9wICe81MBTzgyR+dPIcvnO0= redmond\\nbelovoskey@DESKTOP-PCGGPAH"
+          }
+        ]
+      }
+    },
+    "extensionProfiles": [
+      {
+        "name": "master_extension",
+        "version": "v1",
+        "extensionParameters": "parameters",
+        "rootURL": "https://raw.githubusercontent.com/kubernetes-sigs/windows-testing/master/",
+        "script": "win-e2e-master-extension.sh"
+      }
+    ]
+  }
+}

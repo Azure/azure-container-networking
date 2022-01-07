@@ -396,6 +396,11 @@ test-cyclonus:
 	cd test/cyclonus && bash ./test-cyclonus.sh
 	cd ..
 
+.PHONY: test-cyclonus-windows
+test-cyclonus-windows:
+	cd test/cyclonus && bash ./test-cyclonus-windows.sh
+	cd ..
+
 .PHONY: kind
 kind:
 	kind create cluster --config ./test/kind/kind.yaml

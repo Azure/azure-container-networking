@@ -3,9 +3,12 @@
 set -eo pipefail
 set -xv
 
+YAML=$1
+YAML=./install-cyclonus.yaml
+
 kubectl delete --ignore-not-found=true clusterrolebinding cyclonus 
 kubectl delete --ignore-not-found=true sa cyclonus -n kube-system
-kubectl delete --ignore-not-found=true -f ./install-cyclonus.yaml
+kubectl delete --ignore-not-found=true -f $YAML
 kubectl delete --ignore-not-found=true ns x y z
 
 sleep 5
@@ -13,7 +16,7 @@ sleep 5
 # set up cyclonus
 kubectl create clusterrolebinding cyclonus --clusterrole=cluster-admin --serviceaccount=kube-system:cyclonus
 kubectl create sa cyclonus -n kube-system
-kubectl create -f ./install-cyclonus.yaml
+kubectl create -f $YAML
 
 sleep 5
 
@@ -33,7 +36,7 @@ cat "$LOG_FILE"
 
 kubectl delete --ignore-not-found=true clusterrolebinding cyclonus 
 kubectl delete --ignore-not-found=true sa cyclonus -n kube-system
-kubectl delete --ignore-not-found=true -f ./install-cyclonus.yaml
+kubectl delete --ignore-not-found=true -f $YAML
 
 # if 'failure' is in the logs, fail; otherwise succeed
 rc=0
