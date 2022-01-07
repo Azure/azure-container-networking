@@ -48,7 +48,7 @@ func (stack *StringStack) Pop() (string, error) {
 type IPStateManager struct {
 	PendingProgramIPConfigState map[string]cns.IPConfigurationStatus
 	AvailableIPConfigState      map[string]cns.IPConfigurationStatus
-	AllocatedIPConfigState      map[string]cns.IPConfigurationStatus
+	AssignedIPConfigState       map[string]cns.IPConfigurationStatus
 	PendingReleaseIPConfigState map[string]cns.IPConfigurationStatus
 	AvailableIPIDStack          StringStack
 	sync.RWMutex
@@ -58,7 +58,7 @@ func NewIPStateManager() IPStateManager {
 	return IPStateManager{
 		PendingProgramIPConfigState: make(map[string]cns.IPConfigurationStatus),
 		AvailableIPConfigState:      make(map[string]cns.IPConfigurationStatus),
-		AllocatedIPConfigState:      make(map[string]cns.IPConfigurationStatus),
+		AssignedIPConfigState:       make(map[string]cns.IPConfigurationStatus),
 		PendingReleaseIPConfigState: make(map[string]cns.IPConfigurationStatus),
 		AvailableIPIDStack:          StringStack{},
 	}
@@ -68,15 +68,15 @@ func (ipm *IPStateManager) AddIPConfigs(ipconfigs []cns.IPConfigurationStatus) {
 	ipm.Lock()
 	defer ipm.Unlock()
 	for _, ipconfig := range ipconfigs {
-		switch ipconfig.State {
-		case cns.PendingProgramming:
+		switch ipconfig.GetState() {
+		case types.PendingProgramming:
 			ipm.PendingProgramIPConfigState[ipconfig.ID] = ipconfig
-		case cns.Available:
+		case types.Available:
 			ipm.AvailableIPConfigState[ipconfig.ID] = ipconfig
 			ipm.AvailableIPIDStack.Push(ipconfig.ID)
-		case cns.Allocated:
-			ipm.AllocatedIPConfigState[ipconfig.ID] = ipconfig
-		case cns.PendingRelease:
+		case types.Assigned:
+			ipm.AssignedIPConfigState[ipconfig.ID] = ipconfig
+		case types.PendingRelease:
 			ipm.PendingReleaseIPConfigState[ipconfig.ID] = ipconfig
 		}
 	}
@@ -97,17 +97,21 @@ func (ipm *IPStateManager) ReserveIPConfig() (cns.IPConfigurationStatus, error) 
 	if err != nil {
 		return cns.IPConfigurationStatus{}, err
 	}
-	ipm.AllocatedIPConfigState[id] = ipm.AvailableIPConfigState[id]
+	ipc := ipm.AvailableIPConfigState[id]
+	ipc.SetState(types.Assigned)
+	ipm.AssignedIPConfigState[id] = ipc
 	delete(ipm.AvailableIPConfigState, id)
-	return ipm.AllocatedIPConfigState[id], nil
+	return ipm.AssignedIPConfigState[id], nil
 }
 
 func (ipm *IPStateManager) ReleaseIPConfig(ipconfigID string) (cns.IPConfigurationStatus, error) {
 	ipm.Lock()
 	defer ipm.Unlock()
-	ipm.AvailableIPConfigState[ipconfigID] = ipm.AllocatedIPConfigState[ipconfigID]
+	ipc := ipm.AssignedIPConfigState[ipconfigID]
+	ipc.SetState(types.Available)
+	ipm.AvailableIPConfigState[ipconfigID] = ipc
 	ipm.AvailableIPIDStack.Push(ipconfigID)
-	delete(ipm.AllocatedIPConfigState, ipconfigID)
+	delete(ipm.AssignedIPConfigState, ipconfigID)
 	return ipm.AvailableIPConfigState[ipconfigID], nil
 }
 
@@ -123,7 +127,7 @@ func (ipm *IPStateManager) MarkIPAsPendingRelease(numberOfIPsToMark int) (map[st
 		// if there was an error, and not all ip's have been freed, restore state
 		if err != nil && len(pendingReleaseIPs) != numberOfIPsToMark {
 			for uuid, ipState := range pendingReleaseIPs {
-				ipState.State = cns.Available
+				ipState.SetState(types.Available)
 				ipm.AvailableIPIDStack.Push(pendingReleaseIPs[uuid].ID)
 				ipm.AvailableIPConfigState[pendingReleaseIPs[uuid].ID] = ipState
 				delete(ipm.PendingReleaseIPConfigState, pendingReleaseIPs[uuid].ID)
@@ -139,7 +143,7 @@ func (ipm *IPStateManager) MarkIPAsPendingRelease(numberOfIPsToMark int) (map[st
 
 		// add all pending release to a slice
 		ipConfig := ipm.AvailableIPConfigState[id]
-		ipConfig.State = cns.PendingRelease
+		ipConfig.SetState(types.PendingRelease)
 		pendingReleaseIPs[id] = ipConfig
 
 		delete(ipm.AvailableIPConfigState, id)
@@ -166,12 +170,12 @@ func NewHTTPServiceFake() *HTTPServiceFake {
 	}
 }
 
-func (fake *HTTPServiceFake) SetNumberOfAllocatedIPs(desiredAllocatedIPCount int) error {
-	currentAllocatedIPCount := len(fake.IPStateManager.AllocatedIPConfigState)
-	delta := (desiredAllocatedIPCount - currentAllocatedIPCount)
+func (fake *HTTPServiceFake) SetNumberOfAssignedIPs(assign int) error {
+	currentAssigned := len(fake.IPStateManager.AssignedIPConfigState)
+	delta := (assign - currentAssigned)
 
 	if delta > 0 {
-		// allocated IPs
+		// assign IPs
 		for i := 0; i < delta; i++ {
 			if _, err := fake.IPStateManager.ReserveIPConfig(); err != nil {
 				return err
@@ -179,10 +183,10 @@ func (fake *HTTPServiceFake) SetNumberOfAllocatedIPs(desiredAllocatedIPCount int
 		}
 		return nil
 	}
-	// deallocate IPs
+	// unassign IPs
 	delta *= -1
 	i := 0
-	for id := range fake.IPStateManager.AllocatedIPConfigState {
+	for id := range fake.IPStateManager.AssignedIPConfigState {
 		if i >= delta {
 			break
 		}
@@ -221,9 +225,9 @@ func (fake *HTTPServiceFake) GetAvailableIPConfigs() []cns.IPConfigurationStatus
 	return ipconfigs
 }
 
-func (fake *HTTPServiceFake) GetAllocatedIPConfigs() []cns.IPConfigurationStatus {
+func (fake *HTTPServiceFake) GetAssignedIPConfigs() []cns.IPConfigurationStatus {
 	ipconfigs := []cns.IPConfigurationStatus{}
-	for _, ipconfig := range fake.IPStateManager.AllocatedIPConfigState {
+	for _, ipconfig := range fake.IPStateManager.AssignedIPConfigState {
 		ipconfigs = append(ipconfigs, ipconfig)
 	}
 	return ipconfigs
@@ -240,7 +244,7 @@ func (fake *HTTPServiceFake) GetPendingReleaseIPConfigs() []cns.IPConfigurationS
 // Return union of all state maps
 func (fake *HTTPServiceFake) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
 	ipconfigs := make(map[string]cns.IPConfigurationStatus)
-	for key, val := range fake.IPStateManager.AllocatedIPConfigState {
+	for key, val := range fake.IPStateManager.AssignedIPConfigState {
 		ipconfigs[key] = val
 	}
 	for key, val := range fake.IPStateManager.AvailableIPConfigState {

@@ -8,6 +8,7 @@ const (
 	CNIAddTimeMetricStr    = "CNIAddTimeMs"
 	CNIDelTimeMetricStr    = "CNIDelTimeMs"
 	CNIUpdateTimeMetricStr = "CNIUpdateTimeMs"
+	CNILockTimeoutStr      = "CNILockTimeoutError"
 
 	// Dimension Names
 	ContextStr        = "Context"

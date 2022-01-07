@@ -83,7 +83,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	r.ipampoolmonitorcli.Update(nnc)
 	// record assigned IPs metric
-	assignedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
+	allocatedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
 
 	return reconcile.Result{}, nil
 }

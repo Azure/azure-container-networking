@@ -224,9 +224,9 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	for ipID := range tobeDeletedIPConfigs {
 		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
-			// pod ip exists, validate if state is not allocated, else fail
-			if ipConfigStatus.State == cns.Allocated {
-				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
+			// pod ip exists, validate if state is not assigned, else fail
+			if ipConfigStatus.GetState() == types.Assigned {
+				errMsg := fmt.Sprintf("Failed to delete an Assigned IP %v", ipConfigStatus)
 				return types.InconsistentIPConfigState, errMsg
 			}
 		}
@@ -277,20 +277,21 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVe
 			ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
 		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
 		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
-		var newIPCNSStatus cns.IPConfigState
+		var newIPCNSStatus types.IPState
 		if hostVersion < ipconfig.NCVersion {
-			newIPCNSStatus = cns.PendingProgramming
+			newIPCNSStatus = types.PendingProgramming
 		} else {
-			newIPCNSStatus = cns.Available
+			newIPCNSStatus = types.Available
 		}
 		// add the new State
 		ipconfigStatus := cns.IPConfigurationStatus{
 			NCID:      ncID,
 			ID:        ipID,
 			IPAddress: ipconfig.IPAddress,
-			State:     newIPCNSStatus,
 			PodInfo:   nil,
 		}
+		ipconfigStatus.WithStateMiddleware(stateTransitionMiddleware)
+		ipconfigStatus.SetState(newIPCNSStatus)
 		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
 		service.PodIPConfigState[ipID] = ipconfigStatus
@@ -320,9 +321,9 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 	if !skipValidation {
 		ipConfigStatus, exists := service.PodIPConfigState[ipID]
 		if exists {
-			// pod ip exists, validate if state is not allocated, else fail
-			if ipConfigStatus.State == cns.Allocated {
-				errMsg := fmt.Sprintf("Failed to delete an Allocated IP %v", ipConfigStatus)
+			// pod ip exists, validate if state is not assigned, else fail
+			if ipConfigStatus.GetState() == types.Assigned {
+				errMsg := fmt.Sprintf("Failed to delete an Assigned IP %v", ipConfigStatus)
 				return types.InconsistentIPConfigState, errMsg
 			}
 		}
@@ -451,6 +452,11 @@ func (service *HTTPRestService) restoreNetworkState() error {
 
 	if service.store == nil {
 		logger.Printf("[Azure CNS] Store is not initialized, nothing to restore for network state.")
+		return nil
+	}
+
+	if !service.store.Exists() {
+		logger.Printf("[Azure CNS] Store does not exist, nothing to restore for network state.")
 		return nil
 	}
 

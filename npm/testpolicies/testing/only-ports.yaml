@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: only-port
+  namespace: default
+spec:
+  ingress:
+  - ports:
+    # or
+    - port: 80
+      protocol: TCP
+    - port: 100
+      protocol: UDP
+  podSelector:
+    matchLabels:
+      app: server
+  policyTypes:
+  - Ingress

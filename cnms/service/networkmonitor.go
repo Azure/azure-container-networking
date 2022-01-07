@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 )
@@ -141,8 +142,15 @@ func main() {
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 
+	var lockclient processlock.Interface
 	for {
-		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath + pluginName + ".json")
+		lockclient, err = processlock.NewFileLock(platform.CNILockPath + pluginName + store.LockExtension)
+		if err != nil {
+			log.Printf("Error initializing file lock:%v", err)
+			return
+		}
+
+		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+pluginName+".json", lockclient)
 		if err != nil {
 			fmt.Printf("[monitor] Failed to create store: %v\n", err)
 			return

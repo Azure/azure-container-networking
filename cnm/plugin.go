@@ -4,7 +4,6 @@
 package cnm
 
 import (
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -90,7 +89,7 @@ func (plugin *Plugin) EnableDiscovery() error {
 	// Write the listener URL to the spec file.
 	fileName := path + plugin.Name + ".spec"
 	url := plugin.Listener.URL.String()
-	err := ioutil.WriteFile(fileName, []byte(url), 0o644)
+	err := os.WriteFile(fileName, []byte(url), 0o644)
 	return err
 }
 

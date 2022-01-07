@@ -32,8 +32,7 @@ import (
 
 var incLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
-		//nolint:gomnd
-		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), // 50 ms to ~800 seconds
+		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), //nolint:gomnd // 50 ms to ~800 seconds
 		Help:    "IP pool size increase latency in seconds by batch size",
 		Name:    "ip_pool_inc_latency_seconds",
 	},
@@ -42,8 +41,7 @@ var incLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
 
 var decLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
-		//nolint:gomnd
-		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), // 50 ms to ~800 seconds
+		Buckets: prometheus.ExponentialBuckets(0.05, 2, 15), //nolint:gomnd // 50 ms to ~800 seconds
 		Help:    "IP pool size decrease latency in seconds by batch size",
 		Name:    "ip_pool_dec_latency_seconds",
 	},
@@ -52,7 +50,7 @@ var decLatency prometheus.ObserverVec = prometheus.NewHistogramVec(
 
 type scaleEvent struct {
 	start time.Time
-	batch int
+	batch int64
 }
 
 var (
@@ -62,7 +60,7 @@ var (
 
 // StartPoolIncreaseTimer records the start of an IP allocation request.
 // If an IP allocation request is already in flight, this method noops.
-func StartPoolIncreaseTimer(batch int) {
+func StartPoolIncreaseTimer(batch int64) {
 	e := scaleEvent{
 		start: time.Now(),
 		batch: batch,
@@ -75,7 +73,7 @@ func StartPoolIncreaseTimer(batch int) {
 
 // StartPoolDecreaseTimer records the start of an IP deallocation request.
 // If an IP deallocation request is already in flight, this method noops.
-func StartPoolDecreaseTimer(batch int) {
+func StartPoolDecreaseTimer(batch int64) {
 	e := scaleEvent{
 		start: time.Now(),
 		batch: batch,
@@ -92,13 +90,13 @@ func StartPoolDecreaseTimer(batch int) {
 func ObserverPoolScaleLatency() {
 	select {
 	case e := <-incEvents:
-		incLatency.WithLabelValues(strconv.Itoa(e.batch)).Observe(time.Since(e.start).Seconds())
+		incLatency.WithLabelValues(strconv.FormatInt(e.batch, 10)).Observe(time.Since(e.start).Seconds()) //nolint:gomnd // it's decimal
 	default:
 	}
 
 	select {
 	case e := <-decEvents:
-		decLatency.WithLabelValues(strconv.Itoa(e.batch)).Observe(time.Since(e.start).Seconds())
+		decLatency.WithLabelValues(strconv.FormatInt(e.batch, 10)).Observe(time.Since(e.start).Seconds()) //nolint:gomnd // it's decimal
 	default:
 	}
 }

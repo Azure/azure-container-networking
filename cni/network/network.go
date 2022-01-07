@@ -76,6 +76,12 @@ type NetPlugin struct {
 	multitenancyClient MultitenancyClient
 }
 
+type PolicyArgs struct {
+	nwInfo    *network.NetworkInfo
+	nwCfg     *cni.NetworkConfig
+	ipconfigs []*cniTypesCurr.IPConfig
+}
+
 // client for node network service
 type NnsClient interface {
 	// Do network port programming for the pod via node network service.
@@ -692,18 +698,18 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return epInfo, err
 	}
-
-	if opt.nwCfg.IPV6Mode == network.IPV6Nat {
-		var ipv6Policy policy.Policy
-
-		ipv6Policy, err = addIPV6EndpointPolicy(*opt.nwInfo)
-		if err != nil {
-			err = plugin.Errorf("Failed to set ipv6 endpoint policy: %v", err)
-			return epInfo, err
-		}
-
-		opt.policies = append(opt.policies, ipv6Policy)
+	policyArgs := PolicyArgs{
+		nwInfo:    opt.nwInfo,
+		nwCfg:     opt.nwCfg,
+		ipconfigs: opt.result.IPs,
 	}
+	endpointPolicies, err := getEndpointPolicies(policyArgs)
+	if err != nil {
+		log.Errorf("Failed to get endpoint policies:%v", err)
+		return epInfo, err
+	}
+
+	opt.policies = append(opt.policies, endpointPolicies...)
 
 	vethName := fmt.Sprintf("%s.%s", opt.k8sNamespace, opt.k8sPodName)
 	if opt.nwCfg.Mode != opModeTransparent {

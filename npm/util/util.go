@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"os"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,10 @@ var IsNewNwPolicyVerFlag = false
 
 // regex to get minor version
 var re = regexp.MustCompile("[0-9]+")
+
+func IsWindowsDP() bool {
+	return runtime.GOOS == "windows"
+}
 
 // Exists reports whether the named file or directory exists.
 func Exists(filePath string) bool {
@@ -302,6 +307,10 @@ func GetSetsFromLabels(labels map[string]string) []string {
 
 func GetIpSetFromLabelKV(k, v string) string {
 	return fmt.Sprintf("%s%s%s", k, IpsetLabelDelimter, v)
+}
+
+func IsKeyValueLabelSetName(k string) bool {
+	return strings.Contains(k, IpsetLabelDelimter)
 }
 
 func GetLabelKVFromSet(ipsetName string) (string, string) {

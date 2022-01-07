@@ -7,6 +7,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/Azure/azure-container-networking/cns/types"
 )
 
 // Container Network Service DNC Contract
@@ -58,20 +60,6 @@ const (
 const (
 	Vlan  = "Vlan"
 	Vxlan = "Vxlan"
-)
-
-// IPConfig States for CNS IPAM
-type IPConfigState string
-
-const (
-	// Available IPConfigState for available IPs.
-	Available IPConfigState = "Available"
-	// Allocated IPConfigState for allocated IPs.
-	Allocated IPConfigState = "Allocated"
-	// PendingRelease IPConfigState for pending release IPs.
-	PendingRelease IPConfigState = "PendingRelease"
-	// PendingProgramming IPConfigState for pending programming IPs.
-	PendingProgramming IPConfigState = "PendingProgramming"
 )
 
 // ChannelMode :- CNS channel modes
@@ -161,6 +149,8 @@ type PodInfo interface {
 	Namespace() string
 	// OrchestratorContext is a JSON KubernetesPodInfo
 	OrchestratorContext() (json.RawMessage, error)
+	// Equals implements a functional equals for PodInfos
+	Equals(PodInfo) bool
 }
 
 type KubernetesPodInfo struct {
@@ -176,6 +166,16 @@ type podInfo struct {
 	PodInfraContainerID string
 	PodInterfaceID      string
 	Version             podInfoScheme
+}
+
+func (p *podInfo) Equals(o PodInfo) bool {
+	if (p == nil) != (o == nil) {
+		return false
+	}
+	if p == nil {
+		return true
+	}
+	return p.Key() == o.Key()
 }
 
 func (p *podInfo) InfraContainerID() string {
@@ -371,9 +371,9 @@ type IPConfigResponse struct {
 }
 
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs
-// The IPConfigStateFilter is a slice of IP's to fetch from CNS that match those states
+// The IPConfigStateFilter is a slice of IPs to fetch from CNS that match those states
 type GetIPAddressesRequest struct {
-	IPConfigStateFilter []IPConfigState
+	IPConfigStateFilter []types.IPState
 }
 
 // GetIPAddressStateResponse is used in CNS IPAM mode as a response to get IP address state
@@ -394,7 +394,7 @@ type GetPodContextResponse struct {
 	Response   Response
 }
 
-// IPAddressState Only used in the GetIPConfig API to return IP's that match a filter
+// IPAddressState Only used in the GetIPConfig API to return IPs that match a filter
 type IPAddressState struct {
 	IPAddress string
 	State     string

@@ -23,7 +23,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
-	cni "github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
@@ -42,8 +41,10 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/processlock"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -60,6 +61,7 @@ const (
 
 	// 720 * acn.FiveSeconds sec sleeps = 1Hr
 	maxRetryNodeRegister = 720
+	initCNSInitalDelay   = 10 * time.Second
 )
 
 var (
@@ -238,7 +240,7 @@ var args = acn.ArgumentList{
 	{
 		Name:         acn.OptDebugCmd,
 		Shorthand:    acn.OptDebugCmdAlias,
-		Description:  "Debug flag to retrieve IPconfigs, available values: allocated, available, all",
+		Description:  "Debug flag to retrieve IPconfigs, available values: assigned, available, all",
 		Type:         "string",
 		DefaultValue: "",
 	},
@@ -246,6 +248,13 @@ var args = acn.ArgumentList{
 		Name:         acn.OptDebugArg,
 		Shorthand:    acn.OptDebugArgAlias,
 		Description:  "Argument flag to be paired with the 'debugcmd' flag.",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptCNSConfigPath,
+		Shorthand:    acn.OptCNSConfigPathAlias,
+		Description:  "Path to cns config file",
 		Type:         "string",
 		DefaultValue: "",
 	},
@@ -308,18 +317,12 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 	nodeRegisterRequest.NmAgentSupportedApis = supportedApis
 
 	// CNS tries to register Node for maximum of an hour.
-	for tryNum := 0; tryNum <= maxRetryNodeRegister; tryNum++ {
-		success, err := sendRegisterNodeRequest(httpc, httpRestService, nodeRegisterRequest, url)
-		if err != nil {
-			return err
-		}
-		if success {
-			return nil
-		}
-		time.Sleep(acn.FiveSeconds)
-	}
-	return fmt.Errorf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
-		nodeID, infraVnet, dncEP)
+	err := retry.Do(func() error {
+		return sendRegisterNodeRequest(httpc, httpRestService, nodeRegisterRequest, url)
+	}, retry.Delay(acn.FiveSeconds), retry.Attempts(maxRetryNodeRegister), retry.DelayType(retry.FixedDelay))
+
+	return errors.Wrap(err, fmt.Sprintf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
+		nodeID, infraVnet, dncEP))
 }
 
 // sendRegisterNodeRequest func helps in registering the node until there is an error.
@@ -327,38 +330,38 @@ func sendRegisterNodeRequest(
 	httpc *http.Client,
 	httpRestService cns.HTTPService,
 	nodeRegisterRequest cns.NodeRegisterRequest,
-	registerURL string) (bool, error) {
+	registerURL string) error {
 
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
 		log.Errorf("[Azure CNS] Failed to register node while encoding json failed with non-retriable err %v", err)
-		return false, err
+		return errors.Wrap(retry.Unrecoverable(err), "failed to sendRegisterNodeRequest")
 	}
 
 	response, err := httpc.Post(registerURL, "application/json", &body)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to register node with retriable err: %+v", err)
-		return false, nil
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusCreated {
 		err = fmt.Errorf("[Azure CNS] Failed to register node, DNC replied with http status code %s", strconv.Itoa(response.StatusCode))
 		logger.Errorf(err.Error())
-		return false, nil
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 
 	var req cns.SetOrchestratorTypeRequest
 	err = json.NewDecoder(response.Body).Decode(&req)
 	if err != nil {
 		log.Errorf("[Azure CNS] decoding Node Resgister response json failed with err %v", err)
-		return false, nil
+		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 	httpRestService.SetNodeOrchestrator(&req)
 
 	logger.Printf("[Azure CNS] Node Registered")
-	return true, nil
+	return nil
 }
 
 // Main is the entry point for CNS.
@@ -389,6 +392,7 @@ func main() {
 	nodeID := acn.GetArg(acn.OptNodeID).(string)
 	clientDebugCmd := acn.GetArg(acn.OptDebugCmd).(string)
 	clientDebugArg := acn.GetArg(acn.OptDebugArg).(string)
+	cmdLineConfigPath := acn.GetArg(acn.OptCNSConfigPath).(string)
 
 	if vers {
 		printVersion()
@@ -422,7 +426,8 @@ func main() {
 		logger.Errorf("[Azure CNS] Cannot disable telemetry via cmdline. Update cns_config.json to disable telemetry.")
 	}
 
-	cnsconfig, err := configuration.ReadConfig()
+	logger.Printf("[Azure CNS] cmdLineConfigPath: %s", cmdLineConfigPath)
+	cnsconfig, err := configuration.ReadConfig(cmdLineConfigPath)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error reading cns config: %v", err)
 	}
@@ -472,9 +477,15 @@ func main() {
 		return
 	}
 
+	lockclient, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
+	if err != nil {
+		log.Printf("Error initializing file lock:%v", err)
+		return
+	}
+
 	// Create the key value store.
 	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName)
+	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return
@@ -542,7 +553,8 @@ func main() {
 		// If so, we should check that the the CNI is new enough to support the state commands,
 		// otherwise we fall back to the existing behavior.
 		if cnsconfig.InitializeFromCNI {
-			isGoodVer, err := cni.IsDumpStateVer()
+			var isGoodVer bool
+			isGoodVer, err = cnireconciler.IsDumpStateVer()
 			if err != nil {
 				logger.Errorf("error checking CNI ver: %v", err)
 			}
@@ -627,8 +639,11 @@ func main() {
 		}(privateEndpoint, infravnet, nodeID)
 	}
 
-	var netPlugin network.NetPlugin
-	var ipamPlugin ipam.IpamPlugin
+	var (
+		netPlugin     network.NetPlugin
+		ipamPlugin    ipam.IpamPlugin
+		lockclientCnm processlock.Interface
+	)
 
 	if startCNM {
 		var pluginConfig acn.PluginConfig
@@ -651,9 +666,15 @@ func main() {
 			return
 		}
 
+		lockclientCnm, err = processlock.NewFileLock(platform.CNILockPath + pluginName + store.LockExtension)
+		if err != nil {
+			log.Printf("Error initializing file lock:%v", err)
+			return
+		}
+
 		// Create the key value store.
 		pluginStoreFile := storeFileLocation + pluginName + ".json"
-		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile)
+		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm)
 		if err != nil {
 			logger.Errorf("Failed to create plugin store file %s, due to error : %v\n", pluginStoreFile, err)
 			return
@@ -704,6 +725,14 @@ func main() {
 			logger.Printf("stop ipam plugin")
 			ipamPlugin.Stop()
 		}
+
+		if err = lockclientCnm.Unlock(); err != nil {
+			log.Errorf("lockclient cnm unlock error:%v", err)
+		}
+	}
+
+	if err = lockclient.Unlock(); err != nil {
+		log.Errorf("lockclient cns unlock error:%v", err)
 	}
 
 	logger.Printf("CNS exited")
@@ -713,6 +742,7 @@ func main() {
 func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
 	var multiTenantController multitenantcontroller.RequestController
 	kubeConfig, err := ctrl.GetConfig()
+	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
 	if err != nil {
 		return err
 	}
@@ -766,11 +796,11 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs)
+		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		for {
 			select {
 			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, cnsconfig.SyncHostNCTimeoutMs)
+				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
 				httpRestServiceImpl.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
 				cancel()
 			case <-ctx.Done():
@@ -859,6 +889,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
 
 	kubeConfig, err := ctrl.GetConfig()
+	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
 		return err
@@ -875,7 +906,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// initialize the ipam pool monitor
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &ipampool.Options{RefreshDelay: poolIPAMRefreshRateInMilliseconds})
+	poolOpts := ipampool.Options{
+		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
+	}
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &poolOpts)
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 	logger.Printf("Starting IPAM Pool Monitor")
 	go func() {
@@ -884,9 +918,18 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 
-	err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
-	if err != nil {
+	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
+	// aks addons to come up so retry a bit more aggresively here.
+	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
+	err = retry.Do(func() error {
+		err = initCNS(ctx, scopedcli, httpRestServiceImplementation)
+		if err != nil {
+			logger.Errorf("[Azure CNS] Failed to init cns with err: %v", err)
+		}
 		return errors.Wrap(err, "failed to initialize CNS state")
+	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
+	if err != nil {
+		return err
 	}
 
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
@@ -922,11 +965,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(cnsconfig.SyncHostNCVersionIntervalMs)
+		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		for {
 			select {
 			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, cnsconfig.SyncHostNCTimeoutMs)
+				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
 				httpRestServiceImplementation.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
 				cancel()
 			case <-ctx.Done():

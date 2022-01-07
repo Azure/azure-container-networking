@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -80,7 +81,7 @@ func TestMarshalUnMarshalJSON(t *testing.T) {
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
 	exec := exec.New()
-	iptMgr := iptm.NewIptablesManager(exec, iptm.NewFakeIptOperationShim())
+	iptMgr := iptm.NewIptablesManager(exec, iptm.NewFakeIptOperationShim(), npmconfig.DefaultConfig.Toggles.PlaceAzureChainFirst)
 	iptMgr.UninitNpmChains()
 
 	ipsMgr := ipsm.NewIpsetManager(exec)

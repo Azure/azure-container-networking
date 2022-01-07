@@ -9,7 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"regexp"
+	"net/url"
 	"runtime"
 	"strings"
 
@@ -1082,14 +1082,12 @@ func getAuthTokenFromCreateNetworkContainerURL(
 	return strings.Split(strings.Split(createNetworkContainerURL, "authenticationToken/")[1], "/")[0]
 }
 
-var rgx = regexp.MustCompile("^http[s]?://(.*?)/joinedVirtualNetworks.*?$")
-
-func extractHostFromJoinNetworkURL(url string) string {
-	submatches := rgx.FindStringSubmatch(url)
-	if len(submatches) != 2 {
+func extractHostFromJoinNetworkURL(urlToParse string) string {
+	parsedURL, err := url.Parse(urlToParse)
+	if err != nil {
 		return ""
 	}
-	return submatches[1]
+	return parsedURL.Host
 }
 
 // Publish Network Container by calling nmagent

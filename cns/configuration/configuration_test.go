@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/stretchr/testify/assert"
@@ -15,15 +14,20 @@ func TestGetConfigFilePath(t *testing.T) {
 	execpath, _ := common.GetExecutableDirectory()
 
 	// env unset
-	f, err := getConfigFilePath()
+	f, err := getConfigFilePath("")
 	assert.NoError(t, err)
 	assert.Equal(t, filepath.Join(execpath, defaultConfigName), f)
 
 	// env set
 	os.Setenv(EnvCNSConfig, "test.cfg")
-	f, err = getConfigFilePath()
+	f, err = getConfigFilePath("")
 	assert.NoError(t, err)
 	assert.Equal(t, "test.cfg", f)
+
+	// test with cmdline config path
+	f, err = getConfigFilePath("/var/lib/cns_config.json")
+	assert.NoError(t, err)
+	assert.Equal(t, "/var/lib/cns_config.json", f)
 }
 
 func TestReadConfigFromFile(t *testing.T) {
@@ -188,8 +192,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					NodeSyncIntervalInSeconds: 30,
 				},
 				MetricsBindAddress:          ":9090",
-				SyncHostNCTimeoutMs:         500 * time.Millisecond,
-				SyncHostNCVersionIntervalMs: 1000 * time.Millisecond,
+				SyncHostNCTimeoutMs:         500,
+				SyncHostNCVersionIntervalMs: 1000,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      32768,
 					TelemetryBatchIntervalInSecs: 30,

@@ -18,9 +18,11 @@ import (
 )
 
 type TestCmd struct {
-	Cmd      []string
-	Stdout   string // fakexec doesn't leverage stderr in CombinedOutput, so use stdout for stderr too
-	ExitCode int
+	Cmd            []string
+	Stdout         string // fakexec doesn't leverage stderr in CombinedOutput, so use stdout for stderr too
+	ExitCode       int
+	HasStartError  bool
+	PipedToCommand bool
 }
 
 func GetFakeExecWithScripts(calls []TestCmd) *fakeexec.FakeExec {
@@ -33,8 +35,12 @@ func GetFakeExecWithScripts(calls []TestCmd) *fakeexec.FakeExec {
 		ccmd := call.Cmd
 		if call.ExitCode != 0 {
 			err := &fakeexec.FakeExitError{Status: call.ExitCode}
-			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte(stdout), nil, err })
-		} else {
+			if call.HasStartError {
+				fcmd.StartResponse = err
+			} else if !call.PipedToCommand {
+				fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte(stdout), nil, err })
+			}
+		} else if !call.PipedToCommand {
 			fcmd.CombinedOutputScript = append(fcmd.CombinedOutputScript, func() ([]byte, []byte, error) { return []byte(stdout), nil, nil })
 		}
 
@@ -51,7 +57,7 @@ func GetFakeExecWithScripts(calls []TestCmd) *fakeexec.FakeExec {
 func VerifyCalls(t *testing.T, fexec *fakeexec.FakeExec, calls []TestCmd) {
 	err := recover()
 	require.Nil(t, err)
-	require.Equalf(t, len(calls), fexec.CommandCalls, "Number of exec calls mismatched, expected [%d], actual [%d]", fexec.CommandCalls, len(calls))
+	require.Equalf(t, len(calls), fexec.CommandCalls, "Number of exec calls mismatched, expected [%d], actual [%d]", len(calls), fexec.CommandCalls)
 }
 
 func isCurrentUserRoot() bool {

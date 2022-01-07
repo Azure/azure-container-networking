@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/network/policy"
-
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 )
 
@@ -73,9 +72,14 @@ type NetworkConfig struct {
 		Address       string `json:"ipAddress,omitempty"`
 		QueryInterval string `json:"queryInterval,omitempty"`
 	} `json:"ipam,omitempty"`
-	DNS            cniTypes.DNS  `json:"dns,omitempty"`
-	RuntimeConfig  RuntimeConfig `json:"runtimeConfig,omitempty"`
-	AdditionalArgs []KVPair      `json:"AdditionalArgs,omitempty"`
+	DNS             cniTypes.DNS    `json:"dns,omitempty"`
+	RuntimeConfig   RuntimeConfig   `json:"runtimeConfig,omitempty"`
+	WindowsSettings WindowsSettings `json:"windowsSettings,omitempty"`
+	AdditionalArgs  []KVPair        `json:"AdditionalArgs,omitempty"`
+}
+
+type WindowsSettings struct {
+	EnableLoopbackDSR bool `json:"enableLoopbackDSR,omitempty"`
 }
 
 type K8SPodEnvArgs struct {

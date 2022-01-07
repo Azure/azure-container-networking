@@ -8,7 +8,11 @@ linters:
   - format
   - performance
   - unused
+  disable:
+  - maligned
+  - scopelint
   enable:
+  - exportloopref
   - goconst
   - gocritic
   - gocyclo

@@ -43,20 +43,12 @@ func main() {
 
 	if err := ipamPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 		fmt.Printf("Failed to initialize key-value store of ipam plugin, err:%v.\n", err)
-
-		if isSafe, _ := ipamPlugin.Plugin.IsSafeToRemoveLock(ipamPlugin.Plugin.Name); isSafe {
-			log.Printf("[IPAM] Removing lock file as process holding lock exited")
-			if errUninit := ipamPlugin.Plugin.UninitializeKeyValueStore(true); errUninit != nil {
-				log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
-			}
-		}
-
 		os.Exit(1)
 	}
 
 	defer func() {
-		if errUninit := ipamPlugin.Plugin.UninitializeKeyValueStore(false); errUninit != nil {
-			fmt.Printf("Failed to uninitialize key-value store of ipam plugin, err:%v.\n", err)
+		if errUninit := ipamPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
+			fmt.Printf("Failed to uninitialize key-value store of ipam plugin, err:%v.\n", errUninit)
 		}
 
 		if recover() != nil {

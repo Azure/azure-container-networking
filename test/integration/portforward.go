@@ -5,7 +5,7 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 
@@ -74,7 +74,7 @@ func (p *PortForwarder) Forward(ctx context.Context, namespace, labelSelector st
 
 	dialer := spdy.NewDialer(p.upgrader, &http.Client{Transport: p.transport}, http.MethodPost, portForwardURL)
 	ports := []string{fmt.Sprintf("%d:%d", localPort, destPort)}
-	pf, err := portforward.New(dialer, ports, stopChan, readyChan, ioutil.Discard, ioutil.Discard)
+	pf, err := portforward.New(dialer, ports, stopChan, readyChan, io.Discard, io.Discard)
 	if err != nil {
 		return PortForwardStreamHandle{}, fmt.Errorf("could not create portforwarder: %v", err)
 	}

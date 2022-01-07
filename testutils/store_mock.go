@@ -12,6 +12,7 @@ import (
 var _ store.KeyValueStore = (*KeyValueStoreMock)(nil)
 
 type KeyValueStoreMock struct {
+	ExistsBool               bool
 	ReadError                error
 	WriteError               error
 	FlushError               error
@@ -21,39 +22,35 @@ type KeyValueStoreMock struct {
 	GetModificationTimeError error
 }
 
-func (store *KeyValueStoreMock) Read(key string, value interface{}) error {
-	return store.ReadError
+func (mockst *KeyValueStoreMock) Exists() bool {
+	return mockst.ExistsBool
 }
 
-func (store *KeyValueStoreMock) Write(key string, value interface{}) error {
-	return store.WriteError
+func (mockst *KeyValueStoreMock) Read(key string, value interface{}) error {
+	return mockst.ReadError
 }
 
-func (store *KeyValueStoreMock) Flush() error {
-	return store.FlushError
+func (mockst *KeyValueStoreMock) Write(key string, value interface{}) error {
+	return mockst.WriteError
 }
 
-func (store *KeyValueStoreMock) Lock(block bool) error {
-	return store.LockError
+func (mockst *KeyValueStoreMock) Flush() error {
+	return mockst.FlushError
 }
 
-func (store *KeyValueStoreMock) Unlock(forceUnlock bool) error {
-	return store.UnlockError
+func (mockst *KeyValueStoreMock) Lock(time.Duration) error {
+	return mockst.LockError
 }
 
-func (store *KeyValueStoreMock) GetModificationTime() (time.Time, error) {
-	if store.GetModificationTimeError != nil {
-		return time.Time{}, store.GetModificationTimeError
+func (mockst *KeyValueStoreMock) Unlock() error {
+	return mockst.UnlockError
+}
+
+func (mockst *KeyValueStoreMock) GetModificationTime() (time.Time, error) {
+	if mockst.GetModificationTimeError != nil {
+		return time.Time{}, mockst.GetModificationTimeError
 	}
-	return store.ModificationTime, nil
+	return mockst.ModificationTime, nil
 }
 
-func (store *KeyValueStoreMock) GetLockFileModificationTime() (time.Time, error) {
-	return time.Now(), nil
-}
-
-func (store *KeyValueStoreMock) GetLockFileName() string {
-	return ""
-}
-
-func (store *KeyValueStoreMock) Remove() {}
+func (mockst *KeyValueStoreMock) Remove() {}

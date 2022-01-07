@@ -15,6 +15,10 @@ func NewMockStore(lockFilePath string) KeyValueStore {
 	}
 }
 
+func (ms *mockStore) Exists() bool {
+	return false
+}
+
 // Read restores the value for the given key from persistent store.
 func (ms *mockStore) Read(key string, value interface{}) error {
 	return nil
@@ -28,11 +32,11 @@ func (ms *mockStore) Flush() error {
 	return nil
 }
 
-func (ms *mockStore) Lock(block bool) error {
+func (ms *mockStore) Lock(duration time.Duration) error {
 	return nil
 }
 
-func (ms *mockStore) Unlock(forceUnlock bool) error {
+func (ms *mockStore) Unlock() error {
 	return nil
 }
 

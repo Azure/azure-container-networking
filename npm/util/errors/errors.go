@@ -42,6 +42,10 @@ var (
 
 // Error labels for ipsetmanager
 const (
+	InitializeDataPlane     = "InitializeDataPlane"
+	ResetDataPlane          = "ResetDataPlane"
+	BootupPolicyMgr         = "BootupPolicyManager"
+	ResetIPSets             = "ResetIPSets"
 	CreateIPSet             = "CreateIPSet"
 	AppendIPSet             = "AppendIPSet"
 	DeleteIPSet             = "DeleteIPSet"
@@ -49,6 +53,7 @@ const (
 	TestIPSet               = "TestIPSet"
 	IPSetIntersection       = "IPSetIntersection"
 	AddPolicy               = "AddNetworkPolicy"
+	RemovePolicy            = "RemovePolicy"
 	GetSelectorReference    = "GetSelectorReference"
 	AddSelectorReference    = "AddSelectorReference"
 	DeleteSelectorReference = "DeleteSelectorReference"
@@ -125,6 +130,16 @@ func Errorf(operation string, isRetriable bool, errstring string) *NPMError {
 	}
 }
 
+func ErrorWrapper(operation string, isRetriable bool, errstring string, err error) *NPMError {
+	return &NPMError{
+		OperationAction: operation,
+		IsRetriable:     false,
+		FullCmd:         []string{},
+		ErrID:           Unknown,
+		Err:             fmt.Errorf("%s: %w", errstring, err),
+	}
+}
+
 func Error(operation string, isRetriable bool, err error) *NPMError {
 	return &NPMError{
 		OperationAction: operation,
@@ -168,4 +183,21 @@ type npmErrorRetrySettings struct {
 
 func (n *NPMError) Error() string {
 	return fmt.Sprintf("Operation [%s] failed with error code [%v], full cmd %v, full error %v", n.OperationAction, n.ErrID, n.FullCmd, n.Err)
+}
+
+// NPMSimpleError and its methods are used to appease go lint
+type NPMSimpleError struct {
+	Err error
+}
+
+func SimpleError(errstring string) *NPMSimpleError {
+	return &NPMSimpleError{fmt.Errorf("%s", errstring)} //nolint:goerr113 // need to re-structure error handler in next PR
+}
+
+func SimpleErrorWrapper(errstring string, err error) *NPMSimpleError {
+	return &NPMSimpleError{fmt.Errorf("%s: %w", errstring, err)}
+}
+
+func (n *NPMSimpleError) Error() string {
+	return n.Err.Error()
 }

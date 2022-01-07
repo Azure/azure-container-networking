@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -169,7 +169,7 @@ func StartProcess(path string, args []string) error {
 
 // GetHostMetadata - retrieve VM metadata from wireserver
 func GetHostMetadata(fileName string) (Metadata, error) {
-	content, err := ioutil.ReadFile(fileName)
+	content, err := os.ReadFile(fileName)
 	if err == nil {
 		var metadata Metadata
 		if err = json.Unmarshal(content, &metadata); err == nil {
@@ -225,7 +225,7 @@ func SaveHostMetadata(metadata Metadata, fileName string) error {
 		return fmt.Errorf("[Telemetry] marshal data failed with err %+v", err)
 	}
 
-	if err = ioutil.WriteFile(fileName, dataBytes, 0o644); err != nil {
+	if err = os.WriteFile(fileName, dataBytes, 0o644); err != nil {
 		log.Printf("[Telemetry] Writing metadata to file failed: %v", err)
 	}
 
@@ -257,7 +257,7 @@ func GetAzureCloud(url string) (string, error) {
 		return "", fmt.Errorf("Bad http status:%v", resp.Status)
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}

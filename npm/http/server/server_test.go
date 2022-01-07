@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,7 +35,7 @@ func TestGetNPMCacheHandler(t *testing.T) {
 			status, http.StatusOK)
 	}
 
-	byteArray, err := ioutil.ReadAll(rr.Body)
+	byteArray, err := io.ReadAll(rr.Body)
 	if err != nil {
 		t.Errorf("failed to read response's data : %w", err)
 	}

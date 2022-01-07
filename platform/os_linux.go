@@ -6,7 +6,6 @@ package platform
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -22,6 +21,10 @@ const (
 	CNIRuntimePath = "/var/run/"
 	// CNILockPath is the path where CNI lock files are stored.
 	CNILockPath = "/var/run/azure-vnet/"
+	// CNIStateFilePath is the path to the CNI state file
+	CNIStateFilePath = "/var/run/azure-vnet.json"
+	// CNIBinaryPath is the path to the CNI binary
+	CNIBinaryPath = "/opt/cni/bin/azure-vnet"
 	// CNSRuntimePath is the path where CNS state files are stored.
 	CNSRuntimePath = "/var/run/"
 	// CNI runtime path on a Kubernetes cluster
@@ -38,7 +41,7 @@ const (
 
 // GetOSInfo returns OS version information.
 func GetOSInfo() string {
-	info, err := ioutil.ReadFile("/proc/version")
+	info, err := os.ReadFile("/proc/version")
 	if err != nil {
 		return "unknown"
 	}

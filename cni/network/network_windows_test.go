@@ -1,18 +1,20 @@
-//+build windows
+//go:build windows
+// +build windows
 
 package network
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/cns"
 	"net"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/containernetworking/cni/pkg/skel"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +51,7 @@ func TestAddWithRunTimeNetPolicies(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := addIPV6EndpointPolicy(tt.nwInfo)
+			p, err := getIPV6EndpointPolicy(&tt.nwInfo)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -238,6 +240,60 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 			require.Condition(t, assert.Comparison(func() bool {
 				return len(policies) > 0 && policies[0].Type == policy.EndpointPolicy
 			}))
+		})
+	}
+}
+
+func TestDSRPolciy(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      PolicyArgs
+		wantCount int
+	}{
+		{
+			name: "test enable dsr policy",
+			args: PolicyArgs{
+				nwCfg: &cni.NetworkConfig{
+					WindowsSettings: cni.WindowsSettings{
+						EnableLoopbackDSR: true,
+					},
+				},
+				nwInfo: &network.NetworkInfo{},
+				ipconfigs: []*cniTypesCurr.IPConfig{
+					{
+						Address: func() net.IPNet {
+							_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
+							return *ipnet
+						}(),
+					},
+				},
+			},
+			wantCount: 1,
+		},
+		{
+			name: "test disable dsr policy",
+			args: PolicyArgs{
+				nwCfg:  &cni.NetworkConfig{},
+				nwInfo: &network.NetworkInfo{},
+				ipconfigs: []*cniTypesCurr.IPConfig{
+					{
+						Address: func() net.IPNet {
+							_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
+							return *ipnet
+						}(),
+					},
+				},
+			},
+			wantCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			policies, err := getEndpointPolicies(tt.args)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantCount, len(policies))
 		})
 	}
 }

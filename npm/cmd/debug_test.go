@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,7 +51,7 @@ func testCommand(t *testing.T, tests []*testCases) {
 
 			require.NoError(t, err)
 
-			out, err := ioutil.ReadAll(b)
+			out, err := io.ReadAll(b)
 			require.NoError(t, err)
 			if tt.wantErr {
 				require.NotEmpty(t, out)

@@ -17,7 +17,8 @@ var DefaultConfig = Config{
 		EnablePrometheusMetrics: true,
 		EnablePprof:             true,
 		EnableHTTPDebugAPI:      true,
-		EnableV2Controllers:     false,
+		EnableV2NPM:             false,
+		PlaceAzureChainFirst:    false,
 	},
 }
 
@@ -32,5 +33,10 @@ type Toggles struct {
 	EnablePrometheusMetrics bool
 	EnablePprof             bool
 	EnableHTTPDebugAPI      bool
-	EnableV2Controllers     bool
+	EnableV2NPM             bool
+	PlaceAzureChainFirst    bool
+}
+
+type Flags struct {
+	KubeConfigPath string `json:"KubeConfigPath"`
 }

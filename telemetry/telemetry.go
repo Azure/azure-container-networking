@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 )
@@ -112,6 +113,7 @@ func (reportMgr *ReportManager) SendReport(tb *TelemetryBuffer) error {
 		if err == nil {
 			// If write fails, try to re-establish connections as server/client
 			if _, err = tb.Write(report); err != nil {
+				log.Printf("telemetry write failed:%v", err)
 				tb.Cancel()
 			}
 		}

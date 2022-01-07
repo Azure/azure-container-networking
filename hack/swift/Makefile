@@ -23,6 +23,9 @@ help:  ## Display this help
 
 ##@ Utilities
 
+azlogin:
+	@$(AZCLI) login
+
 azcfg:
 	@$(AZCLI) account set -s $(SUB)
 	@$(AZCLI) group create --location $(REGION) --name $(GROUP)

@@ -1,0 +1,63 @@
+{
+  "apiVersion": "vlabs",
+  "properties": {
+    "featureFlags": {
+      "enableIPv6DualStack": true
+    },
+    "orchestratorProfile": {
+      "orchestratorType": "Kubernetes",
+      "orchestratorRelease": "1.21",
+      "kubernetesConfig": {
+        "loadBalancerSku": "Standard",
+        "excludeMasterFromStandardLB": true,
+        "clusterSubnet": "10.240.0.0/12,fc00::/48",
+        "serviceCidr": "10.0.0.0/16,fd00::/108",
+        "dnsServiceIP": "10.0.0.10",
+        "networkPlugin": "azure",
+        "networkMode": "transparent",
+        "azureCNIVersion": "",
+        "azureCNIURLLinux": "",
+        "apiServerConfig": {
+          "--feature-gates": "IPv6DualStack=true",
+          "--tls-min-version": "VersionTLS12",
+          "--tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
+        },
+        "kubeletConfig": {
+          "--feature-gates": "IPv6DualStack=true"
+        },
+        "controllerManagerConfig": {
+          "--feature-gates": "IPv6DualStack=true"
+        }
+      }
+    },
+    "masterProfile": {
+      "count": 1,
+      "dnsPrefix": "duale2e",
+      "vmSize": "Standard_D2_v2"
+    },
+    "agentPoolProfiles": [
+      {
+        "name": "agentdualp1",
+        "count": 2,
+        "vmSize": "Standard_D2_v2",
+        "availabilityProfile": "AvailabilitySet",
+        "osType": "Linux",
+        "distro": "aks-ubuntu-18.04"
+      }
+    ],
+    "linuxProfile": {
+      "adminUsername": "azureuser",
+      "ssh": {
+        "publicKeys": [
+          {
+            "keyData":""
+          }
+        ]
+      }
+    },
+    "servicePrincipalProfile": {
+      "clientId":"",
+      "secret":""
+    }
+  }
+}

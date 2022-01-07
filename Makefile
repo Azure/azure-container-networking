@@ -113,7 +113,7 @@ ifeq ($(GOOS),linux)
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images: azure-npm-image azure-cns-image
 else
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images:
 	@echo "Nothing to build. Skip."
 endif
@@ -237,6 +237,23 @@ ifeq ($(GOOS),linux)
 	echo $(AZURE_NPM_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
 endif
 
+
+# Build the Azure NPM image, because the buildx command breaks other runtimes
+.PHONY: azure-npm-image-classic
+azure-npm-image-classic: azure-npm
+ifeq ($(GOOS),linux)
+	mkdir -p $(IMAGE_DIR)
+	docker build \
+	--no-cache \
+	-f npm/Dockerfile \
+	-t $(AZURE_NPM_IMAGE):$(VERSION) \
+	--build-arg VERSION=$(VERSION) \
+	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
+	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
+	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
+	.
+endif
+
 # Build the Azure CNS image
 .PHONY: azure-cns-image
 azure-cns-image:
@@ -356,7 +373,7 @@ lint-old: $(GOLANGCI_LINT) ## Fast lint including previous issues
 
 FMT_PKG ?= cni cns npm
 
-fmt format: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
+fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
 	$(GOFUMPT) -s -w $(FMT_PKG)
 
 COVER_PKG ?= .
@@ -383,6 +400,16 @@ test-cyclonus:
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
 
+##@ Utilities
+
+$(REPO_ROOT)/.git/hooks/pre-push:
+	@ln -s $(REPO_ROOT)/.hooks/pre-push $(REPO_ROOT)/.git/hooks/
+	@echo installed pre-push hook
+
+install-hooks: $(REPO_ROOT)/.git/hooks/pre-push ## installs git hooks
+
+setup: tools install-hooks ## performs common required repo setup
+
 version: ## prints the version
 	@echo $(VERSION)
 
@@ -398,6 +425,9 @@ $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
+protoc: 
+	source ${REPO_ROOT}/scripts/install-protoc.sh
+
 $(GOCOV): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov github.com/axw/gocov/gocov
 
@@ -411,7 +441,7 @@ gocov-xml: $(GOCOV_XML) ## Build gocov-xml
 $(GOFUMPT): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gofumpt mvdan.cc/gofumpt
 
-gofmt gofumpt: $(GOFUMPT) ## Build gofumpt
+gofumpt: $(GOFUMPT) ## Build gofumpt
 
 $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
 	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
@@ -428,4 +458,7 @@ $(MOCKGEN): $(TOOLS_DIR)/go.mod
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
-tools: gocov gocov-xml go-junit-report golangci-lint gofmt ## Build bins for build tools
+clean-tools: 
+	rm -r build/tools/bin
+
+tools: gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools

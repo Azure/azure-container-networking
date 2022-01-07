@@ -11,7 +11,7 @@ import (
 )
 
 type MonitorFake struct {
-	IPsNotInUseCount  int
+	IPsNotInUseCount  int64
 	NodeNetworkConfig *v1alpha.NodeNetworkConfig
 }
 
@@ -29,8 +29,8 @@ func (*MonitorFake) Reconcile() error {
 
 func (f *MonitorFake) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 	return cns.IpamPoolMonitorStateSnapshot{
-		MaximumFreeIps:           int(float64(f.NodeNetworkConfig.Status.Scaler.BatchSize) * (float64(f.NodeNetworkConfig.Status.Scaler.ReleaseThresholdPercent) / 100)), //nolint:gomnd // it's a percent
-		MinimumFreeIps:           int(float64(f.NodeNetworkConfig.Status.Scaler.BatchSize) * (float64(f.NodeNetworkConfig.Status.Scaler.RequestThresholdPercent) / 100)), //nolint:gomnd // it's a percent
+		MaximumFreeIps:           int64(float64(f.NodeNetworkConfig.Status.Scaler.BatchSize) * (float64(f.NodeNetworkConfig.Status.Scaler.ReleaseThresholdPercent) / 100)), //nolint:gomnd // it's a percent
+		MinimumFreeIps:           int64(float64(f.NodeNetworkConfig.Status.Scaler.BatchSize) * (float64(f.NodeNetworkConfig.Status.Scaler.RequestThresholdPercent) / 100)), //nolint:gomnd // it's a percent
 		UpdatingIpsNotInUseCount: f.IPsNotInUseCount,
 		CachedNNC:                *f.NodeNetworkConfig,
 	}

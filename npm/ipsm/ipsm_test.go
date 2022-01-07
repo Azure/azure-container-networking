@@ -528,6 +528,7 @@ func TestDestroyNpmIpsets(t *testing.T) {
 	calls := []testutils.TestCmd{
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSet1Name), "nethash"}},
 		{Cmd: []string{"ipset", "-N", "-exist", util.GetHashedName(testSet2Name), "nethash"}},
+		{Cmd: []string{"ipset", "-A", "-exist", util.GetHashedName(testSet1Name), "1.2.3.4"}},
 		{Cmd: []string{"ipset", "list"}, Stdout: ipsetListStdout},
 		{Cmd: []string{"ipset", "-F", "-exist", testSet1Name}},
 		{Cmd: []string{"ipset", "-F", "-exist", testSet2Name}},
@@ -552,6 +553,13 @@ func TestDestroyNpmIpsets(t *testing.T) {
 	err = ipsMgr.createSet(testSet2Name, []string{"nethash"})
 	if err != nil {
 		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.createSet")
+		t.Errorf(err.Error())
+	}
+
+	// expect prometheus to add this entry, but remove it when destroying npm sets
+	err = ipsMgr.AddToSet(testSet1Name, "1.2.3.4", util.IpsetNetHashFlag, "")
+	if err != nil {
+		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.addToSet")
 		t.Errorf(err.Error())
 	}
 

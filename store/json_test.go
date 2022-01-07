@@ -5,9 +5,12 @@ package store
 
 import (
 	"os"
-	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/Azure/azure-container-networking/processlock"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -46,7 +49,7 @@ func TestKeyValuePairsAreReinstantiatedFromJSONFile(t *testing.T) {
 	defer os.Remove(testFileName)
 
 	// Create the store, initialized using the JSON file.
-	kvs, err := NewJsonFileStore(testFileName)
+	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false))
 	if err != nil {
 		t.Fatalf("Failed to create KeyValueStore %v\n", err)
 	}
@@ -71,7 +74,7 @@ func TestKeyValuePairsArePersistedToJSONFile(t *testing.T) {
 	var actualPair string
 
 	// Create the store.
-	kvs, err := NewJsonFileStore(testFileName)
+	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false))
 	if err != nil {
 		t.Fatalf("Failed to create KeyValueStore %v\n", err)
 	}
@@ -117,7 +120,7 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 	var readValue testType1
 
 	// Create the store.
-	kvs, err := NewJsonFileStore(testFileName)
+	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false))
 	if err != nil {
 		t.Fatalf("Failed to create KeyValueStore %v\n", err)
 	}
@@ -150,93 +153,70 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 	os.Remove(testFileName)
 }
 
-// Tests that locking a store gives the caller exclusive access.
-func TestLockingStoreGivesExclusiveAccess(t *testing.T) {
-	anyValue := testType1{"test", 42}
-
-	// Create the store.
-	kvs, err := NewJsonFileStore(testFileName)
-	if err != nil {
-		t.Fatalf("Failed to create first store: %v", err)
-	}
-
-	// Lock for exclusive access.
-	err = kvs.Lock(false)
-	if err != nil {
-		t.Errorf("Failed to lock store: %v", err)
-	}
-
-	// Write a key value pair.
-	err = kvs.Write(testKey1, &anyValue)
-	if err != nil {
-		t.Fatalf("Failed to write to store: %v", err)
-	}
-
-	// Create a second store pointing to the same file.
-	kvs2, err := NewJsonFileStore(testFileName)
-	if err != nil {
-		t.Fatalf("Failed to create second store: %v", err)
-	}
-
-	// Try locking the second store.
-	// This should fail because the first store has exclusive access.
-	err = kvs2.Lock(false)
-	if err == nil {
-		t.Errorf("Locking an already-locked store succeeded: %v", err)
-	}
-
-	// Unlock the first store.
-	err = kvs.Unlock(false)
-	if err != nil {
-		t.Errorf("Failed to unlock first store: %v", err)
-	}
-
-	// Try locking the second store again.
-	// This should succeed because the first store revoked exclusive access.
-	err = kvs2.Lock(false)
-	if err != nil {
-		t.Errorf("Failed to re-lock an unlocked store: %v", err)
-	}
-
-	// Unlock the second store.
-	err = kvs2.Unlock(false)
-	if err != nil {
-		t.Errorf("Failed to unlock second store: %v", err)
-	}
-
-	// Cleanup.
-	os.Remove(testFileName)
-}
-
 // test case for testing newjsonfilestore idempotent
 func TestNewJsonFileStoreIdempotent(t *testing.T) {
-	_, err := NewJsonFileStore(testLockFileName)
+	_, err := NewJsonFileStore(testLockFileName, processlock.NewMockFileLock(false))
 	if err != nil {
 		t.Errorf("Failed to initialize store: %v", err)
 	}
 
-	_, err = NewJsonFileStore(testLockFileName)
+	_, err = NewJsonFileStore(testLockFileName, processlock.NewMockFileLock(false))
 	if err != nil {
 		t.Errorf("Failed to initialize same store second time: %v", err)
 	}
 }
 
-// test case for checking if lockfilepath is expected
-func TestLockFilePath(t *testing.T) {
-	store, err := NewJsonFileStore(testLockFileName)
-	if err != nil {
-		t.Errorf("Failed to initialize store: %v", err)
+func TestLock(t *testing.T) {
+	tests := []struct {
+		name       string
+		store      KeyValueStore
+		timeoutms  int
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "Acquire Lock happy path",
+			store: func() KeyValueStore {
+				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false))
+				return st
+			}(),
+			timeoutms: 10000,
+			wantErr:   false,
+		},
+		{
+			name: "Acquire Lock Fail",
+			store: func() KeyValueStore {
+				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(true))
+				return st
+			}(),
+			timeoutms:  10000,
+			wantErr:    true,
+			wantErrMsg: processlock.ErrMockFileLock.Error(),
+		},
+		{
+			name: "Acquire Lock timeout error",
+			store: func() KeyValueStore {
+				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false))
+				return st
+			}(),
+			timeoutms:  0,
+			wantErr:    true,
+			wantErrMsg: ErrTimeoutLockingStore.Error(),
+		},
 	}
 
-	lockFileName := store.GetLockFileName()
-
-	if runtime.GOOS == "linux" {
-		if lockFileName != "/var/run/azure-vnet/"+testLockFileName+".lock" {
-			t.Errorf("Not expected file lock name: %v", lockFileName)
-		}
-	} else {
-		if lockFileName != testLockFileName+".lock" {
-			t.Errorf("Not expected lockfilename: %v", lockFileName)
-		}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.store.Lock(time.Duration(tt.timeoutms) * time.Millisecond)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v but got:%v", tt.wantErrMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+				err = tt.store.Unlock()
+				require.NoError(t, err)
+			}
+		})
 	}
 }

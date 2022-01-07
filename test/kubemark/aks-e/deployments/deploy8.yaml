@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploy8
+  namespace: default
+  labels:
+    app: deploy8
+spec:
+  replicas: 500
+  selector:
+    matchLabels:
+      app: deploy8
+  template:
+    metadata:
+      labels:
+        role: deploy8
+        app: deploy8
+    spec:
+      nodeSelector:
+        hollow-node: ""
+      containers:
+      - name: deploy8
+        command: [ "sleep" ]
+        args: [ "infinity" ]
+        image: acnpublic.azurecr.io/toolbox:latest
+        imagePullPolicy: IfNotPresent

@@ -26,6 +26,12 @@ const (
 	// CNILockPath is the path where CNI lock files are stored.
 	CNILockPath = ""
 
+	// CNIStateFilePath is the path to the CNI state file
+	CNIStateFilePath = "C:\\k\\azure-vnet.json"
+
+	// CNIBinaryPath is the path to the CNI binary
+	CNIBinaryPath = "C:\\k\\azurecni\\bin\\azure-vnet.exe"
+
 	// CNI runtime path on a Kubernetes cluster
 	K8SCNIRuntimePath = "C:\\k\\azurecni\\bin"
 
