@@ -42,13 +42,13 @@ func NewClient(c *rest.Config) (*Client, error) {
 	opts := ctrlcli.Options{
 		Scheme: Scheme,
 	}
-	nnnCli, err := ctrlcli.New(c, opts)
+	nncCli, err := ctrlcli.New(c, opts)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init nnc client")
 	}
 	return &Client{
 		crdcli: crdCli,
-		nnccli: nnnCli,
+		nnccli: nncCli,
 	}, nil
 }
 

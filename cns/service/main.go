@@ -46,8 +46,10 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -863,13 +865,12 @@ func initCNS(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncSt
 	}
 	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
 	if err != nil {
-		return errors.Wrap(err, "err in CNS initialization")
+		return errors.Wrap(err, "provider failed to provide PodInfoByIP")
 	}
 
-	// errors.Wrap provides additional context, and return nil if the err input arg is nil
 	// Call cnsclient init cns passing those two things.
 	err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc))
-	return errors.Wrap(err, "err in CNS reconciliation")
+	return errors.Wrap(err, "failed to reconcile NC state")
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
@@ -945,6 +946,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			},
 		},
 	})
+
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme:             nodenetworkconfig.Scheme,
 		MetricsBindAddress: cnsconfig.MetricsBindAddress,
@@ -954,9 +956,23 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err != nil {
 		return errors.Wrap(err, "failed to create manager")
 	}
+
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to build clientset")
+	}
+
+	// get our Node so that we can xref it against the NodeNetworkConfig's to make sure that the
+	// NNC is not stale and represents the Node we're running on.
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node %s", nodeName)
+	}
+
 	reconciler := kubecontroller.NewReconciler(nnccli, httpRestServiceImplementation, httpRestServiceImplementation.IPAMPoolMonitor)
-	if err := reconciler.SetupWithManager(manager, nodeName); err != nil {
-		return err
+	// pass Node to the Reconciler for Controller xref
+	if err := reconciler.SetupWithManager(manager, node); err != nil {
+		return errors.Wrapf(err, "failed to setup reconciler with manager")
 	}
 
 	// Start the RequestController which starts the reconcile loop

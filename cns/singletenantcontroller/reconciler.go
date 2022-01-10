@@ -9,7 +9,9 @@ import (
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -89,7 +91,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 }
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, nodeName string) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node) error {
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.NodeNetworkConfig{}).
 		WithEventFilter(predicate.Funcs{
@@ -99,8 +101,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, nodeName string) error {
 			},
 		}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			// match on node name for all other events.
-			return nodeName == object.GetName()
+			// match on node controller ref for all other events.
+			return metav1.IsControlledBy(object, node)
 		})).
 		WithEventFilter(predicate.Funcs{
 			// check that the generation is the same - status changes don't update generation.a
