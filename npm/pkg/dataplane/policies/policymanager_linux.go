@@ -20,8 +20,13 @@ const (
 
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
 	// 1. Add rules for the network policies and activate NPM (if necessary).
-	chainsToCreate := allChainNames([]*NPMNetworkPolicy{networkPolicy})
+	chainsToCreate := chainNames([]*NPMNetworkPolicy{networkPolicy})
 	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, []*NPMNetworkPolicy{networkPolicy})
+
+	// Lock stale chains so we don't delete chainsToCreate
+	pMgr.staleChains.Lock()
+	defer pMgr.staleChains.Unlock()
+
 	err := restore(creator)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
@@ -43,7 +48,7 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	}
 
 	// 2. Flush the policy chains and deactivate NPM (if necessary).
-	chainsToDelete := allChainNames([]*NPMNetworkPolicy{networkPolicy})
+	chainsToDelete := chainNames([]*NPMNetworkPolicy{networkPolicy})
 	creator := pMgr.creatorForRemovingPolicies(chainsToDelete)
 	restoreErr := restore(creator)
 	if restoreErr != nil {
@@ -51,6 +56,9 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	}
 
 	// 3. Delete policy chains in the background.
+	// lock here since stale chains are only affected if we successfully remove policies
+	pMgr.staleChains.Lock()
+	defer pMgr.staleChains.Unlock()
 	for _, chain := range chainsToDelete {
 		pMgr.staleChains.add(chain)
 	}
@@ -80,8 +88,8 @@ func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *i
 	return creator
 }
 
-// returns all chain names (ingress and egress policy chain names)
-func allChainNames(networkPolicies []*NPMNetworkPolicy) []string {
+// returns ingress and egress chain names for the policies
+func chainNames(networkPolicies []*NPMNetworkPolicy) []string {
 	chainNames := make([]string, 0)
 	for _, networkPolicy := range networkPolicies {
 		hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()

@@ -209,7 +209,7 @@ func TestCreatorForAddPolicies(t *testing.T) {
 
 	// 1. test with activation
 	policies := []*NPMNetworkPolicy{allTestNetworkPolicies[0]}
-	creator := pMgr.creatorForNewNetworkPolicies(allChainNames(policies), policies)
+	creator := pMgr.creatorForNewNetworkPolicies(chainNames(policies), policies)
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
@@ -236,7 +236,7 @@ func TestCreatorForAddPolicies(t *testing.T) {
 	// 2. test without activation
 	// add a policy to the cache so that we don't activate (the cache doesn't impact creatorForNewNetworkPolicies)
 	require.NoError(t, pMgr.AddPolicy(allTestNetworkPolicies[0], nil))
-	creator = pMgr.creatorForNewNetworkPolicies(allChainNames(allTestNetworkPolicies), allTestNetworkPolicies)
+	creator = pMgr.creatorForNewNetworkPolicies(chainNames(allTestNetworkPolicies), allTestNetworkPolicies)
 	actualLines = strings.Split(creator.ToString(), "\n")
 	expectedLines = []string{
 		"*filter",
@@ -272,7 +272,7 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 
 	// 1. test without deactivation
 	// hack: the cache is empty (and len(cache) != len(allTestNetworkPolicies)), so shouldDeactivate will be false
-	creator := pMgr.creatorForRemovingPolicies(allChainNames(allTestNetworkPolicies))
+	creator := pMgr.creatorForRemovingPolicies(chainNames(allTestNetworkPolicies))
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
@@ -289,7 +289,7 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	// add to the cache so that we deactivate
 	policy := TestNetworkPolicies[0]
 	require.NoError(t, pMgr.AddPolicy(policy, nil))
-	creator = pMgr.creatorForRemovingPolicies(allChainNames([]*NPMNetworkPolicy{policy}))
+	creator = pMgr.creatorForRemovingPolicies(chainNames([]*NPMNetworkPolicy{policy}))
 	actualLines = strings.Split(creator.ToString(), "\n")
 	expectedLines = []string{
 		"*filter",

@@ -2,7 +2,6 @@ package policies
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -37,7 +36,6 @@ type PolicyManager struct {
 	ioShim      *common.IOShim
 	staleChains *staleChains
 	*PolicyManagerCfg
-	sync.Mutex
 }
 
 func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManager {
@@ -60,7 +58,7 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 
 func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 	go func() {
-		ticker := time.NewTicker(time.Minute * time.Duration(reconcileTimeInMinutes))
+		ticker := time.NewTicker(time.Second * time.Duration(reconcileTimeInMinutes))
 		defer ticker.Stop()
 
 		for {

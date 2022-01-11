@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
@@ -61,10 +62,13 @@ var (
 
 type staleChains struct {
 	chainsToCleanup map[string]struct{}
+	sync.Mutex
 }
 
 func newStaleChains() *staleChains {
-	return &staleChains{make(map[string]struct{})}
+	return &staleChains{
+		chainsToCleanup: make(map[string]struct{}),
+	}
 }
 
 // Adds the chain if it isn't one of the iptablesAzureChains.
@@ -173,6 +177,9 @@ func (pMgr *PolicyManager) reconcile() {
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
 		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
 	}
+
+	pMgr.staleChains.Lock()
+	defer pMgr.staleChains.Unlock()
 	staleChains := pMgr.staleChains.emptyAndGetAll()
 	klog.Infof("cleaning up these stale chains: %+v", staleChains)
 	if err := pMgr.cleanupChains(staleChains); err != nil {
@@ -182,7 +189,7 @@ func (pMgr *PolicyManager) reconcile() {
 
 // cleanupChains deletes all the chains in the given list.
 // If a chain fails to delete and it isn't one of the iptablesAzureChains, then it is added to the staleChains.
-// have to use slice argument for deterministic behavior for ioshim in UTs
+// This is a separate function for with a slice argument so that UTs can have deterministic behavior for ioshim.
 func (pMgr *PolicyManager) cleanupChains(chains []string) error {
 	var aggregateError error
 	for _, chain := range chains {
@@ -232,7 +239,6 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 // Writes the restore file for bootup, and marks the following as stale: deprecated chains and old v2 policy chains.
 // This is a separate function to help with UTs.
 func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *ioutil.FileCreator {
-	pMgr.staleChains.empty()
 	chainsToCreate := make([]string, 0, len(iptablesAzureChains))
 	for _, chain := range iptablesAzureChains {
 		_, exists := currentChains[chain]
@@ -244,11 +250,14 @@ func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *
 	// Step 2.1 in bootup() comment: cleanup old NPM chains, and configure base chains and their rules
 	// To leave NPM deactivated, don't specify any rules for AZURE-NPM chain.
 	creator := pMgr.newCreatorWithChains(chainsToCreate)
+	pMgr.staleChains.Lock()
+	pMgr.staleChains.empty()
 	for chain := range currentChains {
 		creator.AddLine("", nil, fmt.Sprintf("-F %s", chain))
 		// Step 2.2 in bootup() comment: delete deprecated chains and old v2 policy chains in the background
 		pMgr.staleChains.add(chain) // won't add base chains
 	}
+	pMgr.staleChains.Unlock()
 
 	// add AZURE-NPM-INGRESS chain rules
 	ingressDropSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureIngressChain, util.IptablesJumpFlag, util.IptablesDrop}

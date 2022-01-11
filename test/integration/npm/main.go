@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	MaxSleepTime = 2
-	includeLists = false
+	MaxSleepTime           = 2
+	finalWaitTimeInMinutes = 10
+	includeLists           = false
 )
 
 var (
@@ -164,7 +165,7 @@ func main() {
 	fmt.Println("AZURE-NPM should have rules now")
 
 	fmt.Println("waiting for reconcile to finish (will be a while if you don't update the reconcile time in policymanager.go")
-	time.Sleep(10 * time.Minute)
+	time.Sleep(finalWaitTimeInMinutes * time.Minute)
 }
 
 func panicOnError(err error) {
