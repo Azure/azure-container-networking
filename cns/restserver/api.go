@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -1072,14 +1073,32 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, numOfCPUCoresResp, resp.ReturnCode, err)
 }
 
-func getInterfaceIdFromCreateNetworkContainerURL(
-	createNetworkContainerURL string) string {
-	return strings.Split(strings.Split(createNetworkContainerURL, "interfaces/")[1], "/")[0]
-}
+func getAuthTokenAndInterfaceIdFromNcURL(networkContainerURL string) (string, string, error) {
 
-func getAuthTokenFromCreateNetworkContainerURL(
-	createNetworkContainerURL string) string {
-	return strings.Split(strings.Split(createNetworkContainerURL, "authenticationToken/")[1], "/")[0]
+	ncUrl, err := url.Parse(networkContainerURL)
+	if err != nil {
+		return "", "", err
+	}
+
+	queryParams := ncUrl.Query()
+
+	// current format of create network url has a path after a query parameter "type"
+	// doing this parsing due to this structure
+	typeQueryParamVal := queryParams.Get("type")
+	if typeQueryParamVal == "" {
+		return "", "", fmt.Errorf("Invalid create container url format, no type query param")
+	}
+
+	// .{0,128} gets from zero to 128 characters of any kind
+	// ()? is optional
+	ncRegex := regexp.MustCompile(`NetworkManagement/interfaces/(.{0,128})/networkContainers/(.{0,128})/authenticationToken/(.{0,128})/api-version/1(/method/DELETE)?`)
+	matches := ncRegex.FindStringSubmatch(typeQueryParamVal)
+
+	if len(matches) != 5 {
+		return "", "", fmt.Errorf("Invalid network container url format")
+	}
+
+	return matches[1], matches[3], err
 }
 
 func extractHostFromJoinNetworkURL(urlToParse string) string {
@@ -1109,6 +1128,8 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 	err = service.Listener.Decode(w, r, &req)
 
+	creteNcUrlCopy := req.CreateNetworkContainerURL
+
 	// reqCopy creates a copy of incoming request. It doesn't copy the authentication token info
 	// to avoid logging it.
 	reqCopy := cns.PublishNetworkContainerRequest{
@@ -1119,14 +1140,24 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	}
 
 	logger.Request(service.Name, &reqCopy, err)
+
+	// TODO - refactor this method for better error handling
 	if err != nil {
+		return
+	}
+
+	var associatedInterfaceID, authToken string
+	associatedInterfaceID, authToken, err = getAuthTokenAndInterfaceIdFromNcURL(creteNcUrlCopy)
+	if err != nil {
+		logger.Errorf("[Azure-CNS] %+v", err)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	switch r.Method {
 	case "POST":
 		// Join the network
-		publishResponse, publishError, err = service.joinNetwork(req.NetworkID, req.JoinNetworkURL)
+		publishResponse, publishError, err = service.joinNetwork(req.NetworkID)
 		if err == nil {
 			isNetworkJoined = true
 		} else {
@@ -1138,7 +1169,8 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			// Publish Network Container
 			publishResponse, publishError = nmagent.PublishNetworkContainer(
 				req.NetworkContainerID,
-				req.CreateNetworkContainerURL,
+				associatedInterfaceID,
+				authToken,
 				req.CreateNetworkContainerRequestBody)
 			if publishError != nil || publishResponse.StatusCode != http.StatusOK {
 				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
@@ -1148,19 +1180,16 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			defer publishResponse.Body.Close()
 		}
 
-		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
-		primaryInterfaceIdentifier := getInterfaceIdFromCreateNetworkContainerURL(req.CreateNetworkContainerURL)
-		authToken := getAuthTokenFromCreateNetworkContainerURL(req.CreateNetworkContainerURL)
-
 		// we attempt to extract the wireserver IP to use from the request, otherwise default to the well-known IP.
 		hostIP := extractHostFromJoinNetworkURL(req.JoinNetworkURL)
 		if hostIP == "" {
 			hostIP = nmagent.WireserverIP
 		}
 
+		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
 		ncGetVersionURL := fmt.Sprintf(nmagent.GetNetworkContainerVersionURLFmt,
 			hostIP,
-			primaryInterfaceIdentifier,
+			associatedInterfaceID,
 			req.NetworkContainerID,
 			authToken)
 		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, ncGetVersionURL)
@@ -1219,6 +1248,8 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	err = service.Listener.Decode(w, r, &req)
 
+	deleteNcUrlCopy := req.DeleteNetworkContainerURL
+
 	// reqCopy creates a copy of incoming request. It doesn't copy the authentication token info
 	// to avoid logging it.
 	reqCopy := cns.UnpublishNetworkContainerRequest{
@@ -1233,12 +1264,20 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		return
 	}
 
+	var associatedInterfaceID, authToken string
+	associatedInterfaceID, authToken, err = getAuthTokenAndInterfaceIdFromNcURL(deleteNcUrlCopy)
+	if err != nil {
+		logger.Errorf("[Azure-CNS] %+v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
 	switch r.Method {
 	case "POST":
 		// Join Network if not joined already
 		isNetworkJoined = service.isNetworkJoined(req.NetworkID)
 		if !isNetworkJoined {
-			unpublishResponse, unpublishError, err = service.joinNetwork(req.NetworkID, req.JoinNetworkURL)
+			unpublishResponse, unpublishError, err = service.joinNetwork(req.NetworkID)
 			if err == nil {
 				isNetworkJoined = true
 			} else {
@@ -1251,7 +1290,8 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			// Unpublish Network Container
 			unpublishResponse, unpublishError = nmagent.UnpublishNetworkContainer(
 				req.NetworkContainerID,
-				req.DeleteNetworkContainerURL)
+				associatedInterfaceID,
+				authToken)
 			if unpublishError != nil || unpublishResponse.StatusCode != http.StatusOK {
 				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
 				returnCode = types.NetworkContainerUnpublishFailed
