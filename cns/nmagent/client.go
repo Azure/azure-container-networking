@@ -20,6 +20,9 @@ const (
 	GetNmAgentSupportedApiURLFmt       = "http://%s/machine/plugins/?comp=nmagent&type=GetSupportedApis"
 	GetNetworkContainerVersionURLFmt   = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/version/authenticationToken/%s/api-version/1"
 	GetNcVersionListWithOutTokenURLFmt = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/%s"
+	JoinNetworkURLFmt                  = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/%s/api-version/1"
+	PutNetworkContainerUrlFmt          = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/1"
+	DeleteNetworkContainerURLFmt       = "http://%s/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/%s/networkContainers/%s/authenticationToken/%s/api-version/1/method/DELETE"
 )
 
 // WireServerIP - wire server ip
@@ -65,12 +68,18 @@ func NewClient(url string) (*Client, error) {
 }
 
 // JoinNetwork joins the given network
-func JoinNetwork(networkID, joinNetworkURL string) (*http.Response, error) {
+func JoinNetwork(networkID string) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] JoinNetwork: %s", networkID)
 
 	// Empty body is required as wireserver cannot handle a post without the body.
 	var body bytes.Buffer
 	json.NewEncoder(&body).Encode("")
+
+	joinNetworkURL := fmt.Sprintf(
+		JoinNetworkURLFmt,
+		WireserverIP,
+		networkID)
+
 	response, err := common.GetHttpClient().Post(joinNetworkURL, "application/json", &body)
 
 	if err == nil && response.StatusCode == http.StatusOK {
@@ -84,11 +93,18 @@ func JoinNetwork(networkID, joinNetworkURL string) (*http.Response, error) {
 }
 
 // PublishNetworkContainer publishes given network container
-func PublishNetworkContainer(networkContainerID, createNetworkContainerURL string, requestBodyData []byte) (*http.Response, error) {
+func PublishNetworkContainer(networkContainerID, associatedInterfaceID, accessToken string, requestBodyData []byte) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] PublishNetworkContainer NC: %s", networkContainerID)
 
+	createNCURL := fmt.Sprintf(
+		PutNetworkContainerUrlFmt,
+		WireserverIP,
+		associatedInterfaceID,
+		networkContainerID,
+		accessToken)
+
 	requestBody := bytes.NewBuffer(requestBodyData)
-	response, err := common.GetHttpClient().Post(createNetworkContainerURL, "application/json", requestBody)
+	response, err := common.GetHttpClient().Post(createNCURL, "application/json", requestBody)
 
 	logger.Printf("[NMAgentClient][Response] Publish NC: %s. Response: %+v. Error: %v",
 		networkContainerID, response, err)
@@ -97,13 +113,20 @@ func PublishNetworkContainer(networkContainerID, createNetworkContainerURL strin
 }
 
 // UnpublishNetworkContainer unpublishes given network container
-func UnpublishNetworkContainer(networkContainerID, deleteNetworkContainerURL string) (*http.Response, error) {
+func UnpublishNetworkContainer(networkContainerID, associatedInterfaceID, accessToken string) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] UnpublishNetworkContainer NC: %s", networkContainerID)
+
+	deleteNCURL := fmt.Sprintf(
+		DeleteNetworkContainerURLFmt,
+		WireserverIP,
+		associatedInterfaceID,
+		networkContainerID,
+		accessToken)
 
 	// Empty body is required as wireserver cannot handle a post without the body.
 	var body bytes.Buffer
 	json.NewEncoder(&body).Encode("")
-	response, err := common.GetHttpClient().Post(deleteNetworkContainerURL, "application/json", &body)
+	response, err := common.GetHttpClient().Post(deleteNCURL, "application/json", &body)
 
 	logger.Printf("[NMAgentClient][Response] Unpublish NC: %s. Response: %+v. Error: %v",
 		networkContainerID, response, err)

@@ -515,25 +515,60 @@ func createNC(
 		t.Fatal(err)
 	}
 
-	publishNCViaCNS(t, params.vnetID, params.ncID)
+	createNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/"
+
+	err := publishNCViaCNS(t, params.vnetID, params.ncID, createNetworkContainerURL, false)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestPublishNCViaCNS(t *testing.T) {
 	fmt.Println("Test: publishNetworkContainer")
-	publishNCViaCNS(t, "vnet1", "ethWebApp")
+
+	createNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
+	err := publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	createNetworkContainerURL = "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
+		"e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6" +
+		"/api-version/1"
+
+	err = publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, true)
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	createNetworkContainerURL = "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
+		"e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6" +
+		"/api-version/1"
+
+
+	err = publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, true)
+	if err == nil {
+		t.Fatal(err)
+	}
+
+
 }
 
 func publishNCViaCNS(t *testing.T,
-	networkID string,
-	networkContainerID string) {
+	networkID,
+	networkContainerID,
+	createNetworkContainerURL string,
+	expectError bool) error {
 	var (
 		body bytes.Buffer
 		resp cns.PublishNetworkContainerResponse
 	)
 
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
-	createNetworkContainerURL := "http://" + nmagentEndpoint +
-		"/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version"
 
 	publishNCRequest := &cns.PublishNetworkContainerRequest{
 		NetworkID:                         networkID,
@@ -546,19 +581,22 @@ func publishNCViaCNS(t *testing.T,
 	json.NewEncoder(&body).Encode(publishNCRequest)
 	req, err := http.NewRequest(http.MethodPost, cns.PublishNetworkContainer, &body)
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
 	err = decodeResponse(w, &resp)
-	if err != nil || resp.Response.ReturnCode != 0 {
-		t.Errorf("PublishNetworkContainer failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
+	if err != nil ||  resp.Response.ReturnCode != 0 {
+		if(!expectError) {
+			t.Errorf("PublishNetworkContainer failed with response %+v Err:%+v", resp, err)
+		}
+		return err
 	}
 
 	fmt.Printf("PublishNetworkContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
+	return nil
 }
 
 func TestExtractHost(t *testing.T) {
@@ -587,18 +625,52 @@ func TestExtractHost(t *testing.T) {
 	}
 }
 
-func TestUnpublishNCViaCNS(t *testing.T) {
-	fmt.Println("Test: unpublishNetworkContainer")
+func TestUnpublishNCViaCNS(t *testing.T){
+
+	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
+	err := publishNCViaCNS(t, "vnet1", "ethWebApp", deleteNetworkContainerURL, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	deleteNetworkContainerURL = "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
+		"e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6" +
+		"/api-version/1/method/DELETE"
+
+	err = publishNCViaCNS(t, "vnet1", "ethWebApp", deleteNetworkContainerURL, true)
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	deleteNetworkContainerURL = "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
+		"e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6" +
+		"/api-version/1/method/DELETE"
+
+
+	err = testUnpublishNCViaCNS(t, "vnet1", "ethWebApp", deleteNetworkContainerURL, true)
+	if err == nil {
+		t.Fatal(err)
+	}
+
+}
+
+func testUnpublishNCViaCNS(t *testing.T,
+	networkID,
+	networkContainerID,
+	deleteNetworkContainerURL string,
+	expectError bool) error {
 
 	var (
 		body bytes.Buffer
 		resp cns.UnpublishNetworkContainerResponse
 	)
 
-	networkID := "vnet1"
-	networkContainerID := "ethWebApp"
+	fmt.Println("Test: unpublishNetworkContainer")
+
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
-	deleteNetworkContainerURL := "http://" + nmagentEndpoint + "/networkContainers/dummyNCURL"
 
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
 		NetworkID:                 networkID,
@@ -610,7 +682,7 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 	json.NewEncoder(&body).Encode(unpublishNCRequest)
 	req, err := http.NewRequest(http.MethodPost, cns.UnpublishNetworkContainer, &body)
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 
 	w := httptest.NewRecorder()
@@ -618,11 +690,15 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != 0 {
-		t.Errorf("UnpublishNetworkContainer failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
+		if(!expectError) {
+			t.Errorf("UnpublishNetworkContainer failed with response %+v Err:%+v", resp, err)
+		}
+		return err
 	}
 
 	fmt.Printf("UnpublishNetworkContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
+
+	return nil
 }
 
 func TestNmAgentSupportedApisHandler(t *testing.T) {

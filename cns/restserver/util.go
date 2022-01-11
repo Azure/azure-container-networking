@@ -623,12 +623,9 @@ func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 
 // Join Network by calling nmagent
 func (service *HTTPRestService) joinNetwork(
-	networkID string,
-	joinNetworkURL string) (*http.Response, error, error) {
+	networkID string) (*http.Response, error, error) {
 	var err error
-	joinResponse, joinErr := nmagent.JoinNetwork(
-		networkID,
-		joinNetworkURL)
+	joinResponse, joinErr := nmagent.JoinNetwork(networkID)
 
 	if joinErr == nil && joinResponse.StatusCode == http.StatusOK {
 		// Network joined successfully
