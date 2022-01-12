@@ -2,13 +2,14 @@ package cns
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // Container Network Service DNC Contract
@@ -252,6 +253,19 @@ func NewPodInfoFromIPConfigRequest(req IPConfigRequest) (PodInfo, error) {
 	p.(*podInfo).PodInfraContainerID = req.InfraContainerID
 	p.(*podInfo).PodInterfaceID = req.PodInterfaceID
 	return p, nil
+}
+
+func KubePodsToPodInfoByIP(pods []corev1.Pod) (map[string]PodInfo, error) {
+	podInfoByIP := map[string]PodInfo{}
+	for i := range pods {
+		if !pods[i].Spec.HostNetwork {
+			if _, ok := podInfoByIP[pods[i].Status.PodIP]; ok {
+				return nil, errors.Wrap(ErrDuplicateIP, pods[i].Status.PodIP)
+			}
+			podInfoByIP[pods[i].Status.PodIP] = NewPodInfo("", "", pods[i].Name, pods[i].Namespace)
+		}
+	}
+	return podInfoByIP, nil
 }
 
 // MultiTenancyInfo contains encap type and id.
