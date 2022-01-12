@@ -58,7 +58,7 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 
 func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 	go func() {
-		ticker := time.NewTicker(time.Second * time.Duration(reconcileTimeInMinutes))
+		ticker := time.NewTicker(time.Minute * time.Duration(reconcileTimeInMinutes))
 		defer ticker.Stop()
 
 		for {
