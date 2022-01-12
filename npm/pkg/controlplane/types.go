@@ -12,7 +12,7 @@ const (
 	PolicyRemove string = "POLICYREMOVE"
 )
 
-// ControllerIPSets is used in decoupled mode for controller pod to calculate
+// ControllerIPSets is used in fan-out design for controller pod to calculate
 // and push to daemon pod
 type ControllerIPSets struct {
 	ipsets.IPSetMetadata

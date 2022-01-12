@@ -182,7 +182,7 @@ const (
 
 type IPSet struct {
 	Name           string
-	unPrefixedName string
+	unprefixedName string
 	HashedName     string
 	// SetProperties embedding set properties
 	SetProperties
@@ -209,7 +209,7 @@ func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 	prefixedName := setMetadata.GetPrefixName()
 	set := &IPSet{
 		Name:           prefixedName,
-		unPrefixedName: setMetadata.Name,
+		unprefixedName: setMetadata.Name,
 		HashedName:     util.GetHashedName(prefixedName),
 		SetProperties: SetProperties{
 			Type: setMetadata.Type,
@@ -233,7 +233,7 @@ func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 }
 
 func (set *IPSet) GetSetMetadata() *IPSetMetadata {
-	return NewIPSetMetadata(set.unPrefixedName, set.Type)
+	return NewIPSetMetadata(set.unprefixedName, set.Type)
 }
 
 func (set *IPSet) String() string {

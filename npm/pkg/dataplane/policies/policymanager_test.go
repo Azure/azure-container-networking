@@ -1,13 +1,10 @@
 package policies
 
 import (
-	"bytes"
-	"encoding/gob"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -169,40 +166,4 @@ func TestNormalizeAndValidatePolicy(t *testing.T) {
 			}
 		})
 	}
-}
-
-func BenchmarkCheckMarshall(b *testing.B) {
-	var netpol bytes.Buffer
-	enc := gob.NewEncoder(&netpol)
-	dec := gob.NewDecoder(&netpol)
-
-	err := enc.Encode(testNetPol)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	var dectestnetpol *NPMNetworkPolicy
-	err = dec.Decode(&dectestnetpol)
-	if err != nil {
-		b.Fatal(err)
-	}
-}
-
-func TestCheckMarshall(t *testing.T) {
-	var netpol bytes.Buffer
-	enc := gob.NewEncoder(&netpol)
-	dec := gob.NewDecoder(&netpol)
-
-	err := enc.Encode(testNetPol)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var dectestnetpol *NPMNetworkPolicy
-	err = dec.Decode(&dectestnetpol)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.Equal(t, testNetPol, dectestnetpol)
 }

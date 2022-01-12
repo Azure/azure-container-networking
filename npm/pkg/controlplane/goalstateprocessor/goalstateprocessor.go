@@ -9,7 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
-
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
 
@@ -61,7 +61,7 @@ func (gsp *GoalStateProcessor) Stop() {
 
 func (gsp *GoalStateProcessor) run() {
 	if gsp.controllerIP != "" && gsp.controllerPort != 0 {
-		klog.Warningf("Invaling controller for node %s, IP %s port %d", gsp.nodeID, gsp.controllerIP, gsp.controllerPort)
+		klog.Warningf("Invalid controller for node %s, IP %s port %d", gsp.nodeID, gsp.controllerIP, gsp.controllerPort)
 		return
 	}
 	klog.Infof("Starting dataplane for node %s", gsp.nodeID)
@@ -84,12 +84,21 @@ func (gsp *GoalStateProcessor) run() {
 
 func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
 	klog.Infof("Processing event")
+	// apply dataplane after syncing
+	defer func() {
+		dperr := gsp.dp.ApplyDataPlane()
+		if dperr != nil {
+			klog.Errorf("Apply Dataplane failed with %v", dperr)
+		}
+	}()
 
 	// Process these individual buckkets in order
 	// 1. Apply IPSET
 	// 2. Apply POLICY
 	// 3. Remove POLICY
 	// 4. Remove IPSET
+
+	// TODO need to handle first connect stream of all GoalStates
 	payload := inputEvent.GetPayload()
 
 	if !validatePayload(payload) {
@@ -123,7 +132,7 @@ func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalSta
 		payload := bytes.NewBuffer(gs)
 		ipset, err := cp.DecodeControllerIPSet(payload)
 		if err != nil {
-			return err
+			return npmerrors.SimpleErrorWrapper("failed to decode IPSet apply event", err)
 		}
 
 		ipsetName := ipset.GetPrefixName()
@@ -141,11 +150,12 @@ func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalSta
 		case ipsets.ListSet:
 			applyErr = gsp.applyLists(ipset, cachedIPSet)
 		case ipsets.UnknownKind:
-			applyErr = fmt.Errorf("Unknown IPSet kind %s", cachedIPSet.Kind)
+			applyErr = npmerrors.SimpleErrorWrapper(
+				"failed to decode IPSet apply event",
+				fmt.Errorf("Unknown IPSet kind %s", cachedIPSet.Kind),
+			)
 		}
-		if applyErr != nil {
-			return applyErr
-		}
+		return applyErr
 	}
 	return nil
 }
@@ -165,15 +175,8 @@ func (gsp *GoalStateProcessor) applySets(ipSet *cp.ControllerIPSets, cachedIPSet
 	}
 
 	if cachedIPSet != nil {
-		toDeleteMembers := make(map[string]string)
 		for podIP, podKey := range cachedIPSet.IPPodKey {
 			if _, ok := ipSet.IPPodMetadata[podIP]; !ok {
-				toDeleteMembers[podIP] = podKey
-			}
-		}
-
-		if len(toDeleteMembers) > 0 {
-			for podIP, podKey := range toDeleteMembers {
 				err := gsp.dp.RemoveFromSets([]*ipsets.IPSetMetadata{setMetadata}, dataplane.NewPodMetadata(podIP, podKey, ""))
 				if err != nil {
 					return err
@@ -231,7 +234,7 @@ func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(goalState *protos.GoalSt
 
 		cachedIPSet := gsp.dp.GetIPSet(ipsetName)
 		if cachedIPSet == nil {
-			klog.Infof("IPSet %s not found in cache, adding to cache", ipsetName)
+			klog.Infof("IPSet %s not found in cache, ignoring delete call.", ipsetName)
 			return nil
 		}
 
@@ -251,7 +254,7 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 
 		err = gsp.dp.UpdatePolicy(netpol)
 		if err != nil {
-			klog.Errorf("Error removing policy %s from dataplane %s", netpol.Name, err)
+			klog.Errorf("Error applying policy %s to dataplane with error: %s", netpol.Name, err.Error())
 			return err
 		}
 	}
@@ -269,7 +272,7 @@ func (gsp *GoalStateProcessor) processPolicyRemoveEvent(goalState *protos.GoalSt
 
 		err = gsp.dp.RemovePolicy(netpolName)
 		if err != nil {
-			klog.Errorf("Error removing policy %s from dataplane %s", netpolName, err)
+			klog.Errorf("Error removing policy %s from dataplane with error: %s", netpolName, err.Error())
 			return err
 		}
 	}
