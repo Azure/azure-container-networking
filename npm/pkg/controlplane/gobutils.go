@@ -9,12 +9,12 @@ import (
 )
 
 func EncodeString(name string) (*bytes.Buffer, error) {
-	var payloadBuffer *bytes.Buffer
-	err := gob.NewEncoder(payloadBuffer).Encode(&name)
+	var payloadBuffer bytes.Buffer
+	err := gob.NewEncoder(&payloadBuffer).Encode(&name)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to encode", err)
 	}
-	return payloadBuffer, nil
+	return &payloadBuffer, nil
 }
 
 func DecodeString(payload *bytes.Buffer) (string, error) {
@@ -27,12 +27,12 @@ func DecodeString(payload *bytes.Buffer) (string, error) {
 }
 
 func EncodeControllerIPSet(ipset *ControllerIPSets) (*bytes.Buffer, error) {
-	var payloadBuffer *bytes.Buffer
-	err := gob.NewEncoder(payloadBuffer).Encode(&ipset)
+	var payloadBuffer bytes.Buffer
+	err := gob.NewEncoder(&payloadBuffer).Encode(&ipset)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to encode", err)
 	}
-	return payloadBuffer, nil
+	return &payloadBuffer, nil
 }
 
 func DecodeControllerIPSet(payload *bytes.Buffer) (*ControllerIPSets, error) {
@@ -45,12 +45,13 @@ func DecodeControllerIPSet(payload *bytes.Buffer) (*ControllerIPSets, error) {
 }
 
 func EncodeNPMNetworkPolicy(netpol *policies.NPMNetworkPolicy) (*bytes.Buffer, error) {
-	var payloadBuffer *bytes.Buffer
-	err := gob.NewEncoder(payloadBuffer).Encode(&netpol)
+	var payloadBuffer bytes.Buffer
+	enc := gob.NewEncoder(&payloadBuffer)
+	err := enc.Encode(netpol)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to encode", err)
 	}
-	return payloadBuffer, nil
+	return &payloadBuffer, nil
 }
 
 func DecodeNPMNetworkPolicy(payload *bytes.Buffer) (*policies.NPMNetworkPolicy, error) {

@@ -65,20 +65,28 @@ func (gsp *GoalStateProcessor) run() {
 		return
 	}
 	klog.Infof("Starting dataplane for node %s", gsp.nodeID)
+
 	for {
-		select {
-		case <-gsp.ctx.Done():
-			klog.Infof("GoalStateProcessor for node %s stopped", gsp.nodeID)
-			return
-		case inputEvents := <-gsp.inputChannel:
-			klog.Infof("Received event %s", inputEvents)
-			gsp.process(inputEvents)
-		case backoffEvents := <-gsp.backoffChannel:
-			// For now keep it simple. Do not worry about backoff events
-			// but if we need to handle them, we can do it here.
-			klog.Infof("Received backoff event %s", backoffEvents)
-			gsp.process(backoffEvents)
-		}
+		gsp.processNext()
+	}
+}
+
+func (gsp *GoalStateProcessor) processNext() {
+	select {
+	case <-gsp.ctx.Done():
+		klog.Infof("GoalStateProcessor for node %s stopped", gsp.nodeID)
+		return
+	case inputEvents := <-gsp.inputChannel:
+		// TODO remove this large print later
+		klog.Infof("Received event %s", inputEvents)
+		gsp.process(inputEvents)
+	case backoffEvents := <-gsp.backoffChannel:
+		// For now keep it simple. Do not worry about backoff events
+		// but if we need to handle them, we can do it here.
+		// TODO remove this large print later
+		klog.Infof("Received backoff event %s", backoffEvents)
+		gsp.process(backoffEvents)
+	default:
 	}
 }
 
@@ -106,28 +114,37 @@ func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
 		return
 	}
 
-	err := gsp.processIPSetsApplyEvent(payload[cp.IpsetApply])
-	if err != nil {
-		klog.Errorf("Error processing IPSET apply event %s", err)
+	if _, ok := payload[cp.IpsetApply]; ok {
+		err := gsp.processIPSetsApplyEvent(payload[cp.IpsetApply])
+		if err != nil {
+			klog.Errorf("Error processing IPSET apply event %s", err)
+		}
 	}
 
-	err = gsp.processPolicyApplyEvent(payload[cp.PolicyApply])
-	if err != nil {
-		klog.Errorf("Error processing POLICY apply event %s", err)
+	if _, ok := payload[cp.PolicyApply]; ok {
+		err := gsp.processPolicyApplyEvent(payload[cp.PolicyApply])
+		if err != nil {
+			klog.Errorf("Error processing POLICY apply event %s", err)
+		}
 	}
 
-	err = gsp.processPolicyRemoveEvent(payload[cp.PolicyRemove])
-	if err != nil {
-		klog.Errorf("Error processing POLICY remove event %s", err)
+	if _, ok := payload[cp.PolicyRemove]; ok {
+		err := gsp.processPolicyRemoveEvent(payload[cp.PolicyRemove])
+		if err != nil {
+			klog.Errorf("Error processing POLICY remove event %s", err)
+		}
 	}
 
-	err = gsp.processIPSetsRemoveEvent(payload[cp.IpsetRemove])
-	if err != nil {
-		klog.Errorf("Error processing IPSET remove event %s", err)
+	if _, ok := payload[cp.IpsetRemove]; ok {
+		err := gsp.processIPSetsRemoveEvent(payload[cp.IpsetRemove])
+		if err != nil {
+			klog.Errorf("Error processing IPSET remove event %s", err)
+		}
 	}
 }
 
 func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalState) error {
+	var applyErr error
 	for _, gs := range goalState.GetData() {
 		payload := bytes.NewBuffer(gs)
 		ipset, err := cp.DecodeControllerIPSet(payload)
@@ -143,21 +160,21 @@ func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalSta
 			klog.Infof("IPSet %s not found in cache, adding to cache", ipsetName)
 		}
 
-		var applyErr error
 		switch ipset.GetSetKind() {
 		case ipsets.HashSet:
 			applyErr = gsp.applySets(ipset, cachedIPSet)
 		case ipsets.ListSet:
 			applyErr = gsp.applyLists(ipset, cachedIPSet)
 		case ipsets.UnknownKind:
-			applyErr = npmerrors.SimpleErrorWrapper(
-				"failed to decode IPSet apply event",
-				fmt.Errorf("Unknown IPSet kind %s", cachedIPSet.Kind),
+			applyErr = npmerrors.SimpleError(
+				fmt.Sprintf("failed to decode IPSet apply event: Unknown IPSet kind %s", cachedIPSet.Kind),
 			)
 		}
-		return applyErr
+		if applyErr != nil {
+			break
+		}
 	}
-	return nil
+	return applyErr
 }
 
 func (gsp *GoalStateProcessor) applySets(ipSet *cp.ControllerIPSets, cachedIPSet *ipsets.IPSet) error {
@@ -170,7 +187,7 @@ func (gsp *GoalStateProcessor) applySets(ipSet *cp.ControllerIPSets, cachedIPSet
 	for _, podMetadata := range ipSet.IPPodMetadata {
 		err := gsp.dp.AddToSets([]*ipsets.IPSetMetadata{setMetadata}, podMetadata)
 		if err != nil {
-			return err
+			return npmerrors.SimpleErrorWrapper("IPSet apply event, failed at AddToSet.", err)
 		}
 	}
 
@@ -179,7 +196,7 @@ func (gsp *GoalStateProcessor) applySets(ipSet *cp.ControllerIPSets, cachedIPSet
 			if _, ok := ipSet.IPPodMetadata[podIP]; !ok {
 				err := gsp.dp.RemoveFromSets([]*ipsets.IPSetMetadata{setMetadata}, dataplane.NewPodMetadata(podIP, podKey, ""))
 				if err != nil {
-					return err
+					return npmerrors.SimpleErrorWrapper("IPSet apply event, failed at RemoveFromSets.", err)
 				}
 			}
 		}
@@ -202,7 +219,7 @@ func (gsp *GoalStateProcessor) applyLists(ipSet *cp.ControllerIPSets, cachedIPSe
 	}
 	err := gsp.dp.AddToLists([]*ipsets.IPSetMetadata{setMetadata}, membersToAdd)
 	if err != nil {
-		return err
+		return npmerrors.SimpleErrorWrapper("IPSet apply event, failed at AddToLists.", err)
 	}
 
 	if cachedIPSet != nil {
@@ -216,7 +233,7 @@ func (gsp *GoalStateProcessor) applyLists(ipSet *cp.ControllerIPSets, cachedIPSe
 		if len(toDeleteMembers) > 0 {
 			err := gsp.dp.RemoveFromList(setMetadata, toDeleteMembers)
 			if err != nil {
-				return err
+				return npmerrors.SimpleErrorWrapper("IPSet apply event, failed at RemoveFromList.", err)
 			}
 		}
 	}
@@ -228,7 +245,7 @@ func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(goalState *protos.GoalSt
 		payload := bytes.NewBuffer(gs)
 		ipsetName, err := cp.DecodeString(payload)
 		if err != nil {
-			return err
+			return npmerrors.SimpleErrorWrapper("failed to decode IPSet remove event", err)
 		}
 		klog.Infof("Processing %s IPSET remove event", ipsetName)
 
@@ -248,7 +265,7 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 		payload := bytes.NewBuffer(gs)
 		netpol, err := cp.DecodeNPMNetworkPolicy(payload)
 		if err != nil {
-			return err
+			return npmerrors.SimpleErrorWrapper("failed to decode Policy remove event", err)
 		}
 		klog.Infof("Processing %s Policy ADD event", netpol.Name)
 

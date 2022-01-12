@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net"
 
+	cp "github.com/Azure/azure-container-networking/npm/pkg/controlplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/stats"
@@ -103,13 +105,12 @@ func (m *Manager) start() error {
 
 			err := enc.Encode(msg)
 			if err != nil {
-				fmt.Errorf("Failed to encode")
-				return err
+				return npmerrors.SimpleErrorWrapper("failed to encode event", err)
 			}
 			for _, client := range m.Registrations {
 				if err := client.stream.SendMsg(&protos.Events{
 					Payload: map[string]*protos.GoalState{
-						"IPSETAPPLY": {
+						cp.IpsetApply: {
 							Data: [][]byte{payload.Bytes()},
 						},
 					},

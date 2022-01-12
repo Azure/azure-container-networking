@@ -15,7 +15,7 @@ const (
 // ControllerIPSets is used in fan-out design for controller pod to calculate
 // and push to daemon pod
 type ControllerIPSets struct {
-	ipsets.IPSetMetadata
+	*ipsets.IPSetMetadata
 	// IPPodMetadata is used for setMaps to store Ips and ports as keys
 	// and podMetadata as value
 	IPPodMetadata map[string]*dp.PodMetadata
@@ -23,6 +23,14 @@ type ControllerIPSets struct {
 	MemberIPSets map[string]*ipsets.IPSetMetadata
 }
 
+func NewControllerIPSets(metadata *ipsets.IPSetMetadata) *ControllerIPSets {
+	return &ControllerIPSets{
+		IPSetMetadata: metadata,
+		IPPodMetadata: make(map[string]*dp.PodMetadata),
+		MemberIPSets:  make(map[string]*ipsets.IPSetMetadata),
+	}
+}
+
 func (c *ControllerIPSets) GetMetadata() *ipsets.IPSetMetadata {
-	return &c.IPSetMetadata
+	return c.IPSetMetadata
 }
