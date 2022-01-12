@@ -61,14 +61,29 @@ var (
 )
 
 type staleChains struct {
-	chainsToCleanup map[string]struct{}
+	chainsToCleanup   map[string]struct{}
+	releaseLockSignal chan struct{}
 	sync.Mutex
 }
 
 func newStaleChains() *staleChains {
 	return &staleChains{
-		chainsToCleanup: make(map[string]struct{}),
+		chainsToCleanup:   make(map[string]struct{}),
+		releaseLockSignal: make(chan struct{}, 1),
 	}
+}
+
+func (s *staleChains) forceLock() {
+	s.releaseLockSignal <- struct{}{}
+	s.Lock()
+}
+
+func (s *staleChains) forceUnlock() {
+	select {
+	case <-s.releaseLockSignal:
+	default:
+	}
+	s.Unlock()
 }
 
 // Adds the chain if it isn't one of the iptablesAzureChains.
@@ -192,7 +207,16 @@ func (pMgr *PolicyManager) reconcile() {
 // This is a separate function for with a slice argument so that UTs can have deterministic behavior for ioshim.
 func (pMgr *PolicyManager) cleanupChains(chains []string) error {
 	var aggregateError error
-	for _, chain := range chains {
+deleteLoop:
+	for k, chain := range chains {
+		select {
+		case <-pMgr.staleChains.releaseLockSignal:
+			for j := k; j < len(chains); j++ {
+				pMgr.staleChains.add(chains[j])
+			}
+			break deleteLoop
+		default:
+		}
 		errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain)
 		if err != nil && errCode != doesNotExistErrorCode {
 			// add to staleChains if it's not one of the iptablesAzureChains
@@ -250,14 +274,14 @@ func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *
 	// Step 2.1 in bootup() comment: cleanup old NPM chains, and configure base chains and their rules
 	// To leave NPM deactivated, don't specify any rules for AZURE-NPM chain.
 	creator := pMgr.newCreatorWithChains(chainsToCreate)
-	pMgr.staleChains.Lock()
+	pMgr.staleChains.forceLock()
 	pMgr.staleChains.empty()
 	for chain := range currentChains {
 		creator.AddLine("", nil, fmt.Sprintf("-F %s", chain))
 		// Step 2.2 in bootup() comment: delete deprecated chains and old v2 policy chains in the background
 		pMgr.staleChains.add(chain) // won't add base chains
 	}
-	pMgr.staleChains.Unlock()
+	defer pMgr.staleChains.forceUnlock()
 
 	// add AZURE-NPM-INGRESS chain rules
 	ingressDropSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureIngressChain, util.IptablesJumpFlag, util.IptablesDrop}

@@ -24,8 +24,8 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, []*NPMNetworkPolicy{networkPolicy})
 
 	// Lock stale chains so we don't delete chainsToCreate
-	pMgr.staleChains.Lock()
-	defer pMgr.staleChains.Unlock()
+	pMgr.staleChains.forceLock()
+	defer pMgr.staleChains.forceUnlock()
 
 	err := restore(creator)
 	if err != nil {
@@ -57,8 +57,8 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 
 	// 3. Delete policy chains in the background.
 	// lock here since stale chains are only affected if we successfully remove policies
-	pMgr.staleChains.Lock()
-	defer pMgr.staleChains.Unlock()
+	pMgr.staleChains.forceLock()
+	defer pMgr.staleChains.forceUnlock()
 	for _, chain := range chainsToDelete {
 		pMgr.staleChains.add(chain)
 	}

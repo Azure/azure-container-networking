@@ -47,6 +47,50 @@ Chain AZURE-NPM-ACCEPT (1 references)
 `
 )
 
+func TestStaleChainsForceLock(t *testing.T) {
+	testChains := []string{}
+	for i := 0; i < 100000; i++ {
+		testChains = append(testChains, fmt.Sprintf("test-chain-%d", i))
+	}
+	calls := []testutils.TestCmd{}
+	for _, chain := range testChains {
+		calls = append(calls, getFakeDestroyCommand(chain))
+	}
+	ioshim := common.NewMockIOShim(calls)
+	// don't verify calls because there shouldn't be as many commands as we create if forceLock works properly
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+
+	start := make(chan struct{}, 1)
+	done := make(chan struct{}, 1)
+	go func() {
+		pMgr.staleChains.Lock()
+		defer pMgr.staleChains.Unlock()
+		start <- struct{}{}
+		pMgr.cleanupChains(testChains)
+		done <- struct{}{}
+	}()
+	<-start
+	pMgr.staleChains.forceLock()
+	<-done
+	// the releaseLockSignal should be empty, there should be some stale chains, and staleChains should be unlockable
+	fmt.Println("weren't able to delete this many chains:", len(pMgr.staleChains.chainsToCleanup))
+	require.NotEqual(t, 0, len(pMgr.staleChains.chainsToCleanup), "stale chains should not be empty")
+	require.Equal(t, 0, len(pMgr.staleChains.releaseLockSignal), "releaseLockSignal should be empty")
+	pMgr.staleChains.Unlock()
+}
+
+func TestStaleChainsForceUnlock(t *testing.T) {
+	ioshim := common.NewMockIOShim(nil)
+	defer ioshim.VerifyCalls(t, nil)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	pMgr.staleChains.forceLock()
+	require.Equal(t, 1, len(pMgr.staleChains.releaseLockSignal), "releaseLockSignal should be non-empty")
+	pMgr.staleChains.forceUnlock()
+	// the releaseLockSignal should be empty and staleChains should be lockable
+	require.Equal(t, 0, len(pMgr.staleChains.releaseLockSignal), "releaseLockSignal should be empty")
+	pMgr.staleChains.Lock()
+}
+
 func TestStaleChainsAddAndRemove(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
