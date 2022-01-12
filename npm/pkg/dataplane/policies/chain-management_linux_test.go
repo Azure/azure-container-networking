@@ -66,7 +66,7 @@ func TestStaleChainsForceLock(t *testing.T) {
 		pMgr.staleChains.Lock()
 		defer pMgr.staleChains.Unlock()
 		start <- struct{}{}
-		pMgr.cleanupChains(testChains)
+		require.NoError(t, pMgr.cleanupChains(testChains))
 		done <- struct{}{}
 	}()
 	<-start
