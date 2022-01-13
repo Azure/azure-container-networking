@@ -29,11 +29,9 @@ func (dp *DPShim) GetIPSet(setName string) *ipsets.IPSet {
 }
 
 func (dp *DPShim) CreateIPSets(setNames []*ipsets.IPSetMetadata) {
-	return
 }
 
 func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata) {
-	return
 }
 
 func (dp *DPShim) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *dataplane.PodMetadata) error {
@@ -44,7 +42,7 @@ func (dp *DPShim) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadata *
 	return nil
 }
 
-func (dp *DPShim) AddToLists(listName []*ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error {
+func (dp *DPShim) AddToLists(listName, setNames []*ipsets.IPSetMetadata) error {
 	return nil
 }
 
@@ -56,7 +54,7 @@ func (dp *DPShim) ApplyDataPlane() error {
 	return nil
 }
 
-func (dp *DPShim) AddPolicy(policies *policies.NPMNetworkPolicy) error {
+func (dp *DPShim) AddPolicy(networkpolicies *policies.NPMNetworkPolicy) error {
 	return nil
 }
 
@@ -64,6 +62,6 @@ func (dp *DPShim) RemovePolicy(policyName string) error {
 	return nil
 }
 
-func (dp *DPShim) UpdatePolicy(policies *policies.NPMNetworkPolicy) error {
+func (dp *DPShim) UpdatePolicy(networkpolicies *policies.NPMNetworkPolicy) error {
 	return nil
 }

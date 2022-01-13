@@ -31,7 +31,6 @@ func NewGoalStateProcessor(
 	podName string,
 	inputChan chan *protos.Events,
 	dp dataplane.GenericDataplane) *GoalStateProcessor {
-
 	klog.Infof("Creating GoalStateProcessor for node %s", nodeID)
 	return &GoalStateProcessor{
 		ctx:            ctx,
@@ -144,7 +143,6 @@ func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
 }
 
 func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalState) error {
-	var applyErr error
 	for _, gs := range goalState.GetData() {
 		payload := bytes.NewBuffer(gs)
 		ipset, err := cp.DecodeControllerIPSet(payload)
@@ -162,19 +160,22 @@ func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalSta
 
 		switch ipset.GetSetKind() {
 		case ipsets.HashSet:
-			applyErr = gsp.applySets(ipset, cachedIPSet)
+			err = gsp.applySets(ipset, cachedIPSet)
+			if err != nil {
+				return err
+			}
 		case ipsets.ListSet:
-			applyErr = gsp.applyLists(ipset, cachedIPSet)
+			err = gsp.applyLists(ipset, cachedIPSet)
+			if err != nil {
+				return err
+			}
 		case ipsets.UnknownKind:
-			applyErr = npmerrors.SimpleError(
+			return npmerrors.SimpleError(
 				fmt.Sprintf("failed to decode IPSet apply event: Unknown IPSet kind %s", cachedIPSet.Kind),
 			)
 		}
-		if applyErr != nil {
-			break
-		}
 	}
-	return applyErr
+	return nil
 }
 
 func (gsp *GoalStateProcessor) applySets(ipSet *cp.ControllerIPSets, cachedIPSet *ipsets.IPSet) error {
@@ -265,14 +266,14 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 		payload := bytes.NewBuffer(gs)
 		netpol, err := cp.DecodeNPMNetworkPolicy(payload)
 		if err != nil {
-			return npmerrors.SimpleErrorWrapper("failed to decode Policy remove event", err)
+			return npmerrors.SimpleErrorWrapper("failed to decode Policy apply event", err)
 		}
 		klog.Infof("Processing %s Policy ADD event", netpol.Name)
 
 		err = gsp.dp.UpdatePolicy(netpol)
 		if err != nil {
 			klog.Errorf("Error applying policy %s to dataplane with error: %s", netpol.Name, err.Error())
-			return err
+			return npmerrors.SimpleErrorWrapper("failed update policy event", err)
 		}
 	}
 	return nil
@@ -283,14 +284,14 @@ func (gsp *GoalStateProcessor) processPolicyRemoveEvent(goalState *protos.GoalSt
 		payload := bytes.NewBuffer(gs)
 		netpolName, err := cp.DecodeString(payload)
 		if err != nil {
-			return err
+			return npmerrors.SimpleErrorWrapper("failed to decode Policy remove event", err)
 		}
 		klog.Infof("Processing %s Policy remove event", netpolName)
 
 		err = gsp.dp.RemovePolicy(netpolName)
 		if err != nil {
 			klog.Errorf("Error removing policy %s from dataplane with error: %s", netpolName, err.Error())
-			return err
+			return npmerrors.SimpleErrorWrapper("failed remove policy event", err)
 		}
 	}
 	return nil
