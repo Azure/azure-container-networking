@@ -25,7 +25,7 @@ var (
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
 			PolicyMode: policies.IPSetPolicyMode,
 		},
-		disableGoRoutines: true,
+		disableReconcileForUTs: true,
 	}
 
 	fakeIPSetRestoreSuccess = testutils.TestCmd{

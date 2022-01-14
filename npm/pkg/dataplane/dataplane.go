@@ -24,8 +24,8 @@ type PolicyMode string
 type Config struct {
 	*ipsets.IPSetManagerCfg
 	*policies.PolicyManagerCfg
-	// helpful for UTs (defaults to false for external packages)
-	disableGoRoutines bool
+	// defaults to false for external packages
+	disableReconcileForUTs bool
 }
 
 type DataPlane struct {
@@ -70,7 +70,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		return nil, err
 	}
 	// necessary for UTs because of ioshim
-	if !dp.disableGoRoutines {
+	if !dp.disableReconcileForUTs {
 		dp.policyMgr.Reconcile(dp.stopChannel)
 	}
 	return dp, nil

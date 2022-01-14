@@ -2,6 +2,7 @@ package policies
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -31,10 +32,16 @@ type PolicyMap struct {
 	cache map[string]*NPMNetworkPolicy
 }
 
+type reconcileManager struct {
+	sync.Mutex
+	releaseLockSignal chan struct{}
+}
+
 type PolicyManager struct {
-	policyMap   *PolicyMap
-	ioShim      *common.IOShim
-	staleChains *staleChains
+	policyMap        *PolicyMap
+	ioShim           *common.IOShim
+	staleChains      *staleChains
+	reconcileManager *reconcileManager
 	*PolicyManagerCfg
 }
 
@@ -43,8 +50,11 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 		policyMap: &PolicyMap{
 			cache: make(map[string]*NPMNetworkPolicy),
 		},
-		ioShim:           ioShim,
-		staleChains:      newStaleChains(),
+		ioShim:      ioShim,
+		staleChains: newStaleChains(),
+		reconcileManager: &reconcileManager{
+			releaseLockSignal: make(chan struct{}, 1),
+		},
 		PolicyManagerCfg: cfg,
 	}
 }

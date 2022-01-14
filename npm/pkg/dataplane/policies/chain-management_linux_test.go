@@ -63,32 +63,32 @@ func TestStaleChainsForceLock(t *testing.T) {
 	start := make(chan struct{}, 1)
 	done := make(chan struct{}, 1)
 	go func() {
-		pMgr.staleChains.Lock()
-		defer pMgr.staleChains.Unlock()
+		pMgr.reconcileManager.Lock()
+		defer pMgr.reconcileManager.Unlock()
 		start <- struct{}{}
 		require.NoError(t, pMgr.cleanupChains(testChains))
 		done <- struct{}{}
 	}()
 	<-start
-	pMgr.staleChains.forceLock()
+	pMgr.reconcileManager.forceLock()
 	<-done
 	// the releaseLockSignal should be empty, there should be some stale chains, and staleChains should be unlockable
 	fmt.Println("weren't able to delete this many chains:", len(pMgr.staleChains.chainsToCleanup))
 	require.NotEqual(t, 0, len(pMgr.staleChains.chainsToCleanup), "stale chains should not be empty")
-	require.Equal(t, 0, len(pMgr.staleChains.releaseLockSignal), "releaseLockSignal should be empty")
-	pMgr.staleChains.Unlock()
+	require.Equal(t, 0, len(pMgr.reconcileManager.releaseLockSignal), "releaseLockSignal should be empty")
+	pMgr.reconcileManager.Unlock()
 }
 
 func TestStaleChainsForceUnlock(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	pMgr.staleChains.forceLock()
-	require.Equal(t, 1, len(pMgr.staleChains.releaseLockSignal), "releaseLockSignal should be non-empty")
-	pMgr.staleChains.forceUnlock()
+	pMgr.reconcileManager.forceLock()
+	require.Equal(t, 1, len(pMgr.reconcileManager.releaseLockSignal), "releaseLockSignal should be non-empty")
+	pMgr.reconcileManager.forceUnlock()
 	// the releaseLockSignal should be empty and staleChains should be lockable
-	require.Equal(t, 0, len(pMgr.staleChains.releaseLockSignal), "releaseLockSignal should be empty")
-	pMgr.staleChains.Lock()
+	require.Equal(t, 0, len(pMgr.reconcileManager.releaseLockSignal), "releaseLockSignal should be empty")
+	pMgr.reconcileManager.Lock()
 }
 
 func TestStaleChainsAddAndRemove(t *testing.T) {

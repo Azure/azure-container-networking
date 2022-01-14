@@ -1,5 +1,7 @@
 package policies
 
+// This file contains code for the iptables implementation of adding/removing policies.
+
 import (
 	"fmt"
 
@@ -23,9 +25,9 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 	chainsToCreate := chainNames([]*NPMNetworkPolicy{networkPolicy})
 	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, []*NPMNetworkPolicy{networkPolicy})
 
-	// Lock stale chains so we don't delete chainsToCreate
-	pMgr.staleChains.forceLock()
-	defer pMgr.staleChains.forceUnlock()
+	// Stop reconciling so we don't contend for iptables, and so reconcile doesn't delete chainsToCreate.
+	pMgr.reconcileManager.forceLock()
+	defer pMgr.reconcileManager.forceUnlock()
 
 	err := restore(creator)
 	if err != nil {
@@ -40,6 +42,13 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 }
 
 func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
+	chainsToDelete := chainNames([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.creatorForRemovingPolicies(chainsToDelete)
+
+	// Stop reconciling so we don't contend for iptables, and so we don't update the staleChains at the same time as reconcile()
+	pMgr.reconcileManager.forceLock()
+	defer pMgr.reconcileManager.forceUnlock()
+
 	// 1. Delete jump rules from ingress/egress chains to ingress/egress policy chains.
 	// We ought to delete these jump rules here in the foreground since if we add an NP back after deleting, iptables-restore --noflush can add duplicate jump rules.
 	deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
@@ -48,17 +57,12 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	}
 
 	// 2. Flush the policy chains and deactivate NPM (if necessary).
-	chainsToDelete := chainNames([]*NPMNetworkPolicy{networkPolicy})
-	creator := pMgr.creatorForRemovingPolicies(chainsToDelete)
 	restoreErr := restore(creator)
 	if restoreErr != nil {
 		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
 	}
 
 	// 3. Delete policy chains in the background.
-	// lock here since stale chains are only affected if we successfully remove policies
-	pMgr.staleChains.forceLock()
-	defer pMgr.staleChains.forceUnlock()
 	for _, chain := range chainsToDelete {
 		pMgr.staleChains.add(chain)
 	}

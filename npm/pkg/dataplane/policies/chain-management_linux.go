@@ -1,11 +1,12 @@
 package policies
 
+// This file contains code for booting up and reconciling iptables
+
 import (
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
@@ -61,29 +62,29 @@ var (
 )
 
 type staleChains struct {
-	chainsToCleanup   map[string]struct{}
-	releaseLockSignal chan struct{}
-	sync.Mutex
+	chainsToCleanup map[string]struct{}
 }
 
 func newStaleChains() *staleChains {
 	return &staleChains{
-		chainsToCleanup:   make(map[string]struct{}),
-		releaseLockSignal: make(chan struct{}, 1),
+		chainsToCleanup: make(map[string]struct{}),
 	}
 }
 
-func (s *staleChains) forceLock() {
-	s.releaseLockSignal <- struct{}{}
-	s.Lock()
+// forceLock stops reconciling if it is running, and then locks the reconcileManager
+func (rm *reconcileManager) forceLock() {
+	rm.releaseLockSignal <- struct{}{}
+	rm.Lock()
 }
 
-func (s *staleChains) forceUnlock() {
+// forceUnlock makes sure that the releaseLockSignal channel is empty (in case reconciling
+// wasn't running when forceLock was called), and then unlocks the reconcileManager.
+func (rm *reconcileManager) forceUnlock() {
 	select {
-	case <-s.releaseLockSignal:
+	case <-rm.releaseLockSignal:
 	default:
 	}
-	s.Unlock()
+	rm.Unlock()
 }
 
 // Adds the chain if it isn't one of the iptablesAzureChains.
@@ -147,6 +148,11 @@ func isBaseChain(chain string) bool {
 func (pMgr *PolicyManager) bootup(_ []string) error {
 	klog.Infof("booting up iptables Azure chains")
 
+	// Stop reconciling so we don't centend for iptables, and so we don't update the staleChains at the same time as reconcile()
+	// Reconciling would only be happening if this function were called to reset iptables well into the azure-npm pod lifecycle.
+	pMgr.reconcileManager.forceLock()
+	defer pMgr.reconcileManager.forceUnlock()
+
 	// 1. delete the deprecated jump to AZURE-NPM
 	deprecatedErrCode, deprecatedErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
 	if deprecatedErr == nil {
@@ -185,16 +191,16 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 }
 
 // reconcile does the following:
-// - cleans up stale policy chains
 // - creates the jump rule from FORWARD chain to AZURE-NPM chain (if it does not exist) and makes sure it's after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
+// - cleans up stale policy chains. It can be forced to stop this process if reconcileManager.forceLock() is called.
 func (pMgr *PolicyManager) reconcile() {
 	klog.Infof("repositioning azure chain jump rule")
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
 		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
 	}
 
-	pMgr.staleChains.Lock()
-	defer pMgr.staleChains.Unlock()
+	pMgr.reconcileManager.Lock()
+	defer pMgr.reconcileManager.Unlock()
 	staleChains := pMgr.staleChains.emptyAndGetAll()
 	klog.Infof("cleaning up these stale chains: %+v", staleChains)
 	if err := pMgr.cleanupChains(staleChains); err != nil {
@@ -210,7 +216,8 @@ func (pMgr *PolicyManager) cleanupChains(chains []string) error {
 deleteLoop:
 	for k, chain := range chains {
 		select {
-		case <-pMgr.staleChains.releaseLockSignal:
+		case <-pMgr.reconcileManager.releaseLockSignal:
+			// if reconcileManager.forceLock() was called, then stop deleting stale chains so that reconcileManager can be unlocked right away
 			for j := k; j < len(chains); j++ {
 				pMgr.staleChains.add(chains[j])
 			}
@@ -274,14 +281,12 @@ func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *
 	// Step 2.1 in bootup() comment: cleanup old NPM chains, and configure base chains and their rules
 	// To leave NPM deactivated, don't specify any rules for AZURE-NPM chain.
 	creator := pMgr.newCreatorWithChains(chainsToCreate)
-	pMgr.staleChains.forceLock()
 	pMgr.staleChains.empty()
 	for chain := range currentChains {
 		creator.AddLine("", nil, fmt.Sprintf("-F %s", chain))
 		// Step 2.2 in bootup() comment: delete deprecated chains and old v2 policy chains in the background
 		pMgr.staleChains.add(chain) // won't add base chains
 	}
-	defer pMgr.staleChains.forceUnlock()
 
 	// add AZURE-NPM-INGRESS chain rules
 	ingressDropSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureIngressChain, util.IptablesJumpFlag, util.IptablesDrop}
