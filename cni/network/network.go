@@ -31,6 +31,7 @@ import (
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -563,8 +564,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	msg = fmt.Sprintf("CNI ADD succeeded : IP:%+v, VlanID: %v, podname %v, namespace %v",
-		result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace)
+	msg = fmt.Sprintf("CNI ADD succeeded : IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
+		result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name))
 	telemetry.SendCNIEvent(msg, plugin.tb)
 	log.Printf(msg)
 
@@ -903,7 +904,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		nwCfg        *cni.NetworkConfig
 		k8sPodName   string
 		k8sNamespace string
-		networkId    string
+		networkID    string
 		nwInfo       network.NetworkInfo
 		epInfo       *network.EndpointInfo
 		cniMetric    telemetry.AIMetric
@@ -963,10 +964,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		switch nwCfg.Ipam.Type {
 		case network.AzureCNS:
 			cnsURL := "http://localhost:" + strconv.Itoa(cnsPort)
-			cnsClient, er := cnscli.New(cnsURL, defaultRequestTimeout)
-			if err != nil {
-				log.Printf("[cni-net] failed to create cns client", networkId, err)
-				return fmt.Errorf("ailed to create cns client with err %w", er)
+			cnsClient, cnsErr := cnscli.New(cnsURL, defaultRequestTimeout)
+			if cnsErr != nil {
+				log.Printf("[cni-net] failed to create cns client:%v", cnsErr)
+				return errors.Wrap(cnsErr, "failed to create cns client")
 			}
 			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
 
@@ -975,7 +976,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 	}
 	// Initialize values from network config.
-	networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkID, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
 
 	// If error is not found error, then we ignore it, to comply with CNI SPEC.
 	if err != nil {
@@ -988,7 +989,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	// Query the network.
-	if nwInfo, err = plugin.nm.GetNetworkInfo(networkId); err != nil {
+	if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
 
 		if !nwCfg.MultiTenancy {
 			// attempt to release address associated with this Endpoint id
@@ -1008,9 +1009,9 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	endpointId := GetEndpointID(args)
+	endpointID := GetEndpointID(args)
 	// Query the endpoint.
-	if epInfo, err = plugin.nm.GetEndpointInfo(networkId, endpointId); err != nil {
+	if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
 
 		if !nwCfg.MultiTenancy {
 			// attempt to release address associated with this Endpoint id
@@ -1037,11 +1038,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	// schedule send metric before attempting delete
 	defer sendMetricFunc()
-	msg = fmt.Sprintf("Deleting endpoint:%v", endpointId)
+	msg = fmt.Sprintf("Deleting endpoint:%v", endpointID)
 	log.Printf(msg)
 	telemetry.SendCNIEvent(msg, plugin.tb)
 	// Delete the endpoint.
-	if err = plugin.nm.DeleteEndpoint(cnsclient, networkId, endpointId); err != nil {
+	if err = plugin.nm.DeleteEndpoint(cnsclient, networkID, endpointID); err != nil {
 		err = plugin.Errorf("Failed to delete endpoint: %v", err)
 		return err
 	}
