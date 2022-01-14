@@ -267,12 +267,12 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 		if err != nil {
 			return npmerrors.SimpleErrorWrapper("failed to decode Policy apply event", err)
 		}
-		klog.Infof("Processing %s Policy ADD event", netpol.Name)
 
 		if netpol == nil {
 			klog.Warningf("Empty Policy apply event")
 			continue
 		}
+		klog.Infof("Processing %s Policy ADD event", netpol.Name)
 
 		err = gsp.dp.UpdatePolicy(netpol)
 		if err != nil {
