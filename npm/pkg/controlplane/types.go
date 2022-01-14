@@ -19,7 +19,7 @@ type ControllerIPSets struct {
 	// IPPodMetadata is used for setMaps to store Ips and ports as keys
 	// and podMetadata as value
 	IPPodMetadata map[string]*dp.PodMetadata
-	// This is used for listMaps to store child IP Sets
+	// MemberIPSets is used for listMaps to store child IP Sets
 	MemberIPSets map[string]*ipsets.IPSetMetadata
 }
 

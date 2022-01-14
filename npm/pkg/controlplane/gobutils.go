@@ -9,6 +9,9 @@ import (
 )
 
 func EncodeString(name string) (*bytes.Buffer, error) {
+	if name == "" {
+		return nil, npmerrors.SimpleError("failed to encode, name is empty")
+	}
 	var payloadBuffer bytes.Buffer
 	err := gob.NewEncoder(&payloadBuffer).Encode(&name)
 	if err != nil {
@@ -18,6 +21,9 @@ func EncodeString(name string) (*bytes.Buffer, error) {
 }
 
 func DecodeString(payload *bytes.Buffer) (string, error) {
+	if payload == nil {
+		return "", npmerrors.SimpleError("failed to decode, payload is nil")
+	}
 	var name string
 	err := gob.NewDecoder(payload).Decode(&name)
 	if err != nil {
@@ -27,6 +33,9 @@ func DecodeString(payload *bytes.Buffer) (string, error) {
 }
 
 func EncodeControllerIPSet(ipset *ControllerIPSets) (*bytes.Buffer, error) {
+	if ipset == nil {
+		return nil, npmerrors.SimpleError("failed to encode, ipset is nil")
+	}
 	var payloadBuffer bytes.Buffer
 	err := gob.NewEncoder(&payloadBuffer).Encode(&ipset)
 	if err != nil {
@@ -36,6 +45,9 @@ func EncodeControllerIPSet(ipset *ControllerIPSets) (*bytes.Buffer, error) {
 }
 
 func DecodeControllerIPSet(payload *bytes.Buffer) (*ControllerIPSets, error) {
+	if payload == nil {
+		return nil, npmerrors.SimpleError("failed to decode, payload is nil")
+	}
 	var ipset ControllerIPSets
 	err := gob.NewDecoder(payload).Decode(&ipset)
 	if err != nil {
@@ -45,6 +57,9 @@ func DecodeControllerIPSet(payload *bytes.Buffer) (*ControllerIPSets, error) {
 }
 
 func EncodeNPMNetworkPolicy(netpol *policies.NPMNetworkPolicy) (*bytes.Buffer, error) {
+	if netpol == nil {
+		return nil, npmerrors.SimpleError("failed to encode, netpol is nil")
+	}
 	var payloadBuffer bytes.Buffer
 	enc := gob.NewEncoder(&payloadBuffer)
 	err := enc.Encode(netpol)
@@ -55,6 +70,9 @@ func EncodeNPMNetworkPolicy(netpol *policies.NPMNetworkPolicy) (*bytes.Buffer, e
 }
 
 func DecodeNPMNetworkPolicy(payload *bytes.Buffer) (*policies.NPMNetworkPolicy, error) {
+	if payload == nil {
+		return nil, npmerrors.SimpleError("failed to decode, payload is nil")
+	}
 	var netpol policies.NPMNetworkPolicy
 	err := gob.NewDecoder(payload).Decode(&netpol)
 	if err != nil {

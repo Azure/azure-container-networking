@@ -181,9 +181,11 @@ const (
 )
 
 type IPSet struct {
+	// Name is prefixed name of original set
 	Name           string
 	unprefixedName string
-	HashedName     string
+	// HashedName is AzureNpmPrefix (azure-npm-) + hash of prefixed name
+	HashedName string
 	// SetProperties embedding set properties
 	SetProperties
 	// IpPodKey is used for setMaps to store Ips and ports as keys
@@ -232,6 +234,7 @@ func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 	return set
 }
 
+// GetSetMetadata returns set metadata with unprefixed original name and SetType
 func (set *IPSet) GetSetMetadata() *IPSetMetadata {
 	return NewIPSetMetadata(set.unprefixedName, set.Type)
 }
@@ -241,6 +244,7 @@ func (set *IPSet) String() string {
 		set.Name, set.HashedName, setTypeName[set.Type], string(set.Kind))
 }
 
+// GetSetContents returns members of set as string slice
 func (set *IPSet) GetSetContents() ([]string, error) {
 	switch set.Kind {
 	case HashSet:

@@ -64,9 +64,6 @@ func (c *DataplaneEventsClient) run(ctx context.Context, connectClient protos.Da
 					"Received event %s \n",
 					e.String(),
 				)
-				for _, d := range e.GetData() {
-					fmt.Printf("%b\n", d)
-				}
 			}
 		}
 	}

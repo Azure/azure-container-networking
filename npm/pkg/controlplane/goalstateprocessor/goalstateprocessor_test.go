@@ -76,7 +76,7 @@ var (
 	}
 )
 
-func TestNewGoalStateProcessor(t *testing.T) {
+func TestPolicyApplyEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

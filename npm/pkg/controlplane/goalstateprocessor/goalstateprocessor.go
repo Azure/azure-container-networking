@@ -18,8 +18,6 @@ type GoalStateProcessor struct {
 	cancel         context.CancelFunc
 	nodeID         string
 	podName        string
-	controllerIP   string
-	controllerPort int
 	dp             dataplane.GenericDataplane
 	inputChannel   chan *protos.Events
 	backoffChannel chan *protos.Events
@@ -42,27 +40,19 @@ func NewGoalStateProcessor(
 	}
 }
 
+// Start kicks off the GoalStateProcessor
 func (gsp *GoalStateProcessor) Start() {
 	klog.Infof("Starting GoalStateProcessor for node %s", gsp.nodeID)
 	go gsp.run()
 }
 
-func (gsp *GoalStateProcessor) SetController(controllerIP string, controllerPort int) {
-	klog.Infof("Setting controller for node %s", gsp.nodeID)
-	gsp.controllerIP = controllerIP
-	gsp.controllerPort = controllerPort
-}
-
+// Stop stops the GoalStateProcessor
 func (gsp *GoalStateProcessor) Stop() {
 	klog.Infof("Stopping GoalStateProcessor for node %s", gsp.nodeID)
 	gsp.cancel()
 }
 
 func (gsp *GoalStateProcessor) run() {
-	if gsp.controllerIP != "" && gsp.controllerPort != 0 {
-		klog.Warningf("Invalid controller for node %s, IP %s port %d", gsp.nodeID, gsp.controllerIP, gsp.controllerPort)
-		return
-	}
 	klog.Infof("Starting dataplane for node %s", gsp.nodeID)
 
 	for {
@@ -113,29 +103,29 @@ func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
 		return
 	}
 
-	if _, ok := payload[cp.IpsetApply]; ok {
-		err := gsp.processIPSetsApplyEvent(payload[cp.IpsetApply])
+	if ipsetApplyPayload, ok := payload[cp.IpsetApply]; ok {
+		err := gsp.processIPSetsApplyEvent(ipsetApplyPayload)
 		if err != nil {
 			klog.Errorf("Error processing IPSET apply event %s", err)
 		}
 	}
 
-	if _, ok := payload[cp.PolicyApply]; ok {
-		err := gsp.processPolicyApplyEvent(payload[cp.PolicyApply])
+	if policyApplyPayload, ok := payload[cp.PolicyApply]; ok {
+		err := gsp.processPolicyApplyEvent(policyApplyPayload)
 		if err != nil {
 			klog.Errorf("Error processing POLICY apply event %s", err)
 		}
 	}
 
-	if _, ok := payload[cp.PolicyRemove]; ok {
-		err := gsp.processPolicyRemoveEvent(payload[cp.PolicyRemove])
+	if policyRemovePayload, ok := payload[cp.PolicyRemove]; ok {
+		err := gsp.processPolicyRemoveEvent(policyRemovePayload)
 		if err != nil {
 			klog.Errorf("Error processing POLICY remove event %s", err)
 		}
 	}
 
-	if _, ok := payload[cp.IpsetRemove]; ok {
-		err := gsp.processIPSetsRemoveEvent(payload[cp.IpsetRemove])
+	if ipsetRemovePayload, ok := payload[cp.IpsetRemove]; ok {
+		err := gsp.processIPSetsRemoveEvent(ipsetRemovePayload)
 		if err != nil {
 			klog.Errorf("Error processing IPSET remove event %s", err)
 		}
@@ -148,6 +138,11 @@ func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalSta
 		ipset, err := cp.DecodeControllerIPSet(payload)
 		if err != nil {
 			return npmerrors.SimpleErrorWrapper("failed to decode IPSet apply event", err)
+		}
+
+		if ipset == nil {
+			klog.Warningf("Empty IPSet apply event")
+			continue
 		}
 
 		ipsetName := ipset.GetPrefixName()
@@ -248,6 +243,10 @@ func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(goalState *protos.GoalSt
 		if err != nil {
 			return npmerrors.SimpleErrorWrapper("failed to decode IPSet remove event", err)
 		}
+		if ipsetName == "" {
+			klog.Warningf("Empty IPSet remove event")
+			continue
+		}
 		klog.Infof("Processing %s IPSET remove event", ipsetName)
 
 		cachedIPSet := gsp.dp.GetIPSet(ipsetName)
@@ -270,6 +269,11 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 		}
 		klog.Infof("Processing %s Policy ADD event", netpol.Name)
 
+		if netpol == nil {
+			klog.Warningf("Empty Policy apply event")
+			continue
+		}
+
 		err = gsp.dp.UpdatePolicy(netpol)
 		if err != nil {
 			klog.Errorf("Error applying policy %s to dataplane with error: %s", netpol.Name, err.Error())
@@ -287,6 +291,11 @@ func (gsp *GoalStateProcessor) processPolicyRemoveEvent(goalState *protos.GoalSt
 			return npmerrors.SimpleErrorWrapper("failed to decode Policy remove event", err)
 		}
 		klog.Infof("Processing %s Policy remove event", netpolName)
+
+		if netpolName == "" {
+			klog.Warningf("Empty Policy remove event")
+			continue
+		}
 
 		err = gsp.dp.RemovePolicy(netpolName)
 		if err != nil {
