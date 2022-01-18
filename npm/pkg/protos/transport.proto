@@ -2,8 +2,6 @@ syntax = "proto3";
 package protos;
 option go_package = "github.com/Azure/azure-container-networking/npm/pkg/protos;protos";
 
-import "google/protobuf/struct.proto";
-
 // DataplaneEvents represents the Service RPC exposed by the gRPC server.
 service DataplaneEvents{
 	rpc Connect(DatapathPodMetadata) returns (stream Events);
@@ -22,30 +20,15 @@ message DatapathPodMetadata {
 // Events defines the operation (event type) and object type being
 // streamed to the datapath client. A events message may carry one or
 // more Event objects.
-message Events{
-  EventType type = 1;
-  // The following events are supported:
-  enum EventType {
-    // Send a CREATE/UPDATE event to a datapath Pod
-    APPLY = 0;
-    // Send a DELETE event to a datapath Pod
-    REMOVE = 1;
-  }
-
-  ObjectType object = 2;
-  // Supported objects are IPSet and NetworkPolicy objects.
-  enum ObjectType {
-    IPSET = 0;
-    POLICY = 1;
-  }
+message Events {
   // Payload can contain one or more Event objects.
-  repeated Event event = 3;
+  map<string, GoalState> payload = 1;
 }
 
 // Event is a generic object that can be Created, 
 // Updated, Deleted by the controlplane.
-message Event {
+message GoalState {
   // Data can contain one or more instances of IPSet or NetworkPolicy
   // objects.
-	repeated google.protobuf.Struct data = 3;
+	repeated bytes data = 1;
 }

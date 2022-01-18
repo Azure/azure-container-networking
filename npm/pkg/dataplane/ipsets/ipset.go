@@ -181,7 +181,10 @@ const (
 )
 
 type IPSet struct {
-	Name       string
+	// Name is prefixed name of original set
+	Name           string
+	unprefixedName string
+	// HashedName is AzureNpmPrefix (azure-npm-) + hash of prefixed name
 	HashedName string
 	// SetProperties embedding set properties
 	SetProperties
@@ -207,8 +210,9 @@ type IPSet struct {
 func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 	prefixedName := setMetadata.GetPrefixName()
 	set := &IPSet{
-		Name:       prefixedName,
-		HashedName: util.GetHashedName(prefixedName),
+		Name:           prefixedName,
+		unprefixedName: setMetadata.Name,
+		HashedName:     util.GetHashedName(prefixedName),
 		SetProperties: SetProperties{
 			Type: setMetadata.Type,
 			Kind: setMetadata.GetSetKind(),
@@ -230,11 +234,17 @@ func NewIPSet(setMetadata *IPSetMetadata) *IPSet {
 	return set
 }
 
+// GetSetMetadata returns set metadata with unprefixed original name and SetType
+func (set *IPSet) GetSetMetadata() *IPSetMetadata {
+	return NewIPSetMetadata(set.unprefixedName, set.Type)
+}
+
 func (set *IPSet) String() string {
 	return fmt.Sprintf("Name: %s HashedNamed: %s Type: %s Kind: %s",
 		set.Name, set.HashedName, setTypeName[set.Type], string(set.Kind))
 }
 
+// GetSetContents returns members of set as string slice
 func (set *IPSet) GetSetContents() ([]string, error) {
 	switch set.Kind {
 	case HashSet:

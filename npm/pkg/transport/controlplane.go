@@ -1,15 +1,18 @@
 package transport
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	"net"
 
+	cp "github.com/Azure/azure-container-networking/npm/pkg/controlplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/stats"
-	"google.golang.org/protobuf/types/known/structpb"
 	"k8s.io/klog/v2"
 )
 
@@ -97,15 +100,18 @@ func (m *Manager) start() error {
 				}
 			}
 		case msg := <-m.inCh:
+			var payload bytes.Buffer
+			enc := gob.NewEncoder(&payload)
+
+			err := enc.Encode(msg)
+			if err != nil {
+				return npmerrors.SimpleErrorWrapper("failed to encode event", err)
+			}
 			for _, client := range m.Registrations {
 				if err := client.stream.SendMsg(&protos.Events{
-					Type:   *protos.Events_APPLY.Enum(),
-					Object: *protos.Events_IPSET.Enum(),
-					Event: []*protos.Event{
-						{
-							Data: []*structpb.Struct{
-								msg.(*structpb.Struct),
-							},
+					Payload: map[string]*protos.GoalState{
+						cp.IpsetApply: {
+							Data: [][]byte{payload.Bytes()},
 						},
 					},
 				}); err != nil {

@@ -95,7 +95,7 @@ func main() {
 	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestNSSet.Metadata}, podMetadataB))
 	podMetadataC := &dataplane.PodMetadata{
 		PodKey:   "c",
-		PodIP:    "10.240.0.28",
+		PodIP:    "10.240.0.83",
 		NodeName: nodeName,
 	}
 	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestKeyPodSet.Metadata, ipsets.TestNSSet.Metadata}, podMetadataC))
@@ -122,6 +122,10 @@ func main() {
 	dp.DeleteIPSet(ipsets.TestKVPodSet.Metadata)
 	panicOnError(dp.ApplyDataPlane())
 
+	if includeLists {
+		panicOnError(dp.AddToLists([]*ipsets.IPSetMetadata{ipsets.TestNestedLabelList.Metadata}, []*ipsets.IPSetMetadata{ipsets.TestKVPodSet.Metadata, ipsets.TestNSSet.Metadata}))
+	}
+
 	printAndWait(true)
 	panicOnError(dp.RemoveFromSets([]*ipsets.IPSetMetadata{ipsets.TestNSSet.Metadata}, podMetadata))
 
@@ -140,7 +144,7 @@ func main() {
 
 	podMetadataD = &dataplane.PodMetadata{
 		PodKey:   "d",
-		PodIP:    "10.240.0.27",
+		PodIP:    "10.240.0.91",
 		NodeName: nodeName,
 	}
 	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestKeyPodSet.Metadata, ipsets.TestNSSet.Metadata}, podMetadataD))

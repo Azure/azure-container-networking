@@ -17,6 +17,7 @@ type DataplaneEventsClient struct {
 }
 
 func NewDataplaneEventsClient(ctx context.Context, pod, node, addr string) (*DataplaneEventsClient, error) {
+	// TODO Make this secure
 	cc, err := grpc.DialContext(ctx, addr, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %s: %w", addr, err)
@@ -56,19 +57,13 @@ func (c *DataplaneEventsClient) run(ctx context.Context, connectClient protos.Da
 				break
 			}
 
-			// TODO: REMOVE ME
-			// This is for debugging purposes only
-			fmt.Printf(
-				"Received event type %s object type %s: \n",
-				event.GetType(),
-				event.GetObject(),
-			)
-
-			for _, e := range event.GetEvent() {
-				for _, d := range e.GetData() {
-					eventAsMap := d.AsMap()
-					fmt.Printf("%s: %s\n", eventAsMap["Type"], eventAsMap["Payload"])
-				}
+			for _, e := range event.GetPayload() {
+				// TODO: REMOVE ME
+				// This is for debugging purposes only
+				fmt.Printf(
+					"Received event %s \n",
+					e.String(),
+				)
 			}
 		}
 	}

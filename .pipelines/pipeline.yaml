@@ -154,6 +154,11 @@ stages:
               targetFolder: $(Build.ArtifactStagingDirectory)
             condition: succeeded()
 
+          - task: ManifestGeneratorTask@0
+            displayName: "Add SBOM Generator tool"
+            inputs:
+              BuildDropPath: '$(Build.ArtifactStagingDirectory)'
+
           - task: PublishBuildArtifacts@1
             inputs:
               artifactName: "output"

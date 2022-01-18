@@ -88,6 +88,10 @@ func (dp *DataPlane) RunPeriodicTasks() {
 	dp.policyMgr.Reconcile(dp.stopChannel)
 }
 
+func (dp *DataPlane) GetIPSet(setName string) *ipsets.IPSet {
+	return dp.ipsetMgr.GetIPSet(setName)
+}
+
 // CreateIPSets takes in a set object and updates local cache with this set
 func (dp *DataPlane) CreateIPSets(setMetadata []*ipsets.IPSetMetadata) {
 	dp.ipsetMgr.CreateIPSets(setMetadata)
