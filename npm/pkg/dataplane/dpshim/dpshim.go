@@ -12,7 +12,7 @@ type DPShim struct {
 	outChannel chan *protos.Events
 }
 
-func NewDPSim(outChannel chan *protos.Events) *DPShim {
+func NewDPShim(outChannel chan *protos.Events) *DPShim {
 	return &DPShim{outChannel: outChannel}
 }
 
@@ -23,6 +23,8 @@ func (dp *DPShim) InitializeDataPlane() error {
 func (dp *DPShim) ResetDataPlane() error {
 	return nil
 }
+
+func (dp *DPShim) RunPeriodicTasks() {}
 
 func (dp *DPShim) GetIPSet(setName string) *ipsets.IPSet {
 	return nil
