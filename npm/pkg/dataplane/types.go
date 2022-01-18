@@ -8,7 +8,6 @@ import (
 type GenericDataplane interface {
 	InitializeDataPlane() error
 	ResetDataPlane() error
-	RunPeriodicTasks()
 	CreateIPSets(setNames []*ipsets.IPSetMetadata)
 	DeleteIPSet(setMetadata *ipsets.IPSetMetadata)
 	AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
