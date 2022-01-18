@@ -136,7 +136,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	k8sServerVersion := k8sServerVersion(clientset)
 
-	var dp dataplane.GenericDataplane
+	var dp *dataplane.DataPlane
 	stopChannel := wait.NeverStop
 	if config.Toggles.EnableV2NPM {
 		dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, stopChannel)
