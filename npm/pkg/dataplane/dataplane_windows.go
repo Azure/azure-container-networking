@@ -112,6 +112,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	// Check if pod is already present in cache
 	endpoint, ok := dp.endpointCache[pod.PodIP]
 	if !ok {
+		// TODO ignore this err and delete the pod if the Pod endpoint is not found.
 		return fmt.Errorf("[DataPlane] did not find endpoint with IPaddress %s", pod.PodIP)
 	}
 

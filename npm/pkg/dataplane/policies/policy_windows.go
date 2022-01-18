@@ -94,19 +94,23 @@ func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
 
 	// HNS has confusing Local and Remote address defintions
 	// For Traffic Direction INGRESS
-	// 		LocalAddresses = Source IPs
+	// 		LocalAddresses  = Source IPs
 	// 		RemoteAddresses = Destination IPs
-	// For Traffic Direction EGRESS
-	// 		LocalAddresses = Destination IPs
-	// 		RemoteAddresses = Source IPs
+	//      LocalPorts      = Destination Ports
+	//      RemotePorts     = Source Ports
 	policySettings.LocalAddresses = srcListStr
 	policySettings.RemoteAddresses = dstListStr
-	policySettings.RemotePorts = dstPortStr
-	policySettings.LocalPorts = ""
+	policySettings.RemotePorts = ""
+	policySettings.LocalPorts = dstPortStr
 	if policySettings.Direction == hcn.DirectionTypeOut {
+		// For Traffic Direction EGRESS
+		// 		LocalAddresses  = Destination IPs
+		// 		RemoteAddresses = Source IPs
+		//      LocalPorts      = Source Ports
+		//      RemotePorts     = Destination Ports
 		policySettings.LocalAddresses = dstListStr
-		policySettings.LocalPorts = dstPortStr
-		policySettings.RemotePorts = ""
+		policySettings.LocalPorts = ""
+		policySettings.RemotePorts = dstPortStr
 		policySettings.RemoteAddresses = srcListStr
 	}
 
