@@ -143,6 +143,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 		if err != nil {
 			return fmt.Errorf("failed to create dataplane with error %w", err)
 		}
+		dp.RunPeriodicTasks()
 	}
 	npMgr := npm.NewNetworkPolicyManager(config, factory, dp, exec.New(), version, k8sServerVersion)
 	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())

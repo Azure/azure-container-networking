@@ -223,16 +223,16 @@ deleteLoop:
 			}
 			break deleteLoop
 		default:
-		}
-		errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain)
-		if err != nil && errCode != doesNotExistErrorCode {
-			// add to staleChains if it's not one of the iptablesAzureChains
-			pMgr.staleChains.add(chain)
-			currentErrString := fmt.Sprintf("failed to clean up chain %s with err [%v]", chain, err)
-			if aggregateError == nil {
-				aggregateError = npmerrors.SimpleError(currentErrString)
-			} else {
-				aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
+			errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain)
+			if err != nil && errCode != doesNotExistErrorCode {
+				// add to staleChains if it's not one of the iptablesAzureChains
+				pMgr.staleChains.add(chain)
+				currentErrString := fmt.Sprintf("failed to clean up chain %s with err [%v]", chain, err)
+				if aggregateError == nil {
+					aggregateError = npmerrors.SimpleError(currentErrString)
+				} else {
+					aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
+				}
 			}
 		}
 	}

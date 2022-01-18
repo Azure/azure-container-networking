@@ -74,7 +74,8 @@ var (
 )
 
 func main() {
-	dp, err := dataplane.NewDataPlane(nodeName, common.NewIOShim(), dpCfg, nil)
+	dp, err := dataplane.NewDataPlane(nodeName, common.NewIOShim(), dpCfg, make(chan struct{}, 1))
+	dp.RunPeriodicTasks()
 	panicOnError(err)
 	printAndWait(true)
 
