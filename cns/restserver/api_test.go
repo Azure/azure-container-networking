@@ -535,27 +535,25 @@ func TestPublishNCViaCNS(t *testing.T) {
 	}
 
 	createNetworkContainerURL = "http://" + nmagentEndpoint +
-		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
-		"e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6" +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationTok/" +
+		"8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1"
 
 	err = publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, true)
 	if err == nil {
-		t.Fatal(err)
+		t.Fatal("Expected a bad request error due to create network url being incorrect")
 	}
 
 	createNetworkContainerURL = "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
-		"e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6" +
+		"8636c99d-7861-401f-b0d3-7e5b7dc8183c8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1"
 
 
 	err = publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, true)
 	if err == nil {
-		t.Fatal(err)
+		t.Fatal("Expected a bad request error due to create network url having more characters than permitted in auth token")
 	}
-
-
 }
 
 func publishNCViaCNS(t *testing.T,
@@ -599,32 +597,6 @@ func publishNCViaCNS(t *testing.T,
 	return nil
 }
 
-func TestExtractHost(t *testing.T) {
-	joinURL := "http://127.0.0.1:9001/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/c9b8e695-2de1-11eb-bf54-000d3af666c8/api-version/1"
-
-	host := extractHostFromJoinNetworkURL(joinURL)
-	expected := "127.0.0.1:9001"
-	if host != expected {
-		t.Fatalf("expected host %q, got %q", expected, host)
-	}
-
-	joinURL = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/4941a21f-1a8d-4d0f-8256-cc6e73a8cd22/api-version/1"
-
-	host = extractHostFromJoinNetworkURL(joinURL)
-	expected = "168.63.129.16"
-	if host != expected {
-		t.Fatalf("expected host %q, got %q", expected, host)
-	}
-
-	joinURL = "http://168.63.129.16/joinedVirtualNetworks/4941a21f-1a8d-4d0f-8256-cc6e73a8cd22/api-version/1"
-
-	host = extractHostFromJoinNetworkURL(joinURL)
-	expected = "168.63.129.16"
-	if host != expected {
-		t.Fatalf("expected host %q, got %q", expected, host)
-	}
-}
-
 func TestUnpublishNCViaCNS(t *testing.T){
 
 	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
@@ -635,24 +607,24 @@ func TestUnpublishNCViaCNS(t *testing.T){
 	}
 
 	deleteNetworkContainerURL = "http://" + nmagentEndpoint +
-		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
-		"e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6" +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToke/" +
+		"8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1/method/DELETE"
 
 	err = publishNCViaCNS(t, "vnet1", "ethWebApp", deleteNetworkContainerURL, true)
 	if err == nil {
-		t.Fatal(err)
+		t.Fatal("Expected a bad request error due to delete network url being incorrect")
 	}
 
 	deleteNetworkContainerURL = "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
-		"e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6e2b5c004-afbc-4a17-9cd8-6878fbee8ed6" +
+		"8636c99d-7861-401f-b0d3-7e5b7dc8183c8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1/method/DELETE"
 
 
 	err = testUnpublishNCViaCNS(t, "vnet1", "ethWebApp", deleteNetworkContainerURL, true)
 	if err == nil {
-		t.Fatal(err)
+		t.Fatal("Expected a bad request error due to create network url having more characters than permitted in auth token")
 	}
 
 }

@@ -463,6 +463,12 @@ type PublishNetworkContainerRequest struct {
 	CreateNetworkContainerRequestBody []byte
 }
 
+// NetworkContainerParameters parameters available in network container operations
+type NetworkContainerParameters struct {
+	AuthToken            string
+	AssociatedInterfaceID string
+}
+
 // PublishNetworkContainerResponse specifies the response to publish network container request.
 type PublishNetworkContainerResponse struct {
 	Response            Response

@@ -24,6 +24,8 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 )
 
+var ncRegex = regexp.MustCompile(`NetworkManagement/interfaces/(.{0,36})/networkContainers/(.{0,36})/authenticationToken/(.{0,36})/api-version/1(/method/DELETE)?`)
+
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
 // TODO: break it even further per module (network, nc, etc) like it is done for ipam
 
@@ -1073,11 +1075,11 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, numOfCPUCoresResp, resp.ReturnCode, err)
 }
 
-func getAuthTokenAndInterfaceIdFromNcURL(networkContainerURL string) (string, string, error) {
+func getAuthTokenAndInterfaceIdFromNcURL(networkContainerURL string) (*cns.NetworkContainerParameters, error) {
 
 	ncUrl, err := url.Parse(networkContainerURL)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	queryParams := ncUrl.Query()
@@ -1086,27 +1088,18 @@ func getAuthTokenAndInterfaceIdFromNcURL(networkContainerURL string) (string, st
 	// doing this parsing due to this structure
 	typeQueryParamVal := queryParams.Get("type")
 	if typeQueryParamVal == "" {
-		return "", "", fmt.Errorf("Invalid create container url format, no type query param")
+		return nil, fmt.Errorf("Invalid create container url format, no type query param")
 	}
 
 	// .{0,128} gets from zero to 128 characters of any kind
 	// ()? is optional
-	ncRegex := regexp.MustCompile(`NetworkManagement/interfaces/(.{0,128})/networkContainers/(.{0,128})/authenticationToken/(.{0,128})/api-version/1(/method/DELETE)?`)
 	matches := ncRegex.FindStringSubmatch(typeQueryParamVal)
 
 	if len(matches) != 5 {
-		return "", "", fmt.Errorf("Invalid network container url format")
+		return nil, fmt.Errorf("Invalid network container url format")
 	}
 
-	return matches[1], matches[3], err
-}
-
-func extractHostFromJoinNetworkURL(urlToParse string) string {
-	parsedURL, err := url.Parse(urlToParse)
-	if err != nil {
-		return ""
-	}
-	return parsedURL.Host
+	return &cns.NetworkContainerParameters{AssociatedInterfaceID: matches[1], AuthToken: matches[3]}, err
 }
 
 // Publish Network Container by calling nmagent
@@ -1146,11 +1139,22 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		return
 	}
 
-	var associatedInterfaceID, authToken string
-	associatedInterfaceID, authToken, err = getAuthTokenAndInterfaceIdFromNcURL(creteNcUrlCopy)
+	var ncParameters *cns.NetworkContainerParameters
+	ncParameters, err = getAuthTokenAndInterfaceIdFromNcURL(creteNcUrlCopy)
 	if err != nil {
-		logger.Errorf("[Azure-CNS] %+v", err)
+		logger.Errorf("[Azure-CNS] nc parameters validation failed with %+v", err)
 		w.WriteHeader(http.StatusBadRequest)
+
+		badRequestResponse := &cns.PublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: http.StatusBadRequest,
+				Message:    fmt.Sprintf("Request contains a unexpected create url format in request body: %v", reqCopy.CreateNetworkContainerURL),
+			},
+			PublishErrorStr: fmt.Sprintf("Bad request: Request contains a unexpected create url format in request body: %v", reqCopy.CreateNetworkContainerURL),
+			PublishStatusCode: http.StatusBadRequest,
+		}
+		err = service.Listener.Encode(w, &badRequestResponse)
+		logger.Response(service.Name, badRequestResponse, badRequestResponse.Response.ReturnCode, err)
 		return
 	}
 
@@ -1169,8 +1173,8 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			// Publish Network Container
 			publishResponse, publishError = nmagent.PublishNetworkContainer(
 				req.NetworkContainerID,
-				associatedInterfaceID,
-				authToken,
+				ncParameters.AssociatedInterfaceID,
+				ncParameters.AuthToken,
 				req.CreateNetworkContainerRequestBody)
 			if publishError != nil || publishResponse.StatusCode != http.StatusOK {
 				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
@@ -1180,18 +1184,12 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			defer publishResponse.Body.Close()
 		}
 
-		// we attempt to extract the wireserver IP to use from the request, otherwise default to the well-known IP.
-		hostIP := extractHostFromJoinNetworkURL(req.JoinNetworkURL)
-		if hostIP == "" {
-			hostIP = nmagent.WireserverIP
-		}
-
 		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
 		ncGetVersionURL := fmt.Sprintf(nmagent.GetNetworkContainerVersionURLFmt,
-			hostIP,
-			associatedInterfaceID,
+			nmagent.WireserverIP,
+			ncParameters.AssociatedInterfaceID,
 			req.NetworkContainerID,
-			authToken)
+			ncParameters.AuthToken)
 		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, ncGetVersionURL)
 
 	default:
@@ -1264,11 +1262,22 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		return
 	}
 
-	var associatedInterfaceID, authToken string
-	associatedInterfaceID, authToken, err = getAuthTokenAndInterfaceIdFromNcURL(deleteNcUrlCopy)
+	var ncParameters *cns.NetworkContainerParameters
+	ncParameters, err = getAuthTokenAndInterfaceIdFromNcURL(deleteNcUrlCopy)
 	if err != nil {
-		logger.Errorf("[Azure-CNS] %+v", err)
+		logger.Errorf("[Azure-CNS] nc parameters validation failed with %+v", err)
 		w.WriteHeader(http.StatusBadRequest)
+
+		badRequestResponse := &cns.UnpublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: http.StatusBadRequest,
+				Message:    fmt.Sprintf("Request contains a unexpected delete url format in request body: %v", reqCopy.DeleteNetworkContainerURL),
+			},
+			UnpublishErrorStr: fmt.Sprintf("Bad request: Request contains a unexpected delete url format in request body: %v", reqCopy.DeleteNetworkContainerURL),
+			UnpublishStatusCode: http.StatusBadRequest,
+		}
+		err = service.Listener.Encode(w, &badRequestResponse)
+		logger.Response(service.Name, badRequestResponse, badRequestResponse.Response.ReturnCode, err)
 		return
 	}
 
@@ -1290,8 +1299,8 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			// Unpublish Network Container
 			unpublishResponse, unpublishError = nmagent.UnpublishNetworkContainer(
 				req.NetworkContainerID,
-				associatedInterfaceID,
-				authToken)
+				ncParameters.AssociatedInterfaceID,
+				ncParameters.AuthToken)
 			if unpublishError != nil || unpublishResponse.StatusCode != http.StatusOK {
 				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
 				returnCode = types.NetworkContainerUnpublishFailed
