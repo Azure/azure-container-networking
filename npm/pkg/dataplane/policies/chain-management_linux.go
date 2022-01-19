@@ -24,7 +24,8 @@ const (
 	doesNotExistErrorCode      int = 1 // Bad rule (does a matching rule exist in that chain?)
 	couldntLoadTargetErrorCode int = 2 // Couldn't load target `AZURE-NPM-EGRESS':No such file or directory
 
-	minLineNumberStringLength int = 3 // TODO transferred from iptm.go and not sure why this length is important, but will update the function its used in later anyways
+	// transferred from iptm.go and not sure why this length is important
+	minLineNumberStringLength int = 3
 
 	azureChainGrepPattern   string = "Chain AZURE-NPM"
 	minAzureChainNameLength int    = len("AZURE-NPM")

@@ -420,18 +420,60 @@ func TestRun(t *testing.T) {
 }
 
 func TestGetChainLineNumber(t *testing.T) {
-	calls := []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers"}, Stdout: "3    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0  "}, // expected output from iptables
-		{Cmd: []string{"grep", "AZURE-NPM"}},
+	tests := []struct {
+		name     string
+		exitCode int
+		stdout   string
+		want     int
+	}{
+		{
+			name:     "no match",
+			exitCode: 1,
+			want:     0,
+		},
+		{
+			name:     "match",
+			exitCode: 0,
+			stdout:   "24    AZURE-NPM  all  --",
+			want:     24,
+		},
+		{
+			name:     "unexpected output (no line number)",
+			exitCode: 0,
+			stdout:   "no line number",
+			want:     0,
+		},
+		{
+			name:     "unexpected output (no space)",
+			exitCode: 0,
+			stdout:   "123456",
+			want:     0,
+		},
+		{
+			name:     "unexpected output (too short)",
+			exitCode: 0,
+			stdout:   "12",
+			want:     0,
+		},
 	}
 
-	fexec := testutils.GetFakeExecWithScripts(calls)
-	defer testutils.VerifyCalls(t, fexec, calls)
-	iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim(), util.PlaceAzureChainAfterKubeServices)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			calls := []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-t", "filter", "-n", "--list", "FORWARD", "--line-numbers"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, Stdout: tt.stdout, ExitCode: tt.exitCode},
+			}
+			fexec := testutils.GetFakeExecWithScripts(calls)
+			iptMgr := NewIptablesManager(fexec, NewFakeIptOperationShim(), util.PlaceAzureChainAfterKubeServices)
 
-	lineNum, err := iptMgr.getChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
-	require.NoError(t, err)
-	require.Equal(t, lineNum, 3)
+			lineNum, err := iptMgr.getChainLineNumber(util.IptablesAzureChain, util.IptablesForwardChain)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, lineNum)
+
+			testutils.VerifyCalls(t, fexec, calls)
+		})
+	}
 }
 
 func TestMain(m *testing.M) {

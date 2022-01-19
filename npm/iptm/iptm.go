@@ -4,6 +4,7 @@
 package iptm
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -20,29 +21,34 @@ const (
 	defaultlockWaitTimeInSeconds string = "60"
 	iptablesErrDoesNotExist      int    = 1
 	reconcileChainTimeInMinutes         = 5
+	minLineNumberStringLength    int    = 3
 )
 
-// IptablesAzureChainList contains list of all NPM chains
-var IptablesAzureChainList = []string{
-	util.IptablesAzureChain,
-	util.IptablesAzureAcceptChain,
-	util.IptablesAzureIngressChain,
-	util.IptablesAzureEgressChain,
-	util.IptablesAzureIngressPortChain,
-	util.IptablesAzureIngressFromChain,
-	util.IptablesAzureEgressPortChain,
-	util.IptablesAzureEgressToChain,
-	util.IptablesAzureIngressDropsChain,
-	util.IptablesAzureEgressDropsChain,
-}
-
-var deprecatedJumpToAzureEntry = &IptEntry{
-	Chain: util.IptablesForwardChain,
-	Specs: []string{
-		util.IptablesJumpFlag,
+var (
+	// IptablesAzureChainList contains list of all NPM chains
+	IptablesAzureChainList = []string{
 		util.IptablesAzureChain,
-	},
-}
+		util.IptablesAzureAcceptChain,
+		util.IptablesAzureIngressChain,
+		util.IptablesAzureEgressChain,
+		util.IptablesAzureIngressPortChain,
+		util.IptablesAzureIngressFromChain,
+		util.IptablesAzureEgressPortChain,
+		util.IptablesAzureEgressToChain,
+		util.IptablesAzureIngressDropsChain,
+		util.IptablesAzureEgressDropsChain,
+	}
+
+	deprecatedJumpToAzureEntry = &IptEntry{
+		Chain: util.IptablesForwardChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesAzureChain,
+		},
+	}
+
+	spaceByte = []byte(" ")
+)
 
 // IptEntry represents an iptables rule.
 type IptEntry struct {
@@ -431,9 +437,15 @@ func (iptMgr *IptablesManager) getChainLineNumber(chain string, parentChain stri
 		return 0, nil
 	}
 
-	if len(output) > 2 {
-		lineNum, _ := strconv.Atoi(string(output[0]))
-		return lineNum, nil
+	// NOTE: v2 has different behavior for unexpected grep outputs (v2 will throw an error)
+	// want to fix the bug here (not detecting numbers with 2+ digits), but don't want to modify the error-throwing behavior
+	if len(output) >= minLineNumberStringLength {
+		firstSpaceIndex := bytes.Index(output, spaceByte)
+		if firstSpaceIndex > 0 && firstSpaceIndex < len(output) {
+			lineNumberString := string(output[0:firstSpaceIndex])
+			lineNum, _ := strconv.Atoi(lineNumberString)
+			return lineNum, nil
+		}
 	}
 	return 0, nil
 }
