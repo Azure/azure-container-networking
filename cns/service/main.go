@@ -46,7 +46,6 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -942,12 +941,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	nodeScopedCache := cache.BuilderWithOptions(cache.Options{
 		SelectorsByObject: cache.SelectorsByObject{
 			&v1alpha.NodeNetworkConfig{}: {
-				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
-			},
-			&corev1.Pod{}: {
-				Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
-			},
-			&corev1.Node{}: {
 				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
 			},
 		},
