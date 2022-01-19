@@ -385,10 +385,7 @@ func TestBootupLinux(t *testing.T) {
 				},
 				fakeIPTablesRestoreCommand,
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
-				{
-					Cmd:    []string{"grep", "AZURE-NPM"},
-					Stdout: grepOutputAzureV1Chains,
-				},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
 				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
@@ -404,10 +401,7 @@ func TestBootupLinux(t *testing.T) {
 				},
 				fakeIPTablesRestoreCommand,
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
-				{
-					Cmd:    []string{"grep", "AZURE-NPM"},
-					Stdout: grepOutputAzureV1Chains,
-				},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
 				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
@@ -579,15 +573,14 @@ func TestChainLineNumber(t *testing.T) {
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", testChainName},
-					Stdout: fmt.Sprintf("3    %s  all  --  0.0.0.0/0            0.0.0.0/0 ", testChainName),
+					Stdout: fmt.Sprintf("12    %s  all  --  0.0.0.0/0            0.0.0.0/0 ", testChainName),
 				},
 			},
-			expectedLineNum: 3,
+			expectedLineNum: 12,
 			wantErr:         false,
 		},
-		// TODO test for chain line number with 2+ digits
 		{
-			name: "ignore unexpected grep output",
+			name: "unexpected grep output (too short)",
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{
@@ -596,7 +589,31 @@ func TestChainLineNumber(t *testing.T) {
 				},
 			},
 			expectedLineNum: 0,
-			wantErr:         false,
+			wantErr:         true,
+		},
+		{
+			name: "unexpected grep output (no space)",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", testChainName},
+					Stdout: "345678",
+				},
+			},
+			expectedLineNum: 0,
+			wantErr:         true,
+		},
+		{
+			name: "unexpected grep output (no line number)",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", testChainName},
+					Stdout: "unexpected stuff",
+				},
+			},
+			expectedLineNum: 0,
+			wantErr:         true,
 		},
 		{
 			name: "chain doesn't exist",

@@ -3,6 +3,7 @@ package policies
 // This file contains code for booting up and reconciling iptables
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
@@ -52,6 +53,10 @@ var (
 		util.IptablesCtstateFlag,
 		util.IptablesNewState,
 	}
+
+	spaceByte                     = []byte(" ")
+	errNoLineNumber               = errors.New("no line number found")
+	errUnexpectedLineNumberString = errors.New("unexpected line number string")
 
 	errInvalidGrepResult                      = errors.New("unexpectedly got no lines while grepping for current Azure chains")
 	deprecatedJumpFromForwardToAzureChainArgs = []string{
@@ -380,10 +385,17 @@ func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
 		return 0, nil
 	}
 	if len(searchResults) >= minLineNumberStringLength {
-		lineNum, _ := strconv.Atoi(string(searchResults[0])) // FIXME this returns the first digit of the line number. What if the chain was at line 11? Then we would think it's at line 1
-		return lineNum, nil
+		firstSpaceIndex := bytes.Index(searchResults, spaceByte)
+		if firstSpaceIndex > 0 && firstSpaceIndex < len(searchResults) {
+			lineNumberString := string(searchResults[0:firstSpaceIndex])
+			lineNum, err := strconv.Atoi(lineNumberString)
+			if err != nil {
+				return 0, errNoLineNumber
+			}
+			return lineNum, nil
+		}
 	}
-	return 0, nil
+	return 0, errUnexpectedLineNumberString
 }
 
 func (pMgr *PolicyManager) allCurrentAzureChains() (map[string]struct{}, error) {
