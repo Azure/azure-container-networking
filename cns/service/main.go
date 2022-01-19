@@ -46,7 +46,6 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
@@ -925,16 +924,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	} else {
 		logger.Printf("Initializing from Kubernetes")
-		var pods *corev1.PodList
-		pods, err = clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{
-			FieldSelector: "spec.nodeName=" + nodeName,
-		})
-		if err != nil {
-			return errors.Wrap(err, "failed to list Pods for PodInfoProvider")
-		}
 		podInfoByIPProvider = cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
-			var podInfo map[string]cns.PodInfo
-			podInfo, err = cns.KubePodsToPodInfoByIP(pods.Items)
+			pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{ //nolint:govet // ignore err shadow
+				FieldSelector: "spec.nodeName=" + nodeName,
+			})
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to list Pods for PodInfoProvider")
+			}
+			podInfo, err := cns.KubePodsToPodInfoByIP(pods.Items)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to convert Pods to PodInfoByIP")
 			}
