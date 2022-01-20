@@ -158,7 +158,12 @@ func SendCNIMetric(cniMetric *AIMetric, tb *TelemetryBuffer) error {
 }
 
 // This function for sending CNI metrics to telemetry service
-func SendCNIEvent(msg string, tb *TelemetryBuffer) {
+func LogAndSendEvent(tb *TelemetryBuffer, msg string) {
+	log.Printf(msg)
+	SendCNIEvent(tb, msg)
+}
+
+func SendCNIEvent(tb *TelemetryBuffer, msg string) {
 	var err error
 	var report []byte
 
