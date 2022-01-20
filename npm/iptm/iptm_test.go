@@ -122,26 +122,74 @@ func TestUninitNpmChains(t *testing.T) {
 		calls []testutils.TestCmd
 	}{
 		{
-			name: "no npm chains prior",
+			name: "no v2 npm chains exist",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-ACCEPT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-EGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS-PORT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS-FROM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-EGRESS-PORT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-EGRESS-TO"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS-DROPS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-EGRESS-DROPS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-TARGET-SETS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INRGESS-DROPS"}}, // can we remove this rule now?
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-ACCEPT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-EGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS-PORT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS-FROM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-EGRESS-PORT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-EGRESS-TO"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS-DROPS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-EGRESS-DROPS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-TARGET-SETS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INRGESS-DROPS"}}, // can we delete this rule now?
 			},
 		},
 		{
-			name: "AZURE-NPM existed prior",
+			name: " v2 exists chian exists",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, Stdout: "Chain AZURE-NPM (1 references)"},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, Stdout: "Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)\n"},
 				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-ACCEPT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-EGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS-PORT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS-FROM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-EGRESS-PORT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-EGRESS-TO"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS-DROPS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-EGRESS-DROPS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-TARGET-SETS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INRGESS-DROPS"}}, // can we remove this rule now?
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS-ALLOW-MARK"}},
 				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-ACCEPT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-EGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS-PORT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS-FROM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-EGRESS-PORT"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-EGRESS-TO"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS-DROPS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-EGRESS-DROPS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-TARGET-SETS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INRGESS-DROPS"}}, // can we delete this rule now?
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS-ALLOW-MARK"}},
 			},
 		},
-		// currently can't test multiple chains existing because AllCurrentAzureChains() returns a map and fexec needs the exact order of commands
+		// currently can't test multiple v2 chains existing because AllCurrentAzureChains() returns a map and fexec needs the exact order of commands
 	}
 	for _, tt := range tests {
 		tt := tt

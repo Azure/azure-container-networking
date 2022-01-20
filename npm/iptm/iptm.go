@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	ioutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
 	utilexec "k8s.io/utils/exec"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
@@ -129,14 +128,25 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 	}
 
 	// Clean old NPM chains. This is forward compatible with NPM v2.
-	allAzureChains, err := ioutil.AllCurrentAzureChains(iptMgr.exec, defaultlockWaitTimeInSeconds)
+	allAzureChains := append(IptablesAzureChainList,
+		util.IptablesAzureTargetSetsChain,
+		util.IptablesAzureIngressWrongDropsChain,
+	)
+	currentAzureChains, err := ioutil.AllCurrentAzureChains(iptMgr.exec, defaultlockWaitTimeInSeconds)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get all current AZURE-NPM chains")
-		return fmt.Errorf("failed to get all current AZURE-NPM chains: %w", err)
+	} else {
+		// add any extra current azure chains to the list of all azure chains.
+		for _, chain := range allAzureChains {
+			delete(currentAzureChains, chain)
+		}
+		for chain := range currentAzureChains {
+			allAzureChains = append(allAzureChains, chain)
+		}
 	}
 
 	iptMgr.OperationFlag = util.IptablesFlushFlag
-	for chain := range allAzureChains {
+	for _, chain := range allAzureChains {
 		entry := &IptEntry{
 			Chain: chain,
 		}
@@ -146,7 +156,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		}
 	}
 
-	for chain := range allAzureChains {
+	for _, chain := range allAzureChains {
 		if err := iptMgr.deleteChain(chain); err != nil {
 			return err
 		}
