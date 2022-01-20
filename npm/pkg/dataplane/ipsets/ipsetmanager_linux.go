@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	ioutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
 	"k8s.io/klog"
 )
 

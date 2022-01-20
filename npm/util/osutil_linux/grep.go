@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 package ioutil
 
 import utilexec "k8s.io/utils/exec"

@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	ioutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
 )
 
 const (

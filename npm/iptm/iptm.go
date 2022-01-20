@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	ioutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
 	utilexec "k8s.io/utils/exec"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
@@ -127,16 +128,15 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		return err
 	}
 
-	// For backward compatibility, we should be cleaning older chains.
-	// TODO(jungukcho): need to check K8s or NPM version and do it selectively
-	// to avoid unnecessary call.
-	allAzureChains := append(IptablesAzureChainList,
-		util.IptablesAzureTargetSetsChain,
-		util.IptablesAzureIngressWrongDropsChain,
-	)
+	// Clean old NPM chains. This is forward compatible with NPM v2.
+	allAzureChains, err := ioutil.AllCurrentAzureChains(iptMgr.exec, defaultlockWaitTimeInSeconds)
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get all current AZURE-NPM chains")
+		return fmt.Errorf("failed to get all current AZURE-NPM chains: %w", err)
+	}
 
 	iptMgr.OperationFlag = util.IptablesFlushFlag
-	for _, chain := range allAzureChains {
+	for chain := range allAzureChains {
 		entry := &IptEntry{
 			Chain: chain,
 		}
@@ -146,7 +146,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		}
 	}
 
-	for _, chain := range allAzureChains {
+	for chain := range allAzureChains {
 		if err := iptMgr.deleteChain(chain); err != nil {
 			return err
 		}
@@ -491,29 +491,3 @@ func (iptMgr *IptablesManager) run(entry *IptEntry) (int, error) {
 
 	return 0, nil
 }
-
-// TO-DO :- Use iptables-restore to update iptables.
-// func SyncIptables(entries []*IptEntry) error {
-// 	// Ensure main chains and rules are installed.
-// 	tablesNeedServicesChain := []utiliptables.Table{utiliptables.TableFilter, utiliptables.TableNAT}
-// 	for _, table := range tablesNeedServicesChain {
-// 		if _, err := proxier.iptables.EnsureChain(table, iptablesServicesChain); err != nil {
-// 			glog.Errorf("Failed to ensure that %s chain %s exists: %v", table, iptablesServicesChain, err)
-// 			return
-// 		}
-// 	}
-
-// 	// Get iptables-save output so we can check for existing chains and rules.
-// 	// This will be a map of chain name to chain with rules as stored in iptables-save/iptables-restore
-// 	existingFilterChains := make(map[utiliptables.Chain]string)
-// 	iptablesSaveRaw, err := proxier.iptables.Save(utiliptables.TableFilter)
-// 	if err != nil { // if we failed to get any rules
-// 		glog.Errorf("Failed to execute iptables-save, syncing all rules. %s", err.Error())
-// 	} else { // otherwise parse the output
-// 		existingFilterChains = getChainLines(utiliptables.TableFilter, iptablesSaveRaw)
-// 	}
-
-// 	// Write table headers.
-// 	writeLine(filterChains, "*filter")
-
-// }
