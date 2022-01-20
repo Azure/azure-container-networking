@@ -516,7 +516,7 @@ func createNC(
 	}
 
 	createNetworkContainerURL := "http://" + nmagentEndpoint +
-		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/"
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
 
 	err := publishNCViaCNS(t, params.vnetID, params.ncID, createNetworkContainerURL, false)
 	if err != nil {
