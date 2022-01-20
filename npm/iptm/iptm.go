@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	linuxutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
 	utilexec "k8s.io/utils/exec"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
@@ -132,7 +133,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		util.IptablesAzureTargetSetsChain,
 		util.IptablesAzureIngressWrongDropsChain,
 	)
-	currentAzureChains, err := ioutil.AllCurrentAzureChains(iptMgr.exec, defaultlockWaitTimeInSeconds)
+	currentAzureChains, err := linuxutil.AllCurrentAzureChains(iptMgr.exec, defaultlockWaitTimeInSeconds)
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get all current AZURE-NPM chains")
 	} else {

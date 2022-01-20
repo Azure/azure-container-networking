@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
-	ioutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
+	linuxutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
 	"k8s.io/klog"
 )
 
@@ -50,10 +50,10 @@ const (
 
 var (
 	// creator variables
-	setDoesntExistDefinition       = ioutil.NewErrorDefinition("The set with the given name does not exist")
-	setInUseByKernelDefinition     = ioutil.NewErrorDefinition("Set cannot be destroyed: it is in use by a kernel component")
-	setAlreadyExistsDefinition     = ioutil.NewErrorDefinition("Set cannot be created: set with the same name already exists")
-	memberSetDoesntExistDefinition = ioutil.NewErrorDefinition("Set to be added/deleted/tested as element does not exist")
+	setDoesntExistDefinition       = linuxutil.NewErrorDefinition("The set with the given name does not exist")
+	setInUseByKernelDefinition     = linuxutil.NewErrorDefinition("Set cannot be destroyed: it is in use by a kernel component")
+	setAlreadyExistsDefinition     = linuxutil.NewErrorDefinition("Set cannot be created: set with the same name already exists")
+	memberSetDoesntExistDefinition = linuxutil.NewErrorDefinition("Set to be added/deleted/tested as element does not exist")
 )
 
 /*
@@ -87,8 +87,8 @@ var (
 */
 func (iMgr *IPSetManager) resetIPSets() error {
 	listCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
-	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
-	azureIPSets, haveAzureIPSets, commandError := ioutil.PipeCommandToGrep(listCommand, grepCommand)
+	grepCommand := iMgr.ioShim.Exec.Command(linuxutil.Grep, azureNPMPrefix)
+	azureIPSets, haveAzureIPSets, commandError := linuxutil.PipeCommandToGrep(listCommand, grepCommand)
 	if commandError != nil {
 		return npmerrors.SimpleErrorWrapper("failed to run ipset list for resetting IPSets", commandError)
 	}
@@ -114,9 +114,9 @@ func (iMgr *IPSetManager) resetIPSets() error {
 }
 
 // this needs to be a separate function because we need to check creator contents in UTs
-func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.FileCreator, int, *int) {
+func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*linuxutil.FileCreator, int, *int) {
 	destroyFailureCount := 0
-	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
+	creator := linuxutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
 	names := make([]string, 0)
 	readIndex := 0
 	var line []byte
@@ -126,17 +126,17 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.F
 		hashedSetName := string(line)
 		names = append(names, hashedSetName)
 		// error handlers specific to resetting ipsets
-		errorHandlers := []*ioutil.LineErrorHandler{
+		errorHandlers := []*linuxutil.LineErrorHandler{
 			{
 				Definition: setDoesntExistDefinition,
-				Method:     ioutil.ContinueAndAbortSection,
+				Method:     linuxutil.ContinueAndAbortSection,
 				Callback: func() {
 					klog.Infof("[RESET-IPSETS] skipping flush and upcoming destroy for set %s since the set doesn't exist", hashedSetName)
 				},
 			},
 			{
-				Definition: ioutil.AlwaysMatchDefinition,
-				Method:     ioutil.ContinueAndAbortSection,
+				Definition: linuxutil.AlwaysMatchDefinition,
+				Method:     linuxutil.ContinueAndAbortSection,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking flush and upcoming destroy for set %s as a failure due to unknown error", hashedSetName)
 					destroyFailureCount++
@@ -151,11 +151,11 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.F
 	// destroy all the sets
 	for _, hashedSetName := range names {
 		hashedSetName := hashedSetName // to appease go lint
-		errorHandlers := []*ioutil.LineErrorHandler{
+		errorHandlers := []*linuxutil.LineErrorHandler{
 			// error handlers specific to resetting ipsets
 			{
 				Definition: setInUseByKernelDefinition,
-				Method:     ioutil.Continue,
+				Method:     linuxutil.Continue,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure since the set is in use by a kernel component", hashedSetName)
 					destroyFailureCount++
@@ -164,14 +164,14 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.F
 			},
 			{
 				Definition: setDoesntExistDefinition,
-				Method:     ioutil.Continue,
+				Method:     linuxutil.Continue,
 				Callback: func() {
 					klog.Infof("[RESET-IPSETS] skipping destroy for set %s since the set does not exist", hashedSetName)
 				},
 			},
 			{
-				Definition: ioutil.AlwaysMatchDefinition,
-				Method:     ioutil.Continue,
+				Definition: linuxutil.AlwaysMatchDefinition,
+				Method:     linuxutil.Continue,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure due to unknown error", hashedSetName)
 					destroyFailureCount++
@@ -272,8 +272,8 @@ func (iMgr *IPSetManager) applyIPSets() error {
 
 func (iMgr *IPSetManager) ipsetSave() ([]byte, error) {
 	command := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetSaveFlag)
-	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
-	saveFile, haveAzureSets, err := ioutil.PipeCommandToGrep(command, grepCommand)
+	grepCommand := iMgr.ioShim.Exec.Command(linuxutil.Grep, azureNPMPrefix)
+	saveFile, haveAzureSets, err := linuxutil.PipeCommandToGrep(command, grepCommand)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to run ipset save", err)
 	}
@@ -283,8 +283,8 @@ func (iMgr *IPSetManager) ipsetSave() ([]byte, error) {
 	return saveFile, nil
 }
 
-func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) *ioutil.FileCreator {
-	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern) // TODO make the line failure pattern into a definition constant eventually
+func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) *linuxutil.FileCreator {
+	creator := linuxutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern) // TODO make the line failure pattern into a definition constant eventually
 
 	// 1. create all sets first so we don't try to add a member set to a list if it hasn't been created yet
 	for prefixedName := range iMgr.toAddOrUpdateCache {
@@ -335,7 +335,7 @@ func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) 
 // error handling principal:
 // - if contract with ipset save (or grep) is breaking, salvage what we can, take a snapshot (TODO), and log the failure
 // - have a background process for sending/removing snapshots intermittently
-func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil.FileCreator) {
+func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *linuxutil.FileCreator) {
 	// map hashed names to prefixed names
 	toAddOrUpdateHashedNames := make(map[string]string)
 	for prefixedName := range iMgr.toAddOrUpdateCache {
@@ -493,18 +493,18 @@ func hasPrefix(line []byte, prefix string) bool {
 	return len(line) >= len(prefix) && string(line[:len(prefix)]) == prefix
 }
 
-func (iMgr *IPSetManager) flushSetForApply(creator *ioutil.FileCreator, prefixedName string) {
-	errorHandlers := []*ioutil.LineErrorHandler{
+func (iMgr *IPSetManager) flushSetForApply(creator *linuxutil.FileCreator, prefixedName string) {
+	errorHandlers := []*linuxutil.LineErrorHandler{
 		{
 			Definition: setDoesntExistDefinition,
-			Method:     ioutil.ContinueAndAbortSection,
+			Method:     linuxutil.ContinueAndAbortSection,
 			Callback: func() {
 				klog.Infof("skipping flush and upcoming destroy for set %s since the set doesn't exist", prefixedName)
 			},
 		},
 		{
-			Definition: ioutil.AlwaysMatchDefinition,
-			Method:     ioutil.ContinueAndAbortSection,
+			Definition: linuxutil.AlwaysMatchDefinition,
+			Method:     linuxutil.ContinueAndAbortSection,
 			Callback: func() {
 				klog.Errorf("skipping flush and upcoming destroy for set %s due to unknown error", prefixedName)
 				// TODO mark as a failure
@@ -517,19 +517,19 @@ func (iMgr *IPSetManager) flushSetForApply(creator *ioutil.FileCreator, prefixed
 	creator.AddLine(sectionID, errorHandlers, ipsetFlushFlag, hashedName) // flush set
 }
 
-func (iMgr *IPSetManager) destroySetForApply(creator *ioutil.FileCreator, prefixedName string) {
-	errorHandlers := []*ioutil.LineErrorHandler{
+func (iMgr *IPSetManager) destroySetForApply(creator *linuxutil.FileCreator, prefixedName string) {
+	errorHandlers := []*linuxutil.LineErrorHandler{
 		{
 			Definition: setInUseByKernelDefinition,
-			Method:     ioutil.Continue,
+			Method:     linuxutil.Continue,
 			Callback: func() {
 				klog.Errorf("skipping destroy line for set %s since the set is in use by a kernel component", prefixedName)
 				// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
 			},
 		},
 		{
-			Definition: ioutil.AlwaysMatchDefinition,
-			Method:     ioutil.Continue,
+			Definition: linuxutil.AlwaysMatchDefinition,
+			Method:     linuxutil.Continue,
 			Callback: func() {
 				klog.Errorf("skipping destroy line for set %s due to unknown error", prefixedName)
 			},
@@ -540,7 +540,7 @@ func (iMgr *IPSetManager) destroySetForApply(creator *ioutil.FileCreator, prefix
 	creator.AddLine(sectionID, errorHandlers, ipsetDestroyFlag, hashedName) // destroy set
 }
 
-func (iMgr *IPSetManager) createSetForApply(creator *ioutil.FileCreator, set *IPSet) {
+func (iMgr *IPSetManager) createSetForApply(creator *linuxutil.FileCreator, set *IPSet) {
 	methodFlag := ipsetNetHashFlag
 	if set.Kind == ListSet {
 		methodFlag = ipsetSetListFlag
@@ -554,18 +554,18 @@ func (iMgr *IPSetManager) createSetForApply(creator *ioutil.FileCreator, set *IP
 	}
 
 	prefixedName := set.Name // to appease golint complaints about function literal
-	errorHandlers := []*ioutil.LineErrorHandler{
+	errorHandlers := []*linuxutil.LineErrorHandler{
 		{
 			Definition: setAlreadyExistsDefinition,
-			Method:     ioutil.ContinueAndAbortSection,
+			Method:     linuxutil.ContinueAndAbortSection,
 			Callback: func() {
 				klog.Errorf("skipping create and any following adds/deletes for set %s since the set already exists with different specs", prefixedName)
 				// TODO mark the set as a failure and handle this
 			},
 		},
 		{
-			Definition: ioutil.AlwaysMatchDefinition,
-			Method:     ioutil.ContinueAndAbortSection,
+			Definition: linuxutil.AlwaysMatchDefinition,
+			Method:     linuxutil.ContinueAndAbortSection,
 			Callback: func() {
 				klog.Errorf("skipping create and any following adds/deletes for set %s due to unknown error", prefixedName)
 				// TODO same as above error handler
@@ -576,11 +576,11 @@ func (iMgr *IPSetManager) createSetForApply(creator *ioutil.FileCreator, set *IP
 	creator.AddLine(sectionID, errorHandlers, specs...) // create set
 }
 
-func (iMgr *IPSetManager) deleteMemberForApply(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
-	errorHandlers := []*ioutil.LineErrorHandler{
+func (iMgr *IPSetManager) deleteMemberForApply(creator *linuxutil.FileCreator, set *IPSet, sectionID, member string) {
+	errorHandlers := []*linuxutil.LineErrorHandler{
 		{
-			Definition: ioutil.AlwaysMatchDefinition,
-			Method:     ioutil.Continue,
+			Definition: linuxutil.AlwaysMatchDefinition,
+			Method:     linuxutil.Continue,
 			Callback: func() {
 				klog.Errorf("skipping delete line for set %s due to unknown error", set.Name)
 			},
@@ -589,31 +589,31 @@ func (iMgr *IPSetManager) deleteMemberForApply(creator *ioutil.FileCreator, set 
 	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member) // delete member
 }
 
-func (iMgr *IPSetManager) addMemberForApply(creator *ioutil.FileCreator, set *IPSet, sectionID, member string) {
-	var errorHandlers []*ioutil.LineErrorHandler
+func (iMgr *IPSetManager) addMemberForApply(creator *linuxutil.FileCreator, set *IPSet, sectionID, member string) {
+	var errorHandlers []*linuxutil.LineErrorHandler
 	if set.Kind == ListSet {
-		errorHandlers = []*ioutil.LineErrorHandler{
+		errorHandlers = []*linuxutil.LineErrorHandler{
 			{
 				Definition: memberSetDoesntExistDefinition,
-				Method:     ioutil.Continue,
+				Method:     linuxutil.Continue,
 				Callback: func() {
 					klog.Errorf("skipping add of %s to list %s since the member doesn't exist", member, set.Name)
 					// TODO reconcile
 				},
 			},
 			{
-				Definition: ioutil.AlwaysMatchDefinition,
-				Method:     ioutil.Continue,
+				Definition: linuxutil.AlwaysMatchDefinition,
+				Method:     linuxutil.Continue,
 				Callback: func() {
 					klog.Errorf("skipping add of %s to list %s due to unknown error", member, set.Name)
 				},
 			},
 		}
 	} else {
-		errorHandlers = []*ioutil.LineErrorHandler{
+		errorHandlers = []*linuxutil.LineErrorHandler{
 			{
-				Definition: ioutil.AlwaysMatchDefinition,
-				Method:     ioutil.Continue,
+				Definition: linuxutil.AlwaysMatchDefinition,
+				Method:     linuxutil.Continue,
 				Callback: func() {
 					klog.Errorf("skipping add line for hash set %s due to unknown error", set.Name)
 				},
