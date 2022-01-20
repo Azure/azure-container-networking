@@ -416,7 +416,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	createNC(t, params)
+	createNC(t, params, false)
 
 	if err := getNetworkContainerByContext(t, params); err != nil {
 		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
@@ -447,7 +447,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	createNC(t, params)
+	createNC(t, params, false)
 
 	if err := getNetworkContainerByContextExpectedError(t, params); err != nil {
 		t.Errorf("TestGetNetworkContainerVersionStatus failed")
@@ -471,7 +471,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	createNC(t, params)
+	createNC(t, params, true)
 
 	if err := getNetworkContainerByContext(t, params); err != nil {
 		t.Errorf("TestGetNetworkContainerVersionStatus failed")
@@ -494,7 +494,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	createNC(t, params)
+	createNC(t, params, false)
 
 	if err := getNetworkContainerByContextExpectedError(t, params); err != nil {
 		t.Errorf("TestGetNetworkContainerVersionStatus failed")
@@ -509,7 +509,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 
 func createNC(
 	t *testing.T,
-	params createOrUpdateNetworkContainerParams) {
+	params createOrUpdateNetworkContainerParams,
+	expectError bool) {
 	if err := createOrUpdateNetworkContainerWithParams(t, params); err != nil {
 		t.Errorf("createOrUpdateNetworkContainerWithParams failed Err:%+v", err)
 		t.Fatal(err)
@@ -518,7 +519,7 @@ func createNC(
 	createNetworkContainerURL := "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
 
-	err := publishNCViaCNS(t, params.vnetID, params.ncID, createNetworkContainerURL, false)
+	err := publishNCViaCNS(t, params.vnetID, params.ncID, createNetworkContainerURL, expectError)
 	if err != nil {
 		t.Fatal(err)
 	}
