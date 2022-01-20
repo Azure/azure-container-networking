@@ -549,7 +549,6 @@ func TestPublishNCViaCNS(t *testing.T) {
 		"8636c99d-7861-401f-b0d3-7e5b7dc8183c8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1"
 
-
 	err = publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, true)
 	if err == nil {
 		t.Fatal("Expected a bad request error due to create network url having more characters than permitted in auth token")
@@ -586,8 +585,8 @@ func publishNCViaCNS(t *testing.T,
 	mux.ServeHTTP(w, req)
 
 	err = decodeResponse(w, &resp)
-	if err != nil ||  resp.Response.ReturnCode != 0 {
-		if(!expectError) {
+	if err != nil || resp.Response.ReturnCode != 0 {
+		if !expectError {
 			t.Errorf("PublishNetworkContainer failed with response %+v Err:%+v", resp, err)
 		}
 		return err
@@ -597,7 +596,7 @@ func publishNCViaCNS(t *testing.T,
 	return nil
 }
 
-func TestUnpublishNCViaCNS(t *testing.T){
+func TestUnpublishNCViaCNS(t *testing.T) {
 
 	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
@@ -620,7 +619,6 @@ func TestUnpublishNCViaCNS(t *testing.T){
 		"/machine/plugins/?comp=nmagent&NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
 		"8636c99d-7861-401f-b0d3-7e5b7dc8183c8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1/method/DELETE"
-
 
 	err = testUnpublishNCViaCNS(t, "vnet1", "ethWebApp", deleteNetworkContainerURL, true)
 	if err == nil {
@@ -662,7 +660,7 @@ func testUnpublishNCViaCNS(t *testing.T,
 
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != 0 {
-		if(!expectError) {
+		if !expectError {
 			t.Errorf("UnpublishNetworkContainer failed with response %+v Err:%+v", resp, err)
 		}
 		return err

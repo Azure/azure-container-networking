@@ -465,7 +465,7 @@ type PublishNetworkContainerRequest struct {
 
 // NetworkContainerParameters parameters available in network container operations
 type NetworkContainerParameters struct {
-	AuthToken            string
+	AuthToken             string
 	AssociatedInterfaceID string
 }
 

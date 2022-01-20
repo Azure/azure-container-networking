@@ -5,6 +5,7 @@ package restserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -24,7 +25,18 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 )
 
-var ncRegex = regexp.MustCompile(`NetworkManagement/interfaces/(.{0,36})/networkContainers/(.{0,36})/authenticationToken/(.{0,36})/api-version/1(/method/DELETE)?`)
+var (
+	ncRegex               = regexp.MustCompile(`NetworkManagement/interfaces/(.{0,36})/networkContainers/(.{0,36})/authenticationToken/(.{0,36})/api-version/1(/method/DELETE)?`)
+	invalidNcURLFormatErr = errors.New("Invalid network container url format")
+)
+
+// ncURLExpectedMatches defines the size of matches expected from exercising the ncRegex
+// 1) the original url (nuance related to golangs regex package)
+// 2) the associated interface parameter
+// 3) the ncid parameter
+// 4) the authentication token parameter
+// 5) the optional delete path
+const ncURLExpectedMatches = 5
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
 // TODO: break it even further per module (network, nc, etc) like it is done for ipam
@@ -1075,7 +1087,7 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, numOfCPUCoresResp, resp.ReturnCode, err)
 }
 
-func getAuthTokenAndInterfaceIdFromNcURL(networkContainerURL string) (*cns.NetworkContainerParameters, error) {
+func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.NetworkContainerParameters, error) {
 
 	ncUrl, err := url.Parse(networkContainerURL)
 	if err != nil {
@@ -1088,15 +1100,15 @@ func getAuthTokenAndInterfaceIdFromNcURL(networkContainerURL string) (*cns.Netwo
 	// doing this parsing due to this structure
 	typeQueryParamVal := queryParams.Get("type")
 	if typeQueryParamVal == "" {
-		return nil, fmt.Errorf("Invalid create container url format, no type query param")
+		return nil, fmt.Errorf("no type query param, %w", invalidNcURLFormatErr)
 	}
 
 	// .{0,128} gets from zero to 128 characters of any kind
 	// ()? is optional
 	matches := ncRegex.FindStringSubmatch(typeQueryParamVal)
 
-	if len(matches) != 5 {
-		return nil, fmt.Errorf("Invalid network container url format")
+	if len(matches) != ncURLExpectedMatches {
+		return nil, invalidNcURLFormatErr
 	}
 
 	return &cns.NetworkContainerParameters{AssociatedInterfaceID: matches[1], AuthToken: matches[3]}, err
@@ -1121,7 +1133,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 	err = service.Listener.Decode(w, r, &req)
 
-	creteNcUrlCopy := req.CreateNetworkContainerURL
+	creteNcURLCopy := req.CreateNetworkContainerURL
 
 	// reqCopy creates a copy of incoming request. It doesn't copy the authentication token info
 	// to avoid logging it.
@@ -1140,7 +1152,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	}
 
 	var ncParameters *cns.NetworkContainerParameters
-	ncParameters, err = getAuthTokenAndInterfaceIdFromNcURL(creteNcUrlCopy)
+	ncParameters, err = getAuthTokenAndInterfaceIDFromNcURL(creteNcURLCopy)
 	if err != nil {
 		logger.Errorf("[Azure-CNS] nc parameters validation failed with %+v", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -1150,7 +1162,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 				ReturnCode: http.StatusBadRequest,
 				Message:    fmt.Sprintf("Request contains a unexpected create url format in request body: %v", reqCopy.CreateNetworkContainerURL),
 			},
-			PublishErrorStr: fmt.Sprintf("Bad request: Request contains a unexpected create url format in request body: %v", reqCopy.CreateNetworkContainerURL),
+			PublishErrorStr:   fmt.Sprintf("Bad request: Request contains a unexpected create url format in request body: %v", reqCopy.CreateNetworkContainerURL),
 			PublishStatusCode: http.StatusBadRequest,
 		}
 		err = service.Listener.Encode(w, &badRequestResponse)
@@ -1246,7 +1258,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	err = service.Listener.Decode(w, r, &req)
 
-	deleteNcUrlCopy := req.DeleteNetworkContainerURL
+	deleteNcURLCopy := req.DeleteNetworkContainerURL
 
 	// reqCopy creates a copy of incoming request. It doesn't copy the authentication token info
 	// to avoid logging it.
@@ -1263,7 +1275,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	}
 
 	var ncParameters *cns.NetworkContainerParameters
-	ncParameters, err = getAuthTokenAndInterfaceIdFromNcURL(deleteNcUrlCopy)
+	ncParameters, err = getAuthTokenAndInterfaceIDFromNcURL(deleteNcURLCopy)
 	if err != nil {
 		logger.Errorf("[Azure-CNS] nc parameters validation failed with %+v", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -1273,7 +1285,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				ReturnCode: http.StatusBadRequest,
 				Message:    fmt.Sprintf("Request contains a unexpected delete url format in request body: %v", reqCopy.DeleteNetworkContainerURL),
 			},
-			UnpublishErrorStr: fmt.Sprintf("Bad request: Request contains a unexpected delete url format in request body: %v", reqCopy.DeleteNetworkContainerURL),
+			UnpublishErrorStr:   fmt.Sprintf("Bad request: Request contains a unexpected delete url format in request body: %v", reqCopy.DeleteNetworkContainerURL),
 			UnpublishStatusCode: http.StatusBadRequest,
 		}
 		err = service.Listener.Encode(w, &badRequestResponse)
