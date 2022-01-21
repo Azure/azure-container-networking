@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/ioutil"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
@@ -135,7 +136,7 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 	)
 	currentAzureChains, err := ioutil.AllCurrentAzureChains(iptMgr.exec, defaultlockWaitTimeInSeconds)
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to get all current AZURE-NPM chains")
+		metrics.SendErrorLogAndMetric(util.IptmID, "Warning: failed to get all current AZURE-NPM chains, so stale v2 chains may exist")
 	} else {
 		// add any extra current azure chains to the list of all azure chains.
 		for _, chain := range allAzureChains {

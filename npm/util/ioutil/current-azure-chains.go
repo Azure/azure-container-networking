@@ -5,6 +5,7 @@ package ioutil
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -13,14 +14,14 @@ import (
 	utilexec "k8s.io/utils/exec"
 )
 
-const (
-	azureChainGrepPattern   string = "Chain AZURE-NPM"
-	minAzureChainNameLength int    = len("AZURE-NPM")
-	// the minimum number of sections when "Chain NAME (1 references)" is split on spaces (" ")
-	minSpacedSectionsForChainLine int = 2
-)
+// the minimum number of sections when "Chain NAME (1 references)" is split on spaces (" ")
+const minSpacedSectionsForChainLine int = 2
 
-var errInvalidGrepResult = errors.New("unexpectedly got no lines while grepping for current Azure chains")
+var (
+	azureChainGrepPattern   = fmt.Sprintf("Chain %s", util.IptablesAzureChain)
+	minAzureChainNameLength = len(util.IptablesAzureChain)
+	errInvalidGrepResult    = errors.New("unexpectedly got no lines while grepping for current Azure chains")
+)
 
 func AllCurrentAzureChains(exec utilexec.Interface, defaultlockWaitTimeInSeconds string) (map[string]struct{}, error) {
 	iptablesListCommand := exec.Command(util.Iptables,
