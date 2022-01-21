@@ -11,7 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
-	ioutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
+	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
