@@ -11,7 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
-	linuxutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
+	ioutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
 	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
@@ -164,7 +164,7 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 		}
 	}
 
-	currentChains, err := linuxutil.AllCurrentAzureChains(pMgr.ioShim.Exec, defaultlockWaitTimeInSeconds)
+	currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, defaultlockWaitTimeInSeconds)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to get current chains for bootup", err)
 	}
@@ -263,7 +263,7 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 
 // Writes the restore file for bootup, and marks the following as stale: deprecated chains and old v2 policy chains.
 // This is a separate function to help with UTs.
-func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *linuxutil.FileCreator {
+func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *ioutil.FileCreator {
 	chainsToCreate := make([]string, 0, len(iptablesAzureChains))
 	for _, chain := range iptablesAzureChains {
 		_, exists := currentChains[chain]
@@ -365,8 +365,8 @@ func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
 		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
 		util.IptablesNumericFlag, util.IptablesListFlag, util.IptablesForwardChain, util.IptablesLineNumbersFlag,
 	)
-	grepCommand := pMgr.ioShim.Exec.Command(linuxutil.Grep, chain)
-	searchResults, gotMatches, err := linuxutil.PipeCommandToGrep(listForwardEntriesCommand, grepCommand)
+	grepCommand := pMgr.ioShim.Exec.Command(ioutil.Grep, chain)
+	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(listForwardEntriesCommand, grepCommand)
 	if err != nil {
 		return 0, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to determine line number for jump from FORWARD chain to %s chain", chain), err)
 	}

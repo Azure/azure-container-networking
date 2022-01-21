@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
-	linuxutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
+	ioutil "github.com/Azure/azure-container-networking/npm/util/osutil_linux"
 )
 
 const (
@@ -69,7 +69,7 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	return nil
 }
 
-func restore(creator *linuxutil.FileCreator) error {
+func restore(creator *ioutil.FileCreator) error {
 	err := creator.RunCommandWithFile(util.IptablesRestore, util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to restore iptables file", err)
@@ -77,7 +77,7 @@ func restore(creator *linuxutil.FileCreator) error {
 	return nil
 }
 
-func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *linuxutil.FileCreator {
+func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *ioutil.FileCreator {
 	creator := pMgr.newCreatorWithChains(nil)
 	// 1. Deactivate NPM (if necessary).
 	if pMgr.isLastPolicy() {
@@ -108,8 +108,8 @@ func chainNames(networkPolicies []*NPMNetworkPolicy) []string {
 	return chainNames
 }
 
-func (pMgr *PolicyManager) newCreatorWithChains(chainNames []string) *linuxutil.FileCreator {
-	creator := linuxutil.NewFileCreator(pMgr.ioShim, maxTryCount, knownLineErrorPattern, unknownLineErrorPattern) // TODO pass an array instead of this ... thing
+func (pMgr *PolicyManager) newCreatorWithChains(chainNames []string) *ioutil.FileCreator {
+	creator := ioutil.NewFileCreator(pMgr.ioShim, maxTryCount, knownLineErrorPattern, unknownLineErrorPattern) // TODO pass an array instead of this ... thing
 
 	creator.AddLine("", nil, "*"+util.IptablesFilterTable) // specify the table
 	for _, chainName := range chainNames {
@@ -179,7 +179,7 @@ func egressJumpSpecs(networkPolicy *NPMNetworkPolicy) []string {
 	return specs
 }
 
-func (pMgr *PolicyManager) creatorForNewNetworkPolicies(policyChains []string, networkPolicies []*NPMNetworkPolicy) *linuxutil.FileCreator {
+func (pMgr *PolicyManager) creatorForNewNetworkPolicies(policyChains []string, networkPolicies []*NPMNetworkPolicy) *ioutil.FileCreator {
 	creator := pMgr.newCreatorWithChains(policyChains)
 
 	// 1. Activate NPM if necessary
@@ -215,7 +215,7 @@ func (pMgr *PolicyManager) creatorForNewNetworkPolicies(policyChains []string, n
 }
 
 // write rules for the policy chain(s)
-func writeNetworkPolicyRules(creator *linuxutil.FileCreator, networkPolicy *NPMNetworkPolicy) {
+func writeNetworkPolicyRules(creator *ioutil.FileCreator, networkPolicy *NPMNetworkPolicy) {
 	for _, aclPolicy := range networkPolicy.ACLs {
 		var chainName string
 		var actionSpecs []string
