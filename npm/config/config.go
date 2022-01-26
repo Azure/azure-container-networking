@@ -26,6 +26,7 @@ var DefaultConfig = Config{
 		EnableHTTPDebugAPI:      true,
 		EnableV2NPM:             false,
 		PlaceAzureChainFirst:    false,
+		ApplyIPSetsOnNeed:       false,
 	},
 }
 
@@ -53,6 +54,7 @@ type Toggles struct {
 	EnableHTTPDebugAPI      bool
 	EnableV2NPM             bool
 	PlaceAzureChainFirst    bool
+	ApplyIPSetsOnNeed       bool
 }
 
 type Flags struct {
