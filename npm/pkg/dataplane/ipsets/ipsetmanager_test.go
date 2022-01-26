@@ -46,8 +46,9 @@ type member struct {
 type memberKind bool
 
 const (
-	isIP  = memberKind(true)
-	isSet = memberKind(false)
+	isIP = memberKind(true)
+	// TODO uncomment and write UTs that check cache contents for more add/delete members
+	// isSet = memberKind(false)
 )
 
 func TestCreateIPSet(t *testing.T) {
