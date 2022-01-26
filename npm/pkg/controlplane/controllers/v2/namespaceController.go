@@ -124,8 +124,6 @@ func (nsc *NamespaceController) needSync(obj interface{}, event string) (string,
 		return key, needSync
 	}
 
-	klog.Infof("[NAMESPACE %s EVENT] for namespace [%s]", event, key)
-
 	needSync = true
 	return key, needSync
 }
@@ -133,7 +131,6 @@ func (nsc *NamespaceController) needSync(obj interface{}, event string) (string,
 func (nsc *NamespaceController) addNamespace(obj interface{}) {
 	key, needSync := nsc.needSync(obj, "ADD")
 	if !needSync {
-		klog.Infof("[NAMESPACE ADD EVENT] No need to sync this namespace [%s]", key)
 		return
 	}
 	nsc.workqueue.Add(key)
@@ -142,7 +139,6 @@ func (nsc *NamespaceController) addNamespace(obj interface{}) {
 func (nsc *NamespaceController) updateNamespace(old, newns interface{}) {
 	key, needSync := nsc.needSync(newns, "UPDATE")
 	if !needSync {
-		klog.Infof("[NAMESPACE UPDATE EVENT] No need to sync this namespace [%s]", key)
 		return
 	}
 
@@ -150,7 +146,6 @@ func (nsc *NamespaceController) updateNamespace(old, newns interface{}) {
 	oldNsObj, ok := old.(*corev1.Namespace)
 	if ok {
 		if oldNsObj.ResourceVersion == nsObj.ResourceVersion {
-			klog.Infof("[NAMESPACE UPDATE EVENT] Resourceversion is same for this namespace [%s]", key)
 			return
 		}
 	}
