@@ -100,7 +100,6 @@ require (
 )
 
 require (
-	github.com/fatih/structs v1.1.0
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
 	github.com/jsternberg/zap-logfmt v1.2.0
 	go.uber.org/zap v1.18.1
