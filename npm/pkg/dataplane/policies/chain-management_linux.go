@@ -200,7 +200,6 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 // - creates the jump rule from FORWARD chain to AZURE-NPM chain (if it does not exist) and makes sure it's after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
 // - cleans up stale policy chains. It can be forced to stop this process if reconcileManager.forceLock() is called.
 func (pMgr *PolicyManager) reconcile() {
-	klog.Infof("repositioning azure chain jump rule")
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
 		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
 	}
@@ -208,6 +207,11 @@ func (pMgr *PolicyManager) reconcile() {
 	pMgr.reconcileManager.Lock()
 	defer pMgr.reconcileManager.Unlock()
 	staleChains := pMgr.staleChains.emptyAndGetAll()
+
+	if len(staleChains) == 0 {
+		return
+	}
+
 	klog.Infof("cleaning up these stale chains: %+v", staleChains)
 	if err := pMgr.cleanupChains(staleChains); err != nil {
 		klog.Errorf("failed to clean up old policy chains with the following error: %s", err.Error())
