@@ -27,7 +27,7 @@ import (
 
 var (
 	ncRegex               = regexp.MustCompile(`NetworkManagement/interfaces/(.{0,36})/networkContainers/(.{0,36})/authenticationToken/(.{0,36})/api-version/1(/method/DELETE)?`)
-	invalidNcURLFormatErr = errors.New("Invalid network container url format")
+	ErrInvalidNcURLFormat = errors.New("Invalid network container url format")
 )
 
 // ncURLExpectedMatches defines the size of matches expected from exercising the ncRegex
@@ -1089,18 +1089,18 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 
 func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.NetworkContainerParameters, error) {
 
-	ncUrl, err := url.Parse(networkContainerURL)
+	ncURL, err := url.Parse(networkContainerURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse network container url, %w", err)
 	}
 
-	queryParams := ncUrl.Query()
+	queryParams := ncURL.Query()
 
 	// current format of create network url has a path after a query parameter "type"
 	// doing this parsing due to this structure
 	typeQueryParamVal := queryParams.Get("type")
 	if typeQueryParamVal == "" {
-		return nil, fmt.Errorf("no type query param, %w", invalidNcURLFormatErr)
+		return nil, fmt.Errorf("no type query param, %w", ErrInvalidNcURLFormat)
 	}
 
 	// .{0,128} gets from zero to 128 characters of any kind
@@ -1108,10 +1108,10 @@ func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.Netwo
 	matches := ncRegex.FindStringSubmatch(typeQueryParamVal)
 
 	if len(matches) != ncURLExpectedMatches {
-		return nil, invalidNcURLFormatErr
+		return nil, fmt.Errorf("unexpected number of matches in url, %w", ErrInvalidNcURLFormat)
 	}
 
-	return &cns.NetworkContainerParameters{AssociatedInterfaceID: matches[1], AuthToken: matches[3]}, err
+	return &cns.NetworkContainerParameters{AssociatedInterfaceID: matches[1], AuthToken: matches[3]}, nil
 }
 
 // Publish Network Container by calling nmagent
