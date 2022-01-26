@@ -1,5 +1,4 @@
-//go:build !windows
-// +build !windows
+// technically should have a build constraint for !windows, but iptm.go imports this, and there is no build constraint for iptm.go
 
 package ioutil
 
