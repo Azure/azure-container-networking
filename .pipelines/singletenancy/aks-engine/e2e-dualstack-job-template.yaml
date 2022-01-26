@@ -85,7 +85,7 @@ stages:
               scriptLocation: "inlineScript"
               addSpnToEnvironment: true
               inlineScript: |
-                RG=kubedual-$(echo "e2e-${{ parameters.clusterDefinitionCniBuildOS }}-`date "+%Y-%m-%d-%S"`")
+                RG=kubernetes-dual-$(echo "${{ parameters.clusterDefinitionCniBuildOS }}-`date "+%Y-%m-%d-%S"`")
                 echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true;]$RG"
                 region=$(echo $(AKS_ENGINE_REGION)|cut -d',' -f1)
                 echo "running: ./dualstack-ws/aks-engine deploy -m $(Pipeline.Workspace)/clusterDefinition.json --location $region -g $RG --subscription-id $(AKS_ENGINE_SUBSCRIPTION_ID) --client-id $servicePrincipalId --client-secret $servicePrincipalKey --output-directory ./dualstack-ws/kubeoutput"

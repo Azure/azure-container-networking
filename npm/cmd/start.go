@@ -85,6 +85,11 @@ func newStartNPMCmd() *cobra.Command {
 
 	startNPMCmd.Flags().String(flagKubeConfigPath, flagDefaults[flagKubeConfigPath], "path to kubeconfig")
 
+	// The controlplane subcommand starts the NPM controller's controlplane component in the decomposed mode
+	startNPMCmd.AddCommand(newStartNPMControlplaneCmd())
+	// The daemon subcommand starts the NPM controller's datapath component in the daemon mode
+	startNPMCmd.AddCommand(newStartNPMDaemonCmd())
+
 	return startNPMCmd
 }
 

@@ -80,7 +80,7 @@ func (dp *DataPlane) InitializeDataPlane() error {
 // TODO rename this function to BootupDataplane
 func (dp *DataPlane) ResetDataPlane() error {
 	// NOTE: used to create an all-namespaces set, but there's no need since it will be created by the control plane
-	return dp.bootupDataPlane()
+	return dp.bootupDataPlane() //nolint:wrapcheck // unnecessary to wrap error
 }
 
 // RunPeriodicTasks runs periodic tasks. Should only be called once.

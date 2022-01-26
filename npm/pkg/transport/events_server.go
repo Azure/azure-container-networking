@@ -16,7 +16,8 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type Manager struct {
+// EventsServer contains of the grpc server and the watchdog server
+type EventsServer struct {
 	ctx context.Context
 
 	// Server is the gRPC server
@@ -33,7 +34,7 @@ type Manager struct {
 	port int
 
 	// inCh is the input channel for the manager
-	inCh chan interface{}
+	inCh chan *protos.Events
 
 	// regCh is the registration channel
 	regCh chan clientStreamConnection
@@ -45,21 +46,21 @@ type Manager struct {
 	errCh chan error
 }
 
-// New creates a new transport manager
-func NewManager(ctx context.Context, port int) *Manager {
+// NewEventsServer creates an instance of the EventsServer
+func NewEventsServer(ctx context.Context, port int) *EventsServer {
 	// Create a registration channel
 	regCh := make(chan clientStreamConnection, grpcMaxConcurrentStreams)
 
 	// Create a deregistration channel
 	deregCh := make(chan deregistrationEvent, grpcMaxConcurrentStreams)
 
-	return &Manager{
+	return &EventsServer{
 		ctx:           ctx,
 		Server:        NewServer(ctx, regCh),
 		Watchdog:      NewWatchdog(deregCh),
 		Registrations: make(map[string]clientStreamConnection),
 		port:          port,
-		inCh:          make(chan interface{}),
+		inCh:          make(chan *protos.Events),
 		errCh:         make(chan error),
 		deregCh:       deregCh,
 		regCh:         regCh,
@@ -67,20 +68,21 @@ func NewManager(ctx context.Context, port int) *Manager {
 }
 
 // InputChannel returns the input channel for the manager
-func (m *Manager) InputChannel() chan interface{} {
+func (m *EventsServer) InputChannel() chan *protos.Events {
 	return m.inCh
 }
 
-func (m *Manager) Start() error {
+// Start starts the events manager (grpc server and watchdog)
+func (m *EventsServer) Start(stopCh <-chan struct{}) error {
 	klog.Info("Starting transport manager")
-	if err := m.start(); err != nil {
+	if err := m.start(stopCh); err != nil {
 		klog.Errorf("Failed to Start transport manager: %v", err)
 		return err
 	}
 	return nil
 }
 
-func (m *Manager) start() error {
+func (m *EventsServer) start(stopCh <-chan struct{}) error {
 	if err := m.handle(); err != nil {
 		return fmt.Errorf("failed to start transport manager handlers: %w", err)
 	}
@@ -119,16 +121,19 @@ func (m *Manager) start() error {
 				}
 			}
 		case <-m.ctx.Done():
-			klog.Info("Stopping transport manager")
+			klog.Info("Context Done. Stopping transport manager")
 			return nil
 		case err := <-m.errCh:
 			klog.Errorf("Error in transport manager: %v", err)
 			return err
+		case <-stopCh:
+			klog.Info("Received message on stop channel. Stopping transport manager")
+			return nil
 		}
 	}
 }
 
-func (m *Manager) handle() error {
+func (m *EventsServer) handle() error {
 	klog.Info("Starting transport manager listener")
 	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", m.port))
 	if err != nil {
