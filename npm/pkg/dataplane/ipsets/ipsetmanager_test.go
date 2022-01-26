@@ -208,7 +208,7 @@ func TestDeleteIPSet(t *testing.T) {
 			calls := GetApplyIPSetsTestCalls(tt.toCreateMetadatas, nil)
 			iMgr := NewIPSetManager(tt.cfg, common.NewMockIOShim(calls))
 			iMgr.CreateIPSets(tt.toCreateMetadatas)
-			iMgr.ApplyIPSets()
+			require.NoError(t, iMgr.ApplyIPSets())
 			iMgr.DeleteIPSet(tt.toDeleteName)
 
 			assertEqualCache(t, iMgr, tt.expectedCache)
@@ -232,8 +232,8 @@ func TestDeleteIPSetNotAllowed(t *testing.T) {
 	l := NewIPSetMetadata(testListName, KeyLabelOfNamespace)
 	calls := GetApplyIPSetsTestCalls([]*IPSetMetadata{l, m}, nil)
 	iMgr := NewIPSetManager(applyOnNeedCfg, common.NewMockIOShim(calls))
-	iMgr.AddToLists([]*IPSetMetadata{l}, []*IPSetMetadata{m})
-	iMgr.ApplyIPSets()
+	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{l}, []*IPSetMetadata{m}))
+	require.NoError(t, iMgr.ApplyIPSets())
 	iMgr.DeleteIPSet(m.GetPrefixName())
 
 	assertEqualCache(t, iMgr, cacheValues{

@@ -62,25 +62,25 @@ var (
 )
 
 // InitializeAll creates all the Prometheus Metrics. The metrics will be nil before this method is called.
-// This function will only initialize the metrics once no matter how many times it is called.
 func InitializeAll() {
 	if !haveInitialized {
-		ReinitializeAll()
+		numPolicies = createGauge(numPoliciesName, numPoliciesHelp, false)
+		addPolicyExecTime = createSummary(addPolicyExecTimeName, addPolicyExecTimeHelp, true)
+		numACLRules = createGauge(numACLRulesName, numACLRulesHelp, false)
+		addACLRuleExecTime = createSummary(addACLRuleExecTimeName, addACLRuleExecTimeHelp, true)
+		numIPSets = createGauge(numIPSetsName, numIPSetsHelp, false)
+		addIPSetExecTime = createSummary(addIPSetExecTimeName, addIPSetExecTimeHelp, true)
+		numIPSetEntries = createGauge(numIPSetEntriesName, numIPSetEntriesHelp, false)
+		ipsetInventory = createGaugeVec(ipsetInventoryName, ipsetInventoryHelp, false, setNameLabel, setHashLabel)
+		log.Logf("Finished initializing all Prometheus metrics")
+		haveInitialized = true
 	}
 }
 
-// ReinitializeAll creates new Prometheus metrics.
+// ReinitializeAll creates/replaces Prometheus metrics. This function is intended for UTs.
 func ReinitializeAll() {
-	numPolicies = createGauge(numPoliciesName, numPoliciesHelp, false)
-	addPolicyExecTime = createSummary(addPolicyExecTimeName, addPolicyExecTimeHelp, true)
-	numACLRules = createGauge(numACLRulesName, numACLRulesHelp, false)
-	addACLRuleExecTime = createSummary(addACLRuleExecTimeName, addACLRuleExecTimeHelp, true)
-	numIPSets = createGauge(numIPSetsName, numIPSetsHelp, false)
-	addIPSetExecTime = createSummary(addIPSetExecTimeName, addIPSetExecTimeHelp, true)
-	numIPSetEntries = createGauge(numIPSetEntriesName, numIPSetEntriesHelp, false)
-	ipsetInventory = createGaugeVec(ipsetInventoryName, ipsetInventoryHelp, false, setNameLabel, setHashLabel)
-	log.Logf("Finished initializing all Prometheus metrics")
-	haveInitialized = true
+	haveInitialized = false
+	InitializeAll()
 }
 
 // GetHandler returns the HTTP handler for the metrics endpoint
