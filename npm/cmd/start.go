@@ -33,7 +33,7 @@ import (
 
 var npmV2DataplaneCfg = &dataplane.Config{
 	IPSetManagerCfg: &ipsets.IPSetManagerCfg{
-		IPSetMode:   ipsets.ApplyAllIPSets, // NOTE: this value is overriden later
+		IPSetMode:   ipsets.ApplyAllIPSets, // NOTE: this value is overridden later
 		NetworkName: "azure",               // FIXME  should be specified in DP config instead
 	},
 	PolicyManagerCfg: &policies.PolicyManagerCfg{
