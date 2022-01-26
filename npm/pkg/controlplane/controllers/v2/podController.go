@@ -151,15 +151,11 @@ func (c *PodController) needSync(eventType string, obj interface{}) (string, boo
 		return key, needSync
 	}
 
-	klog.Infof("[POD %s EVENT] for %s in %s", eventType, podObj.Name, podObj.Namespace)
-
 	if !hasValidPodIP(podObj) {
 		return key, needSync
 	}
 
 	if isHostNetworkPod(podObj) {
-		klog.Infof("[POD %s EVENT] HostNetwork POD IGNORED: [%s/%s/%s/%+v%s]",
-			eventType, podObj.GetObjectMeta().GetUID(), podObj.Namespace, podObj.Name, podObj.Labels, podObj.Status.PodIP)
 		return key, needSync
 	}
 
@@ -194,7 +190,6 @@ func (c *PodController) addPod(obj interface{}) {
 func (c *PodController) updatePod(old, newp interface{}) {
 	key, needSync := c.needSync("UPDATE", newp)
 	if !needSync {
-		klog.Infof("[POD UPDATE EVENT] No need to sync this pod")
 		return
 	}
 
@@ -205,7 +200,6 @@ func (c *PodController) updatePod(old, newp interface{}) {
 		if oldPod.ResourceVersion == newPod.ResourceVersion {
 			// Periodic resync will send update events for all known pods.
 			// Two different versions of the same pods will always have different RVs.
-			klog.Infof("[POD UPDATE EVENT] Two pods have the same RVs")
 			return
 		}
 	}
