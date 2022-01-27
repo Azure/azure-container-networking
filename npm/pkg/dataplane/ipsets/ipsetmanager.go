@@ -132,7 +132,7 @@ func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceT
 	set.addReference(referenceName, referenceType)
 	if !wasInKernel {
 		// the set should be in the kernel, so add it to the kernel if it wasn't beforehand
-		iMgr.modifyCacheForKernelCreation(set.Name)
+		iMgr.modifyCacheForKernelCreation(setName)
 
 		// if set.Kind == HashSet, then this for loop will do nothing
 		for _, member := range set.MemberIPSets {
@@ -190,20 +190,14 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set", prefixedName))
 		}
 
-		// 2. add ip to the set
-		cachedPodKey, ok := set.IPPodKey[ip]
+		// 2. add ip to the set, and update the pod key
+		_, ok := set.IPPodKey[ip]
 		set.IPPodKey[ip] = podKey
 		if ok {
-			if cachedPodKey != podKey {
-				klog.Infof(
-					"AddToSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Replace context with new PodOwner.",
-					ip, set.Name, cachedPodKey, podKey,
-				)
-			}
 			continue
 		}
 
-		iMgr.modifyCacheForKernelMemberUpdate(prefixedName)
+		iMgr.modifyCacheForKernelMemberUpdate(set)
 		metrics.AddEntryToIPSet(prefixedName)
 	}
 	return nil
@@ -243,7 +237,7 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 
 		// update the IP ownership with podkey
 		delete(set.IPPodKey, ip)
-		iMgr.modifyCacheForKernelMemberUpdate(prefixedName)
+		iMgr.modifyCacheForKernelMemberUpdate(set)
 		metrics.RemoveEntryFromIPSet(prefixedName)
 	}
 	return nil
@@ -256,8 +250,6 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
-	// use this for efficient error checking later
-	memberNames := make(map[string]struct{}, len(setMetadatas))
 	// 1. check for errors in members and create any missing sets
 	for _, setMetadata := range setMetadatas {
 		setName := setMetadata.GetPrefixName()
@@ -273,8 +265,6 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 		if set.Kind != HashSet {
 			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", setName))
 		}
-
-		memberNames[setName] = struct{}{}
 	}
 
 	for _, listMetadata := range listMetadatas {
@@ -291,16 +281,28 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
 		}
 
-		if _, exists := memberNames[listName]; exists {
-			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s cannot be added to itself", listName))
-		}
-
+		modified := false
 		// 3. add all members to the list
 		for _, memberMetadata := range setMetadatas {
 			memberName := memberMetadata.GetPrefixName()
-			iMgr.addMemberIPSet(listName, memberName)
+			// the member shouldn't be the list itself, but this is satisfied since we already asserted that the member is a HashSet
+			if list.hasMember(memberName) {
+				continue
+			}
+			member := iMgr.setMap[memberName]
+
+			list.MemberIPSets[memberName] = member
+			member.incIPSetReferCount()
+			metrics.AddEntryToIPSet(listName)
+			listIsInKernel := iMgr.shouldBeInKernel(list)
+			if listIsInKernel {
+				iMgr.incKernelReferCountAndModifyCache(member)
+			}
+			modified = true
 		}
-		iMgr.modifyCacheForKernelMemberUpdate(listName)
+		if modified {
+			iMgr.modifyCacheForKernelMemberUpdate(list)
+		}
 	}
 	return nil
 }
@@ -326,23 +328,37 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 	modified := false
 	for _, setMetadata := range setMetadatas {
 		memberName := setMetadata.GetPrefixName()
-		set, exists := iMgr.setMap[memberName]
+		member, exists := iMgr.setMap[memberName]
 		if !exists {
 			continue
 		}
 
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
-		if set.Kind != HashSet {
+		if member.Kind != HashSet {
+			if modified {
+				iMgr.modifyCacheForKernelMemberUpdate(list)
+			}
 			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", memberName))
 		}
 
 		// 2. remove member from the list
-		iMgr.removeMemberIPSet(listName, memberName)
+		list := iMgr.setMap[listName]
+		if !list.hasMember(memberName) {
+			continue
+		}
+
+		delete(list.MemberIPSets, memberName)
+		member.decIPSetReferCount()
+		metrics.RemoveEntryFromIPSet(list.Name)
+		listIsInKernel := iMgr.shouldBeInKernel(list)
+		if listIsInKernel {
+			iMgr.decKernelReferCountAndModifyCache(member)
+		}
 		modified = true
 	}
 	if modified {
-		iMgr.modifyCacheForKernelMemberUpdate(listName)
+		iMgr.modifyCacheForKernelMemberUpdate(list)
 	}
 	return nil
 }
@@ -466,43 +482,9 @@ func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
 	}
 }
 
-func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(setName string) {
-	set := iMgr.setMap[setName]
+func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(set *IPSet) {
 	if iMgr.shouldBeInKernel(set) {
-		iMgr.toAddOrUpdateCache[setName] = struct{}{}
-	}
-}
-
-func (iMgr *IPSetManager) addMemberIPSet(listName, memberName string) {
-	list := iMgr.setMap[listName]
-	if list.hasMember(memberName) {
-		return
-	}
-
-	member := iMgr.setMap[memberName]
-
-	list.MemberIPSets[memberName] = member
-	member.incIPSetReferCount()
-	metrics.AddEntryToIPSet(list.Name)
-	listIsInKernel := iMgr.shouldBeInKernel(list)
-	if listIsInKernel {
-		iMgr.incKernelReferCountAndModifyCache(member)
-	}
-}
-
-func (iMgr *IPSetManager) removeMemberIPSet(listName, memberName string) {
-	list := iMgr.setMap[listName]
-	if !list.hasMember(memberName) {
-		return
-	}
-
-	member := iMgr.setMap[memberName]
-	delete(list.MemberIPSets, member.Name)
-	member.decIPSetReferCount()
-	metrics.RemoveEntryFromIPSet(list.Name)
-	listIsInKernel := iMgr.shouldBeInKernel(list)
-	if listIsInKernel {
-		iMgr.decKernelReferCountAndModifyCache(member)
+		iMgr.toAddOrUpdateCache[set.Name] = struct{}{}
 	}
 }
 
