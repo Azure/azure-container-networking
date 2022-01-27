@@ -343,8 +343,6 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil
 		toAddOrUpdateHashedNames[hashedName] = prefixedName
 	}
 
-	klog.Infof("beginning to parse ipset save file:\nBEGIN-IPSET-SAVE-FILE-FOR-APPLY-IPSETS\n%s\nEND-IPSET-SAVE-FILE-FOR-APPLY-IPSETS", string(saveFile)) // TODO remove eventually
-
 	// in each iteration, read a create line and any ensuing add lines
 	readIndex := 0
 	var line []byte

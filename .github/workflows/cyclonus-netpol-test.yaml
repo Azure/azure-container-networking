@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         # run cyclonus tests in parallel for NPM with the given ConfigMaps
-        profile: [v1-default.yaml, v1-place-azure-chain-first.yaml, v2-default.yaml]
+        profile: [v1-default.yaml, v1-place-azure-chain-first.yaml, v2-default.yaml, v2-apply-on-need.yaml]
     steps:
       - name: Checkout
         uses: actions/checkout@v2

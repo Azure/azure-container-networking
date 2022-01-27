@@ -273,7 +273,7 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 		return nil
 	}
 
-	klog.Infof("[IPSetManager] toAddUpdateCahe %+v \n ", iMgr.toAddOrUpdateCache)
+	klog.Infof("[IPSetManager] toAddUpdateCache %+v \n ", iMgr.toAddOrUpdateCache)
 	klog.Infof("[IPSetManager] toDeleteCache %+v \n ", iMgr.toDeleteCache)
 	iMgr.sanitizeDirtyCache()
 
