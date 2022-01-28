@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -93,10 +94,12 @@ func (pMgr *PolicyManager) GetPolicy(policyKey string) (*NPMNetworkPolicy, bool)
 }
 
 func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
+	prometheusTimer := metrics.StartNewTimer()
 	if len(policy.ACLs) == 0 {
 		klog.Infof("[DataPlane] No ACLs in policy %s to apply", policy.PolicyKey)
 		return nil
 	}
+	defer metrics.RecordACLRuleExecTime(prometheusTimer) // record execution time regardless of failure
 	normalizePolicy(policy)
 	if err := validatePolicy(policy); err != nil {
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("couldn't add malformed policy: %s", err.Error()))

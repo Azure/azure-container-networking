@@ -364,6 +364,8 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 }
 
 func (iMgr *IPSetManager) ApplyIPSets() error {
+	prometheusTimer := metrics.StartNewTimer()
+
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
@@ -371,6 +373,7 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 		klog.Info("[IPSetManager] No IPSets to apply")
 		return nil
 	}
+	defer metrics.RecordIPSetExecTime(prometheusTimer) // record execution time regardless of failure
 
 	klog.Infof("[IPSetManager] toAddUpdateCache %+v \n ", iMgr.toAddOrUpdateCache)
 	klog.Infof("[IPSetManager] toDeleteCache %+v \n ", iMgr.toDeleteCache)
