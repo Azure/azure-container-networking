@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	"k8s.io/klog"
 )
 
@@ -342,8 +342,6 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil
 		hashedName := iMgr.setMap[prefixedName].HashedName
 		toAddOrUpdateHashedNames[hashedName] = prefixedName
 	}
-
-	klog.Infof("beginning to parse ipset save file:\nBEGIN-IPSET-SAVE-FILE-FOR-APPLY-IPSETS\n%s\nEND-IPSET-SAVE-FILE-FOR-APPLY-IPSETS", string(saveFile)) // TODO remove eventually
 
 	// in each iteration, read a create line and any ensuing add lines
 	readIndex := 0

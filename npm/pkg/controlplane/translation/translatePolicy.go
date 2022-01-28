@@ -566,7 +566,5 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy) (*policies.NPMNetworkPol
 			}
 		}
 	}
-	klog.Infof("JUST-TRANSLATED-THIS-POLICY:\n%s", npmNetPol.String())
-	klog.Infof("THIS-NPOBJ:\n%+v", npObj)
 	return npmNetPol, nil
 }

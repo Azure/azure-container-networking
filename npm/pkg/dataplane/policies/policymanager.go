@@ -32,12 +32,17 @@ type PolicyMap struct {
 	cache map[string]*NPMNetworkPolicy
 }
 
-type PolicyManager struct {
-	policyMap   *PolicyMap
-	ioShim      *common.IOShim
-	staleChains *staleChains
-	*PolicyManagerCfg
+type reconcileManager struct {
 	sync.Mutex
+	releaseLockSignal chan struct{}
+}
+
+type PolicyManager struct {
+	policyMap        *PolicyMap
+	ioShim           *common.IOShim
+	staleChains      *staleChains
+	reconcileManager *reconcileManager
+	*PolicyManagerCfg
 }
 
 func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManager {
@@ -45,8 +50,11 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 		policyMap: &PolicyMap{
 			cache: make(map[string]*NPMNetworkPolicy),
 		},
-		ioShim:           ioShim,
-		staleChains:      newStaleChains(),
+		ioShim:      ioShim,
+		staleChains: newStaleChains(),
+		reconcileManager: &reconcileManager{
+			releaseLockSignal: make(chan struct{}, 1),
+		},
 		PolicyManagerCfg: cfg,
 	}
 }
@@ -58,8 +66,6 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 	return nil
 }
 
-// TODO call this function in DP
-
 func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 	go func() {
 		ticker := time.NewTicker(time.Minute * time.Duration(reconcileTimeInMinutes))
@@ -70,8 +76,6 @@ func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 			case <-stopChannel:
 				return
 			case <-ticker.C:
-				pMgr.Lock()
-				defer pMgr.Unlock()
 				pMgr.reconcile()
 			}
 		}
@@ -97,7 +101,6 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	if err := validatePolicy(policy); err != nil {
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("couldn't add malformed policy: %s", err.Error()))
 	}
-	klog.Infof("PRINTING-CONTENTS-FOR-ADDING-POLICY:\n%s", policy.String())
 
 	// Call actual dataplane function to apply changes
 	err := pMgr.addPolicy(policy, endpointList)
@@ -115,11 +118,8 @@ func (pMgr *PolicyManager) isFirstPolicy() bool {
 
 func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[string]string) error {
 	policy, ok := pMgr.GetPolicy(policyKey)
-	klog.Infof("PRINTING-CONTENTS-FOR-REMOVING-POLICY:\n%s", policy.String())
 
 	if !ok {
-		klog.Infof("DEBUGME-POLICY-DOESN'T-EXIST-WHEN-DELETING")
-		klog.Infof("POLICY-CACHE: %+v", pMgr.policyMap.cache)
 		return nil
 	}
 
@@ -138,7 +138,7 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 }
 
 func (pMgr *PolicyManager) isLastPolicy() bool {
-	// if change our code to delete more than one policy at once, we can specify numPoliciesToDelete as an argument
+	// if we change our code to delete more than one policy at once, we can specify numPoliciesToDelete as an argument
 	numPoliciesToDelete := 1
 	return len(pMgr.policyMap.cache) == numPoliciesToDelete
 }

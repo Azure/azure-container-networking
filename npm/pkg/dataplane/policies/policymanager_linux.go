@@ -1,12 +1,14 @@
 package policies
 
+// This file contains code for the iptables implementation of adding/removing policies.
+
 import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 )
 
 const (
@@ -20,8 +22,13 @@ const (
 
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
 	// 1. Add rules for the network policies and activate NPM (if necessary).
-	chainsToCreate := allChainNames([]*NPMNetworkPolicy{networkPolicy})
+	chainsToCreate := chainNames([]*NPMNetworkPolicy{networkPolicy})
 	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, []*NPMNetworkPolicy{networkPolicy})
+
+	// Stop reconciling so we don't contend for iptables, and so reconcile doesn't delete chainsToCreate.
+	pMgr.reconcileManager.forceLock()
+	defer pMgr.reconcileManager.forceUnlock()
+
 	err := restore(creator)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
@@ -35,6 +42,13 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 }
 
 func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
+	chainsToDelete := chainNames([]*NPMNetworkPolicy{networkPolicy})
+	creator := pMgr.creatorForRemovingPolicies(chainsToDelete)
+
+	// Stop reconciling so we don't contend for iptables, and so we don't update the staleChains at the same time as reconcile()
+	pMgr.reconcileManager.forceLock()
+	defer pMgr.reconcileManager.forceUnlock()
+
 	// 1. Delete jump rules from ingress/egress chains to ingress/egress policy chains.
 	// We ought to delete these jump rules here in the foreground since if we add an NP back after deleting, iptables-restore --noflush can add duplicate jump rules.
 	deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
@@ -43,8 +57,6 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	}
 
 	// 2. Flush the policy chains and deactivate NPM (if necessary).
-	chainsToDelete := allChainNames([]*NPMNetworkPolicy{networkPolicy})
-	creator := pMgr.creatorForRemovingPolicies(chainsToDelete)
 	restoreErr := restore(creator)
 	if restoreErr != nil {
 		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
@@ -80,8 +92,8 @@ func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *i
 	return creator
 }
 
-// returns all chain names (ingress and egress policy chain names)
-func allChainNames(networkPolicies []*NPMNetworkPolicy) []string {
+// returns ingress and egress chain names for the policies
+func chainNames(networkPolicies []*NPMNetworkPolicy) []string {
 	chainNames := make([]string, 0)
 	for _, networkPolicy := range networkPolicies {
 		hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()

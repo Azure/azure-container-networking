@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	MaxSleepTime = 2
-	includeLists = false
+	MaxSleepTime           = 2
+	finalWaitTimeInMinutes = 10
+	includeLists           = false
 )
 
 var (
@@ -73,7 +74,8 @@ var (
 )
 
 func main() {
-	dp, err := dataplane.NewDataPlane(nodeName, common.NewIOShim(), dpCfg)
+	dp, err := dataplane.NewDataPlane(nodeName, common.NewIOShim(), dpCfg, make(chan struct{}, 1))
+	dp.RunPeriodicTasks()
 	panicOnError(err)
 	printAndWait(true)
 
@@ -120,7 +122,9 @@ func main() {
 	dp.DeleteIPSet(ipsets.TestKVPodSet.Metadata)
 	panicOnError(dp.ApplyDataPlane())
 
-	panicOnError(dp.AddToLists([]*ipsets.IPSetMetadata{ipsets.TestNestedLabelList.Metadata}, []*ipsets.IPSetMetadata{ipsets.TestKVPodSet.Metadata, ipsets.TestNSSet.Metadata}))
+	if includeLists {
+		panicOnError(dp.AddToLists([]*ipsets.IPSetMetadata{ipsets.TestNestedLabelList.Metadata}, []*ipsets.IPSetMetadata{ipsets.TestKVPodSet.Metadata, ipsets.TestNSSet.Metadata}))
+	}
 
 	printAndWait(true)
 	panicOnError(dp.RemoveFromSets([]*ipsets.IPSetMetadata{ipsets.TestNSSet.Metadata}, podMetadata))
@@ -164,6 +168,9 @@ func main() {
 	printAndWait(true)
 	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[0]))
 	fmt.Println("AZURE-NPM should have rules now")
+
+	fmt.Println("waiting for reconcile to finish (will be a while if you don't update the reconcile time in policymanager.go")
+	time.Sleep(finalWaitTimeInMinutes * time.Minute)
 }
 
 func panicOnError(err error) {

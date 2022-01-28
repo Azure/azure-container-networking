@@ -1,15 +1,18 @@
 package policies
 
+// This file contains code for booting up and reconciling iptables
+
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ioutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
@@ -21,12 +24,8 @@ const (
 	doesNotExistErrorCode      int = 1 // Bad rule (does a matching rule exist in that chain?)
 	couldntLoadTargetErrorCode int = 2 // Couldn't load target `AZURE-NPM-EGRESS':No such file or directory
 
-	minLineNumberStringLength int = 3 // TODO transferred from iptm.go and not sure why this length is important, but will update the function its used in later anyways
-
-	azureChainGrepPattern   string = "Chain AZURE-NPM"
-	minAzureChainNameLength int    = len("AZURE-NPM")
-	// the minimum number of sections when "Chain NAME (1 references)" is split on spaces (" ")
-	minSpacedSectionsForChainLine int = 2
+	// transferred from iptm.go and not sure why this length is important
+	minLineNumberStringLength int = 3
 )
 
 var (
@@ -51,7 +50,9 @@ var (
 		util.IptablesNewState,
 	}
 
-	errInvalidGrepResult                      = errors.New("unexpectedly got no lines while grepping for current Azure chains")
+	spaceByte                                 = []byte(" ")
+	errNoLineNumber                           = errors.New("no line number found")
+	errUnexpectedLineNumberString             = errors.New("unexpected line number string")
 	deprecatedJumpFromForwardToAzureChainArgs = []string{
 		util.IptablesForwardChain,
 		util.IptablesJumpFlag,
@@ -64,7 +65,25 @@ type staleChains struct {
 }
 
 func newStaleChains() *staleChains {
-	return &staleChains{make(map[string]struct{})}
+	return &staleChains{
+		chainsToCleanup: make(map[string]struct{}),
+	}
+}
+
+// forceLock stops reconciling if it is running, and then locks the reconcileManager
+func (rm *reconcileManager) forceLock() {
+	rm.releaseLockSignal <- struct{}{}
+	rm.Lock()
+}
+
+// forceUnlock makes sure that the releaseLockSignal channel is empty (in case reconciling
+// wasn't running when forceLock was called), and then unlocks the reconcileManager.
+func (rm *reconcileManager) forceUnlock() {
+	select {
+	case <-rm.releaseLockSignal:
+	default:
+	}
+	rm.Unlock()
 }
 
 // Adds the chain if it isn't one of the iptablesAzureChains.
@@ -128,6 +147,11 @@ func isBaseChain(chain string) bool {
 func (pMgr *PolicyManager) bootup(_ []string) error {
 	klog.Infof("booting up iptables Azure chains")
 
+	// Stop reconciling so we don't centend for iptables, and so we don't update the staleChains at the same time as reconcile()
+	// Reconciling would only be happening if this function were called to reset iptables well into the azure-npm pod lifecycle.
+	pMgr.reconcileManager.forceLock()
+	defer pMgr.reconcileManager.forceUnlock()
+
 	// 1. delete the deprecated jump to AZURE-NPM
 	deprecatedErrCode, deprecatedErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
 	if deprecatedErr == nil {
@@ -145,7 +169,7 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 		}
 	}
 
-	currentChains, err := pMgr.allCurrentAzureChains()
+	currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, defaultlockWaitTimeInSeconds)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to get current chains for bootup", err)
 	}
@@ -166,13 +190,16 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 }
 
 // reconcile does the following:
-// - cleans up stale policy chains
 // - creates the jump rule from FORWARD chain to AZURE-NPM chain (if it does not exist) and makes sure it's after the jumps to KUBE-FORWARD & KUBE-SERVICES chains (if they exist).
+// - cleans up stale policy chains. It can be forced to stop this process if reconcileManager.forceLock() is called.
 func (pMgr *PolicyManager) reconcile() {
 	klog.Infof("repositioning azure chain jump rule")
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
 		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
 	}
+
+	pMgr.reconcileManager.Lock()
+	defer pMgr.reconcileManager.Unlock()
 	staleChains := pMgr.staleChains.emptyAndGetAll()
 	klog.Infof("cleaning up these stale chains: %+v", staleChains)
 	if err := pMgr.cleanupChains(staleChains); err != nil {
@@ -182,19 +209,29 @@ func (pMgr *PolicyManager) reconcile() {
 
 // cleanupChains deletes all the chains in the given list.
 // If a chain fails to delete and it isn't one of the iptablesAzureChains, then it is added to the staleChains.
-// have to use slice argument for deterministic behavior for ioshim in UTs
+// This is a separate function for with a slice argument so that UTs can have deterministic behavior for ioshim.
 func (pMgr *PolicyManager) cleanupChains(chains []string) error {
 	var aggregateError error
-	for _, chain := range chains {
-		errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain)
-		if err != nil && errCode != doesNotExistErrorCode {
-			// add to staleChains if it's not one of the iptablesAzureChains
-			pMgr.staleChains.add(chain)
-			currentErrString := fmt.Sprintf("failed to clean up chain %s with err [%v]", chain, err)
-			if aggregateError == nil {
-				aggregateError = npmerrors.SimpleError(currentErrString)
-			} else {
-				aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
+deleteLoop:
+	for k, chain := range chains {
+		select {
+		case <-pMgr.reconcileManager.releaseLockSignal:
+			// if reconcileManager.forceLock() was called, then stop deleting stale chains so that reconcileManager can be unlocked right away
+			for j := k; j < len(chains); j++ {
+				pMgr.staleChains.add(chains[j])
+			}
+			break deleteLoop
+		default:
+			errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain)
+			if err != nil && errCode != doesNotExistErrorCode {
+				// add to staleChains if it's not one of the iptablesAzureChains
+				pMgr.staleChains.add(chain)
+				currentErrString := fmt.Sprintf("failed to clean up chain %s with err [%v]", chain, err)
+				if aggregateError == nil {
+					aggregateError = npmerrors.SimpleError(currentErrString)
+				} else {
+					aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
+				}
 			}
 		}
 	}
@@ -232,7 +269,6 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 // Writes the restore file for bootup, and marks the following as stale: deprecated chains and old v2 policy chains.
 // This is a separate function to help with UTs.
 func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *ioutil.FileCreator {
-	pMgr.staleChains.empty()
 	chainsToCreate := make([]string, 0, len(iptablesAzureChains))
 	for _, chain := range iptablesAzureChains {
 		_, exists := currentChains[chain]
@@ -244,6 +280,7 @@ func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *
 	// Step 2.1 in bootup() comment: cleanup old NPM chains, and configure base chains and their rules
 	// To leave NPM deactivated, don't specify any rules for AZURE-NPM chain.
 	creator := pMgr.newCreatorWithChains(chainsToCreate)
+	pMgr.staleChains.empty()
 	for chain := range currentChains {
 		creator.AddLine("", nil, fmt.Sprintf("-F %s", chain))
 		// Step 2.2 in bootup() comment: delete deprecated chains and old v2 policy chains in the background
@@ -342,49 +379,17 @@ func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
 		return 0, nil
 	}
 	if len(searchResults) >= minLineNumberStringLength {
-		lineNum, _ := strconv.Atoi(string(searchResults[0])) // FIXME this returns the first digit of the line number. What if the chain was at line 11? Then we would think it's at line 1
-		return lineNum, nil
-	}
-	return 0, nil
-}
-
-func (pMgr *PolicyManager) allCurrentAzureChains() (map[string]struct{}, error) {
-	iptablesListCommand := pMgr.ioShim.Exec.Command(util.Iptables,
-		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
-		util.IptablesNumericFlag, util.IptablesListFlag,
-	)
-	grepCommand := pMgr.ioShim.Exec.Command(ioutil.Grep, azureChainGrepPattern)
-	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(iptablesListCommand, grepCommand)
-	if err != nil {
-		return nil, npmerrors.SimpleErrorWrapper("failed to get policy chain names", err)
-	}
-	if !gotMatches {
-		return nil, nil
-	}
-	lines := strings.Split(string(searchResults), "\n")
-	if len(lines) == 1 && lines[0] == "" {
-		// this should never happen: gotMatches is true, but there is no content in the searchResults
-		return nil, errInvalidGrepResult
-	}
-	lastIndex := len(lines) - 1
-	lastLine := lines[lastIndex]
-	if lastLine == "" {
-		// remove the last empty line (since each line ends with a newline)
-		lines = lines[:lastIndex] // this line doesn't impact the array that the slice references
-	} else {
-		klog.Errorf(`while grepping for current Azure chains, expected last line to end in "" but got [%s]. full grep output: [%s]`, lastLine, string(searchResults))
-	}
-	chainNames := make(map[string]struct{}, len(lines))
-	for _, line := range lines {
-		// line of the form "Chain NAME (1 references)"
-		spaceSeparatedLine := strings.Split(line, " ")
-		if len(spaceSeparatedLine) < minSpacedSectionsForChainLine || len(spaceSeparatedLine[1]) < minAzureChainNameLength {
-			klog.Errorf("while grepping for current Azure chains, got unexpected line [%s] for all current azure chains. full grep output: [%s]", line, string(searchResults))
-		} else {
-			chainNames[spaceSeparatedLine[1]] = struct{}{}
+		firstSpaceIndex := bytes.Index(searchResults, spaceByte)
+		if firstSpaceIndex > 0 && firstSpaceIndex < len(searchResults) {
+			lineNumberString := string(searchResults[0:firstSpaceIndex])
+			lineNum, err := strconv.Atoi(lineNumberString)
+			if err != nil {
+				return 0, errNoLineNumber
+			}
+			return lineNum, nil
 		}
 	}
-	return chainNames, nil
+	return 0, errUnexpectedLineNumberString
 }
 
 func onMarkSpecs(mark string) []string {

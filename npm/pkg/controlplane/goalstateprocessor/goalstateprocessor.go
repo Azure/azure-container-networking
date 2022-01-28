@@ -13,6 +13,8 @@ import (
 	"k8s.io/klog"
 )
 
+var ErrPodOrNodeNameNil = fmt.Errorf("both pod and node name must be set")
+
 type GoalStateProcessor struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -28,8 +30,14 @@ func NewGoalStateProcessor(
 	nodeID string,
 	podName string,
 	inputChan chan *protos.Events,
-	dp dataplane.GenericDataplane) *GoalStateProcessor {
+	dp dataplane.GenericDataplane) (*GoalStateProcessor, error) {
+
+	if nodeID == "" || podName == "" {
+		return nil, ErrPodOrNodeNameNil
+	}
+
 	klog.Infof("Creating GoalStateProcessor for node %s", nodeID)
+
 	return &GoalStateProcessor{
 		ctx:            ctx,
 		nodeID:         nodeID,
@@ -37,13 +45,13 @@ func NewGoalStateProcessor(
 		dp:             dp,
 		inputChannel:   inputChan,
 		backoffChannel: make(chan *protos.Events),
-	}
+	}, nil
 }
 
 // Start kicks off the GoalStateProcessor
-func (gsp *GoalStateProcessor) Start() {
+func (gsp *GoalStateProcessor) Start(stopCh <-chan struct{}) {
 	klog.Infof("Starting GoalStateProcessor for node %s", gsp.nodeID)
-	go gsp.run()
+	go gsp.run(stopCh)
 }
 
 // Stop stops the GoalStateProcessor
@@ -52,19 +60,25 @@ func (gsp *GoalStateProcessor) Stop() {
 	gsp.cancel()
 }
 
-func (gsp *GoalStateProcessor) run() {
+func (gsp *GoalStateProcessor) run(stopCh <-chan struct{}) {
 	klog.Infof("Starting dataplane for node %s", gsp.nodeID)
 
 	for {
-		gsp.processNext()
+		select {
+		case <-gsp.ctx.Done():
+			klog.Infof("GoalStateProcessor for node %s received context Done", gsp.nodeID)
+			return
+		case <-stopCh:
+			klog.Infof("GoalStateProcessor for node %s stopped", gsp.nodeID)
+			return
+		default:
+			gsp.processNext()
+		}
 	}
 }
 
 func (gsp *GoalStateProcessor) processNext() {
 	select {
-	case <-gsp.ctx.Done():
-		klog.Infof("GoalStateProcessor for node %s stopped", gsp.nodeID)
-		return
 	case inputEvents := <-gsp.inputChannel:
 		// TODO remove this large print later
 		klog.Infof("Received event %s", inputEvents)

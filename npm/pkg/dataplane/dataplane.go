@@ -27,6 +27,7 @@ type Config struct {
 }
 
 type DataPlane struct {
+	*Config
 	policyMgr *policies.PolicyManager
 	ipsetMgr  *ipsets.IPSetManager
 	networkID string
@@ -35,7 +36,7 @@ type DataPlane struct {
 	endpointCache  map[string]*NPMEndpoint
 	ioShim         *common.IOShim
 	updatePodCache map[string]*updateNPMPod
-	*Config
+	stopChannel    <-chan struct{}
 }
 
 type NPMEndpoint struct {
@@ -48,16 +49,17 @@ type NPMEndpoint struct {
 	NetPolReference map[string]struct{}
 }
 
-func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config) (*DataPlane, error) {
+func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
 	metrics.InitializeAll()
 	dp := &DataPlane{
+		Config:         cfg,
 		policyMgr:      policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
 		ipsetMgr:       ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
 		endpointCache:  make(map[string]*NPMEndpoint),
 		nodeName:       nodeName,
 		ioShim:         ioShim,
 		updatePodCache: make(map[string]*updateNPMPod),
-		Config:         cfg,
+		stopChannel:    stopChannel,
 	}
 
 	err := dp.ResetDataPlane()
@@ -74,12 +76,16 @@ func (dp *DataPlane) InitializeDataPlane() error {
 	return nil
 }
 
-// ResetDataPlane helps in cleaning up dataplane sets and policies programmed
-// by NPM, returning a clean slate
+// ResetDataPlane cleans the NPM sets and policies in the dataplane and performs initialization.
+// TODO rename this function to BootupDataplane
 func (dp *DataPlane) ResetDataPlane() error {
-	// TODO rename this function to BootupDataplane
 	// NOTE: used to create an all-namespaces set, but there's no need since it will be created by the control plane
-	return dp.bootupDataPlane()
+	return dp.bootupDataPlane() //nolint:wrapcheck // unnecessary to wrap error
+}
+
+// RunPeriodicTasks runs periodic tasks. Should only be called once.
+func (dp *DataPlane) RunPeriodicTasks() {
+	dp.policyMgr.Reconcile(dp.stopChannel)
 }
 
 func (dp *DataPlane) GetIPSet(setName string) *ipsets.IPSet {
@@ -256,7 +262,7 @@ func (dp *DataPlane) UpdatePolicy(policy *policies.NPMNetworkPolicy) error {
 	klog.Infof("[DataPlane] Update Policy called for %s", policy.PolicyKey)
 	ok := dp.policyMgr.PolicyExists(policy.PolicyKey)
 	if !ok {
-		klog.Infof("[DataPlane] Policy %s is not found. Might been deleted already", policy.PolicyKey)
+		klog.Infof("[DataPlane] Policy %s is not found.", policy.PolicyKey)
 		return dp.AddPolicy(policy)
 	}
 

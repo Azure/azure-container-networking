@@ -24,15 +24,6 @@ Chain AZURE-NPM-INGRESS (1 references)
 Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)
 `
 
-	grepOutputAzureChainsWithPolicies = `Chain AZURE-NPM (1 references)
-Chain AZURE-NPM-ACCEPT (1 references)
-Chain AZURE-NPM-EGRESS (1 references)
-Chain AZURE-NPM-EGRESS-123456 (1 references)
-Chain AZURE-NPM-INGRESS (1 references)
-Chain AZURE-NPM-INGRESS-123456 (1 references)
-Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)
-`
-
 	grepOutputAzureV1Chains = `Chain AZURE-NPM
 Chain AZURE-NPM (1 references)
 Chain AZURE-NPM-INGRESS (1 references)
@@ -46,6 +37,50 @@ Chain AZURE-NPM-EGRESS-PORTS (1 references)
 Chain AZURE-NPM-ACCEPT (1 references)
 `
 )
+
+func TestStaleChainsForceLock(t *testing.T) {
+	testChains := []string{}
+	for i := 0; i < 100000; i++ {
+		testChains = append(testChains, fmt.Sprintf("test-chain-%d", i))
+	}
+	calls := []testutils.TestCmd{}
+	for _, chain := range testChains {
+		calls = append(calls, getFakeDestroyCommand(chain))
+	}
+	ioshim := common.NewMockIOShim(calls)
+	// don't verify calls because there shouldn't be as many commands as we create if forceLock works properly
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+
+	start := make(chan struct{}, 1)
+	done := make(chan struct{}, 1)
+	go func() {
+		pMgr.reconcileManager.Lock()
+		defer pMgr.reconcileManager.Unlock()
+		start <- struct{}{}
+		require.NoError(t, pMgr.cleanupChains(testChains))
+		done <- struct{}{}
+	}()
+	<-start
+	pMgr.reconcileManager.forceLock()
+	<-done
+	// the releaseLockSignal should be empty, there should be some stale chains, and staleChains should be unlockable
+	fmt.Println("weren't able to delete this many chains:", len(pMgr.staleChains.chainsToCleanup))
+	require.NotEqual(t, 0, len(pMgr.staleChains.chainsToCleanup), "stale chains should not be empty")
+	require.Equal(t, 0, len(pMgr.reconcileManager.releaseLockSignal), "releaseLockSignal should be empty")
+	pMgr.reconcileManager.Unlock()
+}
+
+func TestStaleChainsForceUnlock(t *testing.T) {
+	ioshim := common.NewMockIOShim(nil)
+	defer ioshim.VerifyCalls(t, nil)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	pMgr.reconcileManager.forceLock()
+	require.Equal(t, 1, len(pMgr.reconcileManager.releaseLockSignal), "releaseLockSignal should be non-empty")
+	pMgr.reconcileManager.forceUnlock()
+	// the releaseLockSignal should be empty and staleChains should be lockable
+	require.Equal(t, 0, len(pMgr.reconcileManager.releaseLockSignal), "releaseLockSignal should be empty")
+	pMgr.reconcileManager.Lock()
+}
 
 func TestStaleChainsAddAndRemove(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
@@ -341,10 +376,7 @@ func TestBootupLinux(t *testing.T) {
 				},
 				fakeIPTablesRestoreCommand,
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
-				{
-					Cmd:    []string{"grep", "AZURE-NPM"},
-					Stdout: grepOutputAzureV1Chains,
-				},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
 				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
@@ -360,10 +392,7 @@ func TestBootupLinux(t *testing.T) {
 				},
 				fakeIPTablesRestoreCommand,
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
-				{
-					Cmd:    []string{"grep", "AZURE-NPM"},
-					Stdout: grepOutputAzureV1Chains,
-				},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
 				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
@@ -535,15 +564,14 @@ func TestChainLineNumber(t *testing.T) {
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", testChainName},
-					Stdout: fmt.Sprintf("3    %s  all  --  0.0.0.0/0            0.0.0.0/0 ", testChainName),
+					Stdout: fmt.Sprintf("12    %s  all  --  0.0.0.0/0            0.0.0.0/0 ", testChainName),
 				},
 			},
-			expectedLineNum: 3,
+			expectedLineNum: 12,
 			wantErr:         false,
 		},
-		// TODO test for chain line number with 2+ digits
 		{
-			name: "ignore unexpected grep output",
+			name: "unexpected grep output (too short)",
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{
@@ -552,7 +580,31 @@ func TestChainLineNumber(t *testing.T) {
 				},
 			},
 			expectedLineNum: 0,
-			wantErr:         false,
+			wantErr:         true,
+		},
+		{
+			name: "unexpected grep output (no space)",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", testChainName},
+					Stdout: "345678",
+				},
+			},
+			expectedLineNum: 0,
+			wantErr:         true,
+		},
+		{
+			name: "unexpected grep output (no line number)",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", testChainName},
+					Stdout: "unexpected stuff",
+				},
+			},
+			expectedLineNum: 0,
+			wantErr:         true,
 		},
 		{
 			name: "chain doesn't exist",
@@ -586,115 +638,6 @@ func TestChainLineNumber(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, tt.expectedLineNum, lineNum)
-		})
-	}
-}
-
-func TestAllCurrentAzureChains(t *testing.T) {
-	tests := []struct {
-		name           string
-		calls          []testutils.TestCmd
-		expectedChains []string
-		wantErr        bool
-	}{
-		{
-			name: "success with chains",
-			calls: []testutils.TestCmd{
-				{Cmd: listAllCommandStrings, PipedToCommand: true},
-				{
-					Cmd:    []string{"grep", "Chain AZURE-NPM"},
-					Stdout: grepOutputAzureChainsWithPolicies,
-				},
-			},
-			expectedChains: []string{"AZURE-NPM", "AZURE-NPM-ACCEPT", "AZURE-NPM-EGRESS", "AZURE-NPM-EGRESS-123456", "AZURE-NPM-INGRESS", "AZURE-NPM-INGRESS-123456", "AZURE-NPM-INGRESS-ALLOW-MARK"},
-			wantErr:        false,
-		},
-		{
-			name: "ignore missing newline at end of grep result",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
-				{
-					Cmd: []string{"grep", "Chain AZURE-NPM"},
-					Stdout: `Chain AZURE-NPM (1 references)
-Chain AZURE-NPM-INGRESS (1 references)`,
-				},
-			},
-			expectedChains: []string{"AZURE-NPM", "AZURE-NPM-INGRESS"},
-			wantErr:        false,
-		},
-		{
-			name: "ignore unexpected grep line (chain name too short)",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
-				{
-					Cmd: []string{"grep", "Chain AZURE-NPM"},
-					Stdout: `Chain AZURE-NPM (1 references)
-Chain abc (1 references)
-Chain AZURE-NPM-INGRESS (1 references)
-`,
-				},
-			},
-			expectedChains: []string{"AZURE-NPM", "AZURE-NPM-INGRESS"},
-			wantErr:        false,
-		},
-		{
-			name: "ignore unexpected grep line (no space)",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
-				{
-					Cmd: []string{"grep", "Chain AZURE-NPM"},
-					Stdout: `Chain AZURE-NPM (1 references)
-abc
-Chain AZURE-NPM-INGRESS (1 references)
-`,
-				},
-			},
-			expectedChains: []string{"AZURE-NPM", "AZURE-NPM-INGRESS"},
-		},
-		{
-			name: "success with no chains",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
-			},
-			expectedChains: nil,
-			wantErr:        false,
-		},
-		{
-			name: "grep failure",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
-				{Cmd: []string{"grep", "Chain AZURE-NPM"}},
-			},
-			expectedChains: nil,
-			wantErr:        true,
-		},
-		{
-			name: "invalid grep result",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
-				{
-					Cmd:    []string{"grep", "Chain AZURE-NPM"},
-					Stdout: "",
-				},
-			},
-			expectedChains: nil,
-			wantErr:        true,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ioshim := common.NewMockIOShim(tt.calls)
-			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, ipsetConfig)
-			chains, err := pMgr.allCurrentAzureChains()
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-			require.Equal(t, stringsToMap(tt.expectedChains), chains)
 		})
 	}
 }

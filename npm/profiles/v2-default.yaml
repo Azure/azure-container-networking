@@ -13,6 +13,7 @@ data:
         "EnablePrometheusMetrics": true,
         "EnablePprof": false,
         "EnableHTTPDebugAPI": true,
-        "EnableV2NPM": true
+        "EnableV2NPM": true,
+        "ApplyIPSetsOnNeed": true
       }
     }

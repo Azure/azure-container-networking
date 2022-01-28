@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/exec"
 )
 
@@ -23,15 +22,6 @@ const (
 	DeletedFinalStateUnknownObject IsDeletedFinalStateUnknownObject = true
 	DeletedFinalStateknownObject   IsDeletedFinalStateUnknownObject = false
 )
-
-func getKey(obj interface{}, t *testing.T) string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-	if err != nil {
-		t.Errorf("Unexpected error getting key for obj %v: %v", obj, err)
-		return ""
-	}
-	return key
-}
 
 func TestMarshalJSONForNilValues(t *testing.T) {
 	npMgr := &NetworkPolicyManager{}
@@ -80,14 +70,14 @@ func TestMarshalUnMarshalJSON(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	metrics.InitializeAll()
-	exec := exec.New()
-	iptMgr := iptm.NewIptablesManager(exec, iptm.NewFakeIptOperationShim(), npmconfig.DefaultConfig.Toggles.PlaceAzureChainFirst)
-	iptMgr.UninitNpmChains()
+	ex := exec.New()
+	iptMgr := iptm.NewIptablesManager(ex, iptm.NewFakeIptOperationShim(), npmconfig.DefaultConfig.Toggles.PlaceAzureChainFirst)
+	_ = iptMgr.UninitNpmChains()
 
-	ipsMgr := ipsm.NewIpsetManager(exec)
+	ipsMgr := ipsm.NewIpsetManager(ex)
 	// Do not check returned error here to proceed all UTs.
 	// TODO(jungukcho): are there any side effect?
-	ipsMgr.DestroyNpmIpsets()
+	_ = ipsMgr.DestroyNpmIpsets()
 
 	exitCode := m.Run()
 	os.Exit(exitCode)

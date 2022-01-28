@@ -91,7 +91,7 @@ func TestPolicyApplyEvent(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	gsp := NewGoalStateProcessor(ctx, "node1", "pod1", inputChan, dp)
+	gsp, _ := NewGoalStateProcessor(ctx, "node1", "pod1", inputChan, dp)
 
 	go func() {
 		inputChan <- &protos.Events{
@@ -129,7 +129,7 @@ func TestIPSetsApply(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	gsp := NewGoalStateProcessor(ctx, "node1", "pod1", inputChan, dp)
+	gsp, _ := NewGoalStateProcessor(ctx, "node1", "pod1", inputChan, dp)
 	go func() {
 		inputChan <- &protos.Events{
 			Payload: goalState,
@@ -170,7 +170,7 @@ func TestIPSetsApplyUpdateMembers(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	gsp := NewGoalStateProcessor(ctx, "node1", "pod1", inputChan, dp)
+	gsp, _ := NewGoalStateProcessor(ctx, "node1", "pod1", inputChan, dp)
 	go func() {
 		inputChan <- &protos.Events{
 			Payload: goalState,

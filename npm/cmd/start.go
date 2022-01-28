@@ -33,8 +33,8 @@ import (
 
 var npmV2DataplaneCfg = &dataplane.Config{
 	IPSetManagerCfg: &ipsets.IPSetManagerCfg{
-		IPSetMode:   ipsets.ApplyAllIPSets,
-		NetworkName: "azure", // FIXME  should be specified in DP config instead
+		IPSetMode:   ipsets.ApplyAllIPSets, // NOTE: this value is overridden later
+		NetworkName: "azure",               // FIXME  should be specified in DP config instead
 	},
 	PolicyManagerCfg: &policies.PolicyManagerCfg{
 		PolicyMode: policies.IPSetPolicyMode,
@@ -84,6 +84,11 @@ func newStartNPMCmd() *cobra.Command {
 	}
 
 	startNPMCmd.Flags().String(flagKubeConfigPath, flagDefaults[flagKubeConfigPath], "path to kubeconfig")
+
+	// The controlplane subcommand starts the NPM controller's controlplane component in the decomposed mode
+	startNPMCmd.AddCommand(newStartNPMControlplaneCmd())
+	// The daemon subcommand starts the NPM controller's datapath component in the daemon mode
+	startNPMCmd.AddCommand(newStartNPMDaemonCmd())
 
 	return startNPMCmd
 }
@@ -137,11 +142,18 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	k8sServerVersion := k8sServerVersion(clientset)
 
 	var dp dataplane.GenericDataplane
+	stopChannel := wait.NeverStop
 	if config.Toggles.EnableV2NPM {
-		dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg)
+		if config.Toggles.ApplyIPSetsOnNeed {
+			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyOnNeed
+		} else {
+			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyAllIPSets
+		}
+		dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, stopChannel)
 		if err != nil {
 			return fmt.Errorf("failed to create dataplane with error %w", err)
 		}
+		dp.RunPeriodicTasks()
 	}
 	npMgr := npm.NewNetworkPolicyManager(config, factory, dp, exec.New(), version, k8sServerVersion)
 	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
@@ -152,7 +164,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
-	if err = npMgr.Start(config, wait.NeverStop); err != nil {
+	if err = npMgr.Start(config, stopChannel); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %+v", err)
 		return fmt.Errorf("failed to start with err: %w", err)
 	}

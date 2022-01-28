@@ -129,8 +129,6 @@ func handleIfCniUpdate(update func(*skel.CmdArgs) error) (bool, error) {
 
 // Main is the entry point for CNI network plugin.
 func main() {
-	startTime := time.Now()
-
 	// Initialize and parse command line arguments.
 	common.ParseArgs(&args, printVersion)
 	vers := common.GetArg(common.OptVersion).(bool)
@@ -281,27 +279,8 @@ func main() {
 
 	netPlugin.Stop()
 
-	// release cni lock
-	if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
-		log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
-	}
-
-	executionTimeMs := time.Since(startTime).Milliseconds()
-
 	if err != nil {
 		reportPluginError(reportManager, tb, err)
 		panic("network plugin execute fatal error")
-	}
-
-	// Report CNI successfully finished execution.
-	reflect.ValueOf(reportManager.Report).Elem().FieldByName("CniSucceeded").SetBool(true)
-	reflect.ValueOf(reportManager.Report).Elem().FieldByName("OperationDuration").SetInt(executionTimeMs)
-
-	if cniReport.ErrorMessage != "" || cniReport.EventMessage != "" {
-		if err = reportManager.SendReport(tb); err != nil {
-			log.Errorf("SendReport failed due to %v", err)
-		} else {
-			log.Printf("Sending report succeeded")
-		}
 	}
 }

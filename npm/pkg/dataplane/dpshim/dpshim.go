@@ -1,6 +1,9 @@
 package dpshim
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
@@ -12,8 +15,13 @@ type DPShim struct {
 	outChannel chan *protos.Events
 }
 
-func NewDPSim(outChannel chan *protos.Events) *DPShim {
-	return &DPShim{outChannel: outChannel}
+var ErrChannelUnset = errors.New("channel must be set")
+
+func NewDPSim(outChannel chan *protos.Events) (*DPShim, error) {
+	if outChannel == nil {
+		return nil, fmt.Errorf("out channel must be set: %w", ErrChannelUnset)
+	}
+	return &DPShim{outChannel: outChannel}, nil
 }
 
 func (dp *DPShim) InitializeDataPlane() error {
@@ -23,6 +31,8 @@ func (dp *DPShim) InitializeDataPlane() error {
 func (dp *DPShim) ResetDataPlane() error {
 	return nil
 }
+
+func (dp *DPShim) RunPeriodicTasks() {}
 
 func (dp *DPShim) GetIPSet(setName string) *ipsets.IPSet {
 	return nil

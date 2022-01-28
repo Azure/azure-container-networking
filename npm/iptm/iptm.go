@@ -4,6 +4,7 @@
 package iptm
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	utilexec "k8s.io/utils/exec"
 	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
@@ -20,29 +22,34 @@ const (
 	defaultlockWaitTimeInSeconds string = "60"
 	iptablesErrDoesNotExist      int    = 1
 	reconcileChainTimeInMinutes         = 5
+	minLineNumberStringLength    int    = 3
 )
 
-// IptablesAzureChainList contains list of all NPM chains
-var IptablesAzureChainList = []string{
-	util.IptablesAzureChain,
-	util.IptablesAzureAcceptChain,
-	util.IptablesAzureIngressChain,
-	util.IptablesAzureEgressChain,
-	util.IptablesAzureIngressPortChain,
-	util.IptablesAzureIngressFromChain,
-	util.IptablesAzureEgressPortChain,
-	util.IptablesAzureEgressToChain,
-	util.IptablesAzureIngressDropsChain,
-	util.IptablesAzureEgressDropsChain,
-}
-
-var deprecatedJumpToAzureEntry = &IptEntry{
-	Chain: util.IptablesForwardChain,
-	Specs: []string{
-		util.IptablesJumpFlag,
+var (
+	// IptablesAzureChainList contains list of all NPM chains
+	IptablesAzureChainList = []string{
 		util.IptablesAzureChain,
-	},
-}
+		util.IptablesAzureAcceptChain,
+		util.IptablesAzureIngressChain,
+		util.IptablesAzureEgressChain,
+		util.IptablesAzureIngressPortChain,
+		util.IptablesAzureIngressFromChain,
+		util.IptablesAzureEgressPortChain,
+		util.IptablesAzureEgressToChain,
+		util.IptablesAzureIngressDropsChain,
+		util.IptablesAzureEgressDropsChain,
+	}
+
+	deprecatedJumpToAzureEntry = &IptEntry{
+		Chain: util.IptablesForwardChain,
+		Specs: []string{
+			util.IptablesJumpFlag,
+			util.IptablesAzureChain,
+		},
+	}
+
+	spaceByte = []byte(" ")
+)
 
 // IptEntry represents an iptables rule.
 type IptEntry struct {
@@ -127,13 +134,23 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 		return err
 	}
 
-	// For backward compatibility, we should be cleaning older chains.
-	// TODO(jungukcho): need to check K8s or NPM version and do it selectively
-	// to avoid unnecessary call.
+	// Clean old NPM chains. This is forward compatible with NPM v2.
 	allAzureChains := append(IptablesAzureChainList,
 		util.IptablesAzureTargetSetsChain,
 		util.IptablesAzureIngressWrongDropsChain,
 	)
+	currentAzureChains, err := ioutil.AllCurrentAzureChains(iptMgr.exec, defaultlockWaitTimeInSeconds)
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Warning: failed to get all current AZURE-NPM chains, so stale v2 chains may exist")
+	} else {
+		// add any extra current azure chains to the list of all azure chains.
+		for _, chain := range allAzureChains {
+			delete(currentAzureChains, chain)
+		}
+		for chain := range currentAzureChains {
+			allAzureChains = append(allAzureChains, chain)
+		}
+	}
 
 	iptMgr.OperationFlag = util.IptablesFlushFlag
 	for _, chain := range allAzureChains {
@@ -431,9 +448,15 @@ func (iptMgr *IptablesManager) getChainLineNumber(chain string, parentChain stri
 		return 0, nil
 	}
 
-	if len(output) > 2 {
-		lineNum, _ := strconv.Atoi(string(output[0]))
-		return lineNum, nil
+	// NOTE: v2 has different behavior for unexpected grep outputs (v2 will throw an error)
+	// want to fix the bug here (not detecting numbers with 2+ digits), but don't want to modify the error-throwing behavior
+	if len(output) >= minLineNumberStringLength {
+		firstSpaceIndex := bytes.Index(output, spaceByte)
+		if firstSpaceIndex > 0 && firstSpaceIndex < len(output) {
+			lineNumberString := string(output[0:firstSpaceIndex])
+			lineNum, _ := strconv.Atoi(lineNumberString)
+			return lineNum, nil
+		}
 	}
 	return 0, nil
 }
@@ -491,29 +514,3 @@ func (iptMgr *IptablesManager) run(entry *IptEntry) (int, error) {
 
 	return 0, nil
 }
-
-// TO-DO :- Use iptables-restore to update iptables.
-// func SyncIptables(entries []*IptEntry) error {
-// 	// Ensure main chains and rules are installed.
-// 	tablesNeedServicesChain := []utiliptables.Table{utiliptables.TableFilter, utiliptables.TableNAT}
-// 	for _, table := range tablesNeedServicesChain {
-// 		if _, err := proxier.iptables.EnsureChain(table, iptablesServicesChain); err != nil {
-// 			glog.Errorf("Failed to ensure that %s chain %s exists: %v", table, iptablesServicesChain, err)
-// 			return
-// 		}
-// 	}
-
-// 	// Get iptables-save output so we can check for existing chains and rules.
-// 	// This will be a map of chain name to chain with rules as stored in iptables-save/iptables-restore
-// 	existingFilterChains := make(map[utiliptables.Chain]string)
-// 	iptablesSaveRaw, err := proxier.iptables.Save(utiliptables.TableFilter)
-// 	if err != nil { // if we failed to get any rules
-// 		glog.Errorf("Failed to execute iptables-save, syncing all rules. %s", err.Error())
-// 	} else { // otherwise parse the output
-// 		existingFilterChains = getChainLines(utiliptables.TableFilter, iptablesSaveRaw)
-// 	}
-
-// 	// Write table headers.
-// 	writeLine(filterChains, "*filter")
-
-// }

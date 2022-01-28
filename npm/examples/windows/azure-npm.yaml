@@ -141,7 +141,8 @@ data:
             "EnablePprof":             true,
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
-            "PlaceAzureChainFirst":    false
+            "PlaceAzureChainFirst":    false,
+            "ApplyIPSetsOnNeed":       false
         }
     }
 
