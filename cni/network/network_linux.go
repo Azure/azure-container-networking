@@ -135,7 +135,7 @@ func updateSubnetPrefix(cnsNetworkConfig *cns.GetNetworkContainerResponse, subne
 	return nil
 }
 
-func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nwCfg *cni.NetworkConfig) (string, error) {
 	return nwCfg.Name, nil
 }
 

@@ -453,7 +453,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	networkID, err := plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkID, err := plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 		return err
@@ -843,7 +843,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	if networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
+	if networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 	}
@@ -963,7 +963,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 	}
 	// Initialize values from network config.
-	networkID, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkID, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg)
 
 	// If error is not found error, then we ignore it, to comply with CNI SPEC.
 	if err != nil {
@@ -1024,8 +1024,12 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 	// Delete the endpoint.
 	if err = plugin.nm.DeleteEndpoint(cnsclient, networkID, endpointID); err != nil {
-		err = plugin.Errorf("Failed to delete endpoint: %v", err)
-		return err
+		pluginErr := plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
+		// If it is not a networkNotFound error, then return a retriable error so the container runtime will keep retrying.
+		// If it is a networkNotFoundError, then simply skip it and move on to cleanup of InfraVnet.
+		if !network.IsNetworkNotFoundError(err) {
+			return pluginErr
+		}
 	}
 
 	if !nwCfg.MultiTenancy {

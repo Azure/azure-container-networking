@@ -160,7 +160,7 @@ func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPref
 	return nil
 }
 
-func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nwCfg *cni.NetworkConfig) (string, error) {
 	var (
 		networkName      string
 		err              error
@@ -177,6 +177,15 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName string, nwCfg *cn
 			return networkName, err
 		}
 
+		// First try to get the network name from the state file
+		if networkName, err := plugin.nm.FindNetworkNameFromNetNs(netNs); err != nil {
+			log.Printf("Error getting network name from state: %v. Fall back to CNS.", err)
+		} else {
+			return networkName, nil
+		}
+
+		// If it is not found, then fallback to CNS, in case it wasn't in the statefile for some reason
+		// TODO: investigate if we can remove this fallback
 		_, cnsNetworkConfig, _, err = plugin.multitenancyClient.GetContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
 		if err != nil {
 			log.Printf(

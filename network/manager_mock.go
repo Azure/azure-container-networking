@@ -104,3 +104,13 @@ func (nm *MockNetworkManager) GetNumberOfEndpoints(ifName string, networkID stri
 func (nm *MockNetworkManager) SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error {
 	return nil
 }
+
+func (nm *MockNetworkManager) FindNetworkNameFromNetNs(netNs string) (string, error) {
+	// based on the GetAllEndpoints func above, it seems that this mock is only intended to be used with
+	// one network, so just return the network here if it exists
+	for network, _ := range nm.TestNetworkInfoMap {
+		return network, nil
+	}
+
+	return "", errNetworkNotFound
+}
