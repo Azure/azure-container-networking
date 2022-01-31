@@ -94,7 +94,7 @@ func JoinNetwork(networkID string) (*http.Response, error) {
 
 	joinNetworkURL.RawQuery = queryString.Encode()
 
-	response, err := common.GetHttpClient().Post(joinNetworkURL.String(), "application/json", &body)
+	response, err := common.PostCtx(context.TODO(), common.GetHttpClient(), joinNetworkURL.String(), "application/json", &body)
 
 	if err == nil && response.StatusCode == http.StatusOK {
 		defer response.Body.Close()
@@ -129,7 +129,7 @@ func PublishNetworkContainer(networkContainerID, associatedInterfaceID, accessTo
 	createURL.RawQuery = queryString.Encode()
 
 	requestBody := bytes.NewBuffer(requestBodyData)
-	response, err := common.GetHttpClient().Post(createURL.String(), "application/json", requestBody)
+	response, err := common.PostCtx(context.TODO(), common.GetHttpClient(), createURL.String(), "application/json", requestBody)
 
 	logger.Printf("[NMAgentClient][Response] Publish NC: %s. Response: %+v. Error: %v",
 		networkContainerID, response, err)
@@ -162,7 +162,7 @@ func UnpublishNetworkContainer(networkContainerID, associatedInterfaceID, access
 	// Empty body is required as wireserver cannot handle a post without the body.
 	var body bytes.Buffer
 	json.NewEncoder(&body).Encode("")
-	response, err := common.GetHttpClient().Post(deleteURL.String(), "application/json", &body)
+	response, err := common.PostCtx(context.TODO(), common.GetHttpClient(), deleteURL.String(), "application/json", &body)
 
 	logger.Printf("[NMAgentClient][Response] Unpublish NC: %s. Response: %+v. Error: %v",
 		networkContainerID, response, err)

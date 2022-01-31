@@ -4,6 +4,7 @@
 package common
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"encoding/xml"
@@ -286,4 +287,14 @@ func GetExecutableDirectory() (string, error) {
 	}
 
 	return dir, err
+}
+
+func PostCtx(ctx context.Context, cl *http.Client, url string, contentType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("could not create POST request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", contentType)
+	return cl.Do(req)
 }

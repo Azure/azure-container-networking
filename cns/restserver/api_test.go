@@ -507,6 +507,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	}
 }
 
+//nolint:gocritic // param is just for testing
 func createNC(
 	t *testing.T,
 	params createOrUpdateNetworkContainerParams,
@@ -532,7 +533,7 @@ func TestPublishNCViaCNS(t *testing.T) {
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
 	err := publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, false)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal(fmt.Errorf("publish container failed %w ",err))
 	}
 
 	createNetworkContainerURL = "http://" + nmagentEndpoint +
