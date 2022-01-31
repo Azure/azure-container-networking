@@ -344,7 +344,6 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 		}
 
 		// 2. remove member from the list
-		list := iMgr.setMap[listName]
 		if !list.hasMember(memberName) {
 			continue
 		}

@@ -174,7 +174,7 @@ func TestApplyIPSets(t *testing.T) {
 				for _, set := range tt.args.toAddUpdateSets {
 					cache = append(cache, setMembers{metadata: set, members: nil})
 				}
-				assertExpectedInfo(t, iMgr, expectedInfo{
+				assertExpectedInfo(t, iMgr, &expectedInfo{
 					mainCache:        cache,
 					toAddUpdateCache: nil,
 					toDeleteCache:    nil,
@@ -271,7 +271,7 @@ func TestCreateIPSet(t *testing.T) {
 			defer ioShim.VerifyCalls(t, nil)
 			iMgr := NewIPSetManager(tt.args.cfg, ioShim)
 			iMgr.CreateIPSets(tt.args.metadatas)
-			assertExpectedInfo(t, iMgr, tt.expectedInfo)
+			assertExpectedInfo(t, iMgr, &tt.expectedInfo)
 		})
 	}
 }
@@ -363,7 +363,7 @@ func TestDeleteIPSet(t *testing.T) {
 			iMgr.CreateIPSets(tt.args.toCreateMetadatas)
 			require.NoError(t, iMgr.ApplyIPSets())
 			iMgr.DeleteIPSet(tt.args.toDeleteName)
-			assertExpectedInfo(t, iMgr, tt.expectedInfo)
+			assertExpectedInfo(t, iMgr, &tt.expectedInfo)
 		})
 	}
 }
@@ -383,7 +383,7 @@ func TestDeleteIPSetNotAllowed(t *testing.T) {
 	iMgr.DeleteIPSet(namespaceSet.GetPrefixName())
 	iMgr.DeleteIPSet(list.GetPrefixName())
 
-	assertExpectedInfo(t, iMgr, expectedInfo{
+	assertExpectedInfo(t, iMgr, &expectedInfo{
 		mainCache: []setMembers{
 			{metadata: list, members: nil},
 			{metadata: namespaceSet, members: nil},
@@ -585,7 +585,7 @@ func TestAddToSets(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			assertExpectedInfo(t, iMgr, tt.expectedInfo)
+			assertExpectedInfo(t, iMgr, &tt.expectedInfo)
 		})
 	}
 }
@@ -638,7 +638,7 @@ func TestAddToSetInKernelApplyOnNeed(t *testing.T) {
 			if tt.wantDirty {
 				dirtySets = []*IPSetMetadata{namespaceSet}
 			}
-			assertExpectedInfo(t, iMgr, expectedInfo{
+			assertExpectedInfo(t, iMgr, &expectedInfo{
 				mainCache: []setMembers{
 					{metadata: tt.metadata, members: members},
 				},
@@ -934,7 +934,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info expectedInfo) {
+func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info *expectedInfo) {
 	// 1. assert cache contents
 	require.Equal(t, len(info.mainCache), len(iMgr.setMap), "main cache size mismatch")
 	for _, setMembers := range info.mainCache {
