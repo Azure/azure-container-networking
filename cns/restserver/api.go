@@ -1173,8 +1173,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	switch r.Method {
 	case "POST":
 		// Join the network
-
-		// nolint:bodyclose
+		
 		// Please refactor this
 		// do not reuse the below variable between network join and publish
 		publishResponse, publishError, err = service.joinNetwork(req.NetworkID)
@@ -1187,6 +1186,8 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 		if isNetworkJoined {
 			// Publish Network Container
+
+			// nolint:bodyclose // existing code needs refactoring
 			publishResponse, publishError = nmagent.PublishNetworkContainer(
 				req.NetworkContainerID,
 				ncParameters.AssociatedInterfaceID,
@@ -1301,11 +1302,11 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	case "POST":
 		// Join Network if not joined already
 
-		// nolint:bodyclose
 		// Please refactor this
 		// do not reuse the below variable between network join and unpublish
 		isNetworkJoined = service.isNetworkJoined(req.NetworkID)
 		if !isNetworkJoined {
+			// nolint:bodyclose // existing code needs refactoring
 			unpublishResponse, unpublishError, err = service.joinNetwork(req.NetworkID)
 			if err == nil {
 				isNetworkJoined = true

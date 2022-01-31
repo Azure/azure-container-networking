@@ -301,7 +301,7 @@ func PostCtx(ctx context.Context, cl *http.Client, url, contentType string, body
 	if err != nil {
 		// returning response as well
 		// cause some methods seem to depend on that for error handling
-		return resp, fmt.Errorf("POST request recieved response %w", err)
+		return resp, fmt.Errorf("POST request received response %w", err)
 	}
 
 	return resp, nil
