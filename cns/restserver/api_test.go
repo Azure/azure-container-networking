@@ -533,7 +533,7 @@ func TestPublishNCViaCNS(t *testing.T) {
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
 	err := publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, false)
 	if err != nil {
-		t.Fatal(fmt.Errorf("publish container failed %w ",err))
+		t.Fatal(fmt.Errorf("publish container failed %w ", err))
 	}
 
 	createNetworkContainerURL = "http://" + nmagentEndpoint +
@@ -580,7 +580,7 @@ func publishNCViaCNS(t *testing.T,
 	json.NewEncoder(&body).Encode(publishNCRequest)
 	req, err := http.NewRequest(http.MethodPost, cns.PublishNetworkContainer, &body)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to create publish request %w", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -654,7 +654,7 @@ func testUnpublishNCViaCNS(t *testing.T,
 	json.NewEncoder(&body).Encode(unpublishNCRequest)
 	req, err := http.NewRequest(http.MethodPost, cns.UnpublishNetworkContainer, &body)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to create unpublish request %w", err)
 	}
 
 	w := httptest.NewRecorder()
