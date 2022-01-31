@@ -20,6 +20,8 @@ func GetApplyIPSetsTestCalls(toAddOrUpdateIPSets, toDeleteIPSets []*IPSetMetadat
 			{Cmd: []string{"grep", "azure-npm-"}, ExitCode: 1}, // grep didn't find anything
 			{Cmd: ipsetRestoreStringSlice},
 		}
+	} else if len(toDeleteIPSets) == 0 {
+		return []testutils.TestCmd{}
 	}
 	return []testutils.TestCmd{fakeRestoreSuccessCommand}
 }

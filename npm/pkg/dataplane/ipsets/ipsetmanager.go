@@ -54,7 +54,8 @@ func (iMgr *IPSetManager) ResetIPSets() error {
 	if err != nil {
 		return fmt.Errorf("error while resetting ipsetmanager: %w", err)
 	}
-	// TODO update prometheus metrics here instead of in OS-specific functions
+	// TODO update prometheus metrics here instead of in OS-specific functions (done in Linux right now)
+	// metrics.ResetNumIPSets() and metrics.ResetIPSetEntries()
 	return nil
 }
 
@@ -497,7 +498,7 @@ func (iMgr *IPSetManager) sanitizeDirtyCache() {
 	for setName := range iMgr.toDeleteCache {
 		_, ok := iMgr.toAddOrUpdateCache[setName]
 		if ok {
-			klog.Infof("[IPSetManager] Unexpected state in dirty cache %s set is part of both update and delete caches \n ", setName)
+			klog.Errorf("[IPSetManager] Unexpected state in dirty cache %s set is part of both update and delete caches \n ", setName)
 		}
 	}
 }
