@@ -183,7 +183,7 @@ func TestSetEndpointOptions(t *testing.T) {
 					ID: 1,
 				},
 				CnetAddressSpace: []cns.IPSubnet{
-					cns.IPSubnet{
+					{
 						IPAddress:    "192.168.0.4",
 						PrefixLength: 24,
 					},
@@ -221,7 +221,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
 					PortMappings: []cni.PortMapping{
-						cni.PortMapping{
+						{
 							Protocol:      "tcp",
 							HostIp:        "19.268.0.4",
 							HostPort:      8000,
