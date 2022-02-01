@@ -1173,9 +1173,9 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	switch r.Method {
 	case "POST":
 		// Join the network
-		
 		// Please refactor this
 		// do not reuse the below variable between network join and publish
+		// nolint:bodyclose // existing code needs refactoring
 		publishResponse, publishError, err = service.joinNetwork(req.NetworkID)
 		if err == nil {
 			isNetworkJoined = true
@@ -1301,9 +1301,6 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	switch r.Method {
 	case "POST":
 		// Join Network if not joined already
-
-		// Please refactor this
-		// do not reuse the below variable between network join and unpublish
 		isNetworkJoined = service.isNetworkJoined(req.NetworkID)
 		if !isNetworkJoined {
 			// nolint:bodyclose // existing code needs refactoring
