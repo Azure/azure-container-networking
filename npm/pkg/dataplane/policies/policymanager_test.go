@@ -1,9 +1,11 @@
 package policies
 
 import (
+	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/stretchr/testify/require"
 )
@@ -166,4 +168,12 @@ func TestNormalizeAndValidatePolicy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	metrics.InitializeAll()
+
+	exitCode := m.Run()
+
+	os.Exit(exitCode)
 }
