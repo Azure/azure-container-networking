@@ -187,9 +187,10 @@ jobs:
       curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
       chmod +x kubectl
       npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
-      mkdir -p $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
-      for npm in $npmPodList; do ./kubectl logs -n kube-system $npm --kubeconfig=./kubeconfig > $(System.DefaultWorkingDirectory)/npmLogs/$npm ;done
-      mv ./kubeconfig $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)/kubeconfig
+      npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
+      mkdir -p $npmLogsFolder
+      for npm in $npmPodList; do ./kubectl logs -n kube-system $npm --kubeconfig=./kubeconfig > $npmLogsFolder/$npm ;done
+      mv ./kubeconfig $npmLogsFolder/kubeconfig
     displayName: "Gather NPM Logs"
     condition: always()
 
