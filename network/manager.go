@@ -74,8 +74,8 @@ type NetworkManager interface {
 	CreateNetwork(nwInfo *NetworkInfo) error
 	DeleteNetwork(networkID string) error
 	GetNetworkInfo(networkID string) (NetworkInfo, error)
-	// FindNetworkNameFromNetNs returns the network name that contains an endpoint created for this netNS, errNetworkNotFound if no network is found
-	FindNetworkNameFromNetNs(netNs string) (string, error)
+	// FindNetworkIDFromNetNs returns the network name that contains an endpoint created for this netNS, errNetworkNotFound if no network is found
+	FindNetworkIDFromNetNs(netNs string) (string, error)
 
 	CreateEndpoint(client apipaClient, networkID string, epInfo *EndpointInfo) error
 	DeleteEndpoint(cli apipaClient, networkID string, endpointID string) error

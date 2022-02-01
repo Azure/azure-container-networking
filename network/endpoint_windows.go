@@ -282,26 +282,18 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 }
 
 func (nw *network) deleteHostNCApipaEndpoint(cli apipaClient, networkContainerID string) error {
-	// First try to delete the host NC apipa endpoint directly from CNI
-	log.Printf("[net] Deleting HosNCApipaEndpoint for network container [%s] directly")
-	if err := nw.deleteHostNCApipaEndpointDirect(networkContainerID); err != nil {
-		log.Printf("[net] Error deleting HostNCApipaEndpoint for network container [%s] directly, fallback to CNS")
-		// Fallback to deleting the host NC apipa endpoint with CNS
-		log.Printf("[net] Deleting HostNCApipaEndpoint for network container [%s] with CNS", networkContainerID)
-		if err := cli.DeleteHostNCApipaEndpoint(context.TODO(), networkContainerID); err != nil {
-			log.Printf("[net] Completed HostNCApipaEndpoint deletion for network container: %s with error: %v", networkContainerID, err)
-			return err
-		}
+	// Delete the host NC apipa endpoint directly from CNI
+	log.Printf("[net] Deleting HosNCApipaEndpoint for network container [%s]")
+
+	// TODO: this hnsclient function logs with prefix [Azure CNS] which can be confusing in CNI logs, need to refactor this function
+	// to use a prefix like [net] instead
+	if err := hnsclient.DeleteHostNCApipaEndpoint(networkContainerID); err != nil {
+		log.Printf("[net] Error deleting HostNCApipaEndpoint for network container [%s]: %v", networkContainerID, err)
+		return err
 	}
 
 	log.Printf("[net] Completed HostNCApipaEndpoint deletion for network container [%s] successfully", networkContainerID)
 	return nil
-}
-
-func (nw *network) deleteHostNCApipaEndpointDirect(networkContainerID string) error {
-	// TODO: this hnsclient function logs with prefix [Azure CNS] which can be confusing in CNI logs, need to refactor this function
-	// to use a prefix like [net] instead
-	return hnsclient.DeleteHostNCApipaEndpoint(networkContainerID)
 }
 
 // createHostNCApipaEndpoint creates a new endpoint in the HostNCApipaNetwork

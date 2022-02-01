@@ -1,7 +1,6 @@
 package network
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -161,50 +160,23 @@ func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPref
 }
 
 func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nwCfg *cni.NetworkConfig) (string, error) {
-	var (
-		networkName      string
-		err              error
-		cnsNetworkConfig *cns.GetNetworkContainerResponse
-	)
+	networkName := nwCfg.Name
 
-	networkName = nwCfg.Name
-	err = nil
-
+	// in multitenancy case, the network name will be different than nwCfg.Name, so look for it in the state file
 	if nwCfg.MultiTenancy {
 		determineWinVer()
-		if len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
-			err = fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s", podName, podNs)
-			return networkName, err
+		if len(strings.TrimSpace(netNs)) == 0 {
+			return "", fmt.Errorf("POD NetNs info cannot be empty. PodName: %s, PodNamespace: %s, NetNs: %s", podName, podNs, netNs)
 		}
 
-		// First try to get the network name from the state file
-		if networkName, err := plugin.nm.FindNetworkNameFromNetNs(netNs); err != nil {
-			log.Printf("Error getting network name from state: %v. Fall back to CNS.", err)
-		} else {
-			return networkName, nil
-		}
-
-		// If it is not found, then fallback to CNS, in case it wasn't in the statefile for some reason
-		// TODO: investigate if we can remove this fallback
-		_, cnsNetworkConfig, _, err = plugin.multitenancyClient.GetContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
-		if err != nil {
-			log.Printf(
-				"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v",
-				podName,
-				podNs,
-				err)
-		} else {
-			var subnet net.IPNet
-			if err = updateSubnetPrefix(cnsNetworkConfig, &subnet); err == nil {
-				// networkName will look like ~ azure-vlan1-172-28-1-0_24
-				networkName = strings.Replace(subnet.String(), ".", "-", -1)
-				networkName = strings.Replace(networkName, "/", "_", -1)
-				networkName = fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, cnsNetworkConfig.MultiTenancyInfo.ID, networkName)
-			}
+		// Try to get the network name from the state file
+		var err error
+		if networkName, err = plugin.nm.FindNetworkIDFromNetNs(netNs); err != nil {
+			return "", fmt.Errorf("error getting network name from state: %w", err)
 		}
 	}
 
-	return networkName, err
+	return networkName, nil
 }
 
 func setupInfraVnetRoutingForMultitenancy(

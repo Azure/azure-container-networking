@@ -969,7 +969,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 
-		if !cnscli.IsNotFound(err) {
+		if !cnscli.IsNotFound(err) || network.IsNetworkNotFoundError(err) {
 			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
 			return err
 		}
