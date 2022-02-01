@@ -1088,7 +1088,6 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 }
 
 func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.NetworkContainerParameters, error) {
-
 	ncURL, err := url.Parse(networkContainerURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse network container url, %w", err)
