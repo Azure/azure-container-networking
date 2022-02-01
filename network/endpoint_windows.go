@@ -6,6 +6,7 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -478,6 +479,14 @@ func (nw *network) deleteEndpointImplHnsV2(ep *endpoint) error {
 		hcnEndpoint *hcn.HostComputeEndpoint
 		err         error
 	)
+
+	if hcnEndpoint, err = hnsv2.GetEndpointByID(ep.HnsId); err != nil {
+		if errors.Is(err, hcn.EndpointNotFoundError{}) {
+			log.Printf("Failed to get hcn endpoint with id: %s due to err: %v, returning", ep.HnsId, err)
+			return nil
+		}
+		return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %v", ep.HnsId, err)
+	}
 
 	if ep.AllowInboundFromHostToNC || ep.AllowInboundFromNCToHost {
 		if err = nw.deleteHostNCApipaEndpoint(ep.NetworkContainerID); err != nil {
