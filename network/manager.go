@@ -78,7 +78,7 @@ type NetworkManager interface {
 	FindNetworkIDFromNetNs(netNs string) (string, error)
 
 	CreateEndpoint(client apipaClient, networkID string, epInfo *EndpointInfo) error
-	DeleteEndpoint(cli apipaClient, networkID string, endpointID string) error
+	DeleteEndpoint(networkID string, endpointID string) error
 	GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error)
 	GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error)
 	GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error)
@@ -354,7 +354,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 }
 
 // DeleteEndpoint deletes an existing container endpoint.
-func (nm *networkManager) DeleteEndpoint(cli apipaClient, networkID string, endpointID string) error {
+func (nm *networkManager) DeleteEndpoint(networkID string, endpointID string) error {
 	nm.Lock()
 	defer nm.Unlock()
 
@@ -363,7 +363,7 @@ func (nm *networkManager) DeleteEndpoint(cli apipaClient, networkID string, endp
 		return err
 	}
 
-	err = nw.deleteEndpoint(cli, nm.netlink, nm.plClient, endpointID)
+	err = nw.deleteEndpoint(nm.netlink, nm.plClient, endpointID)
 	if err != nil {
 		return err
 	}

@@ -124,7 +124,7 @@ func (nw *network) newEndpoint(cli apipaClient, nl netlink.NetlinkInterface, plc
 }
 
 // DeleteEndpoint deletes an existing endpoint from the network.
-func (nw *network) deleteEndpoint(cli apipaClient, nl netlink.NetlinkInterface, plc platform.ExecClient, endpointID string) error {
+func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.ExecClient, endpointID string) error {
 	var err error
 
 	log.Printf("[net] Deleting endpoint %v from network %v.", endpointID, nw.Id)
@@ -142,7 +142,7 @@ func (nw *network) deleteEndpoint(cli apipaClient, nl netlink.NetlinkInterface, 
 	}
 
 	// Call the platform implementation.
-	err = nw.deleteEndpointImpl(cli, nl, plc, ep)
+	err = nw.deleteEndpointImpl(nl, plc, ep)
 	if err != nil {
 		return err
 	}

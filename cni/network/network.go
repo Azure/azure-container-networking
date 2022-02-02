@@ -1013,17 +1013,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
-	if err != nil {
-		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
-		return plugin.Errorf(err.Error())
-	}
-
 	// schedule send metric before attempting delete
 	defer sendMetricFunc()
 	telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 	// Delete the endpoint.
-	if err = plugin.nm.DeleteEndpoint(cnsclient, networkID, endpointID); err != nil {
+	if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
 		pluginErr := plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		// If it is not a networkNotFound error, then return a retriable error so the container runtime will keep retrying.
 		// If it is a networkNotFoundError, then simply skip it and move on to cleanup of InfraVnet.

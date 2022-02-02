@@ -281,7 +281,7 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 	return hcnEndpoint, nil
 }
 
-func (nw *network) deleteHostNCApipaEndpoint(cli apipaClient, networkContainerID string) error {
+func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
 	// Delete the host NC apipa endpoint directly from CNI
 	log.Printf("[net] Deleting HosNCApipaEndpoint for network container [%s]")
 
@@ -320,7 +320,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 
 	defer func() {
 		if err != nil {
-			nw.deleteHostNCApipaEndpoint(cli, epInfo.NetworkContainerID)
+			nw.deleteHostNCApipaEndpoint(epInfo.NetworkContainerID)
 		}
 	}()
 
@@ -422,13 +422,13 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, _ platform.ExecClient, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.ExecClient, ep *endpoint) error {
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
 		if err != nil {
 			return err
 		}
 
-		return nw.deleteEndpointImplHnsV2(cli, ep)
+		return nw.deleteEndpointImplHnsV2(ep)
 	}
 
 	return nw.deleteEndpointImplHnsV1(ep)
@@ -454,14 +454,14 @@ func (nw *network) deleteEndpointImplHnsV1(ep *endpoint) error {
 }
 
 // deleteEndpointImplHnsV2 deletes an existing endpoint from the network using HNS v2.
-func (nw *network) deleteEndpointImplHnsV2(cli apipaClient, ep *endpoint) error {
+func (nw *network) deleteEndpointImplHnsV2(ep *endpoint) error {
 	var (
 		hcnEndpoint *hcn.HostComputeEndpoint
 		err         error
 	)
 
 	if ep.AllowInboundFromHostToNC || ep.AllowInboundFromNCToHost {
-		if err = nw.deleteHostNCApipaEndpoint(cli, ep.NetworkContainerID); err != nil {
+		if err = nw.deleteHostNCApipaEndpoint(ep.NetworkContainerID); err != nil {
 			log.Errorf("[net] Failed to delete HostNCApipaEndpoint due to error: %v", err)
 			return err
 		}

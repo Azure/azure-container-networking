@@ -8,9 +8,10 @@ package network
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"net"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
 )
 
 func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
@@ -42,7 +43,7 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = nw.deleteEndpointImplHnsV2(nil, endpoint)
+	err = nw.deleteEndpointImplHnsV2(endpoint)
 
 	if err != nil {
 		fmt.Printf("+%v", err)
