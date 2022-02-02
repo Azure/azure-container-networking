@@ -1,7 +1,6 @@
 package network
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -160,51 +159,41 @@ func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPref
 	return nil
 }
 
-func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cnsResponse *cns.GetNetworkContainerResponse, nwCfg *cni.NetworkConfig) (string, error) {
 	// For singletenancy, the network name is simply the nwCfg.Name
 	if !nwCfg.MultiTenancy {
 		return nwCfg.Name, nil
 	}
 
-	// in multitenancy case, the network name will be in the state file or CNS
+	// in multitenancy case, the network name will be in the state file or can be built from cnsResponse
 	determineWinVer()
 	if len(strings.TrimSpace(netNs)) == 0 || len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
 		return "", fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s, NetNs: %s", podName, podNs, netNs)
 	}
 
-	// First try to get the network name from the state file
-	if networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs); err != nil {
-		// If we don't have a valid CNS client, then just return this error
-		if plugin.multitenancyClient == nil {
-			log.Printf("Error getting network name from state: %v. No CNS client intialized, so not trying CNS.", err)
+	// First try to build the network name from the cnsResponse if present
+	if cnsResponse != nil {
+		var subnet net.IPNet
+		if err := updateSubnetPrefix(cnsResponse, &subnet); err != nil {
+			log.Printf("Error updating subnet prefix: %v", err)
 			return "", err
 		}
-		log.Printf("Error getting network name from state: %v. Try to query CNS.", err)
-	} else {
+
+		// networkName will look like ~ azure-vlan1-172-28-1-0_24
+		networkSuffix := strings.Replace(subnet.String(), ".", "-", -1)
+		networkSuffix = strings.Replace(networkSuffix, "/", "_", -1)
+		networkName := fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, cnsResponse.MultiTenancyInfo.ID, networkSuffix)
+
 		return networkName, nil
 	}
 
-	var cnsNetworkConfig *cns.GetNetworkContainerResponse
-	var err error
-	_, cnsNetworkConfig, _, err = plugin.multitenancyClient.GetContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
+	// If no cnsResponse was present, try to get the network name from the state file
+	networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs)
 	if err != nil {
-		log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", podName, podNs, err)
-		// TODO: The caller of this function compares the error using direct comparison (==) instead of errors.Is/errors.As, so we
-		// can't wrap this error with the extra text above and instead must return it as-is. The caller should use
-		// these errors pkg functions so we can wrap.
-		return "", err
-	}
+		log.Printf("Error getting network name from state: %v.", err)
+		return "", fmt.Errorf("error getting network name from state: %w", err)
 
-	var subnet net.IPNet
-	if err := updateSubnetPrefix(cnsNetworkConfig, &subnet); err != nil {
-		log.Printf("Error updating subnet prefix: %v", err)
-		return "", err
 	}
-
-	// networkName will look like ~ azure-vlan1-172-28-1-0_24
-	networkSuffix := strings.Replace(subnet.String(), ".", "-", -1)
-	networkSuffix = strings.Replace(networkSuffix, "/", "_", -1)
-	networkName := fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, cnsNetworkConfig.MultiTenancyInfo.ID, networkSuffix)
 
 	return networkName, nil
 }

@@ -453,7 +453,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	networkID, err := plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg)
+	networkID, err := plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, cnsNetworkConfig, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 		return err
@@ -843,7 +843,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	if networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg); err != nil {
+	if networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nil, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 	}
@@ -963,7 +963,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 	}
 	// Initialize values from network config.
-	networkID, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg)
+	networkID, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nil, nwCfg)
 
 	// If error is not found error, then we ignore it, to comply with CNI SPEC.
 	if err != nil {
