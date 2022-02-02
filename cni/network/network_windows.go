@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -160,21 +161,46 @@ func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPref
 }
 
 func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nwCfg *cni.NetworkConfig) (string, error) {
-	networkName := nwCfg.Name
-
-	// in multitenancy case, the network name will be different than nwCfg.Name, so look for it in the state file
-	if nwCfg.MultiTenancy {
-		determineWinVer()
-		if len(strings.TrimSpace(netNs)) == 0 {
-			return "", fmt.Errorf("POD NetNs info cannot be empty. PodName: %s, PodNamespace: %s, NetNs: %s", podName, podNs, netNs)
-		}
-
-		// Try to get the network name from the state file
-		var err error
-		if networkName, err = plugin.nm.FindNetworkIDFromNetNs(netNs); err != nil {
-			return "", fmt.Errorf("error getting network name from state: %w", err)
-		}
+	// For singletenancy, the network name is simply the nwCfg.Name
+	if !nwCfg.MultiTenancy {
+		return nwCfg.Name, nil
 	}
+
+	// in multitenancy case, the network name will be in the state file or CNS
+	determineWinVer()
+	if len(strings.TrimSpace(netNs)) == 0 || len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
+		return "", fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s, NetNs: %s", podName, podNs, netNs)
+	}
+
+	// First try to get the network name from the state file
+	if networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs); err != nil {
+		log.Printf("Error getting network name from state: %v. Try to query CNS.", err)
+	} else {
+		return networkName, nil
+	}
+
+	// If it is not found, then fallback to CNS. This will happen during ADD command.
+	var cnsNetworkConfig *cns.GetNetworkContainerResponse
+	var err error
+	_, cnsNetworkConfig, _, err = plugin.multitenancyClient.GetContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
+	if err != nil {
+		log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", podName, podNs, err)
+		// TODO: The caller of this function compares the error using direct comparison (==) instead of errors.Is/errors.As, so we
+		// can't wrap this error with the extra text above and instead must return it as-is. The caller should use
+		// these errors pkg functions so we can wrap.
+		return "", err
+	}
+
+	var subnet net.IPNet
+	if err := updateSubnetPrefix(cnsNetworkConfig, &subnet); err != nil {
+		log.Printf("Error updating subnet prefix: %v", err)
+		return "", err
+	}
+
+	// networkName will look like ~ azure-vlan1-172-28-1-0_24
+	networkSuffix := strings.Replace(subnet.String(), ".", "-", -1)
+	networkSuffix = strings.Replace(networkSuffix, "/", "_", -1)
+	networkName := fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, cnsNetworkConfig.MultiTenancyInfo.ID, networkSuffix)
 
 	return networkName, nil
 }
