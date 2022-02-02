@@ -174,12 +174,16 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, nw
 
 	// First try to get the network name from the state file
 	if networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs); err != nil {
+		// If we don't have a valid CNS client, then just return this error
+		if plugin.multitenancyClient == nil {
+			log.Printf("Error getting network name from state: %v. No CNS client intialized, so not trying CNS.", err)
+			return "", err
+		}
 		log.Printf("Error getting network name from state: %v. Try to query CNS.", err)
 	} else {
 		return networkName, nil
 	}
 
-	// If it is not found, then fallback to CNS. This will happen during ADD command.
 	var cnsNetworkConfig *cns.GetNetworkContainerResponse
 	var err error
 	_, cnsNetworkConfig, _, err = plugin.multitenancyClient.GetContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
