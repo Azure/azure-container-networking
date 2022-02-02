@@ -10,7 +10,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
@@ -39,6 +38,10 @@ const (
 
 	// Container interface name prefix
 	containerIfNamePrefix = "vEthernet"
+
+	// hostNCApipaEndpointName indicates the prefix for the name of the apipa endpoint used for
+	// the host container connectivity
+	hostNCApipaEndpointNamePrefix = "HostNCApipaEndpoint"
 )
 
 type AzureHNSEndpointClient interface {
@@ -285,14 +288,44 @@ func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
 	// Delete the host NC apipa endpoint directly from CNI
 	log.Printf("[net] Deleting HosNCApipaEndpoint for network container [%s]")
 
-	// TODO: this hnsclient function logs with prefix [Azure CNS] which can be confusing in CNI logs, need to refactor this function
-	// to use a prefix like [net] instead
-	if err := hnsclient.DeleteHostNCApipaEndpoint(networkContainerID); err != nil {
+	// TODO: this code is duplicated in cns/hnsclient, but that code has logging messages that require a CNSLogger,
+	// which makes is hard to use in this package. We should refactor this into a common package with no logging deps
+	// so it can be called in both places
+	endpointName := getHostNCApipaEndpointName(networkContainerID)
+	log.Printf("[net]] Deleting HostNCApipaEndpoint: %s", endpointName)
+	if err := deleteEndpointByNameHnsV2(endpointName); err != nil {
 		log.Printf("[net] Error deleting HostNCApipaEndpoint for network container [%s]: %v", networkContainerID, err)
 		return err
 	}
 
 	log.Printf("[net] Completed HostNCApipaEndpoint deletion for network container [%s] successfully", networkContainerID)
+	return nil
+}
+
+func getHostNCApipaEndpointName(networkContainerID string) string {
+	return fmt.Sprintf("%s-%s", hostNCApipaEndpointNamePrefix, networkContainerID)
+}
+
+func deleteEndpointByNameHnsV2(endpointName string) error {
+	// Check if the endpoint exists
+	endpoint, err := hcn.GetEndpointByName(endpointName)
+	if err != nil {
+		// If error is anything other than EndpointNotFoundError, return error.
+		// else log the error but don't return error because endpoint is already deleted.
+		if _, endpointNotFound := err.(hcn.EndpointNotFoundError); !endpointNotFound {
+			return fmt.Errorf("[net] deleteEndpointByNameHnsV2 failed due to error with GetEndpointByName: %w", err)
+		}
+
+		log.Printf("[net] Delete called on the Endpoint: %s which doesn't exist. Error: %v", endpointName, err)
+		return nil
+	}
+
+	if err := endpoint.Delete(); err != nil {
+		return fmt.Errorf("failed to delete endpoint: %+v: %w", endpoint, err)
+	}
+
+	log.Printf("[net] Successfully deleted endpoint: %+v", endpoint)
+
 	return nil
 }
 
