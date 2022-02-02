@@ -286,13 +286,13 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 
 func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
 	// Delete the host NC apipa endpoint directly from CNI
-	log.Printf("[net] Deleting HosNCApipaEndpoint for network container [%s]")
+	log.Printf("[net] Deleting HosNCApipaEndpoint for network container [%s]", networkContainerID)
 
 	// TODO: this code is duplicated in cns/hnsclient, but that code has logging messages that require a CNSLogger,
 	// which makes is hard to use in this package. We should refactor this into a common package with no logging deps
 	// so it can be called in both places
 	endpointName := getHostNCApipaEndpointName(networkContainerID)
-	log.Printf("[net]] Deleting HostNCApipaEndpoint: %s", endpointName)
+	log.Printf("[net] Deleting HostNCApipaEndpoint: %s", endpointName)
 	if err := deleteEndpointByNameHnsV2(endpointName); err != nil {
 		log.Printf("[net] Error deleting HostNCApipaEndpoint for network container [%s]: %v", networkContainerID, err)
 		return err

@@ -258,6 +258,7 @@ func (nm *networkManager) FindNetworkIDFromNetNs(netNs string) (string, error) {
 			for _, endpoint := range network.Endpoints {
 				// If the netNs matches for this endpoint, return the network ID (which is the name)
 				if endpoint.NetNs == netNs {
+					log.Printf("Found network [%s] for NetNS [%s]", network.Id, netNs)
 					return network.Id, nil
 				}
 			}
