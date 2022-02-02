@@ -213,4 +213,48 @@ var _ = Describe("Test Network", func() {
 			})
 		})
 	})
+
+	Describe("Test FindNetworkIDFromNetNs", func() {
+		Context("When network exists", func() {
+			It("Should be returned", func() {
+				netNs := "989c079b-45a6-485f-8f9e-88b05d6c55c4"
+				networkID := "byovnetbridge-vlan1-10-128-8-0_23"
+				nm := &networkManager{
+					ExternalInterfaces: map[string]*externalInterface{
+						networkID: {
+							Name: networkID,
+							Networks: map[string]*network{
+								"byovnetbridge-vlan1-10-128-8-0_23": {
+									Id: "byovnetbridge-vlan1-10-128-8-0_23",
+									Endpoints: map[string]*endpoint{
+										"a591be2a-eth0": {
+											Id:    "a591be2a-eth0",
+											NetNs: netNs,
+										},
+									},
+									NetNs: "aaac079b-45a6-485f-8f9e-88b05d6c55c4",
+								},
+							},
+						},
+					},
+				}
+
+				got, err := nm.FindNetworkIDFromNetNs(netNs)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(got).To(Equal(networkID))
+			})
+		})
+
+		Context("When network does not exist", func() {
+			It("Should return an errNetworkNotFound", func() {
+				nm := &networkManager{
+					ExternalInterfaces: make(map[string]*externalInterface),
+				}
+
+				_, err := nm.FindNetworkIDFromNetNs("989c079b-45a6-485f-8f9e-88b05d6c55c4")
+				Expect(err).To(HaveOccurred())
+				Expect(IsNetworkNotFoundError(err)).To(BeTrue())
+			})
+		})
+	})
 })
