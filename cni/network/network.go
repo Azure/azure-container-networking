@@ -1018,12 +1018,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 	// Delete the endpoint.
 	if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
-		pluginErr := plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
-		// If it is not a networkNotFound error, then return a retriable error so the container runtime will keep retrying.
-		// If it is a networkNotFoundError, then simply skip it and move on to cleanup of InfraVnet.
-		if !network.IsNetworkNotFoundError(err) {
-			return pluginErr
-		}
+		// return a retriable error so the container runtime will retry this DEL later
+		// the implementation of this function returns nil if the endpoint doens't exist, so
+		// we don't have to check that here
+		return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 	}
 
 	if !nwCfg.MultiTenancy {
