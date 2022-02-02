@@ -354,7 +354,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 }
 
 // DeleteEndpoint deletes an existing container endpoint.
-func (nm *networkManager) DeleteEndpoint(networkID string, endpointID string) error {
+func (nm *networkManager) DeleteEndpoint(networkID, endpointID string) error {
 	nm.Lock()
 	defer nm.Unlock()
 

@@ -58,7 +58,7 @@ func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, networkID string, ep
 }
 
 // DeleteEndpoint mock
-func (nm *MockNetworkManager) DeleteEndpoint(networkID string, endpointID string) error {
+func (nm *MockNetworkManager) DeleteEndpoint(networkID, endpointID string) error {
 	delete(nm.TestEndpointInfoMap, endpointID)
 	return nil
 }
