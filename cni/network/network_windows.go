@@ -172,6 +172,7 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cn
 	}
 
 	// First try to build the network name from the cnsResponse if present
+	// This will happen during ADD call
 	if cnsResponse != nil {
 		var subnet net.IPNet
 		if err := updateSubnetPrefix(cnsResponse, &subnet); err != nil {
@@ -188,6 +189,7 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cn
 	}
 
 	// If no cnsResponse was present, try to get the network name from the state file
+	// This will happen during DEL call
 	networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs)
 	if err != nil {
 		log.Printf("Error getting network name from state: %v.", err)

@@ -962,14 +962,13 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 		}
 	}
+
 	// Initialize values from network config.
 	networkID, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nil, nwCfg)
-
-	// If error is not found error, then we ignore it, to comply with CNI SPEC.
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
-
-		if !cnscli.IsNotFound(err) || network.IsNetworkNotFoundError(err) {
+		// If error is not found error, then we ignore it, to comply with CNI SPEC.
+		if !network.IsNetworkNotFoundError(err) {
 			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
 			return err
 		}
