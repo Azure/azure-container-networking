@@ -37,6 +37,9 @@ function Set-NetAdapterPriorityVLanTag
             Write-Host "Updating '$PriorityVLANTagIdentifier' to be 3"
             New-ItemProperty -Path $registryKeyFullPath -Name $PriorityVLANTagIdentifier -Value 3 -PropertyType String -Force
             Write-Host "Updated successfully"
+
+            Write-Host "Restarting Mellanox network adapter for regkey change to take effect"
+            Restart-NetAdapter -Name $ethernetName
             return;
         }
 
