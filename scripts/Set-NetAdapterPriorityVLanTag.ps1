@@ -1,3 +1,6 @@
+# This script will set the PriorityVLANTag registry key on a multitenant windows VM
+# This is needed for VLAN tagging to be honored so that SWIFT packets flow out properly to the Azure Host
+
 function Set-NetAdapterPriorityVLanTag
 {
     New-Variable -Name PriorityVLANTagIdentifier -Value "*PriorityVLANTag" -Option ReadOnly
