@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/daemon"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/goalstateprocessor"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/models"
@@ -48,6 +49,9 @@ func startDaemon(config npmconfig.Config) error {
 	// Read these ENV variables from the Pod spec `env` section.
 	pod := os.Getenv(podNameEnv)
 	node := os.Getenv(nodeNameEnv)
+
+	klog.Infof("initializing metrics")
+	metrics.InitializeAll()
 
 	addr := config.Transport.Address + ":" + strconv.Itoa(config.Transport.ServicePort)
 	ctx := context.Background()

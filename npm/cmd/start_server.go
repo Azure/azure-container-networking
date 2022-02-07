@@ -60,6 +60,9 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 		return err
 	}
 
+	klog.Infof("initializing metrics")
+	metrics.InitializeAll()
+
 	// Create the kubernetes client
 	var k8sConfig *rest.Config
 	if flags.KubeConfigPath == "" {
