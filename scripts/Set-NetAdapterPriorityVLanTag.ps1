@@ -43,6 +43,8 @@ function Set-NetAdapterPriorityVLanTag
 
             Write-Host "Restarting Mellanox network adapter for regkey change to take effect"
             Restart-NetAdapter -Name $ethernetName
+            Write-Host "Successfully restarted Mellanox network adapter"
+            Write-Host "For Mellanox CX-3 adapters, if the problem persists please restart the VM"
             return;
         }
 
