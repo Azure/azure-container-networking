@@ -98,7 +98,9 @@ func (m *EventsServer) start(stopCh <-chan struct{}) error {
 				}
 			}
 		case msg := <-m.inCh:
-			for _, client := range m.Registrations {
+			klog.Infof("######## Received event to broadcast ######")
+			for clientName, client := range m.Registrations {
+				klog.Infof("######## Servicing the event to %s ######", clientName)
 				if err := client.stream.SendMsg(msg); err != nil {
 					klog.Errorf("Failed to send message to client %s: %v", client, err)
 				}

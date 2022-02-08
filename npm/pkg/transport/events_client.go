@@ -38,7 +38,7 @@ func NewEventsClient(ctx context.Context, pod, node, addr string) (*EventsClient
 	klog.Infof("Connecting to NPM controller gRPC server at address %s\n", addr)
 	// TODO Make this secure
 	// TODO Remove WithBlock option post testing
-	cc, err := grpc.DialContext(ctx, addr, grpc.WithInsecure(), grpc.WithBlock())
+	cc, err := grpc.DialContext(ctx, addr, grpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %s: %w", addr, err)
 	}
@@ -89,6 +89,8 @@ func (c *EventsClient) run(ctx context.Context, connectClient protos.DataplaneEv
 				klog.Errorf("failed to receive event: %v", err)
 				return fmt.Errorf("failed to receive event: %w", err)
 			}
+
+			klog.Infof("### Received event: %v", event)
 
 			c.outCh <- event
 		}

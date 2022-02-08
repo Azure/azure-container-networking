@@ -159,6 +159,7 @@ spec:
             - mountPath: /etc/azure-npm
               name: azure-npm-config
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: system-node-critical
       serviceAccountName: azure-npm
       tolerations:
