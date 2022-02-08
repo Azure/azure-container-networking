@@ -57,7 +57,7 @@ func (orig NPMACLPolSettings) compare(newACL *NPMACLPolSettings) bool {
 		orig.Priority == newACL.Priority
 }
 
-func (policy *NPMNetworkPolicy) numACLRulesProducedInKernel() int {
+func (networkPolicy *NPMNetworkPolicy) numACLRulesProducedInKernel() int {
 	// NOTE: this could be optimized with just len(policy.ACLs) if we don't use the "Both" Direction
 	numRules := 0
 	for _, aclPolicy := range networkPolicy.ACLs {
