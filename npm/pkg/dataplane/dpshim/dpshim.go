@@ -21,21 +21,17 @@ const cleanEmptySetsInHrs = 24
 var ErrChannelUnset = errors.New("channel must be set")
 
 type DPShim struct {
-	outChannel  chan *protos.Events
+	OutChannel  chan *protos.Events
 	stopChannel <-chan struct{}
 	setCache    map[string]*controlplane.ControllerIPSets
 	policyCache map[string]*policies.NPMNetworkPolicy
 	dirtyCache  *dirtyCache
-	sync.Mutex
+	*sync.Mutex
 }
 
-func NewDPSim(outChannel chan *protos.Events, stopChannel <-chan struct{}) (*DPShim, error) {
-	if outChannel == nil {
-		return nil, fmt.Errorf("out channel must be set: %w", ErrChannelUnset)
-	}
-
+func NewDPSim(stopChannel <-chan struct{}) (*DPShim, error) {
 	return &DPShim{
-		outChannel:  outChannel,
+		OutChannel:  make(chan *protos.Events),
 		setCache:    make(map[string]*controlplane.ControllerIPSets),
 		policyCache: make(map[string]*policies.NPMNetworkPolicy),
 		stopChannel: stopChannel,
@@ -330,6 +326,8 @@ func (dp *DPShim) ApplyDataPlane() error {
 		return nil
 	}
 
+	dp.dirtyCache.printContents()
+
 	goalStates := make(map[string]*protos.GoalState)
 
 	toApplySets, err := dp.processIPSetsApply()
@@ -370,7 +368,7 @@ func (dp *DPShim) ApplyDataPlane() error {
 	}
 
 	go func() {
-		dp.outChannel <- &protos.Events{
+		dp.OutChannel <- &protos.Events{
 			Payload: goalStates,
 		}
 	}()

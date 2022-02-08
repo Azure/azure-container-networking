@@ -1,5 +1,7 @@
 package dpshim
 
+import "k8s.io/klog"
+
 type dirtyCache struct {
 	toAddorUpdateSets     map[string]struct{}
 	toDeleteSets          map[string]struct{}
@@ -17,10 +19,12 @@ func newDirtyCache() *dirtyCache {
 }
 
 func (dc *dirtyCache) clearCache() {
+	klog.Infof("Clearing dirty cache")
 	dc.toAddorUpdateSets = make(map[string]struct{})
 	dc.toDeleteSets = make(map[string]struct{})
 	dc.toAddorUpdatePolicies = make(map[string]struct{})
 	dc.toDeletePolicies = make(map[string]struct{})
+	dc.printContents()
 }
 
 func (dc *dirtyCache) modifyAddorUpdateSets(setName string) {
@@ -54,4 +58,11 @@ func (dc *dirtyCache) modifyDeletePolicies(policyName string) {
 func (dc *dirtyCache) hasContents() bool {
 	return len(dc.toAddorUpdateSets) > 0 || len(dc.toDeleteSets) > 0 ||
 		len(dc.toAddorUpdatePolicies) > 0 || len(dc.toDeletePolicies) > 0
+}
+
+func (dc *dirtyCache) printContents() {
+	klog.Infof("toAddorUpdateSets: %v", dc.toAddorUpdateSets)
+	klog.Infof("toDeleteSets: %v", dc.toDeleteSets)
+	klog.Infof("toAddorUpdatePolicies: %v", dc.toAddorUpdatePolicies)
+	klog.Infof("toDeletePolicies: %v", dc.toDeletePolicies)
 }

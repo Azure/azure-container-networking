@@ -79,8 +79,7 @@ var (
 )
 
 func TestAddToList(t *testing.T) {
-	outChan := make(chan *protos.Events)
-	dp, err := NewDPSim(outChan, nil)
+	dp, err := NewDPSim(nil)
 	require.NoError(t, err)
 
 	setMetadata := ipsets.NewIPSetMetadata(testSetName, ipsets.Namespace)
@@ -100,15 +99,14 @@ func TestAddToList(t *testing.T) {
 	err = dp.ApplyDataPlane()
 	require.NoError(t, err)
 
-	payload := getPayload(t, outChan, controlplane.IpsetApply)
+	payload := getPayload(t, dp.OutChannel, controlplane.IpsetApply)
 	sets, err := controlplane.DecodeControllerIPSets(payload)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(sets))
 }
 
 func TestRemoveFromList(t *testing.T) {
-	outChan := make(chan *protos.Events)
-	dp, err := NewDPSim(outChan, nil)
+	dp, err := NewDPSim(nil)
 	require.NoError(t, err)
 
 	dp.CreateIPSets([]*ipsets.IPSetMetadata{testKeyPodSet, testNestedKeyPodSet})
@@ -126,7 +124,7 @@ func TestRemoveFromList(t *testing.T) {
 	err = dp.ApplyDataPlane()
 	require.NoError(t, err)
 
-	payload := getPayload(t, outChan, controlplane.IpsetApply)
+	payload := getPayload(t, dp.OutChannel, controlplane.IpsetApply)
 	sets, err := controlplane.DecodeControllerIPSets(payload)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(sets))
@@ -141,7 +139,7 @@ func TestRemoveFromList(t *testing.T) {
 	err = dp.ApplyDataPlane()
 	require.NoError(t, err)
 
-	payload = getPayload(t, outChan, controlplane.IpsetApply)
+	payload = getPayload(t, dp.OutChannel, controlplane.IpsetApply)
 	sets, err = controlplane.DecodeControllerIPSets(payload)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(sets))
@@ -150,8 +148,7 @@ func TestRemoveFromList(t *testing.T) {
 }
 
 func TestAddToSets(t *testing.T) {
-	outChan := make(chan *protos.Events)
-	dp, err := NewDPSim(outChan, nil)
+	dp, err := NewDPSim(nil)
 	require.NoError(t, err)
 
 	err = dp.AddToSets([]*ipsets.IPSetMetadata{
@@ -165,15 +162,14 @@ func TestAddToSets(t *testing.T) {
 	err = dp.ApplyDataPlane()
 	require.NoError(t, err)
 
-	payload := getPayload(t, outChan, controlplane.IpsetApply)
+	payload := getPayload(t, dp.OutChannel, controlplane.IpsetApply)
 	sets, err := controlplane.DecodeControllerIPSets(payload)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(sets))
 }
 
 func TestRemoveFromSet(t *testing.T) {
-	outChan := make(chan *protos.Events)
-	dp, err := NewDPSim(outChan, nil)
+	dp, err := NewDPSim(nil)
 	require.NoError(t, err)
 
 	setMetadata := ipsets.NewIPSetMetadata(testSetName, ipsets.Namespace)
@@ -183,7 +179,7 @@ func TestRemoveFromSet(t *testing.T) {
 	err = dp.ApplyDataPlane()
 	require.NoError(t, err)
 
-	payload := getPayload(t, outChan, controlplane.IpsetApply)
+	payload := getPayload(t, dp.OutChannel, controlplane.IpsetApply)
 	sets, err := controlplane.DecodeControllerIPSets(payload)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(sets))
@@ -194,22 +190,21 @@ func TestRemoveFromSet(t *testing.T) {
 	err = dp.ApplyDataPlane()
 	require.Nil(t, err)
 
-	payload = getPayload(t, outChan, controlplane.IpsetApply)
+	payload = getPayload(t, dp.OutChannel, controlplane.IpsetApply)
 	sets, err = controlplane.DecodeControllerIPSets(payload)
 	require.Nil(t, err)
 	require.Equal(t, 1, len(sets))
 }
 
 func TestPolicyUpdateEvent(t *testing.T) {
-	outChan := make(chan *protos.Events)
-	dp, err := NewDPSim(outChan, nil)
+	dp, err := NewDPSim(nil)
 	require.NoError(t, err)
 
 	err = dp.UpdatePolicy(testPolicyobj)
 	require.NoError(t, err)
 	assert.True(t, dp.policyExists(testPolicyobj.PolicyKey))
 
-	payload := getPayload(t, outChan, controlplane.PolicyApply)
+	payload := getPayload(t, dp.OutChannel, controlplane.PolicyApply)
 	netpols, err := controlplane.DecodeNPMNetworkPolicies(payload)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(netpols))

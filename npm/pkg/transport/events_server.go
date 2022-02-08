@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/dpshim"
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -40,10 +41,13 @@ type EventsServer struct {
 
 	// errCh is the error channel
 	errCh chan error
+
+	// dp has the dataplane instance, helps in hydration calls
+	dp *dpshim.DPShim
 }
 
 // NewEventsServer creates an instance of the EventsServer
-func NewEventsServer(ctx context.Context, port int) *EventsServer {
+func NewEventsServer(ctx context.Context, port int, dp *dpshim.DPShim) *EventsServer {
 	// Create a registration channel
 	regCh := make(chan clientStreamConnection, grpcMaxConcurrentStreams)
 
@@ -56,10 +60,11 @@ func NewEventsServer(ctx context.Context, port int) *EventsServer {
 		Watchdog:      NewWatchdog(deregCh),
 		Registrations: make(map[string]clientStreamConnection),
 		port:          port,
-		inCh:          make(chan *protos.Events),
+		inCh:          dp.OutChannel,
 		errCh:         make(chan error),
 		deregCh:       deregCh,
 		regCh:         regCh,
+		dp:            dp,
 	}
 }
 
@@ -88,6 +93,16 @@ func (m *EventsServer) start(stopCh <-chan struct{}) error {
 		case client := <-m.regCh:
 			klog.Infof("Registering remote client %s", client)
 			m.Registrations[client.String()] = client
+			event, err := m.dp.HydrateClients()
+			if err != nil {
+				klog.Errorf("Failed to hydrate client %s: %v", client, err)
+			}
+			go func() {
+				klog.Infof("Hydrating remote client %s", client)
+				if err := client.stream.SendMsg(event); err != nil {
+					klog.Errorf("Failed to hydrate client %s: %v", client, err)
+				}
+			}()
 		case ev := <-m.deregCh:
 			klog.Infof("Degregistering remote client %s", ev.remoteAddr)
 			if v, ok := m.Registrations[ev.remoteAddr]; ok {
