@@ -26,7 +26,7 @@ type DPShim struct {
 	setCache    map[string]*controlplane.ControllerIPSets
 	policyCache map[string]*policies.NPMNetworkPolicy
 	dirtyCache  *dirtyCache
-	*sync.Mutex
+	sync.Mutex
 }
 
 func NewDPSim(stopChannel <-chan struct{}) (*DPShim, error) {
