@@ -19,19 +19,20 @@ func TestNewLoggerError(t *testing.T) {
 	// we expect an error from NewLoggerE in the event that we provide an
 	// unwriteable directory
 
-	targetDir := "/definitelyDoesNotExist"
+	// this test needs a guaranteed empty directory, so we create a temporary one
+	// and ensure that it gets destroyed afterward.
+	targetDir := os.TempDir()
+	t.Cleanup(func() {
+		// This removal could produce an error, but since it's a temporary
+		// directory anyway, this is a best-effort cleanup
+		os.Remove(targetDir)
+	})
 
-	// TODO(timraymond): this is some duplicated logic from
-	// (*Logger).getFileName. It should be possible to make it a publicly
-	// callable function to make this a little less brittle
-	fullLogPath := path.Join(targetDir, logName+".log")
+	// if we just use the targetDir, NewLoggerE will create the file and it will
+	// work. We need a non-existent directory *within* the tempdir
+	fullPath := path.Join(targetDir, "definitelyDoesNotExist")
 
-	// confirm the assumptions of this test before we run it:
-	if _, err := os.Stat(fullLogPath); err == nil {
-		t.Skipf("The log file at %q exists, so this test cannot sensibly run. Delete it first", fullLogPath)
-	}
-
-	_, err := NewLoggerE(logName, LevelInfo, TargetLogfile, targetDir)
+	_, err := NewLoggerE(logName, LevelInfo, TargetLogfile, fullPath)
 	if err == nil {
 		t.Error("expected an error but did not receive one")
 	}
