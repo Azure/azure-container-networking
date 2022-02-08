@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/daemon"
+	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/goalstateprocessor"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
@@ -92,5 +93,8 @@ func startDaemon(config npmconfig.Config) error {
 		klog.Errorf("failed to start dataplane : %v", err)
 		return fmt.Errorf("failed to start dataplane: %w", err)
 	}
+
+	go restserver.NPMRestServerListenAndServe(config, nil)
+
 	return nil
 }

@@ -94,6 +94,9 @@ func (gsp *GoalStateProcessor) processNext() {
 }
 
 func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
+	// TODO (Vamsi) differentiate between hydration event and a normal event
+	// in hydration event, any thing in local cache and not in event should be deleted.
+
 	klog.Infof("Processing event")
 	// apply dataplane after syncing
 	defer func() {

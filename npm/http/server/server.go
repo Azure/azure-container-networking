@@ -32,7 +32,7 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 		rs.router.Handle(api.ClusterMetricsPath, metrics.GetHandler(false))
 	}
 
-	if config.Toggles.EnableHTTPDebugAPI {
+	if config.Toggles.EnableHTTPDebugAPI && npmEncoder != nil {
 		// ACN CLI debug handlerss
 		rs.router.Handle(api.NPMMgrPath, rs.npmCacheHandler(npmEncoder)).Methods(http.MethodGet)
 	}
