@@ -98,11 +98,11 @@ var (
 	// TODO add health metrics
 )
 
-type RegistryType bool
+type RegistryType string
 
 const (
-	NodeMetrics    RegistryType = false
-	ClusterMetrics RegistryType = true
+	NodeMetrics    RegistryType = "node-metrics"
+	ClusterMetrics RegistryType = "cluster-metrics"
 )
 
 type OperationKind string

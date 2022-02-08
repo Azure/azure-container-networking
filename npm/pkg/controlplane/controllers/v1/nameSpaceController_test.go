@@ -202,6 +202,9 @@ func TestAddNamespace(t *testing.T) {
 
 	addNamespace(t, f, nsObj)
 
+	// already exists (will be a no-op)
+	addNamespace(t, f, nsObj)
+
 	testCases := []expectedNsValues{
 		{0, 1, 0, nsPromVals{1, 0, 0}},
 	}

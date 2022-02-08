@@ -285,6 +285,9 @@ func TestAddMultiplePods(t *testing.T) {
 	addPod(t, f, podObj1)
 	addPod(t, f, podObj2)
 
+	// already exists (will be a no-op)
+	addPod(t, f, podObj1)
+
 	testCases := []expectedValues{
 		{2, 1, 0, podPromVals{2, 0, 0}},
 	}

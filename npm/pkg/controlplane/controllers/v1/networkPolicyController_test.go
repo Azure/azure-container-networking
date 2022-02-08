@@ -178,25 +178,7 @@ type netPolPromVals struct {
 	expectedDeleteExecCount int
 }
 
-func checkNetPolTestResult(testName string, f *netPolFixture, testCases []expectedNetPolValues) {
-	for _, test := range testCases {
-		if got := len(f.netPolController.rawNpMap); got != test.expectedLenOfRawNpMap {
-			f.t.Errorf("Raw NetPol Map length = %d, want %d", got, test.expectedLenOfRawNpMap)
-		}
-
-		if got := f.netPolController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
-			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)
-		}
-
-		if got := f.netPolController.isAzureNpmChainCreated; got != test.expectedIsAzureNpmChainCreated {
-			f.t.Errorf("isAzureNpmChainCreated %v, want %v", got, test.expectedIsAzureNpmChainCreated)
-		}
-
-		test.netPolPromVals.testPrometheusMetrics(f.t)
-	}
-}
-
-// for local testing, prepend "sudo" to the command within run() in iptm.go
+// for local testing, prepend the following to your go test command: sudo -E env 'PATH=$PATH'
 func (p *netPolPromVals) testPrometheusMetrics(t *testing.T) {
 	numPolicies, err := metrics.GetNumPolicies()
 	promutil.NotifyIfErrors(t, err)
@@ -229,6 +211,24 @@ func (p *netPolPromVals) testPrometheusMetrics(t *testing.T) {
 	require.Equal(t, 0, deleteErrorExecCount, "Count for delete error execution time should be 0")
 }
 
+func checkNetPolTestResult(testName string, f *netPolFixture, testCases []expectedNetPolValues) {
+	for _, test := range testCases {
+		if got := len(f.netPolController.rawNpMap); got != test.expectedLenOfRawNpMap {
+			f.t.Errorf("Raw NetPol Map length = %d, want %d", got, test.expectedLenOfRawNpMap)
+		}
+
+		if got := f.netPolController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
+			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)
+		}
+
+		if got := f.netPolController.isAzureNpmChainCreated; got != test.expectedIsAzureNpmChainCreated {
+			f.t.Errorf("isAzureNpmChainCreated %v, want %v", got, test.expectedIsAzureNpmChainCreated)
+		}
+
+		test.netPolPromVals.testPrometheusMetrics(f.t)
+	}
+}
+
 func TestAddMultipleNetworkPolicies(t *testing.T) {
 	netPolObj1 := createNetPol()
 
@@ -249,6 +249,9 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 
 	addNetPol(t, f, netPolObj1)
 	addNetPol(t, f, netPolObj2)
+
+	// already exists (will be a no-op)
+	addNetPol(t, f, netPolObj1)
 
 	testCases := []expectedNetPolValues{
 		{2, 0, true, netPolPromVals{2, 2, 0, 0}},
