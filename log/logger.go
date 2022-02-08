@@ -59,7 +59,7 @@ type Logger struct {
 var pid = os.Getpid()
 
 // NewLoggerE creates a new Logger and surfaces any errors encountered during the process
-func NewLoggerE(name string, level int, target int, logDir string) (*Logger, error) {
+func NewLoggerE(name string, level, target int, logDir string) (*Logger, error) {
 	logger := &Logger{
 		l:            log.New(io.Discard, logPrefix, log.LstdFlags),
 		name:         name,
@@ -80,7 +80,7 @@ func NewLoggerE(name string, level int, target int, logDir string) (*Logger, err
 // NewLogger creates a new Logger.
 //
 // Deprecated: use NewLoggerE instead
-func NewLogger(name string, level int, target int, logDir string) *Logger {
+func NewLogger(name string, level, target int, logDir string) *Logger {
 	logger, err := NewLoggerE(name, level, target, logDir)
 	if err != nil {
 		// ideally this would be returned to the caller, but this API is depended
