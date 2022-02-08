@@ -58,20 +58,39 @@ type Logger struct {
 
 var pid = os.Getpid()
 
+// NewLoggerE creates a new Logger and surfaces any errors encountered during the process
+func NewLoggerE(name string, level int, target int, logDir string) (*Logger, error) {
+	logger := &Logger{
+		l:            log.New(io.Discard, logPrefix, log.LstdFlags),
+		name:         name,
+		level:        level,
+		directory:    logDir,
+		maxFileSize:  maxLogFileSize,
+		maxFileCount: maxLogFileCount,
+		mutex:        &sync.Mutex{},
+	}
+
+	err := logger.SetTarget(target)
+	if err != nil {
+		return nil, fmt.Errorf("setting log target: %w", err)
+	}
+	return logger, nil
+}
+
 // NewLogger creates a new Logger.
+//
+// Deprecated: use NewLoggerE instead
 func NewLogger(name string, level int, target int, logDir string) *Logger {
-	var logger Logger
+	logger, err := NewLoggerE(name, level, target, logDir)
+	if err != nil {
+		// ideally this would be returned to the caller, but this API is depended
+		// on by unknown parties. Given at this point we have an unusable (but
+		// safe) logger, we log to stderr with the standard library in hopes that
+		// an operator will see the error and be able to take corrective action
+		log.Println("error initializing logger: err:", err)
+	}
 
-	logger.l = log.New(nil, logPrefix, log.LstdFlags)
-	logger.name = name
-	logger.level = level
-	logger.directory = logDir
-	logger.SetTarget(target)
-	logger.maxFileSize = maxLogFileSize
-	logger.maxFileCount = maxLogFileCount
-	logger.mutex = &sync.Mutex{}
-
-	return &logger
+	return logger
 }
 
 // SetName sets the log name.

@@ -6,6 +6,7 @@ package log
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"testing"
 )
@@ -13,6 +14,28 @@ import (
 const (
 	logName = "test"
 )
+
+func TestNewLoggerError(t *testing.T) {
+	// we expect an error from NewLoggerE in the event that we provide an
+	// unwriteable directory
+
+	targetDir := "/definitelyDoesNotExist"
+
+	// TODO(timraymond): this is some duplicated logic from
+	// (*Logger).getFileName. It should be possible to make it a publicly
+	// callable function to make this a little less brittle
+	fullLogPath := path.Join(targetDir, logName+".log")
+
+	// confirm the assumptions of this test before we run it:
+	if _, err := os.Stat(fullLogPath); err == nil {
+		t.Skipf("The log file at %q exists, so this test cannot sensibly run. Delete it first", fullLogPath)
+	}
+
+	_, err := NewLoggerE(logName, LevelInfo, TargetLogfile, targetDir)
+	if err == nil {
+		t.Error("expected an error but did not receive one")
+	}
+}
 
 // Tests that the log file rotates when size limit is reached.
 func TestLogFileRotatesWhenSizeLimitIsReached(t *testing.T) {
