@@ -94,6 +94,7 @@ func startDaemon(config npmconfig.Config) error {
 		return fmt.Errorf("failed to start dataplane: %w", err)
 	}
 
+	dp.RunPeriodicTasks()
 	go restserver.NPMRestServerListenAndServe(config, nil)
 
 	return nil
