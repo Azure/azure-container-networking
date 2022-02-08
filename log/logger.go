@@ -58,7 +58,11 @@ type Logger struct {
 
 var pid = os.Getpid()
 
-// NewLoggerE creates a new Logger and surfaces any errors encountered during the process
+// NewLoggerE creates a new Logger and surfaces any errors encountered during
+// the process. The returned logger is guaranteed to be safe to use when a
+// non-nil error is returned, but may have undesired behavior. Callers should
+// treat the logger as nil under error conditions unless necessary for
+// backwards compatibility reasons.
 func NewLoggerE(name string, level, target int, logDir string) (*Logger, error) {
 	logger := &Logger{
 		l:            log.New(io.Discard, logPrefix, log.LstdFlags),
@@ -72,7 +76,8 @@ func NewLoggerE(name string, level, target int, logDir string) (*Logger, error) 
 
 	err := logger.SetTarget(target)
 	if err != nil {
-		return nil, fmt.Errorf("setting log target: %w", err)
+		// we *do* want to return the logger here for backwards compatibility
+		return logger, fmt.Errorf("setting log target: %w", err)
 	}
 	return logger, nil
 }
