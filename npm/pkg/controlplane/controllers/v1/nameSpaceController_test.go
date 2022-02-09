@@ -434,17 +434,17 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 	testCases := []expectedNsValues{
 		{0, 1, 0, nsPromVals{1, 1, 0}},
 	}
-	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
+	checkNsTestResult("TestNewNameSpaceUpdate", f, testCases)
 
 	if _, exists := f.nsController.npmNamespaceCache.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
-		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ nsMap check")
+		t.Errorf("TestNewNameSpaceUpdate failed @ nsMap check")
 	}
 
 	if !reflect.DeepEqual(
 		newNsObj.Labels,
 		f.nsController.npmNamespaceCache.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
 	) {
-		t.Fatalf("TestDeleteandUpdateNamespaceLabel failed @ nsMap labelMap check")
+		t.Fatalf("TestNewNameSpaceUpdate failed @ nsMap labelMap check")
 	}
 }
 

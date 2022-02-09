@@ -398,7 +398,7 @@ func (nsc *NamespaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 		klog.Infof("Deleting namespace %s from ipset list %s", newNsName, labelKey)
 		if err = nsc.ipsMgr.DeleteFromList(labelKey, newNsName); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to delete namespace %s from ipset list %s with err: %v", newNsName, labelKey, err)
-			return metrics.UpdateOp, err
+			return metrics.UpdateOp, fmt.Errorf("failed to delete namespace %s from ipset list %s with err: %w", newNsName, labelKey, err)
 		}
 		// {IMPORTANT} The order of compared list will be key and then key+val. NPM should only append after both key
 		// key + val ipsets are worked on.
@@ -415,7 +415,7 @@ func (nsc *NamespaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 		klog.Infof("Adding namespace %s to ipset list %s", newNsName, labelKey)
 		if err = nsc.ipsMgr.AddToList(labelKey, newNsName); err != nil {
 			metrics.SendErrorLogAndMetric(util.NSID, "[UpdateNamespace] Error: failed to add namespace %s to ipset list %s with err: %v", newNsName, labelKey, err)
-			return metrics.UpdateOp, err
+			return metrics.UpdateOp, fmt.Errorf("failed to add namespace %s to ipset list %s with err: %w", newNsName, labelKey, err)
 		}
 		// {IMPORTANT} Same as above order is assumed to be key and then key+val. NPM should only append to existing labels
 		// only after both ipsets for a given label's key value pair are added successfully
