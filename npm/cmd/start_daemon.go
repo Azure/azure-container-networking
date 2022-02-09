@@ -7,10 +7,11 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/npm"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/Azure/azure-container-networking/npm/daemon"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/goalstateprocessor"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
+	"github.com/Azure/azure-container-networking/npm/pkg/models"
 	"github.com/Azure/azure-container-networking/npm/pkg/transport"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -48,7 +49,7 @@ func startDaemon(config npmconfig.Config) error {
 	pod := os.Getenv(podNameEnv)
 	node := os.Getenv(nodeNameEnv)
 
-	addr := config.Transport.Address + ":" + strconv.Itoa(config.Transport.Port)
+	addr := config.Transport.Address + ":" + strconv.Itoa(config.Transport.ServicePort)
 	ctx := context.Background()
 	err := initLogging()
 	if err != nil {
@@ -58,7 +59,7 @@ func startDaemon(config npmconfig.Config) error {
 
 	var dp dataplane.GenericDataplane
 
-	dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, wait.NeverStop)
+	dp, err = dataplane.NewDataPlane(models.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, wait.NeverStop)
 	if err != nil {
 		klog.Errorf("failed to create dataplane: %v", err)
 		return fmt.Errorf("failed to create dataplane with error %w", err)
@@ -76,7 +77,7 @@ func startDaemon(config npmconfig.Config) error {
 		return fmt.Errorf("failed to create goalstate processor: %w", err)
 	}
 
-	n, err := npm.NewNetworkPolicyDaemon(ctx, config, dp, gsp, client, version)
+	n, err := daemon.NewNetworkPolicyDaemon(ctx, config, dp, gsp, client, version)
 	if err != nil {
 		klog.Errorf("failed to create dataplane : %v", err)
 		return fmt.Errorf("failed to create dataplane: %w", err)

@@ -231,7 +231,7 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, plc platform.ExecClient, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, ep *endpoint) error {
 	var epClient EndpointClient
 
 	// Delete the veth pair by deleting one of the peer interfaces.

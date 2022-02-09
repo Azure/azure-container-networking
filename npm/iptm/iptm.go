@@ -330,6 +330,7 @@ func (iptMgr *IptablesManager) reconcileChains(stopCh <-chan struct{}) {
 			if err := iptMgr.checkAndAddForwardChain(); err != nil {
 				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to reconcileChains Azure-NPM due to %s", err.Error())
 			}
+			metrics.SendHeartbeatLog()
 		}
 	}
 }

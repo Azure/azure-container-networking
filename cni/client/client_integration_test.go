@@ -1,5 +1,5 @@
-// +build linux
-// +build integration
+//go:build linux && integration
+// +build linux,integration
 
 package client
 

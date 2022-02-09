@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+  name: azure-npm
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+  name: azure-npm
+  namespace: kube-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - nodes
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+  name: azure-npm-binding
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: azure-npm
+subjects:
+- kind: ServiceAccount
+  name: azure-npm
+  namespace: kube-system
+---
+apiVersion: v1
+data:
+  azure-npm.json: |
+    {
+        "ResyncPeriodInMinutes": 15,
+        "ListeningPort":         10091,
+        "ListeningAddress":      "0.0.0.0",
+        "Toggles": {
+            "EnablePrometheusMetrics": true,
+            "EnablePprof":             true,
+            "EnableHTTPDebugAPI":      true,
+            "EnableV2NPM":             false,
+            "PlaceAzureChainFirst":    false
+        },
+        "Transport": {
+          "Address": "azure-npm.kube-system.svc.cluster.local",
+          "Port": 10092,
+          "ServicePort": 9001
+        }
+    }
+kind: ConfigMap
+metadata:
+  name: azure-npm-config
+  namespace: kube-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: azure-npm
+    component: daemon
+  name: npm-deamon-metrics-cluster-service
+  namespace: kube-system
+spec:
+  ports:
+  - name: metrics 
+    port: 9000
+    targetPort: 10091
+  selector:
+    component: deamon
+    k8s-app: azure-npm
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+    app: azure-npm
+    component: daemon
+  name: azure-npm-deamon
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      component: daemon
+      k8s-app: azure-npm
+  template:
+    metadata:
+      annotations:
+        azure.npm/scrapeable: ""
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+      labels:
+        component: daemon
+        k8s-app: azure-npm
+    spec:
+      containers:
+      - args:
+        - start
+        - daemon
+        command:
+        - azure-npm
+        env:
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: NPM_CONFIG
+          value: /etc/azure-npm/azure-npm.json
+        - name: DAEMON_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: DAEMON_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        image: azure-npm:v1.4.1
+        name: azure-npm
+        ports:
+        - name: metrics
+          containerPort: 10091
+        resources:
+          limits:
+            cpu: 250m
+            memory: 300Mi
+          requests:
+            cpu: 250m
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /var/log
+          name: log
+        - mountPath: /run/xtables.lock
+          name: xtables-lock
+        - mountPath: /etc/protocols
+          name: protocols
+        - mountPath: /etc/azure-npm
+          name: azure-npm-config
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      serviceAccountName: azure-npm
+      tolerations:
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      - key: CriticalAddonsOnly
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /var/log
+          type: Directory
+        name: log
+      - hostPath:
+          path: /run/xtables.lock
+          type: File
+        name: xtables-lock
+      - hostPath:
+          path: /etc/protocols
+          type: File
+        name: protocols
+      - configMap:
+          name: azure-npm-config
+        name: azure-npm-config

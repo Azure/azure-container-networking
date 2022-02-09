@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -134,6 +136,7 @@ func (creator *FileCreator) RunCommandWithFile(cmd string, args ...string) error
 		return nil
 	}
 	commandString := cmd + " " + strings.Join(args, " ")
+	metrics.SendErrorLogAndMetric(util.UtilID, "error: failed to run [%s] on try 1 with error: %s", cmd, err.Error())
 	for !creator.hasNoMoreRetries() {
 		if wasFileAltered {
 			klog.Infof("rerunning command [%s] with new file", commandString)
@@ -145,6 +148,7 @@ func (creator *FileCreator) RunCommandWithFile(cmd string, args ...string) error
 			klog.Infof("successfully ran command [%s] on try number %d", commandString, creator.tryCount)
 			return nil
 		}
+		metrics.SendErrorLogAndMetric(util.UtilID, "error: failed to run [%s] on try %d with error: %s", cmd, creator.tryCount, err.Error())
 	}
 	errString := fmt.Sprintf("failed to run command [%s] with error: %v", commandString, err)
 	klog.Error(errString)

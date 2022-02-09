@@ -1,17 +1,19 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
+//go:build windows
 // +build windows
 
 package network
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
 )
 
-func TestNewAndDeleteNetworkImplHnsV2(t *testing.T){
+func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
@@ -23,7 +25,7 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T){
 	nwInfo := &NetworkInfo{
 		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
-		Mode: "bridge",
+		Mode:         "bridge",
 	}
 
 	extInterface := &externalInterface{
@@ -31,7 +33,7 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T){
 		Subnets: []string{"subnet1", "subnet2"},
 	}
 
-	network,err := nm.newNetworkImplHnsV2(nwInfo,extInterface)
+	network, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
 
 	if err != nil {
 		fmt.Printf("+%v", err)

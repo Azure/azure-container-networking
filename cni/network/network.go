@@ -453,7 +453,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	networkID, err := plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
+	networkID, err := plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, cnsNetworkConfig, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 		return err
@@ -843,7 +843,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	if networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg); err != nil {
+	if networkId, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nil, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 	}
@@ -962,14 +962,13 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 		}
 	}
-	// Initialize values from network config.
-	networkID, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, nwCfg)
 
-	// If error is not found error, then we ignore it, to comply with CNI SPEC.
+	// Initialize values from network config.
+	networkID, err = plugin.getNetworkName(k8sPodName, k8sNamespace, args.IfName, args.Netns, nil, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
-
-		if !cnscli.IsNotFound(err) {
+		// If error is not found error, then we ignore it, to comply with CNI SPEC.
+		if !network.IsNetworkNotFoundError(err) {
 			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
 			return err
 		}
@@ -1013,19 +1012,15 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
-	if err != nil {
-		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
-		return plugin.Errorf(err.Error())
-	}
-
 	// schedule send metric before attempting delete
 	defer sendMetricFunc()
 	telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 	// Delete the endpoint.
-	if err = plugin.nm.DeleteEndpoint(cnsclient, networkID, endpointID); err != nil {
-		err = plugin.Errorf("Failed to delete endpoint: %v", err)
-		return err
+	if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
+		// return a retriable error so the container runtime will retry this DEL later
+		// the implementation of this function returns nil if the endpoint doens't exist, so
+		// we don't have to check that here
+		return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 	}
 
 	if !nwCfg.MultiTenancy {

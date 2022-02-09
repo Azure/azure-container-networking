@@ -285,6 +285,10 @@ func (f Hnsv2wrapperFake) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint,
 	return nil
 }
 
+func (Hnsv2wrapperFake) GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error) {
+	return nil, hcn.EndpointNotFoundError{EndpointName: endpointName}
+}
+
 type FakeHNSCache struct {
 	networks  map[string]*FakeHostComputeNetwork
 	endpoints map[string]*FakeHostComputeEndpoint

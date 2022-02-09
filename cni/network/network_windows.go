@@ -1,7 +1,6 @@
 package network
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -160,42 +159,45 @@ func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPref
 	return nil
 }
 
-func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName string, nwCfg *cni.NetworkConfig) (string, error) {
-	var (
-		networkName      string
-		err              error
-		cnsNetworkConfig *cns.GetNetworkContainerResponse
-	)
-
-	networkName = nwCfg.Name
-	err = nil
-
-	if nwCfg.MultiTenancy {
-		determineWinVer()
-		if len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
-			err = fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s", podName, podNs)
-			return networkName, err
-		}
-
-		_, cnsNetworkConfig, _, err = plugin.multitenancyClient.GetContainerNetworkConfiguration(context.TODO(), nwCfg, podName, podNs, ifName)
-		if err != nil {
-			log.Printf(
-				"GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v",
-				podName,
-				podNs,
-				err)
-		} else {
-			var subnet net.IPNet
-			if err = updateSubnetPrefix(cnsNetworkConfig, &subnet); err == nil {
-				// networkName will look like ~ azure-vlan1-172-28-1-0_24
-				networkName = strings.Replace(subnet.String(), ".", "-", -1)
-				networkName = strings.Replace(networkName, "/", "_", -1)
-				networkName = fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, cnsNetworkConfig.MultiTenancyInfo.ID, networkName)
-			}
-		}
+func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cnsResponse *cns.GetNetworkContainerResponse, nwCfg *cni.NetworkConfig) (string, error) {
+	// For singletenancy, the network name is simply the nwCfg.Name
+	if !nwCfg.MultiTenancy {
+		return nwCfg.Name, nil
 	}
 
-	return networkName, err
+	// in multitenancy case, the network name will be in the state file or can be built from cnsResponse
+	determineWinVer()
+	if len(strings.TrimSpace(netNs)) == 0 || len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
+		return "", fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s, NetNs: %s", podName, podNs, netNs)
+	}
+
+	// First try to build the network name from the cnsResponse if present
+	// This will happen during ADD call
+	if cnsResponse != nil {
+		var subnet net.IPNet
+		if err := updateSubnetPrefix(cnsResponse, &subnet); err != nil {
+			log.Printf("Error updating subnet prefix: %v", err)
+			return "", err
+		}
+
+		// networkName will look like ~ azure-vlan1-172-28-1-0_24
+		networkSuffix := strings.Replace(subnet.String(), ".", "-", -1)
+		networkSuffix = strings.Replace(networkSuffix, "/", "_", -1)
+		networkName := fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, cnsResponse.MultiTenancyInfo.ID, networkSuffix)
+
+		return networkName, nil
+	}
+
+	// If no cnsResponse was present, try to get the network name from the state file
+	// This will happen during DEL call
+	networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs)
+	if err != nil {
+		log.Printf("Error getting network name from state: %v.", err)
+		return "", fmt.Errorf("error getting network name from state: %w", err)
+
+	}
+
+	return networkName, nil
 }
 
 func setupInfraVnetRoutingForMultitenancy(

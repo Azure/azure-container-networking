@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/pkg/models"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -85,11 +86,6 @@ func newStartNPMCmd() *cobra.Command {
 
 	startNPMCmd.Flags().String(flagKubeConfigPath, flagDefaults[flagKubeConfigPath], "path to kubeconfig")
 
-	// The controlplane subcommand starts the NPM controller's controlplane component in the decomposed mode
-	startNPMCmd.AddCommand(newStartNPMControlplaneCmd())
-	// The daemon subcommand starts the NPM controller's datapath component in the daemon mode
-	startNPMCmd.AddCommand(newStartNPMDaemonCmd())
-
 	return startNPMCmd
 }
 
@@ -149,7 +145,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 		} else {
 			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyAllIPSets
 		}
-		dp, err = dataplane.NewDataPlane(npm.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, stopChannel)
+		dp, err = dataplane.NewDataPlane(models.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, stopChannel)
 		if err != nil {
 			return fmt.Errorf("failed to create dataplane with error %w", err)
 		}
@@ -164,6 +160,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
+	metrics.SendLog(util.NpmID, "starting NPM")
 	if err = npMgr.Start(config, stopChannel); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %+v", err)
 		return fmt.Errorf("failed to start with err: %w", err)

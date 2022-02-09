@@ -97,10 +97,10 @@ spec:
             - name: NPM_CONFIG
               value: /etc/azure-npm/azure-npm.json
           volumeMounts:
-          - name: xtables-lock
-            mountPath: /run/xtables.lock
           - name: log
             mountPath: /var/log
+          - name: xtables-lock
+            mountPath: /run/xtables.lock
           - name: protocols
             mountPath: /etc/protocols
           - name: azure-npm-config

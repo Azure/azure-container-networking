@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dpmocks "github.com/Azure/azure-container-networking/npm/pkg/dataplane/mocks"
@@ -80,6 +82,8 @@ func (f *podFixture) newPodController(_ chan struct{}) {
 			f.t.Errorf("Failed to add pod %v to informer cache: %v", pod, err)
 		}
 	}
+
+	metrics.ReinitializeAll()
 
 	// Do not start informer to avoid unnecessary event triggers
 	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
@@ -180,6 +184,39 @@ type expectedValues struct {
 	expectedLenOfPodMap    int
 	expectedLenOfNsMap     int
 	expectedLenOfWorkQueue int
+	podPromVals
+}
+
+type podPromVals struct {
+	expectedAddExecCount    int
+	expectedUpdateExecCount int
+	expectedDeleteExecCount int
+}
+
+func (p *podPromVals) testPrometheusMetrics(t *testing.T) {
+	addExecCount, err := metrics.GetControllerPodExecCount(metrics.CreateOp, false)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedAddExecCount, addExecCount, "Count for add execution time didn't register correctly in Prometheus")
+
+	addErrorExecCount, err := metrics.GetControllerPodExecCount(metrics.CreateOp, true)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, addErrorExecCount, "Count for add error execution time should be 0")
+
+	updateExecCount, err := metrics.GetControllerPodExecCount(metrics.UpdateOp, false)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedUpdateExecCount, updateExecCount, "Count for update execution time didn't register correctly in Prometheus")
+
+	updateErrorExecCount, err := metrics.GetControllerPodExecCount(metrics.UpdateOp, true)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, updateErrorExecCount, "Count for update error execution time should be 0")
+
+	deleteExecCount, err := metrics.GetControllerPodExecCount(metrics.DeleteOp, false)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedDeleteExecCount, deleteExecCount, "Count for delete execution time didn't register correctly in Prometheus")
+
+	deleteErrorExecCount, err := metrics.GetControllerPodExecCount(metrics.DeleteOp, true)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, deleteErrorExecCount, "Count for delete error execution time should be 0")
 }
 
 func checkPodTestResult(testName string, f *podFixture, testCases []expectedValues) {
@@ -193,6 +230,7 @@ func checkPodTestResult(testName string, f *podFixture, testCases []expectedValu
 		if got := f.podController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
 			f.t.Errorf("%s failed @ Workqueue length = %d, want %d", testName, got, test.expectedLenOfWorkQueue)
 		}
+		test.podPromVals.testPrometheusMetrics(f.t)
 	}
 }
 
@@ -257,13 +295,17 @@ func TestAddMultiplePods(t *testing.T) {
 			dataplane.NewPodMetadata("test-ns/test-pod-2", "1.2.3.5,8080", ""),
 		).
 		Return(nil).Times(1)
-	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
+	// TODO: ideally we call ApplyDataplane only twice since we know that there are no operations to perform for the ns that already exists
+	dp.EXPECT().ApplyDataPlane().Return(nil).Times(3)
 
 	addPod(t, f, podObj1)
 	addPod(t, f, podObj2)
 
+	// already exists (will be a no-op)
+	addPod(t, f, podObj1)
+
 	testCases := []expectedValues{
-		{2, 1, 0},
+		{2, 1, 0, podPromVals{2, 0, 0}},
 	}
 	checkPodTestResult("TestAddMultiplePods", f, testCases)
 	checkNpmPodWithInput("TestAddMultiplePods", f, podObj1)
@@ -307,7 +349,7 @@ func TestAddPod(t *testing.T) {
 
 	addPod(t, f, podObj)
 	testCases := []expectedValues{
-		{1, 1, 0},
+		{1, 1, 0, podPromVals{1, 0, 0}},
 	}
 	checkPodTestResult("TestAddPod", f, testCases)
 	checkNpmPodWithInput("TestAddPod", f, podObj)
@@ -333,7 +375,7 @@ func TestAddHostNetworkPod(t *testing.T) {
 
 	addPod(t, f, podObj)
 	testCases := []expectedValues{
-		{0, 0, 0},
+		{0, 0, 0, podPromVals{0, 0, 0}},
 	}
 	checkPodTestResult("TestAddHostNetworkPod", f, testCases)
 
@@ -390,7 +432,7 @@ func TestDeletePod(t *testing.T) {
 
 	deletePod(t, f, podObj, DeletedFinalStateknownObject)
 	testCases := []expectedValues{
-		{0, 1, 0},
+		{0, 1, 0, podPromVals{1, 0, 1}},
 	}
 
 	checkPodTestResult("TestDeletePod", f, testCases)
@@ -419,7 +461,7 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 
 	deletePod(t, f, podObj, DeletedFinalStateknownObject)
 	testCases := []expectedValues{
-		{0, 0, 0},
+		{0, 0, 0, podPromVals{0, 0, 0}},
 	}
 	checkPodTestResult("TestDeleteHostNetworkPod", f, testCases)
 	if _, exists := f.podController.podMap[podKey]; exists {
@@ -451,7 +493,7 @@ func TestDeletePodWithTombstone(t *testing.T) {
 
 	f.podController.deletePod(tombstone)
 	testCases := []expectedValues{
-		{0, 0, 1},
+		{0, 0, 1, podPromVals{0, 0, 0}},
 	}
 	checkPodTestResult("TestDeletePodWithTombstone", f, testCases)
 }
@@ -503,7 +545,7 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 
 	deletePod(t, f, podObj, DeletedFinalStateUnknownObject)
 	testCases := []expectedValues{
-		{0, 1, 0},
+		{0, 1, 0, podPromVals{1, 0, 1}},
 	}
 	checkPodTestResult("TestDeletePodWithTombstoneAfterAddingPod", f, testCases)
 }
@@ -558,7 +600,7 @@ func TestLabelUpdatePod(t *testing.T) {
 	updatePod(t, f, oldPodObj, newPodObj)
 
 	testCases := []expectedValues{
-		{1, 1, 0},
+		{1, 1, 0, podPromVals{1, 1, 0}},
 	}
 	checkPodTestResult("TestLabelUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestLabelUpdatePod", f, newPodObj)
@@ -628,7 +670,7 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	updatePod(t, f, oldPodObj, newPodObj)
 
 	testCases := []expectedValues{
-		{1, 1, 0},
+		{1, 1, 0, podPromVals{1, 1, 0}},
 	}
 	checkPodTestResult("TestIPAddressUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestIPAddressUpdatePod", f, newPodObj)
@@ -687,7 +729,7 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	updatePod(t, f, oldPodObj, newPodObj)
 
 	testCases := []expectedValues{
-		{0, 1, 0},
+		{0, 1, 0, podPromVals{1, 0, 1}},
 	}
 	checkPodTestResult("TestPodStatusUpdatePod", f, testCases)
 	if _, exists := f.podController.podMap[podKey]; exists {

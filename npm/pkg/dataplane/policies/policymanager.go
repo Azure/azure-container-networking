@@ -70,6 +70,7 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 	metrics.ResetNumACLRules()
 	if err := pMgr.bootup(epIDs); err != nil {
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to bootup policy manager: %s", err.Error())
 		return npmerrors.ErrorWrapper(npmerrors.BootupPolicyMgr, false, "failed to bootup policy manager", err)
 	}
 
@@ -91,6 +92,7 @@ func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 				return
 			case <-ticker.C:
 				pMgr.reconcile()
+				metrics.SendHeartbeatLog()
 			}
 		}
 	}()
@@ -115,7 +117,9 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	// TODO move this validation and normalization to controller
 	normalizePolicy(policy)
 	if err := validatePolicy(policy); err != nil {
-		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("couldn't add malformed policy: %s", err.Error()))
+		msg := fmt.Sprintf("failed to validate policy: %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
 
 	// Call actual dataplane function to apply changes
@@ -123,8 +127,14 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	err := pMgr.addPolicy(policy, endpointList)
 	metrics.RecordACLRuleExecTime(timer) // record execution time regardless of failure
 	if err != nil {
+<<<<<<< HEAD
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to add policy: %v", err))
+=======
+		msg := fmt.Sprintf("failed to add policy: %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
+>>>>>>> master
 	}
 
 	// update Prometheus metrics on success
@@ -153,8 +163,14 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 	err := pMgr.removePolicy(policy, endpointList)
 	// currently we only have acl rule exec time for "adding" rules, so we skip recording here
 	if err != nil {
+<<<<<<< HEAD
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
 		return npmerrors.Errorf(npmerrors.RemovePolicy, false, fmt.Sprintf("failed to remove policy: %v", err))
+=======
+		msg := fmt.Sprintf("failed to remove policy: %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		return npmerrors.Errorf(npmerrors.RemovePolicy, false, msg)
+>>>>>>> master
 	}
 
 	// update Prometheus metrics on success

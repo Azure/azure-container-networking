@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -111,9 +112,9 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 		return fmt.Errorf("[DataPlane] error while adding to set: %w", err)
 	}
 	if dp.shouldUpdatePod() {
-		klog.Infof("[Dataplane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
+		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
 		if _, ok := dp.updatePodCache[podMetadata.PodKey]; !ok {
-			klog.Infof("[Dataplane] {AddToSet} pod key %s not found creating a new obj", podMetadata.PodKey)
+			klog.Infof("[DataPlane] {AddToSet} pod key %s not found creating a new obj", podMetadata.PodKey)
 			dp.updatePodCache[podMetadata.PodKey] = newUpdateNPMPod(podMetadata)
 		}
 
@@ -132,9 +133,9 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 	}
 
 	if dp.shouldUpdatePod() {
-		klog.Infof("[Dataplane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
+		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
 		if _, ok := dp.updatePodCache[podMetadata.PodKey]; !ok {
-			klog.Infof("[Dataplane] {RemoveFromSet} pod key %s not found creating a new obj", podMetadata.PodKey)
+			klog.Infof("[DataPlane] {RemoveFromSet} pod key %s not found creating a new obj", podMetadata.PodKey)
 			dp.updatePodCache[podMetadata.PodKey] = newUpdateNPMPod(podMetadata)
 		}
 
@@ -179,6 +180,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 		for podKey, pod := range dp.updatePodCache {
 			err := dp.updatePod(pod)
 			if err != nil {
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "error: failed to update pods: %s", err.Error())
 				return fmt.Errorf("[DataPlane] error while updating pod: %w", err)
 			}
 			delete(dp.updatePodCache, podKey)
@@ -292,7 +294,7 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		dp.ipsetMgr.CreateIPSets([]*ipsets.IPSetMetadata{set.Metadata})
 		err := dp.ipsetMgr.AddReference(set.Metadata.GetPrefixName(), netpolName, referenceType)
 		if err != nil {
-			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to add reference with err: %s", err.Error()))
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to add reference with err: %s", err.Error()))
 		}
 	}
 
@@ -308,11 +310,11 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 			for _, ipblock := range set.Members {
 				err := validateIPBlock(ipblock)
 				if err != nil {
-					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to parseCIDR in addIPSetReferences with err: %s", err.Error()))
+					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to parseCIDR in addIPSetReferences with err: %s", err.Error()))
 				}
 				err = dp.ipsetMgr.AddToSets([]*ipsets.IPSetMetadata{set.Metadata}, ipblock, "")
 				if err != nil {
-					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to AddToSet in addIPSetReferences with err: %s", err.Error()))
+					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to AddToSet in addIPSetReferences with err: %s", err.Error()))
 				}
 			}
 		} else if setType == ipsets.NestedLabelOfPod && len(set.Members) > 0 {
@@ -320,7 +322,7 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 			// Apply members to the list set
 			err := dp.ipsetMgr.AddToLists([]*ipsets.IPSetMetadata{set.Metadata}, getMembersOfTranslatedSets(set.Members))
 			if err != nil {
-				return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to AddToList in addIPSetReferences with err: %s", err.Error()))
+				return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to AddToList in addIPSetReferences with err: %s", err.Error()))
 			}
 		}
 	}
@@ -338,7 +340,7 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		// TODO add delete ipset after removing members
 		err := dp.ipsetMgr.DeleteReference(set.Metadata.GetPrefixName(), netpolName, referenceType)
 		if err != nil {
-			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to deleteIPSetReferences with err: %s", err.Error()))
+			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to deleteIPSetReferences with err: %s", err.Error()))
 		}
 	}
 
@@ -356,18 +358,18 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 			for _, ipblock := range set.Members {
 				err := validateIPBlock(ipblock)
 				if err != nil {
-					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to parseCIDR in deleteIPSetReferences with err: %s", err.Error()))
+					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to parseCIDR in deleteIPSetReferences with err: %s", err.Error()))
 				}
 				err = dp.ipsetMgr.RemoveFromSets([]*ipsets.IPSetMetadata{set.Metadata}, ipblock, "")
 				if err != nil {
-					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to RemoveFromSet in deleteIPSetReferences with err: %s", err.Error()))
+					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to RemoveFromSet in deleteIPSetReferences with err: %s", err.Error()))
 				}
 			}
 		} else if set.Metadata.GetSetKind() == ipsets.ListSet && len(set.Members) > 0 {
 			// Delete if any 2nd level IPSets are generated by Controller with members
 			err := dp.ipsetMgr.RemoveFromList(set.Metadata, getMembersOfTranslatedSets(set.Members))
 			if err != nil {
-				return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[dataplane] failed to RemoveFromList in deleteIPSetReferences with err: %s", err.Error()))
+				return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to RemoveFromList in deleteIPSetReferences with err: %s", err.Error()))
 			}
 
 		}
@@ -385,6 +387,7 @@ func validateIPBlock(ipblock string) error {
 	onlyCidr := strings.Split(ipblock, " ")[0]
 	_, _, err := net.ParseCIDR(onlyCidr)
 	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to parse CIDR: %s", err.Error())
 		return npmerrors.SimpleErrorWrapper("failed to parse CIDR", err)
 	}
 	return nil

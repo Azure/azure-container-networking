@@ -1,4 +1,6 @@
-package npm
+package models
+
+import "os"
 
 const (
 	heartbeatIntervalInMinutes = 30 //nolint:unused,deadcode,varcheck // ignore this error
@@ -14,3 +16,8 @@ const (
 
 	EnvNodeName = "HOSTNAME"
 )
+
+func GetNodeName() string {
+	nodeName := os.Getenv(EnvNodeName)
+	return nodeName
+}

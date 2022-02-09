@@ -72,3 +72,7 @@ func (f Hnsv2wrapper) ListEndpointsOfNetwork(networkId string) ([]hcn.HostComput
 func (f Hnsv2wrapper) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {
 	return endpoint.ApplyPolicy(requestType, endpointPolicy)
 }
+
+func (f Hnsv2wrapper) GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error) {
+	return hcn.GetEndpointByName(endpointName)
+}

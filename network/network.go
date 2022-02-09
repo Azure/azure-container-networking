@@ -244,3 +244,26 @@ func (nm *networkManager) getNetwork(networkId string) (*network, error) {
 
 	return nil, errNetworkNotFound
 }
+
+// getNetworkIDForNetNs finds the network that contains the endpoint that was created for this netNs. Returns
+// and errNetworkNotFound if the netNs is not found in any network
+func (nm *networkManager) FindNetworkIDFromNetNs(netNs string) (string, error) {
+	log.Printf("Querying state for network for NetNs [%s]", netNs)
+
+	// Look through the external interfaces
+	for _, iface := range nm.ExternalInterfaces {
+		// Look through the networks
+		for _, network := range iface.Networks {
+			// Network may have multiple endpoints, so look through all of them
+			for _, endpoint := range network.Endpoints {
+				// If the netNs matches for this endpoint, return the network ID (which is the name)
+				if endpoint.NetNs == netNs {
+					log.Printf("Found network [%s] for NetNS [%s]", network.Id, netNs)
+					return network.Id, nil
+				}
+			}
+		}
+	}
+
+	return "", errNetworkNotFound
+}

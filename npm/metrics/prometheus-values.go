@@ -7,6 +7,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+var errNotCollector = fmt.Errorf("error: summary metric is not a collector")
+
 // getValue returns a Gauge metric's value.
 // This function is slow.
 func getValue(gaugeMetric prometheus.Gauge) (int, error) {
@@ -25,12 +27,39 @@ func getVecValue(gaugeVecMetric *prometheus.GaugeVec, labels prometheus.Labels) 
 
 // getCountValue returns the number of times a Summary metric has recorded an observation.
 // This function is slow.
-func getCountValue(summaryMetric prometheus.Summary) (int, error) {
-	dtoMetric, err := getDTOMetric(summaryMetric)
+func getCountValue(collector prometheus.Collector) (int, error) {
+	dtoMetric, err := getDTOMetric(collector)
 	if err != nil {
 		return 0, err
 	}
 	return int(dtoMetric.Summary.GetSampleCount()), nil
+}
+
+func getCountVecValue(summaryVecMetric *prometheus.SummaryVec, labels prometheus.Labels) (int, error) {
+	collector, ok := summaryVecMetric.With(labels).(prometheus.Collector)
+	if !ok {
+		return 0, errNotCollector
+	}
+	return getCountValue(collector)
+}
+
+func getCRUDExecTimeLabels(op OperationKind, hadError bool) prometheus.Labels {
+	hadErrorVal := "false"
+	if hadError {
+		hadErrorVal = "true"
+	}
+	return prometheus.Labels{
+		operationLabel: string(op),
+		hadErrorLabel:  hadErrorVal,
+	}
+}
+
+func getErrorLabels(hadError bool) prometheus.Labels {
+	hadErrorVal := "false"
+	if hadError {
+		hadErrorVal = "true"
+	}
+	return prometheus.Labels{hadErrorLabel: hadErrorVal}
 }
 
 // This function is slow.

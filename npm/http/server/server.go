@@ -28,8 +28,8 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 
 	// prometheus handlers
 	if config.Toggles.EnablePrometheusMetrics {
-		rs.router.Handle(api.NodeMetricsPath, metrics.GetHandler(true))
-		rs.router.Handle(api.ClusterMetricsPath, metrics.GetHandler(false))
+		rs.router.Handle(api.NodeMetricsPath, metrics.GetHandler(metrics.NodeMetrics))
+		rs.router.Handle(api.ClusterMetricsPath, metrics.GetHandler(metrics.ClusterMetrics))
 	}
 
 	if config.Toggles.EnableHTTPDebugAPI {

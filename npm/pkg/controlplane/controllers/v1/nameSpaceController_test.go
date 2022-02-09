@@ -3,11 +3,14 @@
 package controllers
 
 import (
+	"flag"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
+	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,12 +27,55 @@ import (
 var (
 	alwaysReady        = func() bool { return true }
 	noResyncPeriodFunc = func() time.Duration { return 0 }
+
+	// turn on with: go run . --lists-unsupported
+	debugWhenListsUnsupported = flag.Bool("lists-unsupported", false, "Set to true for correct prometheus metrics if ipset lists are unsupported.")
 )
 
 type expectedNsValues struct {
 	expectedLenOfPodMap    int
 	expectedLenOfNsMap     int
 	expectedLenOfWorkQueue int
+	nsPromVals
+}
+
+type nsPromVals struct {
+	expectedAddExecCount    int
+	expectedUpdateExecCount int
+	expectedDeleteExecCount int
+}
+
+func (p *nsPromVals) testPrometheusMetrics(t *testing.T) {
+	addExecCount, err := metrics.GetControllerNamespaceExecCount(metrics.CreateOp, false)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedAddExecCount, addExecCount, "Count for add execution time didn't register correctly in Prometheus")
+
+	addErrorExecCount, err := metrics.GetControllerNamespaceExecCount(metrics.CreateOp, true)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, addErrorExecCount, "Count for add error execution time should be 0")
+
+	updateExecCount, err := metrics.GetControllerNamespaceExecCount(metrics.UpdateOp, flipBool(false, *debugWhenListsUnsupported))
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedUpdateExecCount, updateExecCount, "Count for update execution time didn't register correctly in Prometheus")
+
+	updateErrorExecCount, err := metrics.GetControllerNamespaceExecCount(metrics.UpdateOp, flipBool(true, *debugWhenListsUnsupported))
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, updateErrorExecCount, "Count for update error execution time should be 0")
+
+	deleteExecCount, err := metrics.GetControllerNamespaceExecCount(metrics.DeleteOp, flipBool(false, *debugWhenListsUnsupported))
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedDeleteExecCount, deleteExecCount, "Count for delete execution time didn't register correctly in Prometheus")
+
+	deleteErrorExecCount, err := metrics.GetControllerNamespaceExecCount(metrics.DeleteOp, flipBool(true, *debugWhenListsUnsupported))
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, deleteErrorExecCount, "Count for delete error execution time should be 0")
+}
+
+func flipBool(b, shouldFlip bool) bool {
+	if shouldFlip {
+		return !b
+	}
+	return b
 }
 
 type nameSpaceFixture struct {
@@ -67,6 +113,9 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	for _, ns := range f.nsLister {
 		f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Add(ns)
 	}
+
+	metrics.ReinitializeAll()
+
 	// Do not start informer to avoid unnecessary event triggers.
 	// (TODO) Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
 	// f.kubeInformer.Start()
@@ -153,8 +202,11 @@ func TestAddNamespace(t *testing.T) {
 
 	addNamespace(t, f, nsObj)
 
+	// already exists (will be a no-op)
+	addNamespace(t, f, nsObj)
+
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1, 0, nsPromVals{1, 0, 0}},
 	}
 	checkNsTestResult("TestAddNamespace", f, testCases)
 
@@ -191,7 +243,7 @@ func TestUpdateNamespace(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1, 0, nsPromVals{1, 1, 0}},
 	}
 	checkNsTestResult("TestUpdateNamespace", f, testCases)
 
@@ -235,7 +287,7 @@ func TestAddNamespaceLabel(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1, 0, nsPromVals{1, 1, 0}},
 	}
 	checkNsTestResult("TestAddNamespaceLabel", f, testCases)
 
@@ -279,8 +331,9 @@ func TestAddNamespaceLabelSameRv(t *testing.T) {
 	f.newNsController(stopCh)
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
+	// no need to reconcile because only the rv changes, so we don't see a prometheus update exec count
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1, 0, nsPromVals{1, 0, 0}},
 	}
 	checkNsTestResult("TestAddNamespaceLabelSameRv", f, testCases)
 
@@ -327,7 +380,7 @@ func TestDeleteandUpdateNamespaceLabel(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1, 0, nsPromVals{1, 1, 0}},
 	}
 	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
 
@@ -379,19 +432,19 @@ func TestNewNameSpaceUpdate(t *testing.T) {
 	updateNamespace(t, f, oldNsObj, newNsObj)
 
 	testCases := []expectedNsValues{
-		{0, 1, 0},
+		{0, 1, 0, nsPromVals{1, 1, 0}},
 	}
-	checkNsTestResult("TestDeleteandUpdateNamespaceLabel", f, testCases)
+	checkNsTestResult("TestNewNameSpaceUpdate", f, testCases)
 
 	if _, exists := f.nsController.npmNamespaceCache.NsMap[util.GetNSNameWithPrefix(newNsObj.Name)]; !exists {
-		t.Errorf("TestDeleteandUpdateNamespaceLabel failed @ nsMap check")
+		t.Errorf("TestNewNameSpaceUpdate failed @ nsMap check")
 	}
 
 	if !reflect.DeepEqual(
 		newNsObj.Labels,
 		f.nsController.npmNamespaceCache.NsMap[util.GetNSNameWithPrefix(oldNsObj.Name)].LabelsMap,
 	) {
-		t.Fatalf("TestDeleteandUpdateNamespaceLabel failed @ nsMap labelMap check")
+		t.Fatalf("TestNewNameSpaceUpdate failed @ nsMap labelMap check")
 	}
 }
 
@@ -415,7 +468,7 @@ func TestDeleteNamespace(t *testing.T) {
 	deleteNamespace(t, f, nsObj, DeletedFinalStateknownObject)
 
 	testCases := []expectedNsValues{
-		{0, 0, 0},
+		{0, 0, 0, nsPromVals{1, 0, 1}},
 	}
 	checkNsTestResult("TestDeleteNamespace", f, testCases)
 
@@ -444,9 +497,9 @@ func TestDeleteNamespaceWithTombstone(t *testing.T) {
 	}
 
 	f.nsController.deleteNamespace(tombstone)
-
+	// the above function only adds to the workqueue
 	testCases := []expectedNsValues{
-		{0, 0, 1},
+		{0, 0, 1, nsPromVals{0, 0, 0}},
 	}
 	checkNsTestResult("TestDeleteNamespaceWithTombstone", f, testCases)
 }
@@ -469,7 +522,7 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 
 	deleteNamespace(t, f, nsObj, DeletedFinalStateUnknownObject)
 	testCases := []expectedNsValues{
-		{0, 0, 0},
+		{0, 0, 0, nsPromVals{1, 0, 1}},
 	}
 	checkNsTestResult("TestDeleteNamespaceWithTombstoneAfterAddingNameSpace", f, testCases)
 }
@@ -504,6 +557,7 @@ func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expecte
 		if got := f.nsController.workqueue.Len(); got != test.expectedLenOfWorkQueue {
 			f.t.Errorf("Workqueue length = %d, want %d", got, test.expectedLenOfWorkQueue)
 		}
+		test.nsPromVals.testPrometheusMetrics(f.t)
 	}
 }
 

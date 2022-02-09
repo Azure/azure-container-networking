@@ -62,29 +62,37 @@ func SendErrorLogAndMetric(operationID int, format string, args ...interface{}) 
 
 	// Send error logs
 	msg := fmt.Sprintf(format, args...)
-	report := aitelemetry.Report{
-		Message:          msg,
-		Context:          strconv.Itoa(operationID),
-		CustomDimensions: make(map[string]string),
-	}
 	log.Errorf(msg)
-	SendLog(report)
+	SendLog(operationID, msg)
 }
 
 // SendMetric sends metrics
 func SendMetric(metric aitelemetry.Metric) {
 	if th == nil {
-		log.Logf("AppInsights didn't initialized.")
+		log.Logf("AppInsights didn't initialize")
 		return
 	}
 	th.TrackMetric(metric)
 }
 
 // SendLog sends log
-func SendLog(report aitelemetry.Report) {
+func SendLog(operationID int, msg string) {
+	report := aitelemetry.Report{
+		Message:          msg,
+		Context:          strconv.Itoa(operationID),
+		CustomDimensions: make(map[string]string),
+	}
 	if th == nil {
 		log.Logf("AppInsights didn't initialized.")
 		return
 	}
 	th.TrackLog(report)
+}
+
+func SendHeartbeatLog() {
+	numPolicies, err := GetNumPolicies()
+	if err != nil {
+		message := fmt.Sprintf("Info: NPM currently has %d policies", numPolicies)
+		SendLog(util.NpmID, message)
+	}
 }

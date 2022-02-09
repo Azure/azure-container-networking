@@ -150,6 +150,13 @@ func (plugin *Plugin) Errorf(format string, args ...interface{}) *cniTypes.Error
 	return plugin.Error(fmt.Errorf(format, args...))
 }
 
+// RetriableError logs and returns a CNI error with the TryAgainLater error code
+func (plugin *Plugin) RetriableError(err error) *cniTypes.Error {
+	tryAgainErr := cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "")
+	log.Printf("[%v] %+v.", plugin.Name, tryAgainErr.Error())
+	return tryAgainErr
+}
+
 // Initialize key-value store
 func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error {
 	// Create the key value store.

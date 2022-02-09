@@ -38,6 +38,10 @@ const (
 
 	// Container interface name prefix
 	containerIfNamePrefix = "vEthernet"
+
+	// hostNCApipaEndpointName indicates the prefix for the name of the apipa endpoint used for
+	// the host container connectivity
+	hostNCApipaEndpointNamePrefix = "HostNCApipaEndpoint"
 )
 
 type AzureHNSEndpointClient interface {
@@ -280,11 +284,33 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 	return hcnEndpoint, nil
 }
 
-func (nw *network) deleteHostNCApipaEndpoint(cli apipaClient, networkContainerID string) error {
-	log.Printf("[net] Deleting HostNCApipaEndpoint for network container: %s", networkContainerID)
-	err := cli.DeleteHostNCApipaEndpoint(context.TODO(), networkContainerID)
-	log.Printf("[net] Completed HostNCApipaEndpoint deletion for network container: %s"+
-		" with error: %v", networkContainerID, err)
+func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
+	// TODO: this code is duplicated in cns/hnsclient, but that code has logging messages that require a CNSLogger,
+	// which makes is hard to use in this package. We should refactor this into a common package with no logging deps
+	// so it can be called in both places
+
+	// HostNCApipaEndpoint name is derived from NC ID
+	endpointName := fmt.Sprintf("%s-%s", hostNCApipaEndpointNamePrefix, networkContainerID)
+	log.Printf("[net] Deleting HostNCApipaEndpoint: %s for NC: %s", endpointName, networkContainerID)
+
+	// Check if the endpoint exists
+	endpoint, err := hnsv2.GetEndpointByName(endpointName)
+	if err != nil {
+		// If error is anything other than EndpointNotFoundError, return error.
+		// else log the error but don't return error because endpoint is already deleted.
+		if _, endpointNotFound := err.(hcn.EndpointNotFoundError); !endpointNotFound {
+			return fmt.Errorf("[net] deleteEndpointByNameHnsV2 failed due to error with GetEndpointByName: %w", err)
+		}
+
+		log.Printf("[net] Delete called on the Endpoint: %s which doesn't exist. Error: %v", endpointName, err)
+		return nil
+	}
+
+	if err := hnsv2.DeleteEndpoint(endpoint); err != nil {
+		return fmt.Errorf("failed to delete HostNCApipa endpoint: %+v: %w", endpoint, err)
+	}
+
+	log.Printf("[net] Successfully deleted HostNCApipa endpoint: %+v", endpoint)
 
 	return nil
 }
@@ -313,7 +339,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 
 	defer func() {
 		if err != nil {
-			nw.deleteHostNCApipaEndpoint(cli, epInfo.NetworkContainerID)
+			nw.deleteHostNCApipaEndpoint(epInfo.NetworkContainerID)
 		}
 	}()
 
@@ -415,13 +441,13 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, _ platform.ExecClient, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.ExecClient, ep *endpoint) error {
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
 		if err != nil {
 			return err
 		}
 
-		return nw.deleteEndpointImplHnsV2(cli, ep)
+		return nw.deleteEndpointImplHnsV2(ep)
 	}
 
 	return nw.deleteEndpointImplHnsV1(ep)
@@ -447,14 +473,14 @@ func (nw *network) deleteEndpointImplHnsV1(ep *endpoint) error {
 }
 
 // deleteEndpointImplHnsV2 deletes an existing endpoint from the network using HNS v2.
-func (nw *network) deleteEndpointImplHnsV2(cli apipaClient, ep *endpoint) error {
+func (nw *network) deleteEndpointImplHnsV2(ep *endpoint) error {
 	var (
 		hcnEndpoint *hcn.HostComputeEndpoint
 		err         error
 	)
 
 	if ep.AllowInboundFromHostToNC || ep.AllowInboundFromNCToHost {
-		if err = nw.deleteHostNCApipaEndpoint(cli, ep.NetworkContainerID); err != nil {
+		if err = nw.deleteHostNCApipaEndpoint(ep.NetworkContainerID); err != nil {
 			log.Errorf("[net] Failed to delete HostNCApipaEndpoint due to error: %v", err)
 			return err
 		}
@@ -462,8 +488,16 @@ func (nw *network) deleteEndpointImplHnsV2(cli apipaClient, ep *endpoint) error 
 
 	log.Printf("[net] Deleting hcn endpoint with id: %s", ep.HnsId)
 
-	if hcnEndpoint, err = hnsv2.GetEndpointByID(ep.HnsId); err != nil {
-		return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %v", ep.HnsId, err)
+	hcnEndpoint, err = hnsv2.GetEndpointByID(ep.HnsId)
+	if err != nil {
+		// If error is anything other than EndpointNotFoundError, return error.
+		// else log the error but don't return error because endpoint is already deleted.
+		if _, endpointNotFound := err.(hcn.EndpointNotFoundError); !endpointNotFound {
+			return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %w", ep.HnsId, err)
+		}
+
+		log.Printf("[net] Delete called on the Endpoint: %s which doesn't exist. Error: %v", ep.HnsId, err)
+		return nil
 	}
 
 	// Remove this endpoint from the namespace

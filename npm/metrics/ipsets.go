@@ -5,7 +5,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var ipsetInventoryMap = make(map[string]int)
+var ipsetInventoryMap map[string]int
 
 // IncNumIPSets increments the number of IPSets.
 func IncNumIPSets() {

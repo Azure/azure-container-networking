@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/Azure/azure-container-networking/npm/controller"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
@@ -105,7 +106,7 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 		return fmt.Errorf("failed to create dataplane with error: %w", err)
 	}
 
-	npMgr, err := npm.NewNetworkPolicyServer(config, factory, mgr, dp, version, k8sServerVersion)
+	npMgr, err := controller.NewNetworkPolicyServer(config, factory, mgr, dp, version, k8sServerVersion)
 	if err != nil {
 		klog.Errorf("failed to create NPM controlplane manager with error: %v", err)
 		return fmt.Errorf("failed to create NPM controlplane manager: %w", err)

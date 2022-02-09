@@ -1,6 +1,6 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package npm
+package controller
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
+	"github.com/Azure/azure-container-networking/npm/pkg/models"
 	"github.com/Azure/azure-container-networking/npm/pkg/transport"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/version"
@@ -16,6 +17,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 )
+
+var aiMetadata string //nolint // aiMetadata is set in Makefile
 
 type NetworkPolicyServer struct {
 	config npmconfig.Config
@@ -25,20 +28,20 @@ type NetworkPolicyServer struct {
 
 	// Informers are the Kubernetes Informer
 	// https://pkg.go.dev/k8s.io/client-go/informers
-	Informers
+	models.Informers
 
 	// Controllers for handling Kubernetes resource watcher events
-	K8SControllersV2
+	models.K8SControllersV2
 
 	// Azure-specific variables
-	AzureConfig
+	models.AzureConfig
 }
 
 var (
-	ErrInformerFactoryNil  = errors.New("informer factory is nil")
-	ErrTransportManagerNil = errors.New("transport manager is nil")
-	ErrK8SServerVersionNil = errors.New("k8s server version is nil")
-	ErrInformerSyncFailure = errors.New("informer sync failure")
+	ErrInformerFactoryNil      = errors.New("informer factory is nil")
+	ErrTransportManagerNil     = errors.New("transport manager is nil")
+	ErrK8SServerVersionNil     = errors.New("k8s server version is nil")
+	ErrDataplaneNotInitialized = errors.New("dataplane is not initialized")
 )
 
 func NewNetworkPolicyServer(
@@ -70,87 +73,87 @@ func NewNetworkPolicyServer(
 	n := &NetworkPolicyServer{
 		config: config,
 		tm:     mgr,
-		Informers: Informers{
-			informerFactory: informerFactory,
-			podInformer:     informerFactory.Core().V1().Pods(),
-			nsInformer:      informerFactory.Core().V1().Namespaces(),
-			npInformer:      informerFactory.Networking().V1().NetworkPolicies(),
+		Informers: models.Informers{
+			InformerFactory: informerFactory,
+			PodInformer:     informerFactory.Core().V1().Pods(),
+			NsInformer:      informerFactory.Core().V1().Namespaces(),
+			NpInformer:      informerFactory.Networking().V1().NetworkPolicies(),
 		},
-		AzureConfig: AzureConfig{
-			k8sServerVersion: k8sServerVersion,
-			NodeName:         GetNodeName(),
-			version:          npmVersion,
+		AzureConfig: models.AzureConfig{
+			K8sServerVersion: k8sServerVersion,
+			NodeName:         models.GetNodeName(),
+			Version:          npmVersion,
 			TelemetryEnabled: true,
 		},
 	}
 
-	n.npmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)}
-	n.podControllerV2 = controllersv2.NewPodController(n.podInformer, dp, n.npmNamespaceCacheV2)
-	n.namespaceControllerV2 = controllersv2.NewNamespaceController(n.nsInformer, dp, n.npmNamespaceCacheV2)
-	n.netPolControllerV2 = controllersv2.NewNetworkPolicyController(n.npInformer, dp)
+	n.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)}
+	n.PodControllerV2 = controllersv2.NewPodController(n.PodInformer, dp, n.NpmNamespaceCacheV2)
+	n.NamespaceControllerV2 = controllersv2.NewNamespaceController(n.NsInformer, dp, n.NpmNamespaceCacheV2)
+	n.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(n.NpInformer, dp)
 
 	return n, nil
 }
 
 func (n *NetworkPolicyServer) MarshalJSON() ([]byte, error) {
-	m := map[CacheKey]json.RawMessage{}
+	m := map[models.CacheKey]json.RawMessage{}
 
 	var npmNamespaceCacheRaw []byte
 	var err error
-	npmNamespaceCacheRaw, err = json.Marshal(n.npmNamespaceCacheV2)
+	npmNamespaceCacheRaw, err = json.Marshal(n.NpmNamespaceCacheV2)
 
 	if err != nil {
-		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
+		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 	}
-	m[NsMap] = npmNamespaceCacheRaw
+	m[models.NsMap] = npmNamespaceCacheRaw
 
 	var podControllerRaw []byte
-	podControllerRaw, err = json.Marshal(n.podControllerV2)
+	podControllerRaw, err = json.Marshal(n.PodControllerV2)
 
 	if err != nil {
-		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
+		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 	}
-	m[PodMap] = podControllerRaw
+	m[models.PodMap] = podControllerRaw
 
 	nodeNameRaw, err := json.Marshal(n.NodeName)
 	if err != nil {
-		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
+		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 	}
-	m[NodeName] = nodeNameRaw
+	m[models.NodeName] = nodeNameRaw
 
 	npmCacheRaw, err := json.Marshal(m)
 	if err != nil {
-		return nil, errors.Errorf("%s: %v", errMarshalNPMCache, err)
+		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 	}
 
 	return npmCacheRaw, nil
 }
 
 func (n *NetworkPolicyServer) GetAppVersion() string {
-	return n.version
+	return n.Version
 }
 
 func (n *NetworkPolicyServer) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
-	// Starts all informers manufactured by n's informerFactory.
-	n.informerFactory.Start(stopCh)
+	// Starts all informers manufactured by n's InformerFactory.
+	n.InformerFactory.Start(stopCh)
 
 	// Wait for the initial sync of local cache.
-	if !cache.WaitForCacheSync(stopCh, n.podInformer.Informer().HasSynced) {
-		return fmt.Errorf("Pod informer error: %w", ErrInformerSyncFailure)
+	if !cache.WaitForCacheSync(stopCh, n.PodInformer.Informer().HasSynced) {
+		return fmt.Errorf("Pod informer error: %w", models.ErrInformerSyncFailure)
 	}
 
-	if !cache.WaitForCacheSync(stopCh, n.nsInformer.Informer().HasSynced) {
-		return fmt.Errorf("Namespace informer error: %w", ErrInformerSyncFailure)
+	if !cache.WaitForCacheSync(stopCh, n.NsInformer.Informer().HasSynced) {
+		return fmt.Errorf("Namespace informer error: %w", models.ErrInformerSyncFailure)
 	}
 
-	if !cache.WaitForCacheSync(stopCh, n.npInformer.Informer().HasSynced) {
-		return fmt.Errorf("NetworkPolicy informer error: %w", ErrInformerSyncFailure)
+	if !cache.WaitForCacheSync(stopCh, n.NpInformer.Informer().HasSynced) {
+		return fmt.Errorf("NetworkPolicy informer error: %w", models.ErrInformerSyncFailure)
 	}
 
 	// start v2 NPM controllers after synced
-	go n.podControllerV2.Run(stopCh)
-	go n.namespaceControllerV2.Run(stopCh)
-	go n.netPolControllerV2.Run(stopCh)
+	go n.PodControllerV2.Run(stopCh)
+	go n.NamespaceControllerV2.Run(stopCh)
+	go n.NetPolControllerV2.Run(stopCh)
 
 	// start the transport layer (gRPC) server
 	// We block the main thread here until the server is stopped.

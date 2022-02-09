@@ -143,6 +143,11 @@ data:
             "EnableV2NPM":             true,
             "PlaceAzureChainFirst":    false,
             "ApplyIPSetsOnNeed":       false
+        },
+        "Transport": {
+          "Address": "azure-npm.kube-system.svc.cluster.local",
+          "Port": 10092,
+          "ServicePort": 9001
         }
     }
 

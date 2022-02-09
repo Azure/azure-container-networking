@@ -1,9 +1,10 @@
 // Copyright 2018 Microsoft. All rights reserved.
 // MIT License
-package npm
+package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
@@ -11,6 +12,10 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/transport"
 )
+
+var aiMetadata string //nolint // aiMetadata is set in Makefile
+
+var ErrDataplaneNotInitialized = errors.New("dataplane is not initialized")
 
 type NetworkPolicyDaemon struct {
 	ctx     context.Context

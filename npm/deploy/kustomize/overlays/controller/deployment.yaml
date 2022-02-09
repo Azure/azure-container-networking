@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-npm-controller
+  namespace: kube-system
+  labels:
+    app: azure-npm
+    component: controller
+    addonmanager.kubernetes.io/mode: EnsureExists
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-npm
+      component: controller
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-npm
+        component: controller
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+        azure.npm/scrapeable: ''
+    spec:
+      priorityClassName: system-node-critical
+      tolerations:
+      - operator: "Exists"
+        effect: NoExecute
+      - operator: "Exists"
+        effect: NoSchedule
+      - key: CriticalAddonsOnly
+        operator: Exists
+      containers:
+        - name: azure-npm
+          ports:
+          - name: metrics
+            containerPort: 10091
+          - name: http
+            containerPort: 10092
+          image: azure-npm:v1.4.1
+          command: ["azure-npm"]
+          args: ["start", "controlplane"]
+          resources:
+            limits:
+              cpu: 250m
+              memory: 300Mi
+            requests:
+              cpu: 250m
+          securityContext:
+            privileged: true
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: NPM_CONFIG
+              value: /etc/azure-npm/azure-npm.json
+          volumeMounts:
+          - name: log
+            mountPath: /var/log
+          - name: protocols
+            mountPath: /etc/protocols
+          - name: azure-npm-config
+            mountPath: /etc/azure-npm
+      volumes:
+      - name: log
+        hostPath:
+          path: /var/log
+          type: Directory
+      - name: protocols
+        hostPath:
+          path: /etc/protocols
+          type: File
+      - name: azure-npm-config
+        configMap:
+          name: azure-npm-config
+      serviceAccountName: azure-npm

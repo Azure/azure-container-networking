@@ -35,7 +35,9 @@ func NewEventsClient(ctx context.Context, pod, node, addr string) (*EventsClient
 		return nil, ErrAddressNil
 	}
 
+	klog.Infof("Connecting to NPM controller gRPC server at address %s\n", addr)
 	// TODO Make this secure
+	// TODO Remove WithBlock option post testing
 	cc, err := grpc.DialContext(ctx, addr, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %s: %w", addr, err)

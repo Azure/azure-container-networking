@@ -47,6 +47,11 @@ type recordingMetric struct {
 	getCount func() (int, error)
 }
 
+type crudExecMetric struct {
+	record   func(timer *Timer, op OperationKind, hadError bool)
+	getCount func(op OperationKind, hadError bool) (int, error)
+}
+
 func assertMetricVal(t *testing.T, metric *basicMetric, expectedVal int) {
 	val, err := metric.get()
 	promutil.NotifyIfErrors(t, err)
@@ -75,6 +80,21 @@ func testResetMetric(t *testing.T, metric *basicMetric) {
 	metric.inc()
 	metric.reset()
 	assertMetricVal(t, metric, 0)
+}
+
+func testStopAndRecordCRUDExecTime(t *testing.T, m *crudExecMetric) {
+	for _, mode := range []OperationKind{CreateOp, UpdateOp, DeleteOp} {
+		for _, hadError := range []bool{true, false} {
+			testStopAndRecord(t, &recordingMetric{
+				func(timer *Timer) {
+					m.record(timer, mode, hadError)
+				},
+				func() (int, error) {
+					return m.getCount(mode, hadError)
+				},
+			})
+		}
+	}
 }
 
 func testStopAndRecord(t *testing.T, metric *recordingMetric) {

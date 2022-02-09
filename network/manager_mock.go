@@ -58,7 +58,7 @@ func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, networkID string, ep
 }
 
 // DeleteEndpoint mock
-func (nm *MockNetworkManager) DeleteEndpoint(_ apipaClient, networkID string, endpointID string) error {
+func (nm *MockNetworkManager) DeleteEndpoint(networkID, endpointID string) error {
 	delete(nm.TestEndpointInfoMap, endpointID)
 	return nil
 }
@@ -103,4 +103,14 @@ func (nm *MockNetworkManager) GetNumberOfEndpoints(ifName string, networkID stri
 // SetupNetworkUsingState mock
 func (nm *MockNetworkManager) SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error {
 	return nil
+}
+
+func (nm *MockNetworkManager) FindNetworkIDFromNetNs(netNs string) (string, error) {
+	// based on the GetAllEndpoints func above, it seems that this mock is only intended to be used with
+	// one network, so just return the network here if it exists
+	for network := range nm.TestNetworkInfoMap {
+		return network, nil
+	}
+
+	return "", errNetworkNotFound
 }
