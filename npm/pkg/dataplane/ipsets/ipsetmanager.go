@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -52,6 +53,7 @@ func (iMgr *IPSetManager) ResetIPSets() error {
 	defer iMgr.Unlock()
 	err := iMgr.resetIPSets()
 	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to reset ipsetmanager: %s", err.Error())
 		return fmt.Errorf("error while resetting ipsetmanager: %w", err)
 	}
 	// TODO update prometheus metrics here instead of in OS-specific functions (done in Linux right now)
@@ -122,12 +124,16 @@ func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceT
 		if referenceType == NetPolType {
 			npmErrorString = npmerrors.AddNetPolReference
 		}
-		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
+		msg := fmt.Sprintf("ipset %s does not exist", setName)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add reference: %s", msg)
+		return npmerrors.Errorf(npmErrorString, false, msg)
 	}
 
 	set := iMgr.setMap[setName]
 	if referenceType == SelectorType && !set.canSetBeSelectorIPSet() {
-		return npmerrors.Errorf(npmerrors.AddSelectorReference, false, fmt.Sprintf("ipset %s is not a selector ipset it is of type %s", setName, set.Type.String()))
+		msg := fmt.Sprintf("ipset %s is not a selector ipset it is of type %s", setName, set.Type.String())
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add reference: %s", msg)
+		return npmerrors.Errorf(npmerrors.AddSelectorReference, false, msg)
 	}
 	wasInKernel := iMgr.shouldBeInKernel(set)
 	set.addReference(referenceName, referenceType)
@@ -152,7 +158,9 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 		if referenceType == NetPolType {
 			npmErrorString = npmerrors.DeleteNetPolReference
 		}
-		return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s does not exist", setName))
+		msg := fmt.Sprintf("ipset %s does not exist", setName)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to delete reference: %s", msg)
+		return npmerrors.Errorf(npmErrorString, false, msg)
 	}
 
 	set := iMgr.setMap[setName]
@@ -188,7 +196,9 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 			set = iMgr.setMap[prefixedName]
 		}
 		if set.Kind != HashSet {
-			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set", prefixedName))
+			msg := fmt.Sprintf("ipset %s is not a hash set", prefixedName)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add to sets: %s", msg)
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, msg)
 		}
 
 		// 2. add ip to the set, and update the pod key
@@ -219,7 +229,9 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 			continue
 		}
 		if set.Kind != HashSet {
-			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set", prefixedName))
+			msg := fmt.Sprintf("ipset %s is not a hash set", prefixedName)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to remove from sets: %s", msg)
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, msg)
 		}
 
 		// 2. remove ip from the set
@@ -264,7 +276,9 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
 		if set.Kind != HashSet {
-			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", setName))
+			msg := fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", setName)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add to lists: %s", msg)
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, msg)
 		}
 	}
 
@@ -279,7 +293,9 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 		}
 
 		if list.Kind != ListSet {
-			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
+			msg := fmt.Sprintf("ipset %s is not a list set", listName)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add to lists: %s", msg)
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, msg)
 		}
 
 		modified := false
@@ -323,7 +339,9 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 	}
 
 	if list.Kind != ListSet {
-		return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
+		msg := fmt.Sprintf("ipset %s is not a list set", listName)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to remove from list: %s", msg)
+		return npmerrors.Errorf(npmerrors.DeleteIPSet, false, msg)
 	}
 
 	modified := false
@@ -340,7 +358,9 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 			if modified {
 				iMgr.modifyCacheForKernelMemberUpdate(list)
 			}
-			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", memberName))
+			msg := fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", memberName)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to remove from list: %s", msg)
+			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, msg)
 		}
 
 		// 2. remove member from the list
@@ -382,6 +402,7 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 	// Call the appropriate apply ipsets
 	err := iMgr.applyIPSets()
 	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to apply ipsets: %s", err.Error())
 		return err
 	}
 
@@ -494,11 +515,16 @@ func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(set *IPSet) {
 // sanitizeDirtyCache will check if any set marked as delete is in toAddUpdate
 // if so will not delete it
 func (iMgr *IPSetManager) sanitizeDirtyCache() {
+	anyProblems := false
 	for setName := range iMgr.toDeleteCache {
 		_, ok := iMgr.toAddOrUpdateCache[setName]
 		if ok {
-			klog.Errorf("[IPSetManager] Unexpected state in dirty cache %s set is part of both update and delete caches \n ", setName)
+			klog.Errorf("[IPSetManager] Unexpected state in dirty cache %s set is part of both update and delete caches", setName)
+			anyProblems = true
 		}
+	}
+	if anyProblems {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: some dirty cache sets are part of both update and delete caches")
 	}
 }
 

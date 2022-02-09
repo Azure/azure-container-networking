@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -78,6 +79,7 @@ func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 				return
 			case <-ticker.C:
 				pMgr.reconcile()
+				metrics.SendHeartbeatLog()
 			}
 		}
 	}()
@@ -102,13 +104,17 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	defer metrics.RecordACLRuleExecTime(prometheusTimer) // record execution time regardless of failure
 	normalizePolicy(policy)
 	if err := validatePolicy(policy); err != nil {
-		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("couldn't add malformed policy: %s", err.Error()))
+		msg := fmt.Sprintf("failed to validate policy: %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
 
 	// Call actual dataplane function to apply changes
 	err := pMgr.addPolicy(policy, endpointList)
 	if err != nil {
-		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to add policy: %v", err))
+		msg := fmt.Sprintf("failed to add policy: %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
 
 	pMgr.policyMap.cache[policy.PolicyKey] = policy
@@ -133,7 +139,9 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 	// Call actual dataplane function to apply changes
 	err := pMgr.removePolicy(policy, endpointList)
 	if err != nil {
-		return npmerrors.Errorf(npmerrors.RemovePolicy, false, fmt.Sprintf("failed to remove policy: %v", err))
+		msg := fmt.Sprintf("failed to remove policy: %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		return npmerrors.Errorf(npmerrors.RemovePolicy, false, msg)
 	}
 
 	delete(pMgr.policyMap.cache, policyKey)

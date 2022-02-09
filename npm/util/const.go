@@ -222,11 +222,12 @@ const (
 // It's for better query purpose. In Kusto these value are used in
 // OperationID column
 const (
-	NpmID int = iota + 1
-	IpsmID
-	IptmID
+	NpmID  int = iota + 1
+	IpsmID     // ipsetmanager in v2
+	IptmID     // policymanager in v2
 	NSID
 	PodID
 	NetpolID
 	UtilID
+	DaemonDataplaneID // for v2
 )
