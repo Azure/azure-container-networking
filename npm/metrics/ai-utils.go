@@ -69,7 +69,7 @@ func SendErrorLogAndMetric(operationID int, format string, args ...interface{}) 
 // SendMetric sends metrics
 func SendMetric(metric aitelemetry.Metric) {
 	if th == nil {
-		log.Logf("AppInsights didn't initialized.")
+		log.Logf("AppInsights didn't initialize")
 		return
 	}
 	th.TrackMetric(metric)

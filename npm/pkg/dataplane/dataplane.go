@@ -387,6 +387,7 @@ func validateIPBlock(ipblock string) error {
 	onlyCidr := strings.Split(ipblock, " ")[0]
 	_, _, err := net.ParseCIDR(onlyCidr)
 	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to parse CIDR: %s", err.Error())
 		return npmerrors.SimpleErrorWrapper("failed to parse CIDR", err)
 	}
 	return nil

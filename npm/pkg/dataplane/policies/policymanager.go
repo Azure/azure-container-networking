@@ -63,6 +63,7 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 
 func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 	if err := pMgr.bootup(epIDs); err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to bootup policy manager: %s", err.Error())
 		return npmerrors.ErrorWrapper(npmerrors.BootupPolicyMgr, false, "failed to bootup policy manager", err)
 	}
 	return nil
