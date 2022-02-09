@@ -17,31 +17,6 @@ const (
 	forEgress  UniqueDirection = false
 )
 
-func (networkPolicy *NPMNetworkPolicy) numACLRulesProducedInKernel() int {
-	numRules := 0
-	hasIngress := false
-	hasEgress := false
-	for _, aclPolicy := range networkPolicy.ACLs {
-		if aclPolicy.hasIngress() {
-			hasIngress = true
-			numRules++
-		}
-		if aclPolicy.hasEgress() {
-			hasEgress = true
-			numRules++
-		}
-	}
-
-	// add the jump to the policy ingress/egress chain(s)
-	if hasIngress {
-		numRules++
-	}
-	if hasEgress {
-		numRules++
-	}
-	return numRules
-}
-
 // returns two booleans indicating whether the network policy has ingress and egress respectively
 func (networkPolicy *NPMNetworkPolicy) hasIngressAndEgress() (hasIngress, hasEgress bool) {
 	hasIngress = false

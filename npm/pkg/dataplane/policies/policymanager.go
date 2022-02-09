@@ -75,10 +75,7 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 
 	if !util.IsWindowsDP() {
 		// update Prometheus metrics on success
-		// TODO optimize metrics package to allow Inc/Dec by an amount
-		for i := 0; i < numLinuxBaseACLRules; i++ {
-			metrics.IncNumACLRules()
-		}
+		metrics.IncNumACLRulesBy(numLinuxBaseACLRules)
 	}
 	return nil
 }
@@ -131,10 +128,7 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	}
 
 	// update Prometheus metrics on success
-	// TODO optimize metrics package to allow Inc/Dec by an amount
-	for i := 0; i < policy.numACLRulesProducedInKernel(); i++ {
-		metrics.IncNumACLRules()
-	}
+	metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel())
 
 	pMgr.policyMap.cache[policy.PolicyKey] = policy
 	return nil
@@ -164,10 +158,7 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 	}
 
 	// update Prometheus metrics on success
-	// TODO optimize metrics package to allow Inc/Dec by an amount
-	for i := 0; i < policy.numACLRulesProducedInKernel(); i++ {
-		metrics.DecNumACLRules()
-	}
+	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel())
 
 	delete(pMgr.policyMap.cache, policyKey)
 	return nil

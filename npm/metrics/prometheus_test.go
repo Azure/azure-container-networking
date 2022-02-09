@@ -23,6 +23,25 @@ type basicMetric struct {
 	get   func() (int, error)
 }
 
+type amountMetric struct {
+	*basicMetric
+	incBy func(int)
+	decBy func(int)
+}
+
+func (metric *amountMetric) testIncByMetric(t *testing.T) {
+	metric.reset()
+	metric.incBy(2)
+	assertMetricVal(t, metric.basicMetric, 2)
+}
+
+func (metric *amountMetric) testDecByMetric(t *testing.T) {
+	metric.reset()
+	metric.incBy(5)
+	metric.decBy(2)
+	assertMetricVal(t, metric.basicMetric, 3)
+}
+
 type recordingMetric struct {
 	record   func(timer *Timer)
 	getCount func() (int, error)

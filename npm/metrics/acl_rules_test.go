@@ -3,8 +3,9 @@ package metrics
 import "testing"
 
 var (
-	numRulesMetric = &basicMetric{ResetNumACLRules, IncNumACLRules, DecNumACLRules, GetNumACLRules}
-	ruleExecMetric = &recordingMetric{RecordACLRuleExecTime, GetACLRuleExecCount}
+	numRulesMetric       = &basicMetric{ResetNumACLRules, IncNumACLRules, DecNumACLRules, GetNumACLRules}
+	numRulesAmountMetric = &amountMetric{basicMetric: numRulesMetric, incBy: IncNumACLRulesBy, decBy: DecNumACLRulesBy}
+	ruleExecMetric       = &recordingMetric{RecordACLRuleExecTime, GetACLRuleExecCount}
 )
 
 func TestRecordACLRuleExecTime(t *testing.T) {
@@ -21,4 +22,12 @@ func TestDecNumACLRules(t *testing.T) {
 
 func TestResetNumACLRules(t *testing.T) {
 	testResetMetric(t, numRulesMetric)
+}
+
+func TestIncNumACLRulesBy(t *testing.T) {
+	numRulesAmountMetric.testIncByMetric(t)
+}
+
+func TestDecNumACLRulesBy(t *testing.T) {
+	numRulesAmountMetric.testDecByMetric(t)
 }

@@ -36,6 +36,52 @@ func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {
 	}
 }
 
+func (netPol *NPMNetworkPolicy) numACLRulesProducedInKernel() int {
+	numRules := 0
+	hasIngress := false
+	hasEgress := false
+	for _, aclPolicy := range netPol.ACLs {
+		if aclPolicy.hasIngress() {
+			hasIngress = true
+			numRules++
+		}
+		if aclPolicy.hasEgress() {
+			hasEgress = true
+			numRules++
+		}
+	}
+
+	// both Windows and Linux have an extra ACL rule for ingress and an extra rule for egress
+	if hasIngress {
+		numRules++
+	}
+	if hasEgress {
+		numRules++
+	}
+	return numRules
+}
+
+func (netPol *NPMNetworkPolicy) String() string {
+	if netPol == nil {
+		klog.Infof("NPMNetworkPolicy is nil when trying to print string")
+		return "nil NPMNetworkPolicy"
+	}
+	itemStrings := make([]string, 0, len(netPol.ACLs))
+	for _, item := range netPol.ACLs {
+		itemStrings = append(itemStrings, item.String())
+	}
+	aclArrayString := strings.Join(itemStrings, "\n--\n")
+
+	podSelectorIPSetString := translatedIPSetsToString(netPol.PodSelectorIPSets)
+	podSelectorListString := infoArrayToString(netPol.PodSelectorList)
+	format := `Name:%s  Namespace:%s
+PodSelectorIPSets: %s
+PodSelectorList: %s
+ACLs:
+%s`
+	return fmt.Sprintf(format, netPol.Name, netPol.NameSpace, podSelectorIPSetString, podSelectorListString, aclArrayString)
+}
+
 // ACLPolicy equivalent to a single iptable rule in linux
 // or a single HNS rule in windows
 type ACLPolicy struct {
@@ -146,27 +192,6 @@ func (aclPolicy *ACLPolicy) hasNamedPort() bool {
 		}
 	}
 	return false
-}
-
-func (netPol *NPMNetworkPolicy) String() string {
-	if netPol == nil {
-		klog.Infof("NPMNetworkPolicy is nil when trying to print string")
-		return "nil NPMNetworkPolicy"
-	}
-	itemStrings := make([]string, 0, len(netPol.ACLs))
-	for _, item := range netPol.ACLs {
-		itemStrings = append(itemStrings, item.String())
-	}
-	aclArrayString := strings.Join(itemStrings, "\n--\n")
-
-	podSelectorIPSetString := translatedIPSetsToString(netPol.PodSelectorIPSets)
-	podSelectorListString := infoArrayToString(netPol.PodSelectorList)
-	format := `Name:%s  Namespace:%s
-PodSelectorIPSets: %s
-PodSelectorList: %s
-ACLs:
-%s`
-	return fmt.Sprintf(format, netPol.Name, netPol.NameSpace, podSelectorIPSetString, podSelectorListString, aclArrayString)
 }
 
 func (aclPolicy *ACLPolicy) String() string {

@@ -5,9 +5,19 @@ func IncNumACLRules() {
 	numACLRules.Inc()
 }
 
+// IncNumACLRulesBy increments the number of ACL rules by the amount.
+func IncNumACLRulesBy(amount int) {
+	numACLRules.Add(float64(amount))
+}
+
 // DecNumACLRules decrements the number of ACL rules.
 func DecNumACLRules() {
 	numACLRules.Dec()
+}
+
+// DecNumACLRulesBy decrements the number of ACL rules by the amount.
+func DecNumACLRulesBy(amount int) {
+	numACLRules.Add(float64(-amount))
 }
 
 // ResetNumACLRules sets the number of ACL rules to 0.
