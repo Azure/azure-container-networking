@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
@@ -104,7 +105,7 @@ func TestPolicyApplyEvent(t *testing.T) {
 	}()
 	time.Sleep(sleepAfterChanSent)
 
-	gsp.processNext()
+	gsp.processNext(wait.NeverStop)
 }
 
 func TestIPSetsApply(t *testing.T) {
@@ -137,7 +138,7 @@ func TestIPSetsApply(t *testing.T) {
 	}()
 	time.Sleep(sleepAfterChanSent)
 
-	gsp.processNext()
+	gsp.processNext(wait.NeverStop)
 }
 
 func TestIPSetsApplyUpdateMembers(t *testing.T) {
@@ -178,7 +179,7 @@ func TestIPSetsApplyUpdateMembers(t *testing.T) {
 	}()
 	time.Sleep(sleepAfterChanSent)
 
-	gsp.processNext()
+	gsp.processNext(wait.NeverStop)
 
 	// Update one of the ipsets and send another event
 	testNSCPSet.IPPodMetadata = map[string]*dataplane.PodMetadata{
@@ -196,7 +197,7 @@ func TestIPSetsApplyUpdateMembers(t *testing.T) {
 	}()
 	time.Sleep(sleepAfterChanSent)
 
-	gsp.processNext()
+	gsp.processNext(wait.NeverStop)
 }
 
 func getGoalStateForControllerSets(t *testing.T, sets []*controlplane.ControllerIPSets) map[string]*protos.GoalState {

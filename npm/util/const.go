@@ -229,4 +229,6 @@ const (
 	PodID
 	NetpolID
 	UtilID
+	DaemonID
+	ControllerID
 )

@@ -70,6 +70,9 @@ func startDaemon(config npmconfig.Config) error {
 		return fmt.Errorf("failed to create dataplane with error %w", err)
 	}
 
+	dp.RunPeriodicTasks()
+	go restserver.NPMRestServerListenAndServe(config, nil)
+
 	client, err := transport.NewEventsClient(ctx, pod, node, addr)
 	if err != nil {
 		klog.Errorf("failed to create dataplane events client with error %v", err)
@@ -93,9 +96,6 @@ func startDaemon(config npmconfig.Config) error {
 		klog.Errorf("failed to start dataplane : %v", err)
 		return fmt.Errorf("failed to start dataplane: %w", err)
 	}
-
-	dp.RunPeriodicTasks()
-	go restserver.NPMRestServerListenAndServe(config, nil)
 
 	return nil
 }

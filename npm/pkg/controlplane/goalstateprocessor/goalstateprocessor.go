@@ -63,33 +63,31 @@ func (gsp *GoalStateProcessor) Stop() {
 func (gsp *GoalStateProcessor) run(stopCh <-chan struct{}) {
 	klog.Infof("Starting dataplane for node %s", gsp.nodeID)
 
-	for {
-		select {
-		case <-gsp.ctx.Done():
-			klog.Infof("GoalStateProcessor for node %s received context Done", gsp.nodeID)
-			return
-		case <-stopCh:
-			klog.Infof("GoalStateProcessor for node %s stopped", gsp.nodeID)
-			return
-		default:
-			gsp.processNext()
-		}
+	for gsp.processNext(stopCh) {
 	}
 }
 
-func (gsp *GoalStateProcessor) processNext() {
+func (gsp *GoalStateProcessor) processNext(stopCh <-chan struct{}) bool {
 	select {
 	case inputEvents := <-gsp.inputChannel:
 		// TODO remove this large print later
 		klog.Infof("Received event %s", inputEvents)
 		gsp.process(inputEvents)
+		return true
 	case backoffEvents := <-gsp.backoffChannel:
 		// For now keep it simple. Do not worry about backoff events
 		// but if we need to handle them, we can do it here.
 		// TODO remove this large print later
 		klog.Infof("Received backoff event %s", backoffEvents)
 		gsp.process(backoffEvents)
-	default:
+		return true
+
+	case <-gsp.ctx.Done():
+		klog.Infof("GoalStateProcessor for node %s received context Done", gsp.nodeID)
+		return false
+	case <-stopCh:
+		klog.Infof("GoalStateProcessor for node %s stopped", gsp.nodeID)
+		return false
 	}
 }
 
