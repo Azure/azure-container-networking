@@ -26,8 +26,8 @@ var DefaultConfig = Config{
 		EnablePrometheusMetrics: true,
 		EnablePprof:             true,
 		EnableHTTPDebugAPI:      true,
-		EnableV2NPM:             false,
-		PlaceAzureChainFirst:    false,
+		EnableV2NPM:             true,
+		PlaceAzureChainFirst:    true,
 		ApplyIPSetsOnNeed:       false,
 	},
 }

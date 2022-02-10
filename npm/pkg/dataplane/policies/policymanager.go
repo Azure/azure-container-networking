@@ -33,6 +33,8 @@ const (
 type PolicyManagerCfg struct {
 	// PolicyMode only affects Windows
 	PolicyMode PolicyManagerMode
+	// PlaceAzureChainFirst only affects Linux
+	PlaceAzureChainFirst bool
 }
 
 type PolicyMap struct {

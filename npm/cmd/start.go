@@ -38,7 +38,8 @@ var npmV2DataplaneCfg = &dataplane.Config{
 		NetworkName: "azure",               // FIXME  should be specified in DP config instead
 	},
 	PolicyManagerCfg: &policies.PolicyManagerCfg{
-		PolicyMode: policies.IPSetPolicyMode,
+		PolicyMode:           policies.IPSetPolicyMode,
+		PlaceAzureChainFirst: true,
 	},
 }
 
