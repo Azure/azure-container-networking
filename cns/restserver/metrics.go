@@ -17,7 +17,7 @@ var httpRequestLatency = prometheus.NewHistogramVec(
 		//nolint:gomnd // default bucket consts
 		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1 ms to ~16 seconds
 	},
-	[]string{"url", "verb", cns_return_code},
+	[]string{"url", "verb", cnsReturnCode},
 )
 
 var ipAssignmentLatency = prometheus.NewHistogram(
@@ -47,17 +47,17 @@ func init() {
 	)
 }
 
-const cns_return_code = "cns-return-code"
+const cnsReturnCode = "Cns-Return-Code"
 
-//Every http response is 200 so we really want cns  response code.
-//Hard tto do with middleware unless we derserialize the responses but making it an explit header works around it.
-//if that doesn't work we could have a seperate countervec just for response codes.
+// Every http response is 200 so we really want cns  response code.
+// Hard tto do with middleware unless we derserialize the responses but making it an explit header works around it.
+// if that doesn't work we could have a separate countervec just for response codes.
 
 func newHandlerFuncWithHistogram(handler http.HandlerFunc, histogram *prometheus.HistogramVec) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		defer func() {
-			code := w.Header().Get(cns_return_code)
+			code := w.Header().Get(cnsReturnCode)
 			histogram.WithLabelValues(req.URL.RequestURI(), req.Method, code).Observe(time.Since(start).Seconds())
 		}()
 		handler(w, req)
