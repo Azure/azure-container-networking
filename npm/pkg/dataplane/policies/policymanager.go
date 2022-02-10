@@ -127,14 +127,10 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	err := pMgr.addPolicy(policy, endpointList)
 	metrics.RecordACLRuleExecTime(timer) // record execution time regardless of failure
 	if err != nil {
-<<<<<<< HEAD
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
-		return npmerrors.Errorf(npmerrors.AddPolicy, false, fmt.Sprintf("failed to add policy: %v", err))
-=======
 		msg := fmt.Sprintf("failed to add policy: %s", err.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
->>>>>>> master
 	}
 
 	// update Prometheus metrics on success
@@ -163,14 +159,10 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 	err := pMgr.removePolicy(policy, endpointList)
 	// currently we only have acl rule exec time for "adding" rules, so we skip recording here
 	if err != nil {
-<<<<<<< HEAD
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
-		return npmerrors.Errorf(npmerrors.RemovePolicy, false, fmt.Sprintf("failed to remove policy: %v", err))
-=======
 		msg := fmt.Sprintf("failed to remove policy: %s", err.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
 		return npmerrors.Errorf(npmerrors.RemovePolicy, false, msg)
->>>>>>> master
 	}
 
 	// update Prometheus metrics on success
