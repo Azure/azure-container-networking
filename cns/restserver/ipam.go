@@ -34,6 +34,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 				Message:    returnMessage,
 			},
 		}
+		w.Header().Set(cns_return_code, reserveResp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
@@ -51,6 +52,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 			},
 			PodIpInfo: podIPInfo,
 		}
+		w.Header().Set(cns_return_code, reserveResp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
@@ -69,7 +71,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		},
 		PodIpInfo: podIPInfo,
 	}
-
+	w.Header().Set(cns_return_code, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 }
@@ -84,6 +86,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 			Message:    err.Error(),
 		}
 		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, req)
+		w.Header().Set(cns_return_code, resp.ReturnCode.String())
 		err = service.Listener.Encode(w, &resp)
 		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
 		return
@@ -100,6 +103,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		ReturnCode: returnCode,
 		Message:    message,
 	}
+	w.Header().Set(cns_return_code, resp.ReturnCode.String())
 	err = service.Listener.Encode(w, &resp)
 	logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
 }
