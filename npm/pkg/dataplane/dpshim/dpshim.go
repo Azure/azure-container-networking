@@ -36,6 +36,7 @@ func NewDPSim(stopChannel <-chan struct{}) (*DPShim, error) {
 		policyCache: make(map[string]*policies.NPMNetworkPolicy),
 		stopChannel: stopChannel,
 		dirtyCache:  newDirtyCache(),
+		mu:          &sync.Mutex{},
 	}, nil
 }
 
