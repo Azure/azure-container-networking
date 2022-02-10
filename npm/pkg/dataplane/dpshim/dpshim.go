@@ -143,8 +143,13 @@ func (dp *DPShim) deleteIPSet(setMetadata *ipsets.IPSetMetadata) {
 }
 
 func (dp *DPShim) AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *dataplane.PodMetadata) error {
+	if len(setMetadatas) == 0 {
+		return nil
+	}
+
 	dp.Lock()
 	defer dp.Unlock()
+
 	for _, set := range setMetadatas {
 		prefixedSetName := set.GetPrefixName()
 		if !dp.setExists(prefixedSetName) {
@@ -164,8 +169,13 @@ func (dp *DPShim) AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *d
 }
 
 func (dp *DPShim) RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *dataplane.PodMetadata) error {
+	if len(setMetadatas) == 0 {
+		return nil
+	}
+
 	dp.Lock()
 	defer dp.Unlock()
+
 	for _, set := range setMetadatas {
 		prefixedSetName := set.GetPrefixName()
 		if !dp.setExists(prefixedSetName) {
@@ -196,46 +206,91 @@ func (dp *DPShim) RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetada
 }
 
 func (dp *DPShim) AddToLists(listMetadatas, setMetadatas []*ipsets.IPSetMetadata) error {
+	if len(listMetadatas) == 0 || len(setMetadatas) == 0 {
+		return nil
+	}
+
 	dp.Lock()
 	defer dp.Unlock()
 
-	if err := dp.checkForListMemberUpdateErrors(listMetadatas, setMetadatas, npmerrors.AppendIPSet); err != nil {
-		return err
+	for _, setMetadata := range setMetadatas {
+		setName := setMetadata.GetPrefixName()
+		if !dp.setExists(setName) {
+			dp.createIPSet(setMetadata)
+		}
+
+		set := dp.setCache[setName]
+		if set.IPSetMetadata.GetSetKind() != ipsets.HashSet {
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", setName))
+		}
 	}
 
 	for _, listMetadata := range listMetadatas {
 		listName := listMetadata.GetPrefixName()
+		if !dp.setExists(listName) {
+			dp.createIPSet(listMetadata)
+		}
+
 		list := dp.setCache[listName]
+
+		if list.IPSetMetadata.GetSetKind() != ipsets.ListSet {
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
+		}
+
+		modified := false
 		for _, setMetadata := range setMetadatas {
 			setName := setMetadata.GetPrefixName()
-			set := dp.setCache[setName]
-
 			if _, ok := list.MemberIPSets[setName]; ok {
 				continue
 			}
+
+			set := dp.setCache[setName]
 			list.MemberIPSets[setName] = set.IPSetMetadata
 			set.AddReference(listName, controlplane.ListReference)
 			dp.dirtyCache.modifyAddorUpdateSets(setName)
+			modified = true
 		}
-		dp.dirtyCache.modifyAddorUpdateSets(listName)
+
+		if modified {
+			dp.dirtyCache.modifyAddorUpdateSets(listName)
+		}
 	}
 
 	return nil
 }
 
 func (dp *DPShim) RemoveFromList(listMetadata *ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error {
+	if len(setMetadatas) == 0 || listMetadata == nil {
+		return nil
+	}
+
 	dp.Lock()
 	defer dp.Unlock()
 
-	if err := dp.checkForListMemberUpdateErrors([]*ipsets.IPSetMetadata{listMetadata}, setMetadatas, npmerrors.DeleteIPSet); err != nil {
-		return err
+	listName := listMetadata.GetPrefixName()
+	list, exists := dp.setCache[listName]
+	if !exists {
+		return nil
 	}
 
-	listName := listMetadata.GetPrefixName()
-	list := dp.setCache[listName]
+	if list.IPSetMetadata.GetSetKind() != ipsets.ListSet {
+		return npmerrors.Errorf(npmerrors.DeleteIPSet, false, fmt.Sprintf("ipset %s is not a list set", listName))
+	}
+
+	modified := false
 	for _, setMetadata := range setMetadatas {
 		setName := setMetadata.GetPrefixName()
+		if !dp.setExists(setName) {
+			continue
+		}
+
 		set := dp.setCache[setName]
+		if set.IPSetMetadata.GetSetKind() != ipsets.HashSet {
+			if modified {
+				dp.dirtyCache.modifyAddorUpdateSets(listName)
+			}
+			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", setName))
+		}
 
 		if _, ok := list.MemberIPSets[setName]; !ok {
 			continue
@@ -243,8 +298,11 @@ func (dp *DPShim) RemoveFromList(listMetadata *ipsets.IPSetMetadata, setMetadata
 
 		delete(list.MemberIPSets, setName)
 		set.DeleteReference(listName, controlplane.ListReference)
+		modified = true
 	}
-	dp.dirtyCache.modifyAddorUpdateSets(listName)
+	if modified {
+		dp.dirtyCache.modifyAddorUpdateSets(listName)
+	}
 
 	return nil
 }
@@ -380,35 +438,6 @@ func (dp *DPShim) ApplyDataPlane() error {
 func (dp *DPShim) policyExists(policyKey string) bool {
 	_, ok := dp.policyCache[policyKey]
 	return ok
-}
-
-func (dp *DPShim) checkForListMemberUpdateErrors(listMetadata, memberMetadatas []*ipsets.IPSetMetadata, npmErrorString string) error {
-	for _, listMetadata := range listMetadata {
-		prefixedListName := listMetadata.GetPrefixName()
-		if !dp.setExists(prefixedListName) {
-			dp.createIPSet(listMetadata)
-		}
-
-		list := dp.setCache[prefixedListName]
-		if list.IPSetMetadata.GetSetKind() != ipsets.ListSet {
-			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a list set", prefixedListName))
-		}
-	}
-
-	for _, memberMetadata := range memberMetadatas {
-		memberName := memberMetadata.GetPrefixName()
-		if !dp.setExists(memberName) {
-			dp.createIPSet(memberMetadata)
-		}
-		member := dp.setCache[memberName]
-
-		// Nested IPSets are only supported for windows
-		// Check if we want to actually use that support
-		if member.IPSetMetadata.GetSetKind() != ipsets.HashSet {
-			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", memberName))
-		}
-	}
-	return nil
 }
 
 func (dp *DPShim) processIPSetsApply() (*protos.GoalState, error) {
