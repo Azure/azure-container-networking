@@ -600,6 +600,20 @@ func (service *HTTPRestService) getNetworkContainerDetails(networkContainerID st
 	return containerDetails, containerExists
 }
 
+// areNCsPresent returns true if NCs are present in CNS, false if no NCs are present
+func (service *HTTPRestService) areNCsPresent() bool {
+	service.RLock()
+	defer service.RUnlock()
+
+	if len(service.state.ContainerStatus) == 0 {
+		if len(service.state.ContainerIDByOrchestratorContext) == 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Check if the network is joined
 func (service *HTTPRestService) isNetworkJoined(networkID string) bool {
 	namedLock.LockAcquire(stateJoinedNetworks)
