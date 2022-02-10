@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
@@ -90,26 +89,20 @@ func (iMgr *IPSetManager) resetIPSets() error {
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
 	azureIPSets, haveAzureIPSets, commandError := ioutil.PipeCommandToGrep(listCommand, grepCommand)
 	if commandError != nil {
-		return npmerrors.SimpleErrorWrapper("failed to run ipset list for resetting IPSets", commandError)
+		return npmerrors.SimpleErrorWrapper("failed to run ipset list for resetting IPSets (prometheus metrics may be off now)", commandError)
 	}
 	if !haveAzureIPSets {
-		metrics.ResetNumIPSets()
-		metrics.ResetIPSetEntries()
 		return nil
 	}
 	creator, originalNumAzureSets, destroyFailureCount := iMgr.fileCreatorForReset(azureIPSets)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
-		metrics.SetNumIPSets(originalNumAzureSets)
-		// NOTE: the num entries for sets may be incorrect if the restore fails
+		klog.Errorf(
+			"failed to restore ipsets (prometheus metrics may be off now). Had originalNumAzureSets %d and destroyFailureCount %d with err: %v",
+			originalNumAzureSets, destroyFailureCount, restoreError,
+		)
 		return npmerrors.SimpleErrorWrapper("failed to run ipset restore for resetting IPSets", restoreError)
 	}
-	if metrics.NumIPSetsIsPositive() {
-		metrics.SetNumIPSets(*destroyFailureCount)
-	} else {
-		metrics.ResetNumIPSets()
-	}
-	metrics.ResetIPSetEntries() // NOTE: the num entries for sets that fail to flush may be incorrect after this
 	return nil
 }
 

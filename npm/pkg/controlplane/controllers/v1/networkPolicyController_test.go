@@ -60,6 +60,8 @@ func (f *netPolFixture) newNetPolController(stopCh chan struct{}) {
 		f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)
 	}
 
+	metrics.ReinitializeAll()
+
 	// Do not start informer to avoid unnecessary event triggers
 	// (TODO): Leave stopCh and below commented code to enhance UTs to even check event triggers as well later if possible
 	// f.kubeInformer.Start(stopCh)
@@ -166,9 +168,47 @@ type expectedNetPolValues struct {
 	expectedLenOfRawNpMap          int
 	expectedLenOfWorkQueue         int
 	expectedIsAzureNpmChainCreated bool
-	// prometheus metrics
-	expectedNumPolicies int
-	expectedExecCount   int
+	netPolPromVals
+}
+
+type netPolPromVals struct {
+	expectedNumPolicies     int
+	expectedAddExecCount    int
+	expectedUpdateExecCount int
+	expectedDeleteExecCount int
+}
+
+// for local testing, prepend the following to your go test command: sudo -E env 'PATH=$PATH'
+func (p *netPolPromVals) testPrometheusMetrics(t *testing.T) {
+	numPolicies, err := metrics.GetNumPolicies()
+	promutil.NotifyIfErrors(t, err)
+	if numPolicies != p.expectedNumPolicies {
+		require.FailNowf(t, "", "Number of policies didn't register correctly in Prometheus. Expected %d. Got %d.", p.expectedNumPolicies, numPolicies)
+	}
+
+	addExecCount, err := metrics.GetControllerPolicyExecCount(metrics.CreateOp, false)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedAddExecCount, addExecCount, "Count for add execution time didn't register correctly in Prometheus")
+
+	addErrorExecCount, err := metrics.GetControllerPolicyExecCount(metrics.CreateOp, true)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, addErrorExecCount, "Count for add error execution time should be 0")
+
+	updateExecCount, err := metrics.GetControllerPolicyExecCount(metrics.UpdateOp, false)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedUpdateExecCount, updateExecCount, "Count for update execution time didn't register correctly in Prometheus")
+
+	updateErrorExecCount, err := metrics.GetControllerPolicyExecCount(metrics.UpdateOp, true)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, updateErrorExecCount, "Count for update error execution time should be 0")
+
+	deleteExecCount, err := metrics.GetControllerPolicyExecCount(metrics.DeleteOp, false)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.expectedDeleteExecCount, deleteExecCount, "Count for delete execution time didn't register correctly in Prometheus")
+
+	deleteErrorExecCount, err := metrics.GetControllerPolicyExecCount(metrics.DeleteOp, true)
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, 0, deleteErrorExecCount, "Count for delete error execution time should be 0")
 }
 
 func checkNetPolTestResult(testName string, f *netPolFixture, testCases []expectedNetPolValues) {
@@ -185,29 +225,7 @@ func checkNetPolTestResult(testName string, f *netPolFixture, testCases []expect
 			f.t.Errorf("isAzureNpmChainCreated %v, want %v", got, test.expectedIsAzureNpmChainCreated)
 		}
 
-		testPrometheusMetrics(f.t, test.expectedNumPolicies, test.expectedExecCount)
-	}
-}
-
-func resetPrometheusAndGetExecCount(t *testing.T) int {
-	metrics.ResetNumPolicies()
-	execCount, err := metrics.GetPolicyExecCount()
-	promutil.NotifyIfErrors(t, err)
-	return execCount
-}
-
-// for local testing, prepend "sudo" to the command within run() in iptm.go
-func testPrometheusMetrics(t *testing.T, expectedNumPolicies, expectedExecCount int) {
-	numPolicies, err := metrics.GetNumPolicies()
-	promutil.NotifyIfErrors(t, err)
-	if numPolicies != expectedNumPolicies {
-		require.FailNowf(t, "", "Number of policies didn't register correctly in Prometheus. Expected %d. Got %d.", expectedNumPolicies, numPolicies)
-	}
-
-	execCount, err := metrics.GetPolicyExecCount()
-	promutil.NotifyIfErrors(t, err)
-	if execCount != expectedExecCount {
-		require.FailNowf(t, "", "Count for execution time didn't register correctly in Prometheus. Expected %d. Got %d.", expectedExecCount, execCount)
+		test.netPolPromVals.testPrometheusMetrics(f.t)
 	}
 }
 
@@ -229,13 +247,14 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 	defer close(stopCh)
 	f.newNetPolController(stopCh)
 
-	execCount := resetPrometheusAndGetExecCount(f.t)
-
 	addNetPol(t, f, netPolObj1)
 	addNetPol(t, f, netPolObj2)
 
+	// already exists (will be a no-op)
+	addNetPol(t, f, netPolObj1)
+
 	testCases := []expectedNetPolValues{
-		{2, 0, true, 2, execCount + 2},
+		{2, 0, true, netPolPromVals{2, 2, 0, 0}},
 	}
 	checkNetPolTestResult("TestAddMultipleNetPols", f, testCases)
 }
@@ -251,11 +270,9 @@ func TestAddNetworkPolicy(t *testing.T) {
 	defer close(stopCh)
 	f.newNetPolController(stopCh)
 
-	execCount := resetPrometheusAndGetExecCount(f.t)
-
 	addNetPol(t, f, netPolObj)
 	testCases := []expectedNetPolValues{
-		{1, 0, true, 1, execCount + 1},
+		{1, 0, true, netPolPromVals{1, 1, 0, 0}},
 	}
 
 	checkNetPolTestResult("TestAddNetPol", f, testCases)
@@ -272,11 +289,9 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	defer close(stopCh)
 	f.newNetPolController(stopCh)
 
-	execCount := resetPrometheusAndGetExecCount(f.t)
-
 	deleteNetPol(t, f, netPolObj, DeletedFinalStateknownObject)
 	testCases := []expectedNetPolValues{
-		{0, 0, false, 0, execCount + 1},
+		{0, 0, false, netPolPromVals{0, 1, 0, 1}},
 	}
 	checkNetPolTestResult("TestDelNetPol", f, testCases)
 }
@@ -292,8 +307,6 @@ func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 	defer close(stopCh)
 	f.newNetPolController(stopCh)
 
-	execCount := resetPrometheusAndGetExecCount(f.t)
-
 	netPolKey := getKey(netPolObj, t)
 	tombstone := cache.DeletedFinalStateUnknown{
 		Key: netPolKey,
@@ -301,8 +314,9 @@ func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 	}
 
 	f.netPolController.deleteNetworkPolicy(tombstone)
+	// the above function only adds to the workqueue
 	testCases := []expectedNetPolValues{
-		{0, 1, false, 0, execCount},
+		{0, 1, false, netPolPromVals{0, 0, 0, 0}},
 	}
 	checkNetPolTestResult("TestDeleteNetworkPolicyWithTombstone", f, testCases)
 }
@@ -318,11 +332,9 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 	defer close(stopCh)
 	f.newNetPolController(stopCh)
 
-	execCount := resetPrometheusAndGetExecCount(f.t)
-
 	deleteNetPol(t, f, netPolObj, DeletedFinalStateUnknownObject)
 	testCases := []expectedNetPolValues{
-		{0, 0, false, 0, execCount + 1},
+		{0, 0, false, netPolPromVals{0, 1, 0, 1}},
 	}
 	checkNetPolTestResult("TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy", f, testCases)
 }
@@ -340,16 +352,15 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	defer close(stopCh)
 	f.newNetPolController(stopCh)
 
-	execCount := resetPrometheusAndGetExecCount(f.t)
-
 	newNetPolObj := oldNetPolObj.DeepCopy()
 	// oldNetPolObj.ResourceVersion value is "0"
 	newRV, _ := strconv.Atoi(oldNetPolObj.ResourceVersion)
 	newNetPolObj.ResourceVersion = fmt.Sprintf("%d", newRV+1)
 
 	updateNetPol(t, f, oldNetPolObj, newNetPolObj)
+	// no need to reconcile because only the rv changes, so we don't see a prometheus update exec count
 	testCases := []expectedNetPolValues{
-		{1, 0, true, 1, execCount + 1},
+		{1, 0, true, netPolPromVals{1, 1, 0, 0}},
 	}
 	checkNetPolTestResult("TestUpdateNetPol", f, testCases)
 }
@@ -365,8 +376,6 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	defer close(stopCh)
 	f.newNetPolController(stopCh)
 
-	execCount := resetPrometheusAndGetExecCount(f.t)
-
 	newNetPolObj := oldNetPolObj.DeepCopy()
 	// update podSelctor in a new network policy field
 	newNetPolObj.Spec.PodSelector = metav1.LabelSelector{
@@ -381,7 +390,7 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	updateNetPol(t, f, oldNetPolObj, newNetPolObj)
 
 	testCases := []expectedNetPolValues{
-		{1, 0, true, 1, execCount + 2},
+		{1, 0, true, netPolPromVals{1, 1, 1, 0}},
 	}
 	checkNetPolTestResult("TestUpdateNetPol", f, testCases)
 }

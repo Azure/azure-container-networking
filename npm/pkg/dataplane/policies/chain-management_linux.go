@@ -194,7 +194,9 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 // - cleans up stale policy chains. It can be forced to stop this process if reconcileManager.forceLock() is called.
 func (pMgr *PolicyManager) reconcile() {
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
-		klog.Errorf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
+		msg := fmt.Sprintf("failed to reconcile jump rule to Azure-NPM due to %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		klog.Error(msg)
 	}
 
 	pMgr.reconcileManager.Lock()
@@ -207,7 +209,9 @@ func (pMgr *PolicyManager) reconcile() {
 
 	klog.Infof("cleaning up these stale chains: %+v", staleChains)
 	if err := pMgr.cleanupChains(staleChains); err != nil {
-		klog.Errorf("failed to clean up old policy chains with the following error: %s", err.Error())
+		msg := fmt.Sprintf("failed to clean up old policy chains with the following error: %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		klog.Error(msg)
 	}
 }
 

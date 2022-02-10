@@ -10,6 +10,13 @@ import (
 	"k8s.io/klog"
 )
 
+type UniqueDirection bool
+
+const (
+	forIngress UniqueDirection = true
+	forEgress  UniqueDirection = false
+)
+
 // returns two booleans indicating whether the network policy has ingress and egress respectively
 func (networkPolicy *NPMNetworkPolicy) hasIngressAndEgress() (hasIngress, hasEgress bool) {
 	hasIngress = false
@@ -33,13 +40,6 @@ func (networkPolicy *NPMNetworkPolicy) chainName(prefix string) string {
 	policyHash := util.Hash(networkPolicy.PolicyKey)
 	return joinWithDash(prefix, policyHash)
 }
-
-type UniqueDirection bool
-
-const (
-	forIngress UniqueDirection = true
-	forEgress  UniqueDirection = false
-)
 
 func (networkPolicy *NPMNetworkPolicy) commentForJumpToIngress() string {
 	return networkPolicy.commentForJump(forIngress)

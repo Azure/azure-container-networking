@@ -174,9 +174,6 @@ func (iptMgr *IptablesManager) UninitNpmChains() error {
 
 // Add adds a rule in iptables.
 func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
-	prometheusTimer := metrics.StartNewTimer()
-	defer metrics.RecordACLRuleExecTime(prometheusTimer) // record execution time regardless of failure
-
 	log.Logf("Adding iptables entry: %+v.", entry)
 
 	// Since there is a RETURN statement added to each DROP chain, we need to make sure
@@ -186,7 +183,10 @@ func (iptMgr *IptablesManager) Add(entry *IptEntry) error {
 	} else {
 		iptMgr.OperationFlag = util.IptablesInsertionFlag
 	}
-	if _, err := iptMgr.run(entry); err != nil {
+	timer := metrics.StartNewTimer()
+	_, err := iptMgr.run(entry)
+	metrics.RecordACLRuleExecTime(timer) // record execution time regardless of failure
+	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "Error: failed to create iptables rules.")
 		return err
 	}
@@ -330,6 +330,7 @@ func (iptMgr *IptablesManager) reconcileChains(stopCh <-chan struct{}) {
 			if err := iptMgr.checkAndAddForwardChain(); err != nil {
 				metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to reconcileChains Azure-NPM due to %s", err.Error())
 			}
+			metrics.SendHeartbeatLog()
 		}
 	}
 }

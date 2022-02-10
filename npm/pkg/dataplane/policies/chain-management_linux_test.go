@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,27 @@ Chain AZURE-NPM-EGRESS-PORTS (1 references)
 Chain AZURE-NPM-ACCEPT (1 references)
 `
 )
+
+// similar to TestBootup in policymanager.go except an error occurs
+func TestBootupFailure(t *testing.T) {
+	metrics.ReinitializeAll()
+	calls := []testutils.TestCmd{
+		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, //nolint // AZURE-NPM chain didn't exist
+		{Cmd: listAllCommandStrings, PipedToCommand: true, HasStartError: true},
+		{Cmd: []string{"grep", "Chain AZURE-NPM"}},
+	}
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+
+	metrics.IncNumACLRules()
+	metrics.IncNumACLRules()
+
+	require.Error(t, pMgr.Bootup(nil))
+
+	// make sure that the metrics were reset
+	promVals{0, 0}.testPrometheusMetrics(t)
+}
 
 func TestStaleChainsForceLock(t *testing.T) {
 	testChains := []string{}

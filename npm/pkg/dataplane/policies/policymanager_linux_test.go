@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -201,6 +202,20 @@ func TestChainNames(t *testing.T) {
 	require.Equal(t, expectedName, bothDirectionsNetPol.egressChainName())
 }
 
+// similar to TestAddPolicy in policymanager.go except an error occurs
+func TestAddPolicyFailure(t *testing.T) {
+	metrics.ReinitializeAll()
+	calls := GetAddPolicyFailureTestCalls(testNetPol)
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+
+	require.Error(t, pMgr.AddPolicy(testNetPol, nil))
+	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
+	require.False(t, ok)
+	promVals{0, 1}.testPrometheusMetrics(t)
+}
+
 func TestCreatorForAddPolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	ioshim := common.NewMockIOShim(calls)
@@ -302,6 +317,7 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 }
 
+// similar to TestRemovePolicy in policymanager.go except an error occurs
 func TestRemovePoliciesError(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -335,6 +351,7 @@ func TestRemovePoliciesError(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			metrics.ReinitializeAll()
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			pMgr := NewPolicyManager(ioshim, ipsetConfig)
@@ -342,6 +359,8 @@ func TestRemovePoliciesError(t *testing.T) {
 			require.NoError(t, err)
 			err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil)
 			require.Error(t, err)
+
+			promVals{6, 1}.testPrometheusMetrics(t)
 		})
 	}
 }

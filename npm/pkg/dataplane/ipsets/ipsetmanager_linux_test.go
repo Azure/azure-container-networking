@@ -311,15 +311,10 @@ func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 }
 
 func TestDestroyNPMIPSets(t *testing.T) {
-	numSetsToStart := 2
-	numEntriesToStart := 5
-
 	tests := []struct {
-		name               string
-		calls              []testutils.TestCmd
-		wantErr            bool
-		expectedNumSets    int
-		expectedNumEntries int
+		name    string
+		calls   []testutils.TestCmd
+		wantErr bool
 	}{
 		{
 			name: "success with no results from grep",
@@ -327,9 +322,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, ExitCode: 1},
 			},
-			wantErr:            false,
-			expectedNumSets:    0,
-			expectedNumEntries: 0,
+			wantErr: false,
 		},
 		{
 			name: "successfully delete sets",
@@ -338,9 +331,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 			},
-			wantErr:            false,
-			expectedNumSets:    0,
-			expectedNumEntries: 0,
+			wantErr: false,
 		},
 		{
 			name: "grep error",
@@ -348,9 +339,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				{Cmd: []string{"ipset", "list", "--name"}, HasStartError: true, PipedToCommand: true, ExitCode: 1},
 				{Cmd: []string{"grep", "azure-npm-"}},
 			},
-			wantErr:            true,
-			expectedNumSets:    numSetsToStart,
-			expectedNumEntries: numEntriesToStart,
+			wantErr: true,
 		},
 		{
 			name: "restore error from max tries",
@@ -361,9 +350,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 			},
-			wantErr:            true,
-			expectedNumSets:    resetIPSetsNumGreppedSets,
-			expectedNumEntries: numEntriesToStart,
+			wantErr: true,
 		},
 		{
 			name: "successfully restore, but fail to flush/destroy 1 set since the set doesn't exist when flushing",
@@ -377,9 +364,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				},
 				fakeRestoreSuccessCommand,
 			},
-			wantErr:            false,
-			expectedNumSets:    0,
-			expectedNumEntries: 0,
+			wantErr: false,
 		},
 		{
 			name: "successfully restore, but fail to flush/destroy 1 set due to other flush error",
@@ -393,9 +378,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				},
 				fakeRestoreSuccessCommand,
 			},
-			wantErr:            false,
-			expectedNumSets:    1,
-			expectedNumEntries: 0,
+			wantErr: false,
 		},
 		{
 			name: "successfully restore, but fail to destroy 1 set since the set doesn't exist when destroying",
@@ -409,9 +392,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				},
 				fakeRestoreSuccessCommand,
 			},
-			wantErr:            false,
-			expectedNumSets:    0,
-			expectedNumEntries: 0,
+			wantErr: false,
 		},
 		{
 			name: "successfully restore, but fail to destroy 1 set due to other destroy error",
@@ -425,44 +406,54 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				},
 				fakeRestoreSuccessCommand,
 			},
-			wantErr:            false,
-			expectedNumSets:    1,
-			expectedNumEntries: 0,
+			wantErr: false,
 		},
 	}
 
-	testSet := "set1"
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			iMgr := NewIPSetManager(applyAlwaysCfg, ioshim)
-			metrics.SetNumIPSets(numSetsToStart)
-			metrics.ResetIPSetEntries()
-			for i := 0; i < numEntriesToStart; i++ {
-				metrics.AddEntryToIPSet(testSet)
-			}
-
 			err := iMgr.resetIPSets()
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
-			numSets, err := metrics.GetNumIPSets()
-			promutil.NotifyIfErrors(t, err)
-			require.Equal(t, tt.expectedNumSets, numSets, "got unexpected prometheus metric for num ipsets")
-
-			numEntries, err := metrics.GetNumIPSetEntries()
-			promutil.NotifyIfErrors(t, err)
-			require.Equal(t, tt.expectedNumEntries, numEntries, "got unexpected prometheus metric for num ipset entries")
-
-			numEntriesForSet, err := metrics.GetNumEntriesForIPSet(testSet)
-			promutil.NotifyIfErrors(t, err)
-			require.Equal(t, tt.expectedNumEntries, numEntriesForSet, "got unexpected prometheus metric for num entries for the test set")
 		})
 	}
+}
+
+// identical to TestResetIPSets in ipsetmanager_test.go except an error occurs
+// makes sure that the cache and metrics are reset despite error
+func TestResetIPSetsOnFailure(t *testing.T) {
+	metrics.ReinitializeAll()
+	calls := []testutils.TestCmd{
+		{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true, HasStartError: true},
+		{Cmd: []string{"grep", "azure-npm-"}},
+	}
+	ioShim := common.NewMockIOShim(calls)
+	defer ioShim.VerifyCalls(t, calls)
+	iMgr := NewIPSetManager(applyAlwaysCfg, ioShim)
+
+	iMgr.CreateIPSets([]*IPSetMetadata{namespaceSet, keyLabelOfPodSet})
+
+	metrics.IncNumIPSets()
+	metrics.IncNumIPSets()
+	metrics.AddEntryToIPSet("test1")
+	metrics.AddEntryToIPSet("test1")
+	metrics.AddEntryToIPSet("test2")
+
+	require.NoError(t, iMgr.ResetIPSets())
+
+	assertExpectedInfo(t, iMgr, &expectedInfo{
+		mainCache:        nil,
+		toAddUpdateCache: nil,
+		toDeleteCache:    nil,
+		setsForKernel:    nil,
+	})
 }
 
 func TestApplyIPSetsSuccessWithoutSave(t *testing.T) {

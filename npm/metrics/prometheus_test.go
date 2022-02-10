@@ -23,9 +23,33 @@ type basicMetric struct {
 	get   func() (int, error)
 }
 
+type amountMetric struct {
+	*basicMetric
+	incBy func(int)
+	decBy func(int)
+}
+
+func (metric *amountMetric) testIncByMetric(t *testing.T) {
+	metric.reset()
+	metric.incBy(2)
+	assertMetricVal(t, metric.basicMetric, 2)
+}
+
+func (metric *amountMetric) testDecByMetric(t *testing.T) {
+	metric.reset()
+	metric.incBy(5)
+	metric.decBy(2)
+	assertMetricVal(t, metric.basicMetric, 3)
+}
+
 type recordingMetric struct {
 	record   func(timer *Timer)
 	getCount func() (int, error)
+}
+
+type crudExecMetric struct {
+	record   func(timer *Timer, op OperationKind, hadError bool)
+	getCount func(op OperationKind, hadError bool) (int, error)
 }
 
 func assertMetricVal(t *testing.T, metric *basicMetric, expectedVal int) {
@@ -56,6 +80,21 @@ func testResetMetric(t *testing.T, metric *basicMetric) {
 	metric.inc()
 	metric.reset()
 	assertMetricVal(t, metric, 0)
+}
+
+func testStopAndRecordCRUDExecTime(t *testing.T, m *crudExecMetric) {
+	for _, mode := range []OperationKind{CreateOp, UpdateOp, DeleteOp} {
+		for _, hadError := range []bool{true, false} {
+			testStopAndRecord(t, &recordingMetric{
+				func(timer *Timer) {
+					m.record(timer, mode, hadError)
+				},
+				func() (int, error) {
+					return m.getCount(mode, hadError)
+				},
+			})
+		}
+	}
 }
 
 func testStopAndRecord(t *testing.T, metric *recordingMetric) {

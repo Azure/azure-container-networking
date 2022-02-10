@@ -211,13 +211,10 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 }
 
 func (ipsMgr *IpsetManager) createList(listName string) error {
-	prometheusTimer := metrics.StartNewTimer()
 
 	if _, exists := ipsMgr.listMap[listName]; exists {
 		return nil
 	}
-
-	defer metrics.RecordIPSetExecTime(prometheusTimer) // record execution time regardless of failure
 
 	entry := &ipsEntry{
 		name:          listName,
@@ -226,7 +223,9 @@ func (ipsMgr *IpsetManager) createList(listName string) error {
 		spec:          []string{util.IpsetSetListFlag},
 	}
 	log.Logf("Creating List: %+v", entry)
+	timer := metrics.StartNewTimer()
 	errCode, err := ipsMgr.run(entry)
+	metrics.RecordIPSetExecTime(timer) // record execution time regardless of failure
 	if err != nil && errCode != 1 {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "Error: failed to create ipset list %s.", listName)
 		return err
@@ -619,9 +618,10 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 		_, err := ipsMgr.run(flushEntry)
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to flush ipset %s", ipsetName)
+		} else {
+			metrics.RemoveAllEntriesFromIPSet(ipsetName)
 		}
 	}
-
 	for _, ipsetName := range ipsetLists {
 		deleteEntry := &ipsEntry{
 			operationFlag: util.IpsetDestroyFlag,
@@ -631,8 +631,6 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 		if err != nil {
 			destroyFailureCount++
 			metrics.SendErrorLogAndMetric(util.IpsmID, "{DestroyNpmIpsets} Error: failed to destroy ipset %s", ipsetName)
-		} else {
-			metrics.RemoveAllEntriesFromIPSet(ipsetName)
 		}
 	}
 
@@ -644,9 +642,10 @@ func (ipsMgr *IpsetManager) DestroyNpmIpsets() error {
 	} else {
 		metrics.ResetNumIPSets()
 	}
-	// NOTE: in v2, we reset ipset entries, but in v1 we only remove entries for ipsets we delete.
-	// So v2 may underestimate the number of entries if there are destroy failures,
-	// but v1 may miss removing entries if some sets are in the prometheus metric but not in the kernel.
+	// NOTE: in v2, we reset metrics blindly, regardless of errors
+	// So v2 would underestimate the number of ipsets/entries if there are destroy failures.
+	// In v1 we remove entries for ipsets we flush.
+	// We may miss removing entries if some sets are in the prometheus metric but not in the kernel.
 
 	return nil
 }
