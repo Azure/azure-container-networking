@@ -144,7 +144,6 @@ func TestRemoveFromList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(sets))
 	assert.Equal(t, util.GetHashedName(testNestedKeyPodCPSet.GetPrefixName()), sets[0].GetHashedName())
-
 }
 
 func TestAddToSets(t *testing.T) {

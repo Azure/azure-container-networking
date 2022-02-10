@@ -26,7 +26,7 @@ type DPShim struct {
 	setCache    map[string]*controlplane.ControllerIPSets
 	policyCache map[string]*policies.NPMNetworkPolicy
 	dirtyCache  *dirtyCache
-	sync.Mutex
+	mu          *sync.Mutex
 }
 
 func NewDPSim(stopChannel <-chan struct{}) (*DPShim, error) {
@@ -45,8 +45,8 @@ func (dp *DPShim) ResetDataPlane() error {
 
 // HydrateClients is used in DPShim to hydrate a restarted Daemon Client
 func (dp *DPShim) HydrateClients() (*protos.Events, error) {
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 
 	if len(dp.setCache) == 0 && len(dp.policyCache) == 0 {
 		klog.Infof("HydrateClients: No local cache objects to hydrate daemon client")
@@ -101,8 +101,8 @@ func (dp *DPShim) setExists(setName string) bool {
 }
 
 func (dp *DPShim) CreateIPSets(setMetadatas []*ipsets.IPSetMetadata) {
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 	for _, set := range setMetadatas {
 		dp.createIPSet(set)
 	}
@@ -120,8 +120,8 @@ func (dp *DPShim) createIPSet(set *ipsets.IPSetMetadata) {
 }
 
 func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata) {
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 	dp.deleteIPSet(setMetadata)
 }
 
@@ -147,8 +147,8 @@ func (dp *DPShim) AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *d
 		return nil
 	}
 
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 
 	for _, set := range setMetadatas {
 		prefixedSetName := set.GetPrefixName()
@@ -173,8 +173,8 @@ func (dp *DPShim) RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetada
 		return nil
 	}
 
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 
 	for _, set := range setMetadatas {
 		prefixedSetName := set.GetPrefixName()
@@ -210,8 +210,8 @@ func (dp *DPShim) AddToLists(listMetadatas, setMetadatas []*ipsets.IPSetMetadata
 		return nil
 	}
 
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 
 	for _, setMetadata := range setMetadatas {
 		setName := setMetadata.GetPrefixName()
@@ -264,8 +264,8 @@ func (dp *DPShim) RemoveFromList(listMetadata *ipsets.IPSetMetadata, setMetadata
 		return nil
 	}
 
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 
 	listName := listMetadata.GetPrefixName()
 	list, exists := dp.setCache[listName]
@@ -316,8 +316,8 @@ func (dp *DPShim) AddPolicy(networkpolicies *policies.NPMNetworkPolicy) error {
 			err = fmt.Errorf("failed with error %w, apply failed with %v", err, dperr)
 		}
 	}()
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 
 	if dp.policyExists(networkpolicies.PolicyKey) {
 		return nil
@@ -343,8 +343,8 @@ func (dp *DPShim) RemovePolicy(policyKey string) error {
 		}
 	}()
 
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 	// keeping err different so we can catch the defer func err
 	delete(dp.policyCache, policyKey)
 	dp.dirtyCache.modifyDeletePolicies(policyKey)
@@ -362,8 +362,8 @@ func (dp *DPShim) UpdatePolicy(networkpolicies *policies.NPMNetworkPolicy) error
 		}
 	}()
 
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 
 	// For simplicity, we will not be adding references of netpols to ipsets.
 	// DP in daemon will take care of tracking the references.
@@ -375,8 +375,8 @@ func (dp *DPShim) UpdatePolicy(networkpolicies *policies.NPMNetworkPolicy) error
 }
 
 func (dp *DPShim) ApplyDataPlane() error {
-	dp.Lock()
-	defer dp.Unlock()
+	dp.lock()
+	defer dp.unlock()
 
 	// check dirty cache contents
 	if !dp.dirtyCache.hasContents() {
@@ -433,6 +433,14 @@ func (dp *DPShim) ApplyDataPlane() error {
 
 	dp.dirtyCache.clearCache()
 	return nil
+}
+
+func (dp *DPShim) lock() {
+	dp.mu.Lock()
+}
+
+func (dp *DPShim) unlock() {
+	dp.mu.Unlock()
 }
 
 func (dp *DPShim) policyExists(policyKey string) bool {
