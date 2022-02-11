@@ -49,6 +49,9 @@ type Monitor struct {
 	once        sync.Once
 }
 
+// Global Variables for Subnet and SubnetAddressSpace
+var subnet, subnetCIDR string
+
 func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, opts *Options) *Monitor {
 	if opts.RefreshDelay < 1 {
 		opts.RefreshDelay = DefaultRefreshDelay
@@ -87,6 +90,11 @@ func (pm *Monitor) Start(ctx context.Context) error {
 		case nnc := <-pm.nncSource: // received a new NodeNetworkConfig, extract the data from it and re-reconcile.
 			pm.spec = nnc.Spec
 			scaler := nnc.Status.Scaler
+
+			// Set SubnetName and SubnetAddressSpace values to the global subnet and subnetCIDR variables.
+			subnet = nnc.Status.NetworkContainers[0].SubnetName
+			subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
+
 			pm.metastate.batch = scaler.BatchSize
 			pm.metastate.max = scaler.MaxIPCount
 			pm.metastate.minFreeCount, pm.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
@@ -146,7 +154,9 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	allocatedIPs := pm.httpService.GetPodIPConfigState()
 	state := buildIPPoolState(allocatedIPs, pm.spec)
 	logger.Printf("ipam-pool-monitor state %+v", state)
-	observeIPPoolState(state, pm.metastate)
+
+	labels := []string{subnet, subnetCIDR}
+	observeIPPoolState(state, pm.metastate, labels)
 
 	switch {
 	// pod count is increasing
