@@ -17,7 +17,7 @@ var httpRequestLatency = prometheus.NewHistogramVec(
 		//nolint:gomnd // default bucket consts
 		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1 ms to ~16 seconds
 	},
-	[]string{"url", "verb", cnsReturnCode},
+	[]string{"url", "verb", "cns_return_code"},
 )
 
 var ipAssignmentLatency = prometheus.NewHistogram(
