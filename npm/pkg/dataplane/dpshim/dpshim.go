@@ -20,6 +20,9 @@ const cleanEmptySetsInHrs = 24
 
 var ErrChannelUnset = errors.New("channel must be set")
 
+// (TODO) DPShim has commonalities with IPSetManager, we should consider refactoring
+// to have a common interface for both.
+
 type DPShim struct {
 	OutChannel  chan *protos.Events
 	stopChannel <-chan struct{}
@@ -40,7 +43,7 @@ func NewDPSim(stopChannel <-chan struct{}) (*DPShim, error) {
 	}, nil
 }
 
-func (dp *DPShim) ResetDataPlane() error {
+func (dp *DPShim) BootupDataplane() error {
 	return nil
 }
 
@@ -162,6 +165,10 @@ func (dp *DPShim) AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *d
 			return npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s is not a hash set", prefixedSetName))
 		}
 
+		cachedPodMetadata, ok := set.IPPodMetadata[podMetadata.PodIP]
+		if ok && cachedPodMetadata.PodKey == podMetadata.PodKey {
+			continue
+		}
 		set.IPPodMetadata[podMetadata.PodIP] = podMetadata
 		dp.dirtyCache.modifyAddorUpdateSets(prefixedSetName)
 	}
@@ -180,7 +187,7 @@ func (dp *DPShim) RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetada
 	for _, set := range setMetadatas {
 		prefixedSetName := set.GetPrefixName()
 		if !dp.setExists(prefixedSetName) {
-			dp.createIPSet(set)
+			continue
 		}
 
 		set := dp.setCache[prefixedSetName]
@@ -317,6 +324,8 @@ func (dp *DPShim) AddPolicy(networkpolicies *policies.NPMNetworkPolicy) error {
 			err = fmt.Errorf("failed with error %w, apply failed with %v", err, dperr)
 		}
 	}()
+
+	// Here refers work in LIFO, DP gets unlocked first, then ApplyDataPlane will acquire lock again
 	dp.lock()
 	defer dp.unlock()
 
@@ -344,6 +353,7 @@ func (dp *DPShim) RemovePolicy(policyKey string) error {
 		}
 	}()
 
+	// Here refers work in LIFO, DP gets unlocked first, then ApplyDataPlane will acquire lock again
 	dp.lock()
 	defer dp.unlock()
 	// keeping err different so we can catch the defer func err
@@ -363,6 +373,7 @@ func (dp *DPShim) UpdatePolicy(networkpolicies *policies.NPMNetworkPolicy) error
 		}
 	}()
 
+	// Here refers work in LIFO, DP gets unlocked first, then ApplyDataPlane will acquire lock again
 	dp.lock()
 	defer dp.unlock()
 

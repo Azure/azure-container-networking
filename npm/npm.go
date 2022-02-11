@@ -157,7 +157,7 @@ func (npMgr *NetworkPolicyManager) GetAppVersion() string {
 func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
 	if !config.Toggles.EnableV2NPM {
 		// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
-		if err := npMgr.NetPolControllerV1.ResetDataPlane(); err != nil {
+		if err := npMgr.NetPolControllerV1.BootupDataplane(); err != nil {
 			return fmt.Errorf("Failed to initialized data plane with err %w", err)
 		}
 	}

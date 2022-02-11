@@ -6,7 +6,7 @@ import (
 )
 
 type GenericDataplane interface {
-	ResetDataPlane() error
+	BootupDataplane() error
 	RunPeriodicTasks()
 	GetIPSet(setName string) *ipsets.IPSet
 	CreateIPSets(setMetadatas []*ipsets.IPSetMetadata)

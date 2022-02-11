@@ -61,7 +61,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		stopChannel:    stopChannel,
 	}
 
-	err := dp.ResetDataPlane()
+	err := dp.BootupDataplane()
 	if err != nil {
 		klog.Errorf("Failed to reset dataplane: %v", err)
 		return nil, err
@@ -69,9 +69,9 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	return dp, nil
 }
 
-// ResetDataPlane cleans the NPM sets and policies in the dataplane and performs initialization.
+// BootupDataplane cleans the NPM sets and policies in the dataplane and performs initialization.
 // TODO rename this function to BootupDataplane
-func (dp *DataPlane) ResetDataPlane() error {
+func (dp *DataPlane) BootupDataplane() error {
 	// NOTE: used to create an all-namespaces set, but there's no need since it will be created by the control plane
 	return dp.bootupDataPlane() //nolint:wrapcheck // unnecessary to wrap error
 }

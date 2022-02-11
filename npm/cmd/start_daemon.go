@@ -71,6 +71,7 @@ func startDaemon(config npmconfig.Config) error {
 	}
 
 	dp.RunPeriodicTasks()
+	// TODO Daemon should implement cache encoder
 	go restserver.NPMRestServerListenAndServe(config, nil)
 
 	client, err := transport.NewEventsClient(ctx, pod, node, addr)

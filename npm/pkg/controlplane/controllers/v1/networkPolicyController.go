@@ -66,7 +66,7 @@ func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInfo
 
 // initializeDataPlane do all initialization tasks for data plane
 // TODO(jungukcho) Need to refactor UninitNpmChains since it assumes it has already AZURE-NPM chains
-func (c *NetworkPolicyController) ResetDataPlane() error {
+func (c *NetworkPolicyController) BootupDataplane() error {
 	klog.Infof("Initiailize data plane. Clean up Azure-NPM chains and start reconcile iptables")
 
 	// TODO(jungukcho): will clean-up error handling codes to initialize iptables and ipset in a separate PR
