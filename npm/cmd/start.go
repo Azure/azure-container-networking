@@ -39,7 +39,7 @@ var npmV2DataplaneCfg = &dataplane.Config{
 	},
 	PolicyManagerCfg: &policies.PolicyManagerCfg{
 		PolicyMode:           policies.IPSetPolicyMode,
-		PlaceAzureChainFirst: true,
+		PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 	},
 }
 

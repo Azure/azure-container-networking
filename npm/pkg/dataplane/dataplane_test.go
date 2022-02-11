@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ var (
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
 			PolicyMode:           policies.IPSetPolicyMode,
-			PlaceAzureChainFirst: true,
+			PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 		},
 	}
 

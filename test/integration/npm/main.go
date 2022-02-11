@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 )
 
 const (
@@ -24,7 +25,7 @@ var (
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
 			PolicyMode:           policies.IPSetPolicyMode,
-			PlaceAzureChainFirst: true,
+			PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 		},
 	}
 

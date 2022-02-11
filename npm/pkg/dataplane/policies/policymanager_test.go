@@ -15,7 +15,7 @@ import (
 var (
 	ipsetConfig = &PolicyManagerCfg{
 		PolicyMode:           IPSetPolicyMode,
-		PlaceAzureChainFirst: true,
+		PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 	}
 
 	// below epList is no-op for linux
