@@ -40,8 +40,7 @@ var (
 	// Should not be used directly. Initialized from iptablesAzureChains on first use of isAzureChain().
 	iptablesAzureChainsMap map[string]struct{}
 
-	jumpFromForwardToAzureChainArgs = []string{
-		util.IptablesForwardChain,
+	jumpToAzureChainArgs = []string{
 		util.IptablesJumpFlag,
 		util.IptablesAzureChain,
 		util.IptablesModuleFlag,
@@ -49,7 +48,12 @@ var (
 		util.IptablesCtstateFlag,
 		util.IptablesNewState,
 	}
+	jumpFromForwardToAzureChainArgs = append([]string{util.IptablesForwardChain}, jumpToAzureChainArgs...)
 
+	listForwardEntriesArgs = []string{
+		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
+		util.IptablesNumericFlag, util.IptablesListFlag, util.IptablesForwardChain, util.IptablesLineNumbersFlag,
+	}
 	spaceByte                                 = []byte(" ")
 	errNoLineNumber                           = errors.New("no line number found")
 	errUnexpectedLineNumberString             = errors.New("unexpected line number string")
@@ -254,9 +258,7 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 	allArgs := []string{util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, operationFlag}
 	allArgs = append(allArgs, args...)
 
-	if operationFlag != util.IptablesCheckFlag {
-		klog.Infof("Executing iptables command with args %v", allArgs)
-	}
+	klog.Infof("Executing iptables command with args %v", allArgs)
 
 	command := pMgr.ioShim.Exec.Command(util.Iptables, allArgs...)
 	output, err := command.CombinedOutput()
@@ -266,7 +268,7 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 		errCode := exitError.ExitStatus()
 		allArgsString := strings.Join(allArgs, " ")
 		msgStr := strings.TrimSuffix(string(output), "\n")
-		if errCode > 0 && operationFlag != util.IptablesCheckFlag {
+		if errCode > 0 {
 			metrics.SendErrorLogAndMetric(util.IptmID, "error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, msgStr)
 		}
 		return errCode, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to run iptables command [%s %s] Stderr: [%s]", util.Iptables, allArgsString, msgStr), exitError)
@@ -394,8 +396,8 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 		// when no index is provided, index of 1 is implied
 		args = jumpFromForwardToAzureChainArgs
 	} else {
-		args = []string{strconv.Itoa(targetIndex)}
-		args = append(args, jumpFromForwardToAzureChainArgs...)
+		args = []string{util.IptablesForwardChain, strconv.Itoa(targetIndex)}
+		args = append(args, jumpToAzureChainArgs...)
 	}
 	if insertErrCode, err := pMgr.runIPTablesCommand(util.IptablesInsertionFlag, args...); err != nil {
 		baseErrString := "failed to insert jump from FORWARD chain to AZURE-NPM chain"
@@ -408,10 +410,8 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 // returns 0 if the chain does not exist
 // this function has a direct comparison in NPM v1 iptables manager (iptm.go)
 func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
-	listForwardEntriesCommand := pMgr.ioShim.Exec.Command(util.Iptables,
-		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
-		util.IptablesNumericFlag, util.IptablesListFlag, util.IptablesForwardChain, util.IptablesLineNumbersFlag,
-	)
+	listForwardEntriesCommand := pMgr.ioShim.Exec.Command(util.Iptables, listForwardEntriesArgs...)
+	klog.Infof("grepping for chain %s after running iptables with args %v", chain, listForwardEntriesArgs)
 	grepCommand := pMgr.ioShim.Exec.Command(ioutil.Grep, chain)
 	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(listForwardEntriesCommand, grepCommand)
 	if err != nil {
