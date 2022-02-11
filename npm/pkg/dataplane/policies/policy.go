@@ -61,14 +61,14 @@ func (netPol *NPMNetworkPolicy) numACLRulesProducedInKernel() int {
 	return numRules
 }
 
-func (netPol *NPMNetworkPolicy) String() string {
+func (netPol *NPMNetworkPolicy) PrettyString() string {
 	if netPol == nil {
 		klog.Infof("NPMNetworkPolicy is nil when trying to print string")
 		return "nil NPMNetworkPolicy"
 	}
 	itemStrings := make([]string, 0, len(netPol.ACLs))
 	for _, item := range netPol.ACLs {
-		itemStrings = append(itemStrings, item.String())
+		itemStrings = append(itemStrings, item.PrettyString())
 	}
 	aclArrayString := strings.Join(itemStrings, "\n--\n")
 
@@ -194,7 +194,7 @@ func (aclPolicy *ACLPolicy) hasNamedPort() bool {
 	return false
 }
 
-func (aclPolicy *ACLPolicy) String() string {
+func (aclPolicy *ACLPolicy) PrettyString() string {
 	format := `Target:%s  Direction:%s  Protocol:%s  Ports:%+v
 SrcList: %s
 DstList: %s`
@@ -204,7 +204,7 @@ DstList: %s`
 func infoArrayToString(items []SetInfo) string {
 	itemStrings := make([]string, 0, len(items))
 	for _, item := range items {
-		itemStrings = append(itemStrings, fmt.Sprintf("{%s}", item.String()))
+		itemStrings = append(itemStrings, fmt.Sprintf("{%s}", item.PrettyString()))
 	}
 	return fmt.Sprintf("[%s]", strings.Join(itemStrings, ","))
 }
@@ -213,7 +213,7 @@ func translatedIPSetsToString(items []*ipsets.TranslatedIPSet) string {
 	itemStrings := make([]string, 0, len(items))
 	for _, item := range items {
 		ipset := ipsets.NewIPSet(item.Metadata)
-		itemStrings = append(itemStrings, fmt.Sprintf("{%s}", ipset.String()))
+		itemStrings = append(itemStrings, fmt.Sprintf("{%s}", ipset.PrettyString()))
 	}
 	return fmt.Sprintf("[%s]", strings.Join(itemStrings, ","))
 }
@@ -246,7 +246,7 @@ func NewSetInfo(name string, setType ipsets.SetType, included bool, matchType Ma
 	}
 }
 
-func (info SetInfo) String() string {
+func (info SetInfo) PrettyString() string {
 	return fmt.Sprintf("Name:%s  HashedName:%s  MatchType:%v  Included:%v", info.IPSet.GetPrefixName(), info.IPSet.GetHashedName(), info.MatchType, info.Included)
 }
 
