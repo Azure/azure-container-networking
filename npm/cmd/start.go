@@ -34,12 +34,12 @@ import (
 
 var npmV2DataplaneCfg = &dataplane.Config{
 	IPSetManagerCfg: &ipsets.IPSetManagerCfg{
-		IPSetMode:   ipsets.ApplyAllIPSets, // NOTE: this value is overridden later
-		NetworkName: "azure",               // FIXME  should be specified in DP config instead
+		NetworkName: "azure", // FIXME  should be specified in DP config instead
+		// NOTE: IPSetMode must be set later by the npm ConfigMap or default config
 	},
 	PolicyManagerCfg: &policies.PolicyManagerCfg{
-		PolicyMode:           policies.IPSetPolicyMode,
-		PlaceAzureChainFirst: util.PlaceAzureChainFirst,
+		PolicyMode: policies.IPSetPolicyMode,
+		// NOTE: PlaceAzureChainFirst must be set later by the npm ConfigMap or default config
 	},
 }
 
@@ -145,6 +145,11 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyOnNeed
 		} else {
 			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyAllIPSets
+		}
+		if config.Toggles.PlaceAzureChainFirst == util.PlaceAzureChainFirst {
+			npmV2DataplaneCfg.PlaceAzureChainFirst = util.PlaceAzureChainFirst
+		} else {
+			npmV2DataplaneCfg.PlaceAzureChainFirst = util.PlaceAzureChainAfterKubeServices
 		}
 		dp, err = dataplane.NewDataPlane(models.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, stopChannel)
 		if err != nil {
