@@ -18,6 +18,7 @@ type NPMNetworkPolicy struct {
 	PolicyKey string
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
+	// TODO change to slice of pointers
 	// PodSelectorList holds target pod information to avoid duplicatoin in SrcList and DstList fields in ACLs
 	PodSelectorList []SetInfo
 	// RuleIPSets holds all IPSets generated from policy's rules

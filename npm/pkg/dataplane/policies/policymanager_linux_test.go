@@ -317,7 +317,28 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 }
 
-// similar to TestRemovePolicy in policymanager.go except an error occurs
+// similar to TestRemovePolicy in policymanager_test.go except an acceptable error occurs
+func TestRemovePoliciesAcceptableError(t *testing.T) {
+	metrics.ReinitializeAll()
+	calls := []testutils.TestCmd{
+		fakeIPTablesRestoreCommand,
+		// ignore exit code 1
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump, 1),
+		// ignore exit code 1
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 1),
+		fakeIPTablesRestoreCommand,
+	}
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, epList))
+	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil))
+	_, ok := pMgr.GetPolicy(bothDirectionsNetPol.PolicyKey)
+	require.False(t, ok)
+	promVals{0, 1}.testPrometheusMetrics(t)
+}
+
+// similar to TestRemovePolicy in policymanager_test.go except an error occurs
 func TestRemovePoliciesError(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -330,13 +351,14 @@ func TestRemovePoliciesError(t *testing.T) {
 				getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump),
 				getFakeDeleteJumpCommand("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump),
 				fakeIPTablesRestoreFailureCommand,
+				fakeIPTablesRestoreFailureCommand,
 			},
 		},
 		{
 			name: "error on delete for ingress",
 			calls: []testutils.TestCmd{
 				fakeIPTablesRestoreCommand,
-				getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump, 1), // anything but 0 or 2
+				getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump, 2), // anything but 0 or 1
 			},
 		},
 		{
@@ -344,7 +366,7 @@ func TestRemovePoliciesError(t *testing.T) {
 			calls: []testutils.TestCmd{
 				fakeIPTablesRestoreCommand,
 				getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump),
-				getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 1), // anything but 0 or 2
+				getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 2), // anything but 0 or 1
 			},
 		},
 	}

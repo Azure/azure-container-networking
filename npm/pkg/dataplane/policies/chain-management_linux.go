@@ -139,10 +139,9 @@ func isBaseChain(chain string) bool {
 			- delete all deprecated chains
 			- delete old v2 policy chains
 	3. Add/reposition the jump from FORWARD chain to AZURE-NPM chain.
-		TODO: add this jump (if necessary) in the iptables-restore call
 
-	TODO: could use one grep call instead of one for getting the jump line num and one for getting deprecated chains and old v2 policy chains
-		- should use a grep pattern like so: <line num...AZURE-NPM>|<Chain AZURE-NPM>
+	TODO: could use one grep call instead of separate calls for getting jump line nums and for getting deprecated chains and old v2 policy chains
+		- would use a grep pattern like so: <line num...AZURE-NPM>|<Chain AZURE-NPM>
 */
 func (pMgr *PolicyManager) bootup(_ []string) error {
 	klog.Infof("booting up iptables Azure chains")

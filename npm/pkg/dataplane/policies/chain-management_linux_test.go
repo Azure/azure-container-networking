@@ -372,6 +372,20 @@ func TestBootupLinux(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "success after restore failure (no NPM prior)",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+				fakeIPTablesRestoreFailureCommand, // e.g. xtables lock held by another app. Currently the stdout doesn't matter for retrying
+				fakeIPTablesRestoreCommand,
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			wantErr: false,
+		},
+		{
 			name: "success: v2 existed prior",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
@@ -429,11 +443,12 @@ func TestBootupLinux(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "failure on restore (no NPM prior)",
+			name: "failure twice on restore (no NPM prior)",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
 				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+				fakeIPTablesRestoreFailureCommand,
 				fakeIPTablesRestoreFailureCommand,
 			},
 			wantErr: true,
