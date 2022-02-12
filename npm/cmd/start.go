@@ -141,16 +141,14 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	var dp dataplane.GenericDataplane
 	stopChannel := wait.NeverStop
 	if config.Toggles.EnableV2NPM {
+		// update the dataplane config
+		npmV2DataplaneCfg.PlaceAzureChainFirst = config.Toggles.PlaceAzureChainFirst
 		if config.Toggles.ApplyIPSetsOnNeed {
 			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyOnNeed
 		} else {
 			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyAllIPSets
 		}
-		if config.Toggles.PlaceAzureChainFirst == util.PlaceAzureChainFirst {
-			npmV2DataplaneCfg.PlaceAzureChainFirst = util.PlaceAzureChainFirst
-		} else {
-			npmV2DataplaneCfg.PlaceAzureChainFirst = util.PlaceAzureChainAfterKubeServices
-		}
+
 		dp, err = dataplane.NewDataPlane(models.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, stopChannel)
 		if err != nil {
 			return fmt.Errorf("failed to create dataplane with error %w", err)
