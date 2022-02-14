@@ -208,14 +208,7 @@ func (gsp *GoalStateProcessor) applySets(ipSet *cp.ControllerIPSets, cachedIPSet
 
 	if cachedIPSet != nil {
 		for podIP, cachedPodKey := range cachedIPSet.IPPodKey {
-			if podMetadata, ok := ipSet.IPPodMetadata[podIP]; !ok {
-				if cachedPodKey != podMetadata.PodKey {
-					klog.Infof(
-						"DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Ignore the delete as this is stale update",
-						podIP, setMetadata.Name, cachedPodKey, cachedPodKey,
-					)
-					continue
-				}
+			if _, ok := ipSet.IPPodMetadata[podIP]; !ok {
 				err := gsp.dp.RemoveFromSets([]*ipsets.IPSetMetadata{setMetadata}, dataplane.NewPodMetadata(podIP, cachedPodKey, ""))
 				if err != nil {
 					return npmerrors.SimpleErrorWrapper("IPSet apply event, failed at RemoveFromSets.", err)
