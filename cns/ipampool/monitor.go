@@ -102,33 +102,33 @@ func (pm *Monitor) Start(ctx context.Context) error {
 
 // ipPoolState is the current actual state of the CNS IP pool.
 type ipPoolState struct {
-	// allocated are the IPs given to CNS.
-	allocated int64
-	// assigned are the IPs CNS gives to Pods.
-	assigned int64
-	// available are the allocated IPs in state "Available".
+	// allocatedToPods are the IPs CNS gives to Pods.
+	allocatedToPods int64
+	// available are the IPs in state "Available".
 	available int64
-	// pendingProgramming are the allocated IPs in state "PendingProgramming".
+	// currentAvailableIPs are the current available IPs: allocated - assigned - pendingRelease.
+	currentAvailableIPs int64
+	// expectedAvailableIPs are the "future" available IPs, if the requested IP count is honored: requested - assigned.
+	expectedAvailableIPs int64
+	// pendingProgramming are the IPs in state "PendingProgramming".
 	pendingProgramming int64
-	// pendingRelease are the allocated IPs in state "PendingRelease".
+	// pendingRelease are the IPs in state "PendingRelease".
 	pendingRelease int64
-	// requested are the IPs CNS has requested that it be allocated.
-	requested int64
-	// requestedUnassigned are the "future" unassigned IPs, if the requested IP count is honored: requested - assigned.
-	requestedUnassigned int64
-	// unassigned are the currently unassigned IPs: allocated - assigned.
-	unassigned int64
+	// requestedIPs are the IPs CNS has requested that it be allocated by DNC.
+	requestedIPs int64
+	// totalIPs are all the IPs given to CNS by DNC.
+	totalIPs int64
 }
 
 func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.NodeNetworkConfigSpec) ipPoolState {
 	state := ipPoolState{
-		allocated: int64(len(ips)),
-		requested: spec.RequestedIPCount,
+		totalIPs:     int64(len(ips)),
+		requestedIPs: spec.RequestedIPCount,
 	}
 	for _, v := range ips {
 		switch v.GetState() {
 		case types.Assigned:
-			state.assigned++
+			state.allocatedToPods++
 		case types.Available:
 			state.available++
 		case types.PendingProgramming:
@@ -137,8 +137,8 @@ func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.Nod
 			state.pendingRelease++
 		}
 	}
-	state.unassigned = state.allocated - state.assigned
-	state.requestedUnassigned = state.requested - state.assigned
+	state.currentAvailableIPs = state.totalIPs - state.allocatedToPods - state.pendingRelease
+	state.expectedAvailableIPs = state.requestedIPs - state.allocatedToPods
 	return state
 }
 
@@ -150,8 +150,8 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 
 	switch {
 	// pod count is increasing
-	case state.requestedUnassigned < pm.metastate.minFreeCount:
-		if state.requested == pm.metastate.max {
+	case state.expectedAvailableIPs < pm.metastate.minFreeCount:
+		if state.requestedIPs == pm.metastate.max {
 			// If we're already at the maxIPCount, don't try to increase
 			return nil
 		}
@@ -160,7 +160,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return pm.increasePoolSize(ctx, state)
 
 	// pod count is decreasing
-	case (state.unassigned - state.pendingRelease) >= pm.metastate.maxFreeCount:
+	case state.currentAvailableIPs >= pm.metastate.maxFreeCount:
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...")
 		return pm.decreasePoolSize(ctx, state)
 
@@ -171,7 +171,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return pm.cleanPendingRelease(ctx)
 
 	// no pods scheduled
-	case state.assigned == 0:
+	case state.allocatedToPods == 0:
 		logger.Printf("[ipam-pool-monitor] No pods scheduled")
 		return nil
 	}
