@@ -160,7 +160,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return pm.increasePoolSize(ctx, state)
 
 	// pod count is decreasing
-	case state.unassigned >= pm.metastate.maxFreeCount:
+	case (state.unassigned - state.pendingRelease) >= pm.metastate.maxFreeCount:
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...")
 		return pm.decreasePoolSize(ctx, state)
 

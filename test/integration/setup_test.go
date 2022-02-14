@@ -94,6 +94,7 @@ func TestMain(m *testing.M) {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
 			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), logDir); err != nil {
+				log.Print(err)
 				exitCode = 2
 				return
 			}
