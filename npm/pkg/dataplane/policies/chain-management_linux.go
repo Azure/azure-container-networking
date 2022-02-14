@@ -358,21 +358,16 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 			return npmerrors.SimpleErrorWrapper(baseErrString, err)
 		}
 
-		if kubeChainLineNum == 0 {
-			// kube jump does not exist
-			if azureChainLineNum != 0 {
-				// azure jump exists, we're done
-				return nil
-			}
-		} else {
+		if kubeChainLineNum != 0 {
 			// kube jump exists
-			if kubeChainLineNum < azureChainLineNum {
-				// the azure jump is in the right position, so we're done
-				return nil
-			}
-			// the azure jump should be after the kube jump
+			// the azure jump should be immediately after the kube jump
 			targetIndex = kubeChainLineNum + 1
 		}
+	}
+
+	if azureChainLineNum == targetIndex {
+		// the azure jump is in the right position, so we're done
+		return nil
 	}
 
 	// delete the azure jump if it exists and update the target index
@@ -383,8 +378,11 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 			metrics.SendErrorLogAndMetric(util.IptmID, "error: %s with error code %d and error %s", baseErrString, deleteErrCode, deleteErr.Error())
 			return npmerrors.SimpleErrorWrapper(baseErrString, deleteErr)
 		}
-		if pMgr.PlaceAzureChainFirst == util.PlaceAzureChainAfterKubeServices {
-			// the kube jump was below the deleted azure jump, so decrement the target index
+
+		if azureChainLineNum < targetIndex {
+			// this means kube jump existed and was below the deleted azure jump, so decrement the target index
+			// this can only occur if PlaceAzureChainFirst == PlaceAfterKube
+			// this logic depends on targetIndex being 1 or kubeChainLineNum + 1
 			targetIndex--
 		}
 	}
