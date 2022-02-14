@@ -329,7 +329,9 @@ func (gsp *GoalStateProcessor) processPolicyRemoveEvent(goalState *protos.GoalSt
 
 func validatePayload(payload map[string]*protos.GoalState) bool {
 	for _, v := range payload {
-		return len(v.GetData()) != 0
+		if len(v.GetData()) != 0 {
+			return true
+		}
 	}
 	return false
 }

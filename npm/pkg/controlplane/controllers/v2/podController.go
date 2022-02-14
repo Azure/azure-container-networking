@@ -589,7 +589,7 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start deleting them from ipsets
 	for labelKey, labelVal := range cachedNpmPod.Labels {
 		labelKeyValue := util.GetIpSetFromLabelKV(labelKey, labelVal)
-		klog.Infof("Deleting pod %s (ip : %s) to ipset %s and %s", cachedNpmPodKey, cachedNpmPod.PodIP, labelKey, labelKeyValue)
+		klog.Infof("Deleting pod %s (ip : %s) from ipsets %s and %s", cachedNpmPodKey, cachedNpmPod.PodIP, labelKey, labelKeyValue)
 		if err = c.dp.RemoveFromSets(
 			[]*ipsets.IPSetMetadata{
 				ipsets.NewIPSetMetadata(labelKey, ipsets.KeyLabelOfPod),

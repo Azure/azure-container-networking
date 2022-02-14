@@ -155,6 +155,7 @@ func (dp *DPShim) AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *d
 	defer dp.unlock()
 
 	for _, set := range setMetadatas {
+		klog.Infof("AddToSets: Adding pod IP: %s, Key: %s,  to set %s", podMetadata.PodIP, podMetadata.PodKey, set.GetPrefixName())
 		prefixedSetName := set.GetPrefixName()
 		if !dp.setExists(prefixedSetName) {
 			dp.createIPSet(set)
@@ -185,6 +186,7 @@ func (dp *DPShim) RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetada
 	defer dp.unlock()
 
 	for _, set := range setMetadatas {
+		klog.Infof("RemoveFromSets: removing pod ip: %s, podkey: %s,  from set %s ", podMetadata.PodIP, podMetadata.PodKey, set.GetPrefixName())
 		prefixedSetName := set.GetPrefixName()
 		if !dp.setExists(prefixedSetName) {
 			continue
