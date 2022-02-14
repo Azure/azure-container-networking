@@ -331,8 +331,8 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 	return nil
 }
 
-// called when CNS is starting up and there are existing ipconfigs in the CRD that are marked as pending
-func (service *HTTPRestService) MarkExistingIPsAsPending(pendingIPIDs []string) error {
+// MarkExistingIPsAsPendingRelease is called when CNS is starting up and there are existing ipconfigs in the CRD that are marked as pending.
+func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []string) error {
 	service.Lock()
 	defer service.Unlock()
 

@@ -44,7 +44,7 @@ type Monitor struct {
 	metastate   metaState
 	nnccli      nodeNetworkConfigSpecUpdater
 	httpService cns.HTTPService
-	initialized chan interface{}
+	started     chan interface{}
 	nncSource   chan v1alpha.NodeNetworkConfig
 	once        sync.Once
 }
@@ -60,7 +60,7 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 		opts:        opts,
 		httpService: httpService,
 		nnccli:      nnccli,
-		initialized: make(chan interface{}),
+		started:     make(chan interface{}),
 		nncSource:   make(chan v1alpha.NodeNetworkConfig),
 	}
 }
@@ -78,7 +78,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			return errors.Wrap(ctx.Err(), "pool monitor context closed")
 		case <-ticker.C: // attempt to reconcile every tick.
 			select {
-			case <-pm.initialized: // this blocks until we have initialized
+			case <-pm.started: // this blocks until we have initialized
 				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			default:
 				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
@@ -90,7 +90,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			pm.metastate.batch = scaler.BatchSize
 			pm.metastate.max = scaler.MaxIPCount
 			pm.metastate.minFreeCount, pm.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
-			pm.once.Do(func() { close(pm.initialized) }) // close the init channel the first time we receive a NodeNetworkConfig.
+			pm.once.Do(func() { close(pm.started) }) // close the init channel the first time we receive a NodeNetworkConfig.
 		}
 		// if control has flowed through the select(s) to this point, we can now reconcile.
 		err := pm.reconcile(ctx)
