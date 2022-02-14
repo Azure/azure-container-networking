@@ -227,7 +227,6 @@ func (service *HTTPRestService) ReconcileNCState(
 	if returnCode != types.Success {
 		return returnCode
 	}
-	service.IPAMPoolMonitor.Update(nnc)
 
 	// now parse the secondaryIP list, if it exists in PodInfo list, then assign that ip.
 	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
