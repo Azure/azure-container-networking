@@ -53,9 +53,6 @@ func NewReconciler(nnccli nncGetter, cnscli cnsClient, ipampipampoolmonitorcli i
 
 // Reconcile is called on CRD status changes
 func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	defer func() {
-		r.once.Do(func() { close(r.started) })
-	}()
 	nnc, err := r.nnccli.Get(ctx, req.NamespacedName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -94,6 +91,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// record assigned IPs metric
 	allocatedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
 
+	// we have received and pushed an NNC update, we are "Started"
+	r.once.Do(func() { close(r.started) })
 	return reconcile.Result{}, nil
 }
 

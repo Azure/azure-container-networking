@@ -65,6 +65,9 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 	}
 }
 
+// Start begins the Monitor's pool reconcile loop.
+// On first run, it will block until a NodeNetworkConfig is received (through a call to Update()).
+// Subsequently, it will run run once per RefreshDelay and attempt to re-reconcile the pool.
 func (pm *Monitor) Start(ctx context.Context) error {
 	logger.Printf("[ipam-pool-monitor] Starting CNS IPAM Pool Monitor")
 
@@ -334,6 +337,10 @@ func (pm *Monitor) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 
 // Update ingests a NodeNetworkConfig, clamping some values to ensure they are legal and then
 // pushing it to the Monitor's source channel.
+// If the Monitor has been Started but is blocking until it receives an NNC, this will start
+// the pool reconcile loop.
+// If the Monitor has not been Started, this will block until Start() is called, which will
+// immediately read this passed NNC and start the pool reconcile loop.
 func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 	pm.clampScaler(&nnc.Status.Scaler)
 

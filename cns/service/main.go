@@ -954,6 +954,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
 
+	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
+	// NodeNetworkConfig update by the time the Reconciler tries to send it.
 	go func() {
 		logger.Printf("Starting IPAM Pool Monitor")
 		if e := poolMonitor.Start(ctx); e != nil {
@@ -997,7 +999,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to setup reconciler with manager")
 	}
 
-	// Start the RequestController which starts the reconcile loop
+	// Start the Manager which starts the reconcile loop.
+	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
+	// Monitor's internal loop.
 	go func() {
 		logger.Printf("Starting NodeNetworkConfig reconciler.")
 		for {
