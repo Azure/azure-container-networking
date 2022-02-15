@@ -96,6 +96,7 @@ func TestPolicyApplyEvent(t *testing.T) {
 
 	go func() {
 		inputChan <- &protos.Events{
+			EventType: protos.Events_GoalState,
 			Payload: map[string]*protos.GoalState{
 				controlplane.PolicyApply: {
 					Data: payload.Bytes(),
