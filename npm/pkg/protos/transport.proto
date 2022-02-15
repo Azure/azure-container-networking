@@ -23,8 +23,8 @@ message DatapathPodMetadata {
 message Events {
   enum EventType 
   {
-    Hydration = 0;
-    GoalState = 1;
+    GoalState = 0;
+    Hydration = 1;
   };
   EventType eventType = 1;
   // Payload can contain one or more Event objects.
