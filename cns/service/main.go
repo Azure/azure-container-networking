@@ -928,6 +928,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
+	// initialize the ipam pool monitor
+	poolOpts := ipampool.Options{
+		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
+	}
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &poolOpts)
+	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
+
 	// reconcile initial CNS state from CNI or apiserver.
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
 	// aks addons to come up so retry a bit more aggresively here.
@@ -947,12 +954,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
 
-	// initialize the ipam pool monitor
-	poolOpts := ipampool.Options{
-		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
-	}
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &poolOpts)
-	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 	go func() {
 		logger.Printf("Starting IPAM Pool Monitor")
 		if e := poolMonitor.Start(ctx); e != nil {
@@ -1013,6 +1014,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			time.Sleep(time.Second)
 		}
 	}()
+	logger.Printf("initialized NodeNetworkConfig reconciler")
+	// wait for up to 10m for the Reconciler to run once.
+	timedCtx, cancel := context.WithTimeout(ctx, 10*time.Minute) //nolint:gomnd // default 10m
+	defer cancel()
+	if started := reconciler.Started(timedCtx); !started {
+		return errors.Errorf("timed out waiting for reconciler start")
+	}
+	logger.Printf("started NodeNetworkConfig reconciler")
 
 	go func() {
 		logger.Printf("starting SyncHostNCVersion loop")
