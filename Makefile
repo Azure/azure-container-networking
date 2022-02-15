@@ -159,6 +159,8 @@ NPM_IMAGE = azure-npm
 
 TAG               ?= $(VERSION)
 IMAGE_REGISTRY    ?= acnpublic.azurecr.io
+OS                ?= $(GOOS)
+ARCH              ?= $(GOARCH)
 PLATFORM          ?= $(GOOS)/$(GOARCH)
 CONTAINER_BUILDER  = buildah
 
