@@ -187,10 +187,7 @@ func (gsp *GoalStateProcessor) processHydrationEvent(payload map[string]*protos.
 
 	if len(toDeleteIPSets) > 0 {
 		klog.Infof("Deleting %d ipsets", len(toDeleteIPSets))
-		err = gsp.processIPSetsRemoveEvent(toDeleteIPSets)
-		if err != nil {
-			klog.Errorf("Error processing IPSET remove HYDRATION event %s", err)
-		}
+		gsp.processIPSetsRemoveEvent(toDeleteIPSets, true)
 	}
 }
 
@@ -230,12 +227,9 @@ func (gsp *GoalStateProcessor) processGoalStateEvent(payload map[string]*protos.
 		payload := bytes.NewBuffer(ipsetRemovePayload.GetData())
 		ipsetNames, err := cp.DecodeStrings(payload)
 		if err != nil {
-			klog.Errorf("Error processing IPSET remove event, failed to decode IPSet remove event", err)
+			klog.Errorf("Error processing IPSET remove event, failed to decode IPSet remove event: %s", err)
 		}
-		err = gsp.processIPSetsRemoveEvent(ipsetNames)
-		if err != nil {
-			klog.Errorf("Error processing IPSET remove event %s", err)
-		}
+		gsp.processIPSetsRemoveEvent(ipsetNames, false)
 	}
 }
 
@@ -348,7 +342,7 @@ func (gsp *GoalStateProcessor) applyLists(ipSet *cp.ControllerIPSets, cachedIPSe
 	return nil
 }
 
-func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(ipsetNames []string) error {
+func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(ipsetNames []string, forceDelete bool) {
 	for _, ipsetName := range ipsetNames {
 		if ipsetName == "" {
 			klog.Warningf("Empty IPSet remove event")
@@ -359,12 +353,11 @@ func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(ipsetNames []string) err
 		cachedIPSet := gsp.dp.GetIPSet(ipsetName)
 		if cachedIPSet == nil {
 			klog.Infof("IPSet %s not found in cache, ignoring delete call.", ipsetName)
-			return nil
+			continue
 		}
 
-		gsp.dp.DeleteIPSet(ipsets.NewIPSetMetadata(cachedIPSet.Name, cachedIPSet.Type))
+		gsp.dp.DeleteIPSet(ipsets.NewIPSetMetadata(cachedIPSet.Name, cachedIPSet.Type), forceDelete)
 	}
-	return nil
 }
 
 func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalState) (map[string]struct{}, error) {

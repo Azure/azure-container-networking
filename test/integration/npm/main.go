@@ -119,7 +119,7 @@ func main() {
 		NodeName: "",
 	}
 	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestKeyPodSet.Metadata, ipsets.TestNSSet.Metadata}, podMetadataD))
-	dp.DeleteIPSet(ipsets.TestKVPodSet.Metadata)
+	dp.DeleteIPSet(ipsets.TestKVPodSet.Metadata, false)
 	panicOnError(dp.ApplyDataPlane())
 
 	if includeLists {
@@ -129,7 +129,7 @@ func main() {
 	printAndWait(true)
 	panicOnError(dp.RemoveFromSets([]*ipsets.IPSetMetadata{ipsets.TestNSSet.Metadata}, podMetadata))
 
-	dp.DeleteIPSet(ipsets.TestNSSet.Metadata)
+	dp.DeleteIPSet(ipsets.TestNSSet.Metadata, false)
 	panicOnError(dp.ApplyDataPlane())
 	printAndWait(true)
 

@@ -122,15 +122,15 @@ func (mr *MockGenericDataplaneMockRecorder) CreateIPSets(setMetadatas interface{
 }
 
 // DeleteIPSet mocks base method.
-func (m *MockGenericDataplane) DeleteIPSet(setMetadata *ipsets.IPSetMetadata) {
+func (m *MockGenericDataplane) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, force bool) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteIPSet", setMetadata)
+	m.ctrl.Call(m, "DeleteIPSet", setMetadata, force)
 }
 
 // DeleteIPSet indicates an expected call of DeleteIPSet.
-func (mr *MockGenericDataplaneMockRecorder) DeleteIPSet(setMetadata interface{}) *gomock.Call {
+func (mr *MockGenericDataplaneMockRecorder) DeleteIPSet(setMetadata, force interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPSet", reflect.TypeOf((*MockGenericDataplane)(nil).DeleteIPSet), setMetadata)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPSet", reflect.TypeOf((*MockGenericDataplane)(nil).DeleteIPSet), setMetadata, force)
 }
 
 // GetAllIPSets mocks base method.

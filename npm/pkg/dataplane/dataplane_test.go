@@ -115,7 +115,7 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 	}
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, false)
 	}
 
 	for _, v := range setsTocreate {
@@ -163,7 +163,7 @@ func TestAddToSet(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, false)
 	}
 
 	for _, v := range setsTocreate {
@@ -179,7 +179,7 @@ func TestAddToSet(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, false)
 	}
 
 	for _, v := range setsTocreate {

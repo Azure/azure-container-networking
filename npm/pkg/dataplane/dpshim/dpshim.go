@@ -124,7 +124,7 @@ func (dp *DPShim) createIPSet(set *ipsets.IPSetMetadata) {
 	dp.dirtyCache.modifyAddorUpdateSets(setName)
 }
 
-func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata) {
+func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, _ bool) {
 	dp.lock()
 	defer dp.unlock()
 	dp.deleteIPSet(setMetadata)

@@ -92,8 +92,8 @@ func (dp *DataPlane) CreateIPSets(setMetadata []*ipsets.IPSetMetadata) {
 
 // DeleteSet checks for members and references of the given "set" type ipset
 // if not used then will delete it from cache
-func (dp *DataPlane) DeleteIPSet(setMetadata *ipsets.IPSetMetadata) {
-	dp.ipsetMgr.DeleteIPSet(setMetadata.GetPrefixName())
+func (dp *DataPlane) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, forceDelete bool) {
+	dp.ipsetMgr.DeleteIPSet(setMetadata.GetPrefixName(), forceDelete)
 }
 
 // AddToSets takes in a list of IPSet names along with IP member
@@ -375,7 +375,7 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		}
 
 		// Try to delete these IPSets
-		dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName())
+		dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
 	}
 	return nil
 }

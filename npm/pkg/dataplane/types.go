@@ -11,7 +11,7 @@ type GenericDataplane interface {
 	GetAllIPSets() []string
 	GetIPSet(setName string) *ipsets.IPSet
 	CreateIPSets(setMetadatas []*ipsets.IPSetMetadata)
-	DeleteIPSet(setMetadata *ipsets.IPSetMetadata)
+	DeleteIPSet(setMetadata *ipsets.IPSetMetadata, force bool)
 	AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
 	RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
 	AddToLists(listMetadatas []*ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
