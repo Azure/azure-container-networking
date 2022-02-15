@@ -8,6 +8,7 @@ import (
 type GenericDataplane interface {
 	BootupDataplane() error
 	RunPeriodicTasks()
+	GetAllIPSets() []string
 	GetIPSet(setName string) *ipsets.IPSet
 	CreateIPSets(setMetadatas []*ipsets.IPSetMetadata)
 	DeleteIPSet(setMetadata *ipsets.IPSetMetadata)
@@ -16,6 +17,7 @@ type GenericDataplane interface {
 	AddToLists(listMetadatas []*ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
 	RemoveFromList(listMetadata *ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
 	ApplyDataPlane() error
+	GetAllPolicies() []string
 	AddPolicy(policies *policies.NPMNetworkPolicy) error
 	RemovePolicy(PolicyKey string) error
 	UpdatePolicy(policies *policies.NPMNetworkPolicy) error

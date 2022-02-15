@@ -133,6 +133,34 @@ func (mr *MockGenericDataplaneMockRecorder) DeleteIPSet(setMetadata interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPSet", reflect.TypeOf((*MockGenericDataplane)(nil).DeleteIPSet), setMetadata)
 }
 
+// GetAllIPSets mocks base method.
+func (m *MockGenericDataplane) GetAllIPSets() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllIPSets")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// GetAllIPSets indicates an expected call of GetAllIPSets.
+func (mr *MockGenericDataplaneMockRecorder) GetAllIPSets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllIPSets", reflect.TypeOf((*MockGenericDataplane)(nil).GetAllIPSets))
+}
+
+// GetAllPolicies mocks base method.
+func (m *MockGenericDataplane) GetAllPolicies() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllPolicies")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// GetAllPolicies indicates an expected call of GetAllPolicies.
+func (mr *MockGenericDataplaneMockRecorder) GetAllPolicies() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllPolicies", reflect.TypeOf((*MockGenericDataplane)(nil).GetAllPolicies))
+}
+
 // GetIPSet mocks base method.
 func (m *MockGenericDataplane) GetIPSet(setName string) *ipsets.IPSet {
 	m.ctrl.T.Helper()

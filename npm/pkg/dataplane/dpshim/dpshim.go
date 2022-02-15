@@ -81,7 +81,8 @@ func (dp *DPShim) HydrateClients() (*protos.Events, error) {
 	}
 
 	return &protos.Events{
-		Payload: goalStates,
+		EventType: protos.Events_Hydration,
+		Payload:   goalStates,
 	}, nil
 }
 
@@ -441,11 +442,20 @@ func (dp *DPShim) ApplyDataPlane() error {
 
 	go func() {
 		dp.OutChannel <- &protos.Events{
-			Payload: goalStates,
+			EventType: protos.Events_GoalState,
+			Payload:   goalStates,
 		}
 	}()
 
 	dp.dirtyCache.clearCache()
+	return nil
+}
+
+func (dp *DPShim) GetAllIPSets() []string {
+	return nil
+}
+
+func (dp *DPShim) GetAllPolicies() []string {
 	return nil
 }
 

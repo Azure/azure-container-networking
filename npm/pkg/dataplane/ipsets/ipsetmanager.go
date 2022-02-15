@@ -459,6 +459,18 @@ func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string
 	return set.SelectorReference, nil
 }
 
+func (iMgr *IPSetManager) GetAllIPSets() []string {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	setNames := make([]string, len(iMgr.setMap))
+	i := 0
+	for setName := range iMgr.setMap {
+		setNames[i] = setName
+		i++
+	}
+	return setNames
+}
+
 func (iMgr *IPSetManager) exists(name string) bool {
 	_, ok := iMgr.setMap[name]
 	return ok

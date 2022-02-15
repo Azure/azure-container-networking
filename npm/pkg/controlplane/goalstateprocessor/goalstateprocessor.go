@@ -92,9 +92,6 @@ func (gsp *GoalStateProcessor) processNext(stopCh <-chan struct{}) bool {
 }
 
 func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
-	// TODO (Vamsi) differentiate between hydration event and a normal event
-	// in hydration event, any thing in local cache and not in event should be deleted.
-
 	klog.Infof("Processing event")
 	// apply dataplane after syncing
 	defer func() {
@@ -104,20 +101,35 @@ func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
 		}
 	}()
 
-	// Process these individual buckkets in order
-	// 1. Apply IPSET
-	// 2. Apply POLICY
-	// 3. Remove POLICY
-	// 4. Remove IPSET
-
-	// TODO need to handle first connect stream of all GoalStates
 	payload := inputEvent.GetPayload()
-
 	if !validatePayload(payload) {
 		klog.Warningf("Empty payload in event %s", inputEvent)
 		return
 	}
 
+	switch inputEvent.GetEventType() {
+	case protos.Events_Hydration:
+		// in hydration event, any thing in local cache and not in event should be deleted.
+		klog.Infof("Received hydration event")
+		gsp.processHydrationEvent(payload)
+	case protos.Events_GoalState:
+		klog.Infof("Received goal state event")
+		gsp.processGoalStateEvent(payload)
+	default:
+		klog.Errorf("Received unknown event type %s", inputEvent.GetEventType())
+	}
+}
+
+func (gsp *GoalStateProcessor) processHydrationEvent(payload map[string]*protos.GoalState) {
+
+}
+
+func (gsp *GoalStateProcessor) processGoalStateEvent(payload map[string]*protos.GoalState) {
+	// Process these individual buckets in order
+	// 1. Apply IPSET
+	// 2. Apply POLICY
+	// 3. Remove POLICY
+	// 4. Remove IPSET
 	if ipsetApplyPayload, ok := payload[cp.IpsetApply]; ok {
 		err := gsp.processIPSetsApplyEvent(ipsetApplyPayload)
 		if err != nil {

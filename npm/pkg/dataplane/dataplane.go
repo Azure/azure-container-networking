@@ -276,6 +276,14 @@ func (dp *DataPlane) UpdatePolicy(policy *policies.NPMNetworkPolicy) error {
 	return nil
 }
 
+func (dp *DataPlane) GetAllIPSets() []string {
+	return dp.ipsetMgr.GetAllIPSets()
+}
+
+func (dp *DataPlane) GetAllPolicies() []string {
+	return dp.policyMgr.GetAllPolicies()
+}
+
 func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
 	// Create IPSets first along with reference updates
 	npmErrorString := npmerrors.AddSelectorReference
