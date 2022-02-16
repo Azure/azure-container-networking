@@ -34,6 +34,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 				Message:    returnMessage,
 			},
 		}
+		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
@@ -51,6 +52,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 			},
 			PodIpInfo: podIPInfo,
 		}
+		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
@@ -69,7 +71,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		},
 		PodIpInfo: podIPInfo,
 	}
-
+	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 }
@@ -84,6 +86,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 			Message:    err.Error(),
 		}
 		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, req)
+		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 		err = service.Listener.Encode(w, &resp)
 		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
 		return
@@ -100,6 +103,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		ReturnCode: returnCode,
 		Message:    message,
 	}
+	w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 	err = service.Listener.Encode(w, &resp)
 	logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
 }
@@ -331,8 +335,8 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 	return nil
 }
 
-// called when CNS is starting up and there are existing ipconfigs in the CRD that are marked as pending
-func (service *HTTPRestService) MarkExistingIPsAsPending(pendingIPIDs []string) error {
+// MarkExistingIPsAsPendingRelease is called when CNS is starting up and there are existing ipconfigs in the CRD that are marked as pending.
+func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []string) error {
 	service.Lock()
 	defer service.Unlock()
 

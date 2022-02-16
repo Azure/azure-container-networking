@@ -1,0 +1,58 @@
+parameters:
+  name: ""
+  oses: ""
+  arches: ""
+  tag: ""
+
+steps:
+- task: Docker@2
+  displayName: Login
+  inputs:
+    containerRegistry: $(ACR_SERVICE_CONNECTION)
+    command: 'login'
+    addPipelineData: false
+
+- script: |
+    make ${{ parameters.name }}-multiarch-manifest-create OSES="${{ parameters.oses }}" ARCHES="${{ parameters.arches }}" TAG=${{ parameters.tag }}
+    make ${{ parameters.name }}-image-info TAG=${{ parameters.tag }}
+  name: manifest_build
+  displayName: Manifest Build
+
+- script: |
+    function auto-retry()
+    {
+        export i="1"
+        export attempts="300"
+        false
+        while [[ $? -ne 0 ]] && [[ $i -lt $attempts ]]; do
+          printf "Attempt $i/$attempts - " && "$@" && break ||  sleep 3 &&  i=$[$i+1] && false
+        done
+    }
+    make multiarch-manifest-push-docker REGISTRY=$IMAGE_REGISTRY IMAGE=$(make ${{ parameters.name }}-image-name) TAG=${{ parameters.tag }}
+    auto-retry make container-pull REGISTRY=$IMAGE_REGISTRY IMAGE=$(make ${{ parameters.name }}-image-name) TAG=${{ parameters.tag }}
+  name: manifest_push
+  displayName: Manifest Push
+
+- task: Docker@2
+  displayName: Logout
+  inputs:
+    containerRegistry: $(ACR_SERVICE_CONNECTION)
+    command: 'logout'
+    addPipelineData: false
+
+- task: CopyFiles@2
+  inputs:
+    sourceFolder: "output"
+    targetFolder: $(Build.ArtifactStagingDirectory)
+  condition: succeeded()
+
+- task: ManifestGeneratorTask@0
+  displayName: "Add SBOM Generator tool"
+  inputs:
+    BuildDropPath: '$(Build.ArtifactStagingDirectory)'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    artifactName: "output"
+    pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+  condition: succeeded()

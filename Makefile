@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := help
+
 # Default platform commands
 SHELL=/bin/bash
 MKDIR := mkdir -p
@@ -77,30 +79,16 @@ CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_IMAGE_INFO_FILE = azure-npm-$(VERSION).txt
 CNI_IMAGE_ARCHIVE_NAME = azure-cni-manager-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNI_IMAGE_INFO_FILE = azure-cni-manager-$(VERSION).txt
 CNS_IMAGE_INFO_FILE = azure-cns-$(VERSION).txt
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
 CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 
-IMAGE_REGISTRY ?= acnpublic.azurecr.io
-
-# Azure network policy manager parameters.
-AZURE_NPM_IMAGE ?= $(IMAGE_REGISTRY)/azure-npm
-
-# Azure CNI installer parameters
-AZURE_CNI_IMAGE = $(IMAGE_REGISTRY)/azure-cni-manager
-
-# Azure container networking service image paramters.
-AZURE_CNS_IMAGE = $(IMAGE_REGISTRY)/azure-cns
-
-IMAGE_PLATFORM_ARCHES ?= linux/amd64,linux/arm64
-IMAGE_ACTION ?= push
-
 VERSION ?= $(shell git describe --tags --always --dirty)
 
 # Default target
-.PHONY: all-binaries-platforms
 all-binaries-platforms: ## Make all platform binaries
 	@for goos in "$(GOOSES)"; do \
 		for goarch in "$(GOARCHES)"; do \
@@ -111,7 +99,7 @@ all-binaries-platforms: ## Make all platform binaries
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
-all-images: azure-npm-image azure-cns-image
+all-images: azure-npm-image azure-cns-image tools-images
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images:
@@ -126,80 +114,221 @@ acncli: acncli-binary acncli-archive
 azure-cnms: azure-cnms-binary cnms-archive
 azure-npm: azure-npm-binary npm-archive
 
-# Clean all build artifacts.
-.PHONY: clean
-clean:
-	$(RMDIR) $(OUTPUT_DIR)
-	$(RMDIR) $(TOOLS_BIN_DIR)
 
-########################### Binaries ################################
+##@ Binaries 
 
 # Build the Azure CNM binary.
-.PHONY: cnm-binary
 cnm-binary:
 	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
-.PHONY: azure-vnet-binary
 azure-vnet-binary:
 	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAM binary.
-.PHONY: azure-vnet-ipam-binary
 azure-vnet-ipam-binary:
 	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAMV6 binary.
-.PHONY: azure-vnet-ipamv6-binary
 azure-vnet-ipamv6-binary:
 	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI telemetry binary.
-.PHONY: azure-vnet-telemetry-binary
 azure-vnet-telemetry-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
-.PHONY: acncli-binary
 acncli-binary:
 	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNS binary.
-.PHONY: azure-cns-binary
 azure-cns-binary:
 	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
-.PHONY: azure-npm-binary
 azure-npm-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 
-########################### Container Images ########################
+##@ Containers
 
-# Build the tools images
-.PHONY: tools-images
-tools-images:
-	$(MKDIR) $(IMAGE_DIR)
-	docker build --no-cache -f ./tools/acncli/Dockerfile --build-arg VERSION=$(VERSION) -t $(AZURE_CNI_IMAGE):$(VERSION) .
-	docker save $(AZURE_CNI_IMAGE):$(VERSION) | gzip -c > $(IMAGE_DIR)/$(CNI_IMAGE_ARCHIVE_NAME)
+CNI_IMAGE = azure-cni-manager
+CNS_IMAGE = azure-cns
+NPM_IMAGE = azure-npm
+
+TAG               ?= $(VERSION)
+IMAGE_REGISTRY    ?= acnpublic.azurecr.io
+OS                ?= $(GOOS)
+ARCH              ?= $(GOARCH)
+PLATFORM          ?= $(GOOS)/$(GOARCH)
+CONTAINER_BUILDER  = buildah
+
+# prefer buildah, if available, but fall back to docker if that binary is not in the path.
+ifeq (, $(shell which $(CONTAINER_BUILDER)))
+CONTAINER_BUILDER = docker
+endif
+
+## This section is for building individual container images.
+
+container-platform-tag: # util target to print the container tag
+	@echo $(subst /,-,$(PLATFORM))-$(TAG)
+
+containerize-buildah: # util target to build container images using buildah. do not invoke directly.
+	buildah build \
+		--jobs 16 \
+		--platform $(PLATFORM) \
+		-f $(DOCKERFILE) \
+		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
+		-t $(REGISTRY)/$(IMAGE):$(TAG) \
+		.
+
+containerize-docker: # util target to build container images using docker buildx. do not invoke directly.
+	docker buildx build \
+		--platform $(PLATFORM) \
+		-f $(DOCKERFILE) \
+		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
+		-t $(REGISTRY)/$(IMAGE):$(TAG) \
+		.
+
+container-tag-test: # util target to retag an image with -test suffix. do not invoke directly.
+	$(CONTAINER_BUILDER) tag \
+		$(REGISTRY)/$(IMAGE):$(TAG) \
+		$(REGISTRY)/$(IMAGE):$(TAG)-test
+
+container-push: # util target to publish container image. do not invoke directly.
+	$(CONTAINER_BUILDER) push \
+		$(REGISTRY)/$(IMAGE):$(TAG)
+
+container-pull: # util target to pull container image. do not invoke directly.
+	$(CONTAINER_BUILDER) pull \
+		$(REGISTRY)/$(IMAGE):$(TAG)
+
+container-info: # util target to write container info file. do not invoke directly.
+	# these commands need to be root due to some ongoing perms issues in the pipeline.
+	sudo mkdir -p $(IMAGE_DIR) 
+	sudo chown -R $$(whoami) $(IMAGE_DIR) 
+	sudo chmod -R 777 $(IMAGE_DIR)
+	echo $(IMAGE):$(TAG) > $(IMAGE_DIR)/$(FILE)
+
+cni-manager-image-name: # util target to print the CNI manager image name.
+	@echo $(CNI_IMAGE)
+
+cni-manager-image: ## build cni-manager container image.
+	$(MAKE) containerize-$(CONTAINER_BUILDER) \
+		PLATFORM=$(PLATFORM) \
+		DOCKERFILE=tools/acncli/Dockerfile \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNI_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg PLATFORM=$(OS)_$(ARCH)' \
+		TAG=$(TAG)
+
+cni-manager-image-info: # util target to write cni-manager container info file.
+	$(MAKE) container-info IMAGE=$(CNI_IMAGE) TAG=$(TAG) FILE=$(CNI_IMAGE_INFO_FILE)
+
+cni-manager-image-push: ## push cni-manager container image.
+	$(MAKE) container-push \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(TAG)
+
+cni-manager-image-pull: ## pull cni-manager container image.
+	$(MAKE) container-pull \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(TAG)
+
+cns-image-name: # util target to print the CNS image name
+	@echo $(CNS_IMAGE)
+
+cns-image: ## build cns container image.
+	$(MAKE) containerize-$(CONTAINER_BUILDER) \
+		PLATFORM=$(PLATFORM) \
+		DOCKERFILE=cns/Dockerfile \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNS_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
+		TAG=$(TAG)
+
+cns-image-info: # util target to write cns container info file.
+	$(MAKE) container-info IMAGE=$(CNS_IMAGE) TAG=$(TAG) FILE=$(CNS_IMAGE_INFO_FILE)
+
+cns-image-push: ## push cns container image.
+	$(MAKE) container-push \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNS_IMAGE) \
+		TAG=$(TAG)
+
+cns-image-pull: ## pull cns container image.
+	$(MAKE) container-pull \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNS_IMAGE) \
+		TAG=$(TAG)
+
+npm-image-name: # util target to print the NPM image name
+	@echo $(NPM_IMAGE)
+
+npm-image: ## build the npm container image.
+	$(MAKE) containerize-$(CONTAINER_BUILDER) \
+			PLATFORM=$(PLATFORM) \
+			DOCKERFILE=npm/Dockerfile \
+			REGISTRY=$(IMAGE_REGISTRY) \
+			IMAGE=$(NPM_IMAGE) \
+			EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
+			TAG=$(TAG)
+
+npm-image-info: # util target to write npm container info file.
+	$(MAKE) container-info IMAGE=$(NPM_IMAGE) TAG=$(TAG) FILE=$(NPM_IMAGE_INFO_FILE)
+
+npm-image-push: ## push npm container image.
+	$(MAKE) container-push \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(NPM_IMAGE) \
+		TAG=$(TAG)
+
+npm-image-pull: ## pull cns container image.
+	$(MAKE) container-pull \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(NPM_IMAGE) \
+		TAG=$(TAG)
+
+## can probably be combined with above with a GOOS.Dockerfile change?
+# Build the windows cns image
+cns-image-windows:
+	$(MKDIR) $(IMAGE_DIR); 
+	docker build \
+	--no-cache \
+	-f cns/windows.Dockerfile \
+	-t $(IMAGE_REGISTRY)/$(CNS_IMAGE)-win:$(TAG) \
+	--build-arg VERSION=$(TAG) \
+	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
+	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	.
+
+	echo $(CNS_IMAGE)-win:$(TAG) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
+
+
+## Legacy
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
-.PHONY: azure-cnm-plugin-image
-azure-cnm-plugin-image: azure-cnm-plugin
-	# Build the plugin image, keeping any old image during build for cache, but remove it afterwards.
-	docker images -q $(CNM_PLUGIN_ROOTFS):$(VERSION) > cid
+azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container image.
+	docker images -q $(CNM_PLUGIN_ROOTFS):$(TAG) > cid
 	docker build --no-cache \
 		-f Dockerfile.cnm \
-		-t $(CNM_PLUGIN_ROOTFS):$(VERSION) \
+		-t $(CNM_PLUGIN_ROOTFS):$(TAG) \
 		--build-arg CNM_BUILD_DIR=$(CNM_BUILD_DIR) \
 		.
 	$(eval CID := `cat cid`)
 	docker rmi $(CID) || true
 
 	# Create a container using the image and export its rootfs.
-	docker create $(CNM_PLUGIN_ROOTFS):$(VERSION) > cid
+	docker create $(CNM_PLUGIN_ROOTFS):$(TAG) > cid
 	$(eval CID := `cat cid`)
 	$(MKDIR) $(OUTPUT_DIR)/$(CID)/rootfs
 	docker export $(CID) | tar -x -C $(OUTPUT_DIR)/$(CID)/rootfs
@@ -210,84 +339,68 @@ azure-cnm-plugin-image: azure-cnm-plugin
 	chgrp -R docker $(OUTPUT_DIR)/$(CID)
 
 	# Create the plugin.
-	docker plugin rm $(CNM_PLUGIN_IMAGE):$(VERSION) || true
-	docker plugin create $(CNM_PLUGIN_IMAGE):$(VERSION) $(OUTPUT_DIR)/$(CID)
+	docker plugin rm $(CNM_PLUGIN_IMAGE):$(TAG) || true
+	docker plugin create $(CNM_PLUGIN_IMAGE):$(TAG) $(OUTPUT_DIR)/$(CID)
 
 	# Cleanup temporary files.
 	rm -rf $(OUTPUT_DIR)/$(CID)
 	rm cid
 
-# Build the Azure NPM image.
-.PHONY: azure-npm-image
-azure-npm-image:
-ifeq ($(GOOS),linux)
-	$(MKDIR) $(IMAGE_DIR)
-	docker buildx create --use
-	docker buildx build \
-	--no-cache \
-	-f npm/Dockerfile \
-	-t $(AZURE_NPM_IMAGE):$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
-	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
-	--platform=$(IMAGE_PLATFORM_ARCHES) \
-	--$(IMAGE_ACTION) \
-	.
-	
-	echo $(AZURE_NPM_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
-endif
 
+## This section is for building multi-arch/os container image manifests.
 
-# Build the Azure NPM image, because the buildx command breaks other runtimes
-.PHONY: azure-npm-image-classic
-azure-npm-image-classic: azure-npm
-ifeq ($(GOOS),linux)
-	mkdir -p $(IMAGE_DIR)
-	docker build \
-	--no-cache \
-	-f npm/Dockerfile \
-	-t $(AZURE_NPM_IMAGE):$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
-	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
-	--build-arg NPM_BUILD_DIR=$(NPM_BUILD_DIR) \
-	.
-endif
+multiarch-image-pull-docker: # util target to pull all variants of a multi-arch/os image
+	$(foreach OS,$(OSES),$(foreach ARCH,$(ARCHES),docker pull $(REGISTRY)/$(IMAGE):$(OS)-$(ARCH)-$(TAG);))
 
-# Build the Azure CNS image
-.PHONY: azure-cns-image
-azure-cns-image:
-ifeq ($(GOOS),linux)
-	$(MKDIR) $(IMAGE_DIR)
-	docker buildx create --use
-	docker buildx build \
-	--no-cache \
-	-f cns/Dockerfile \
-	-t $(AZURE_CNS_IMAGE):$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
-	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
-	--platform=$(IMAGE_PLATFORM_ARCHES) \
-	--$(IMAGE_ACTION) \
-	.
+multiarch-manifest-create-docker: # util target to compose multiarch container manifests from os/arch images.
+	docker manifest create \
+		$(REGISTRY)/$(IMAGE):$(TAG) \
+		$(foreach OS,$(OSES),$(foreach ARCH,$(ARCHES),$(REGISTRY)/$(IMAGE):$(OS)-$(ARCH)-$(TAG)))
 
-	echo $(AZURE_CNS_IMAGE):$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
-endif
+multiarch-manifest-push-docker: # util target to push multiarch container manifest.
+	docker manifest push --purge $(REGISTRY)/$(IMAGE):$(TAG)
 
-# Build the Azure CNS image windows
-.PHONY: azure-cns-image-windows
-azure-cns-image-windows:
-	$(MKDIR) $(IMAGE_DIR)
-	docker build \
-	--no-cache \
-	-f cns/windows.Dockerfile \
-	-t $(AZURE_CNS_IMAGE)-win:$(VERSION) \
-	--build-arg VERSION=$(VERSION) \
-	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
-	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
-	.
+cni-manager-multiarch-manifest-create: ## build cni-manager multi-arch container manifest.
+	$(MAKE) multiarch-image-pull-docker \
+		OSES="$(OSES)" \
+		ARCHES="$(ARCHES)" \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(TAG)
+	$(MAKE) multiarch-manifest-create-docker \
+		OSES="$(OSES)" \
+		ARCHES="$(ARCHES)" \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(TAG)
 
-	echo $(AZURE_CNS_IMAGE)-win:$(VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
+cns-multiarch-manifest-create: ## build azure-cns multi-arch container manifest.
+	$(MAKE) multiarch-image-pull-docker \
+		OSES="$(OSES)" \
+		ARCHES="$(ARCHES)" \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNS_IMAGE) \
+		TAG=$(TAG)
+	$(MAKE) multiarch-manifest-create-docker \
+		OSES="$(OSES)" \
+		ARCHES="$(ARCHES)" \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNS_IMAGE) \
+		TAG=$(TAG)
+
+npm-multiarch-manifest-create: ## build azure-npm multi-arch container manifest.
+	$(MAKE) multiarch-image-pull-docker \
+		OSES="$(OSES)" \
+		ARCHES="$(ARCHES)" \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(NPM_IMAGE) \
+		TAG=$(TAG)
+	$(MAKE) multiarch-manifest-create-docker \
+		OSES="$(OSES)" \
+		ARCHES="$(ARCHES)" \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(NPM_IMAGE) \
+		TAG=$(TAG)
 
 ########################### Archives ################################
 
@@ -359,46 +472,51 @@ release:
 publish-azure-cnm-plugin-image:
 	docker plugin push $(CNM_PLUGIN_IMAGE):$(VERSION)
 
-############################ Linting ################################
 
-PRETTYGOTEST := $(shell command -v gotest 2> /dev/null)
+##@ Utils 
+
+clean: ## Clean build artifacts.
+	$(RMDIR) $(OUTPUT_DIR)
+	$(RMDIR) $(TOOLS_BIN_DIR)
+
 
 LINT_PKG ?= .
 
-lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues
+lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues.
 	$(GOLANGCI_LINT) run --new-from-rev master --timeout 10m -v $(LINT_PKG)/...
 
-lint-old: $(GOLANGCI_LINT) ## Fast lint including previous issues
+lint-all: $(GOLANGCI_LINT) ## Lint the current branch in entirety.
 	$(GOLANGCI_LINT) run -v $(LINT_PKG)/...
+
 
 FMT_PKG ?= cni cns npm
 
-fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm")
+fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm").
 	$(GOFUMPT) -s -w $(FMT_PKG)
+
+
+##@ Test 
 
 COVER_PKG ?= .
 
-# run all tests
 # COVER_FILTER omits folders with all files tagged with one of 'unit', '!ignore_uncovered', or '!ignore_autogenerated'
-.PHONY: test-all
-test-all:
+test-all: ## run all unit tests.
 	@$(eval COVER_FILTER=`go list --tags ignore_uncovered,ignore_autogenerated $(COVER_PKG)/... | tr '\n' ','`)
 	@echo Test coverpkg: $(COVER_FILTER)
 	go test -tags "unit" -coverpkg=$(COVER_FILTER) -v -race -covermode atomic -failfast -coverprofile=coverage.out $(COVER_PKG)/...
 
-# run all tests
-.PHONY: test-integration
-test-integration:
+
+test-integration: ## run all integration tests.
 	go test -timeout 1h -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
-.PHONY: test-cyclonus
-test-cyclonus:
+test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
 	cd ..
 
 .PHONY: kind
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
+
 
 ##@ Utilities
 
@@ -413,9 +531,8 @@ setup: tools install-hooks ## performs common required repo setup
 version: ## prints the version
 	@echo $(VERSION)
 
-######################## Build tools ################################
-.PHONY: tools
-tools: acncli
+
+##@ Tools 
 
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
@@ -461,4 +578,10 @@ mockgen: $(MOCKGEN) ## Build mockgen
 clean-tools: 
 	rm -r build/tools/bin
 
-tools: gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
+tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
+
+
+##@ Help 
+
+help: ## Display this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

@@ -11,8 +11,8 @@ stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn: 
-      - setup
-      - build_and_test
+    - setup
+    - publish
     jobs:
       - job: Create_cluster
         displayName: Create Dualstack cluster

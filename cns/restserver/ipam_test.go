@@ -693,7 +693,7 @@ func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {
 
 	// mark available ip as as pending
 	pendingIPIDs := []string{testPod2GUID}
-	err = svc.MarkExistingIPsAsPending(pendingIPIDs)
+	err = svc.MarkExistingIPsAsPendingRelease(pendingIPIDs)
 	if err != nil {
 		t.Fatalf("Expected to successfully mark available ip as pending")
 	}
@@ -705,7 +705,7 @@ func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {
 
 	// attempt to mark assigned ipconfig as pending, expect fail
 	pendingIPIDs = []string{testPod1GUID}
-	err = svc.MarkExistingIPsAsPending(pendingIPIDs)
+	err = svc.MarkExistingIPsAsPendingRelease(pendingIPIDs)
 	if err == nil {
 		t.Fatalf("Expected to fail when marking assigned ip as pending")
 	}
