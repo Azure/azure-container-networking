@@ -1,5 +1,5 @@
 # Build cns
-FROM golang:1.17 AS builder
+FROM docker.io/golang:1.17 AS builder
 # Build args
 ARG VERSION
 ARG CNS_AI_PATH

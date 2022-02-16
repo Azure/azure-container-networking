@@ -1,4 +1,4 @@
-FROM golang:windowsservercore-ltsc2022 AS builder
+FROM docker.io/golang:windowsservercore-ltsc2022 AS builder
 # Build args
 ARG VERSION
 ARG NPM_AI_PATH

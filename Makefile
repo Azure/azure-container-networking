@@ -175,7 +175,7 @@ container-platform-tag: # util target to print the container tag
 	@echo $(subst /,-,$(PLATFORM))-$(TAG)
 
 containerize-buildah: # util target to build container images using buildah. do not invoke directly.
-	buildah build \
+	buildah bud \
 		--jobs 16 \
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \

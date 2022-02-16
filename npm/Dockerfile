@@ -1,5 +1,5 @@
 # Build npm
-FROM golang:1.17 AS builder
+FROM docker.io/golang:1.17 AS builder
 # Build args
 ARG VERSION
 ARG NPM_AI_PATH
@@ -14,7 +14,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm -ldflags "-X main.version="$VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" -gcflags="-dwarflocationlists=true" npm/cmd/*.go
 
 # Use a minimal image as a final image base
-FROM ubuntu:focal
+FROM docker.io/ubuntu:focal
 
 # Copy into final image
 COPY --from=builder /usr/local/bin/azure-npm \
