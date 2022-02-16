@@ -13,6 +13,7 @@ import (
 	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	ipsets "github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	policies "github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	util "github.com/Azure/azure-container-networking/npm/util"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -122,15 +123,15 @@ func (mr *MockGenericDataplaneMockRecorder) CreateIPSets(setMetadatas interface{
 }
 
 // DeleteIPSet mocks base method.
-func (m *MockGenericDataplane) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, force bool) {
+func (m *MockGenericDataplane) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, deleteOption util.DeleteOption) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteIPSet", setMetadata, force)
+	m.ctrl.Call(m, "DeleteIPSet", setMetadata, deleteOption)
 }
 
 // DeleteIPSet indicates an expected call of DeleteIPSet.
-func (mr *MockGenericDataplaneMockRecorder) DeleteIPSet(setMetadata, force interface{}) *gomock.Call {
+func (mr *MockGenericDataplaneMockRecorder) DeleteIPSet(setMetadata, deleteOption interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPSet", reflect.TypeOf((*MockGenericDataplane)(nil).DeleteIPSet), setMetadata, force)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPSet", reflect.TypeOf((*MockGenericDataplane)(nil).DeleteIPSet), setMetadata, deleteOption)
 }
 
 // GetAllIPSets mocks base method.

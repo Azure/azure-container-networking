@@ -86,7 +86,7 @@ func (iMgr *IPSetManager) createIPSet(setMetadata *IPSetMetadata) {
 }
 
 // DeleteIPSet expects the prefixed ipset name
-func (iMgr *IPSetManager) DeleteIPSet(name string, force bool) {
+func (iMgr *IPSetManager) DeleteIPSet(name string, force util.DeleteOption) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(name) {
@@ -97,7 +97,7 @@ func (iMgr *IPSetManager) DeleteIPSet(name string, force bool) {
 	if force {
 		// If force delete, then check if Set is used by other set or network policy
 		// else delete the set even if it has members
-		if set.shouldBeInKernel() {
+		if !set.canBeForceDeleted() {
 			return
 		}
 	} else {

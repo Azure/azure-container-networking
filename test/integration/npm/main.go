@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 )
 
 const (
@@ -119,7 +120,7 @@ func main() {
 		NodeName: "",
 	}
 	panicOnError(dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.TestKeyPodSet.Metadata, ipsets.TestNSSet.Metadata}, podMetadataD))
-	dp.DeleteIPSet(ipsets.TestKVPodSet.Metadata, false)
+	dp.DeleteIPSet(ipsets.TestKVPodSet.Metadata, util.SoftDelete)
 	panicOnError(dp.ApplyDataPlane())
 
 	if includeLists {
@@ -129,7 +130,7 @@ func main() {
 	printAndWait(true)
 	panicOnError(dp.RemoveFromSets([]*ipsets.IPSetMetadata{ipsets.TestNSSet.Metadata}, podMetadata))
 
-	dp.DeleteIPSet(ipsets.TestNSSet.Metadata, false)
+	dp.DeleteIPSet(ipsets.TestNSSet.Metadata, util.SoftDelete)
 	panicOnError(dp.ApplyDataPlane())
 	printAndWait(true)
 

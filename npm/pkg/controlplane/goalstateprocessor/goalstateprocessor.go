@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -187,7 +188,7 @@ func (gsp *GoalStateProcessor) processHydrationEvent(payload map[string]*protos.
 
 	if len(toDeleteIPSets) > 0 {
 		klog.Infof("Deleting %d ipsets", len(toDeleteIPSets))
-		gsp.processIPSetsRemoveEvent(toDeleteIPSets, true)
+		gsp.processIPSetsRemoveEvent(toDeleteIPSets, util.ForceDelete)
 	}
 }
 
@@ -229,7 +230,7 @@ func (gsp *GoalStateProcessor) processGoalStateEvent(payload map[string]*protos.
 		if err != nil {
 			klog.Errorf("Error processing IPSET remove event, failed to decode IPSet remove event: %s", err)
 		}
-		gsp.processIPSetsRemoveEvent(ipsetNames, false)
+		gsp.processIPSetsRemoveEvent(ipsetNames, util.SoftDelete)
 	}
 }
 
@@ -342,7 +343,7 @@ func (gsp *GoalStateProcessor) applyLists(ipSet *cp.ControllerIPSets, cachedIPSe
 	return nil
 }
 
-func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(ipsetNames []string, forceDelete bool) {
+func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(ipsetNames []string, forceDelete util.DeleteOption) {
 	for _, ipsetName := range ipsetNames {
 		if ipsetName == "" {
 			klog.Warningf("Empty IPSet remove event")

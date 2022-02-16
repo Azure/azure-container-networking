@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -124,7 +125,7 @@ func (dp *DPShim) createIPSet(set *ipsets.IPSetMetadata) {
 	dp.dirtyCache.modifyAddorUpdateSets(setName)
 }
 
-func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, _ bool) {
+func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, _ util.DeleteOption) {
 	dp.lock()
 	defer dp.unlock()
 	dp.deleteIPSet(setMetadata)

@@ -3,6 +3,7 @@ package dataplane
 import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 )
 
 type GenericDataplane interface {
@@ -11,7 +12,7 @@ type GenericDataplane interface {
 	GetAllIPSets() []string
 	GetIPSet(setName string) *ipsets.IPSet
 	CreateIPSets(setMetadatas []*ipsets.IPSetMetadata)
-	DeleteIPSet(setMetadata *ipsets.IPSetMetadata, force bool)
+	DeleteIPSet(setMetadata *ipsets.IPSetMetadata, deleteOption util.DeleteOption)
 	AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
 	RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
 	AddToLists(listMetadatas []*ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
