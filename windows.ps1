@@ -1,6 +1,6 @@
 # example usage:
-# powershell.exe -command "& { . .\windows.ps1; azure-npm-image <imagetag> }"
-# Retry({azure-npm-image $(tag)-windows-amd64})
+# powershell.exe -command "& { . .\windows.ps1; npm-image <imagetag> }"
+# Retry({npm-image $(tag)-windows-amd64})
 
 function Retry([Action]$action) {
     $attempts = 3    
@@ -20,7 +20,7 @@ function Retry([Action]$action) {
     } while ($attempts -gt 0)    
 }
 
-function azure-npm-image {
+function npm-image {
     $env:ACN_PACKAGE_PATH = "github.com/Azure/azure-container-networking"
     $env:NPM_AI_ID = "014c22bd-4107-459e-8475-67909e96edcb"
     $env:NPM_AI_PATH = "$env:ACN_PACKAGE_PATH/npm.aiMetadata"

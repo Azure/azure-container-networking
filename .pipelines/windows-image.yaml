@@ -13,7 +13,7 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
       steps:
         - powershell: |
-            powershell.exe -command "& { . .\windows.ps1; Retry({azure-npm-image windows-amd64-$(tag)}) }"
+            powershell.exe -command "& { . .\windows.ps1; Retry({npm-image windows-amd64-$(tag)}) }"
           name: "build_npm"
           displayName: "Build"
 
