@@ -99,7 +99,7 @@ all-binaries-platforms: ## Make all platform binaries
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
-all-images: azure-npm-image azure-cns-image tools-images
+all-images: npm-image cns-image cni-manager-image
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images:
