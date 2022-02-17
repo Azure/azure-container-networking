@@ -18,6 +18,15 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// DeleteOption is used to decide if a delete is force delete or soft delete
+type DeleteOption bool
+
+const (
+	// For DeleteIPSet
+	ForceDelete DeleteOption = true
+	SoftDelete  DeleteOption = false
+)
+
 // IsNewNwPolicyVerFlag indicates if the current kubernetes version is newer than 1.11 or not
 var IsNewNwPolicyVerFlag = false
 

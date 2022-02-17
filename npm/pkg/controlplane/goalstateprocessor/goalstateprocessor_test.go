@@ -96,6 +96,7 @@ func TestPolicyApplyEvent(t *testing.T) {
 
 	go func() {
 		inputChan <- &protos.Events{
+			EventType: protos.Events_GoalState,
 			Payload: map[string]*protos.GoalState{
 				controlplane.PolicyApply: {
 					Data: payload.Bytes(),
@@ -174,7 +175,8 @@ func TestIPSetsApplyUpdateMembers(t *testing.T) {
 	gsp, _ := NewGoalStateProcessor(ctx, "node1", "pod1", inputChan, dp)
 	go func() {
 		inputChan <- &protos.Events{
-			Payload: goalState,
+			EventType: protos.Events_GoalState,
+			Payload:   goalState,
 		}
 	}()
 	time.Sleep(sleepAfterChanSent)
@@ -192,7 +194,8 @@ func TestIPSetsApplyUpdateMembers(t *testing.T) {
 	)
 	go func() {
 		inputChan <- &protos.Events{
-			Payload: goalState,
+			EventType: protos.Events_GoalState,
+			Payload:   goalState,
 		}
 	}()
 	time.Sleep(sleepAfterChanSent)

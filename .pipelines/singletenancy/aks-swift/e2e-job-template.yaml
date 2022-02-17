@@ -6,9 +6,10 @@ parameters:
 stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
+    lockBehavior: sequential
     dependsOn: 
-     - setup
-     - build_and_test
+    - setup
+    - publish
     jobs:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS Swift Suite - (${{ parameters.name }})

@@ -12,13 +12,33 @@ import (
 )
 
 const (
-	maxTryCount             = 1
-	unknownLineErrorPattern = "line (\\d+) failed" // TODO this could happen if syntax is off or AZURE-NPM-INGRESS doesn't exist for -A AZURE-NPM-INGRESS -j hash(NP1) ...
-	knownLineErrorPattern   = "Error occurred at line: (\\d+)"
+	maxTryCount = 2
+	// the error message doesn't describe the error if this pattern is within the message
+	// this could happen if syntax is off or AZURE-NPM-INGRESS doesn't exist for -A AZURE-NPM-INGRESS -j hash(NP1) ...
+	unknownLineErrorPattern = "line (\\d+) failed"
+	// the error message describes the error if this pattern is within the message
+	knownLineErrorPattern = "Error occurred at line: (\\d+)"
 
-	chainSectionPrefix        = "chain" // TODO are sections necessary for error handling?
-	maxLengthForMatchSetSpecs = 6       // 5-6 elements depending on Included boolean
+	chainSectionPrefix = "chain"
 )
+
+/*
+Error handling for iptables-restore:
+Currently we retry on any error and will make two tries max.
+The section IDs and line error patterns are pointless currently. Although we can eventually use them to skip a section with an error and salvage the rest of the file.
+
+Known errors that we should retry on:
+- exit status 4
+  - iptables: Resource temporarily unavailable.
+  - fork/exec /usr/sbin/iptables: resource temporarily unavailable
+  - Another app is currently holding the xtables lock; still 51s 0us time ahead to have a chance to grab the lock...
+	Another app is currently holding the xtables lock; still 41s 0us time ahead to have a chance to grab the lock...
+	Another app is currently holding the xtables lock; still 31s 0us time ahead to have a chance to grab the lock...
+	Another app is currently holding the xtables lock; still 21s 0us time ahead to have a chance to grab the lock...
+	Another app is currently holding the xtables lock; still 11s 0us time ahead to have a chance to grab the lock...
+	Another app is currently holding the xtables lock; still 1s 0us time ahead to have a chance to grab the lock...
+    Another app is currently holding the xtables lock. Stopped waiting after 60s.
+*/
 
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
 	// 1. Add rules for the network policies and activate NPM (if necessary).
@@ -117,7 +137,7 @@ func (pMgr *PolicyManager) newCreatorWithChains(chainNames []string) *ioutil.Fil
 		sectionID := joinWithDash(chainSectionPrefix, chainName)
 		counters := "-"
 		creator.AddLine(sectionID, nil, ":"+chainName, "-", counters)
-		// TODO remove sections??
+		// TODO remove sections if we never use section-based error handling (e.g. remove the whole section)
 	}
 	return creator
 }
@@ -154,10 +174,9 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, direction Un
 
 	specs = append([]string{baseChainName}, specs...)
 	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
-	if err != nil && errCode != couldntLoadTargetErrorCode {
-		// TODO check rule doesn't exist error code instead because the chain should exist
+	if err != nil && errCode != doesNotExistErrorCode {
 		errorString := fmt.Sprintf("failed to delete jump from %s chain to %s chain for policy %s with exit code %d", baseChainName, chainName, policy.PolicyKey, errCode)
-		log.Errorf(errorString+": %w", err)
+		log.Errorf("%s: %w", errorString, err)
 		return npmerrors.SimpleErrorWrapper(errorString, err)
 	}
 	return nil
@@ -264,13 +283,7 @@ func matchSetSpecsForNetworkPolicy(networkPolicy *NPMNetworkPolicy, matchType Ma
 	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(networkPolicy.PodSelectorList))
 	matchString := matchType.toIPTablesString()
 	for _, setInfo := range networkPolicy.PodSelectorList {
-		// TODO consolidate this code with that in matchSetSpecsFromSetInfo
-		specs = append(specs, util.IptablesModuleFlag, util.IptablesSetModuleFlag)
-		if !setInfo.Included {
-			specs = append(specs, util.IptablesNotFlag)
-		}
-		hashedSetName := setInfo.IPSet.GetHashedName()
-		specs = append(specs, util.IptablesMatchSetFlag, hashedSetName, matchString)
+		specs = append(specs, setInfo.matchSetSpecs(matchString)...)
 	}
 	return specs
 }
@@ -279,12 +292,7 @@ func matchSetSpecsFromSetInfo(setInfoList []SetInfo) []string {
 	specs := make([]string, 0, maxLengthForMatchSetSpecs*len(setInfoList))
 	for _, setInfo := range setInfoList {
 		matchString := setInfo.MatchType.toIPTablesString()
-		specs = append(specs, util.IptablesModuleFlag, util.IptablesSetModuleFlag)
-		if !setInfo.Included {
-			specs = append(specs, util.IptablesNotFlag)
-		}
-		hashedSetName := setInfo.IPSet.GetHashedName()
-		specs = append(specs, util.IptablesMatchSetFlag, hashedSetName, matchString)
+		specs = append(specs, setInfo.matchSetSpecs(matchString)...)
 	}
 	return specs
 }

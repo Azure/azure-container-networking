@@ -44,7 +44,7 @@ type Monitor struct {
 	metastate   metaState
 	nnccli      nodeNetworkConfigSpecUpdater
 	httpService cns.HTTPService
-	initialized chan interface{}
+	started     chan interface{}
 	nncSource   chan v1alpha.NodeNetworkConfig
 	once        sync.Once
 }
@@ -60,11 +60,14 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 		opts:        opts,
 		httpService: httpService,
 		nnccli:      nnccli,
-		initialized: make(chan interface{}),
+		started:     make(chan interface{}),
 		nncSource:   make(chan v1alpha.NodeNetworkConfig),
 	}
 }
 
+// Start begins the Monitor's pool reconcile loop.
+// On first run, it will block until a NodeNetworkConfig is received (through a call to Update()).
+// Subsequently, it will run run once per RefreshDelay and attempt to re-reconcile the pool.
 func (pm *Monitor) Start(ctx context.Context) error {
 	logger.Printf("[ipam-pool-monitor] Starting CNS IPAM Pool Monitor")
 
@@ -78,7 +81,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			return errors.Wrap(ctx.Err(), "pool monitor context closed")
 		case <-ticker.C: // attempt to reconcile every tick.
 			select {
-			case <-pm.initialized: // this blocks until we have initialized
+			case <-pm.started: // this blocks until we have initialized
 				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			default:
 				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
@@ -90,7 +93,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			pm.metastate.batch = scaler.BatchSize
 			pm.metastate.max = scaler.MaxIPCount
 			pm.metastate.minFreeCount, pm.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
-			pm.once.Do(func() { close(pm.initialized) }) // close the init channel the first time we receive a NodeNetworkConfig.
+			pm.once.Do(func() { close(pm.started) }) // close the init channel the first time we receive a NodeNetworkConfig.
 		}
 		// if control has flowed through the select(s) to this point, we can now reconcile.
 		err := pm.reconcile(ctx)
@@ -334,6 +337,10 @@ func (pm *Monitor) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 
 // Update ingests a NodeNetworkConfig, clamping some values to ensure they are legal and then
 // pushing it to the Monitor's source channel.
+// If the Monitor has been Started but is blocking until it receives an NNC, this will start
+// the pool reconcile loop.
+// If the Monitor has not been Started, this will block until Start() is called, which will
+// immediately read this passed NNC and start the pool reconcile loop.
 func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 	pm.clampScaler(&nnc.Status.Scaler)
 

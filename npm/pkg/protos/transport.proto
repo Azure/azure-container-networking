@@ -21,8 +21,14 @@ message DatapathPodMetadata {
 // streamed to the datapath client. A events message may carry one or
 // more Event objects.
 message Events {
+  enum EventType 
+  {
+    GoalState = 0;
+    Hydration = 1;
+  };
+  EventType eventType = 1;
   // Payload can contain one or more Event objects.
-  map<string, GoalState> payload = 1;
+  map<string, GoalState> payload = 2;
 }
 
 // Event is a generic object that can be Created, 

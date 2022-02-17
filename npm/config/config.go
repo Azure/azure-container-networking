@@ -1,5 +1,7 @@
 package npmconfig
 
+import "github.com/Azure/azure-container-networking/npm/util"
+
 const (
 	defaultResyncPeriod    = 15
 	defaultListeningPort   = 10091
@@ -26,8 +28,8 @@ var DefaultConfig = Config{
 		EnablePrometheusMetrics: true,
 		EnablePprof:             true,
 		EnableHTTPDebugAPI:      true,
-		EnableV2NPM:             false,
-		PlaceAzureChainFirst:    false,
+		EnableV2NPM:             true,
+		PlaceAzureChainFirst:    util.PlaceAzureChainFirst,
 		ApplyIPSetsOnNeed:       false,
 	},
 }

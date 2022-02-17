@@ -20,7 +20,7 @@ func GetAddPolicyTestCalls(_ *NPMNetworkPolicy) []testutils.TestCmd {
 }
 
 func GetAddPolicyFailureTestCalls(_ *NPMNetworkPolicy) []testutils.TestCmd {
-	return []testutils.TestCmd{fakeIPTablesRestoreFailureCommand}
+	return []testutils.TestCmd{fakeIPTablesRestoreFailureCommand, fakeIPTablesRestoreFailureCommand}
 }
 
 func GetRemovePolicyTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
@@ -44,8 +44,10 @@ func GetRemovePolicyTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
 // GetRemovePolicyFailureTestCalls fails on the restore
 func GetRemovePolicyFailureTestCalls(policy *NPMNetworkPolicy) []testutils.TestCmd {
 	calls := GetRemovePolicyTestCalls(policy)
-	calls[len(calls)-1] = fakeIPTablesRestoreFailureCommand // replace the restore success with a failure
-	return calls
+	// replace the restore success with a failure
+	calls[len(calls)-1] = fakeIPTablesRestoreFailureCommand
+	// add another failure
+	return append(calls, fakeIPTablesRestoreFailureCommand)
 }
 
 func GetBootupTestCalls() []testutils.TestCmd {

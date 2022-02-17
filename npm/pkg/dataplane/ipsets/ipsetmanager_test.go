@@ -267,7 +267,7 @@ func TestDeleteIPSet(t *testing.T) {
 			iMgr := NewIPSetManager(tt.args.cfg, ioShim)
 			iMgr.CreateIPSets(tt.args.toCreateMetadatas)
 			require.NoError(t, iMgr.ApplyIPSets())
-			iMgr.DeleteIPSet(tt.args.toDeleteName)
+			iMgr.DeleteIPSet(tt.args.toDeleteName, util.SoftDelete)
 			assertExpectedInfo(t, iMgr, &tt.expectedInfo)
 		})
 	}
@@ -285,8 +285,8 @@ func TestDeleteIPSetNotAllowed(t *testing.T) {
 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{list}, []*IPSetMetadata{namespaceSet}))
 	require.NoError(t, iMgr.ApplyIPSets())
 
-	iMgr.DeleteIPSet(namespaceSet.GetPrefixName())
-	iMgr.DeleteIPSet(list.GetPrefixName())
+	iMgr.DeleteIPSet(namespaceSet.GetPrefixName(), util.SoftDelete)
+	iMgr.DeleteIPSet(list.GetPrefixName(), util.SoftDelete)
 
 	assertExpectedInfo(t, iMgr, &expectedInfo{
 		mainCache: []setMembers{
@@ -740,7 +740,7 @@ func TestAddDeleteSelectorReferences(t *testing.T) {
 	require.Equal(t, 5, len(iMgr.toDeleteCache))
 
 	for _, v := range setsTocreate {
-		iMgr.DeleteIPSet(v.GetPrefixName())
+		iMgr.DeleteIPSet(v.GetPrefixName(), util.SoftDelete)
 	}
 
 	// Above delete will not remove setpod3 and setpod4
@@ -751,7 +751,7 @@ func TestAddDeleteSelectorReferences(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
-		iMgr.DeleteIPSet(v.GetPrefixName())
+		iMgr.DeleteIPSet(v.GetPrefixName(), util.SoftDelete)
 	}
 
 	for _, v := range setsTocreate {
@@ -806,7 +806,7 @@ func TestAddDeleteNetPolReferences(t *testing.T) {
 	require.Equal(t, 5, len(iMgr.toDeleteCache))
 
 	for _, v := range setsTocreate {
-		iMgr.DeleteIPSet(v.GetPrefixName())
+		iMgr.DeleteIPSet(v.GetPrefixName(), util.SoftDelete)
 	}
 
 	// Above delete will not remove setpod3 and setpod4
@@ -817,7 +817,7 @@ func TestAddDeleteNetPolReferences(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
-		iMgr.DeleteIPSet(v.GetPrefixName())
+		iMgr.DeleteIPSet(v.GetPrefixName(), util.SoftDelete)
 	}
 
 	for _, v := range setsTocreate {

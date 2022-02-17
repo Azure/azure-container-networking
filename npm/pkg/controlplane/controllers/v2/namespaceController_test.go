@@ -623,7 +623,7 @@ func TestDeleteNamespace(t *testing.T) {
 	for i := 1; i < len(setsToAddNamespaceTo); i++ {
 		dp.EXPECT().RemoveFromList(setsToAddNamespaceTo[i], setsToAddNamespaceTo[:1]).Return(nil).Times(1)
 	}
-	dp.EXPECT().DeleteIPSet(setsToAddNamespaceTo[0]).Return().Times(1)
+	dp.EXPECT().DeleteIPSet(setsToAddNamespaceTo[0], util.SoftDelete).Return().Times(1)
 
 	deleteNamespace(t, f, nsObj, DeletedFinalStateknownObject)
 
@@ -702,7 +702,7 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 	for i := 1; i < len(setsToAddNamespaceTo); i++ {
 		dp.EXPECT().RemoveFromList(setsToAddNamespaceTo[i], setsToAddNamespaceTo[:1]).Return(nil).Times(1)
 	}
-	dp.EXPECT().DeleteIPSet(setsToAddNamespaceTo[0]).Return().Times(1)
+	dp.EXPECT().DeleteIPSet(setsToAddNamespaceTo[0], util.SoftDelete).Return().Times(1)
 
 	deleteNamespace(t, f, nsObj, DeletedFinalStateUnknownObject)
 	testCases := []expectedNsValues{

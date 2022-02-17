@@ -332,6 +332,11 @@ func (set *IPSet) shouldBeInKernel() bool {
 	return set.usedByNetPol() || set.referencedInKernel()
 }
 
+func (set *IPSet) canBeForceDeleted() bool {
+	return !set.usedByNetPol() &&
+		!set.referencedInList()
+}
+
 func (set *IPSet) canBeDeleted() bool {
 	return !set.usedByNetPol() &&
 		!set.referencedInList() &&

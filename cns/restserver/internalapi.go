@@ -227,7 +227,6 @@ func (service *HTTPRestService) ReconcileNCState(
 	if returnCode != types.Success {
 		return returnCode
 	}
-	service.IPAMPoolMonitor.Update(nnc)
 
 	// now parse the secondaryIP list, if it exists in PodInfo list, then assign that ip.
 	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
@@ -256,7 +255,7 @@ func (service *HTTPRestService) ReconcileNCState(
 		}
 	}
 
-	err := service.MarkExistingIPsAsPending(nnc.Spec.IPsNotInUse)
+	err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error. Failed to mark IPs as pending %v", nnc.Spec.IPsNotInUse)
 		return types.UnexpectedError

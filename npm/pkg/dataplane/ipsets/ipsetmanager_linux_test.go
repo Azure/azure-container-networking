@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -465,7 +466,7 @@ func TestApplyIPSetsSuccessWithoutSave(t *testing.T) {
 
 	// delete a set so the file isn't empty (otherwise the creator won't even call the exec command)
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata}) // create so we can delete
-	iMgr.DeleteIPSet(TestNSSet.PrefixName)
+	iMgr.DeleteIPSet(TestNSSet.PrefixName, util.SoftDelete)
 	err := iMgr.applyIPSets()
 	require.NoError(t, err)
 }
@@ -625,9 +626,9 @@ func TestDestroy(t *testing.T) {
 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKeyNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
 	require.NoError(t, iMgr.RemoveFromList(TestKeyNSList.Metadata, []*IPSetMetadata{TestKeyPodSet.Metadata}))
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata}) // create so we can delete
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNestedLabelList.Metadata}) // create so we can delete
-	iMgr.DeleteIPSet(TestNestedLabelList.PrefixName)
+	iMgr.DeleteIPSet(TestNestedLabelList.PrefixName, util.SoftDelete)
 
 	creator := iMgr.fileCreatorForApply(len(calls), nil)
 	actualLines := testAndSortRestoreFileString(t, creator.ToString())
@@ -743,7 +744,7 @@ func TestUpdateWithRealisticSaveFile(t *testing.T) {
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKVNSList.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "1.2.3.4", "z")) // set not in save file
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNestedLabelList.Metadata})                          // create so we can delete
-	iMgr.DeleteIPSet(TestNestedLabelList.PrefixName)
+	iMgr.DeleteIPSet(TestNestedLabelList.PrefixName, util.SoftDelete)
 
 	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
 	actualLines := testAndSortRestoreFileString(t, creator.ToString()) // adding NSSet and KeyPodSet (should be keeping NSSet and deleting NamedportSet)
@@ -1042,7 +1043,7 @@ func TestFailureOnCreateForNewSet(t *testing.T) {
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNamedportSet.Metadata}, "1.2.3.4,tcp:567", "a")) // create and add member
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNamedportSet.Metadata}, "1.2.3.5,tcp:567", "b")) // add member
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyNSList.Metadata})                                             // create so we can delete
-	iMgr.DeleteIPSet(TestKeyNSList.PrefixName)
+	iMgr.DeleteIPSet(TestKeyNSList.PrefixName, util.SoftDelete)
 
 	// get original creator and run it the first time
 	creator := iMgr.fileCreatorForApply(len(calls), nil)
@@ -1099,7 +1100,7 @@ func TestFailureOnCreateForSetInKernel(t *testing.T) {
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestKeyPodSet.Metadata}, "6.7.8.9", "a")) // add member to kernel
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestKVPodSet.Metadata}, "6.7.8.9", "a"))  // add member to kernel
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyNSList.Metadata})                                  // create so we can delete
-	iMgr.DeleteIPSet(TestKeyNSList.PrefixName)
+	iMgr.DeleteIPSet(TestKeyNSList.PrefixName, util.SoftDelete)
 
 	// get original creator and run it the first time
 	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
@@ -1160,7 +1161,7 @@ func TestFailureOnAddToListInKernel(t *testing.T) {
 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKVNSList.Metadata}, []*IPSetMetadata{TestKeyPodSet.Metadata}))        // add member to kernel
 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestNestedLabelList.Metadata}, []*IPSetMetadata{TestKeyPodSet.Metadata})) // add member to kernel
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})                                                                     // create so we can delete
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
 	originalLines := strings.Split(creator.ToString(), "\n")
@@ -1212,7 +1213,7 @@ func TestFailureOnAddToNewList(t *testing.T) {
 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKVNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata}))        // add member to kernel
 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestNestedLabelList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata})) // add member to kernel
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})                                                                 // create so we can delete
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
 	originalLines := strings.Split(creator.ToString(), "\n")
@@ -1266,9 +1267,9 @@ func TestFailureOnFlush(t *testing.T) {
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))     // in kernel already
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestKeyPodSet.Metadata}, "10.0.0.0", "a")) // not in kernel yet
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKVPodSet.Metadata})                                    // create so we can delete
-	iMgr.DeleteIPSet(TestKVPodSet.PrefixName)
+	iMgr.DeleteIPSet(TestKVPodSet.PrefixName, util.SoftDelete)
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata}) // create so we can delete
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
 	originalLines := strings.Split(creator.ToString(), "\n")
@@ -1319,9 +1320,9 @@ func TestFailureOnDestroy(t *testing.T) {
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))     // in kernel already
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestKeyPodSet.Metadata}, "10.0.0.0", "a")) // not in kernel yet
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKVPodSet.Metadata})                                    // create so we can delete
-	iMgr.DeleteIPSet(TestKVPodSet.PrefixName)
+	iMgr.DeleteIPSet(TestKVPodSet.PrefixName, util.SoftDelete)
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata}) // create so we can delete
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	creator := iMgr.fileCreatorForApply(len(calls), saveFileBytes)
 	originalLines := strings.Split(creator.ToString(), "\n")
@@ -1358,7 +1359,7 @@ func TestFailureOnLastLine(t *testing.T) {
 	iMgr := NewIPSetManager(applyAlwaysCfg, ioshim)
 
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata}) // create so we can delete
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	creator := iMgr.fileCreatorForApply(2, nil)
 	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")

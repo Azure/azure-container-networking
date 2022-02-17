@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,8 @@ var (
 			NetworkName: "azure",
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
-			PolicyMode: policies.IPSetPolicyMode,
+			PolicyMode:           policies.IPSetPolicyMode,
+			PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 		},
 	}
 
@@ -115,7 +117,7 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 	}
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, util.SoftDelete)
 	}
 
 	for _, v := range setsTocreate {
@@ -163,7 +165,7 @@ func TestAddToSet(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, util.SoftDelete)
 	}
 
 	for _, v := range setsTocreate {
@@ -179,7 +181,7 @@ func TestAddToSet(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, util.SoftDelete)
 	}
 
 	for _, v := range setsTocreate {

@@ -13,6 +13,7 @@ import (
 	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	ipsets "github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	policies "github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	util "github.com/Azure/azure-container-networking/npm/util"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -122,15 +123,43 @@ func (mr *MockGenericDataplaneMockRecorder) CreateIPSets(setMetadatas interface{
 }
 
 // DeleteIPSet mocks base method.
-func (m *MockGenericDataplane) DeleteIPSet(setMetadata *ipsets.IPSetMetadata) {
+func (m *MockGenericDataplane) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, deleteOption util.DeleteOption) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "DeleteIPSet", setMetadata)
+	m.ctrl.Call(m, "DeleteIPSet", setMetadata, deleteOption)
 }
 
 // DeleteIPSet indicates an expected call of DeleteIPSet.
-func (mr *MockGenericDataplaneMockRecorder) DeleteIPSet(setMetadata interface{}) *gomock.Call {
+func (mr *MockGenericDataplaneMockRecorder) DeleteIPSet(setMetadata, deleteOption interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPSet", reflect.TypeOf((*MockGenericDataplane)(nil).DeleteIPSet), setMetadata)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPSet", reflect.TypeOf((*MockGenericDataplane)(nil).DeleteIPSet), setMetadata, deleteOption)
+}
+
+// GetAllIPSets mocks base method.
+func (m *MockGenericDataplane) GetAllIPSets() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllIPSets")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// GetAllIPSets indicates an expected call of GetAllIPSets.
+func (mr *MockGenericDataplaneMockRecorder) GetAllIPSets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllIPSets", reflect.TypeOf((*MockGenericDataplane)(nil).GetAllIPSets))
+}
+
+// GetAllPolicies mocks base method.
+func (m *MockGenericDataplane) GetAllPolicies() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllPolicies")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// GetAllPolicies indicates an expected call of GetAllPolicies.
+func (mr *MockGenericDataplaneMockRecorder) GetAllPolicies() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllPolicies", reflect.TypeOf((*MockGenericDataplane)(nil).GetAllPolicies))
 }
 
 // GetIPSet mocks base method.

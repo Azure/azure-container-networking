@@ -3,19 +3,22 @@ package dataplane
 import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 )
 
 type GenericDataplane interface {
 	BootupDataplane() error
 	RunPeriodicTasks()
+	GetAllIPSets() []string
 	GetIPSet(setName string) *ipsets.IPSet
 	CreateIPSets(setMetadatas []*ipsets.IPSetMetadata)
-	DeleteIPSet(setMetadata *ipsets.IPSetMetadata)
+	DeleteIPSet(setMetadata *ipsets.IPSetMetadata, deleteOption util.DeleteOption)
 	AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
 	RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
 	AddToLists(listMetadatas []*ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
 	RemoveFromList(listMetadata *ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
 	ApplyDataPlane() error
+	GetAllPolicies() []string
 	AddPolicy(policies *policies.NPMNetworkPolicy) error
 	RemovePolicy(PolicyKey string) error
 	UpdatePolicy(policies *policies.NPMNetworkPolicy) error

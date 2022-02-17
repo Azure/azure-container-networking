@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"k8s.io/klog"
 )
@@ -81,7 +82,8 @@ func (dp *DPShim) HydrateClients() (*protos.Events, error) {
 	}
 
 	return &protos.Events{
-		Payload: goalStates,
+		EventType: protos.Events_Hydration,
+		Payload:   goalStates,
 	}, nil
 }
 
@@ -123,7 +125,7 @@ func (dp *DPShim) createIPSet(set *ipsets.IPSetMetadata) {
 	dp.dirtyCache.modifyAddorUpdateSets(setName)
 }
 
-func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata) {
+func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, _ util.DeleteOption) {
 	dp.lock()
 	defer dp.unlock()
 	dp.deleteIPSet(setMetadata)
@@ -441,11 +443,20 @@ func (dp *DPShim) ApplyDataPlane() error {
 
 	go func() {
 		dp.OutChannel <- &protos.Events{
-			Payload: goalStates,
+			EventType: protos.Events_GoalState,
+			Payload:   goalStates,
 		}
 	}()
 
 	dp.dirtyCache.clearCache()
+	return nil
+}
+
+func (dp *DPShim) GetAllIPSets() []string {
+	return nil
+}
+
+func (dp *DPShim) GetAllPolicies() []string {
 	return nil
 }
 

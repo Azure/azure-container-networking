@@ -33,6 +33,8 @@ const (
 type PolicyManagerCfg struct {
 	// PolicyMode only affects Windows
 	PolicyMode PolicyManagerMode
+	// PlaceAzureChainFirst only affects Linux
+	PlaceAzureChainFirst bool
 }
 
 type PolicyMap struct {
@@ -96,6 +98,16 @@ func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
 			}
 		}
 	}()
+}
+
+func (pMgr *PolicyManager) GetAllPolicies() []string {
+	policyKeys := make([]string, len(pMgr.policyMap.cache))
+	i := 0
+	for policyKey := range pMgr.policyMap.cache {
+		policyKeys[i] = policyKey
+		i++
+	}
+	return policyKeys
 }
 
 func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {

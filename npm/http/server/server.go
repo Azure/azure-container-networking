@@ -32,8 +32,10 @@ func NPMRestServerListenAndServe(config npmconfig.Config, npmEncoder json.Marsha
 		rs.router.Handle(api.ClusterMetricsPath, metrics.GetHandler(metrics.ClusterMetrics))
 	}
 
-	if config.Toggles.EnableHTTPDebugAPI && npmEncoder != nil {
-		// ACN CLI debug handlerss
+	// TODO support the debug CLI for v2
+	// the nil check is for fan-out npm
+	if config.Toggles.EnableHTTPDebugAPI && npmEncoder != nil && !config.Toggles.EnableV2NPM {
+		// ACN CLI debug handlers
 		rs.router.Handle(api.NPMMgrPath, rs.npmCacheHandler(npmEncoder)).Methods(http.MethodGet)
 	}
 

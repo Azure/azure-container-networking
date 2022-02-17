@@ -132,9 +132,9 @@ func TestApplyDeletions(t *testing.T) {
 	require.NoError(t, iMgr.RemoveFromSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.1", "b"))
 	require.NoError(t, iMgr.RemoveFromList(TestKeyNSList.Metadata, []*IPSetMetadata{TestKeyPodSet.Metadata}))
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNestedLabelList.Metadata})
-	iMgr.DeleteIPSet(TestNestedLabelList.PrefixName)
+	iMgr.DeleteIPSet(TestNestedLabelList.PrefixName, util.SoftDelete)
 
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName, TestNestedLabelList.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
@@ -176,7 +176,7 @@ func TestFailureOnCreation(t *testing.T) {
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyPodSet.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestKeyPodSet.Metadata}, "10.0.0.5", "c"))
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
@@ -215,7 +215,7 @@ func TestFailureOnAddToList(t *testing.T) {
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKVNSList.Metadata})
 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKVNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata}))
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
@@ -261,9 +261,9 @@ func TestFailureOnFlush(t *testing.T) {
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKVPodSet.Metadata})
-	iMgr.DeleteIPSet(TestKVPodSet.PrefixName)
+	iMgr.DeleteIPSet(TestKVPodSet.PrefixName, util.SoftDelete)
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
@@ -290,9 +290,9 @@ func TestFailureOnDeletion(t *testing.T) {
 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
 	iMgr.CreateIPSets([]*IPSetMetadata{TestKVPodSet.Metadata})
-	iMgr.DeleteIPSet(TestKVPodSet.PrefixName)
+	iMgr.DeleteIPSet(TestKVPodSet.PrefixName, util.SoftDelete)
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName)
+	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{

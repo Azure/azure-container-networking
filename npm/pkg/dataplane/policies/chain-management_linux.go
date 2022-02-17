@@ -40,8 +40,7 @@ var (
 	// Should not be used directly. Initialized from iptablesAzureChains on first use of isAzureChain().
 	iptablesAzureChainsMap map[string]struct{}
 
-	jumpFromForwardToAzureChainArgs = []string{
-		util.IptablesForwardChain,
+	jumpToAzureChainArgs = []string{
 		util.IptablesJumpFlag,
 		util.IptablesAzureChain,
 		util.IptablesModuleFlag,
@@ -49,7 +48,12 @@ var (
 		util.IptablesCtstateFlag,
 		util.IptablesNewState,
 	}
+	jumpFromForwardToAzureChainArgs = append([]string{util.IptablesForwardChain}, jumpToAzureChainArgs...)
 
+	listForwardEntriesArgs = []string{
+		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
+		util.IptablesNumericFlag, util.IptablesListFlag, util.IptablesForwardChain, util.IptablesLineNumbersFlag,
+	}
 	spaceByte                                 = []byte(" ")
 	errNoLineNumber                           = errors.New("no line number found")
 	errUnexpectedLineNumberString             = errors.New("unexpected line number string")
@@ -139,10 +143,9 @@ func isBaseChain(chain string) bool {
 			- delete all deprecated chains
 			- delete old v2 policy chains
 	3. Add/reposition the jump from FORWARD chain to AZURE-NPM chain.
-		TODO: add this jump (if necessary) in the iptables-restore call
 
-	TODO: could use one grep call instead of one for getting the jump line num and one for getting deprecated chains and old v2 policy chains
-		- should use a grep pattern like so: <line num...AZURE-NPM>|<Chain AZURE-NPM>
+	TODO: could use one grep call instead of separate calls for getting jump line nums and for getting deprecated chains and old v2 policy chains
+		- would use a grep pattern like so: <line num...AZURE-NPM>|<Chain AZURE-NPM>
 */
 func (pMgr *PolicyManager) bootup(_ []string) error {
 	klog.Infof("booting up iptables Azure chains")
@@ -183,7 +186,7 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	// 3. add/reposition the jump to AZURE-NPM
 	if err := pMgr.positionAzureChainJumpRule(); err != nil {
 		baseErrString := "failed to add/reposition jump from FORWARD chain to AZURE-NPM chain"
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s with error: %s", baseErrString, err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s with error: %s", baseErrString, err.Error())
 		return npmerrors.SimpleErrorWrapper(baseErrString, err) // we used to ignore this error in v1
 	}
 	return nil
@@ -254,9 +257,7 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 	allArgs := []string{util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, operationFlag}
 	allArgs = append(allArgs, args...)
 
-	if operationFlag != util.IptablesCheckFlag {
-		klog.Infof("Executing iptables command with args %v", allArgs)
-	}
+	klog.Infof("Executing iptables command with args %v", allArgs)
 
 	command := pMgr.ioShim.Exec.Command(util.Iptables, allArgs...)
 	output, err := command.CombinedOutput()
@@ -266,8 +267,8 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 		errCode := exitError.ExitStatus()
 		allArgsString := strings.Join(allArgs, " ")
 		msgStr := strings.TrimSuffix(string(output), "\n")
-		if errCode > 0 && operationFlag != util.IptablesCheckFlag {
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, msgStr)
+		if errCode > 0 {
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, msgStr)
 		}
 		return errCode, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to run iptables command [%s %s] Stderr: [%s]", util.Iptables, allArgsString, msgStr), exitError)
 	}
@@ -329,44 +330,76 @@ func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *
 	return creator
 }
 
-// add/reposition the jump from FORWARD chain to AZURE-NPM chain so that it is the first rule in the chain
+// add/reposition the jump from FORWARD chain to AZURE-NPM chain to be in the correct position based on config:
+// option 1) jump to AZURE-NPM chain should be the first rule
+// option 2) jump to AZURE-NPM chain should be after the jump to KUBE-SERVICES chain
 func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
-	azureChainLineNum, lineNumErr := pMgr.chainLineNumber(util.IptablesAzureChain)
-	if lineNumErr != nil {
+	// get the line number for the azure jump
+	azureChainLineNum, err := pMgr.chainLineNumber(util.IptablesAzureChain)
+	if err != nil {
 		baseErrString := "failed to get index of jump from FORWARD chain to AZURE-NPM chain"
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s: %s", baseErrString, lineNumErr.Error())
-		// FIXME update ID
-		return npmerrors.SimpleErrorWrapper(baseErrString, lineNumErr)
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s: %s", baseErrString, err.Error())
+		return npmerrors.SimpleErrorWrapper(baseErrString, err)
 	}
 
-	// 1. the jump to azure chain is already the first rule , as it should be
-	if azureChainLineNum == 1 {
+	if pMgr.PlaceAzureChainFirst == util.PlaceAzureChainFirst && azureChainLineNum == 1 {
+		// the azure jump is in the right position, so we're done
 		return nil
 	}
-	// 2. the jump to auzre chain does not exist, so we need to add it
-	if azureChainLineNum == 0 {
-		klog.Infof("Inserting jump from FORWARD chain to AZURE-NPM chain")
-		if insertErrCode, insertErr := pMgr.runIPTablesCommand(util.IptablesInsertionFlag, jumpFromForwardToAzureChainArgs...); insertErr != nil {
-			baseErrString := "failed to insert jump from FORWARD chain to AZURE-NPM chain"
-			metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s with error code %d and error %s", baseErrString, insertErrCode, insertErr.Error())
-			// FIXME update ID
-			return npmerrors.SimpleErrorWrapper(baseErrString, insertErr)
+
+	// place the azure jump in the first position, unless we want option 2 above and the kube jump exists
+	targetIndex := 1
+	if pMgr.PlaceAzureChainFirst == util.PlaceAzureChainAfterKubeServices {
+		kubeChainLineNum, err := pMgr.chainLineNumber(util.IptablesKubeServicesChain)
+		if err != nil {
+			baseErrString := "failed to get index of jump from FORWARD chain to KUBE-SERVICES chain"
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: %s: %s", baseErrString, err.Error())
+			return npmerrors.SimpleErrorWrapper(baseErrString, err)
 		}
+
+		if kubeChainLineNum != 0 {
+			// kube jump exists
+			// the azure jump should be immediately after the kube jump
+			targetIndex = kubeChainLineNum + 1
+		}
+	}
+
+	if azureChainLineNum == targetIndex {
+		// the azure jump is in the right position, so we're done
 		return nil
 	}
-	// 3. the jump to azure chain is not the first rule, so we need to reposition it
-	metrics.SendErrorLogAndMetric(util.IptmID, "Info: Reconciler deleting and re-adding jump from FORWARD chain to AZURE-NPM chain table.")
-	if deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...); deleteErr != nil {
-		baseErrString := "failed to delete jump from FORWARD chain to AZURE-NPM chain"
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s with error code %d and error %s", baseErrString, deleteErrCode, deleteErr.Error())
-		// FIXME update ID
-		return npmerrors.SimpleErrorWrapper(baseErrString, deleteErr)
+
+	// delete the azure jump if it exists and update the target index
+	if azureChainLineNum != 0 {
+		metrics.SendErrorLogAndMetric(util.IptmID, "Info: Reconciler deleting and re-adding jump from FORWARD chain to AZURE-NPM chain table.")
+		if deleteErrCode, deleteErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...); deleteErr != nil {
+			baseErrString := "failed to delete jump from FORWARD chain to AZURE-NPM chain"
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: %s with error code %d and error %s", baseErrString, deleteErrCode, deleteErr.Error())
+			return npmerrors.SimpleErrorWrapper(baseErrString, deleteErr)
+		}
+
+		if azureChainLineNum < targetIndex {
+			// this means kube jump existed and was below the deleted azure jump, so decrement the target index
+			// this can only occur if PlaceAzureChainFirst == PlaceAfterKube
+			// this logic depends on targetIndex being 1 or kubeChainLineNum + 1
+			targetIndex--
+		}
 	}
-	if insertErrCode, insertErr := pMgr.runIPTablesCommand(util.IptablesInsertionFlag, jumpFromForwardToAzureChainArgs...); insertErr != nil {
-		baseErrString := "after deleting, failed to insert jump from FORWARD chain to AZURE-NPM chain"
-		// FIXME update ID
-		metrics.SendErrorLogAndMetric(util.IptmID, "Error: %s with error code %d and error %s", baseErrString, insertErrCode, insertErr.Error())
-		return npmerrors.SimpleErrorWrapper(baseErrString, insertErr)
+
+	// add (back) the azure jump
+	klog.Infof("Inserting jump from FORWARD chain to AZURE-NPM chain")
+	var args []string
+	if targetIndex == 1 {
+		// when no index is provided, index of 1 is implied
+		args = jumpFromForwardToAzureChainArgs
+	} else {
+		args = []string{util.IptablesForwardChain, strconv.Itoa(targetIndex)}
+		args = append(args, jumpToAzureChainArgs...)
+	}
+	if insertErrCode, err := pMgr.runIPTablesCommand(util.IptablesInsertionFlag, args...); err != nil {
+		baseErrString := "failed to insert jump from FORWARD chain to AZURE-NPM chain"
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s with error code %d and error %s", baseErrString, insertErrCode, err.Error())
+		return npmerrors.SimpleErrorWrapper(baseErrString, err)
 	}
 	return nil
 }
@@ -374,10 +407,8 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 // returns 0 if the chain does not exist
 // this function has a direct comparison in NPM v1 iptables manager (iptm.go)
 func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
-	listForwardEntriesCommand := pMgr.ioShim.Exec.Command(util.Iptables,
-		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
-		util.IptablesNumericFlag, util.IptablesListFlag, util.IptablesForwardChain, util.IptablesLineNumbersFlag,
-	)
+	listForwardEntriesCommand := pMgr.ioShim.Exec.Command(util.Iptables, listForwardEntriesArgs...)
+	klog.Infof("grepping for chain %s after running iptables with args %v", chain, listForwardEntriesArgs)
 	grepCommand := pMgr.ioShim.Exec.Command(ioutil.Grep, chain)
 	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(listForwardEntriesCommand, grepCommand)
 	if err != nil {

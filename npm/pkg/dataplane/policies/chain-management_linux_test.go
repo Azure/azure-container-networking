@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -372,6 +373,20 @@ func TestBootupLinux(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "success after restore failure (no NPM prior)",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+				fakeIPTablesRestoreFailureCommand, // e.g. xtables lock held by another app. Currently the stdout doesn't matter for retrying
+				fakeIPTablesRestoreCommand,
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			wantErr: false,
+		},
+		{
 			name: "success: v2 existed prior",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
@@ -429,11 +444,12 @@ func TestBootupLinux(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "failure on restore (no NPM prior)",
+			name: "failure twice on restore (no NPM prior)",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
 				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
+				fakeIPTablesRestoreFailureCommand,
 				fakeIPTablesRestoreFailureCommand,
 			},
 			wantErr: true,
@@ -476,27 +492,30 @@ func TestBootupLinux(t *testing.T) {
 
 func TestPositionAzureChainJumpRule(t *testing.T) {
 	tests := []struct {
-		name    string
-		calls   []testutils.TestCmd
-		wantErr bool
+		name                 string
+		calls                []testutils.TestCmd
+		placeAzureChainFirst bool
+		wantErr              bool
 	}{
 		{
-			name: "no jump rule yet",
+			name: "place first: no jump rule yet",
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
 				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
-			wantErr: false,
+			placeAzureChainFirst: util.PlaceAzureChainFirst,
+			wantErr:              false,
 		},
 		{
-			name: "no jump rule yet and insert fails",
+			name: "place first: no jump rule yet and insert fails",
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
 				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
-			wantErr: true,
+			placeAzureChainFirst: util.PlaceAzureChainFirst,
+			wantErr:              true,
 		},
 		{
 			name: "command error while grepping",
@@ -504,10 +523,11 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 				{Cmd: []string{"grep", "AZURE-NPM"}},
 			},
-			wantErr: true,
+			placeAzureChainFirst: util.PlaceAzureChainFirst,
+			wantErr:              true,
 		},
 		{
-			name: "jump rule already at top",
+			name: "place first: jump rule already at top",
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{
@@ -515,10 +535,11 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Stdout: "1    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
 			},
-			wantErr: false,
+			placeAzureChainFirst: util.PlaceAzureChainFirst,
+			wantErr:              false,
 		},
 		{
-			name: "jump rule not at top",
+			name: "place first: jump rule not at top",
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{
@@ -528,10 +549,11 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
-			wantErr: false,
+			placeAzureChainFirst: util.PlaceAzureChainFirst,
+			wantErr:              false,
 		},
 		{
-			name: "jump rule not at top and delete fails",
+			name: "place first: jump rule not at top and delete fails",
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{
@@ -540,10 +562,11 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				},
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
-			wantErr: true,
+			placeAzureChainFirst: util.PlaceAzureChainFirst,
+			wantErr:              true,
 		},
 		{
-			name: "jump rule not at top and insert fails",
+			name: "place first: jump rule not at top and insert fails",
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{
@@ -553,7 +576,185 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
-			wantErr: true,
+			placeAzureChainFirst: util.PlaceAzureChainFirst,
+			wantErr:              true,
+		},
+		{
+			name: "after kube: neither jump rule exists",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "KUBE-SERVICES"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              false,
+		},
+		{
+			name: "after kube: no azure jump rule yet and kube jump rule exists",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "KUBE-SERVICES"},
+					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              false,
+		},
+		{
+			name: "after kube: only azure jump rule exists and the position is correct",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "KUBE-SERVICES"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              false,
+		},
+		{
+			name: "after kube: only azure jump rule exists and the position is wrong",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "KUBE-SERVICES"}, ExitCode: 1},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              false,
+		},
+		{
+			name: "after kube: both jumps exist and positions are correct",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "4    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "KUBE-SERVICES"},
+					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              false,
+		},
+		{
+			name: "after kube: both jumps exist and the azure jump is too far below the kube jump",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "5    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "KUBE-SERVICES"},
+					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              false,
+		},
+		{
+			name: "after kube: both jumps exist and the azure jump is above the kube jump",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "KUBE-SERVICES"},
+					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              false,
+		},
+		{
+			name: "after kube: error getting kube jump line number",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true, HasStartError: true},
+				{Cmd: []string{"grep", "KUBE-SERVICES"}},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              true,
+		},
+		{
+			name: "after kube: error creating azure jump when kube jump rule exists",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "KUBE-SERVICES"},
+					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              true,
+		},
+		{
+			name: "after kube: error deleting azure jump when positions are wrong",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "KUBE-SERVICES"},
+					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              true,
+		},
+		{
+			name: "after kube: error adding back azure jump",
+			calls: []testutils.TestCmd{
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "AZURE-NPM"},
+					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "KUBE-SERVICES"},
+					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+			},
+			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+			wantErr:              true,
 		},
 	}
 	for _, tt := range tests {
@@ -561,7 +762,11 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, ipsetConfig)
+			cfg := &PolicyManagerCfg{
+				PolicyMode:           IPSetPolicyMode, // value doesn't matter for Linux
+				PlaceAzureChainFirst: tt.placeAzureChainFirst,
+			}
+			pMgr := NewPolicyManager(ioshim, cfg)
 			err := pMgr.positionAzureChainJumpRule()
 			if tt.wantErr {
 				require.Error(t, err)
