@@ -9,6 +9,7 @@ on:
 jobs:
   cyclonus-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     strategy:
       matrix:
         # run cyclonus tests in parallel for NPM with the given ConfigMaps
