@@ -513,6 +513,10 @@ test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
 	cd ..
 
+test-extended-cyclonus: ## run the cyclonus test for npm.
+	cd test/cyclonus && bash ./test-cyclonus.sh extended
+	cd ..
+
 .PHONY: kind
 kind:
 	kind create cluster --config ./test/kind/kind.yaml

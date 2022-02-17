@@ -21,6 +21,7 @@ spec:
             - --job-timeout-seconds=2
             - --server-protocol=TCP,UDP
             - --verbosity=debug
+            - --exclude=sctp
           name: cyclonus
           imagePullPolicy: IfNotPresent
           image: mfenwick100/cyclonus:v0.4.7

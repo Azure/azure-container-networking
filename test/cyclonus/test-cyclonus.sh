@@ -3,9 +3,20 @@
 set -eo pipefail
 set -xv
 
+cyclonusProfile="./install-cyclonus.yaml"
+if [ -z "$1" ]
+  then
+    echo "Running with default profile: $cyclonusProfile"
+elif [[ $1 == "extended" ]]; 
+then
+    # extended will exclude SCTP and will run 214 testcases with cyclonus 
+    cyclonusProfile="./install-cyclonus-exclude-sctp.yaml"
+    echo "Running with exclude SCTP profile with 214 testcases: $cyclonusProfile"
+fi
+
 kubectl delete --ignore-not-found=true clusterrolebinding cyclonus 
 kubectl delete --ignore-not-found=true sa cyclonus -n kube-system
-kubectl delete --ignore-not-found=true -f ./install-cyclonus.yaml
+kubectl delete --ignore-not-found=true -f $cyclonusProfile
 kubectl delete --ignore-not-found=true ns x y z
 
 sleep 5
@@ -13,7 +24,7 @@ sleep 5
 # set up cyclonus
 kubectl create clusterrolebinding cyclonus --clusterrole=cluster-admin --serviceaccount=kube-system:cyclonus
 kubectl create sa cyclonus -n kube-system
-kubectl create -f ./install-cyclonus.yaml
+kubectl create -f $cyclonusProfile
 
 sleep 5
 
@@ -33,7 +44,7 @@ cat "$LOG_FILE"
 
 kubectl delete --ignore-not-found=true clusterrolebinding cyclonus 
 kubectl delete --ignore-not-found=true sa cyclonus -n kube-system
-kubectl delete --ignore-not-found=true -f ./install-cyclonus.yaml
+kubectl delete --ignore-not-found=true -f $cyclonusProfile
 
 # if 'failure' is in the logs, fail; otherwise succeed
 rc=0
