@@ -42,8 +42,8 @@ func TestAreNCsPresent(t *testing.T) {
 			want: false,
 		},
 	}
-	for _, tt := range tests {
-		tt := tt
+	for _, tt := range tests { //nolint:govet // this mutex copy is to keep a local reference to this variable in the test func closure, and is ok
+		tt := tt //nolint:govet // this mutex copy is to keep a local reference to this variable in the test func closure, and is ok
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.service.areNCsPresent()
 			assert.Equal(t, got, tt.want)

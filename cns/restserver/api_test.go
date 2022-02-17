@@ -233,11 +233,14 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 				},
 			},
 			writer: httptest.NewRecorder(),
-			request: FirstRequest(http.NewRequest(http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(FirstByte(json.Marshal(cns.SetOrchestratorTypeRequest{
-				OrchestratorType: "Kubernetes",
-				DncPartitionKey:  "partition1",
-				NodeID:           "node2",
-			}))))),
+			request: FirstRequest(http.NewRequestWithContext(
+				context.TODO(), http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(
+					FirstByte(json.Marshal(
+						cns.SetOrchestratorTypeRequest{
+							OrchestratorType: "Kubernetes",
+							DncPartitionKey:  "partition1",
+							NodeID:           "node2",
+						}))))),
 			response: cns.Response{
 				ReturnCode: types.InvalidRequest,
 				Message:    "Invalid request since this node has already been registered as node1",
@@ -252,11 +255,14 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 				},
 			},
 			writer: httptest.NewRecorder(),
-			request: FirstRequest(http.NewRequest(http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(FirstByte(json.Marshal(cns.SetOrchestratorTypeRequest{
-				OrchestratorType: "Kubernetes",
-				DncPartitionKey:  "partition1",
-				NodeID:           "node2",
-			}))))),
+			request: FirstRequest(http.NewRequestWithContext(
+				context.TODO(), http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(
+					FirstByte(json.Marshal(
+						cns.SetOrchestratorTypeRequest{
+							OrchestratorType: "Kubernetes",
+							DncPartitionKey:  "partition1",
+							NodeID:           "node2",
+						}))))),
 			response: cns.Response{
 				ReturnCode: types.Success,
 				Message:    "",

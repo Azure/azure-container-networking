@@ -602,10 +602,8 @@ func (service *HTTPRestService) getNetworkContainerDetails(networkContainerID st
 
 // areNCsPresent returns true if NCs are present in CNS, false if no NCs are present
 func (service *HTTPRestService) areNCsPresent() bool {
-	if len(service.state.ContainerStatus) == 0 {
-		if len(service.state.ContainerIDByOrchestratorContext) == 0 {
-			return false
-		}
+	if len(service.state.ContainerStatus) == 0 && len(service.state.ContainerIDByOrchestratorContext) == 0 {
+		return false
 	}
 	return true
 }
