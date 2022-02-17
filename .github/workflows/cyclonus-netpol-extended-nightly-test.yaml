@@ -61,7 +61,7 @@ jobs:
           kubectl describe ds azure-npm -n kube-system
 
       - name: Run Cyclonus network policy test
-        run: test-extended-cyclonus
+        run: make test-extended-cyclonus
 
       - name: Fetch logs
         if: always()
