@@ -235,7 +235,7 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 			writer: httptest.NewRecorder(),
 			request: FirstRequest(http.NewRequestWithContext(
 				context.TODO(), http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(
-					FirstByte(json.Marshal(
+					FirstByte(json.Marshal( //nolint:errchkjson //inline map, only using returned bytes
 						cns.SetOrchestratorTypeRequest{
 							OrchestratorType: "Kubernetes",
 							DncPartitionKey:  "partition1",
@@ -257,7 +257,7 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 			writer: httptest.NewRecorder(),
 			request: FirstRequest(http.NewRequestWithContext(
 				context.TODO(), http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(
-					FirstByte(json.Marshal(
+					FirstByte(json.Marshal( //nolint:errchkjson //inline map, only using returned bytes
 						cns.SetOrchestratorTypeRequest{
 							OrchestratorType: "Kubernetes",
 							DncPartitionKey:  "partition1",
