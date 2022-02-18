@@ -20,6 +20,11 @@ var (
 					MatchType: EitherMatch,
 				},
 			},
+			// derived from testACLs
+			RuleIPSets: []*ipsets.TranslatedIPSet{
+				{Metadata: ipsets.TestCIDRSet.Metadata, Members: nil},
+				{Metadata: ipsets.TestKeyPodSet.Metadata, Members: nil},
+			},
 			ACLs: testACLs,
 		},
 		{
@@ -42,6 +47,9 @@ var (
 					MatchType: EitherMatch,
 				},
 			},
+			RuleIPSets: []*ipsets.TranslatedIPSet{
+				{Metadata: ipsets.TestCIDRSet.Metadata, Members: nil},
+			},
 			ACLs: []*ACLPolicy{
 				testACLs[0],
 			},
@@ -50,6 +58,9 @@ var (
 			Name:      "test3",
 			NameSpace: "z",
 			PolicyKey: "z/test3",
+			RuleIPSets: []*ipsets.TranslatedIPSet{
+				{Metadata: ipsets.TestCIDRSet.Metadata, Members: nil},
+			},
 			ACLs: []*ACLPolicy{
 				testACLs[3],
 			},

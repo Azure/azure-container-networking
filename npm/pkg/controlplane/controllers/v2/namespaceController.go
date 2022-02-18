@@ -470,9 +470,6 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 		return fmt.Errorf("failed to remove from list during clean deleted namespace %w", err)
 	}
 
-	// Delete ipset for the namespace.
-	nsc.dp.DeleteIPSet(ipsets.NewIPSetMetadata(cachedNsKey, ipsets.Namespace), util.SoftDelete)
-
 	delete(nsc.npmNamespaceCache.NsMap, cachedNsKey)
 
 	return nil

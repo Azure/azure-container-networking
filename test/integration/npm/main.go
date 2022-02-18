@@ -12,12 +12,14 @@ import (
 )
 
 const (
-	MaxSleepTime           = 2
-	finalWaitTimeInMinutes = 10
-	includeLists           = false
+	MaxSleepTime            = 1
+	finalSleepTimeInSeconds = 10
+	includeLists            = false
 )
 
 var (
+	counter = 0
+
 	dpCfg = &dataplane.Config{
 		IPSetManagerCfg: &ipsets.IPSetManagerCfg{
 			IPSetMode:   ipsets.ApplyAllIPSets,
@@ -31,7 +33,7 @@ var (
 
 	nodeName   = "testNode"
 	testNetPol = &policies.NPMNetworkPolicy{
-		Name: "test/test-netpol",
+		PolicyKey: "test/test-netpol",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
 				Metadata: ipsets.TestNSSet.Metadata,
@@ -77,8 +79,8 @@ var (
 
 func main() {
 	dp, err := dataplane.NewDataPlane(nodeName, common.NewIOShim(), dpCfg, make(chan struct{}, 1))
-	dp.RunPeriodicTasks()
 	panicOnError(err)
+	dp.RunPeriodicTasks()
 	printAndWait(true)
 
 	podMetadata := &dataplane.PodMetadata{
@@ -170,9 +172,21 @@ func main() {
 	printAndWait(true)
 	panicOnError(dp.AddPolicy(policies.TestNetworkPolicies[0]))
 	fmt.Println("AZURE-NPM should have rules now")
+	printAndWait(true)
 
-	fmt.Println("waiting for reconcile to finish (will be a while if you don't update the reconcile time in policymanager.go")
-	time.Sleep(finalWaitTimeInMinutes * time.Minute)
+	unusedSet1 := ipsets.NewIPSetMetadata("unused-set1", ipsets.CIDRBlocks)
+	fmt.Printf("\ncreating an empty set, it should be deleted by reconcile: %s\n", unusedSet1.GetHashedName())
+	dp.CreateIPSets([]*ipsets.IPSetMetadata{unusedSet1})
+	panicOnError(dp.ApplyDataPlane())
+
+	fmt.Printf("sleeping %d seconds to allow reconcile (update the reconcile time in dataplane.go to be less than %d seconds)\n", finalSleepTimeInSeconds, finalSleepTimeInSeconds)
+	time.Sleep(time.Duration(finalSleepTimeInSeconds) * time.Second)
+
+	unusedSet2 := ipsets.NewIPSetMetadata("unused-set2", ipsets.CIDRBlocks)
+	fmt.Printf("\ncreating an unused set %s. The prior empty set %s should be deleted on this apply\n", unusedSet2.GetHashedName(), unusedSet1.GetHashedName())
+	dp.CreateIPSets([]*ipsets.IPSetMetadata{unusedSet2})
+	panicOnError(dp.ApplyDataPlane())
+
 }
 
 func panicOnError(err error) {
@@ -182,7 +196,8 @@ func panicOnError(err error) {
 }
 
 func printAndWait(wait bool) {
-	fmt.Printf("#####################\nCompleted running, please check relevant commands, script will resume in %d secs\n#############\n", MaxSleepTime)
+	counter++
+	fmt.Printf("#####################\nCompleted running step %d, please check relevant commands, script will resume in %d secs\n#############\n", counter, MaxSleepTime)
 	if wait {
 		for i := 0; i < MaxSleepTime; i++ {
 			fmt.Print(".")
