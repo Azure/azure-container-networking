@@ -25,7 +25,8 @@ const (
 /*
 Error handling for iptables-restore:
 Currently we retry on any error and will make two tries max.
-The section IDs and line error patterns are pointless currently. Although we can eventually use them to skip a section with an error and salvage the rest of the file.
+The section IDs and line error patterns are pointless currently.
+Although we can eventually use them to skip a section with an error and salvage the rest of the file.
 
 Known errors that we should retry on:
 - exit status 4

@@ -408,7 +408,6 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 // this function has a direct comparison in NPM v1 iptables manager (iptm.go)
 func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
 	listForwardEntriesCommand := pMgr.ioShim.Exec.Command(util.Iptables, listForwardEntriesArgs...)
-	klog.Infof("grepping for chain %s after running iptables with args %v", chain, listForwardEntriesArgs)
 	grepCommand := pMgr.ioShim.Exec.Command(ioutil.Grep, chain)
 	searchResults, gotMatches, err := ioutil.PipeCommandToGrep(listForwardEntriesCommand, grepCommand)
 	if err != nil {

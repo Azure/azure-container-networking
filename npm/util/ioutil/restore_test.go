@@ -70,10 +70,28 @@ func TestRunCommandWhenFileIsEmpty(t *testing.T) {
 }
 
 func TestRunCommandSuccessAfterRecovery(t *testing.T) {
-	calls := []testutils.TestCmd{fakeFailureCommand, fakeSuccessCommand}
-	creator := NewFileCreator(common.NewMockIOShim(calls), 2)
-	creator.AddLine("", nil, "line1")
+	failure := fakeFailureCommand
+	failure.Stdout = "failure on line 1"
+	calls := []testutils.TestCmd{failure, fakeSuccessCommand}
+	creator := NewFileCreator(common.NewMockIOShim(calls), 2, "failure on line (\\d+)")
+
+	errorHandlers := []*LineErrorHandler{
+		{
+			Definition: AlwaysMatchDefinition,
+			Method:     Continue,
+			Callback:   func() { log.Logf("'continue' callback") },
+		},
+	}
+	creator.AddLine("", errorHandlers, "line1")
+	creator.AddLine("", nil, "line2")
+
+	originalFileString := "line1\nline2\n"
+	require.Equal(t, originalFileString, creator.ToString())
+
 	require.NoError(t, creator.RunCommandWithFile(testCommandString))
+
+	changedFileString := "line2\n"
+	require.Equal(t, changedFileString, creator.ToString())
 }
 
 func TestRunCommandFailureFromNoMoreTries(t *testing.T) {
