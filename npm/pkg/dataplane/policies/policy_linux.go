@@ -112,7 +112,7 @@ func (aclPolicy *ACLPolicy) comment() string {
 	for _, info := range aclPolicy.DstList {
 		if info.IPSet.Type == ipsets.NamedPorts {
 			if foundNamedPortPeer {
-				klog.Errorf("while creating ACL comment, unexpectedly found more than one namedPort peer for ACL:\n%s", aclPolicy.String())
+				klog.Errorf("while creating ACL comment, unexpectedly found more than one namedPort peer for ACL:\n%s", aclPolicy.PrettyString())
 			}
 			namedPortPeer = info
 			foundNamedPortPeer = true

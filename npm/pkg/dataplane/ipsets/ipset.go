@@ -241,7 +241,7 @@ func (set *IPSet) GetSetMetadata() *IPSetMetadata {
 	return NewIPSetMetadata(set.unprefixedName, set.Type)
 }
 
-func (set *IPSet) String() string {
+func (set *IPSet) PrettyString() string {
 	return fmt.Sprintf("Name: %s HashedNamed: %s Type: %s Kind: %s",
 		set.Name, set.HashedName, setTypeName[set.Type], string(set.Kind))
 }
