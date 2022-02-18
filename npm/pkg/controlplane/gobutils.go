@@ -8,75 +8,75 @@ import (
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 )
 
-func EncodeString(name string) (*bytes.Buffer, error) {
-	if name == "" {
+func EncodeStrings(names []string) (*bytes.Buffer, error) {
+	if len(names) == 0 {
 		return nil, npmerrors.SimpleError("failed to encode, name is empty")
 	}
 	var payloadBuffer bytes.Buffer
-	err := gob.NewEncoder(&payloadBuffer).Encode(&name)
+	err := gob.NewEncoder(&payloadBuffer).Encode(&names)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to encode", err)
 	}
 	return &payloadBuffer, nil
 }
 
-func DecodeString(payload *bytes.Buffer) (string, error) {
-	if payload == nil {
-		return "", npmerrors.SimpleError("failed to decode, payload is nil")
-	}
-	var name string
-	err := gob.NewDecoder(payload).Decode(&name)
-	if err != nil {
-		return "", npmerrors.SimpleErrorWrapper("failed to decode", err)
-	}
-	return name, nil
-}
-
-func EncodeControllerIPSet(ipset *ControllerIPSets) (*bytes.Buffer, error) {
-	if ipset == nil {
-		return nil, npmerrors.SimpleError("failed to encode, ipset is nil")
-	}
-	var payloadBuffer bytes.Buffer
-	err := gob.NewEncoder(&payloadBuffer).Encode(&ipset)
-	if err != nil {
-		return nil, npmerrors.SimpleErrorWrapper("failed to encode", err)
-	}
-	return &payloadBuffer, nil
-}
-
-func DecodeControllerIPSet(payload *bytes.Buffer) (*ControllerIPSets, error) {
+func DecodeStrings(payload *bytes.Buffer) ([]string, error) {
 	if payload == nil {
 		return nil, npmerrors.SimpleError("failed to decode, payload is nil")
 	}
-	var ipset ControllerIPSets
-	err := gob.NewDecoder(payload).Decode(&ipset)
+	var names []string
+	err := gob.NewDecoder(payload).Decode(&names)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to decode", err)
 	}
-	return &ipset, nil
+	return names, nil
 }
 
-func EncodeNPMNetworkPolicy(netpol *policies.NPMNetworkPolicy) (*bytes.Buffer, error) {
-	if netpol == nil {
+func EncodeControllerIPSets(ipsets []*ControllerIPSets) (*bytes.Buffer, error) {
+	if len(ipsets) == 0 {
+		return nil, npmerrors.SimpleError("failed to encode, ipset is nil")
+	}
+	var payloadBuffer bytes.Buffer
+	err := gob.NewEncoder(&payloadBuffer).Encode(&ipsets)
+	if err != nil {
+		return nil, npmerrors.SimpleErrorWrapper("failed to encode", err)
+	}
+	return &payloadBuffer, nil
+}
+
+func DecodeControllerIPSets(payload *bytes.Buffer) ([]*ControllerIPSets, error) {
+	if payload == nil {
+		return nil, npmerrors.SimpleError("failed to decode, payload is nil")
+	}
+	var ipsets []*ControllerIPSets
+	err := gob.NewDecoder(payload).Decode(&ipsets)
+	if err != nil {
+		return nil, npmerrors.SimpleErrorWrapper("failed to decode", err)
+	}
+	return ipsets, nil
+}
+
+func EncodeNPMNetworkPolicies(netpols []*policies.NPMNetworkPolicy) (*bytes.Buffer, error) {
+	if len(netpols) == 0 {
 		return nil, npmerrors.SimpleError("failed to encode, netpol is nil")
 	}
 	var payloadBuffer bytes.Buffer
 	enc := gob.NewEncoder(&payloadBuffer)
-	err := enc.Encode(netpol)
+	err := enc.Encode(netpols)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to encode", err)
 	}
 	return &payloadBuffer, nil
 }
 
-func DecodeNPMNetworkPolicy(payload *bytes.Buffer) (*policies.NPMNetworkPolicy, error) {
+func DecodeNPMNetworkPolicies(payload *bytes.Buffer) ([]*policies.NPMNetworkPolicy, error) {
 	if payload == nil {
 		return nil, npmerrors.SimpleError("failed to decode, payload is nil")
 	}
-	var netpol policies.NPMNetworkPolicy
-	err := gob.NewDecoder(payload).Decode(&netpol)
+	var netpols []*policies.NPMNetworkPolicy
+	err := gob.NewDecoder(payload).Decode(&netpols)
 	if err != nil {
 		return nil, npmerrors.SimpleErrorWrapper("failed to decode", err)
 	}
-	return &netpol, nil
+	return netpols, nil
 }

@@ -8,14 +8,8 @@ import (
 var (
 	ipamAllocatedIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_allocated_ips",
-			Help: "CNS's allocated IP pool size.",
-		},
-	)
-	ipamAssignedIPCount = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "ipam_assigned_ips",
-			Help: "Assigned IP count.",
+			Name: "ipam_pod_allocated_ips",
+			Help: "Count of IPs CNS has allocated to Pods.",
 		},
 	)
 	ipamAvailableIPCount = prometheus.NewGauge(
@@ -28,6 +22,18 @@ var (
 		prometheus.GaugeOpts{
 			Name: "ipam_batch_size",
 			Help: "IPAM IP pool batch size.",
+		},
+	)
+	ipamCurrentAvailableIPcount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "ipam_current_available_ips",
+			Help: "Current available IP count.",
+		},
+	)
+	ipamExpectedAvailableIPCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "ipam_expect_available_ips",
+			Help: "Expected future available IP count assuming the Requested IP count is honored.",
 		},
 	)
 	ipamMaxIPCount = prometheus.NewGauge(
@@ -54,16 +60,10 @@ var (
 			Help: "Requested IP count.",
 		},
 	)
-	ipamRequestedUnassignedIPConfigCount = prometheus.NewGauge(
+	ipamTotalIPCount = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "ipam_requested_unassigned_ips",
-			Help: "Future unassigned IP count assuming the Requested IP count is honored.",
-		},
-	)
-	ipamUnassignedIPCount = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "ipam_unassigned_ips",
-			Help: "Unassigned IP count.",
+			Name: "ipam_total_ips",
+			Help: "Count of total IP pool size allocated to CNS by DNC.",
 		},
 	)
 )
@@ -71,27 +71,27 @@ var (
 func init() {
 	metrics.Registry.MustRegister(
 		ipamAllocatedIPCount,
-		ipamAssignedIPCount,
 		ipamAvailableIPCount,
 		ipamBatchSize,
+		ipamCurrentAvailableIPcount,
+		ipamExpectedAvailableIPCount,
 		ipamMaxIPCount,
 		ipamPendingProgramIPCount,
 		ipamPendingReleaseIPCount,
 		ipamRequestedIPConfigCount,
-		ipamRequestedUnassignedIPConfigCount,
-		ipamUnassignedIPCount,
+		ipamTotalIPCount,
 	)
 }
 
 func observeIPPoolState(state ipPoolState, meta metaState) {
-	ipamAllocatedIPCount.Set(float64(state.allocated))
-	ipamAssignedIPCount.Set(float64(state.assigned))
+	ipamAllocatedIPCount.Set(float64(state.allocatedToPods))
 	ipamAvailableIPCount.Set(float64(state.available))
 	ipamBatchSize.Set(float64(meta.batch))
+	ipamCurrentAvailableIPcount.Set(float64(state.currentAvailableIPs))
+	ipamExpectedAvailableIPCount.Set(float64(state.expectedAvailableIPs))
 	ipamMaxIPCount.Set(float64(meta.max))
 	ipamPendingProgramIPCount.Set(float64(state.pendingProgramming))
 	ipamPendingReleaseIPCount.Set(float64(state.pendingRelease))
-	ipamRequestedIPConfigCount.Set(float64(state.requested))
-	ipamRequestedUnassignedIPConfigCount.Set(float64(state.requestedUnassigned))
-	ipamUnassignedIPCount.Set(float64(state.unassigned))
+	ipamRequestedIPConfigCount.Set(float64(state.requestedIPs))
+	ipamTotalIPCount.Set(float64(state.totalIPs))
 }

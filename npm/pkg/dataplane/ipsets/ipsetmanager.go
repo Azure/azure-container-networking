@@ -86,7 +86,7 @@ func (iMgr *IPSetManager) createIPSet(setMetadata *IPSetMetadata) {
 }
 
 // DeleteIPSet expects the prefixed ipset name
-func (iMgr *IPSetManager) DeleteIPSet(name string) {
+func (iMgr *IPSetManager) DeleteIPSet(name string, force util.DeleteOption) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(name) {
@@ -94,8 +94,16 @@ func (iMgr *IPSetManager) DeleteIPSet(name string) {
 	}
 
 	set := iMgr.setMap[name]
-	if !set.canBeDeleted() {
-		return
+	if force {
+		// If force delete, then check if Set is used by other set or network policy
+		// else delete the set even if it has members
+		if !set.canBeForceDeleted() {
+			return
+		}
+	} else {
+		if !set.canBeDeleted() {
+			return
+		}
 	}
 
 	delete(iMgr.setMap, name)
@@ -457,6 +465,18 @@ func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string
 	}
 	set := iMgr.setMap[setName]
 	return set.SelectorReference, nil
+}
+
+func (iMgr *IPSetManager) GetAllIPSets() []string {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	setNames := make([]string, len(iMgr.setMap))
+	i := 0
+	for setName := range iMgr.setMap {
+		setNames[i] = setName
+		i++
+	}
+	return setNames
 }
 
 func (iMgr *IPSetManager) exists(name string) bool {

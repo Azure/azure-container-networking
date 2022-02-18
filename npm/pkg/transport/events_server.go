@@ -1,15 +1,12 @@
 package transport
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	"fmt"
 	"net"
 
-	cp "github.com/Azure/azure-container-networking/npm/pkg/controlplane"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/dpshim"
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
-	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/stats"
@@ -44,10 +41,13 @@ type EventsServer struct {
 
 	// errCh is the error channel
 	errCh chan error
+
+	// dp has the dataplane instance, helps in hydration calls
+	dp *dpshim.DPShim
 }
 
 // NewEventsServer creates an instance of the EventsServer
-func NewEventsServer(ctx context.Context, port int) *EventsServer {
+func NewEventsServer(ctx context.Context, port int, dp *dpshim.DPShim) *EventsServer {
 	// Create a registration channel
 	regCh := make(chan clientStreamConnection, grpcMaxConcurrentStreams)
 
@@ -60,10 +60,11 @@ func NewEventsServer(ctx context.Context, port int) *EventsServer {
 		Watchdog:      NewWatchdog(deregCh),
 		Registrations: make(map[string]clientStreamConnection),
 		port:          port,
-		inCh:          make(chan *protos.Events),
+		inCh:          dp.OutChannel,
 		errCh:         make(chan error),
 		deregCh:       deregCh,
 		regCh:         regCh,
+		dp:            dp,
 	}
 }
 
@@ -90,33 +91,49 @@ func (m *EventsServer) start(stopCh <-chan struct{}) error {
 	for {
 		select {
 		case client := <-m.regCh:
+			// (TODO) Hydration is a very expensive event, so we want to make sure
+			// that pagination is done for large clusters. In case of a daemon restart in a large cluster
+			// we should be able to hydrate daemon in multiple phases,
+			// 1. 1st Level IPSets
+			// 2. Nested IPSets
+			// 3. Network Policies
+			// within the same castegory we will have to paginate.
 			klog.Infof("Registering remote client %s", client)
 			m.Registrations[client.String()] = client
+			event, err := m.dp.HydrateClients()
+			if err != nil {
+				klog.Errorf("Failed to hydrate client %s: %v", client, err)
+			}
+			// (TODO) Hydration event takes a lock of whole DPShim instance, essentially blocking the
+			// controllers from receiving any more new events or servicing existing daemons.
+			// So we will need to add a buffering mechanism to wait until either we have a N number of daemons
+			// or hit S milliseconds of wait time and send huydration event to all the buffered daemons.
+			go func() {
+				klog.Infof("Hydrating remote client %s", client)
+				if err := client.stream.SendMsg(event); err != nil {
+					klog.Errorf("Failed to hydrate client %s: %v", client, err)
+				}
+			}()
 		case ev := <-m.deregCh:
+			// (TODO) A heart beat for each daemon should also be added alongside watchdog to monitor
+			// daemon restarts and then if that fails, we will need to delete the client.
 			klog.Infof("Degregistering remote client %s", ev.remoteAddr)
 			if v, ok := m.Registrations[ev.remoteAddr]; ok {
 				if v.timestamp <= ev.timestamp {
+					klog.Infof("Deregistering remote client %s", ev.remoteAddr)
 					delete(m.Registrations, ev.remoteAddr)
 				} else {
 					klog.Info("Ignoring stale deregistration event")
 				}
 			}
 		case msg := <-m.inCh:
-			var payload bytes.Buffer
-			enc := gob.NewEncoder(&payload)
-
-			err := enc.Encode(msg)
-			if err != nil {
-				return npmerrors.SimpleErrorWrapper("failed to encode event", err)
-			}
-			for _, client := range m.Registrations {
-				if err := client.stream.SendMsg(&protos.Events{
-					Payload: map[string]*protos.GoalState{
-						cp.IpsetApply: {
-							Data: [][]byte{payload.Bytes()},
-						},
-					},
-				}); err != nil {
+			klog.Infof("######## Received event to broadcast ######")
+			for clientName, client := range m.Registrations {
+				// (TODO) Should we call this SendMsg per client in a separate go routine?
+				klog.Infof("######## Servicing the event to %s ######", clientName)
+				if err := client.stream.SendMsg(msg); err != nil {
+					// (TODO) What happens if a portion of the clients fails?
+					// there should be a mechanism to retry the failed clients.
 					klog.Errorf("Failed to send message to client %s: %v", client, err)
 				}
 			}

@@ -26,7 +26,7 @@ jobs:
       mkdir -p '$(GOPATH)/pkg'
       BUILD_NUMBER=$(Build.BuildNumber)
       RG=kubernetes-$(echo "npm-conformance-`date "+%Y-%m-%d-%S"`")
-      TAG=$(git describe --tags --always --dirty)-conformance-test
+      TAG=$(make version)-conformance-test
       echo "Resource group: $RG"
       echo "Image tag: $TAG"
 
@@ -68,8 +68,8 @@ jobs:
   - script: |
       echo Tag: $(TAG)
       echo ResourceGroup: $(RESOURCE_GROUP)
-      docker run --privileged --rm tonistiigi/binfmt --install arm64
-      VERSION=$(TAG) make azure-npm-image
+      make npm-image TAG=$(TAG) 
+      make npm-image-push TAG=$(TAG)
     displayName: 'Build and Push NPM Image'
 
   - task: Docker@2
@@ -151,9 +151,9 @@ jobs:
       scriptLocation: 'inlineScript'
       inlineScript: |
         az aks create --no-ssh-key \
-        --resource-group $(RESOURCE_GROUP) \
-        --name $(AZURE_CLUSTER) \
-        --network-plugin azure
+          --resource-group $(RESOURCE_GROUP) \
+          --name $(AZURE_CLUSTER) \
+          --network-plugin azure
 
         echo Cluster $(AZURE_CLUSTER)
         echo Resource $(RESOURCE_GROUP)
@@ -208,7 +208,6 @@ jobs:
   dependsOn: [Create_Cluster_and_Run_Test, setup]
   variables:
     RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
-    TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
   steps:
     - checkout: none
     - task: AzureCLI@2

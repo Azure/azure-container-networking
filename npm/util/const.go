@@ -229,5 +229,7 @@ const (
 	PodID
 	NetpolID
 	UtilID
+	DaemonID
+	ControllerID
 	DaemonDataplaneID // for v2
 )

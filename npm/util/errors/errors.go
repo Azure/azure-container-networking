@@ -43,7 +43,7 @@ var (
 // Error labels for ipsetmanager
 const (
 	InitializeDataPlane     = "InitializeDataPlane"
-	ResetDataPlane          = "ResetDataPlane"
+	BootupDataplane         = "BootupDataplane"
 	BootupPolicyMgr         = "BootupPolicyManager"
 	ResetIPSets             = "ResetIPSets"
 	CreateIPSet             = "CreateIPSet"

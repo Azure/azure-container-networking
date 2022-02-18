@@ -3,22 +3,24 @@ package dataplane
 import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 )
 
 type GenericDataplane interface {
-	InitializeDataPlane() error
-	ResetDataPlane() error
+	BootupDataplane() error
 	RunPeriodicTasks()
+	GetAllIPSets() []string
 	GetIPSet(setName string) *ipsets.IPSet
-	CreateIPSets(setNames []*ipsets.IPSetMetadata)
-	DeleteIPSet(setMetadata *ipsets.IPSetMetadata)
-	AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
-	RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
-	AddToLists(listName []*ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error
-	RemoveFromList(listName *ipsets.IPSetMetadata, setNames []*ipsets.IPSetMetadata) error
+	CreateIPSets(setMetadatas []*ipsets.IPSetMetadata)
+	DeleteIPSet(setMetadata *ipsets.IPSetMetadata, deleteOption util.DeleteOption)
+	AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
+	RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *PodMetadata) error
+	AddToLists(listMetadatas []*ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
+	RemoveFromList(listMetadata *ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
 	ApplyDataPlane() error
+	GetAllPolicies() []string
 	AddPolicy(policies *policies.NPMNetworkPolicy) error
-	RemovePolicy(policyName string) error
+	RemovePolicy(PolicyKey string) error
 	UpdatePolicy(policies *policies.NPMNetworkPolicy) error
 }
 

@@ -1,14 +1,14 @@
 pr:
   branches:
     include:
-      - master
-      - honeycomb-dev
+    - master
+    - honeycomb-dev
 
 trigger:
   branches:
     include:
-      - master
-      - honeycomb-dev
+    - master
+    - honeycomb-dev
 
 stages:
   - stage: setup
@@ -22,7 +22,7 @@ stages:
           - script: |
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
-              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(git describe --tags --always --dirty)"
+              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               sudo chown -R $(whoami):$(whoami) .
               go version
               go env
@@ -32,13 +32,10 @@ stages:
             displayName: "Set environmental variables"
             condition: always()
 
-
-  - template: windows-image.yaml
-
   - stage: build_and_test
     displayName: Build ACN and Test
     dependsOn:
-      - "setup"
+    - setup
     jobs:
       - job: build
         displayName: Build Binaries
@@ -89,82 +86,6 @@ stages:
           - publish: ./test/apimodels/
             artifact: clusterdefinitions
 
-      - job: build_images
-        displayName: Build Images
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - task: Docker@2
-            displayName: Docker Login
-            inputs:
-              containerRegistry: $(ACR_SERVICE_CONNECTION)
-              command: 'login'
-              addPipelineData: false
-
-          - script: |
-              echo Tag is $(TAG)
-              sudo make tools-images VERSION=$(TAG)
-              docker run --privileged --rm tonistiigi/binfmt --install arm64
-              make all-images VERSION=$(TAG)
-            name: "BuildImages"
-            displayName: "Build Images"
-
-          - script: |
-              wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
-              tar -zxvf trivy*.tar.gz
-              mkdir -p ./trivy-cache
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-npm:$(TAG)
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cns:$(TAG)
-              sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
-            name: "TrivyScan"
-            displayName: "Image Vulnerability Scan"
-
-          - script: |
-              docker tag $IMAGE_REGISTRY/azure-cni-manager:$(TAG) $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
-              docker push $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
-
-              function auto-retry()
-              {
-                  export i="1"
-                  export attempts="300"
-                  false
-                  while [[ $? -ne 0 ]] && [[ $i -lt $attempts ]]; do
-                    printf "Attempt $i/$attempts - " && "$@" && break ||  sleep 3 &&  i=$[$i+1] && false
-                  done
-              }
-
-              auto-retry docker pull $IMAGE_REGISTRY/azure-npm:$(TAG)
-              auto-retry docker pull $IMAGE_REGISTRY/azure-cns:$(TAG)
-              auto-retry docker pull $IMAGE_REGISTRY/azure-cni-manager:$(TAG)
-            name: "mcrreplication"
-            displayName: "Push NPM Image and Wait for Repository"
-
-          - task: Docker@2
-            displayName: Docker Logout
-            inputs:
-              containerRegistry: $(ACR_SERVICE_CONNECTION)
-              command: 'logout'
-              addPipelineData: false
-
-          - task: CopyFiles@2
-            inputs:
-              sourceFolder: "output"
-              targetFolder: $(Build.ArtifactStagingDirectory)
-            condition: succeeded()
-
-          - task: ManifestGeneratorTask@0
-            displayName: "Add SBOM Generator tool"
-            inputs:
-              BuildDropPath: '$(Build.ArtifactStagingDirectory)'
-
-          - task: PublishBuildArtifacts@1
-            inputs:
-              artifactName: "output"
-              pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-            condition: succeeded()
-
       - job: test
         displayName: Run Tests
         variables:
@@ -172,7 +93,6 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
-
           - script: |
               make tools
               # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
@@ -183,6 +103,7 @@ stages:
                   } 3>&1;
                 } | { read xs; exit $xs; }
               } 4>&1
+            retryCountOnTaskFailure: 3
             name: "Test"
             displayName: "Run Tests"
 
@@ -206,6 +127,83 @@ stages:
               summaryFileLocation: coverage.xml
             displayName: "Publish Code Coverage Results"
             condition: always()
+
+  - template: windows-image.yaml
+
+  - stage: containerize
+    displayName: Build Images
+    dependsOn:
+    - setup
+    - build_and_test
+    jobs:
+    - job: containerize 
+      displayName: Build Images
+      variables:
+        TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      pool:
+        name: "$(BUILD_POOL_NAME_DEFAULT)"
+      strategy:
+        matrix:
+          cni_manager_linux_amd64:
+            arch: amd64
+            os: linux
+            name: cni-manager
+          cni_manager_linux_arm64:
+            arch: arm64
+            os: linux
+            name: cni-manager
+          cns_linux_amd64:
+            arch: amd64
+            os: linux
+            name: cns
+          cns_linux_arm64:
+            arch: arm64
+            os: linux
+            name: cns
+          npm_linux_amd64:
+            arch: amd64
+            os: linux
+            name: npm 
+          npm_linux_arm64:
+            arch: arm64
+            os: linux
+            name: npm
+      steps:
+      - template: containers/container-template.yaml
+        parameters:
+          name: $(name)
+          os: $(os)
+          arch: $(arch)
+          tag: $(TAG)
+
+  - stage: publish
+    displayName: Publish Multiarch Manifests
+    dependsOn:
+    - setup
+    - containerize
+    jobs:
+    - job: manifest
+      displayName: Compile Manifests
+      variables:
+        TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      pool:
+        name: "$(BUILD_POOL_NAME_DEFAULT)"
+      strategy:
+        matrix:
+          cni-manager:
+            name: cni-manager
+          cns:
+            name: cns
+          npm: 
+            name: npm
+      steps:
+      - template: containers/manifest-template.yaml
+        parameters:
+          name: $(name)
+          oses: linux
+          arches: amd64 arm64
+          tag: $(TAG)
+
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
@@ -234,7 +232,6 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
-      
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
       name: "windows_20_04_e2e"

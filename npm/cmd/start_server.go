@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/controller"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
 	"github.com/Azure/azure-container-networking/npm/metrics"
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/dpshim"
 	"github.com/Azure/azure-container-networking/npm/pkg/transport"
 	"github.com/spf13/cobra"
@@ -60,6 +59,9 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 		return err
 	}
 
+	klog.Infof("initializing metrics")
+	metrics.InitializeAll()
+
 	// Create the kubernetes client
 	var k8sConfig *rest.Config
 	if flags.KubeConfigPath == "" {
@@ -96,15 +98,13 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	k8sServerVersion := k8sServerVersion(clientset)
 
-	var dp dataplane.GenericDataplane
-
-	mgr := transport.NewEventsServer(context.Background(), config.Transport.Port)
-
-	dp, err = dpshim.NewDPSim(mgr.InputChannel())
+	dp, err := dpshim.NewDPSim(wait.NeverStop)
 	if err != nil {
 		klog.Errorf("failed to create dataplane shim with error: %v", err)
 		return fmt.Errorf("failed to create dataplane with error: %w", err)
 	}
+
+	mgr := transport.NewEventsServer(context.Background(), config.Transport.Port, dp)
 
 	npMgr, err := controller.NewNetworkPolicyServer(config, factory, mgr, dp, version, k8sServerVersion)
 	if err != nil {

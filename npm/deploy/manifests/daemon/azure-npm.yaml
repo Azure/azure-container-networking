@@ -14,24 +14,24 @@ metadata:
   name: azure-npm
   namespace: kube-system
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - nodes
-  - namespaces
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - networkpolicies
-  verbs:
-  - get
-  - list
-  - watch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - nodes
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -45,9 +45,9 @@ roleRef:
   kind: ClusterRole
   name: azure-npm
 subjects:
-- kind: ServiceAccount
-  name: azure-npm
-  namespace: kube-system
+  - kind: ServiceAccount
+    name: azure-npm
+    namespace: kube-system
 ---
 apiVersion: v1
 data:
@@ -80,15 +80,15 @@ metadata:
   labels:
     app: azure-npm
     component: daemon
-  name: npm-deamon-metrics-cluster-service
+  name: npm-daemon-metrics-cluster-service
   namespace: kube-system
 spec:
   ports:
-  - name: metrics 
-    port: 9000
-    targetPort: 10091
+    - name: metrics
+      port: 9000
+      targetPort: 10091
   selector:
-    component: deamon
+    component: daemon
     k8s-app: azure-npm
 ---
 apiVersion: apps/v1
@@ -98,7 +98,7 @@ metadata:
     addonmanager.kubernetes.io/mode: EnsureExists
     app: azure-npm
     component: daemon
-  name: azure-npm-deamon
+  name: azure-npm-daemon
   namespace: kube-system
 spec:
   selector:
@@ -115,72 +115,73 @@ spec:
         k8s-app: azure-npm
     spec:
       containers:
-      - args:
-        - start
-        - daemon
-        command:
-        - azure-npm
-        env:
-        - name: HOSTNAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: spec.nodeName
-        - name: NPM_CONFIG
-          value: /etc/azure-npm/azure-npm.json
-        - name: DAEMON_POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: DAEMON_NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
-        image: azure-npm:v1.4.1
-        name: azure-npm
-        ports:
-        - name: metrics
-          containerPort: 10091
-        resources:
-          limits:
-            cpu: 250m
-            memory: 300Mi
-          requests:
-            cpu: 250m
-        securityContext:
-          privileged: true
-        volumeMounts:
-        - mountPath: /var/log
-          name: log
-        - mountPath: /run/xtables.lock
-          name: xtables-lock
-        - mountPath: /etc/protocols
-          name: protocols
-        - mountPath: /etc/azure-npm
-          name: azure-npm-config
+        - args:
+            - start
+            - daemon
+          command:
+            - azure-npm
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: NPM_CONFIG
+              value: /etc/azure-npm/azure-npm.json
+            - name: DAEMON_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DAEMON_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          image: azure-npm:v1.4.1
+          name: azure-npm
+          ports:
+            - name: metrics
+              containerPort: 10091
+          resources:
+            limits:
+              cpu: 250m
+              memory: 300Mi
+            requests:
+              cpu: 250m
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /var/log
+              name: log
+            - mountPath: /run/xtables.lock
+              name: xtables-lock
+            - mountPath: /etc/protocols
+              name: protocols
+            - mountPath: /etc/azure-npm
+              name: azure-npm-config
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: system-node-critical
       serviceAccountName: azure-npm
       tolerations:
-      - effect: NoExecute
-        operator: Exists
-      - effect: NoSchedule
-        operator: Exists
-      - key: CriticalAddonsOnly
-        operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - key: CriticalAddonsOnly
+          operator: Exists
       volumes:
-      - hostPath:
-          path: /var/log
-          type: Directory
-        name: log
-      - hostPath:
-          path: /run/xtables.lock
-          type: File
-        name: xtables-lock
-      - hostPath:
-          path: /etc/protocols
-          type: File
-        name: protocols
-      - configMap:
+        - hostPath:
+            path: /var/log
+            type: Directory
+          name: log
+        - hostPath:
+            path: /run/xtables.lock
+            type: File
+          name: xtables-lock
+        - hostPath:
+            path: /etc/protocols
+            type: File
+          name: protocols
+        - configMap:
+            name: azure-npm-config
           name: azure-npm-config
-        name: azure-npm-config

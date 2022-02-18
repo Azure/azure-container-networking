@@ -21,7 +21,7 @@ Now you can secure your Kubernetes cluster with Azure-NPM by applying Kubernetes
 `azure-npm` can be built directly from the source code in this repository.
 ```
 make azure-npm
-make azure-npm-image
+make npm-image
 make azure-npm-archive
 ```
 The first command builds the `azure-npm` executable. 

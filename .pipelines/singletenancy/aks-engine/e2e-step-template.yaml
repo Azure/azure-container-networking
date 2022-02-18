@@ -102,6 +102,7 @@ steps:
         make test-kubernetes
     name: DeployAKSEngine
     displayName: Run AKS-Engine E2E Tests
+    retryCountOnTaskFailure: 3
 
   - task: CopyFiles@2
     inputs:

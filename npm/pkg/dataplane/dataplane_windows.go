@@ -80,10 +80,10 @@ func (dp *DataPlane) bootupDataPlane() error {
 
 	// It is important to keep order to clean-up ACLs before ipsets. Otherwise we won't be able to delete ipsets referenced by ACLs
 	if err := dp.policyMgr.Bootup(epIDs); err != nil {
-		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset policy dataplane", err)
+		return npmerrors.ErrorWrapper(npmerrors.BootupDataplane, false, "failed to reset policy dataplane", err)
 	}
 	if err := dp.ipsetMgr.ResetIPSets(); err != nil {
-		return npmerrors.ErrorWrapper(npmerrors.ResetDataPlane, false, "failed to reset ipsets dataplane", err)
+		return npmerrors.ErrorWrapper(npmerrors.BootupDataplane, false, "failed to reset ipsets dataplane", err)
 	}
 	return nil
 }

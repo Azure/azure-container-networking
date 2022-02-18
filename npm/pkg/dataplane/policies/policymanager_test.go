@@ -14,7 +14,8 @@ import (
 
 var (
 	ipsetConfig = &PolicyManagerCfg{
-		PolicyMode: IPSetPolicyMode,
+		PolicyMode:           IPSetPolicyMode,
+		PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 	}
 
 	// below epList is no-op for linux
@@ -221,8 +222,8 @@ func TestNormalizeAndValidatePolicy(t *testing.T) {
 				PolicyKey: "x/test-netpol",
 				ACLs:      []*ACLPolicy{tt.acl},
 			}
-			normalizePolicy(netPol)
-			err := validatePolicy(netPol)
+			NormalizePolicy(netPol)
+			err := ValidatePolicy(netPol)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

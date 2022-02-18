@@ -71,6 +71,7 @@ spec:
           - name: azure-npm-config
             mountPath: /etc/azure-npm
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       volumes:
       - name: log
         hostPath:

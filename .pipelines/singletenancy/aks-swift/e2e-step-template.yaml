@@ -49,6 +49,7 @@ steps:
       kubectl cluster-info
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNI=true INSTALL_CNS=true make test-integration
+    retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
 

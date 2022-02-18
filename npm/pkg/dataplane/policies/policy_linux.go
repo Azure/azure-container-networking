@@ -15,6 +15,9 @@ type UniqueDirection bool
 const (
 	forIngress UniqueDirection = true
 	forEgress  UniqueDirection = false
+
+	// 5-6 elements depending on Included boolean
+	maxLengthForMatchSetSpecs = 6
 )
 
 // returns two booleans indicating whether the network policy has ingress and egress respectively
@@ -81,6 +84,17 @@ func (info SetInfo) comment() string {
 		return name
 	}
 	return "!" + name
+}
+
+func (info SetInfo) matchSetSpecs(matchString string) []string {
+	specs := make([]string, 0, maxLengthForMatchSetSpecs)
+	specs = append(specs, util.IptablesModuleFlag, util.IptablesSetModuleFlag)
+	if !info.Included {
+		specs = append(specs, util.IptablesNotFlag)
+	}
+	hashedSetName := info.IPSet.GetHashedName()
+	specs = append(specs, util.IptablesMatchSetFlag, hashedSetName, matchString)
+	return specs
 }
 
 func (aclPolicy *ACLPolicy) comment() string {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/klog/v2"
 )
 
@@ -38,7 +39,7 @@ func NewEventsClient(ctx context.Context, pod, node, addr string) (*EventsClient
 	klog.Infof("Connecting to NPM controller gRPC server at address %s\n", addr)
 	// TODO Make this secure
 	// TODO Remove WithBlock option post testing
-	cc, err := grpc.DialContext(ctx, addr, grpc.WithInsecure(), grpc.WithBlock())
+	cc, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %s: %w", addr, err)
 	}
@@ -58,23 +59,17 @@ func (c *EventsClient) EventsChannel() chan *protos.Events {
 }
 
 func (c *EventsClient) Start(stopCh <-chan struct{}) error {
+	go c.run(c.ctx, stopCh) //nolint:errcheck // ignore error since this is a go routine
+	return nil
+}
+
+func (c *EventsClient) run(ctx context.Context, stopCh <-chan struct{}) error {
+	var connectClient protos.DataplaneEvents_ConnectClient
+	var err error
 	clientMetadata := &protos.DatapathPodMetadata{
 		PodName:  c.pod,
 		NodeName: c.node,
 	}
-
-	opts := []grpc.CallOption{}
-	connectClient, err := c.Connect(c.ctx, clientMetadata, opts...)
-	if err != nil {
-		return fmt.Errorf("failed to connect to dataplane events server: %w", err)
-	}
-
-	go c.run(c.ctx, connectClient, stopCh) //nolint:errcheck // ignore error since this is a go routine
-
-	return nil
-}
-
-func (c *EventsClient) run(ctx context.Context, connectClient protos.DataplaneEvents_ConnectClient, stopCh <-chan struct{}) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -84,12 +79,21 @@ func (c *EventsClient) run(ctx context.Context, connectClient protos.DataplaneEv
 			klog.Info("Received message on stop channel. Stopping transport client")
 			return nil
 		default:
+			if connectClient == nil {
+				klog.Info("Reconnecting to gRPC server controller")
+				opts := []grpc.CallOption{grpc.WaitForReady(true)}
+				connectClient, err = c.Connect(ctx, clientMetadata, opts...)
+				if err != nil {
+					return fmt.Errorf("failed to connect to dataplane events server: %w", err)
+				}
+			}
 			event, err := connectClient.Recv()
 			if err != nil {
 				klog.Errorf("failed to receive event: %v", err)
-				return fmt.Errorf("failed to receive event: %w", err)
+				connectClient = nil
+				continue
 			}
-
+			klog.Infof("### Received event: %v", event)
 			c.outCh <- event
 		}
 	}

@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/daemon"
+	restserver "github.com/Azure/azure-container-networking/npm/http/server"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/goalstateprocessor"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/models"
@@ -49,6 +51,9 @@ func startDaemon(config npmconfig.Config) error {
 	pod := os.Getenv(podNameEnv)
 	node := os.Getenv(nodeNameEnv)
 
+	klog.Infof("initializing metrics")
+	metrics.InitializeAll()
+
 	addr := config.Transport.Address + ":" + strconv.Itoa(config.Transport.ServicePort)
 	ctx := context.Background()
 	err := initLogging()
@@ -64,6 +69,10 @@ func startDaemon(config npmconfig.Config) error {
 		klog.Errorf("failed to create dataplane: %v", err)
 		return fmt.Errorf("failed to create dataplane with error %w", err)
 	}
+
+	dp.RunPeriodicTasks()
+	// TODO Daemon should implement cache encoder
+	go restserver.NPMRestServerListenAndServe(config, nil)
 
 	client, err := transport.NewEventsClient(ctx, pod, node, addr)
 	if err != nil {
@@ -88,5 +97,6 @@ func startDaemon(config npmconfig.Config) error {
 		klog.Errorf("failed to start dataplane : %v", err)
 		return fmt.Errorf("failed to start dataplane: %w", err)
 	}
+
 	return nil
 }

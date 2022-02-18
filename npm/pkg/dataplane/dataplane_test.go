@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,8 @@ var (
 			NetworkName: "azure",
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
-			PolicyMode: policies.IPSetPolicyMode,
+			PolicyMode:           policies.IPSetPolicyMode,
+			PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 		},
 	}
 
@@ -115,7 +117,7 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 	}
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, util.SoftDelete)
 	}
 
 	for _, v := range setsTocreate {
@@ -163,7 +165,7 @@ func TestAddToSet(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, util.SoftDelete)
 	}
 
 	for _, v := range setsTocreate {
@@ -179,7 +181,7 @@ func TestAddToSet(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, v := range setsTocreate {
-		dp.DeleteIPSet(v)
+		dp.DeleteIPSet(v, util.SoftDelete)
 	}
 
 	for _, v := range setsTocreate {
@@ -277,50 +279,4 @@ func getAffectedIPSets(networkPolicy *policies.NPMNetworkPolicy) []*ipsets.IPSet
 		sets = append(sets, translatedIPSet.Metadata)
 	}
 	return sets
-}
-
-func TestValidateIPBlock(t *testing.T) {
-	tests := []struct {
-		name    string
-		ipblock string
-		wantErr bool
-	}{
-		{
-			name:    "cidr",
-			ipblock: "172.17.0.0/16",
-			wantErr: false,
-		},
-		{
-			name:    "except ipblock",
-			ipblock: "172.17.1.0/24 nomatch",
-			wantErr: false,
-		},
-		{
-			name:    "incorrect ip format",
-			ipblock: "1234",
-			wantErr: true,
-		},
-		{
-			name:    "incorrect ip range",
-			ipblock: "256.1.2.3",
-			wantErr: true,
-		},
-		{
-			name:    "empty cidr",
-			ipblock: "",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateIPBlock(tt.ipblock)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }

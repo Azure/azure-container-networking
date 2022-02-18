@@ -26,6 +26,7 @@ import (
 	acncommon "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -192,6 +193,102 @@ func TestSetOrchestratorType(t *testing.T) {
 	if err != nil {
 		t.Errorf("setOrchestratorType failed Err:%+v", err)
 		t.Fatal(err)
+	}
+}
+
+func FirstByte(b []byte, err error) []byte {
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func FirstRequest(req *http.Request, err error) *http.Request {
+	if err != nil {
+		panic(err)
+	}
+	return req
+}
+
+func TestSetOrchestratorType_NCsPresent(t *testing.T) {
+	tests := []struct {
+		name          string
+		service       *HTTPRestService
+		writer        *httptest.ResponseRecorder
+		request       *http.Request
+		response      cns.Response
+		wanthttperror bool
+	}{
+		{
+			name: "Node already set, and has NCs, so registration should fail",
+			service: &HTTPRestService{
+				state: &httpRestServiceState{
+					NodeID: "node1",
+					ContainerStatus: map[string]containerstatus{
+						"nc1": {},
+					},
+					ContainerIDByOrchestratorContext: map[string]string{
+						"nc1": "present",
+					},
+				},
+			},
+			writer: httptest.NewRecorder(),
+			request: FirstRequest(http.NewRequestWithContext(
+				context.TODO(), http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(
+					FirstByte(json.Marshal( //nolint:errchkjson //inline map, only using returned bytes
+						cns.SetOrchestratorTypeRequest{
+							OrchestratorType: "Kubernetes",
+							DncPartitionKey:  "partition1",
+							NodeID:           "node2",
+						}))))),
+			response: cns.Response{
+				ReturnCode: types.InvalidRequest,
+				Message:    "Invalid request since this node has already been registered as node1",
+			},
+			wanthttperror: false,
+		},
+		{
+			name: "Node already set, with no NCs, so registration should succeed",
+			service: &HTTPRestService{
+				state: &httpRestServiceState{
+					NodeID: "node1",
+				},
+			},
+			writer: httptest.NewRecorder(),
+			request: FirstRequest(http.NewRequestWithContext(
+				context.TODO(), http.MethodPost, cns.SetOrchestratorType, bytes.NewReader(
+					FirstByte(json.Marshal( //nolint:errchkjson //inline map, only using returned bytes
+						cns.SetOrchestratorTypeRequest{
+							OrchestratorType: "Kubernetes",
+							DncPartitionKey:  "partition1",
+							NodeID:           "node2",
+						}))))),
+			response: cns.Response{
+				ReturnCode: types.Success,
+				Message:    "",
+			},
+			wanthttperror: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			var resp cns.Response
+			// Since this is global, we have to replace the state
+			oldstate := svc.state
+			svc.state = tt.service.state
+			mux.ServeHTTP(tt.writer, tt.request)
+			// Replace back old state
+			svc.state = oldstate
+
+			err := decodeResponse(tt.writer, &resp)
+			if tt.wanthttperror {
+				assert.NotNil(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.response, resp)
+		})
 	}
 }
 

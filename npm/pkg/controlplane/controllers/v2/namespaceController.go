@@ -471,7 +471,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 	}
 
 	// Delete ipset for the namespace.
-	nsc.dp.DeleteIPSet(ipsets.NewIPSetMetadata(cachedNsKey, ipsets.Namespace))
+	nsc.dp.DeleteIPSet(ipsets.NewIPSetMetadata(cachedNsKey, ipsets.Namespace), util.SoftDelete)
 
 	delete(nsc.npmNamespaceCache.NsMap, cachedNsKey)
 

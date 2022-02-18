@@ -746,7 +746,7 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	service.dncPartitionKey = req.DncPartitionKey
 	nodeID = service.state.NodeID
 
-	if nodeID == "" || nodeID == req.NodeID {
+	if nodeID == "" || nodeID == req.NodeID || !service.areNCsPresent() {
 		switch req.OrchestratorType {
 		case cns.ServiceFabric:
 			fallthrough

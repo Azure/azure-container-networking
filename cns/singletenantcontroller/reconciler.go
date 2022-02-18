@@ -2,6 +2,7 @@ package kubecontroller
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -37,6 +38,8 @@ type Reconciler struct {
 	cnscli             cnsClient
 	ipampoolmonitorcli ipamPoolMonitorClient
 	nnccli             nncGetter
+	started            chan interface{}
+	once               sync.Once
 }
 
 func NewReconciler(nnccli nncGetter, cnscli cnsClient, ipampipampoolmonitorcli ipamPoolMonitorClient) *Reconciler {
@@ -44,6 +47,7 @@ func NewReconciler(nnccli nncGetter, cnscli cnsClient, ipampipampoolmonitorcli i
 		cnscli:             cnscli,
 		ipampoolmonitorcli: ipampipampoolmonitorcli,
 		nnccli:             nnccli,
+		started:            make(chan interface{}),
 	}
 }
 
@@ -87,7 +91,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// record assigned IPs metric
 	allocatedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
 
+	// we have received and pushed an NNC update, we are "Started"
+	r.once.Do(func() { close(r.started) })
 	return reconcile.Result{}, nil
+}
+
+// Started blocks until the Reconciler has reconciled at least once,
+// then, and any time that it is called after that, it immediately returns true.
+// It accepts a cancellable Context and if the context is closed
+// before Start it will return false. Passing a closed Context after the
+// Reconciler is started is indeterminate and the response is psuedorandom.
+func (r *Reconciler) Started(ctx context.Context) bool {
+	select {
+	case <-r.started:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.

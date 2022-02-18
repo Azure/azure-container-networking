@@ -44,7 +44,7 @@ type Monitor struct {
 	metastate   metaState
 	nnccli      nodeNetworkConfigSpecUpdater
 	httpService cns.HTTPService
-	initialized chan interface{}
+	started     chan interface{}
 	nncSource   chan v1alpha.NodeNetworkConfig
 	once        sync.Once
 }
@@ -60,11 +60,14 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 		opts:        opts,
 		httpService: httpService,
 		nnccli:      nnccli,
-		initialized: make(chan interface{}),
+		started:     make(chan interface{}),
 		nncSource:   make(chan v1alpha.NodeNetworkConfig),
 	}
 }
 
+// Start begins the Monitor's pool reconcile loop.
+// On first run, it will block until a NodeNetworkConfig is received (through a call to Update()).
+// Subsequently, it will run run once per RefreshDelay and attempt to re-reconcile the pool.
 func (pm *Monitor) Start(ctx context.Context) error {
 	logger.Printf("[ipam-pool-monitor] Starting CNS IPAM Pool Monitor")
 
@@ -78,7 +81,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			return errors.Wrap(ctx.Err(), "pool monitor context closed")
 		case <-ticker.C: // attempt to reconcile every tick.
 			select {
-			case <-pm.initialized: // this blocks until we have initialized
+			case <-pm.started: // this blocks until we have initialized
 				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			default:
 				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
@@ -90,7 +93,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			pm.metastate.batch = scaler.BatchSize
 			pm.metastate.max = scaler.MaxIPCount
 			pm.metastate.minFreeCount, pm.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
-			pm.once.Do(func() { close(pm.initialized) }) // close the init channel the first time we receive a NodeNetworkConfig.
+			pm.once.Do(func() { close(pm.started) }) // close the init channel the first time we receive a NodeNetworkConfig.
 		}
 		// if control has flowed through the select(s) to this point, we can now reconcile.
 		err := pm.reconcile(ctx)
@@ -102,33 +105,33 @@ func (pm *Monitor) Start(ctx context.Context) error {
 
 // ipPoolState is the current actual state of the CNS IP pool.
 type ipPoolState struct {
-	// allocated are the IPs given to CNS.
-	allocated int64
-	// assigned are the IPs CNS gives to Pods.
-	assigned int64
-	// available are the allocated IPs in state "Available".
+	// allocatedToPods are the IPs CNS gives to Pods.
+	allocatedToPods int64
+	// available are the IPs in state "Available".
 	available int64
-	// pendingProgramming are the allocated IPs in state "PendingProgramming".
+	// currentAvailableIPs are the current available IPs: allocated - assigned - pendingRelease.
+	currentAvailableIPs int64
+	// expectedAvailableIPs are the "future" available IPs, if the requested IP count is honored: requested - assigned.
+	expectedAvailableIPs int64
+	// pendingProgramming are the IPs in state "PendingProgramming".
 	pendingProgramming int64
-	// pendingRelease are the allocated IPs in state "PendingRelease".
+	// pendingRelease are the IPs in state "PendingRelease".
 	pendingRelease int64
-	// requested are the IPs CNS has requested that it be allocated.
-	requested int64
-	// requestedUnassigned are the "future" unassigned IPs, if the requested IP count is honored: requested - assigned.
-	requestedUnassigned int64
-	// unassigned are the currently unassigned IPs: allocated - assigned.
-	unassigned int64
+	// requestedIPs are the IPs CNS has requested that it be allocated by DNC.
+	requestedIPs int64
+	// totalIPs are all the IPs given to CNS by DNC.
+	totalIPs int64
 }
 
 func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.NodeNetworkConfigSpec) ipPoolState {
 	state := ipPoolState{
-		allocated: int64(len(ips)),
-		requested: spec.RequestedIPCount,
+		totalIPs:     int64(len(ips)),
+		requestedIPs: spec.RequestedIPCount,
 	}
 	for _, v := range ips {
 		switch v.GetState() {
 		case types.Assigned:
-			state.assigned++
+			state.allocatedToPods++
 		case types.Available:
 			state.available++
 		case types.PendingProgramming:
@@ -137,8 +140,8 @@ func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.Nod
 			state.pendingRelease++
 		}
 	}
-	state.unassigned = state.allocated - state.assigned
-	state.requestedUnassigned = state.requested - state.assigned
+	state.currentAvailableIPs = state.totalIPs - state.allocatedToPods - state.pendingRelease
+	state.expectedAvailableIPs = state.requestedIPs - state.allocatedToPods
 	return state
 }
 
@@ -150,8 +153,8 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 
 	switch {
 	// pod count is increasing
-	case state.requestedUnassigned < pm.metastate.minFreeCount:
-		if state.requested == pm.metastate.max {
+	case state.expectedAvailableIPs < pm.metastate.minFreeCount:
+		if state.requestedIPs == pm.metastate.max {
 			// If we're already at the maxIPCount, don't try to increase
 			return nil
 		}
@@ -160,7 +163,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return pm.increasePoolSize(ctx, state)
 
 	// pod count is decreasing
-	case state.unassigned >= pm.metastate.maxFreeCount:
+	case state.currentAvailableIPs >= pm.metastate.maxFreeCount:
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...")
 		return pm.decreasePoolSize(ctx, state)
 
@@ -171,7 +174,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return pm.cleanPendingRelease(ctx)
 
 	// no pods scheduled
-	case state.assigned == 0:
+	case state.allocatedToPods == 0:
 		logger.Printf("[ipam-pool-monitor] No pods scheduled")
 		return nil
 	}
@@ -334,6 +337,10 @@ func (pm *Monitor) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 
 // Update ingests a NodeNetworkConfig, clamping some values to ensure they are legal and then
 // pushing it to the Monitor's source channel.
+// If the Monitor has been Started but is blocking until it receives an NNC, this will start
+// the pool reconcile loop.
+// If the Monitor has not been Started, this will block until Start() is called, which will
+// immediately read this passed NNC and start the pool reconcile loop.
 func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 	pm.clampScaler(&nnc.Status.Scaler)
 

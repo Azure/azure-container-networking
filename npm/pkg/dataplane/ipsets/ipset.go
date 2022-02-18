@@ -3,6 +3,8 @@ package ipsets
 import (
 	"errors"
 	"fmt"
+	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -330,6 +332,11 @@ func (set *IPSet) shouldBeInKernel() bool {
 	return set.usedByNetPol() || set.referencedInKernel()
 }
 
+func (set *IPSet) canBeForceDeleted() bool {
+	return !set.usedByNetPol() &&
+		!set.referencedInList()
+}
+
 func (set *IPSet) canBeDeleted() bool {
 	return !set.usedByNetPol() &&
 		!set.referencedInList() &&
@@ -379,4 +386,28 @@ func (set *IPSet) canSetBeSelectorIPSet() bool {
 		set.Type == KeyValueLabelOfPod ||
 		set.Type == Namespace ||
 		set.Type == NestedLabelOfPod)
+}
+
+// TODO: This is an adhoc approach for linux, but need to refactor data structure for better management.
+func ValidateIPBlock(ipblock string) error {
+	// TODO: This is fragile code with strong dependency with " "(space).
+	// onlyCidr has only cidr without "space" and "nomatch" in case except ipblock to validate cidr format.
+	onlyCidr := strings.Split(ipblock, " ")[0]
+	_, _, err := net.ParseCIDR(onlyCidr)
+	if err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to parse CIDR", err)
+	}
+	return nil
+}
+
+func GetMembersOfTranslatedSets(members []string) []*IPSetMetadata {
+	memberList := make([]*IPSetMetadata, len(members))
+	i := 0
+	for _, setName := range members {
+		// translate engine only returns KeyValueLabelOfPod as member
+		memberSet := NewIPSetMetadata(setName, KeyValueLabelOfPod)
+		memberList[i] = memberSet
+		i++
+	}
+	return memberList
 }
