@@ -38,8 +38,8 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 	firstLoop := true
 	for setName := range setList {
 		if !iMgr.exists(setName) {
-			return nil, errors..Errorf(
-				errors..GetSelectorReference,
+			return nil, errors.Errorf(
+				errors.GetSelectorReference,
 				false,
 				fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
 		}
@@ -63,8 +63,8 @@ func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(setName) {
-		return nil, errors..Errorf(
-			errors..GetSelectorReference,
+		return nil, errors.Errorf(
+			errors.GetSelectorReference,
 			false,
 			fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
 	}
