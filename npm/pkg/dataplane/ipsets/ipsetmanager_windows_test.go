@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/require"
