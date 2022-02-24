@@ -133,7 +133,6 @@ spec:
     spec:
       containers:
       - args:
-        - start
         - controlplane 
         ports:
         - name: metrics
