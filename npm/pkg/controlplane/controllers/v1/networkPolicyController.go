@@ -368,17 +368,19 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// the key is re-queued in workqueue and process this function again, which eventually meets desired states of network policy
 	c.rawNpMap[netpolKey] = netPolObj
 	metrics.IncNumPolicies()
+	c.ipsMgr.Lock()
+	defer c.ipsMgr.Unlock()
 
 	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(netPolObj)
 	for _, set := range sets {
 		klog.Infof("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
-		if err = c.ipsMgr.CreateSet(set, []string{util.IpsetNetHashFlag}); err != nil {
+		if err = c.ipsMgr.CreateSetNoLock(set, []string{util.IpsetNetHashFlag}); err != nil {
 			return operationKind, fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset %s with err: %w", set, err)
 		}
 	}
 	for _, set := range namedPorts {
 		klog.Infof("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
-		if err = c.ipsMgr.CreateSet(set, []string{util.IpsetIPPortHashFlag}); err != nil {
+		if err = c.ipsMgr.CreateSetNoLock(set, []string{util.IpsetIPPortHashFlag}); err != nil {
 			return operationKind, fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset named port %s with err: %w", set, err)
 		}
 	}
@@ -386,7 +388,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// lists is a map with list name and members as value
 	// NPM will create the list first and increments the refer count
 	for listKey := range lists {
-		if err = c.ipsMgr.CreateList(listKey); err != nil {
+		if err = c.ipsMgr.CreateListNoLock(listKey); err != nil {
 			return operationKind, fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset list %s with err: %w", listKey, err)
 		}
 		c.ipsMgr.IpSetReferIncOrDec(listKey, util.IpsetSetListFlag, ipsm.IncrementOp)
@@ -395,7 +397,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// to lists before they are created.
 	for listKey, listLabelsMembers := range lists {
 		for _, listMember := range listLabelsMembers {
-			if err = c.ipsMgr.AddToList(listKey, listMember); err != nil {
+			if err = c.ipsMgr.AddToListNoLock(listKey, listMember); err != nil {
 				return operationKind, fmt.Errorf("[syncAddAndUpdateNetPol] Error: Adding ipset member %s to ipset list %s with err: %w", listMember, listKey, err)
 			}
 		}
@@ -489,7 +491,7 @@ func (c *NetworkPolicyController) createCidrsRule(direction, policyName, ns stri
 		}
 		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + direction
 		klog.Infof("Creating set: %v, hashedSet: %v", setName, util.GetHashedName(setName))
-		if err := c.ipsMgr.CreateSet(setName, spec); err != nil {
+		if err := c.ipsMgr.CreateSetNoLock(setName, spec); err != nil {
 			return fmt.Errorf("[createCidrsRule] Error: creating ipset %s with err: %w", ipCidrSet, err)
 		}
 		for _, ipCidrEntry := range util.DropEmptyFields(ipCidrSet) {
@@ -498,12 +500,12 @@ func (c *NetworkPolicyController) createCidrsRule(direction, policyName, ns stri
 			if ipCidrEntry == "0.0.0.0/0" {
 				splitEntry := [2]string{"0.0.0.0/1", "128.0.0.0/1"}
 				for _, entry := range splitEntry {
-					if err := c.ipsMgr.AddToSet(setName, entry, util.IpsetNetHashFlag, ""); err != nil {
+					if err := c.ipsMgr.AddToSetNoLock(setName, entry, util.IpsetNetHashFlag, ""); err != nil {
 						return fmt.Errorf("[createCidrsRule] adding ip cidrs %s into ipset %s with err: %w", entry, ipCidrSet, err)
 					}
 				}
 			} else {
-				if err := c.ipsMgr.AddToSet(setName, ipCidrEntry, util.IpsetNetHashFlag, ""); err != nil {
+				if err := c.ipsMgr.AddToSetNoLock(setName, ipCidrEntry, util.IpsetNetHashFlag, ""); err != nil {
 					return fmt.Errorf("[createCidrsRule] adding ip cidrs %s into ipset %s with err: %w", ipCidrEntry, ipCidrSet, err)
 				}
 			}
