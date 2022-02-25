@@ -455,7 +455,8 @@ func (iMgr *IPSetManager) modifyCacheForCacheDeletion(set *IPSet, deleteOption u
 	delete(iMgr.setMap, set.Name)
 	metrics.DecNumIPSets()
 	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
-		// NOTE: in ApplyAllIPSets mode, if this ipset has never been created in the kernel, it would be added to the deleteCache, and then the OS would fail to delete it
+		// NOTE: in ApplyAllIPSets mode, if this ipset has never been created in the kernel,
+		// it would be added to the deleteCache, and then the OS would fail to delete it
 		iMgr.modifyCacheForKernelRemoval(set.Name)
 	}
 	// if mode is ApplyOnNeed, the set will not be in the kernel (or will be in the delete cache already) since there are no references
