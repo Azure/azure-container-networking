@@ -90,14 +90,15 @@ func (dp *DataPlane) RunPeriodicTasks() {
 			case <-dp.stopChannel:
 				return
 			case <-ticker.C:
+				// send the heartbeat log in another go routine in case it takes a while
+				go metrics.SendHeartbeatLog()
+
 				// locks ipset manager
 				dp.ipsetMgr.Reconcile()
 
 				// in Windows, does nothing
 				// in Linux, locks policy manager but can be interrupted
 				dp.policyMgr.Reconcile()
-
-				metrics.SendHeartbeatLog()
 			}
 		}
 	}()
