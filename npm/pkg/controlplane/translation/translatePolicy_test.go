@@ -1,8 +1,6 @@
 package translation
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
@@ -13,7 +11,6 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/kubernetes/scheme"
 )
 
 const (
@@ -1502,31 +1499,4 @@ func TestIngressPolicy(t *testing.T) {
 			require.Equal(t, tt.npmNetPol, npmNetPol)
 		})
 	}
-}
-
-const testPolicyDir = "../../../"
-
-func readPolicyYaml(policyYaml string) (*networkingv1.NetworkPolicy, error) {
-	decode := scheme.Codecs.UniversalDeserializer().Decode
-	policyYamlLocation := filepath.Join(testPolicyDir, policyYaml)
-	b, err := os.ReadFile(policyYamlLocation)
-	if err != nil {
-		return nil, err
-	}
-	obj, _, err := decode([]byte(b), nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	return obj.(*networkingv1.NetworkPolicy), nil
-}
-
-func TestDenyAllPolicy(t *testing.T) {
-	denyAllPolicy, err := readPolicyYaml("testpolicies/multi-peer-failing-#38.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	npmNetPolObj, err := TranslatePolicy(denyAllPolicy)
-	require.NoError(t, err)
-	require.Nil(t, npmNetPolObj)
 }

@@ -288,9 +288,6 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 		return metrics.NoOp, errNetPolTranslationFailure
 	}
 
-	// TODO remove the log
-	klog.Infof("[syncAddAndUpdateNetPol] Translated NetworkPolicy %s in namespace %s: %v", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, npmNetPolObj)
-
 	_, policyExisted := c.rawNpSpecMap[netpolKey]
 	var operationKind metrics.OperationKind
 	if policyExisted {
