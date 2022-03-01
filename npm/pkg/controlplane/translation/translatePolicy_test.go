@@ -1370,7 +1370,7 @@ func TestIngressPolicy(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
@@ -1378,7 +1378,7 @@ func TestIngressPolicy(t *testing.T) {
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
-							policies.NewSetInfo("only-ipblock-in-ns-default-0IN", ipsets.CIDRBlocks, included, peerMatchType),
+							policies.NewSetInfo("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					defaultDropACL("default", "only-ipblock", policies.Ingress),

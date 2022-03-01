@@ -358,11 +358,11 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 	}
 
 	// #2. From or To fields exist in rule
-	for j, peer := range peers {
+	for peerIdx, peer := range peers {
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
-				ipBlockIPSet, ipBlockSetInfo := ipBlockRule(npmNetPol.Name, npmNetPol.NameSpace, direction, matchType, ruleIndex, j, peer.IPBlock)
+				ipBlockIPSet, ipBlockSetInfo := ipBlockRule(npmNetPol.Name, npmNetPol.NameSpace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock)
 				npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ipBlockIPSet)
 				err := peerAndPortRule(npmNetPol, direction, ports, []policies.SetInfo{ipBlockSetInfo})
 				if err != nil {
