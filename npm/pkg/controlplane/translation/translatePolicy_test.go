@@ -1481,6 +1481,82 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "peer nameSpaceSelector and ipblock in ingress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"peer-nsselector-kay": "peer-nsselector-value",
+								},
+							},
+						},
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR:   "172.17.0.0/16",
+								Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+							},
+						},
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "172.17.0.0/16",
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "only-peer-nsSelector",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
+					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-1IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-2IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						SrcList: []policies.SetInfo{
+							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
+						},
+					},
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						SrcList: []policies.SetInfo{
+							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-1IN", ipsets.CIDRBlocks, included, peerMatchType),
+						},
+					},
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						SrcList: []policies.SetInfo{
+							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-2IN", ipsets.CIDRBlocks, included, peerMatchType),
+						},
+					},
+					defaultDropACL("default", "only-peer-nsSelector", policies.Ingress),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
