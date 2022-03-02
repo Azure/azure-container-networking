@@ -191,7 +191,7 @@ jobs:
       mv ./kubeconfig $npmLogsFolder/kubeconfig
 
       ## write to all NPM pod logs in the background (do this in the background instead of after to make sure the logs aren't truncated)
-      npmPodList=`kubectl get pods -n kube-system --kubeconfig=./kubeconfig | grep npm | awk '{print $1}'`
+      npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
       echo "Found NPM pods: $npmPodList"
       for npmPod in $npmPodList; do
         ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod -f > $npmLogsFolder/$npmPod-logs.txt &
