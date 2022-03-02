@@ -126,9 +126,15 @@ jobs:
       v1-default:
         AZURE_CLUSTER: 'v1-default-cluster'
         PROFILE: 'v1-default'
+        IS_STRESS_TEST: 'false'
       v2-default:
         AZURE_CLUSTER: 'v2-default-cluster'
         PROFILE: 'v2-default'
+        IS_STRESS_TEST: 'false'
+      v2-default-stress:
+        AZURE_CLUSTER: 'v2-default-stress-cluster'
+        PROFILE: 'v2-default'
+        IS_STRESS_TEST: 'true'
   pool:
     name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
