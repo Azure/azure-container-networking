@@ -186,7 +186,11 @@ jobs:
 
   - bash: |
       ## create the output folder and include the kubeconfig there
-      npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
+      suffix=""
+      if [ $(IS_STRESS_TEST) == "true" ]; then
+        suffix="_stress"
+      fi
+      npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)$suffix
       mkdir -p $npmLogsFolder
       cp ./kubeconfig $npmLogsFolder/kubeconfig
 
