@@ -205,14 +205,13 @@ jobs:
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
       numParallelJobs=1
       if [ $(IS_STRESS_TEST) == "true" ]; then
-        numParallelJobs=5
+        numParallelJobs=3
       fi
       declare -a pids
       for i in $(seq 1 $numParallelJobs); do
-        # run the echos/conformance test in the background
+        # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
         echo "starting conformance test #$i" && \
-        #  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig && \
-          sleep $i && \
+          KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig > $npmLogsFolder/conformance-results-$i.txt && \
           echo "finished conformance test #$i" &
         pidOfConformanceTest=$!
         index=$((i-1))
