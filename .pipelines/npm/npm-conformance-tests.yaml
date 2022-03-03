@@ -188,7 +188,7 @@ jobs:
       ## create the output folder and include the kubeconfig there
       npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
       mkdir -p $npmLogsFolder
-      mv ./kubeconfig $npmLogsFolder/kubeconfig
+      cp ./kubeconfig $npmLogsFolder/kubeconfig
 
       ## write to all NPM pod logs in the background (do this in the background instead of after to make sure the logs aren't truncated)
       npmPodList=`kubectl get pods -n kube-system --kubeconfig=./kubeconfig | grep npm | awk '{print $1}'`
