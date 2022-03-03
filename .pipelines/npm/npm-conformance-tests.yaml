@@ -185,6 +185,9 @@ jobs:
         echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
   - bash: |
+      echo "sleeping 3 minutes to allow NPM pods to restart"
+      sleep 180
+
       ## create the output folder and include the kubeconfig there
       npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
       mkdir -p $npmLogsFolder
@@ -223,7 +226,7 @@ jobs:
       
     displayName: "Run Test Suite and Get Logs"
     
-  - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
+  - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
     condition: always()
     artifact: NpmLogs_$(AZURE_CLUSTER)
 
