@@ -204,7 +204,10 @@ jobs:
       echo $FQDN
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
       runConformance () {
-          KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+          # KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+          # there can't be a command after e2e.test because the exit code is important
+          # FIXME uncomment and remove below line
+          test -f asdfasdf
       }
 
       exitCode=0
@@ -215,7 +218,7 @@ jobs:
           for round in $(seq 1 $numParallelJobs); do
               # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
               echo "starting conformance test #$round" && \
-                  runConformance > $npmLogsFolder/conformance-results-$round.txt && \
+                  runConformance > $npmLogsFolder/conformance-results-$round && \
                   echo "finished conformance test #$round" &
               pidOfConformanceTest=$!
               conformancePIDs+=($pidOfConformanceTest)
@@ -232,8 +235,8 @@ jobs:
               fi
           done
       else
-          # run the conformance test in the foreground, and don't write the output to a file
-          runConformance
+          # run the conformance test in the foreground and write the output to stdout and a file
+          runConformance | tee $npmLogsFolder/conformance-results
           exitCode=$?
       fi
       # kill the background processes (the logs) that have this process' pid (i.e. $$) as a parent
