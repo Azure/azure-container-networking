@@ -197,32 +197,48 @@ jobs:
       npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
       echo "Found NPM pods: $npmPodList"
       for npmPod in $npmPodList; do
-        ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod -f > $npmLogsFolder/$npmPod-logs.txt &
+          ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod -f > $npmLogsFolder/$npmPod-logs.txt &
       done
 
       ## Run all Conformance tests in the background
       echo $FQDN
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
-      numParallelJobs=1
-      if [ $(IS_STRESS_TEST) == "true" ]; then
-        numParallelJobs=3
-      fi
-      declare -a pids
-      for i in $(seq 1 $numParallelJobs); do
-        # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
-        echo "starting conformance test #$i" && \
-          KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig > $npmLogsFolder/conformance-results-$i.txt && \
-          echo "finished conformance test #$i" &
-        pidOfConformanceTest=$!
-        index=$((i-1))
-        pids[$index]=$pidOfConformanceTest
-      done
+      runConformance () {
+          KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+      }
 
-      # wait until all conformance tests finish
-      wait "${pids[@]}"
+      exitCode=0
+      if [ $(IS_STRESS_TEST) == "true" ]; then
+          numParallelJobs=3
+          echo "Running $numParallelJobs conformance tests at once and writing outputs to files"
+          declare -a conformancePIDs
+          for round in $(seq 1 $numParallelJobs); do
+              # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
+              echo "starting conformance test #$round" && \
+                  runConformance > $npmLogsFolder/conformance-results-$round.txt && \
+                  echo "finished conformance test #$round" &
+              pidOfConformanceTest=$!
+              conformancePIDs+=($pidOfConformanceTest)
+          done
+
+          # wait until all conformance tests finish and take note of any failed tests
+          for round in $(seq 1 $numParallelJobs); do
+              i=$((round-1))
+              wait ${conformancePIDs[$i]}
+              exitCode=$?
+              if [ $exitCode != 0 ]; then
+                  echo "conformance test #$round failed"
+                  break
+              fi
+          done
+      else
+          # run the conformance test in the foreground, and don't write the output to a file
+          runConformance
+          exitCode=$?
+      fi
       # kill the background processes (the logs) that have this process' pid (i.e. $$) as a parent
       pkill -P $$
-      
+      exit $exitCode
     displayName: "Run Test Suite and Get Logs"
     
   - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
