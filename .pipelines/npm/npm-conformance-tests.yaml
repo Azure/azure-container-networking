@@ -186,9 +186,9 @@ jobs:
 
   - bash: |
       ## create the output folder and include the kubeconfig there
-      npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
+      npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
       mkdir -p $npmLogsFolder
-      mv ./kubeconfig $npmLogsFolder/kubeconfig
+      cp ./kubeconfig $npmLogsFolder/kubeconfig
 
       ## write to all NPM pod logs in the background (do this in the background instead of after to make sure the logs aren't truncated)
       npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
@@ -225,7 +225,7 @@ jobs:
     
   - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
     condition: always()
-    artifact: NpmLogs_$(PROFILE)
+    artifact: NpmLogs_$(AZURE_CLUSTER)
 
 - job: Clean_up
   displayName: "Cleanup"
