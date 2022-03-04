@@ -98,11 +98,11 @@ func SendLog(operationID int, msg string) {
 func SendHeartbeatWithNumPolicies() {
 	var message string
 	numPolicies, err := GetNumPolicies()
-	if err != nil {
-		message = fmt.Sprintf("info: NPM currently has %d policies", numPolicies)
+	if err == nil {
+		message = fmt.Sprintf("info: NPM heartbeat. Current num policies: %d", numPolicies)
 	} else {
-		message = fmt.Sprintf("error: couldn't get number of policies for telemetry log: %v", err)
-		klog.Errorf(message)
+		message = fmt.Sprintf("warn: NPM hearbeat. Couldn't get number of policies for telemetry log: %v", err)
+		klog.Warning(message)
 	}
 	SendLog(util.NpmID, message)
 }
