@@ -21,17 +21,23 @@ func newConvertIPTableCmd() *cobra.Command {
 			c := &dataplane.Converter{}
 			switch {
 			case npmCacheF == "" && iptableSaveF == "":
-				ipTableRulesRes, err := c.GetJSONRulesFromIptables(iptableName)
+				ipTableRulesRes, err := c.GetProtobufRulesFromIptable(iptableName)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
-				fmt.Printf("%s\n", ipTableRulesRes)
+
+				if err := prettyPrintIPTables(ipTableRulesRes); err != nil {
+					return fmt.Errorf("error printing iptables: %w", err)
+				}
 			case npmCacheF != "" && iptableSaveF != "":
-				ipTableRulesRes, err := c.GetJSONRulesFromIptableFile(iptableName, npmCacheF, iptableSaveF)
+				ipTableRulesRes, err := c.GetProtobufRulesFromIptableFile(iptableName, npmCacheF, iptableSaveF)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
-				fmt.Printf("%s\n", ipTableRulesRes)
+
+				if err := prettyPrintIPTables(ipTableRulesRes); err != nil {
+					return fmt.Errorf("error printing iptables from file: %w", err)
+				}
 			default:
 				return errSpecifyBothFiles
 			}

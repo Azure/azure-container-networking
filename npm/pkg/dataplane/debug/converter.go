@@ -19,7 +19,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Converter struct
@@ -113,29 +112,7 @@ func (c *Converter) initConverterMaps() {
 	}
 }
 
-// GetJSONRulesFromIptableFile returns a list of json rules from npmCache and iptable-save files.
-func (c *Converter) GetJSONRulesFromIptableFile(
-	tableName string,
-	npmCacheFile string,
-	iptableSaveFile string,
-) ([][]byte, error) {
-
-	pbRule, err := c.GetProtobufRulesFromIptableFile(tableName, npmCacheFile, iptableSaveFile)
-	if err != nil {
-		return nil, fmt.Errorf("error occurred during getting JSON rules from iptables : %w", err)
-	}
-	return c.jsonRuleList(pbRule)
-}
-
-// GetJSONRulesFromIptables returns a list of json rules from node
-func (c *Converter) GetJSONRulesFromIptables(tableName string) ([][]byte, error) {
-	pbRule, err := c.GetProtobufRulesFromIptable(tableName)
-	if err != nil {
-		return nil, fmt.Errorf("error occurred during getting JSON rules from iptables : %w", err)
-	}
-	return c.jsonRuleList(pbRule)
-}
-
+/*
 // Convert list of protobuf rules to list of JSON rules.
 func (c *Converter) jsonRuleList(pbRules []*pb.RuleResponse) ([][]byte, error) {
 	ruleResListJSON := make([][]byte, 0)
@@ -152,6 +129,7 @@ func (c *Converter) jsonRuleList(pbRules []*pb.RuleResponse) ([][]byte, error) {
 	}
 	return ruleResListJSON, nil
 }
+*/
 
 // GetProtobufRulesFromIptableFile returns a list of protobuf rules from npmCache and iptable-save files.
 func (c *Converter) GetProtobufRulesFromIptableFile(

@@ -5,6 +5,8 @@ import (
 	"io"
 	"testing"
 
+	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,4 +66,17 @@ func testCommand(t *testing.T, tests []*testCases) {
 
 func concatArgs(baseArgs []string, args ...string) []string {
 	return append(baseArgs, args...)
+}
+
+func TestPrettyPrint(t *testing.T) {
+	c := &dataplane.Converter{}
+
+	iptables, err := c.GetProtobufRulesFromIptableFile(
+		util.IptablesFilterTable,
+		npmCacheFile,
+		iptableSaveFile,
+	)
+
+	require.NoError(t, err)
+	prettyPrintIPTables(iptables)
 }
