@@ -6,7 +6,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"io"
 	"os"
 	"reflect"
@@ -23,6 +22,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/containernetworking/cni/pkg/skel"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
 )
 
@@ -175,6 +175,13 @@ func main() {
 		&network.Multitenancy{},
 		&acnnetwork.AzureHNSEndpoint{},
 	)
+
+	defer func() {
+		if err != nil {
+			os.Exit(1)
+		}
+	}()
+
 	if err != nil {
 		log.Printf("Failed to create network plugin, err:%v.\n", err)
 		return
@@ -198,10 +205,6 @@ func main() {
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
 
-			defer func() {
-				os.Exit(1)
-			}()
-
 			cniErr := &cniTypes.Error{
 				Code: cniTypes.ErrTryAgainLater,
 				Msg:  fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err),
@@ -223,9 +226,9 @@ func main() {
 					Value:            1.0,
 					CustomDimensions: make(map[string]string),
 				}
-				err = telemetry.SendCNIMetric(&cniMetric, tb)
-				if err != nil {
-					log.Errorf("Couldn't send cnilocktimeout metric: %v", err)
+				sendErr := telemetry.SendCNIMetric(&cniMetric, tb)
+				if sendErr != nil {
+					log.Errorf("Couldn't send cnilocktimeout metric: %v", sendErr)
 				}
 			}
 			tb.Close()
@@ -277,7 +280,7 @@ func main() {
 		}
 	}
 
-	handled, err := handleIfCniUpdate(netPlugin.Update)
+	handled, _ := handleIfCniUpdate(netPlugin.Update)
 	if handled {
 		log.Printf("CNI UPDATE finished.")
 	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
@@ -292,6 +295,5 @@ func main() {
 
 	if err != nil {
 		reportPluginError(reportManager, tb, err)
-		os.Exit(1)
 	}
 }
