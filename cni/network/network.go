@@ -984,7 +984,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Release ip by ContainerID (network not found):%v", args.ContainerID))
 			err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 			if err != nil {
-				log.Printf("Attempted to release address by containerID failed with error: %v", err)
+				return plugin.RetriableError(fmt.Errorf("failed to release address(no network): %w", err))
 			}
 		}
 
@@ -1003,7 +1003,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			log.Printf("[cni-net] Failed to query endpoint: %v", err)
 			telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
-				log.Printf("Attempted to release address by containerID failed with error: %v", err)
+				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 			}
 		}
 
@@ -1030,8 +1030,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Release ip:%s", address.IP.String()))
 			err = plugin.ipamInvoker.Delete(&address, nwCfg, args, nwInfo.Options)
 			if err != nil {
-				err = plugin.Errorf("Failed to release address %v with error: %v", address, err)
-				return err
+				return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 			}
 		}
 	} else if epInfo.EnableInfraVnet {
@@ -1039,8 +1038,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		nwCfg.Ipam.Address = epInfo.InfraVnetIP.IP.String()
 		err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 		if err != nil {
-			log.Printf("Failed to release address: %v", err)
-			err = plugin.Errorf("Failed to release address %v with error: %v", nwCfg.Ipam.Address, err)
+			return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 		}
 	}
 

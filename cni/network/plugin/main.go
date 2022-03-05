@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"io"
 	"os"
 	"reflect"
@@ -196,6 +197,17 @@ func main() {
 		// CNI Acquires lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			log.Errorf("Failed to initialize key-value store of network plugin, err:%v.\n", err)
+
+			defer func() {
+				os.Exit(1)
+			}()
+
+			cniErr := &cniTypes.Error{
+				Code: cniTypes.ErrTryAgainLater,
+				Msg:  fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err),
+			}
+			cniErr.Print()
+
 			tb = telemetry.NewTelemetryBuffer()
 			if tberr := tb.Connect(); tberr != nil {
 				log.Errorf("Cannot connect to telemetry service:%v", tberr)
@@ -216,7 +228,6 @@ func main() {
 					log.Errorf("Couldn't send cnilocktimeout metric: %v", err)
 				}
 			}
-
 			tb.Close()
 			return
 		}
@@ -281,6 +292,6 @@ func main() {
 
 	if err != nil {
 		reportPluginError(reportManager, tb, err)
-		panic("network plugin execute fatal error")
+		os.Exit(1)
 	}
 }
