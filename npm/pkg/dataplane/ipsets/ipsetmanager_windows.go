@@ -25,6 +25,53 @@ type networkPolicyBuilder struct {
 	toDeleteSets map[string]*hcn.SetPolicySetting
 }
 
+// GetIPsFromSelectorIPSets will take in a map of prefixedSetNames and return an intersection of IPs
+func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) (map[string]struct{}, error) {
+	if len(setList) == 0 {
+		return map[string]struct{}{}, nil
+	}
+	iMgr.Lock()
+	defer iMgr.Unlock()
+
+	setintersections := make(map[string]struct{})
+	var err error
+	firstLoop := true
+	for setName := range setList {
+		if !iMgr.exists(setName) {
+			return nil, errors.Errorf(
+				errors.GetSelectorReference,
+				false,
+				fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
+		}
+		set := iMgr.setMap[setName]
+		if firstLoop {
+			intialSetIPs := set.IPPodKey
+			for k := range intialSetIPs {
+				setintersections[k] = struct{}{}
+			}
+			firstLoop = false
+		}
+		setintersections, err = set.getSetIntersection(setintersections)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return setintersections, err
+}
+
+func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string]struct{}, error) {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	if !iMgr.exists(setName) {
+		return nil, errors.Errorf(
+			errors.GetSelectorReference,
+			false,
+			fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
+	}
+	set := iMgr.setMap[setName]
+	return set.SelectorReference, nil
+}
+
 func (iMgr *IPSetManager) resetIPSets() error {
 	klog.Infof("[IPSetManager Windows] Resetting Dataplane")
 	network, err := iMgr.getHCnNetwork()

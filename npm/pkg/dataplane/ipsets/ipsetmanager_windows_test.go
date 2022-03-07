@@ -6,10 +6,60 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
+	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetIPsFromSelectorIPSets(t *testing.T) {
+	iMgr := NewIPSetManager(applyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
+	setsTocreate := []*IPSetMetadata{
+		{
+			Name: "setNs1",
+			Type: Namespace,
+		},
+		{
+			Name: "setpod1",
+			Type: KeyLabelOfPod,
+		},
+		{
+			Name: "setpod2",
+			Type: KeyLabelOfPod,
+		},
+		{
+			Name: "setpod3",
+			Type: KeyValueLabelOfPod,
+		},
+	}
+
+	iMgr.CreateIPSets(setsTocreate)
+
+	err := iMgr.AddToSets(setsTocreate, "10.0.0.1", "test")
+	require.NoError(t, err)
+
+	err = iMgr.AddToSets(setsTocreate, "10.0.0.2", "test1")
+	require.NoError(t, err)
+
+	err = iMgr.AddToSets([]*IPSetMetadata{setsTocreate[0], setsTocreate[2], setsTocreate[3]}, "10.0.0.3", "test3")
+	require.NoError(t, err)
+
+	ipsetList := map[string]struct{}{}
+	for _, v := range setsTocreate {
+		ipsetList[v.GetPrefixName()] = struct{}{}
+	}
+	ips, err := iMgr.GetIPsFromSelectorIPSets(ipsetList)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, len(ips))
+
+	expectedintersection := map[string]struct{}{
+		"10.0.0.1": {},
+		"10.0.0.2": {},
+	}
+
+	require.Equal(t, ips, expectedintersection)
+}
 
 func TestAddToSetWindows(t *testing.T) {
 	hns := GetHNSFake(t)

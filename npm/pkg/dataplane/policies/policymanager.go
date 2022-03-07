@@ -3,7 +3,6 @@ package policies
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -21,8 +20,6 @@ const (
 	IPSetPolicyMode PolicyManagerMode = "IPSet"
 	// IPPolicyMode will replace ipset names with their value IPs in policies
 	IPPolicyMode PolicyManagerMode = "IP"
-
-	reconcileTimeInMinutes = 5
 
 	// this number is based on the implementation in chain-management_linux.go
 	// it represents the number of rules unrelated to policies
@@ -83,21 +80,8 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 	return nil
 }
 
-func (pMgr *PolicyManager) Reconcile(stopChannel <-chan struct{}) {
-	go func() {
-		ticker := time.NewTicker(time.Minute * time.Duration(reconcileTimeInMinutes))
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-stopChannel:
-				return
-			case <-ticker.C:
-				pMgr.reconcile()
-				metrics.SendHeartbeatLog()
-			}
-		}
-	}()
+func (pMgr *PolicyManager) Reconcile() {
+	pMgr.reconcile()
 }
 
 func (pMgr *PolicyManager) GetAllPolicies() []string {

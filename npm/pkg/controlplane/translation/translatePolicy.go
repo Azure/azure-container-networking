@@ -33,7 +33,7 @@ const (
 	numericPortType      netpolPortType = "validport"
 	namedPortType        netpolPortType = "namedport"
 	included             bool           = true
-	ipBlocksetNameFormat                = "%s-in-ns-%s-%d%s"
+	ipBlocksetNameFormat                = "%s-in-ns-%s-%d-%d%s"
 )
 
 // portType returns type of ports (e.g., numeric port or namedPort) given NetworkPolicyPort object.
@@ -126,8 +126,8 @@ func portRule(ruleIPSets []*ipsets.TranslatedIPSet, acl *policies.ACLPolicy, por
 // namespace: "default"
 // ingress rule
 // it returns "test-in-ns-default-0IN".
-func ipBlockSetName(policyName, ns string, direction policies.Direction, ipBlockSetIndex int) string {
-	return fmt.Sprintf(ipBlocksetNameFormat, policyName, ns, ipBlockSetIndex, direction)
+func ipBlockSetName(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int) string {
+	return fmt.Sprintf(ipBlocksetNameFormat, policyName, ns, ipBlockSetIndex, ipBlockPeerIndex, direction)
 }
 
 // exceptCidr returns "cidr + " " (space) + nomatch" format.
@@ -150,7 +150,7 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 }
 
 // ipBlockIPSet return translatedIPSet based based on ipBlockRule.
-func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex int, ipBlockRule *networkingv1.IPBlock) *ipsets.TranslatedIPSet {
+func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock) *ipsets.TranslatedIPSet {
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil
 	}
@@ -195,21 +195,21 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 		}
 	}
 
-	ipBlockIPSetName := ipBlockSetName(policyName, ns, direction, ipBlockSetIndex)
+	ipBlockIPSetName := ipBlockSetName(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex)
 	ipBlockIPSet := ipsets.NewTranslatedIPSet(ipBlockIPSetName, ipsets.CIDRBlocks, members...)
 	return ipBlockIPSet
 }
 
 // ipBlockRule translates IPBlock field in networkpolicy object to translatedIPSet and SetInfo.
 // ipBlockSetIndex parameter is used to diffentiate ipBlock fields in one networkpolicy object.
-func ipBlockRule(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex int,
+func ipBlockRule(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex, ipBlockPeerIndex int,
 	ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo) {
 
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, policies.SetInfo{}
 	}
 
-	ipBlockIPSet := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockRule)
+	ipBlockIPSet := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
 	setInfo := policies.NewSetInfo(ipBlockIPSet.Metadata.Name, ipsets.CIDRBlocks, included, matchType)
 	return ipBlockIPSet, setInfo
 }
@@ -358,16 +358,12 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dire
 	}
 
 	// #2. From or To fields exist in rule
-	for j, peer := range peers {
+	for peerIdx, peer := range peers {
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
-				ipBlockIPSet, ipBlockSetInfo := ipBlockRule(npmNetPol.Name, npmNetPol.NameSpace, direction, matchType, ruleIndex, peer.IPBlock)
+				ipBlockIPSet, ipBlockSetInfo := ipBlockRule(npmNetPol.Name, npmNetPol.NameSpace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock)
 				npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ipBlockIPSet)
-				// all fields (i.e., cidr and except) in peer.IPBlock will be added in one ipset per peer
-				if j != 0 {
-					continue
-				}
 				err := peerAndPortRule(npmNetPol, direction, ports, []policies.SetInfo{ipBlockSetInfo})
 				if err != nil {
 					return err

@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -15,6 +16,8 @@ import (
 const (
 	// AzureNetworkName is default network Azure CNI creates
 	AzureNetworkName = "azure"
+
+	reconcileTimeInMinutes = 5
 )
 
 type PolicyMode string
@@ -78,7 +81,27 @@ func (dp *DataPlane) BootupDataplane() error {
 
 // RunPeriodicTasks runs periodic tasks. Should only be called once.
 func (dp *DataPlane) RunPeriodicTasks() {
-	dp.policyMgr.Reconcile(dp.stopChannel)
+	go func() {
+		ticker := time.NewTicker(time.Minute * time.Duration(reconcileTimeInMinutes))
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-dp.stopChannel:
+				return
+			case <-ticker.C:
+				// send the heartbeat log in another go routine in case it takes a while
+				go metrics.SendHeartbeatLog()
+
+				// locks ipset manager
+				dp.ipsetMgr.Reconcile()
+
+				// in Windows, does nothing
+				// in Linux, locks policy manager but can be interrupted
+				dp.policyMgr.Reconcile()
+			}
+		}
+	}()
 }
 
 func (dp *DataPlane) GetIPSet(setName string) *ipsets.IPSet {
@@ -292,7 +315,7 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 	}
 	for _, set := range sets {
 		dp.ipsetMgr.CreateIPSets([]*ipsets.IPSetMetadata{set.Metadata})
-		err := dp.ipsetMgr.AddReference(set.Metadata.GetPrefixName(), netpolName, referenceType)
+		err := dp.ipsetMgr.AddReference(set.Metadata, netpolName, referenceType)
 		if err != nil {
 			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to add reference with err: %s", err.Error()))
 		}
@@ -337,7 +360,6 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 	}
 	for _, set := range sets {
 		// TODO ignore set does not exist error
-		// TODO add delete ipset after removing members
 		err := dp.ipsetMgr.DeleteReference(set.Metadata.GetPrefixName(), netpolName, referenceType)
 		if err != nil {
 			return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to deleteIPSetReferences with err: %s", err.Error()))
@@ -371,7 +393,6 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 			if err != nil {
 				return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to RemoveFromList in deleteIPSetReferences with err: %s", err.Error()))
 			}
-
 		}
 
 		// Try to delete these IPSets

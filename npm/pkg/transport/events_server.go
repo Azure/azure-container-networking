@@ -157,7 +157,14 @@ func (m *EventsServer) handle() error {
 		return fmt.Errorf("failed to handle server connections: %w", err)
 	}
 
+	// load the server certificates
+	creds, err := serverTLSCreds()
+	if err != nil {
+		return fmt.Errorf("failed to load TLS certificates: %w", err)
+	}
+
 	var opts []grpc.ServerOption = []grpc.ServerOption{
+		grpc.Creds(creds),
 		grpc.MaxConcurrentStreams(grpcMaxConcurrentStreams),
 		grpc.StatsHandler(m.Watchdog),
 	}

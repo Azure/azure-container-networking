@@ -175,7 +175,7 @@ container-platform-tag: # util target to print the container tag
 	@echo $(subst /,-,$(PLATFORM))-$(TAG)
 
 containerize-buildah: # util target to build container images using buildah. do not invoke directly.
-	buildah build \
+	buildah bud \
 		--jobs 16 \
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \
@@ -511,6 +511,10 @@ test-integration: ## run all integration tests.
 
 test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
+	cd ..
+
+test-extended-cyclonus: ## run the cyclonus test for npm.
+	cd test/cyclonus && bash ./test-cyclonus.sh extended
 	cd ..
 
 .PHONY: kind

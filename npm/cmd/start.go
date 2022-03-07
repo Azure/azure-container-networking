@@ -3,8 +3,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
@@ -48,28 +46,6 @@ func newStartNPMCmd() *cobra.Command {
 	startNPMCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Starts the Azure NPM process",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			viper.AutomaticEnv() // read in environment variables that match
-			viper.SetDefault(npmconfig.ConfigEnvPath, npmconfig.GetConfigPath())
-			cfgFile := viper.GetString(npmconfig.ConfigEnvPath)
-			viper.SetConfigFile(cfgFile)
-
-			// If a config file is found, read it in.
-			// NOTE: there is no config merging with default, if config is loaded, options must be set
-			if err := viper.ReadInConfig(); err == nil {
-				klog.Infof("Using config file: %+v", viper.ConfigFileUsed())
-			} else {
-				klog.Infof("Failed to load config from env %s: %v", npmconfig.ConfigEnvPath, err)
-				b, _ := json.Marshal(npmconfig.DefaultConfig)
-				err := viper.ReadConfig(bytes.NewBuffer(b))
-				if err != nil {
-					return fmt.Errorf("failed to read in default with err %w", err)
-				}
-			}
-
-			return nil
-		},
-
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config := &npmconfig.Config{}
 			err := viper.Unmarshal(config)

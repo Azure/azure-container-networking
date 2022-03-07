@@ -287,20 +287,22 @@ func TestNamedPortRule(t *testing.T) {
 }
 
 type ipBlockInfo struct {
-	policyName      string
-	namemspace      string
-	direction       policies.Direction
-	matchType       policies.MatchType
-	ipBlockSetIndex int
+	policyName       string
+	namemspace       string
+	direction        policies.Direction
+	matchType        policies.MatchType
+	ipBlockSetIndex  int
+	ipBlockPeerIndex int
 }
 
-func createIPBlockInfo(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex int) *ipBlockInfo {
+func createIPBlockInfo(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex, ipBlockPeerIndex int) *ipBlockInfo {
 	return &ipBlockInfo{
-		policyName:      policyName,
-		namemspace:      ns,
-		direction:       direction,
-		matchType:       matchType,
-		ipBlockSetIndex: ipBlockSetIndex,
+		policyName:       policyName,
+		namemspace:       ns,
+		direction:        direction,
+		matchType:        matchType,
+		ipBlockSetIndex:  ipBlockSetIndex,
+		ipBlockPeerIndex: ipBlockPeerIndex,
 	}
 }
 
@@ -312,18 +314,18 @@ func TestIPBlockSetName(t *testing.T) {
 	}{
 		{
 			name:        "default/test (ingress)",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
-			want:        "test-in-ns-default-0IN",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			want:        "test-in-ns-default-0-0IN",
 		},
 		{
 			name:        "default/test (ingress)",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 1),
-			want:        "test-in-ns-default-1IN",
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 1, 0),
+			want:        "test-in-ns-default-1-0IN",
 		},
 		{
 			name:        "testns/test (egress)",
-			ipBlockInfo: createIPBlockInfo("test", "testns", policies.Egress, policies.DstMatch, 0),
-			want:        "test-in-ns-testns-0OUT",
+			ipBlockInfo: createIPBlockInfo("test", "testns", policies.Egress, policies.DstMatch, 0, 1),
+			want:        "test-in-ns-testns-0-1OUT",
 		},
 	}
 
@@ -331,7 +333,7 @@ func TestIPBlockSetName(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ipBlockSetName(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex)
+			got := ipBlockSetName(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockPeerIndex)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -347,13 +349,13 @@ func TestIPBlockIPSet(t *testing.T) {
 	}{
 		{
 			name:            "empty ipblock rule",
-			ipBlockInfo:     createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo:     createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule:     nil,
 			translatedIPSet: nil,
 		},
 		{
 			name:        "incorrect ipblock rule with only except",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "",
 				Except: []string{"172.17.1.0/24"},
@@ -362,91 +364,91 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "only cidr",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "172.17.0.0/16",
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
 		},
 		{
 			name:        "one cidr and one element in except",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
 		},
 		{
 			name:        "one cidr and multiple elements in except",
-			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
 		},
 		{
 			name:        "one cidr and multiple and duplicated elements in except",
-			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24", "172.17.2.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
 		},
 		{
 			name:        "cidr : 0.0.0.0/0",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "0.0.0.0/0",
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1"}...),
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 10.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"10.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1", "10.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1", "10.0.0.0/1 nomatch"}...),
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 128.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1 nomatch"}...),
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1 and 128.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1 and two 128.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1", "128.0.0.0/1"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
 		},
 	}
 
@@ -454,7 +456,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ipBlockIPSet(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockRule)
+			got := ipBlockIPSet(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
 			require.Equal(t, tt.translatedIPSet, got)
 		})
 	}
@@ -470,14 +472,14 @@ func TestIPBlockRule(t *testing.T) {
 	}{
 		{
 			name:            "empty ipblock rule ",
-			ipBlockInfo:     createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo:     createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule:     nil,
 			translatedIPSet: nil,
 			setInfo:         policies.SetInfo{},
 		},
 		{
 			name:        "incorrect ipblock rule with only except",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "",
 				Except: []string{"172.17.1.0/24"},
@@ -487,32 +489,32 @@ func TestIPBlockRule(t *testing.T) {
 		},
 		{
 			name:        "only cidr",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "172.17.0.0/16",
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
-			setInfo:         policies.NewSetInfo("test-in-ns-default-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+			setInfo:         policies.NewSetInfo("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 		},
 		{
 			name:        "one cidr and one element in except",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
-			setInfo:         policies.NewSetInfo("test-in-ns-default-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+			setInfo:         policies.NewSetInfo("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 		},
 		{
 			name:        "one cidr and multiple elements in except",
-			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0),
+			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
 			},
-			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
-			setInfo:         policies.NewSetInfo("test-network-policy-in-ns-default-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
+			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+			setInfo:         policies.NewSetInfo("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 		},
 	}
 
@@ -520,7 +522,7 @@ func TestIPBlockRule(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			translatedIPSet, setInfo := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.matchType, tt.ipBlockSetIndex, tt.ipBlockRule)
+			translatedIPSet, setInfo := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.matchType, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
 			require.Equal(t, tt.translatedIPSet, translatedIPSet)
 			require.Equal(t, tt.setInfo, setInfo)
 		})
@@ -1368,7 +1370,7 @@ func TestIngressPolicy(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
-					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
@@ -1376,7 +1378,7 @@ func TestIngressPolicy(t *testing.T) {
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
-							policies.NewSetInfo("only-ipblock-in-ns-default-0IN", ipsets.CIDRBlocks, included, peerMatchType),
+							policies.NewSetInfo("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					defaultDropACL("default", "only-ipblock", policies.Ingress),
@@ -1473,6 +1475,82 @@ func TestIngressPolicy(t *testing.T) {
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
 							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
+						},
+					},
+					defaultDropACL("default", "only-peer-nsSelector", policies.Ingress),
+				},
+			},
+		},
+		{
+			name: "peer nameSpaceSelector and ipblock in ingress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"peer-nsselector-kay": "peer-nsselector-value",
+								},
+							},
+						},
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR:   "172.17.0.0/16",
+								Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+							},
+						},
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "172.17.0.0/16",
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "only-peer-nsSelector",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
+					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-1IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-2IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						SrcList: []policies.SetInfo{
+							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
+						},
+					},
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						SrcList: []policies.SetInfo{
+							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-1IN", ipsets.CIDRBlocks, included, peerMatchType),
+						},
+					},
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						SrcList: []policies.SetInfo{
+							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-2IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
 					defaultDropACL("default", "only-peer-nsSelector", policies.Ingress),

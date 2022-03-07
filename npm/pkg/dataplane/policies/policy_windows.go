@@ -69,6 +69,7 @@ func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
 		return policySettings, ErrNamedPortsNotSupported
 	}
 
+	policySettings.RuleType = hcn.RuleTypeSwitch
 	policySettings.Id = acl.PolicyID
 	policySettings.Direction = getHCNDirection(acl.Direction)
 	policySettings.Action = getHCNAction(acl.Target)
@@ -82,8 +83,12 @@ func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
 	if !ok {
 		return policySettings, ErrProtocolNotSupported
 	}
-	policySettings.Protocols = protoNum
 
+	if protoNum == "256" {
+		policySettings.Protocols = ""
+	} else {
+		policySettings.Protocols = protoNum
+	}
 	// Ignore adding ruletype for now as there is a bug
 	// policySettings.RuleType = hcn.RuleTypeSwitch
 

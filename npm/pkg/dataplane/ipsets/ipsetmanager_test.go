@@ -17,8 +17,8 @@ type expectedInfo struct {
 	mainCache        []setMembers
 	toAddUpdateCache []*IPSetMetadata
 	toDeleteCache    []string
-	setsForKernel    []*IPSetMetadata
-	// TODO add expected failure metric values too
+	// setsForKernel represents the sets in toAddUpdateCache that should be in the kernel
+	setsForKernel []*IPSetMetadata
 
 	/*
 		ipset metrics can be inferred from the above values:
@@ -29,8 +29,10 @@ type expectedInfo struct {
 }
 
 type setMembers struct {
-	metadata *IPSetMetadata
-	members  []member
+	metadata           *IPSetMetadata
+	members            []member
+	selectorReferences []string
+	netPolReferences   []string
 }
 
 type member struct {
@@ -43,13 +45,13 @@ type memberKind bool
 
 const (
 	isHashMember = memberKind(true)
-	// TODO uncomment and use for list add/delete UTs
-	// isSetMember = memberKind(false)
+	isSetMember  = memberKind(false)
 
-	testSetName  = "test-set"
-	testListName = "test-list"
-	testPodKey   = "test-pod-key"
-	testPodIP    = "10.0.0.0"
+	testSetName   = "test-set"
+	testListName  = "test-list"
+	testPodKey    = "test-pod-key"
+	testPodIP     = "10.0.0.0"
+	testNetPolKey = "test-ns/test-netpol"
 )
 
 var (
@@ -67,6 +69,134 @@ var (
 	keyLabelOfPodSet = NewIPSetMetadata("test-set2", KeyLabelOfPod)
 	list             = NewIPSetMetadata("test-list1", KeyLabelOfNamespace)
 )
+
+func TestReconcileCache(t *testing.T) {
+	type args struct {
+		cfg          *IPSetManagerCfg
+		setsInKernel []*IPSetMetadata
+	}
+	deletableSet := keyLabelOfPodSet
+	otherSet := namespaceSet
+	bothMetadatas := []*IPSetMetadata{deletableSet, otherSet}
+	tests := []struct {
+		name          string
+		args          args
+		toDeleteCache []string
+	}{
+		{
+			name:          "Apply Always",
+			args:          args{cfg: applyAlwaysCfg, setsInKernel: bothMetadatas},
+			toDeleteCache: []string{deletableSet.GetPrefixName()},
+		},
+		{
+			name:          "Apply On Need",
+			args:          args{cfg: applyOnNeedCfg, setsInKernel: nil},
+			toDeleteCache: nil,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			metrics.ReinitializeAll()
+			calls := GetApplyIPSetsTestCalls(tt.args.setsInKernel, nil)
+			ioShim := common.NewMockIOShim(calls)
+			defer ioShim.VerifyCalls(t, calls)
+			iMgr := NewIPSetManager(tt.args.cfg, ioShim)
+
+			// create two sets, one which can be deleted
+			iMgr.CreateIPSets(bothMetadatas)
+			require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{otherSet}, testPodIP, testPodKey))
+			require.NoError(t, iMgr.ApplyIPSets())
+
+			iMgr.Reconcile()
+			assertExpectedInfo(t, iMgr, &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: otherSet, members: []member{{testPodIP, isHashMember}}},
+				},
+				toAddUpdateCache: nil,
+				toDeleteCache:    tt.toDeleteCache,
+				setsForKernel:    nil,
+			})
+		})
+	}
+}
+
+// only care about ApplyAllIPSets mode since ApplyOnNeed mode doesn't update the toDeleteCache
+func TestReconcileAndLaterDelete(t *testing.T) {
+	deletableSet := keyLabelOfPodSet
+	otherSet := namespaceSet
+	thirdSet := list
+	tests := []struct {
+		name              string
+		setsToAdd         []*IPSetMetadata
+		shouldDeleteLater bool
+		*expectedInfo
+	}{
+		{
+			name:              "apply the delete only",
+			setsToAdd:         nil,
+			shouldDeleteLater: true,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: otherSet, members: []member{{testPodIP, isHashMember}}},
+				},
+				toAddUpdateCache: nil,
+				toDeleteCache:    []string{deletableSet.GetPrefixName()},
+			},
+		},
+		{
+			name:              "delete the set and add a different one",
+			setsToAdd:         []*IPSetMetadata{thirdSet},
+			shouldDeleteLater: true,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: otherSet, members: []member{{testPodIP, isHashMember}}},
+					{metadata: thirdSet},
+				},
+				toAddUpdateCache: []*IPSetMetadata{thirdSet},
+				toDeleteCache:    []string{deletableSet.GetPrefixName()},
+			},
+		},
+		{
+			name:              "add the set back",
+			setsToAdd:         []*IPSetMetadata{deletableSet},
+			shouldDeleteLater: false,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: deletableSet},
+					{metadata: otherSet, members: []member{{testPodIP, isHashMember}}},
+				},
+				toAddUpdateCache: []*IPSetMetadata{deletableSet},
+				toDeleteCache:    nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			metrics.ReinitializeAll()
+			originalMetadatas := []*IPSetMetadata{deletableSet, otherSet}
+			var toDeleteMetadatas []*IPSetMetadata
+			if tt.shouldDeleteLater {
+				toDeleteMetadatas = []*IPSetMetadata{deletableSet}
+			}
+			calls := GetApplyIPSetsTestCalls(originalMetadatas, nil)
+			calls = append(calls, GetApplyIPSetsTestCalls(tt.setsToAdd, toDeleteMetadatas)...)
+			ioShim := common.NewMockIOShim(calls)
+			defer ioShim.VerifyCalls(t, calls)
+			iMgr := NewIPSetManager(applyAlwaysCfg, ioShim)
+			// create two sets, one which can be deleted
+			iMgr.CreateIPSets(originalMetadatas)
+			require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{namespaceSet}, testPodIP, testPodKey))
+			require.NoError(t, iMgr.ApplyIPSets())
+			iMgr.Reconcile()
+
+			iMgr.CreateIPSets(tt.setsToAdd)
+			assertExpectedInfo(t, iMgr, tt.expectedInfo)
+			require.NoError(t, iMgr.ApplyIPSets())
+		})
+	}
+}
 
 // see ipsetmanager_linux_test.go for testing when an error occurs
 func TestResetIPSets(t *testing.T) {
@@ -112,8 +242,8 @@ func TestCreateIPSet(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: namespaceSet, members: nil},
-					{metadata: list, members: nil},
+					{metadata: namespaceSet},
+					{metadata: list},
 				},
 				toAddUpdateCache: []*IPSetMetadata{namespaceSet, list},
 				toDeleteCache:    nil,
@@ -128,8 +258,8 @@ func TestCreateIPSet(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: namespaceSet, members: nil},
-					{metadata: list, members: nil},
+					{metadata: namespaceSet},
+					{metadata: list},
 				},
 				toAddUpdateCache: nil,
 				toDeleteCache:    nil,
@@ -144,7 +274,7 @@ func TestCreateIPSet(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: namespaceSet, members: nil},
+					{metadata: namespaceSet},
 				},
 				toAddUpdateCache: []*IPSetMetadata{namespaceSet},
 				toDeleteCache:    nil,
@@ -159,7 +289,7 @@ func TestCreateIPSet(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: namespaceSet, members: nil},
+					{metadata: namespaceSet},
 				},
 				toAddUpdateCache: nil,
 				toDeleteCache:    nil,
@@ -229,7 +359,7 @@ func TestDeleteIPSet(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: namespaceSet, members: nil},
+					{metadata: namespaceSet},
 				},
 				toAddUpdateCache: nil,
 				toDeleteCache:    nil,
@@ -245,7 +375,7 @@ func TestDeleteIPSet(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: namespaceSet, members: nil},
+					{metadata: namespaceSet},
 				},
 				toAddUpdateCache: nil,
 				toDeleteCache:    nil,
@@ -259,7 +389,7 @@ func TestDeleteIPSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metrics.ReinitializeAll()
 			var calls []testutils.TestCmd
-			if tt.args.cfg == applyAlwaysCfg {
+			if tt.args.cfg.IPSetMode == ApplyAllIPSets {
 				calls = GetApplyIPSetsTestCalls(tt.args.toCreateMetadatas, nil)
 			}
 			ioShim := common.NewMockIOShim(calls)
@@ -290,8 +420,8 @@ func TestDeleteIPSetNotAllowed(t *testing.T) {
 
 	assertExpectedInfo(t, iMgr, &expectedInfo{
 		mainCache: []setMembers{
-			{metadata: list, members: nil},
-			{metadata: namespaceSet, members: nil},
+			{metadata: list, members: []member{{namespaceSet.GetPrefixName(), isSetMember}}},
+			{metadata: namespaceSet},
 		},
 		toAddUpdateCache: nil,
 		toDeleteCache:    nil,
@@ -389,7 +519,7 @@ func TestAddToSets(t *testing.T) {
 				},
 				toAddUpdateCache: nil,
 				toDeleteCache:    nil,
-				setsForKernel:    []*IPSetMetadata{namespaceSet},
+				setsForKernel:    nil,
 			},
 			wantErr: false,
 		},
@@ -409,7 +539,7 @@ func TestAddToSets(t *testing.T) {
 				},
 				toAddUpdateCache: nil,
 				toDeleteCache:    nil,
-				setsForKernel:    []*IPSetMetadata{namespaceSet},
+				setsForKernel:    nil,
 			},
 			wantErr: false,
 		},
@@ -433,7 +563,7 @@ func TestAddToSets(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: list, members: nil},
+					{metadata: list},
 				},
 				toAddUpdateCache: []*IPSetMetadata{list},
 				toDeleteCache:    nil,
@@ -452,7 +582,7 @@ func TestAddToSets(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: list, members: nil},
+					{metadata: list},
 				},
 				toAddUpdateCache: nil,
 				toDeleteCache:    nil,
@@ -466,7 +596,7 @@ func TestAddToSets(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metrics.ReinitializeAll()
 			var calls []testutils.TestCmd
-			if tt.args.cfg == applyAlwaysCfg {
+			if tt.args.cfg.IPSetMode == ApplyAllIPSets {
 				calls = GetApplyIPSetsTestCalls(tt.args.toCreateMetadatas, nil)
 			}
 			ioShim := common.NewMockIOShim(calls)
@@ -528,7 +658,7 @@ func TestAddToSetInKernelApplyOnNeed(t *testing.T) {
 			defer ioShim.VerifyCalls(t, calls)
 			iMgr := NewIPSetManager(applyOnNeedCfg, ioShim)
 			iMgr.CreateIPSets(metadatas)
-			require.NoError(t, iMgr.AddReference(tt.metadata.GetPrefixName(), "ref", NetPolType))
+			require.NoError(t, iMgr.AddReference(tt.metadata, testNetPolKey, NetPolType))
 			require.NoError(t, iMgr.ApplyIPSets())
 
 			err := iMgr.AddToSets(metadatas, ipv4, podKey)
@@ -545,11 +675,11 @@ func TestAddToSetInKernelApplyOnNeed(t *testing.T) {
 			}
 			assertExpectedInfo(t, iMgr, &expectedInfo{
 				mainCache: []setMembers{
-					{metadata: tt.metadata, members: members},
+					{metadata: tt.metadata, members: members, netPolReferences: []string{testNetPolKey}},
 				},
 				toAddUpdateCache: dirtySets,
 				toDeleteCache:    nil,
-				setsForKernel:    []*IPSetMetadata{tt.metadata},
+				setsForKernel:    dirtySets,
 			})
 		})
 	}
@@ -635,199 +765,351 @@ func TestRemoveFromListMissing(t *testing.T) {
 	err := iMgr.RemoveFromList(listMetadata, []*IPSetMetadata{setMetadata})
 	require.NoError(t, err)
 }
-func TestGetIPsFromSelectorIPSets(t *testing.T) {
-	iMgr := NewIPSetManager(applyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
-	setsTocreate := []*IPSetMetadata{
+
+func TestAddReference(t *testing.T) {
+	ref0 := "ref0" // for alreadyReferenced
+	ref1 := "ref1"
+	type args struct {
+		cfg               *IPSetManagerCfg
+		metadata          *IPSetMetadata
+		refType           ReferenceType
+		alreadyExisted    bool
+		alreadyReferenced bool
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		*expectedInfo
+	}{
 		{
-			Name: "setNs1",
-			Type: Namespace,
+			name: "Apply Always: successfully add selector reference (set did not exist)",
+			args: args{
+				cfg:      applyAlwaysCfg,
+				metadata: namespaceSet,
+				refType:  SelectorType,
+			},
+			wantErr: false,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, selectorReferences: []string{ref1}},
+				},
+				toAddUpdateCache: []*IPSetMetadata{namespaceSet},
+				setsForKernel:    []*IPSetMetadata{namespaceSet},
+			},
 		},
 		{
-			Name: "setpod1",
-			Type: KeyLabelOfPod,
+			name: "Apply Always: successfully add selector reference (set existed)",
+			args: args{
+				cfg:            applyAlwaysCfg,
+				metadata:       namespaceSet,
+				refType:        SelectorType,
+				alreadyExisted: true,
+			},
+			wantErr: false,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, selectorReferences: []string{ref1}},
+				},
+			},
 		},
 		{
-			Name: "setpod2",
-			Type: KeyLabelOfPod,
+			name: "Apply Always: not a selector set (set did not exist)",
+			args: args{
+				cfg:      applyAlwaysCfg,
+				metadata: list,
+				refType:  SelectorType,
+			},
+			wantErr: true,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: list},
+				},
+				toAddUpdateCache: []*IPSetMetadata{list},
+				setsForKernel:    []*IPSetMetadata{list},
+			},
 		},
 		{
-			Name: "setpod3",
-			Type: KeyValueLabelOfPod,
+			name: "Apply Always: not a selector set (set existed)",
+			args: args{
+				cfg:            applyAlwaysCfg,
+				metadata:       list,
+				refType:        SelectorType,
+				alreadyExisted: true,
+			},
+			wantErr: true,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: list},
+				},
+			},
+		},
+		{
+			// already tested set (not) existing
+			name: "Apply Always: successfully add netpol reference",
+			args: args{
+				cfg:            applyAlwaysCfg,
+				metadata:       namespaceSet,
+				refType:        NetPolType,
+				alreadyExisted: true,
+			},
+			wantErr: false,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, netPolReferences: []string{ref1}},
+				},
+			},
+		},
+		{
+			name: "Apply On Need: successfully add reference (set did not exist)",
+			args: args{
+				cfg:      applyOnNeedCfg,
+				metadata: namespaceSet,
+				refType:  SelectorType,
+			},
+			wantErr: false,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, selectorReferences: []string{ref1}},
+				},
+				toAddUpdateCache: []*IPSetMetadata{namespaceSet},
+				setsForKernel:    []*IPSetMetadata{namespaceSet},
+			},
+		},
+		{
+			name: "Apply On Need: successfully add reference (set existed but not already referenced)",
+			args: args{
+				cfg:            applyOnNeedCfg,
+				metadata:       namespaceSet,
+				refType:        SelectorType,
+				alreadyExisted: true,
+			},
+			wantErr: false,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, selectorReferences: []string{ref1}},
+				},
+				toAddUpdateCache: []*IPSetMetadata{namespaceSet},
+				setsForKernel:    []*IPSetMetadata{namespaceSet},
+			},
+		},
+		{
+			name: "Apply On Need: successfully add reference (set already referenced)",
+			args: args{
+				cfg:               applyOnNeedCfg,
+				metadata:          namespaceSet,
+				refType:           SelectorType,
+				alreadyExisted:    true,
+				alreadyReferenced: true,
+			},
+			wantErr: false,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, selectorReferences: []string{ref0, ref1}},
+				},
+			},
+		},
+		{
+			// best to test an unreferenced set to make sure it doesn't get added to the update cache
+			name: "Apply On Need: not a selector set",
+			args: args{
+				cfg:      applyOnNeedCfg,
+				metadata: list,
+				refType:  SelectorType,
+			},
+			wantErr: true,
+			expectedInfo: &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: list},
+				},
+			},
 		},
 	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			metrics.ReinitializeAll()
 
-	iMgr.CreateIPSets(setsTocreate)
+			metadatas := []*IPSetMetadata{tt.args.metadata}
 
-	err := iMgr.AddToSets(setsTocreate, "10.0.0.1", "test")
-	require.NoError(t, err)
+			var calls []testutils.TestCmd
+			if tt.args.alreadyExisted && (tt.args.cfg.IPSetMode == ApplyAllIPSets || tt.args.alreadyReferenced) {
+				calls = GetApplyIPSetsTestCalls(metadatas, nil)
+			}
+			ioShim := common.NewMockIOShim(calls)
+			defer ioShim.VerifyCalls(t, calls)
+			iMgr := NewIPSetManager(tt.args.cfg, ioShim)
 
-	err = iMgr.AddToSets(setsTocreate, "10.0.0.2", "test1")
-	require.NoError(t, err)
+			if tt.args.alreadyExisted {
+				iMgr.CreateIPSets(metadatas)
+				if tt.args.alreadyReferenced {
+					require.NoError(t, iMgr.AddReference(tt.args.metadata, ref0, tt.args.refType), "alreadyReferenced and wantErr is not supported")
+				}
+				require.NoError(t, iMgr.ApplyIPSets())
+			}
 
-	err = iMgr.AddToSets([]*IPSetMetadata{setsTocreate[0], setsTocreate[2], setsTocreate[3]}, "10.0.0.3", "test3")
-	require.NoError(t, err)
+			err := iMgr.AddReference(tt.args.metadata, ref1, tt.args.refType)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 
-	ipsetList := map[string]struct{}{}
-	for _, v := range setsTocreate {
-		ipsetList[v.GetPrefixName()] = struct{}{}
+			assertExpectedInfo(t, iMgr, tt.expectedInfo)
+		})
 	}
-	ips, err := iMgr.GetIPsFromSelectorIPSets(ipsetList)
-	require.NoError(t, err)
-
-	require.Equal(t, 2, len(ips))
-
-	expectedintersection := map[string]struct{}{
-		"10.0.0.1": {},
-		"10.0.0.2": {},
-	}
-
-	require.Equal(t, ips, expectedintersection)
 }
 
-func TestAddDeleteSelectorReferences(t *testing.T) {
-	iMgr := NewIPSetManager(applyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
-	setsTocreate := []*IPSetMetadata{
+func TestDeleteReferenceApplyAlways(t *testing.T) {
+	metadata := namespaceSet
+	type args struct {
+		refType      ReferenceType
+		setExists    bool
+		hadReference bool
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
 		{
-			Name: "setNs1",
-			Type: Namespace,
+			name: "successfully delete selector reference",
+			args: args{
+				refType:      SelectorType,
+				setExists:    true,
+				hadReference: true,
+			},
+			wantErr: false,
 		},
 		{
-			Name: "setpod1",
-			Type: KeyLabelOfPod,
+			name: "successfully delete selector reference (wasn't referenced)",
+			args: args{
+				refType:      SelectorType,
+				setExists:    true,
+				hadReference: false,
+			},
+			wantErr: false,
 		},
 		{
-			Name: "setpod2",
-			Type: KeyLabelOfPod,
+			name: "successfully delete netpol reference",
+			args: args{
+				refType:      NetPolType,
+				setExists:    true,
+				hadReference: true,
+			},
+			wantErr: false,
 		},
 		{
-			Name: "setpod3",
-			Type: NestedLabelOfPod,
+			name: "successfully delete netpol reference (wasn't referenced)",
+			args: args{
+				refType:      NetPolType,
+				setExists:    true,
+				hadReference: false,
+			},
+			wantErr: false,
 		},
 		{
-			Name: "setpod4",
-			Type: KeyLabelOfPod,
+			name: "failure when set doesn't exist",
+			args: args{
+				refType:      SelectorType,
+				hadReference: false,
+			},
+			wantErr: true,
 		},
 	}
-	networkPolicName := "testNetworkPolicy"
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// check semantics
+			require.False(t, tt.args.setExists && tt.wantErr, "setExists and wantErr is not supported")
 
-	for _, k := range setsTocreate {
-		err := iMgr.AddReference(k.GetPrefixName(), networkPolicName, SelectorType)
-		require.Error(t, err)
-	}
+			ref := "ref"
+			metrics.ReinitializeAll()
 
-	iMgr.CreateIPSets(setsTocreate)
+			var calls []testutils.TestCmd
+			if tt.args.setExists {
+				calls = GetApplyIPSetsTestCalls([]*IPSetMetadata{metadata}, nil)
+			}
+			ioShim := common.NewMockIOShim(calls)
+			defer ioShim.VerifyCalls(t, calls)
+			iMgr := NewIPSetManager(applyAlwaysCfg, ioShim)
 
-	// Add setpod4 to setpod3
-	err := iMgr.AddToLists([]*IPSetMetadata{setsTocreate[3]}, []*IPSetMetadata{setsTocreate[4]})
-	require.NoError(t, err)
+			if tt.args.setExists {
+				iMgr.CreateIPSets([]*IPSetMetadata{metadata})
+				require.NoError(t, iMgr.AddReference(metadata, ref, tt.args.refType))
+				require.NoError(t, iMgr.ApplyIPSets())
+			}
 
-	for _, v := range setsTocreate {
-		err = iMgr.AddReference(v.GetPrefixName(), networkPolicName, SelectorType)
-		require.NoError(t, err)
-	}
+			err := iMgr.DeleteReference(metadata.GetPrefixName(), ref, tt.args.refType)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 
-	require.Equal(t, 5, len(iMgr.toAddOrUpdateCache))
-	require.Equal(t, 0, len(iMgr.toDeleteCache))
-
-	for _, v := range setsTocreate {
-		err = iMgr.DeleteReference(v.GetPrefixName(), networkPolicName, SelectorType)
-		if err != nil {
-			t.Errorf("DeleteReference failed with error %s", err.Error())
-		}
-	}
-
-	require.Equal(t, 0, len(iMgr.toAddOrUpdateCache))
-	require.Equal(t, 5, len(iMgr.toDeleteCache))
-
-	for _, v := range setsTocreate {
-		iMgr.DeleteIPSet(v.GetPrefixName(), util.SoftDelete)
-	}
-
-	// Above delete will not remove setpod3 and setpod4
-	// because they are referencing each other
-	require.Equal(t, 2, len(iMgr.setMap))
-
-	err = iMgr.RemoveFromList(setsTocreate[3], []*IPSetMetadata{setsTocreate[4]})
-	require.NoError(t, err)
-
-	for _, v := range setsTocreate {
-		iMgr.DeleteIPSet(v.GetPrefixName(), util.SoftDelete)
-	}
-
-	for _, v := range setsTocreate {
-		set := iMgr.GetIPSet(v.GetPrefixName())
-		require.Nil(t, set)
+			info := &expectedInfo{}
+			if tt.args.setExists {
+				setMember := setMembers{metadata: metadata}
+				info.mainCache = []setMembers{setMember}
+			}
+			assertExpectedInfo(t, iMgr, info)
+		})
 	}
 }
 
-func TestAddDeleteNetPolReferences(t *testing.T) {
-	iMgr := NewIPSetManager(applyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
-	setsTocreate := []*IPSetMetadata{
+func TestDeleteReferenceApplyOnNeed(t *testing.T) {
+	type referenceCount bool
+	oneReference := referenceCount(false)
+	twoReferences := referenceCount(true)
+	tests := []struct {
+		name            string
+		numReferences   referenceCount
+		shouldDeleteSet bool
+	}{
 		{
-			Name: "setNs1",
-			Type: Namespace,
+			name:            "Apply On Need: delete last reference",
+			numReferences:   oneReference,
+			shouldDeleteSet: true,
 		},
 		{
-			Name: "setpod1",
-			Type: KeyLabelOfPod,
-		},
-		{
-			Name: "setpod2",
-			Type: KeyLabelOfPod,
-		},
-		{
-			Name: "setpod3",
-			Type: NestedLabelOfPod,
-		},
-		{
-			Name: "setpod4",
-			Type: KeyLabelOfPod,
+			name:            "Apply On Need: delete a reference (set still referenced after)",
+			numReferences:   twoReferences,
+			shouldDeleteSet: false,
 		},
 	}
-	networkPolicName := "testNetworkPolicy"
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			metadata := namespaceSet
+			ref0 := "ref0"
+			ref1 := "ref1"
 
-	iMgr.CreateIPSets(setsTocreate)
-	err := iMgr.AddToLists([]*IPSetMetadata{setsTocreate[3]}, []*IPSetMetadata{setsTocreate[4]})
-	require.NoError(t, err)
+			metrics.ReinitializeAll()
 
-	for _, v := range setsTocreate {
-		err = iMgr.AddReference(v.GetPrefixName(), networkPolicName, NetPolType)
-		require.NoError(t, err)
-	}
+			calls := GetApplyIPSetsTestCalls([]*IPSetMetadata{metadata}, nil)
+			ioShim := common.NewMockIOShim(calls)
+			defer ioShim.VerifyCalls(t, calls)
+			iMgr := NewIPSetManager(applyOnNeedCfg, ioShim)
 
-	require.Equal(t, 5, len(iMgr.toAddOrUpdateCache))
-	require.Equal(t, 0, len(iMgr.toDeleteCache))
-	for _, v := range setsTocreate {
-		err = iMgr.DeleteReference(v.GetPrefixName(), networkPolicName, NetPolType)
-		require.NoError(t, err)
-	}
+			iMgr.CreateIPSets([]*IPSetMetadata{metadata})
+			if tt.numReferences == twoReferences {
+				require.NoError(t, iMgr.AddReference(metadata, ref0, SelectorType))
+			}
+			require.NoError(t, iMgr.AddReference(metadata, ref1, SelectorType))
+			require.NoError(t, iMgr.ApplyIPSets())
+			require.NoError(t, iMgr.DeleteReference(metadata.GetPrefixName(), ref1, SelectorType))
 
-	require.Equal(t, 0, len(iMgr.toAddOrUpdateCache))
-	require.Equal(t, 5, len(iMgr.toDeleteCache))
-
-	for _, v := range setsTocreate {
-		iMgr.DeleteIPSet(v.GetPrefixName(), util.SoftDelete)
-	}
-
-	// Above delete will not remove setpod3 and setpod4
-	// because they are referencing each other
-	require.Equal(t, 2, len(iMgr.setMap))
-
-	err = iMgr.RemoveFromList(setsTocreate[3], []*IPSetMetadata{setsTocreate[4]})
-	require.NoError(t, err)
-
-	for _, v := range setsTocreate {
-		iMgr.DeleteIPSet(v.GetPrefixName(), util.SoftDelete)
-	}
-
-	for _, v := range setsTocreate {
-		set := iMgr.GetIPSet(v.GetPrefixName())
-		require.Nil(t, set)
-	}
-
-	for _, v := range setsTocreate {
-		err = iMgr.DeleteReference(v.GetPrefixName(), networkPolicName, NetPolType)
-		require.Error(t, err)
+			info := &expectedInfo{}
+			s := setMembers{metadata: metadata}
+			if tt.numReferences == twoReferences {
+				s.selectorReferences = []string{ref0}
+			}
+			info.mainCache = []setMembers{s}
+			if tt.shouldDeleteSet {
+				info.toDeleteCache = []string{metadata.GetPrefixName()}
+			}
+			assertExpectedInfo(t, iMgr, info)
+		})
 	}
 }
 
@@ -887,6 +1169,7 @@ func TestValidateIPBlock(t *testing.T) {
 
 func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info *expectedInfo) {
 	// 1. assert cache contents
+	// 1.1. make sure the main cache is equal, including members and references
 	require.Equal(t, len(info.mainCache), len(iMgr.setMap), "main cache size mismatch")
 	for _, setMembers := range info.mainCache {
 		setName := setMembers.metadata.GetPrefixName()
@@ -894,8 +1177,9 @@ func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info *expectedInfo) {
 		set := iMgr.GetIPSet(setName)
 		require.NotNil(t, set, "set %s should be non-nil", setName)
 		require.Equal(t, util.GetHashedName(setName), set.HashedName, "HashedName mismatch")
+
+		require.Equal(t, len(setMembers.members), len(set.IPPodKey)+len(set.MemberIPSets), "set %s member size mismatch", setName)
 		for _, member := range setMembers.members {
-			set := iMgr.setMap[setName]
 			if member.kind == isHashMember {
 				_, ok := set.IPPodKey[member.value]
 				require.True(t, ok, "ip member %s not found in set %s", member.value, setName)
@@ -904,8 +1188,21 @@ func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info *expectedInfo) {
 				require.True(t, ok, "set member %s not found in list %s", member.value, setName)
 			}
 		}
+
+		require.Equal(t, len(setMembers.selectorReferences), len(set.SelectorReference), "set %s selector reference size mismatch", setName)
+		for _, ref := range setMembers.selectorReferences {
+			_, ok := set.SelectorReference[ref]
+			require.True(t, ok, "selector reference %s not found in set %s", ref, setName)
+		}
+
+		require.Equal(t, len(setMembers.netPolReferences), len(set.NetPolReference), "set %s netpol reference size mismatch", setName)
+		for _, ref := range setMembers.netPolReferences {
+			_, ok := set.NetPolReference[ref]
+			require.True(t, ok, "netpol reference %s not found in set %s", ref, setName)
+		}
 	}
 
+	// 1.2. make sure the toAddOrUpdateCache is equal
 	require.Equal(t, len(info.toAddUpdateCache), len(iMgr.toAddOrUpdateCache), "toAddUpdateCache size mismatch")
 	for _, setMetadata := range info.toAddUpdateCache {
 		setName := setMetadata.GetPrefixName()
@@ -914,13 +1211,19 @@ func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info *expectedInfo) {
 		require.True(t, iMgr.exists(setName), "set %s not in the main cache but is in the toAddUpdateCache", setName)
 	}
 
+	// 1.3. make sure the toDeleteCache is equal
 	require.Equal(t, len(info.toDeleteCache), len(iMgr.toDeleteCache), "toDeleteCache size mismatch")
 	for _, setName := range info.toDeleteCache {
 		_, ok := iMgr.toDeleteCache[setName]
 		require.True(t, ok, "set %s not found in toDeleteCache", setName)
 	}
 
+	// 1.4. assert kernel status of sets in the toAddOrUpdateCache
 	for _, setMetadata := range info.setsForKernel {
+		// check semantics
+		_, ok := iMgr.toAddOrUpdateCache[setMetadata.GetPrefixName()]
+		require.True(t, ok, "setsForKernel should be a subset of toAddUpdateCache")
+
 		setName := setMetadata.GetPrefixName()
 		require.True(t, iMgr.exists(setName), "kernel set %s not found", setName)
 		set := iMgr.setMap[setName]

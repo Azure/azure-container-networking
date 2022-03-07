@@ -93,6 +93,8 @@ spec:
                             type: string
                         type: object
                       type: array
+                    nodeIP:
+                      type: string
                     primaryIP:
                       type: string
                     subnetAddressSpace:

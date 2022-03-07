@@ -1,0 +1,21 @@
+[ req ]
+default_bits       = 2048
+distinguished_name = req_distinguished_name
+req_extensions     = v3_req
+
+[ req_distinguished_name ]
+countryName                 = Country Name (2 letter code)
+stateOrProvinceName         = State or Province Name (full name)
+localityName               = Locality Name (eg, city)
+organizationName           = Organization Name (eg, company)
+commonName                 = Common Name (e.g. server FQDN or YOUR name)
+
+[ v3_req ]
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1   = azure-npm.kube-system.svc.cluster.local 
+DNS.2   = azure-npm.kube-system 
+DNS.3   = azure-npm
+DNS.4   = 0.0.0.0 

@@ -37,7 +37,7 @@ func TestCreateList(t *testing.T) {
 	execCount := resetPrometheusAndGetExecCount(t)
 	defer testPrometheusMetrics(t, 1, execCount+1, 0, expectedSetInfo{0, testListName})
 
-	err := ipsMgr.createList(testListName)
+	err := ipsMgr.CreateListNoLock(testListName)
 	require.NoError(t, err)
 }
 
@@ -90,7 +90,7 @@ func TestDeleteList(t *testing.T) {
 	execCount := resetPrometheusAndGetExecCount(t)
 	defer testPrometheusMetrics(t, 0, execCount+1, 0, expectedSetInfo{0, testListName})
 
-	err := ipsMgr.createList(testListName)
+	err := ipsMgr.CreateListNoLock(testListName)
 	require.NoError(t, err)
 
 	err = ipsMgr.deleteList(testListName)
@@ -111,7 +111,7 @@ func TestAddToList(t *testing.T) {
 	execCount := resetPrometheusAndGetExecCount(t)
 	defer testPrometheusMetrics(t, 2, execCount+2, 1, expectedSetInfo{1, testListName})
 
-	err := ipsMgr.createSet(testSetName, []string{util.IpsetNetHashFlag})
+	err := ipsMgr.CreateSetNoLock(testSetName, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
 	err = ipsMgr.AddToList(testListName, testSetName)
@@ -144,7 +144,7 @@ func TestDeleteFromList(t *testing.T) {
 	defer testPrometheusMetrics(t, 0, execCount+2, 0, expectedSets...)
 
 	// Create set and validate set is created.
-	err := ipsMgr.createSet(testSetName, []string{util.IpsetNetHashFlag})
+	err := ipsMgr.CreateSetNoLock(testSetName, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
 	entry := &ipsEntry{
@@ -235,16 +235,16 @@ func TestCreateSet(t *testing.T) {
 	expectedSets := []expectedSetInfo{{0, testSet1Name}, {0, testSet2Name}, {1, testSet3Name}}
 	defer testPrometheusMetrics(t, 3, execCount+3, 1, expectedSets...)
 
-	err := ipsMgr.createSet(testSet1Name, []string{util.IpsetNetHashFlag})
+	err := ipsMgr.CreateSetNoLock(testSet1Name, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
 	spec := []string{util.IpsetNetHashFlag, util.IpsetMaxelemName, util.IpsetMaxelemNum}
-	if err := ipsMgr.createSet(testSet2Name, spec); err != nil {
+	if err = ipsMgr.CreateSetNoLock(testSet2Name, spec); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when set maxelem")
 	}
 
 	spec = []string{util.IpsetIPPortHashFlag}
-	if err := ipsMgr.createSet(testSet3Name, spec); err != nil {
+	if err = ipsMgr.CreateSetNoLock(testSet3Name, spec); err != nil {
 		t.Errorf("TestCreateSet failed @ ipsMgr.CreateSet when creating port set")
 	}
 
@@ -270,7 +270,7 @@ func TestDeleteSet(t *testing.T) {
 	execCount := resetPrometheusAndGetExecCount(t)
 	defer testPrometheusMetrics(t, 0, execCount+1, 0, expectedSetInfo{0, testSetName})
 
-	err := ipsMgr.createSet(testSetName, []string{util.IpsetNetHashFlag})
+	err := ipsMgr.CreateSetNoLock(testSetName, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
 	err = ipsMgr.deleteSet(testSetName)
@@ -544,13 +544,13 @@ func TestDestroyNpmIpsets(t *testing.T) {
 	expectedSets := []expectedSetInfo{{0, testSet1Name}, {0, testSet1Name}}
 	defer testPrometheusMetrics(t, 0, execCount+2, 0, expectedSets...)
 
-	err := ipsMgr.createSet(testSet1Name, []string{"nethash"})
+	err := ipsMgr.CreateSetNoLock(testSet1Name, []string{"nethash"})
 	if err != nil {
 		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.createSet")
 		t.Errorf(err.Error())
 	}
 
-	err = ipsMgr.createSet(testSet2Name, []string{"nethash"})
+	err = ipsMgr.CreateSetNoLock(testSet2Name, []string{"nethash"})
 	if err != nil {
 		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.createSet")
 		t.Errorf(err.Error())
@@ -580,7 +580,7 @@ func TestMarshalListMapJSON(t *testing.T) {
 	ipsMgr := NewIpsetManager(fexec)
 	defer testutils.VerifyCalls(t, fexec, calls)
 
-	err := ipsMgr.createList(testListSet)
+	err := ipsMgr.CreateListNoLock(testListSet)
 	require.NoError(t, err)
 
 	listMapRaw, err := ipsMgr.MarshalListMapJSON()
@@ -603,7 +603,7 @@ func TestMarshalSetMapJSON(t *testing.T) {
 	ipsMgr := NewIpsetManager(fexec)
 	defer testutils.VerifyCalls(t, fexec, calls)
 
-	err := ipsMgr.createSet(testSet, []string{util.IpsetNetHashFlag})
+	err := ipsMgr.CreateSetNoLock(testSet, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
 	setMapRaw, err := ipsMgr.MarshalSetMapJSON()

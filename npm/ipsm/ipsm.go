@@ -210,7 +210,8 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 	return 0, nil
 }
 
-func (ipsMgr *IpsetManager) createList(listName string) error {
+// CreateListNoLock is identical to CreateList except it does not lock the ipsMgr.
+func (ipsMgr *IpsetManager) CreateListNoLock(listName string) error {
 
 	if _, exists := ipsMgr.listMap[listName]; exists {
 		return nil
@@ -238,8 +239,8 @@ func (ipsMgr *IpsetManager) createList(listName string) error {
 	return nil
 }
 
-// createSet creates an ipset.
-func (ipsMgr *IpsetManager) createSet(setName string, spec []string) error {
+// CreateSetNoLock is identical to CreateSet except it does not lock the ipsMgr.
+func (ipsMgr *IpsetManager) CreateSetNoLock(setName string, spec []string) error {
 	// This timer measures execution time to run this function regardless of success or failure cases
 	prometheusTimer := metrics.StartNewTimer()
 
@@ -304,14 +305,18 @@ func (ipsMgr *IpsetManager) deleteSet(setName string) error {
 func (ipsMgr *IpsetManager) CreateList(listName string) error {
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
-	return ipsMgr.createList(listName)
+	return ipsMgr.CreateListNoLock(listName)
 }
 
 // AddToList inserts an ipset to an ipset list.
 func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
+	return ipsMgr.AddToListNoLock(listName, setName)
+}
 
+// AddToListNoLock is identical to AddToList except it does not lock the ipsMgr.
+func (ipsMgr *IpsetManager) AddToListNoLock(listName, setName string) error {
 	if listName == setName {
 		return nil
 	}
@@ -332,7 +337,7 @@ func (ipsMgr *IpsetManager) AddToList(listName string, setName string) error {
 		return fmt.Errorf("Failed to add set [%s] to list [%s], but list is of type [%s]", setName, listName, listtype)
 	} else if !exists {
 		// if the list doesn't exist, create it
-		if err := ipsMgr.createList(listName); err != nil {
+		if err := ipsMgr.CreateListNoLock(listName); err != nil {
 			return err
 		}
 	}
@@ -426,7 +431,7 @@ func (ipsMgr *IpsetManager) DeleteFromList(listName string, setName string) erro
 func (ipsMgr *IpsetManager) CreateSet(setName string, spec []string) error {
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
-	return ipsMgr.createSet(setName, spec)
+	return ipsMgr.CreateSetNoLock(setName, spec)
 }
 
 // DeleteSet removes a set from ipset.
@@ -440,7 +445,11 @@ func (ipsMgr *IpsetManager) DeleteSet(setName string) error {
 func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	ipsMgr.Lock()
 	defer ipsMgr.Unlock()
+	return ipsMgr.AddToSetNoLock(setName, ip, spec, podKey)
+}
 
+// AddToSetNoLock is identical to AddToSet except it does not lock the ipsMgr.
+func (ipsMgr *IpsetManager) AddToSetNoLock(setName, ip, spec, podKey string) error {
 	if ipsMgr.exists(setName, ip, spec) {
 		// make sure we have updated the podKey in case it gets changed
 		cachedPodKey := ipsMgr.setMap[setName].elements[ip]
@@ -468,7 +477,7 @@ func (ipsMgr *IpsetManager) AddToSet(setName, ip, spec, podKey string) error {
 	exists, _ := ipsMgr.setExists(setName)
 
 	if !exists {
-		if err := ipsMgr.createSet(setName, []string{spec}); err != nil {
+		if err := ipsMgr.CreateSetNoLock(setName, []string{spec}); err != nil {
 			return err
 		}
 	}

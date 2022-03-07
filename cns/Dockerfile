@@ -1,7 +1,7 @@
-FROM alpine:latest as certs
+FROM docker.io/alpine:latest as certs
 RUN apk --update add ca-certificates
 
-FROM golang:1.17 AS builder
+FROM docker.io/golang:1.17 AS builder
 ARG VERSION
 ARG CNS_AI_PATH
 ARG CNS_AI_ID

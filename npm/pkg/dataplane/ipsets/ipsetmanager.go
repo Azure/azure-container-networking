@@ -13,12 +13,23 @@ import (
 
 type IPSetMode string
 
+/*
+	IPSet Modes
+
+	- ApplyAllIPSets:
+		- all ipsets are added to the kernel
+		- ipsets are removed from the kernel when they are deleted from the cache
+		- creates empty ipsets
+		- adds empty/unreferenced ipsets to the toDelete cache periodically
+
+	- ApplyOnNeed:
+		- ipsets are added to the kernel when they are referenced by network policies or lists in the kernel
+		- ipsets are removed from the kernel when they no longer have a reference
+		- removes empty/unreferenced ipsets from the cache periodically
+*/
 const (
-	// ApplyAllIPSets will change dataplane behavior to apply all ipsets
 	ApplyAllIPSets IPSetMode = "all"
-	// ApplyOnNeed will change dataplane behavior to apply
-	// only ipsets that are referenced by network policies
-	ApplyOnNeed IPSetMode = "on-need"
+	ApplyOnNeed    IPSetMode = "on-need"
 )
 
 type IPSetManager struct {
@@ -48,6 +59,29 @@ func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetMana
 	}
 }
 
+/*
+	Reconcile removes empty/unreferenced sets from the cache.
+	For ApplyAllIPSets mode, those sets are added to the toDeleteCache.
+	We can't delete from kernel immediately unless we lock iMgr during policy CRUD.
+	If this call adds a set to the toDeleteCache, and then that set is created before
+	ApplyIPSets is called, then the set may be unnecessarily added to the toAddOrUpdateCache,
+	meaning:
+		- for Linux, an unnecessary "-N set-name --exists" call would be made in the restore file
+		- for Windows, ...
+*/
+func (iMgr *IPSetManager) Reconcile() {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	originalNumSets := len(iMgr.setMap)
+	for _, set := range iMgr.setMap {
+		iMgr.modifyCacheForCacheDeletion(set, util.SoftDelete)
+	}
+	numRemovedSets := originalNumSets - len(iMgr.setMap)
+	if numRemovedSets > 0 {
+		klog.Infof("[IPSetManager] removed %d empty/unreferenced ipsets, updating toDeleteCache to: %+v", numRemovedSets, iMgr.toDeleteCache)
+	}
+}
+
 func (iMgr *IPSetManager) ResetIPSets() error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
@@ -68,51 +102,34 @@ func (iMgr *IPSetManager) CreateIPSets(setMetadatas []*IPSetMetadata) {
 	defer iMgr.Unlock()
 
 	for _, set := range setMetadatas {
-		iMgr.createIPSet(set)
+		_ = iMgr.createAndGetIPSet(set)
 	}
 }
 
-func (iMgr *IPSetManager) createIPSet(setMetadata *IPSetMetadata) {
-	// TODO (vamsi) check for os specific restrictions on ipsets
+func (iMgr *IPSetManager) createAndGetIPSet(setMetadata *IPSetMetadata) *IPSet {
 	prefixedName := setMetadata.GetPrefixName()
-	if iMgr.exists(prefixedName) {
-		return
+	set, exists := iMgr.setMap[prefixedName]
+	if exists {
+		return set
 	}
-	iMgr.setMap[prefixedName] = NewIPSet(setMetadata)
+	set = NewIPSet(setMetadata)
+	iMgr.setMap[prefixedName] = set
 	metrics.IncNumIPSets()
 	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
 		iMgr.modifyCacheForKernelCreation(prefixedName)
 	}
+	return set
 }
 
 // DeleteIPSet expects the prefixed ipset name
-func (iMgr *IPSetManager) DeleteIPSet(name string, force util.DeleteOption) {
+func (iMgr *IPSetManager) DeleteIPSet(name string, deleteOption util.DeleteOption) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
-	if !iMgr.exists(name) {
+	set, exists := iMgr.setMap[name]
+	if !exists {
 		return
 	}
-
-	set := iMgr.setMap[name]
-	if force {
-		// If force delete, then check if Set is used by other set or network policy
-		// else delete the set even if it has members
-		if !set.canBeForceDeleted() {
-			return
-		}
-	} else {
-		if !set.canBeDeleted() {
-			return
-		}
-	}
-
-	delete(iMgr.setMap, name)
-	metrics.DecNumIPSets()
-	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
-		// NOTE in ApplyAllIPSets mode, if this ipset has never been created in the kernel, it would be added to the deleteCache, and then the OS would fail to delete it
-		iMgr.modifyCacheForKernelRemoval(name)
-	}
-	// if mode is ApplyOnNeed, the set will not be in the kernel (or will be in the delete cache already) since there are no references
+	iMgr.modifyCacheForCacheDeletion(set, deleteOption)
 }
 
 // GetIPSet needs the prefixed ipset name
@@ -125,23 +142,15 @@ func (iMgr *IPSetManager) GetIPSet(name string) *IPSet {
 	return iMgr.setMap[name]
 }
 
-// AddReference takes in the prefixed setname and adds relevant reference
-func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceType ReferenceType) error {
+// AddReference creates the set if necessary and adds relevant reference
+// it throws an error if the set and reference type are an invalid combination
+func (iMgr *IPSetManager) AddReference(setMetadata *IPSetMetadata, referenceName string, referenceType ReferenceType) error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
-	if !iMgr.exists(setName) {
-		npmErrorString := npmerrors.AddSelectorReference
-		if referenceType == NetPolType {
-			npmErrorString = npmerrors.AddNetPolReference
-		}
-		msg := fmt.Sprintf("ipset %s does not exist", setName)
-		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add reference: %s", msg)
-		return npmerrors.Errorf(npmErrorString, false, msg)
-	}
-
-	set := iMgr.setMap[setName]
+	// NOTE: any newly created IPSet will still be in the cache if an error is returned later
+	set := iMgr.createAndGetIPSet(setMetadata)
 	if referenceType == SelectorType && !set.canSetBeSelectorIPSet() {
-		msg := fmt.Sprintf("ipset %s is not a selector ipset it is of type %s", setName, set.Type.String())
+		msg := fmt.Sprintf("ipset %s is not a selector ipset it is of type %s", set.Name, set.Type.String())
 		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add reference: %s", msg)
 		return npmerrors.Errorf(npmerrors.AddSelectorReference, false, msg)
 	}
@@ -149,7 +158,12 @@ func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceT
 	set.addReference(referenceName, referenceType)
 	if !wasInKernel {
 		// the set should be in the kernel, so add it to the kernel if it wasn't beforehand
-		iMgr.modifyCacheForKernelCreation(setName)
+		// this branch can only be taken for ApplyOnNeed mode
+		iMgr.modifyCacheForKernelCreation(set.Name)
+
+		// for ApplyAllIPSets mode, the set either:
+		// a) existed already and doesn't need to be added to toAddOrUpdateCache
+		// b) was created in createAndGetIPSet, where it was added to toAddOrUpdateCache
 
 		// if set.Kind == HashSet, then this for loop will do nothing
 		for _, member := range set.MemberIPSets {
@@ -159,7 +173,8 @@ func (iMgr *IPSetManager) AddReference(setName, referenceName string, referenceT
 	return nil
 }
 
-// DeleteReference takes in the prefixed setname and removes relevant reference
+// DeleteReference removes relevant reference
+// it throws an error if the set doesn't exist (since a set should exist in the cache & kernel if it has a reference)
 func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referenceType ReferenceType) error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
@@ -178,7 +193,10 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 	set.deleteReference(referenceName, referenceType)
 	if wasInKernel && !iMgr.shouldBeInKernel(set) {
 		// remove from kernel if it was in the kernel before and shouldn't be now
+		// this branch can only be taken for ApplyOnNeed mode
 		iMgr.modifyCacheForKernelRemoval(set.Name)
+
+		// for ApplyAllIPSets mode, we don't want to make the set dirty
 
 		// if set.Kind == HashSet, then this for loop will do nothing
 		for _, member := range set.MemberIPSets {
@@ -199,12 +217,8 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 	for _, metadata := range addToSets {
 		// 1. check for errors and create a missing set
 		prefixedName := metadata.GetPrefixName()
-		set, exists := iMgr.setMap[prefixedName]
-		if !exists {
-			// NOTE: any newly created IPSet will still be in the cache if an error is returned later
-			iMgr.createIPSet(metadata)
-			set = iMgr.setMap[prefixedName]
-		}
+		// NOTE: any newly created IPSet will still be in the cache if an error is returned later
+		set := iMgr.createAndGetIPSet(metadata)
 		if set.Kind != HashSet {
 			msg := fmt.Sprintf("ipset %s is not a hash set", prefixedName)
 			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add to sets: %s", msg)
@@ -252,7 +266,7 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
 		if cachedPodKey != podKey {
 			klog.Infof(
-				"DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Ignore the delete as this is stale update",
+				"[IPSetManager] DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Ignore the delete as this is stale update",
 				ip, prefixedName, cachedPodKey, podKey,
 			)
 			continue
@@ -275,18 +289,13 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 
 	// 1. check for errors in members and create any missing sets
 	for _, setMetadata := range setMetadatas {
-		setName := setMetadata.GetPrefixName()
-		set, exists := iMgr.setMap[setName]
-		if !exists {
-			// NOTE: any newly created IPSet will still be in the cache if an error is returned later
-			iMgr.createIPSet(setMetadata)
-			set = iMgr.setMap[setName]
-		}
+		// NOTE: any newly created IPSet will still be in the cache if an error is returned later
+		set := iMgr.createAndGetIPSet(setMetadata)
 
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
 		if set.Kind != HashSet {
-			msg := fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", setName)
+			msg := fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", set.Name)
 			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add to lists: %s", msg)
 			return npmerrors.Errorf(npmerrors.AppendIPSet, false, msg)
 		}
@@ -294,16 +303,11 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 
 	for _, listMetadata := range listMetadatas {
 		// 2. create the list if it's missing and check for list errors
-		listName := listMetadata.GetPrefixName()
-		list, exists := iMgr.setMap[listName]
-		if !exists {
-			// NOTE: any newly created IPSet will still be in the cache if an error is returned later
-			iMgr.createIPSet(listMetadata)
-			list = iMgr.setMap[listName]
-		}
+		// NOTE: any newly created IPSet will still be in the cache if an error is returned later
+		list := iMgr.createAndGetIPSet(listMetadata)
 
 		if list.Kind != ListSet {
-			msg := fmt.Sprintf("ipset %s is not a list set", listName)
+			msg := fmt.Sprintf("ipset %s is not a list set", list.Name)
 			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to add to lists: %s", msg)
 			return npmerrors.Errorf(npmerrors.AppendIPSet, false, msg)
 		}
@@ -320,7 +324,7 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 
 			list.MemberIPSets[memberName] = member
 			member.incIPSetReferCount()
-			metrics.AddEntryToIPSet(listName)
+			metrics.AddEntryToIPSet(list.Name)
 			listIsInKernel := iMgr.shouldBeInKernel(list)
 			if listIsInKernel {
 				iMgr.incKernelReferCountAndModifyCache(member)
@@ -402,8 +406,7 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 		return nil
 	}
 
-	klog.Infof("[IPSetManager] toAddUpdateCache %+v \n ", iMgr.toAddOrUpdateCache)
-	klog.Infof("[IPSetManager] toDeleteCache %+v \n ", iMgr.toDeleteCache)
+	klog.Infof("[IPSetManager] toAddUpdateCache: %+v \ntoDeleteCache: %+v", iMgr.toAddOrUpdateCache, iMgr.toDeleteCache)
 	iMgr.sanitizeDirtyCache()
 
 	// Call the appropriate apply ipsets
@@ -418,53 +421,6 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 	iMgr.clearDirtyCache()
 	// TODO could also set the number of ipsets in NPM (not necessarily in kernel) here using len(iMgr.setMap)
 	return nil
-}
-
-// GetIPsFromSelectorIPSets will take in a map of prefixedSetNames and return an intersection of IPs
-func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) (map[string]struct{}, error) {
-	if len(setList) == 0 {
-		return map[string]struct{}{}, nil
-	}
-	iMgr.Lock()
-	defer iMgr.Unlock()
-
-	setintersections := make(map[string]struct{})
-	var err error
-	firstLoop := true
-	for setName := range setList {
-		if !iMgr.exists(setName) {
-			return nil, npmerrors.Errorf(
-				npmerrors.GetSelectorReference,
-				false,
-				fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
-		}
-		set := iMgr.setMap[setName]
-		if firstLoop {
-			intialSetIPs := set.IPPodKey
-			for k := range intialSetIPs {
-				setintersections[k] = struct{}{}
-			}
-			firstLoop = false
-		}
-		setintersections, err = set.getSetIntersection(setintersections)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return setintersections, err
-}
-
-func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string]struct{}, error) {
-	iMgr.Lock()
-	defer iMgr.Unlock()
-	if !iMgr.exists(setName) {
-		return nil, npmerrors.Errorf(
-			npmerrors.GetSelectorReference,
-			false,
-			fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
-	}
-	set := iMgr.setMap[setName]
-	return set.SelectorReference, nil
 }
 
 func (iMgr *IPSetManager) GetAllIPSets() []string {
@@ -482,6 +438,28 @@ func (iMgr *IPSetManager) GetAllIPSets() []string {
 func (iMgr *IPSetManager) exists(name string) bool {
 	_, ok := iMgr.setMap[name]
 	return ok
+}
+
+// the metric for number of ipsets in the kernel will be lower than in reality until the next applyIPSet call
+func (iMgr *IPSetManager) modifyCacheForCacheDeletion(set *IPSet, deleteOption util.DeleteOption) {
+	if deleteOption == util.ForceDelete {
+		// If force delete, then check if Set is used by other set or network policy
+		// else delete the set even if it has members
+		if !set.canBeForceDeleted() {
+			return
+		}
+	} else if !set.canBeDeleted() {
+		return
+	}
+
+	delete(iMgr.setMap, set.Name)
+	metrics.DecNumIPSets()
+	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
+		// NOTE: in ApplyAllIPSets mode, if this ipset has never been created in the kernel,
+		// it would be added to the deleteCache, and then the OS would fail to delete it
+		iMgr.modifyCacheForKernelRemoval(set.Name)
+	}
+	// if mode is ApplyOnNeed, the set will not be in the kernel (or will be in the delete cache already) since there are no references
 }
 
 func (iMgr *IPSetManager) modifyCacheForKernelCreation(setName string) {

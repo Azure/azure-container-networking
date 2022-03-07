@@ -38,7 +38,7 @@ spec:
             containerPort: 10092
           image: azure-npm:v1.4.1
           command: ["azure-npm"]
-          args: ["start", "controlplane"]
+          args: ["controlplane"]
           resources:
             limits:
               cpu: 250m
