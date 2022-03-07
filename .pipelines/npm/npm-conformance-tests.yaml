@@ -4,6 +4,8 @@ trigger:
 variables:
 - name: VNET_NAME
   value: npm-vnet
+- name: NUM_PARALLEL_JOBS_FOR_STRESS_TEST
+  value: "3"
 
 jobs:
 - job: setup
@@ -210,10 +212,9 @@ jobs:
 
       exitCode=0
       if [ $(IS_STRESS_TEST) == "true" ]; then
-          numParallelJobs=3
-          echo "Running $numParallelJobs conformance tests at once and writing outputs to files"
+          echo "Running $NUM_PARALLEL_JOBS_FOR_STRESS_TEST conformance tests at once and writing outputs to files"
           declare -a conformancePIDs
-          for round in $(seq 1 $numParallelJobs); do
+          for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
               # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
               echo "starting conformance test #$round" && \
                   runConformance > $npmLogsFolder/conformance-results-$round && \
@@ -223,7 +224,7 @@ jobs:
           done
 
           # wait until all conformance tests finish and take note of any failed tests
-          for round in $(seq 1 $numParallelJobs); do
+          for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
               i=$((round-1))
               wait ${conformancePIDs[$i]}
               exitCode=$?
