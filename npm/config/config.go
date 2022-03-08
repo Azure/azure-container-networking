@@ -9,6 +9,9 @@ const (
 	defaultGrpcServicePort = 9002
 	// ConfigEnvPath is what's used by viper to load config path
 	ConfigEnvPath = "NPM_CONFIG"
+
+	v1 = 1
+	v2 = 2
 )
 
 // DefaultConfig is the guaranteed configuration NPM can run in out of the box
@@ -65,4 +68,12 @@ type Toggles struct {
 
 type Flags struct {
 	KubeConfigPath string `json:"KubeConfigPath"`
+}
+
+// NPMVersion returns 1 if EnableV2NPM=false and 2 otherwise
+func (c Config) NPMVersion() int {
+	if c.Toggles.EnableV2NPM {
+		return v2
+	}
+	return v1
 }

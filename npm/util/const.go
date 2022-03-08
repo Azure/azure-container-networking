@@ -232,4 +232,5 @@ const (
 	DaemonID
 	ControllerID
 	DaemonDataplaneID // for v2
+	FanOutServerID    // for v2
 )

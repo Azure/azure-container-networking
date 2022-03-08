@@ -4,6 +4,8 @@ trigger:
 variables:
 - name: VNET_NAME
   value: npm-vnet
+- name: NUM_PARALLEL_JOBS_FOR_STRESS_TEST
+  value: "3"
 
 jobs:
 - job: setup
@@ -41,7 +43,7 @@ jobs:
   displayName: "Build NPM and Kubernetes Test Suite"
   pool:
     name: $(BUILD_POOL_NAME_DEFAULT)
-    demands: 
+    demands:
     - agent.os -equals Linux
     - Role -equals Build
   dependsOn: [setup]
@@ -126,9 +128,15 @@ jobs:
       v1-default:
         AZURE_CLUSTER: 'v1-default-cluster'
         PROFILE: 'v1-default'
+        IS_STRESS_TEST: 'false'
       v2-default:
         AZURE_CLUSTER: 'v2-default-cluster'
         PROFILE: 'v2-default'
+        IS_STRESS_TEST: 'false'
+      v2-default-stress:
+        AZURE_CLUSTER: 'v2-default-stress-cluster'
+        PROFILE: 'v2-default'
+        IS_STRESS_TEST: 'true'
   pool:
     name: $(BUILD_POOL_NAME_DEFAULT)
     demands: 
@@ -179,24 +187,65 @@ jobs:
         echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
   - bash: |
+      echo "sleeping 3 minutes to allow NPM pods to restart"
+      sleep 180
+
+      ## create the output folder and include the kubeconfig there
+      npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
+      mkdir -p $npmLogsFolder
+      cp ./kubeconfig $npmLogsFolder/kubeconfig
+
+      ## write to all NPM pod logs in the background (do this in the background instead of after to make sure the logs aren't truncated)
+      npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
+      echo "Found NPM pods: $npmPodList"
+      for npmPod in $npmPodList; do
+          ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod -f > $npmLogsFolder/$npmPod-logs.txt &
+      done
+
+      ## Run all Conformance tests in the background
       echo $FQDN
       chmod +x $(Pipeline.Workspace)/Test/e2e.test
-      KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
-    displayName: "Run Test Suite"
-  - bash: |
-      curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
-      chmod +x kubectl
-      npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
-      npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
-      mkdir -p $npmLogsFolder
-      for npm in $npmPodList; do ./kubectl logs -n kube-system $npm --kubeconfig=./kubeconfig > $npmLogsFolder/$npm ;done
-      mv ./kubeconfig $npmLogsFolder/kubeconfig
-    displayName: "Gather NPM Logs"
-    condition: always()
+      runConformance () {
+          KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+          # there can't be a command after e2e.test because the exit code is important
+      }
 
-  - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(PROFILE)
+      exitCode=0
+      if [ $(IS_STRESS_TEST) == "true" ]; then
+          echo "Running $NUM_PARALLEL_JOBS_FOR_STRESS_TEST conformance tests at once and writing outputs to files"
+          declare -a conformancePIDs
+          for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
+              # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
+              echo "starting conformance test #$round" && \
+                  runConformance > $npmLogsFolder/conformance-results-$round && \
+                  echo "finished conformance test #$round" &
+              pidOfConformanceTest=$!
+              conformancePIDs+=($pidOfConformanceTest)
+          done
+
+          # wait until all conformance tests finish and take note of any failed tests
+          for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
+              i=$((round-1))
+              wait ${conformancePIDs[$i]}
+              exitCode=$?
+              if [ $exitCode != 0 ]; then
+                  echo "conformance test #$round failed"
+                  break
+              fi
+          done
+      else
+          # run the conformance test in the foreground and write the output to stdout and a file
+          runConformance > $npmLogsFolder/conformance-results
+          exitCode=$?
+      fi
+      # kill the background processes (the logs) that have this process' pid (i.e. $$) as a parent
+      pkill -P $$
+      exit $exitCode
+    displayName: "Run Test Suite and Get Logs"
+    
+  - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
     condition: always()
-    artifact: NpmLogs_$(PROFILE)
+    artifact: NpmLogs_$(AZURE_CLUSTER)
 
 - job: Clean_up
   displayName: "Cleanup"
