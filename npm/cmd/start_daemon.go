@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/npm"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/daemon"
 	restserver "github.com/Azure/azure-container-networking/npm/http/server"
@@ -15,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/models"
 	"github.com/Azure/azure-container-networking/npm/pkg/transport"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -46,7 +48,7 @@ func newStartNPMDaemonCmd() *cobra.Command {
 
 func startDaemon(config npmconfig.Config) error {
 	klog.Infof("loaded config: %+v", config)
-	klog.Infof("Start NPM version: %s", version)
+	klog.Infof("starting NPM fan-out daemon with image: %s", version)
 	// Read these ENV variables from the Pod spec `env` section.
 	pod := os.Getenv(podNameEnv)
 	node := os.Getenv(nodeNameEnv)
@@ -92,11 +94,19 @@ func startDaemon(config npmconfig.Config) error {
 		return fmt.Errorf("failed to create dataplane: %w", err)
 	}
 
+	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata())
+	if err != nil {
+		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
+		return fmt.Errorf("CreateTelemetryHandle failed with error %w", err)
+	}
+
 	err = n.Start(config, wait.NeverStop)
 	if err != nil {
 		klog.Errorf("failed to start dataplane : %v", err)
 		return fmt.Errorf("failed to start dataplane: %w", err)
 	}
+
+	metrics.SendLog(util.FanOutServerID, "started fan-out daemon")
 
 	return nil
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/dpshim"
 	"github.com/Azure/azure-container-networking/npm/pkg/transport"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -49,7 +50,7 @@ func newStartNPMControlplaneCmd() *cobra.Command {
 
 func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 	klog.Infof("loaded config: %+v", config)
-	klog.Infof("Start NPM version: %s", version)
+	klog.Infof("starting NPM fan-out server with image: %s", version)
 
 	var err error
 
@@ -112,13 +113,15 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 		return fmt.Errorf("failed to create NPM controlplane manager: %w", err)
 	}
 
-	err = metrics.CreateTelemetryHandle(version, npm.GetAIMetadata())
+	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata())
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
 		return fmt.Errorf("CreateTelemetryHandle failed with error %w", err)
 	}
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
+
+	metrics.SendLog(util.FanOutServerID, "starting fan-out server")
 
 	return npMgr.Start(config, wait.NeverStop) //nolint:wrapcheck // unnecessary to wrap error
 }

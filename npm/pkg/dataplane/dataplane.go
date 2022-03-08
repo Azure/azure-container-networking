@@ -91,7 +91,7 @@ func (dp *DataPlane) RunPeriodicTasks() {
 				return
 			case <-ticker.C:
 				// send the heartbeat log in another go routine in case it takes a while
-				go metrics.SendHeartbeatLog()
+				go metrics.SendHeartbeatWithNumPolicies()
 
 				// locks ipset manager
 				dp.ipsetMgr.Reconcile()
