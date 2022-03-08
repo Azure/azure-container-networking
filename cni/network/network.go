@@ -525,7 +525,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if nwInfoErr != nil {
 		// Network does not exist.
 		telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
-		if nwInfo, err = plugin.createNetworkInternal(networkID, policies, args, nwCfg, cnsNetworkConfig, subnetPrefix, result, resultV6); err != nil {
+		// opts map needs to get passed in here
+		if nwInfo, err = plugin.createNetworkInternal(networkID, policies, args, nwCfg, cnsNetworkConfig, subnetPrefix, result, resultV6, options); err != nil {
 			log.Errorf("Create network failed:%w", err)
 			return err
 		}
@@ -588,10 +589,9 @@ func (plugin *NetPlugin) createNetworkInternal(
 	cnsNetworkConfig *cns.GetNetworkContainerResponse,
 	subnetPrefix net.IPNet,
 	result *cniTypesCurr.Result,
-	resultV6 *cniTypesCurr.Result) (network.NetworkInfo, error) {
-
+	resultV6 *cniTypesCurr.Result,
+	options map[string]interface{}) (network.NetworkInfo, error) {
 	nwInfo := network.NetworkInfo{}
-	options := make(map[string]interface{})
 	gateway := result.IPs[0].Gateway
 	subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
 	nwCfg.Ipam.Subnet = subnetPrefix.String()
