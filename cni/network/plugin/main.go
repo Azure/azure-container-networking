@@ -167,7 +167,7 @@ func rootExecute() error {
 	)
 	if err != nil {
 		printCNIError(fmt.Sprintf("Failed to create network plugin, err:%v.\n", err))
-		return err
+		return errors.Wrap(err, "Create plugin error")
 	}
 
 	// Check CNI_COMMAND value
@@ -191,7 +191,7 @@ func rootExecute() error {
 			tb = telemetry.NewTelemetryBuffer()
 			if tberr := tb.Connect(); tberr != nil {
 				log.Errorf("Cannot connect to telemetry service:%v", tberr)
-				return err
+				return errors.Wrap(err, "lock acquire error")
 			}
 
 			reportPluginError(reportManager, tb, err)
@@ -210,7 +210,7 @@ func rootExecute() error {
 			}
 
 			tb.Close()
-			return err
+			return errors.Wrap(err, "lock acquire error")
 		}
 
 		defer func() {
@@ -247,7 +247,7 @@ func rootExecute() error {
 			simpleState, err = netPlugin.GetAllEndpointState("azure")
 			if err != nil {
 				log.Errorf("Failed to get Azure CNI state, err:%v.\n", err)
-				return err
+				return errors.Wrap(err, "Get all endpoints error")
 			}
 
 			err = simpleState.PrintResult()
@@ -255,7 +255,7 @@ func rootExecute() error {
 				log.Errorf("Failed to print state result to stdout with err %v\n", err)
 			}
 
-			return err
+			return errors.Wrap(err, "Get cni state printresult error")
 		}
 	}
 
@@ -267,7 +267,7 @@ func rootExecute() error {
 	}
 
 	if cniCmd == cni.CmdVersion {
-		return err
+		return errors.Wrap(err, "Execute netplugin failure")
 	}
 
 	netPlugin.Stop()
@@ -276,7 +276,7 @@ func rootExecute() error {
 		reportPluginError(reportManager, tb, err)
 	}
 
-	return err
+	return errors.Wrap(err, "Execute netplugin failure")
 }
 
 // Main is the entry point for CNI network plugin.
