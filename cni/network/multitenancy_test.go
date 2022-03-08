@@ -370,21 +370,19 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, got2, err := tt.args.plugin.multitenancyClient.GetMultiTenancyCNIResult(
+			got1, got2, err := tt.args.plugin.multitenancyClient.GetContainerNetworkConfiguration(
 				tt.args.ctx,
 				tt.args.nwCfg,
 				tt.args.k8sPodName,
-				tt.args.k8sNamespace,
-				tt.args.ifName)
+				tt.args.k8sNamespace)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetMultiTenancyCNIResult() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GetContainerNetworkConfiguration() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if tt.wantErr {
 				require.Error(err)
 			}
 			require.NoError(err)
-			require.Exactly(tt.want, got)
 			require.Exactly(tt.want1, got1)
 			require.Exactly(tt.want2, got2)
 		})

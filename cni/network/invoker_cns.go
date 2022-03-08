@@ -25,10 +25,9 @@ var (
 )
 
 type CNSIPAMInvoker struct {
-	podName            string
-	podNamespace       string
-	cnsClient          cnsclient
-	multitenancyClient MultitenancyClient
+	podName      string
+	podNamespace string
+	cnsClient    cnsclient
 }
 
 type IPv4ResultInfo struct {
@@ -41,12 +40,11 @@ type IPv4ResultInfo struct {
 	hostGateway        string
 }
 
-func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, multitenancyClient MultitenancyClient) *CNSIPAMInvoker {
+func NewCNSInvoker(podName, namespace string, cnsClient cnsclient) *CNSIPAMInvoker {
 	return &CNSIPAMInvoker{
-		podName:            podName,
-		podNamespace:       namespace,
-		cnsClient:          cnsClient,
-		multitenancyClient: multitenancyClient,
+		podName:      podName,
+		podNamespace: namespace,
+		cnsClient:    cnsClient,
 	}
 }
 
@@ -66,20 +64,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	if addConfig.args == nil {
 		return IPAMAddResult{}, errEmptyCNIArgs
-	}
-
-	addResult := IPAMAddResult{}
-
-	if addConfig.nwCfg.MultiTenancy {
-		addResult.ipv4Result, addResult.ncResponse, addResult.hostSubnetPrefix, err = invoker.multitenancyClient.GetMultiTenancyCNIResult(
-			context.TODO(), addConfig.nwCfg, invoker.podName, invoker.podNamespace, addConfig.args.IfName)
-		if err != nil {
-			log.Printf("GetMultiTenancyCNIResult failed with error %v", err)
-			return IPAMAddResult{}, errors.Wrap(err, "GetMultiTenancyCNIResult failed: %w")
-		}
-
-		log.Printf("Result from multitenancy %+v", addResult.ipv4Result)
-		return addResult, nil
 	}
 
 	ipconfig := cns.IPConfigRequest{
@@ -127,6 +111,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		Mask: ncipnet.Mask,
 	}
 
+	addResult := IPAMAddResult{}
 	addResult.ipv4Result = &cniTypesCurr.Result{
 		IPs: []*cniTypesCurr.IPConfig{
 			{
@@ -149,7 +134,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		return IPAMAddResult{}, err
 	}
 
-	// first result is ipv4, second is ipv6, SWIFT doesn't currently support IPv6
 	return addResult, nil
 }
 

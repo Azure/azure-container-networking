@@ -422,31 +422,42 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	if nwCfg.MultiTenancy {
-		cnsClient, er := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
-		if er != nil {
-			return fmt.Errorf("failed to create cns client for multitenancy %w", er)
-		}
+	cnsClient, er := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if er != nil {
+		return fmt.Errorf("failed to create cns client with error: %w", er)
+	}
 
+	if nwCfg.MultiTenancy {
 		plugin.report.Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
-		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, plugin.multitenancyClient)
 
 		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
 		if enableSnatForDNS, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(
 			snatConfigFileName, nmAgentSupportedApisURL); err != nil {
 			return fmt.Errorf("%w", err)
 		}
+
+		ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetContainerNetworkConfiguration(
+			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
+		if er != nil {
+			er = errors.Wrapf(er, "GetContainerNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+			log.Printf("%+v", er)
+			return er
+		}
+
+		ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
+
+		log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
 	}
 
 	// Initialize values from network config.
-	networkID, err := plugin.getNetworkNameFromCNS(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg)
+	networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 		return err
 	}
 
-	endpointId := GetEndpointID(args)
+	endpointID := GetEndpointID(args)
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
 	options := make(map[string]interface{})
@@ -463,7 +474,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		options = nwInfo.Options
 
 		var resultSecondAdd *cniTypesCurr.Result
-		resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointId, networkID, &nwInfo, nwCfg)
+		resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointID, networkID, &nwInfo, nwCfg)
 		if err != nil {
 			log.Printf("handleConsecutiveAdd failed with error %v", err)
 			return err
@@ -479,11 +490,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if plugin.ipamInvoker == nil {
 		switch nwCfg.Ipam.Type {
 		case network.AzureCNS:
-			cnsClient, er := cnscli.New("", defaultRequestTimeout)
-			if er != nil {
-				return fmt.Errorf("initializing cns client failed with err %w", er)
-			}
-			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, nil)
+			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
 
 		default:
 			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
@@ -491,9 +498,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-	ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-	if err != nil {
-		return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+	// No need to call Add if we already got IPAMAddResult in multitenancy section via GetContainerNetworkConfiguration
+	if !nwCfg.MultiTenancy {
+		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		if err != nil {
+			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+		}
 	}
 
 	telemetry.SendCNIEvent(plugin.tb, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
@@ -528,7 +538,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		args:             args,
 		nwInfo:           &nwInfo,
 		policies:         policies,
-		endpointID:       endpointId,
+		endpointID:       endpointID,
 		k8sPodName:       k8sPodName,
 		k8sNamespace:     k8sNamespace,
 		enableInfraVnet:  enableInfraVnet,
@@ -757,14 +767,12 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 // Get handles CNI Get commands.
 func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 	var (
-		result       cniTypesCurr.Result
-		err          error
-		nwCfg        *cni.NetworkConfig
-		epInfo       *network.EndpointInfo
-		iface        *cniTypesCurr.Interface
-		k8sPodName   string
-		k8sNamespace string
-		networkId    string
+		result    cniTypesCurr.Result
+		err       error
+		nwCfg     *cni.NetworkConfig
+		epInfo    *network.EndpointInfo
+		iface     *cniTypesCurr.Interface
+		networkID string
 	)
 
 	log.Printf("[cni-net] Processing GET command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v}.",
@@ -802,37 +810,22 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
-	// Parse Pod arguments.
-	if k8sPodName, k8sNamespace, err = plugin.getPodInfo(args.Args); err != nil {
-		return err
-	}
-
-	if nwCfg.MultiTenancy {
-		cnsClient, er := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
-		if er != nil {
-			return fmt.Errorf("failed to create cns client for multitenancy %w", er)
-		}
-
-		plugin.report.Context = "AzureCNIMultitenancy"
-		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
-	}
-
 	// Initialize values from network config.
-	if networkId, err = plugin.getNetworkNameFromNetNS(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg); err != nil {
+	if networkID, err = plugin.getNetworkName(args.Netns, nil, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 	}
 
-	endpointId := GetEndpointID(args)
+	endpointID := GetEndpointID(args)
 
 	// Query the network.
-	if _, err = plugin.nm.GetNetworkInfo(networkId); err != nil {
+	if _, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
 		plugin.Errorf("Failed to query network: %v", err)
 		return err
 	}
 
 	// Query the endpoint.
-	if epInfo, err = plugin.nm.GetEndpointInfo(networkId, endpointId); err != nil {
+	if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
 		plugin.Errorf("Failed to query endpoint: %v", err)
 		return err
 	}
@@ -924,17 +917,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	if nwCfg.MultiTenancy {
-		cnsClient, er := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
-		if er != nil {
-			return fmt.Errorf("failed to create cns client for multitenancy %w", er)
-		}
-
-		plugin.report.Context = "AzureCNIMultitenancy"
-		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
-		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, plugin.multitenancyClient)
-	}
-
 	if plugin.ipamInvoker == nil {
 		switch nwCfg.Ipam.Type {
 		case network.AzureCNS:
@@ -943,7 +925,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				log.Printf("[cni-net] failed to create cns client:%v", cnsErr)
 				return errors.Wrap(cnsErr, "failed to create cns client")
 			}
-			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, nil)
+			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
 
 		default:
 			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
@@ -951,7 +933,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	// Initialize values from network config.
-	networkID, err = plugin.getNetworkNameFromCNS(k8sPodName, k8sNamespace, args.IfName, args.Netns, nwCfg)
+	networkID, err = plugin.getNetworkName(args.Netns, nil, nwCfg)
 	if err != nil {
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 		// If error is not found error, then we ignore it, to comply with CNI SPEC.
@@ -963,7 +945,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	// Query the network.
 	if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
-
 		if !nwCfg.MultiTenancy {
 			// attempt to release address associated with this Endpoint id
 			// This is to ensure clean up is done even in failure cases

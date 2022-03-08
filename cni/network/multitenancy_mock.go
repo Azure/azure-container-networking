@@ -46,10 +46,9 @@ func (m *MockMultitenancy) GetContainerNetworkConfiguration(
 	ctx context.Context,
 	nwCfg *cni.NetworkConfig,
 	podName string,
-	podNamespace string,
-	ifName string) (*current.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+	podNamespace string) (*cns.GetNetworkContainerResponse, net.IPNet, error) {
 	if m.fail {
-		return nil, nil, net.IPNet{}, errMockMulAdd
+		return nil, net.IPNet{}, errMockMulAdd
 	}
 
 	cnsResponse := &cns.GetNetworkContainerResponse{
@@ -75,16 +74,6 @@ func (m *MockMultitenancy) GetContainerNetworkConfiguration(
 		},
 	}
 	_, ipnet, _ := net.ParseCIDR(cnsResponse.PrimaryInterfaceIdentifier)
-	result := convertToCniResult(cnsResponse, "eth1")
 
-	return result, cnsResponse, *ipnet, nil
-}
-
-func (m *MockMultitenancy) GetMultiTenancyCNIResult(
-	ctx context.Context,
-	nwCfg *cni.NetworkConfig,
-	k8sPodName string,
-	k8sNamespace string,
-	ifName string) (*current.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
-	return m.GetContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
+	return cnsResponse, *ipnet, nil
 }
