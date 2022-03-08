@@ -502,7 +502,7 @@ func (nw *network) deleteEndpointImplHnsV2(ep *endpoint) error {
 
 	// Remove this endpoint from the namespace
 	if err = hnsv2.RemoveNamespaceEndpoint(hcnEndpoint.HostComputeNamespace, hcnEndpoint.Id); err != nil {
-		return fmt.Errorf("Failed to remove hcn endpoint: %s from namespace: %s due to error: %v", ep.HnsId,
+		log.Errorf("Failed to remove hcn endpoint: %s from namespace: %s due to error: %v", ep.HnsId,
 			hcnEndpoint.HostComputeNamespace, err)
 	}
 
