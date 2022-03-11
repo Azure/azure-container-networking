@@ -42,11 +42,11 @@ var ipConfigStatusStateTransitionTime = prometheus.NewHistogramVec(
 var syncHostNcVersion = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name: "sync_host_nc_version",
-		Help: "Time spent by the IP Configuration Status in each state transition",
+		Help: "Sync Host NC Latency",
 		//nolint:gomnd // default bucket consts
 		Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1 ms to ~16 seconds
 	},
-	[]string{},
+	[]string{"error"},
 )
 
 func init() {
