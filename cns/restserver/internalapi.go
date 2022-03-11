@@ -161,7 +161,6 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	syncHostNcVersion.WithLabelValues(strconv.FormatBool(err != nil)).Observe(time.Since(start).Seconds())
 }
 
-// https://stackoverflow.com/questions/62291709/linter-err113-do-not-define-dynamic-errors-use-wrapped-static-errors-instead
 var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
 
 func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) error {
