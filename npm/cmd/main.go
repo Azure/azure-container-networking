@@ -23,8 +23,8 @@ var flagDefaults = map[string]string{
 // Version is populated by make during build.
 var version string
 
-// PanicRecoverAndExitWithStackTrace - recovery from panic, print a failure message and stack trace and exit the program
-func PanicRecoverAndExitWithStackTrace() {
+// panicRecoverAndExitWithStackTrace - recovery from panic, print a failure message and stack trace and exit the program
+func panicRecoverAndExitWithStackTrace() {
 	if r := recover(); r != nil {
 		klog.Errorf("%+v", r)
 		klog.Errorf("Stack trace: %s", string(debug.Stack()))
@@ -32,7 +32,7 @@ func PanicRecoverAndExitWithStackTrace() {
 }
 
 func main() {
-	defer PanicRecoverAndExitWithStackTrace()
+	defer panicRecoverAndExitWithStackTrace()
 
 	rootCmd := NewRootCmd()
 

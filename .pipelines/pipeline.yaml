@@ -1,21 +1,21 @@
 pr:
   branches:
     include:
-    - master
-    - honeycomb-dev
+      - master
+      - honeycomb-dev
 
 trigger:
   branches:
     include:
-    - master
-    - honeycomb-dev
+      - master
+      - honeycomb-dev
 
 stages:
   - stage: setup
     displayName: ACN
     jobs:
       - job: env
-        displayName: Setup 
+        displayName: Setup
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
@@ -35,7 +35,7 @@ stages:
   - stage: build_and_test
     displayName: Build ACN and Test
     dependsOn:
-    - setup
+      - setup
     jobs:
       - job: build
         displayName: Build Binaries
@@ -133,84 +133,82 @@ stages:
   - stage: containerize
     displayName: Build Images
     dependsOn:
-    - setup
-    - build_and_test
+      - setup
+      - build_and_test
     jobs:
-    - job: containerize 
-      displayName: Build Images
-      variables:
-        TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      pool:
-        name: "$(BUILD_POOL_NAME_DEFAULT)"
-      strategy:
-        matrix:
-          cni_manager_linux_amd64:
-            arch: amd64
-            os: linux
-            name: cni-manager
-          cni_manager_linux_arm64:
-            arch: arm64
-            os: linux
-            name: cni-manager
-          cns_linux_amd64:
-            arch: amd64
-            os: linux
-            name: cns
-          cns_linux_arm64:
-            arch: arm64
-            os: linux
-            name: cns
-          npm_linux_amd64:
-            arch: amd64
-            os: linux
-            name: npm 
-          npm_linux_arm64:
-            arch: arm64
-            os: linux
-            name: npm
-      steps:
-      - template: containers/container-template.yaml
-        parameters:
-          name: $(name)
-          os: $(os)
-          arch: $(arch)
-          tag: $(TAG)
+      - job: containerize
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            cni_manager_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cni-manager
+            cni_manager_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-manager
+            cns_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cns
+            cns_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cns
+            npm_linux_amd64:
+              arch: amd64
+              os: linux
+              name: npm
+            npm_linux_arm64:
+              arch: arm64
+              os: linux
+              name: npm
+        steps:
+          - template: containers/container-template.yaml
+            parameters:
+              name: $(name)
+              os: $(os)
+              arch: $(arch)
+              tag: $(TAG)
 
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
-    - setup
-    - containerize
+      - setup
+      - containerize
     jobs:
-    - job: manifest
-      displayName: Compile Manifests
-      variables:
-        TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      pool:
-        name: "$(BUILD_POOL_NAME_DEFAULT)"
-      strategy:
-        matrix:
-          cni-manager:
-            name: cni-manager
-          cns:
-            name: cns
-          npm: 
-            name: npm
-      steps:
-      - template: containers/manifest-template.yaml
-        parameters:
-          name: $(name)
-          oses: linux
-          arches: amd64 arm64
-          tag: $(TAG)
+      - job: manifest
+        displayName: Compile Manifests
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            cni-manager:
+              name: cni-manager
+            cns:
+              name: cns
+            npm:
+              name: npm
+        steps:
+          - template: containers/manifest-template.yaml
+            parameters:
+              name: $(name)
+              oses: linux
+              arches: amd64 arm64
+              tag: $(TAG)
 
-
-  - template: singletenancy/aks-swift/e2e-job-template.yaml
-    parameters:
-      name: "aks_swift_e2e"
-      displayName: AKS Swift
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-
+  #  - template: singletenancy/aks-swift/e2e-job-template.yaml
+  #    parameters:
+  #      name: "aks_swift_e2e"
+  #      displayName: AKS Swift
+  #      pipelineBuildImage: "$(BUILD_IMAGE)"
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
