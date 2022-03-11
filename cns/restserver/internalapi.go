@@ -156,10 +156,13 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	start := time.Now()
 	err := service.syncHostNCVersion(ctx, channelMode)
 	if err != nil {
-		logger.Errorf("%v", err)
+		logger.Errorf("sync host error %v", err)
 	}
 	syncHostNcVersion.WithLabelValues(strconv.FormatBool(err != nil)).Observe(time.Since(start).Seconds())
 }
+
+//https://stackoverflow.com/questions/62291709/linter-err113-do-not-define-dynamic-errors-use-wrapped-static-errors-instead
+var nonexistContainerStatusError = errors.New("nonExistantContainerstatus")
 
 func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) error {
 	var hostVersionNeedsUpdateContainers []string
@@ -187,7 +190,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	}
 	ncList, err := service.nmagentClient.GetNCVersionList(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get nc version list from nmagent: %w", err)
 	}
 
 	newHostNCVersionList := map[string]string{}
@@ -201,13 +204,13 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		}
 		version, err := strconv.Atoi(versionStr)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse container version of %s:  %w", ncID, err)
 		}
 
 		// Check whether it exist in service state and get the related nc info
 		ncInfo, exist := service.state.ContainerStatus[ncID]
 		if !exist {
-			return fmt.Errorf("Can't find NC with ID %s in service state, stop updating this host NC version", ncID)
+			return fmt.Errorf("%w, Can't find NC with ID %s in service state, stop updating this host NC version", nonexistContainerStatusError, ncID)
 		}
 		if channelMode == cns.CRD {
 			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, version)
