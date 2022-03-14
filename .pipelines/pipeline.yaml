@@ -204,11 +204,11 @@ stages:
               arches: amd64 arm64
               tag: $(TAG)
 
-  #  - template: singletenancy/aks-swift/e2e-job-template.yaml
-  #    parameters:
-  #      name: "aks_swift_e2e"
-  #      displayName: AKS Swift
-  #      pipelineBuildImage: "$(BUILD_IMAGE)"
+  - template: singletenancy/aks-swift/e2e-job-template.yaml
+    parameters:
+      name: "aks_swift_e2e"
+      displayName: AKS Swift
+      pipelineBuildImage: "$(BUILD_IMAGE)"
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
@@ -263,7 +263,7 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
-      #     - "aks_swift_e2e"
+      - "aks_swift_e2e"
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
