@@ -262,7 +262,7 @@ func KubePodsToPodInfoByIP(pods []corev1.Pod) (map[string]PodInfo, error) {
 			// ignore host network pods.
 			continue
 		}
-		if pods[i].Status.PodIP == "" {
+		if strings.TrimSpace(pods[i].Status.PodIP) == "" {
 			// ignore pods without an assigned IP.
 			continue
 		}
