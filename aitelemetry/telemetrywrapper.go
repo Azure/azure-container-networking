@@ -2,6 +2,7 @@ package aitelemetry
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"time"
 
@@ -24,6 +25,7 @@ const (
 	vmIDStr                          = "VMID"
 	versionStr                       = "AppVersion"
 	azurePublicCloudStr              = "AzurePublicCloud"
+	hostNameKey                      = "hostname"
 	defaultTimeout                   = 10
 	defaultBatchIntervalInSecs       = 15
 	defaultBatchSizeInBytes          = 32768
@@ -207,6 +209,8 @@ func (th *telemetryHandle) TrackLog(report Report) {
 	trace.Tags.User().SetAuthUserId(runtime.GOOS)
 	trace.Tags.Operation().SetId(report.Context)
 	trace.Tags.Operation().SetParentId(th.appVersion)
+	trace.Tags.Application().SetVer(th.appVersion)
+	trace.Properties[hostNameKey], _ = os.Hostname()
 
 	// copy app specified custom dimension
 	for key, value := range report.CustomDimensions {
