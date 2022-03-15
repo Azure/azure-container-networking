@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking
 
-go 1.17
+go 1.18
 
 require (
 	code.cloudfoundry.org/clock v1.0.0 // indirect
