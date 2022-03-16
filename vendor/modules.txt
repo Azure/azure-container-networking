@@ -887,14 +887,17 @@ k8s.io/component-base/config/v1alpha1
 # k8s.io/klog v1.0.0
 ## explicit; go 1.12
 k8s.io/klog
-# k8s.io/klog/v2 v2.40.1
+# k8s.io/klog/v2 v2.50.1
 ## explicit; go 1.13
 k8s.io/klog/v2
+k8s.io/klog/v2/internal/buffer
+k8s.io/klog/v2/internal/serialize
+k8s.io/klog/v2/internal/severity
 # k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
 ## explicit; go 1.16
 k8s.io/kube-openapi/pkg/schemaconv
 k8s.io/kube-openapi/pkg/util/proto
-# k8s.io/utils v0.0.0-20211116205334-6203023598ed
+# k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 ## explicit; go 1.12
 k8s.io/utils/buffer
 k8s.io/utils/clock
