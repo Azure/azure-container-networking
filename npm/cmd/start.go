@@ -140,7 +140,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
-	metrics.SendLog(util.NpmID, "starting NPM")
+	metrics.SendLog(util.NpmID, "starting NPM", metrics.PrintLog)
 	if err = npMgr.Start(config, stopChannel); err != nil {
 		metrics.SendErrorLogAndMetric(util.NpmID, "Failed to start NPM due to %+v", err)
 		return fmt.Errorf("failed to start with err: %w", err)

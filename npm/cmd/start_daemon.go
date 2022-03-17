@@ -106,7 +106,7 @@ func startDaemon(config npmconfig.Config) error {
 		return fmt.Errorf("failed to start dataplane: %w", err)
 	}
 
-	metrics.SendLog(util.FanOutServerID, "started fan-out daemon")
+	metrics.SendLog(util.FanOutServerID, "started fan-out daemon", metrics.PrintLog)
 
 	return nil
 }

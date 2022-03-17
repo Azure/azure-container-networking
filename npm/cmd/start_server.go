@@ -121,7 +121,7 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
-	metrics.SendLog(util.FanOutServerID, "starting fan-out server")
+	metrics.SendLog(util.FanOutServerID, "starting fan-out server", metrics.PrintLog)
 
 	return npMgr.Start(config, wait.NeverStop) //nolint:wrapcheck // unnecessary to wrap error
 }
