@@ -2,6 +2,7 @@ package ipsets
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -210,6 +211,18 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 	if len(addToSets) == 0 {
 		return nil
 	}
+
+	// possible formats
+	// 192.168.0.1
+	// 192.168.0.1,tcp:25227
+	// always guaranteed to have ip, not guaranteed to have port + protocol
+	ipDetails := strings.Split(ip, ",")
+	if len(ipDetails) > 0 && !util.IsIPV4(ipDetails[0]) {
+		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
+		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
+	}
+
 	// TODO check if the IP is IPV4 family in controller
 	iMgr.Lock()
 	defer iMgr.Unlock()
@@ -240,6 +253,10 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 
 func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, podKey string) error {
 	if len(removeFromSets) == 0 {
+		return nil
+	}
+
+	if ip == "" {
 		return nil
 	}
 	iMgr.Lock()
@@ -316,6 +333,9 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 		// 3. add all members to the list
 		for _, memberMetadata := range setMetadatas {
 			memberName := memberMetadata.GetPrefixName()
+			if memberName == "" {
+				continue
+			}
 			// the member shouldn't be the list itself, but this is satisfied since we already asserted that the member is a HashSet
 			if list.hasMember(memberName) {
 				continue
@@ -361,6 +381,9 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 	modified := false
 	for _, setMetadata := range setMetadatas {
 		memberName := setMetadata.GetPrefixName()
+		if memberName == "" {
+			continue
+		}
 		member, exists := iMgr.setMap[memberName]
 		if !exists {
 			continue
