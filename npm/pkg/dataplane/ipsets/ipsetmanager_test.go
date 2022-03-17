@@ -487,6 +487,24 @@ func TestAddToSets(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Apply On Need: add to new set",
+			args: args{
+				cfg:               applyOnNeedCfg,
+				toCreateMetadatas: nil,
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "10.0.0.0/8",
+			},
+			expectedInfo: expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, members: []member{{"10.0.0.0/8", isHashMember}}},
+				},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: false,
+		},
+		{
 			name: "add IPv6",
 			args: args{
 				cfg:               applyAlwaysCfg,

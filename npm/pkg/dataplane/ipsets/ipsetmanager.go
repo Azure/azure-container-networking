@@ -342,6 +342,7 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 		for _, memberMetadata := range setMetadatas {
 			memberName := memberMetadata.GetPrefixName()
 			if memberName == "" {
+				metrics.SendErrorLogAndMetric(util.IpsmID, "[AddToLists] warning: adding invalid member to list %s, member %s", list.Name, memberName)
 				continue
 			}
 			// the member shouldn't be the list itself, but this is satisfied since we already asserted that the member is a HashSet
@@ -390,6 +391,7 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 	for _, setMetadata := range setMetadatas {
 		memberName := setMetadata.GetPrefixName()
 		if memberName == "" {
+			metrics.SendErrorLogAndMetric(util.IpsmID, "[RemoveFromList] warning: removing invalid member from list %s, member %s", list.Name, memberName)
 			continue
 		}
 		member, exists := iMgr.setMap[memberName]

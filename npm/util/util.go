@@ -355,5 +355,10 @@ func SliceToString(list []string) string {
 }
 
 func IsIPV4(ip string) bool {
-	return net.ParseIP(ip).To4() != nil
+	if net.ParseIP(ip).To4() != nil {
+		return true
+	}
+
+	_, _, err := net.ParseCIDR(ip)
+	return err == nil
 }
