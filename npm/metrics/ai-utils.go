@@ -14,8 +14,8 @@ import (
 var (
 	th         aitelemetry.TelemetryHandle
 	npmVersion int
-	PrintLog   bool = true
-	DonotPrint bool = false
+	PrintLog   = true
+	DonotPrint = false
 )
 
 // CreateTelemetryHandle creates a handler to initialize AI telemetry
