@@ -256,9 +256,17 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 		return nil
 	}
 
-	if ip == "" {
-		return nil
+	// possible formats
+	// 192.168.0.1
+	// 192.168.0.1,tcp:25227
+	// always guaranteed to have ip, not guaranteed to have port + protocol
+	ipDetails := strings.Split(ip, ",")
+	if len(ipDetails) > 0 && !util.IsIPV4(ipDetails[0]) {
+		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
+		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
 	}
+
 	iMgr.Lock()
 	defer iMgr.Unlock()
 

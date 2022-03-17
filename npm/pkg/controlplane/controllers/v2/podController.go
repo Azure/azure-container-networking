@@ -390,11 +390,10 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 		podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
 	if !util.IsIPV4(podObj.Status.PodIP) {
-		return npmerrors.Errorf(npmerrors.AddPod, true,
-			fmt.Sprintf("[syncAddedPod] Error: failed to add pod as the PodIP is not valid ipv4 address: %s",
-				podObj.Status.PodIP,
-			),
-		)
+		msg := fmt.Sprintf("[syncAddedPod] Error: ADD POD  [%s/%s/%s/%+v/%s] failed as the PodIP is not valid ipv4 address", podObj.Namespace,
+			podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
+		metrics.SendErrorLogAndMetric(util.PodID, msg)
+		return npmerrors.Errorf(npmerrors.AddPod, true, msg)
 	}
 
 	var err error
