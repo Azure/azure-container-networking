@@ -97,13 +97,21 @@ spec:
                       type: string
                     primaryIP:
                       type: string
+                    resourceGroupID:
+                      type: string
+                    subcriptionID:
+                      type: string
                     subnetAddressSpace:
+                      type: string
+                    subnetID:
                       type: string
                     subnetName:
                       type: string
                     version:
                       format: int64
                       type: integer
+                    vnetID:
+                      type: string
                   type: object
                 type: array
               scaler:
