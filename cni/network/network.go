@@ -979,6 +979,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		if !nwCfg.MultiTenancy {
 			log.Printf("[cni-net] Failed to query network: %v", err)
 			// Log the error but return success if the network is not found.
+			// if cni hits this, mostly state file would be missing and it can be reboot scenario where
+			// container runtime tries to delete and create pods which existed before reboot.
 			err = nil
 			return err
 		}
