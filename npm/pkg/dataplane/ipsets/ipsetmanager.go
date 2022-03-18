@@ -212,12 +212,7 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 		return nil
 	}
 
-	// possible formats
-	// 192.168.0.1
-	// 192.168.0.1,tcp:25227
-	// always guaranteed to have ip, not guaranteed to have port + protocol
-	ipDetails := strings.Split(ip, ",")
-	if !util.IsIPV4(ipDetails[0]) {
+	if !validateIPSetMemberIP(ip) {
 		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
 		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
 		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
@@ -256,12 +251,7 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 		return nil
 	}
 
-	// possible formats
-	// 192.168.0.1
-	// 192.168.0.1,tcp:25227
-	// always guaranteed to have ip, not guaranteed to have port + protocol
-	ipDetails := strings.Split(ip, ",")
-	if !util.IsIPV4(ipDetails[0]) {
+	if !validateIPSetMemberIP(ip) {
 		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
 		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
 		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
@@ -563,4 +553,22 @@ func (iMgr *IPSetManager) sanitizeDirtyCache() {
 func (iMgr *IPSetManager) clearDirtyCache() {
 	iMgr.toAddOrUpdateCache = make(map[string]struct{})
 	iMgr.toDeleteCache = make(map[string]struct{})
+}
+
+// validateIPSetMemberIP helps valid if a member added to an HashSet has valid IP or CIDR
+func validateIPSetMemberIP(ip string) bool { // possible formats
+	// 192.168.0.1
+	// 192.168.0.1,tcp:25227
+	// 192.168.0.1 nomatch
+	// 192.168.0.0/24
+	// 192.168.0.0/24,tcp:25227
+	// 192.168.0.0/24 nomatch
+	// always guaranteed to have ip, not guaranteed to have port + protocol
+	ipDetails := strings.Split(ip, ",")
+	if util.IsIPV4(ipDetails[0]) {
+		return true
+	}
+
+	cidrIPNoMatch := strings.Split(ip, " ")
+	return util.IsIPV4(cidrIPNoMatch[0])
 }

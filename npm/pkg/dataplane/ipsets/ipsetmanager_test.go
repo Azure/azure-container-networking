@@ -761,6 +761,24 @@ func TestAddToSets(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "add cidr with nomatch",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{portSet},
+				toAddMetadatas:    []*IPSetMetadata{portSet},
+				member:            "10.10.2.0/28 nomatch",
+			},
+			expectedInfo: expectedInfo{
+				mainCache: []setMembers{
+					{metadata: portSet, members: []member{{"10.10.2.0/28 nomatch", isHashMember}}},
+				},
+				toAddUpdateCache: []*IPSetMetadata{portSet},
+				toDeleteCache:    nil,
+				setsForKernel:    []*IPSetMetadata{portSet},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
