@@ -128,6 +128,37 @@ stages:
             displayName: "Publish Code Coverage Results"
             condition: always()
 
+          - task: BuildQualityChecks@8
+            displayName: "Check Code Coverage Regression"
+            condition: always()
+            inputs:
+              checkCoverage: true
+              coverageFailOption: "build"
+              coverageType: "lines"
+              fallbackOnPRTargetBranch: true
+
+          - bash: |
+              set -ex
+              sudo bash .pipelines/scripts/install_python.sh
+            condition: always()
+            name: "Python"
+            displayName: "Install python3.9"
+
+          - script: |
+              set -ex
+              env | sort
+              python3.9 publish_build_metric.py
+            condition: always()
+            displayName: "Publish Code Coverage to Kusto"
+            workingDirectory: .pipelines/scripts
+            env:
+              KUSTO_INGEST_CLUSTER_URL: $(KUSTO_INGEST_CLUSTER_URL)
+              KUSTO_DB_NAME: $(KUSTO_DB_NAME)
+              KUSTO_TABLE_NAME: $(KUSTO_TABLE_NAME)
+              KUSTO_SERVICE_PRINCIPAL_ID: $(KUSTO_SERVICE_PRINCIPAL_ID)
+              KUSTO_SERVICE_PRINCIPAL_PASSWORD: $(KUSTO_SERVICE_PRINCIPAL_PASSWORD)
+              TENANT_ID: $(TENANT_ID)
+
   - template: windows-image.yaml
 
   - stage: containerize
