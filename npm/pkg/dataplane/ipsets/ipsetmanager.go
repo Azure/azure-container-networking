@@ -556,7 +556,8 @@ func (iMgr *IPSetManager) clearDirtyCache() {
 }
 
 // validateIPSetMemberIP helps valid if a member added to an HashSet has valid IP or CIDR
-func validateIPSetMemberIP(ip string) bool { // possible formats
+func validateIPSetMemberIP(ip string) bool {
+	// possible formats
 	// 192.168.0.1
 	// 192.168.0.1,tcp:25227
 	// 192.168.0.1 nomatch
@@ -569,6 +570,6 @@ func validateIPSetMemberIP(ip string) bool { // possible formats
 		return true
 	}
 
-	cidrIPNoMatch := strings.Split(ip, " ")
-	return util.IsIPV4(cidrIPNoMatch[0])
+	err := ValidateIPBlock(ip)
+	return err == nil
 }
