@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log"
 
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
 	"github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func newGetTuples() *cobra.Command {
@@ -30,13 +33,21 @@ func newGetTuples() *cobra.Command {
 
 			switch {
 			case npmCacheF == "" && iptableSaveF == "":
-				_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput)
-				if err != nil {
-					return fmt.Errorf("%w", err)
+
+				if viper.GetBool(npmconfig.ConfigEnableV2String) == true {
+					log.Println("using v2 tuple")
+					dataplane.GetNetworkTuple(srcInput, dstInput)
+				} else {
+					log.Println("using v1 tuple")
+					_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput)
+					if err != nil {
+						return fmt.Errorf("%w", err)
+					}
+					for _, tuple := range tuples {
+						fmt.Printf("%+v\n", tuple)
+					}
 				}
-				for _, tuple := range tuples {
-					fmt.Printf("%+v\n", tuple)
-				}
+
 			case npmCacheF != "" && iptableSaveF != "":
 				_, tuples, err := dataplane.GetNetworkTupleFile(srcInput, dstInput, npmCacheF, iptableSaveF)
 				if err != nil {

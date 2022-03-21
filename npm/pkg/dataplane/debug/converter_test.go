@@ -4,23 +4,12 @@ import (
 	"reflect"
 	"testing"
 
+	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/google/go-cmp/cmp"
 )
-
-func TestGetJSONRulesFromIptableFile(t *testing.T) {
-	c := &Converter{}
-	_, err := c.GetJSONRulesFromIptableFile(
-		util.IptablesFilterTable,
-		npmCacheFile,
-		iptableSaveFile,
-	)
-	if err != nil {
-		t.Errorf("failed to test GetJSONRulesFromIptable : %w", err)
-	}
-}
 
 func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
@@ -28,6 +17,16 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 		util.IptablesFilterTable,
 		npmCacheFile,
 		iptableSaveFile,
+	)
+	if err != nil {
+		t.Errorf("error during TestGetJSONRulesFromIptable : %w", err)
+	}
+}
+
+func TestGetProtobufRulesFromIptable(t *testing.T) {
+	c := &Converter{}
+	_, err := c.GetProtobufRulesFromIptable(
+		util.IptablesFilterTable,
 	)
 	if err != nil {
 		t.Errorf("error during TestGetJSONRulesFromIptable : %w", err)
@@ -514,5 +513,44 @@ func TestGetModulesFromRule(t *testing.T) {
 
 	if !reflect.DeepEqual(expectedRuleResponse, actualRuleResponse) {
 		t.Errorf("got '%+v', expected '%+v'", actualRuleResponse, expectedRuleResponse)
+	}
+}
+
+func TestConverter_GetProtobufRulesFromIptable(t *testing.T) {
+	type fields struct {
+		ListMap        map[string]string
+		SetMap         map[string]string
+		AzureNPMChains map[string]bool
+		NPMCache       *controllersv1.Cache
+	}
+	type args struct {
+		tableName string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    []*pb.RuleResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Converter{
+				ListMap:        tt.fields.ListMap,
+				SetMap:         tt.fields.SetMap,
+				AzureNPMChains: tt.fields.AzureNPMChains,
+				NPMCache:       tt.fields.NPMCache,
+			}
+			got, err := c.GetProtobufRulesFromIptable(tt.args.tableName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Converter.GetProtobufRulesFromIptable() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Converter.GetProtobufRulesFromIptable() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

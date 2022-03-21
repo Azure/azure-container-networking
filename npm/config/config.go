@@ -8,7 +8,8 @@ const (
 	defaultGrpcPort        = 10092
 	defaultGrpcServicePort = 9002
 	// ConfigEnvPath is what's used by viper to load config path
-	ConfigEnvPath = "NPM_CONFIG"
+	ConfigEnvPath        = "NPM_CONFIG"
+	ConfigEnableV2String = "EnableV2NPM"
 )
 
 // DefaultConfig is the guaranteed configuration NPM can run in out of the box

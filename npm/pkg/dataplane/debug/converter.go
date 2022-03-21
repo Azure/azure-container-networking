@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
@@ -23,6 +24,7 @@ import (
 
 // Converter struct
 type Converter struct {
+	Parser         parse.IPTablesParser
 	ListMap        map[string]string // key: hash(value), value: one of namespace, label of namespace, multiple values
 	SetMap         map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
 	AzureNPMChains map[string]bool
@@ -76,7 +78,7 @@ func (c *Converter) NpmCache() error {
 func (c *Converter) initConverterFile(npmCacheJSONFile string) error {
 	err := c.NpmCacheFromFile(npmCacheJSONFile)
 	if err != nil {
-		return fmt.Errorf("error occurred during initialize converter : %w", err)
+		return fmt.Errorf("error occurred during initialize converter from file: %w", err)
 	}
 	c.initConverterMaps()
 	return nil
@@ -89,6 +91,10 @@ func (c *Converter) initConverter() error {
 		return fmt.Errorf("error occurred during initialize converter : %w", err)
 	}
 	c.initConverterMaps()
+
+	c.Parser = parse.IPTablesParser{
+		IOShim: common.NewIOShim(),
+	}
 
 	return nil
 }
@@ -140,7 +146,7 @@ func (c *Converter) GetProtobufRulesFromIptableFile(
 
 	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
-		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables : %w", err)
+		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables from file: %w", err)
 	}
 
 	ipTable, err := parse.IptablesFile(tableName, iptableSaveFile)
@@ -149,7 +155,7 @@ func (c *Converter) GetProtobufRulesFromIptableFile(
 	}
 	ruleResList, err := c.pbRuleList(ipTable)
 	if err != nil {
-		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables : %w", err)
+		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables pb rule list: %w", err)
 	}
 
 	return ruleResList, nil
@@ -159,16 +165,17 @@ func (c *Converter) GetProtobufRulesFromIptableFile(
 func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleResponse, error) {
 	err := c.initConverter()
 	if err != nil {
-		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables : %w", err)
+		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables without file: %w", err)
 	}
 
-	ipTable, err := parse.Iptables(tableName)
+	ipTable, err := c.Parser.Iptables(tableName)
 	if err != nil {
 		return nil, fmt.Errorf("error occurred during parsing iptables : %w", err)
 	}
+	
 	ruleResList, err := c.pbRuleList(ipTable)
 	if err != nil {
-		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables : %w", err)
+		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables without: %w", err)
 	}
 
 	return ruleResList, nil
