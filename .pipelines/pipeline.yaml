@@ -240,6 +240,16 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
+    parameters:
+      name: "windows_20_22_e2e"
+      displayName: "Windows 2022"
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      clusterDefinition: "cniWindows2022.json"
+      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+      clusterDefinitionCniBuildOS: "windows"
+      clusterDefinitionCniBuildExt: ".zip"
+
   - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
     parameters:
       name: "ubuntu_18_04_linux_dualstack_e2e"

@@ -29,10 +29,12 @@ steps:
       echo Using AKS-Engine version $aksEVersion
 
       #download source
-      wget https://github.com/Azure/aks-engine/archive/$aksEVersion.tar.gz
+      #wget https://github.com/Azure/aks-engine/archive/$aksEVersion.tar.gz
+      wget https://github.com/jaer-tsun/aks-engine/archive/v1.0.1.tar.gz
 
       #extract source
-      tar -zxf $aksEVersion.tar.gz
+      #tar -zxf $aksEVersion.tar.gz
+      tar -zxf v1.0.1.tar.gz
 
       # move source to current directory
       mv aks-engine-*/* .
