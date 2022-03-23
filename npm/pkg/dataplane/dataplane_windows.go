@@ -131,20 +131,20 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			return err
 		}
 
-		for policyName := range selectorReference {
+		for policyKey := range selectorReference {
 			// Now check if any of these network policies are applied on this endpoint.
 			// If yes then proceed to delete the network policy
 			// Remove policy should be deleting this netpol reference
-			if _, ok := endpoint.NetPolReference[policyName]; ok {
+			if _, ok := endpoint.NetPolReference[policyKey]; ok {
 				// Delete the network policy
 				endpointList := map[string]string{
 					endpoint.IP: endpoint.ID,
 				}
-				err := dp.policyMgr.RemovePolicy(policyName, endpointList)
+				err := dp.policyMgr.RemovePolicy(policyKey, endpointList)
 				if err != nil {
 					return err
 				}
-				delete(endpoint.NetPolReference, policyName)
+				delete(endpoint.NetPolReference, policyKey)
 			}
 		}
 	}
@@ -157,19 +157,19 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			return err
 		}
 
-		for netpol := range selectorReference {
-			toAddPolicies[netpol] = struct{}{}
+		for policyKey := range selectorReference {
+			toAddPolicies[policyKey] = struct{}{}
 		}
 	}
 
 	// Now check if any of these network policies are applied on this endpoint.
 	// If not then proceed to apply the network policy
-	for policyName := range toAddPolicies {
-		if _, ok := endpoint.NetPolReference[policyName]; ok {
+	for policyKey := range toAddPolicies {
+		if _, ok := endpoint.NetPolReference[policyKey]; ok {
 			continue
 		}
 		// TODO Also check if the endpoint reference in policy for this Ip is right
-		netpolSelectorIPs, err := dp.getSelectorIPsByPolicyName(policyName)
+		netpolSelectorIPs, err := dp.getSelectorIPsByPolicyName(policyKey)
 		if err != nil {
 			return err
 		}
@@ -179,9 +179,9 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		}
 
 		// Apply the network policy
-		policy, ok := dp.policyMgr.GetPolicy(policyName)
+		policy, ok := dp.policyMgr.GetPolicy(policyKey)
 		if !ok {
-			return fmt.Errorf("policy with name %s does not exist", policyName)
+			return fmt.Errorf("policy with name %s does not exist", policyKey)
 		}
 
 		endpointList := map[string]string{
@@ -192,16 +192,16 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			return err
 		}
 
-		endpoint.NetPolReference[policyName] = struct{}{}
+		endpoint.NetPolReference[policyKey] = struct{}{}
 	}
 
 	return nil
 }
 
-func (dp *DataPlane) getSelectorIPsByPolicyName(policyName string) (map[string]struct{}, error) {
-	policy, ok := dp.policyMgr.GetPolicy(policyName)
+func (dp *DataPlane) getSelectorIPsByPolicyName(policyKey string) (map[string]struct{}, error) {
+	policy, ok := dp.policyMgr.GetPolicy(policyKey)
 	if !ok {
-		return nil, fmt.Errorf("policy with name %s does not exist", policyName)
+		return nil, fmt.Errorf("policy with name %s does not exist", policyKey)
 	}
 
 	return dp.getSelectorIPsByPolicy(policy)
@@ -239,7 +239,7 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 		}
 		endpointList[ip] = endpoint.ID
 		// TODO make sure this is netpol key and not name
-		endpoint.NetPolReference[policy.Name] = struct{}{}
+		endpoint.NetPolReference[policy.PolicyKey] = struct{}{}
 	}
 	return endpointList, nil
 }

@@ -31,8 +31,7 @@ var (
 		Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
 	}
 	testPolicyobj = &policies.NPMNetworkPolicy{
-		Name:      "testpolicy",
-		NameSpace: "ns1",
+		Namespace: "ns1",
 		PolicyKey: "ns1/testpolicy",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{

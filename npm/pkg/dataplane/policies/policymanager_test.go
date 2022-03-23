@@ -24,8 +24,7 @@ var (
 	testNSSet     = ipsets.NewIPSetMetadata("test-ns-set", ipsets.Namespace)
 	testKeyPodSet = ipsets.NewIPSetMetadata("test-keyPod-set", ipsets.KeyLabelOfPod)
 	testNetPol    = &NPMNetworkPolicy{
-		Name:      "test-netpol",
-		NameSpace: "x",
+		Namespace: "x",
 		PolicyKey: "x/test-netpol",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
@@ -138,8 +137,7 @@ func TestAddEmptyPolicy(t *testing.T) {
 
 func TestGetPolicy(t *testing.T) {
 	netpol := &NPMNetworkPolicy{
-		Name:      "test-netpol",
-		NameSpace: "x",
+		Namespace: "x",
 		PolicyKey: "x/test-netpol",
 		ACLs: []*ACLPolicy{
 			{
@@ -217,8 +215,7 @@ func TestNormalizeAndValidatePolicy(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			netPol := &NPMNetworkPolicy{
-				Name:      "test-netpol",
-				NameSpace: "x",
+				Namespace: "x",
 				PolicyKey: "x/test-netpol",
 				ACLs:      []*ACLPolicy{tt.acl},
 			}

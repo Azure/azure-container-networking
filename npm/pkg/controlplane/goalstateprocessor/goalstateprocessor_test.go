@@ -28,8 +28,7 @@ var (
 	testNestedKeyPodSet   = ipsets.NewIPSetMetadata("test-nestedkeyPod-set", ipsets.NestedLabelOfPod)
 	testNestedKeyPodCPSet = controlplane.NewControllerIPSets(testNestedKeyPodSet)
 	testNetPol            = &policies.NPMNetworkPolicy{
-		Name:      "test-netpol",
-		NameSpace: "x",
+		Namespace: "x",
 		PolicyKey: "x/test-netpol",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{

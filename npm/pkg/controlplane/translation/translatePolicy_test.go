@@ -1,6 +1,8 @@
 package translation
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
@@ -16,7 +18,10 @@ import (
 const (
 	nonIncluded  bool   = false
 	namedPortStr string = "serve-tcp"
+	defaultNS    string = "default"
 )
+
+var namedPortPolicyKey = fmt.Sprintf("%s/%s", defaultNS, namedPortStr)
 
 func TestPortType(t *testing.T) {
 	tcp := v1.ProtocolTCP
@@ -314,12 +319,12 @@ func TestIPBlockSetName(t *testing.T) {
 	}{
 		{
 			name:        "default/test (ingress)",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			want:        "test-in-ns-default-0-0IN",
 		},
 		{
 			name:        "default/test (ingress)",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 1, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 1, 0),
 			want:        "test-in-ns-default-1-0IN",
 		},
 		{
@@ -349,13 +354,13 @@ func TestIPBlockIPSet(t *testing.T) {
 	}{
 		{
 			name:            "empty ipblock rule",
-			ipBlockInfo:     createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo:     createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule:     nil,
 			translatedIPSet: nil,
 		},
 		{
 			name:        "incorrect ipblock rule with only except",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "",
 				Except: []string{"172.17.1.0/24"},
@@ -364,7 +369,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "only cidr",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "172.17.0.0/16",
 			},
@@ -372,7 +377,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "one cidr and one element in except",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24"},
@@ -381,7 +386,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "one cidr and multiple elements in except",
-			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test-network-policy", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
@@ -390,7 +395,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "one cidr and multiple and duplicated elements in except",
-			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test-network-policy", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24", "172.17.2.0/24"},
@@ -399,7 +404,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "cidr : 0.0.0.0/0",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "0.0.0.0/0",
 			},
@@ -407,7 +412,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 10.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"10.0.0.0/1"},
@@ -416,7 +421,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1"},
@@ -425,7 +430,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 128.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"128.0.0.0/1"},
@@ -434,7 +439,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1 and 128.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1"},
@@ -443,7 +448,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1 and two 128.0.0.0/1",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "0.0.0.0/0",
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1", "128.0.0.0/1"},
@@ -472,14 +477,14 @@ func TestIPBlockRule(t *testing.T) {
 	}{
 		{
 			name:            "empty ipblock rule ",
-			ipBlockInfo:     createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo:     createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule:     nil,
 			translatedIPSet: nil,
 			setInfo:         policies.SetInfo{},
 		},
 		{
 			name:        "incorrect ipblock rule with only except",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "",
 				Except: []string{"172.17.1.0/24"},
@@ -489,7 +494,7 @@ func TestIPBlockRule(t *testing.T) {
 		},
 		{
 			name:        "only cidr",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR: "172.17.0.0/16",
 			},
@@ -498,7 +503,7 @@ func TestIPBlockRule(t *testing.T) {
 		},
 		{
 			name:        "one cidr and one element in except",
-			ipBlockInfo: createIPBlockInfo("test", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24"},
@@ -508,7 +513,7 @@ func TestIPBlockRule(t *testing.T) {
 		},
 		{
 			name:        "one cidr and multiple elements in except",
-			ipBlockInfo: createIPBlockInfo("test-network-policy", "default", policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockInfo: createIPBlockInfo("test-network-policy", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
 			ipBlockRule: &networkingv1.IPBlock{
 				CIDR:   "172.17.0.0/16",
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
@@ -541,16 +546,16 @@ func TestPodSelector(t *testing.T) {
 	}{
 		{
 			name:      "all pods selector in default namespace in ingress",
-			namespace: "default",
+			namespace: defaultNS,
 			matchType: matchType,
 			labelSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{},
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
-				ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 			},
 			podSelectorList: []policies.SetInfo{
-				policies.NewSetInfo("default", ipsets.Namespace, included, matchType),
+				policies.NewSetInfo(defaultNS, ipsets.Namespace, included, matchType),
 			},
 		},
 		{
@@ -926,7 +931,7 @@ func TestDefaultDropACL(t *testing.T) {
 		{
 			name:       "Default drop acl for default/test",
 			policyName: "test",
-			policyNS:   "default",
+			policyNS:   defaultNS,
 			direction:  direction,
 			dropACL: &policies.ACLPolicy{
 				PolicyID:  "azure-acl-default-test",
@@ -1134,8 +1139,8 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      namedPortStr,
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: namedPortPolicyKey,
 				ACLs: []*policies.ACLPolicy{
 					{
 						PolicyID:  "azure-acl-default-serve-tcp",
@@ -1160,8 +1165,8 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      namedPortStr,
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: namedPortPolicyKey,
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("serve-tcp", ipsets.NamedPorts),
 				},
@@ -1188,8 +1193,8 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      namedPortStr,
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: namedPortPolicyKey,
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("serve-tcp", ipsets.NamedPorts),
 				},
@@ -1218,8 +1223,8 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      namedPortStr,
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: namedPortPolicyKey,
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("serve-tcp", ipsets.NamedPorts),
 				},
@@ -1246,8 +1251,8 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      namedPortStr,
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: namedPortPolicyKey,
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("serve-tcp", ipsets.NamedPorts),
 				},
@@ -1276,8 +1281,8 @@ func TestPeerAndPortRule(t *testing.T) {
 				acl.SrcList = setInfo
 			}
 			npmNetPol := &policies.NPMNetworkPolicy{
-				Name:      tt.npmNetPol.Name,
-				NameSpace: tt.npmNetPol.NameSpace,
+				Namespace: tt.npmNetPol.Namespace,
+				PolicyKey: tt.npmNetPol.PolicyKey,
 			}
 			err := peerAndPortRule(npmNetPol, policies.Ingress, tt.ports, setInfo)
 			require.NoError(t, err)
@@ -1316,15 +1321,15 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "serve-tcp",
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, namedPortStr),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
-					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
@@ -1337,7 +1342,7 @@ func TestIngressPolicy(t *testing.T) {
 						},
 						Protocol: "TCP",
 					},
-					defaultDropACL("default", "serve-tcp", policies.Ingress),
+					defaultDropACL(defaultNS, "serve-tcp", policies.Ingress),
 				},
 			},
 		},
@@ -1361,15 +1366,15 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "only-ipblock",
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, "only-ipblock"),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
-					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
@@ -1383,7 +1388,7 @@ func TestIngressPolicy(t *testing.T) {
 							policies.NewSetInfo("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
-					defaultDropACL("default", "only-ipblock", policies.Ingress),
+					defaultDropACL(defaultNS, "only-ipblock", policies.Ingress),
 				},
 			},
 		},
@@ -1408,19 +1413,19 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "only-peer-podSelector",
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, "only-peer-podSelector"),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
-					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("peer-podselector-kay:peer-podselector-value", ipsets.KeyValueLabelOfPod),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
@@ -1429,10 +1434,10 @@ func TestIngressPolicy(t *testing.T) {
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
 							policies.NewSetInfo("peer-podselector-kay:peer-podselector-value", ipsets.KeyValueLabelOfPod, included, peerMatchType),
-							policies.NewSetInfo("default", ipsets.Namespace, included, peerMatchType),
+							policies.NewSetInfo(defaultNS, ipsets.Namespace, included, peerMatchType),
 						},
 					},
-					defaultDropACL("default", "only-peer-podSelector", policies.Ingress),
+					defaultDropACL(defaultNS, "only-peer-podSelector", policies.Ingress),
 				},
 			},
 		},
@@ -1457,15 +1462,15 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "only-peer-nsSelector",
-				NameSpace: "default",
+				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, "only-peer-nsSelector"),
+				Namespace: defaultNS,
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
-					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
@@ -1479,7 +1484,7 @@ func TestIngressPolicy(t *testing.T) {
 							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
 						},
 					},
-					defaultDropACL("default", "only-peer-nsSelector", policies.Ingress),
+					defaultDropACL(defaultNS, "only-peer-nsSelector", policies.Ingress),
 				},
 			},
 		},
@@ -1515,15 +1520,15 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "only-peer-nsSelector",
-				NameSpace: "default",
+				Namespace: defaultNS,
+				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, "only-peer-nsSelector"),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
-					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
-					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
 				},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
@@ -1555,7 +1560,7 @@ func TestIngressPolicy(t *testing.T) {
 							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-2IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
-					defaultDropACL("default", "only-peer-nsSelector", policies.Ingress),
+					defaultDropACL(defaultNS, "only-peer-nsSelector", policies.Ingress),
 				},
 			},
 		},
@@ -1577,8 +1582,8 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "serve-tcp",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1610,8 +1615,8 @@ func TestIngressPolicy(t *testing.T) {
 				{},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "serve-tcp",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1638,8 +1643,8 @@ func TestIngressPolicy(t *testing.T) {
 			},
 			rules: nil,
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "serve-tcp",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1660,13 +1665,16 @@ func TestIngressPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			npmNetPol := &policies.NPMNetworkPolicy{
-				Name:      tt.npmNetPol.Name,
-				NameSpace: tt.npmNetPol.NameSpace,
+				Namespace:   tt.npmNetPol.Namespace,
+				PolicyKey:   tt.npmNetPol.PolicyKey,
+				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			var err error
-			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.NameSpace, policies.EitherMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
 			require.NoError(t, err)
-			err = ingressPolicy(npmNetPol, tt.rules)
+			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
+			require.Len(t, splitPolicyKey, 2, "policy key must include name")
+			err = ingressPolicy(npmNetPol, splitPolicyKey[1], tt.rules)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -1706,8 +1714,8 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "serve-tcp",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1751,8 +1759,8 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "only-ipblock",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/only-ipblock",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1798,8 +1806,8 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "only-peer-podSelector",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/only-peer-podSelector",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1847,8 +1855,8 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "only-peer-nsSelector",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/only-peer-nsSelector",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1882,8 +1890,8 @@ func TestEgressPolicy(t *testing.T) {
 			},
 			rules: nil,
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "serve-tcp",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1908,8 +1916,8 @@ func TestEgressPolicy(t *testing.T) {
 				{},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "serve-tcp",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1959,8 +1967,8 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "only-peer-nsSelector",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/only-peer-nsSelector",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -2021,8 +2029,8 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Name:      "serve-tcp",
-				NameSpace: "default",
+				Namespace: "default",
+				PolicyKey: "default/serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -2050,13 +2058,16 @@ func TestEgressPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			npmNetPol := &policies.NPMNetworkPolicy{
-				Name:      tt.npmNetPol.Name,
-				NameSpace: tt.npmNetPol.NameSpace,
+				Namespace:   tt.npmNetPol.Namespace,
+				PolicyKey:   tt.npmNetPol.PolicyKey,
+				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			var err error
-			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.NameSpace, policies.EitherMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
 			require.NoError(t, err)
-			err = egressPolicy(npmNetPol, tt.rules)
+			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
+			require.Len(t, splitPolicyKey, 2, "policy key must include name")
+			err = egressPolicy(npmNetPol, splitPolicyKey[1], tt.rules)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

@@ -11,9 +11,8 @@ import (
 )
 
 type NPMNetworkPolicy struct {
-	Name      string
-	NameSpace string
-	// TODO remove Name and Namespace field
+	// Namespace is only used by Linux to construct an iptables comment
+	Namespace string
 	// PolicyKey is a unique combination of "namespace/name" of network policy
 	PolicyKey string
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
@@ -32,8 +31,7 @@ type NPMNetworkPolicy struct {
 
 func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {
 	return &NPMNetworkPolicy{
-		Name:      netPolName,
-		NameSpace: netPolNamespace,
+		Namespace: netPolNamespace,
 		PolicyKey: fmt.Sprintf("%s/%s", netPolNamespace, netPolName),
 	}
 }
@@ -76,12 +74,12 @@ func (netPol *NPMNetworkPolicy) PrettyString() string {
 
 	podSelectorIPSetString := translatedIPSetsToString(netPol.PodSelectorIPSets)
 	podSelectorListString := infoArrayToString(netPol.PodSelectorList)
-	format := `Name:%s  Namespace:%s
+	format := `Namespace/Name: %s
 PodSelectorIPSets: %s
 PodSelectorList: %s
 ACLs:
 %s`
-	return fmt.Sprintf(format, netPol.Name, netPol.NameSpace, podSelectorIPSetString, podSelectorListString, aclArrayString)
+	return fmt.Sprintf(format, netPol.PolicyKey, podSelectorIPSetString, podSelectorListString, aclArrayString)
 }
 
 // ACLPolicy equivalent to a single iptable rule in linux

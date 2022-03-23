@@ -67,7 +67,7 @@ func (networkPolicy *NPMNetworkPolicy) commentForJump(direction UniqueDirection)
 	if len(networkPolicy.PodSelectorList) > 0 {
 		podSelectorComment = commentForInfos(networkPolicy.PodSelectorList)
 	}
-	return fmt.Sprintf("%s-POLICY-%s-%s-%s-IN-ns-%s", prefix, networkPolicy.PolicyKey, toFrom, podSelectorComment, networkPolicy.NameSpace)
+	return fmt.Sprintf("%s-POLICY-%s-%s-%s-IN-ns-%s", prefix, networkPolicy.PolicyKey, toFrom, podSelectorComment, networkPolicy.Namespace)
 }
 
 func commentForInfos(infos []SetInfo) string {

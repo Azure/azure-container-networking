@@ -134,7 +134,7 @@ type SetType int8
 const (
 	// Unknown SetType
 	UnknownType SetType = 0
-	// NameSpace IPSet is created to hold
+	// Namespace IPSet is created to hold
 	// ips of pods in a given NameSapce
 	Namespace SetType = 1
 	// KeyLabelOfNamespace IPSet is a list kind ipset
@@ -160,7 +160,7 @@ const (
 var (
 	setTypeName = map[SetType]string{
 		UnknownType:              Unknown,
-		Namespace:                "NameSpace",
+		Namespace:                "Namespace",
 		KeyLabelOfNamespace:      "KeyLabelOfNameSpace",
 		KeyValueLabelOfNamespace: "KeyValueLabelOfNameSpace",
 		KeyLabelOfPod:            "KeyLabelOfPod",
@@ -202,7 +202,7 @@ type IPSet struct {
 	// Using a map to emulate set and value as struct{} for
 	// minimal memory consumption
 	// SelectorReference holds networkpolicy names where this IPSet
-	// is being used in PodSelector and NameSpace
+	// is being used in PodSelector and Namespace
 	SelectorReference map[string]struct{}
 	// NetPolReference holds networkpolicy names where this IPSet
 	// is being referred as part of rules

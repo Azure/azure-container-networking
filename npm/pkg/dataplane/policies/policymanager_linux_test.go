@@ -107,8 +107,7 @@ var (
 // NetworkPolicies
 var (
 	bothDirectionsNetPol = &NPMNetworkPolicy{
-		Name:      "test1",
-		NameSpace: "x",
+		Namespace: "x",
 		PolicyKey: "x/test1",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{Metadata: ipsets.TestKeyPodSet.Metadata},
@@ -128,8 +127,7 @@ var (
 		},
 	}
 	ingressNetPol = &NPMNetworkPolicy{
-		Name:      "test2",
-		NameSpace: "y",
+		Namespace: "y",
 		PolicyKey: "y/test2",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{Metadata: ipsets.TestKeyPodSet.Metadata},
@@ -152,8 +150,7 @@ var (
 		},
 	}
 	egressNetPol = &NPMNetworkPolicy{
-		Name:      "test3",
-		NameSpace: "z",
+		Namespace: "z",
 		PolicyKey: "z/test3",
 		ACLs: []*ACLPolicy{
 			egressAllowedACL,

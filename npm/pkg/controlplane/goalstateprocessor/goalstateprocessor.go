@@ -374,12 +374,12 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 			klog.Warningf("Empty Policy apply event")
 			continue
 		}
-		klog.Infof("Processing %s Policy ADD event", netpol.Name)
+		klog.Infof("Processing %s Policy ADD event", netpol.PolicyKey)
 		klog.Infof("Netpol: %v", netpol)
 
 		err = gsp.dp.UpdatePolicy(netpol)
 		if err != nil {
-			klog.Errorf("Error applying policy %s to dataplane with error: %s", netpol.Name, err.Error())
+			klog.Errorf("Error applying policy %s to dataplane with error: %s", netpol.PolicyKey, err.Error())
 			return nil, npmerrors.SimpleErrorWrapper("failed update policy event", err)
 		}
 		appendedPolicies[netpol.PolicyKey] = struct{}{}
