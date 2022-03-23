@@ -14,6 +14,8 @@ import (
 var (
 	th         aitelemetry.TelemetryHandle
 	npmVersion int
+	PrintLog   = true
+	DonotPrint = false
 )
 
 // CreateTelemetryHandle creates a handler to initialize AI telemetry
@@ -68,28 +70,29 @@ func SendErrorLogAndMetric(operationID int, format string, args ...interface{}) 
 	// Send error logs
 	msg := fmt.Sprintf(format, args...)
 	log.Errorf(msg)
-	SendLog(operationID, msg)
+	SendLog(operationID, msg, DonotPrint)
 }
 
 // SendMetric sends metrics
 func SendMetric(metric aitelemetry.Metric) {
 	if th == nil {
-		log.Logf("AppInsights didn't initialize")
 		return
 	}
 	th.TrackMetric(metric)
 }
 
 // SendLog sends log
-func SendLog(operationID int, msg string) {
+func SendLog(operationID int, msg string, printLog bool) {
 	msg = fmt.Sprintf("%s - (NPM v%d)", msg, npmVersion)
 	report := aitelemetry.Report{
 		Message:          msg,
 		Context:          strconv.Itoa(operationID),
 		CustomDimensions: make(map[string]string),
 	}
+	if printLog {
+		klog.Infof(msg)
+	}
 	if th == nil {
-		log.Logf("AppInsights didn't initialized.")
 		return
 	}
 	th.TrackLog(report)
@@ -104,5 +107,5 @@ func SendHeartbeatWithNumPolicies() {
 		message = fmt.Sprintf("warn: NPM hearbeat. Couldn't get number of policies for telemetry log: %v", err)
 		klog.Warning(message)
 	}
-	SendLog(util.NpmID, message)
+	SendLog(util.NpmID, message, DonotPrint)
 }

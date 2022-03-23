@@ -162,7 +162,7 @@ func TestAddToSet(t *testing.T) {
 	v6PodMetadata := NewPodMetadata("testns/a", "2001:db8:0:0:0:0:2:1", nodeName)
 	// Test IPV6 addess it should error out
 	err = dp.AddToSets(setsTocreate, v6PodMetadata)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	for _, v := range setsTocreate {
 		dp.DeleteIPSet(v, util.SoftDelete)
@@ -178,7 +178,7 @@ func TestAddToSet(t *testing.T) {
 	require.NoError(t, err)
 
 	err = dp.RemoveFromSets(setsTocreate, v6PodMetadata)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	for _, v := range setsTocreate {
 		dp.DeleteIPSet(v, util.SoftDelete)

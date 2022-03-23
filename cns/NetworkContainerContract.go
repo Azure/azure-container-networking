@@ -258,12 +258,20 @@ func NewPodInfoFromIPConfigRequest(req IPConfigRequest) (PodInfo, error) {
 func KubePodsToPodInfoByIP(pods []corev1.Pod) (map[string]PodInfo, error) {
 	podInfoByIP := map[string]PodInfo{}
 	for i := range pods {
-		if !pods[i].Spec.HostNetwork {
-			if _, ok := podInfoByIP[pods[i].Status.PodIP]; ok {
-				return nil, errors.Wrap(ErrDuplicateIP, pods[i].Status.PodIP)
-			}
-			podInfoByIP[pods[i].Status.PodIP] = NewPodInfo("", "", pods[i].Name, pods[i].Namespace)
+		if pods[i].Spec.HostNetwork {
+			// ignore host network pods.
+			continue
 		}
+		if strings.TrimSpace(pods[i].Status.PodIP) == "" {
+			// ignore pods without an assigned IP.
+			continue
+		}
+		// error if we have already recorded that this IP is assigned to a Pod.
+		if _, ok := podInfoByIP[pods[i].Status.PodIP]; ok {
+			return nil, errors.Wrap(ErrDuplicateIP, pods[i].Status.PodIP)
+		}
+		// record the PodInfo by assigned IP.
+		podInfoByIP[pods[i].Status.PodIP] = NewPodInfo("", "", pods[i].Name, pods[i].Namespace)
 	}
 	return podInfoByIP, nil
 }

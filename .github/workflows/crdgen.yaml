@@ -1,0 +1,25 @@
+name: crdgen
+on:
+  workflow_dispatch:
+  pull_request:
+jobs:
+  crdgen:
+    strategy:
+      matrix:
+        go-version: ['1.17']
+        os: [ubuntu-latest]
+    name: CRDs are Generated
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }} 
+    - name: Regenerate NodeNetworkConfig CRD
+      run: make -C crd/nodenetworkconfig
+    - name: Regenerate MultitenantNetworkContainer CRD
+      run: make -C crd/multitenantnetworkcontainer
+    - name: Fail if the tree is dirty
+      run: test -z "$(git status --porcelain)"

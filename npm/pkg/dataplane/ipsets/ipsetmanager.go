@@ -2,6 +2,7 @@ package ipsets
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -210,6 +211,13 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 	if len(addToSets) == 0 {
 		return nil
 	}
+
+	if !validateIPSetMemberIP(ip) {
+		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
+		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
+	}
+
 	// TODO check if the IP is IPV4 family in controller
 	iMgr.Lock()
 	defer iMgr.Unlock()
@@ -242,6 +250,13 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 	if len(removeFromSets) == 0 {
 		return nil
 	}
+
+	if !validateIPSetMemberIP(ip) {
+		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
+		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
+	}
+
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
@@ -316,6 +331,10 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 		// 3. add all members to the list
 		for _, memberMetadata := range setMetadatas {
 			memberName := memberMetadata.GetPrefixName()
+			if memberName == "" {
+				metrics.SendErrorLogAndMetric(util.IpsmID, "[AddToLists] warning: adding empty member name to list %s", list.Name)
+				continue
+			}
 			// the member shouldn't be the list itself, but this is satisfied since we already asserted that the member is a HashSet
 			if list.hasMember(memberName) {
 				continue
@@ -361,6 +380,10 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 	modified := false
 	for _, setMetadata := range setMetadatas {
 		memberName := setMetadata.GetPrefixName()
+		if memberName == "" {
+			metrics.SendErrorLogAndMetric(util.IpsmID, "[RemoveFromList] warning: removing empty member name from list %s", list.Name)
+			continue
+		}
 		member, exists := iMgr.setMap[memberName]
 		if !exists {
 			continue
@@ -530,4 +553,23 @@ func (iMgr *IPSetManager) sanitizeDirtyCache() {
 func (iMgr *IPSetManager) clearDirtyCache() {
 	iMgr.toAddOrUpdateCache = make(map[string]struct{})
 	iMgr.toDeleteCache = make(map[string]struct{})
+}
+
+// validateIPSetMemberIP helps valid if a member added to an HashSet has valid IP or CIDR
+func validateIPSetMemberIP(ip string) bool {
+	// possible formats
+	// 192.168.0.1
+	// 192.168.0.1,tcp:25227
+	// 192.168.0.1 nomatch
+	// 192.168.0.0/24
+	// 192.168.0.0/24,tcp:25227
+	// 192.168.0.0/24 nomatch
+	// always guaranteed to have ip, not guaranteed to have port + protocol
+	ipDetails := strings.Split(ip, ",")
+	if util.IsIPV4(ipDetails[0]) {
+		return true
+	}
+
+	err := ValidateIPBlock(ip)
+	return err == nil
 }

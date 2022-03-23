@@ -85,8 +85,8 @@ func (invoker *MockIpamInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCon
 		return errDeleteIpam
 	}
 
-	if address == nil {
-		return errDeleteIpam
+	if address == nil || invoker.ipMap == nil {
+		return nil
 	}
 
 	if _, ok := invoker.ipMap[address.String()]; !ok {

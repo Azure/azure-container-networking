@@ -115,13 +115,12 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 
 	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata())
 	if err != nil {
-		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
-		return fmt.Errorf("CreateTelemetryHandle failed with error %w", err)
+		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
 	}
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 
-	metrics.SendLog(util.FanOutServerID, "starting fan-out server")
+	metrics.SendLog(util.FanOutServerID, "starting fan-out server", metrics.PrintLog)
 
 	return npMgr.Start(config, wait.NeverStop) //nolint:wrapcheck // unnecessary to wrap error
 }
