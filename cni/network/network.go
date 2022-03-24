@@ -471,12 +471,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 	 */
 
-	// verify network/endpoint CNI state and network/endpoint kernel state mismatch
-	// delete endpoints of network that doesn't exist
-	// delete network
-	eps, err := plugin.nm.GetAllEndpoints(nwInfo.Id)
-	plugin.nm.DeleteEndpoint(nil)
-	58
+	if nwInfoErr == network.ErrNetworkNotFound {
+		err := plugin.syncNetworkWithPlatform(args.Netns, networkID)
+		if err != nil {
+			log.Printf("failed to sync network with platform. error: %v", err)
+		}
+	}
 	if nwInfoErr == nil {
 		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
 		nwInfo.IPAMType = nwCfg.Ipam.Type

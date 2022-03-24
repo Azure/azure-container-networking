@@ -242,7 +242,7 @@ func (nm *networkManager) getNetwork(networkId string) (*network, error) {
 		}
 	}
 
-	return nil, errNetworkNotFound
+	return nil, ErrNetworkNotFound
 }
 
 // getNetworkIDForNetNs finds the network that contains the endpoint that was created for this netNs. Returns
@@ -265,5 +265,5 @@ func (nm *networkManager) FindNetworkIDFromNetNs(netNs string) (string, error) {
 		}
 	}
 
-	return "", errNetworkNotFound
+	return "", ErrNetworkNotFound
 }

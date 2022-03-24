@@ -48,7 +48,7 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 	if info, exists := nm.TestNetworkInfoMap[networkID]; exists {
 		return *info, nil
 	}
-	return NetworkInfo{}, errNetworkNotFound
+	return NetworkInfo{}, ErrNetworkNotFound
 }
 
 // CreateEndpoint mock
@@ -112,5 +112,5 @@ func (nm *MockNetworkManager) FindNetworkIDFromNetNs(netNs string) (string, erro
 		return network, nil
 	}
 
-	return "", errNetworkNotFound
+	return "", ErrNetworkNotFound
 }

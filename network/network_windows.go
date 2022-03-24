@@ -396,4 +396,5 @@ func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 }
 
 func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
+
 }

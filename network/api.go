@@ -13,7 +13,7 @@ var (
 	errSubnetNotFound         = fmt.Errorf("Subnet not found")
 	errNetworkModeInvalid     = fmt.Errorf("Network mode is invalid")
 	errNetworkExists          = fmt.Errorf("Network already exists")
-	errNetworkNotFound        = &networkNotFoundError{}
+	ErrNetworkNotFound        = &networkNotFoundError{}
 	errEndpointExists         = fmt.Errorf("Endpoint already exists")
 	errEndpointNotFound       = fmt.Errorf("Endpoint not found")
 	errNamespaceNotFound      = fmt.Errorf("Namespace not found")
@@ -29,5 +29,5 @@ func (n *networkNotFoundError) Error() string {
 }
 
 func IsNetworkNotFoundError(err error) bool {
-	return errors.Is(err, errNetworkNotFound)
+	return errors.Is(err, ErrNetworkNotFound)
 }

@@ -188,7 +188,7 @@ var _ = Describe("Test Network", func() {
 			It("Should raise errNetworkNotFound", func() {
 				nm := &networkManager{}
 				err := nm.deleteNetwork("invalid")
-				Expect(err).To(Equal(errNetworkNotFound))
+				Expect(err).To(Equal(ErrNetworkNotFound))
 			})
 		})
 	})
@@ -208,7 +208,7 @@ var _ = Describe("Test Network", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(nw).NotTo(BeNil())
 				nw, err = nm.getNetwork("invalid")
-				Expect(err).To(Equal(errNetworkNotFound))
+				Expect(err).To(Equal(ErrNetworkNotFound))
 				Expect(nw).To(BeNil())
 			})
 		})

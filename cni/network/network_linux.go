@@ -142,3 +142,11 @@ func (plugin *NetPlugin) getNetworkName(_, _, _, _ string, _ *cns.GetNetworkCont
 func getNATInfo(_ string, _ interface{}, _, _ bool) (natInfo []policy.NATInfo) {
 	return natInfo
 }
+
+func PlatformNetworkExist(nwID string) bool {
+	return false, nil
+}
+
+func (plugin *NetPlugin) syncNetworkWithPlatform(netns, networkID string) error {
+	return nil
+}
