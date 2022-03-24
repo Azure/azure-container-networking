@@ -297,3 +297,40 @@ func TestDSRPolciy(t *testing.T) {
 		})
 	}
 }
+
+// TODO: verify with hnsv2
+func TestNetPlugin_syncNetworkWithPlatform(t *testing.T) {
+	plugin, _ := cni.NewPlugin("name", "0.3.0")
+
+	type args struct {
+		netns     string
+		networkID string
+	}
+	tests := []struct {
+		name    string
+		plugin  *NetPlugin
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+		{
+			name: "test sync network with platform",
+			plugin: &NetPlugin{
+				Plugin:            plugin,
+				nm:                network.NewMockNetworkmanager(),
+				ipamInvoker:       NewMockIpamInvoker(false, false, false),
+				hnsEndpointClient: network.NewMockHNSEndpoint(true, false),
+				report:            &telemetry.CNIReport{},
+				tb:                &telemetry.TelemetryBuffer{},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.plugin.syncNetworkWithPlatform(tt.args.netns, tt.args.networkID); (err != nil) != tt.wantErr {
+				t.Errorf("NetPlugin.syncNetworkWithPlatform() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

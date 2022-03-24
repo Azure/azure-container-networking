@@ -201,23 +201,22 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cn
 	return networkName, nil
 }
 
+// verify network/endpoint CNI state and network/endpoint kernel state mismatch=
 func (plugin *NetPlugin) syncNetworkWithPlatform(netns, networkID string) error {
-	// verify network/endpoint CNI state and network/endpoint kernel state mismatch
-	// delete endpoints of network that doesn't exist
-	// delete network
-	// steps:
-	// 1. Get network from hns, if hns exists, delete all endpoints
-
 	if platformNetworkExist(netns, networkID) {
-		log.Printf("[cni-net] Network %v not found in CNI. Deleting all endpoints of network %v", networkID, networkID)
+		log.Printf("[cni-net] network %v found in hns, deleting all endpoints", networkID)
 		eps, err := plugin.nm.GetAllEndpoints(networkID)
 		if err != nil {
 			return fmt.Errorf("failed to get all endpoints of network %v: %w", networkID, err)
-		} // delete all endpoints of network
+		}
 		for _, ep := range eps {
 			if err = plugin.nm.DeleteEndpoint(networkID, ep.Id); err != nil {
 				return fmt.Errorf("failed to delete endpoint %v: %w", ep.Id, err)
 			}
+		}
+
+		if err = plugin.nm.DeleteNetwork(networkID); err != nil {
+			return fmt.Errorf("failed to delete network %v: %w", networkID, err)
 		}
 	}
 	return nil
@@ -441,6 +440,7 @@ func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy
 // used to check if there's state inconsistency between what cni has and hns has
 //
 func platformNetworkExist(netnsid, networkID string) bool {
+	log.Printf("checking if network %s exists in hns", networkID)
 	ishnsv2, err := network.UseHnsV2(netnsid)
 	if err != nil {
 		log.Printf("[net] failed to check if hnsv2 when checking if network exists")
