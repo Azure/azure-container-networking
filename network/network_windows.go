@@ -54,6 +54,13 @@ func UseHnsV2(netNs string) (bool, error) {
 	return useHnsV2, err
 }
 
+func UseHnsV2NoUUID() (bool, error) {
+	if err := hcn.V2ApiSupported(); err != nil {
+		return false, fmt.Errorf("HNSV2 (no uuid) is not supported on this windows platform")
+	}
+	return true, nil
+}
+
 // newNetworkImplHnsV1 creates a new container network for HNSv1.
 func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
 	var (

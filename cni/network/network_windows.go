@@ -203,7 +203,10 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cn
 
 // verify network/endpoint CNI state and network/endpoint kernel state mismatch=
 func (plugin *NetPlugin) syncNetworkWithPlatform(netns, networkID string) error {
-	if platformNetworkExist(netns, networkID) {
+	exists, err := platformNetworkExist(netns, networkID)
+	if err != nil {
+		return fmt.Errorf("error checking if network exists in platform: %w", err)
+	} else if exists {
 		log.Printf("[cni-net] network %v found in hns, deleting all endpoints", networkID)
 		eps, err := plugin.nm.GetAllEndpoints(networkID)
 		if err != nil {
@@ -439,25 +442,24 @@ func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy
 
 // used to check if there's state inconsistency between what cni has and hns has
 //
-func platformNetworkExist(netnsid, networkID string) bool {
-	log.Printf("checking if network %s exists in hns", networkID)
-	ishnsv2, err := network.UseHnsV2(netnsid)
+func platformNetworkExist(netnsid, networkID string) (bool, error) {
+	log.Printf("checking if network [%s] exists in hns with netnsid [%s]", networkID, netnsid)
+	ishnsv2, err := network.UseHnsV2NoUUID()
 	if err != nil {
-		log.Printf("[net] failed to check if hnsv2 when checking if network exists")
+		return false, fmt.Errorf("[net] failed to check if hnsv2 when checking if network exists with err: %v", err)
 	}
 	if ishnsv2 {
 		hcnnet, err := hnsv2.GetNetworkByID(networkID)
-		if reflect.DeepEqual(err, hnsv2.NetworkNotFoundError{NetworkID: networkID}) {
-			log.Printf("[net] network not found%s: %v", networkID, err)
-			return false
-		} else if err != nil {
 
-			log.Printf("[net] failed to get platform network by id %s: %v", networkID, err)
-			return false
+		// if network doesn't exist, return false
+		if reflect.DeepEqual(err, hnsv2.NetworkNotFoundError{NetworkID: networkID}) {
+			return false, nil
+		} else if err != nil {
+			return false, fmt.Errorf("[net] failed to get platform network by id %s: %v", networkID, err)
 		} else if hcnnet != nil {
-			return true
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }

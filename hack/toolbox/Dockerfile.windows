@@ -1,20 +1,20 @@
-# Build cns
+# Build toolbox
 FROM docker.io/golang:1.17 AS builder
 # Build args
 ARG VERSION
-ARG CNS_AI_PATH
-ARG CNS_AI_ID
+ARG toolbox_AI_PATH
+ARG toolbox_AI_ID
 
-WORKDIR /usr/local/src/cns
+WORKDIR /usr/local/src/toolbox
 COPY . .
-RUN $Env:CGO_ENABLED=0; go build -v -o /usr/local/bin/toolbox.exe -gcflags="-dwarflocationlists=true" ./hack/toolbox/server
+RUN $Env:CGO_ENABLED=0; go build -v -o /usr/local/bin/toolbox.exe -gcflags="-dwarflocationlists=true" ./server
 
 
 # Copy into final image
 FROM mcr.microsoft.com/windows/servercore:ltsc2022
 COPY --from=builder /usr/local/bin/toolbox.exe \
     /usr/local/bin/toolbox.exe
-    
+
 RUN powershell.exe Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 RUN choco install -y vim wget
 

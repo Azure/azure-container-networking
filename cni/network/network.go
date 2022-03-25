@@ -471,10 +471,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 	 */
 
+	log.Printf("checking if networking exists on platform and in state")
 	if errors.Is(nwInfoErr, network.ErrNetworkNotFound) {
 		log.Printf("[cni-net] network %v not found in CNI state, checking if it exists in hns state", networkID)
 		err = plugin.syncNetworkWithPlatform(args.Netns, networkID)
-		return fmt.Errorf("failed to sync network with platform %w", err)
+		if err != nil {	
+			return fmt.Errorf("failed to sync network with platform %w", err)
+		}
+
 	}
 
 	if nwInfoErr == nil {
