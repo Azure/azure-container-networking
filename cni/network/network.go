@@ -475,8 +475,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if errors.Is(nwInfoErr, network.ErrNetworkNotFound) {
 		log.Printf("[cni-net] network %v not found in CNI state, checking if it exists in hns state", networkID)
 		err = plugin.syncNetworkWithPlatform(args.Netns, networkID)
-		if err != nil {	
-			return fmt.Errorf("failed to sync network with platform %w", err)
+		if err != nil {
+			return fmt.Errorf("failed to sync network with platform: %w", err)
 		}
 
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
@@ -25,6 +26,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
 )
+
+var hnsv2wrap hnswrapper.HnsV2WrapperInterface = hnswrapper.Hnsv2wrapper{}
 
 var (
 	snatConfigFileName = filepath.FromSlash(os.Getenv("TEMP")) + "\\snatConfig"
@@ -207,18 +210,8 @@ func (plugin *NetPlugin) syncNetworkWithPlatform(netns, networkID string) error 
 	if err != nil {
 		return fmt.Errorf("error checking if network exists in platform: %w", err)
 	} else if exists {
-		log.Printf("[cni-net] network %v found in hns, deleting all endpoints", networkID)
-		eps, err := plugin.nm.GetAllEndpoints(networkID)
-		if err != nil {
-			return fmt.Errorf("failed to get all endpoints of network %v: %w", networkID, err)
-		}
-		for _, ep := range eps {
-			if err = plugin.nm.DeleteEndpoint(networkID, ep.Id); err != nil {
-				return fmt.Errorf("failed to delete endpoint %v: %w", ep.Id, err)
-			}
-		}
-
-		if err = plugin.nm.DeleteNetwork(networkID); err != nil {
+		log.Printf("deleting network %v", networkID)
+		if err = platformDeleteNetwork(networkID); err != nil {
 			return fmt.Errorf("failed to delete network %v: %w", networkID, err)
 		}
 	}
@@ -442,24 +435,39 @@ func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy
 
 // used to check if there's state inconsistency between what cni has and hns has
 //
-func platformNetworkExist(netnsid, networkID string) (bool, error) {
-	log.Printf("checking if network [%s] exists in hns with netnsid [%s]", networkID, netnsid)
+func platformNetworkExist(netnsid, networkName string) (bool, error) {
+	log.Printf("checking if network [%s] exists in hns with netnsid [%s]", networkName, netnsid)
 	ishnsv2, err := network.UseHnsV2NoUUID()
 	if err != nil {
-		return false, fmt.Errorf("[net] failed to check if hnsv2 when checking if network exists with err: %v", err)
+		return false, fmt.Errorf("[net] failed to check if hnsv2 when checking if network exists with err: %w", err)
 	}
 	if ishnsv2 {
-		hcnnet, err := hnsv2.GetNetworkByID(networkID)
+		hcnnet, err := hnsv2.GetNetworkByName(networkName)
 
 		// if network doesn't exist, return false
-		if reflect.DeepEqual(err, hnsv2.NetworkNotFoundError{NetworkID: networkID}) {
-			return false, nil
-		} else if err != nil {
-			return false, fmt.Errorf("[net] failed to get platform network by id %s: %v", networkID, err)
-		} else if hcnnet != nil {
+		if hcnnet != nil {
+			log.Printf("info: found existing network in hns with id [%s]", networkName)
 			return true, nil
+		} else if err != nil {
+			if reflect.DeepEqual(err, hnsv2.NetworkNotFoundError{NetworkName: networkName}) {
+				log.Printf("info: network [%s] doesn't exist in hns", networkName)
+				return false, nil
+			}
+			return false, fmt.Errorf("[net] failed to get platform network by id %s: %w", networkName, err)
 		}
 	}
 
 	return false, nil
+}
+
+func platformDeleteNetwork(networkName string) error {
+	hcnNetwork, err := hnsv2.GetNetworkByName(networkName)
+	if err != nil {
+		return fmt.Errorf("Failed to get hcn network with id: %s due to err: %w", networkName, err)
+	}
+
+	if err := hnsv2wrap.DeleteNetwork(hcnNetwork); err != nil {
+		return fmt.Errorf("Failed to delete hcn network: %s due to error: %w", networkName, err)
+	}
+	return nil
 }
