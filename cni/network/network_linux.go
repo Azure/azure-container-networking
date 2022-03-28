@@ -143,10 +143,10 @@ func getNATInfo(_ string, _ interface{}, _, _ bool) (natInfo []policy.NATInfo) {
 	return natInfo
 }
 
-func PlatformNetworkExist(nwID string) bool {
+func platformNetworkExist(netnsid, networkName string) (bool, error) {
 	return false, nil
 }
 
-func (plugin *NetPlugin) syncNetworkWithPlatform(netns, networkID string) error {
+func platformDeleteNetwork(networkName string) error {
 	return nil
 }
