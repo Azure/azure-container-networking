@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -152,6 +153,17 @@ func (service *HTTPRestService) SyncNodeStatus(
 func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) {
 	service.Lock()
 	defer service.Unlock()
+	start := time.Now()
+	err := service.syncHostNCVersion(ctx, channelMode)
+	if err != nil {
+		logger.Errorf("sync host error %v", err)
+	}
+	syncHostNcVersion.WithLabelValues(strconv.FormatBool(err == nil)).Observe(time.Since(start).Seconds())
+}
+
+var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
+
+func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) error {
 	var hostVersionNeedsUpdateContainers []string
 	for idx := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
@@ -173,12 +185,11 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 		}
 	}
 	if len(hostVersionNeedsUpdateContainers) == 0 {
-		return
+		return nil
 	}
 	ncList, err := service.nmagentClient.GetNCVersionList(ctx)
 	if err != nil {
-		logger.Errorf("%v", err)
-		return
+		return errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 
 	newHostNCVersionList := map[string]string{}
@@ -192,15 +203,13 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 		}
 		version, err := strconv.Atoi(versionStr)
 		if err != nil {
-			logger.Errorf("failed to parse %s to int", versionStr)
-			continue
+			return errors.Wrapf(err, "failed to parse container version of %s", ncID)
 		}
 
 		// Check whether it exist in service state and get the related nc info
 		ncInfo, exist := service.state.ContainerStatus[ncID]
 		if !exist {
-			logger.Errorf("Can't find NC with ID %s in service state, stop updating this host NC version", ncID)
-			continue
+			return errors.Wrapf(errNonExistentContainerStatus, "can't find NC with ID %s in service state, stop updating this host NC version", ncID)
 		}
 		if channelMode == cns.CRD {
 			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, version)
@@ -210,6 +219,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 		service.state.ContainerStatus[ncID] = ncInfo
 		logger.Printf("Updated NC %s host version from %s to %s", ncID, oldHostNCVersion, ncInfo.HostVersion)
 	}
+	return nil
 }
 
 // This API will be called by CNS RequestController on CRD update.

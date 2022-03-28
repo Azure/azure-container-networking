@@ -2,6 +2,7 @@ package ipampool
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -18,6 +19,8 @@ const (
 	DefaultRefreshDelay = 1 * time.Second
 	// DefaultMaxIPs default maximum allocatable IPs
 	DefaultMaxIPs = 250
+	// Subnet ARM ID /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/$(SUBNET)
+	subnetARMIDTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s"
 )
 
 type nodeNetworkConfigSpecUpdater interface {
@@ -49,8 +52,8 @@ type Monitor struct {
 	once        sync.Once
 }
 
-// Global Variables for Subnet and SubnetAddressSpace
-var subnet, subnetCIDR string
+// Global Variables for Subnet, Subnet Address Space and Subnet ARM ID
+var subnet, subnetCIDR, subnetARMID string
 
 func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, opts *Options) *Monitor {
 	if opts.RefreshDelay < 1 {
@@ -94,9 +97,10 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			pm.spec = nnc.Spec
 			scaler := nnc.Status.Scaler
 
-			// Set SubnetName and SubnetAddressSpace values to the global subnet and subnetCIDR variables.
+			// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
 			subnet = nnc.Status.NetworkContainers[0].SubnetName
 			subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
+			subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
 
 			pm.metastate.batch = scaler.BatchSize
 			pm.metastate.max = scaler.MaxIPCount
@@ -157,7 +161,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	allocatedIPs := pm.httpService.GetPodIPConfigState()
 	state := buildIPPoolState(allocatedIPs, pm.spec)
 	logger.Printf("ipam-pool-monitor state %+v", state)
-	observeIPPoolState(state, pm.metastate, []string{subnet, subnetCIDR})
+	observeIPPoolState(state, pm.metastate, []string{subnet, subnetCIDR, subnetARMID})
 
 	switch {
 	// pod count is increasing
@@ -341,6 +345,20 @@ func (pm *Monitor) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 			Spec: spec,
 		},
 	}
+}
+
+// GenerateARMID uses the Subnet ARM ID format to populate the ARM ID with the metadata.
+// If either of the metadata attributes are empty, then the ARM ID will be an empty string.
+func GenerateARMID(nc *v1alpha.NetworkContainer) string {
+	subscription := nc.SubscriptionID
+	resourceGroup := nc.ResourceGroupID
+	vnetID := nc.VNETID
+	subnetID := nc.SubnetID
+
+	if subscription == "" || resourceGroup == "" || vnetID == "" || subnetID == "" {
+		return ""
+	}
+	return fmt.Sprintf(subnetARMIDTemplate, subscription, resourceGroup, vnetID, subnetID)
 }
 
 // Update ingests a NodeNetworkConfig, clamping some values to ensure they are legal and then

@@ -37,7 +37,7 @@ func TestGetNPMCacheHandler(t *testing.T) {
 
 	byteArray, err := io.ReadAll(rr.Body)
 	if err != nil {
-		t.Errorf("failed to read response's data : %w", err)
+		t.Errorf("failed to read response's data : %v", err)
 	}
 
 	actual := &controllersv1.Cache{}

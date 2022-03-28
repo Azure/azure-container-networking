@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -385,8 +386,15 @@ func (c *PodController) syncPod(key string) error {
 }
 
 func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
-	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", string(podObj.GetUID()), podObj.Namespace,
+	klog.Infof("POD CREATING: [%s/%s/%s/%s/%+v/%s]", string(podObj.GetUID()), podObj.Namespace,
 		podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
+
+	if !util.IsIPV4(podObj.Status.PodIP) {
+		msg := fmt.Sprintf("[syncAddedPod] Error: ADD POD  [%s/%s/%s/%+v/%s] failed as the PodIP is not valid ipv4 address", podObj.Namespace,
+			podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
+		metrics.SendErrorLogAndMetric(util.PodID, msg)
+		return npmerrors.Errorf(npmerrors.AddPod, true, msg)
+	}
 
 	var err error
 	podKey, _ := cache.MetaNamespaceKeyFunc(podObj)

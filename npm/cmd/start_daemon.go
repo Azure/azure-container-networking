@@ -96,8 +96,7 @@ func startDaemon(config npmconfig.Config) error {
 
 	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata())
 	if err != nil {
-		klog.Infof("CreateTelemetryHandle failed with error %v.", err)
-		return fmt.Errorf("CreateTelemetryHandle failed with error %w", err)
+		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
 	}
 
 	err = n.Start(config, wait.NeverStop)
@@ -106,7 +105,7 @@ func startDaemon(config npmconfig.Config) error {
 		return fmt.Errorf("failed to start dataplane: %w", err)
 	}
 
-	metrics.SendLog(util.FanOutServerID, "started fan-out daemon")
+	metrics.SendLog(util.FanOutServerID, "started fan-out daemon", metrics.PrintLog)
 
 	return nil
 }
