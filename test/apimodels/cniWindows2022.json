@@ -9,7 +9,7 @@
                 "networkPlugin": "azure",
                 "networkPolicy": "azure",
                 "containerRuntime": "containerd",
-                "windowsContainerdURL": "https://github.com/containerd/containerd/releases/download/v1.5.6/containerd-1.5.6-windows-amd64.tar.gz",
+                "windowsContainerdURL": "https://github.com/containerd/containerd/releases/download/v1.6.2/containerd-1.6.2-windows-amd64.tar.gz",
                 "apiServerConfig": {
                     "--tls-min-version": "VersionTLS12",
                     "--tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
