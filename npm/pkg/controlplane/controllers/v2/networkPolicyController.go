@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -29,10 +30,17 @@ var (
 )
 
 type NetworkPolicyController struct {
+	sync.RWMutex
 	netPolLister netpollister.NetworkPolicyLister
 	workqueue    workqueue.RateLimitingInterface
 	rawNpSpecMap map[string]*networkingv1.NetworkPolicySpec // Key is <nsname>/<policyname>
 	dp           dataplane.GenericDataplane
+}
+
+func (c *NetworkPolicyController) GetCache() map[string]*networkingv1.NetworkPolicySpec {
+	c.RLock()
+	defer c.RUnlock()
+	return c.rawNpSpecMap
 }
 
 func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, dp dataplane.GenericDataplane) *NetworkPolicyController {

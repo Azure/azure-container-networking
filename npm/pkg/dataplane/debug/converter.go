@@ -1,4 +1,4 @@
-package dataplane
+package debug
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/http/api"
+	npmcommon "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
@@ -24,11 +25,13 @@ import (
 
 // Converter struct
 type Converter struct {
-	Parser         parse.IPTablesParser
-	ListMap        map[string]string // key: hash(value), value: one of namespace, label of namespace, multiple values
-	SetMap         map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
-	AzureNPMChains map[string]bool
-	NPMCache       *controllersv1.Cache
+	NPMDebugEndpointHost string
+	NPMDebugEndpointPort int
+	Parser               parse.IPTablesParser
+	ListMap              map[string]string // key: hash(value), value: one of namespace, label of namespace, multiple values
+	SetMap               map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
+	AzureNPMChains       map[string]bool
+	NPMCache             npmcommon.Cache
 }
 
 // NpmCacheFromFile initialize NPM cache from file.
@@ -48,10 +51,12 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 
 // NpmCache initialize NPM cache from node.
 func (c *Converter) NpmCache() error {
+	//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	//defer cancel()
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		fmt.Sprintf("http://localhost:%v%v", api.DefaultHttpPort, api.NPMMgrPath),
+		fmt.Sprintf("http://%v:%v%v", c.NPMDebugEndpointHost, c.NPMDebugEndpointPort, api.NPMMgrPath),
 		nil,
 	)
 	if err != nil {
@@ -66,7 +71,7 @@ func (c *Converter) NpmCache() error {
 	if err != nil {
 		return fmt.Errorf("failed to read response's data : %w", err)
 	}
-	c.NPMCache = &controllersv1.Cache{}
+	c.NPMCache = controllersv1.Cache{}
 	err = json.Unmarshal(byteArray, c.NPMCache)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
@@ -85,7 +90,7 @@ func (c *Converter) initConverterFile(npmCacheJSONFile string) error {
 }
 
 // Initialize converter from node.
-func (c *Converter) initConverter() error {
+func (c *Converter) InitConverter() error {
 	err := c.NpmCache()
 	if err != nil {
 		return fmt.Errorf("error occurred during initialize converter : %w", err)
@@ -163,7 +168,7 @@ func (c *Converter) GetProtobufRulesFromIptableFile(
 
 // GetProtobufRulesFromIptable returns a list of protobuf rules from node.
 func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleResponse, error) {
-	err := c.initConverter()
+	err := c.InitConverter()
 	if err != nil {
 		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables without file: %w", err)
 	}
@@ -172,7 +177,7 @@ func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleRes
 	if err != nil {
 		return nil, fmt.Errorf("error occurred during parsing iptables : %w", err)
 	}
-	
+
 	ruleResList, err := c.pbRuleList(ipTable)
 	if err != nil {
 		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables without: %w", err)
@@ -331,7 +336,7 @@ func (c *Converter) populateSetInfo(
 			populateCIDRBlockSet(setInfo)
 		}
 	} else {
-		return fmt.Errorf("%w : %v", errSetNotExist, ipsetHashedName)
+		return fmt.Errorf("%w : %v", ErrSetNotExist, ipsetHashedName)
 	}
 
 	if len(ipsetOrigin) > MinUnsortedIPSetLength {

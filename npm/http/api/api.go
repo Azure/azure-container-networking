@@ -6,6 +6,7 @@ const (
 	NodeMetricsPath    = "/node-metrics"
 	ClusterMetricsPath = "/cluster-metrics"
 	NPMMgrPath         = "/npm/v1/debug/manager"
+	NPMV2CacheAPI      = "/npm/v2/debug/cache"
 )
 
 type DescribeIPSetRequest struct{}

@@ -1,7 +1,6 @@
-package dataplane
+package debug
 
 import (
-	"errors"
 	"regexp"
 )
 
@@ -30,14 +29,6 @@ var AzureNPMChains = []string{
 }
 
 var matcher = regexp.MustCompile(`(?i)[^ ]+-in-ns-[^ ]+-\d(out|in)\b`)
-
-// error type
-var (
-	errSetNotExist      = errors.New("set does not exists")
-	errInvalidIPAddress = errors.New("invalid ipaddress, no equivalent pod found")
-	errInvalidInput     = errors.New("invalid input")
-	errSetType          = errors.New("invalid set type")
-)
 
 // To test paser, converter, and trafficAnalyzer with stored files.
 const (

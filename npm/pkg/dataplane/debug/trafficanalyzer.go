@@ -1,4 +1,4 @@
-package dataplane
+package debug
 
 import (
 	"fmt"
@@ -6,39 +6,11 @@ import (
 	"strconv"
 	"strings"
 
+	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"google.golang.org/protobuf/encoding/protojson"
-)
-
-// Tuple struct
-type Tuple struct {
-	RuleType  string `json:"ruleType"`
-	Direction string `json:"direction"`
-	SrcIP     string `json:"srcIP"`
-	SrcPort   string `json:"srcPort"`
-	DstIP     string `json:"dstIP"`
-	DstPort   string `json:"dstPort"`
-	Protocol  string `json:"protocol"`
-}
-
-// Input struct
-type Input struct {
-	Content string
-	Type    InputType
-}
-
-// InputType indicates allowed typle for source and destination input
-type InputType int32
-
-const (
-	// IPADDRS indicates the IP Address input type
-	IPADDRS InputType = 0
-	// PODNAME indicates the podname input type
-	PODNAME InputType = 1
-	// EXTERNAL indicates the external input type
-	EXTERNAL InputType = 2
 )
 
 var ipPodMap = make(map[string]*controllersv1.NpmPod)
@@ -46,7 +18,7 @@ var ipPodMap = make(map[string]*controllersv1.NpmPod)
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTuple(src, dst *Input) ([][]byte, []*Tuple, error) {
+func GetNetworkTuple(src, dst *common.Input) ([][]byte, []*common.Tuple, error) {
 	c := &Converter{}
 
 	allRules, err := c.GetProtobufRulesFromIptable("filter")
@@ -60,10 +32,10 @@ func GetNetworkTuple(src, dst *Input) ([][]byte, []*Tuple, error) {
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
 func GetNetworkTupleFile(
-	src, dst *Input,
+	src, dst *common.Input,
 	npmCacheFile string,
 	iptableSaveFile string,
-) ([][]byte, []*Tuple, error) {
+) ([][]byte, []*common.Tuple, error) {
 
 	c := &Converter{}
 	allRules, err := c.GetProtobufRulesFromIptableFile(util.IptablesFilterTable, npmCacheFile, iptableSaveFile)
@@ -76,26 +48,26 @@ func GetNetworkTupleFile(
 
 // Common function.
 func getNetworkTupleCommon(
-	src, dst *Input,
-	npmCache *controllersv1.Cache,
+	src, dst common.Input,
+	npmCache common.Cache,
 	allRules []*pb.RuleResponse,
-) ([][]byte, []*Tuple, error) {
+) ([][]byte, []*common.Tuple, error) {
 
 	for _, pod := range npmCache.PodMap {
 		ipPodMap[pod.PodIP] = pod
 	}
 
-	srcPod, err := getNPMPod(src, npmCache)
+	srcPod, err := npmCache.GetPod(src)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error occurred during get source pod : %w", err)
 	}
 
-	dstPod, err := getNPMPod(dst, npmCache)
+	dstPod, err := npmCache.GetPod(dst)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error occurred during get destination pod : %w", err)
 	}
 
-	hitRules, err := getHitRules(srcPod, dstPod, allRules, npmCache)
+	hitRules, err := npmCache.GetHitRules(srcPod, dstPod, allRules)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w", err)
 	}
@@ -113,7 +85,7 @@ func getNetworkTupleCommon(
 		ruleResListJSON = append(ruleResListJSON, ruleJSON)
 	}
 
-	resTupleList := make([]*Tuple, 0)
+	resTupleList := make([]*common.Tuple, 0)
 	for _, rule := range hitRules {
 		tuple := generateTuple(srcPod, dstPod, rule)
 		resTupleList = append(resTupleList, tuple)
@@ -129,38 +101,23 @@ func getNetworkTupleCommon(
 	return ruleResListJSON, resTupleList, nil
 }
 
-func getNPMPod(input *Input, npmCache *controllersv1.Cache) (*controllersv1.NpmPod, error) {
-	switch input.Type {
-	case PODNAME:
-		if pod, ok := npmCache.PodMap[input.Content]; ok {
-			return pod, nil
-		}
-		return nil, errInvalidInput
-	case IPADDRS:
-		if pod, ok := ipPodMap[input.Content]; ok {
-			return pod, nil
-		}
-		return nil, errInvalidIPAddress
-	case EXTERNAL:
-		return &controllersv1.NpmPod{}, nil
-	default:
-		return nil, errInvalidInput
-	}
+func getNPMPod(input *common.Input, npmCache *controllersv1.Cache) (*controllersv1.NpmPod, error) {
+
 }
 
 // GetInputType returns the type of the input for GetNetworkTuple.
-func GetInputType(input string) InputType {
+func GetInputType(input string) common.InputType {
 	if input == "External" {
-		return EXTERNAL
+		return common.EXTERNAL
 	} else if ip := net.ParseIP(input); ip != nil {
-		return IPADDRS
+		return common.IPADDRS
 	} else {
-		return PODNAME
+		return common.PODNAME
 	}
 }
 
-func generateTuple(src, dst *controllersv1.NpmPod, rule *pb.RuleResponse) *Tuple {
-	tuple := &Tuple{}
+func generateTuple(src, dst common.Pod, rule *pb.RuleResponse) *common.Tuple {
+	tuple := &common.Tuple{}
 	if rule.Allowed {
 		tuple.RuleType = "ALLOWED"
 	} else {
@@ -180,7 +137,7 @@ func generateTuple(src, dst *controllersv1.NpmPod, rule *pb.RuleResponse) *Tuple
 	if len(rule.SrcList) == 0 {
 		tuple.SrcIP = ANY
 	} else {
-		tuple.SrcIP = src.PodIP
+		tuple.SrcIP = src.IP()
 	}
 	if rule.SPort != 0 {
 		tuple.SrcPort = strconv.Itoa(int(rule.SPort))
@@ -190,7 +147,7 @@ func generateTuple(src, dst *controllersv1.NpmPod, rule *pb.RuleResponse) *Tuple
 	if len(rule.DstList) == 0 {
 		tuple.DstIP = ANY
 	} else {
-		tuple.DstIP = dst.PodIP
+		tuple.DstIP = dst.IP()
 	}
 	if rule.DPort != 0 {
 		tuple.DstPort = strconv.Itoa(int(rule.DPort))
@@ -287,7 +244,7 @@ func evaluateSetInfo(
 	case pb.SetType_CIDRBLOCKS:
 		return matchCIDRBLOCKS(pod, setInfo), nil
 	default:
-		return false, errSetType
+		return false, common.ErrSetType
 	}
 }
 

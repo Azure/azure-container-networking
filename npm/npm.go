@@ -96,7 +96,8 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 	var npmNamespaceCacheRaw []byte
 	var err error
 	if npMgr.config.Toggles.EnableV2NPM {
-		npmNamespaceCacheRaw, err = json.Marshal(npMgr.NpmNamespaceCacheV2)
+		ncache := npMgr.NamespaceControllerV2.GetCache()
+		npmNamespaceCacheRaw, err = json.Marshal(ncache)
 	} else {
 		npmNamespaceCacheRaw, err = json.Marshal(npMgr.NpmNamespaceCacheV1)
 	}
@@ -108,7 +109,7 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 
 	var podControllerRaw []byte
 	if npMgr.config.Toggles.EnableV2NPM {
-		podControllerRaw, err = json.Marshal(npMgr.PodControllerV2)
+		podControllerRaw, err = json.Marshal(npMgr.PodControllerV2.GetCache())
 	} else {
 		podControllerRaw, err = json.Marshal(npMgr.PodControllerV1)
 	}

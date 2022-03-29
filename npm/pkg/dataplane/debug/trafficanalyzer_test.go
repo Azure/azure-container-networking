@@ -1,4 +1,4 @@
-package dataplane
+package debug
 
 import (
 	"crypto/sha256"
@@ -237,7 +237,7 @@ func TestGetNetworkTuple(t *testing.T) {
 				iptableSaveFile,
 			)
 			if err != nil {
-				t.Errorf("error during get network tuple : %w", err)
+				t.Errorf("error during get network tuple : %v", err)
 			}
 			sortedActualTupleList := hashTheSortTupleList(actualTupleList)
 			if !reflect.DeepEqual(sortedExpectedTupleList, sortedActualTupleList) {

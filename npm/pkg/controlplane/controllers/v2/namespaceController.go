@@ -38,13 +38,19 @@ var errWorkqueueFormatting = errors.New("error in formatting")
 // Since this cache is shared between podController and NamespaceController,
 // it has mutex for avoiding racing condition between them.
 type NpmNamespaceCache struct {
-	sync.Mutex
+	sync.RWMutex
 	NsMap map[string]*Namespace // Key is ns-<nsname>
 }
 
+func (c *NpmNamespaceCache) GetCache() map[string]*Namespace {
+	c.RLock()
+	defer c.RUnlock()
+	return c.NsMap
+}
+
 func (n *NpmNamespaceCache) MarshalJSON() ([]byte, error) {
-	n.Lock()
-	defer n.Unlock()
+	n.RLock()
+	defer n.RUnlock()
 
 	nsMapRaw, err := json.Marshal(n.NsMap)
 	if err != nil {
@@ -104,6 +110,10 @@ func NewNamespaceController(nameSpaceInformer coreinformer.NamespaceInformer, dp
 		},
 	)
 	return nameSpaceController
+}
+
+func (n *NamespaceController) GetCache() map[string]*Namespace {
+	return n.npmNamespaceCache.GetCache()
 }
 
 // filter this event if we do not need to handle this event

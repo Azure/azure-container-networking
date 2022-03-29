@@ -44,6 +44,10 @@ type NpmPod struct {
 	Phase          corev1.PodPhase
 }
 
+func (n *NpmPod) IP() string {
+	return n.PodIP
+}
+
 func newNpmPod(podObj *corev1.Pod) *NpmPod {
 	return &NpmPod{
 		Name:           podObj.ObjectMeta.Name,

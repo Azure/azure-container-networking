@@ -101,7 +101,7 @@ type PodController struct {
 	workqueue workqueue.RateLimitingInterface
 	dp        dataplane.GenericDataplane
 	podMap    map[string]*NpmPod // Key is <nsname>/<podname>
-	sync.Mutex
+	sync.RWMutex
 	npmNamespaceCache *NpmNamespaceCache
 }
 
@@ -122,6 +122,12 @@ func NewPodController(podInformer coreinformer.PodInformer, dp dataplane.Generic
 		},
 	)
 	return podController
+}
+
+func (c *PodController) GetCache() map[string]*NpmPod {
+	c.RLock()
+	defer c.RUnlock()
+	return c.podMap
 }
 
 func (c *PodController) MarshalJSON() ([]byte, error) {

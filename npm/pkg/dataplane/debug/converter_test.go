@@ -1,4 +1,4 @@
-package dataplane
+package debug
 
 import (
 	"reflect"
@@ -19,7 +19,7 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 		iptableSaveFile,
 	)
 	if err != nil {
-		t.Errorf("error during TestGetJSONRulesFromIptable : %w", err)
+		t.Errorf("error during TestGetJSONRulesFromIptable : %v", err)
 	}
 }
 
@@ -29,7 +29,7 @@ func TestGetProtobufRulesFromIptable(t *testing.T) {
 		util.IptablesFilterTable,
 	)
 	if err != nil {
-		t.Errorf("error during TestGetJSONRulesFromIptable : %w", err)
+		t.Errorf("error during TestGetJSONRulesFromIptable : %v", err)
 	}
 }
 
@@ -37,7 +37,7 @@ func TestNpmCacheFromFile(t *testing.T) {
 	c := &Converter{}
 	err := c.NpmCacheFromFile(npmCacheFile)
 	if err != nil {
-		t.Errorf("Failed to decode NPMCache from %s file : %w", npmCacheFile, err)
+		t.Errorf("Failed to decode NPMCache from %v file : %v", npmCacheFile, err)
 	}
 }
 
@@ -92,7 +92,7 @@ func TestGetSetType(t *testing.T) {
 	c := &Converter{}
 	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
-		t.Errorf("error during initilizing converter : %w", err)
+		t.Errorf("error during initilizing converter : %v", err)
 	}
 
 	for name, test := range tests {
@@ -314,7 +314,7 @@ func TestGetRulesFromChain(t *testing.T) {
 	c := &Converter{}
 	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
-		t.Errorf("error during initilizing converter : %w", err)
+		t.Errorf("error during initilizing converter : %v", err)
 	}
 
 	for name, test := range testCases {
@@ -322,7 +322,7 @@ func TestGetRulesFromChain(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actuatlReponsesArr, err := c.getRulesFromChain(test.input)
 			if err != nil {
-				t.Errorf("error during get rules : %w", err)
+				t.Errorf("error during get rules : %v", err)
 			}
 			if !reflect.DeepEqual(test.expected, actuatlReponsesArr) {
 				t.Errorf("got '%+v', expected '%+v'", actuatlReponsesArr, test.expected)
@@ -503,12 +503,12 @@ func TestGetModulesFromRule(t *testing.T) {
 	c := &Converter{}
 	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
-		t.Errorf("error during initilizing converter : %w", err)
+		t.Errorf("error during initilizing converter : %v", err)
 	}
 
 	err = c.getModulesFromRule(modules, actualRuleResponse)
 	if err != nil {
-		t.Errorf("error during getNPMIPtable.ModulesFromRule : %w", err)
+		t.Errorf("error during getNPMIPtable.ModulesFromRule : %v", err)
 	}
 
 	if !reflect.DeepEqual(expectedRuleResponse, actualRuleResponse) {
