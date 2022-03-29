@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,7 +50,7 @@ func TestGetNPMCacheHandler(t *testing.T) {
 	expected := &controllersv1.Cache{
 		NodeName: nodeName,
 		NsMap:    make(map[string]*controllersv1.Namespace),
-		PodMap:   make(map[string]*controllersv1.NpmPod),
+		PodMap:   make(map[string]*common.NpmPod),
 		ListMap:  make(map[string]*ipsm.Ipset),
 		SetMap:   make(map[string]*ipsm.Ipset),
 	}

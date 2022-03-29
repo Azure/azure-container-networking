@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -22,13 +23,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
-)
-
-type LabelAppendOperation bool
-
-const (
-	ClearExistingLabels    LabelAppendOperation = true
-	AppendToExistingLabels LabelAppendOperation = false
 )
 
 // NpmNamespaceCache to store namespace struct in nameSpaceController.go.
@@ -74,7 +68,7 @@ func (nsObj *Namespace) getNamespaceObjFromNsObj() *corev1.Namespace {
 	}
 }
 
-func (nsObj *Namespace) appendLabels(new map[string]string, clear LabelAppendOperation) {
+func (nsObj *Namespace) appendLabels(new map[string]string, clear common.LabelAppendOperation) {
 	if clear {
 		nsObj.LabelsMap = make(map[string]string)
 	}
@@ -363,7 +357,7 @@ func (nsc *NamespaceController) syncAddNameSpace(nsObj *corev1.Namespace) error 
 		}
 
 		// Append succeeded labels to the cache NS obj
-		npmNs.appendLabels(map[string]string{nsLabelKey: nsLabelVal}, AppendToExistingLabels)
+		npmNs.appendLabels(map[string]string{nsLabelKey: nsLabelVal}, common.AppendToExistingLabels)
 	}
 
 	return nil
@@ -421,14 +415,14 @@ func (nsc *NamespaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 		// only after both ipsets for a given label's key value pair are added successfully
 		addedLabelKey, addedLabelValue := util.GetLabelKVFromSet(nsLabelVal)
 		if addedLabelValue != "" {
-			curNsObj.appendLabels(map[string]string{addedLabelKey: addedLabelValue}, AppendToExistingLabels)
+			curNsObj.appendLabels(map[string]string{addedLabelKey: addedLabelValue}, common.AppendToExistingLabels)
 		}
 	}
 
 	// Append all labels to the cache NS obj
 	// If due to ordering issue the above deleted and added labels are not correct,
 	// this below appendLabels will help ensure correct state in cache for all successful ops.
-	curNsObj.appendLabels(newNsLabel, ClearExistingLabels)
+	curNsObj.appendLabels(newNsLabel, common.ClearExistingLabels)
 	nsc.npmNamespaceCache.NsMap[newNsName] = curNsObj
 
 	return metrics.UpdateOp, nil

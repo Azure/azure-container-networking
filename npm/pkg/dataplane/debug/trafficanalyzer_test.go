@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 )
 
 func AsSha256(o interface{}) string {
@@ -15,7 +17,7 @@ func AsSha256(o interface{}) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func hashTheSortTupleList(tupleList []*Tuple) []string {
+func hashTheSortTupleList(tupleList []*common.Tuple) []string {
 	ret := make([]string, 0)
 	for _, tuple := range tupleList {
 		hashedTuple := AsSha256(tuple)
@@ -28,12 +30,12 @@ func hashTheSortTupleList(tupleList []*Tuple) []string {
 func TestGetInputType(t *testing.T) {
 	type testInput struct {
 		input    string
-		expected InputType
+		expected common.InputType
 	}
 	tests := map[string]*testInput{
-		"external":  {input: "External", expected: EXTERNAL},
-		"podname":   {input: "test/server", expected: PODNAME},
-		"ipaddress": {input: "10.240.0.38", expected: IPADDRS},
+		"external":  {input: "External", expected: common.EXTERNAL},
+		"podname":   {input: "test/server", expected: common.PODNAME},
+		"ipaddress": {input: "10.240.0.38", expected: common.IPADDRS},
 	}
 	for name, test := range tests {
 		test := test
@@ -48,37 +50,37 @@ func TestGetInputType(t *testing.T) {
 
 func TestGetNetworkTuple(t *testing.T) {
 	type srcDstPair struct {
-		src *Input
-		dst *Input
+		src *common.Input
+		dst *common.Input
 	}
 
 	type testInput struct {
 		input    *srcDstPair
-		expected []*Tuple
+		expected []*common.Tuple
 	}
 
 	i0 := &srcDstPair{
-		src: &Input{Content: "z/b", Type: PODNAME},
-		dst: &Input{Content: "netpol-4537-x/a", Type: PODNAME},
+		src: &common.Input{Content: "z/b", Type: common.PODNAME},
+		dst: &common.Input{Content: "netpol-4537-x/a", Type: common.PODNAME},
 	}
 	i1 := &srcDstPair{
-		src: &Input{Content: "", Type: EXTERNAL},
-		dst: &Input{Content: "testnamespace/a", Type: PODNAME},
+		src: &common.Input{Content: "", Type: common.EXTERNAL},
+		dst: &common.Input{Content: "testnamespace/a", Type: common.PODNAME},
 	}
 	i2 := &srcDstPair{
-		src: &Input{Content: "testnamespace/a", Type: PODNAME},
-		dst: &Input{Content: "", Type: EXTERNAL},
+		src: &common.Input{Content: "testnamespace/a", Type: common.PODNAME},
+		dst: &common.Input{Content: "", Type: common.EXTERNAL},
 	}
 	i3 := &srcDstPair{
-		src: &Input{Content: "10.240.0.70", Type: IPADDRS},
-		dst: &Input{Content: "10.240.0.13", Type: IPADDRS},
+		src: &common.Input{Content: "10.240.0.70", Type: common.IPADDRS},
+		dst: &common.Input{Content: "10.240.0.13", Type: common.IPADDRS},
 	}
 	i4 := &srcDstPair{
-		src: &Input{Content: "", Type: EXTERNAL},
-		dst: &Input{Content: "test/server", Type: PODNAME},
+		src: &common.Input{Content: "", Type: common.EXTERNAL},
+		dst: &common.Input{Content: "test/server", Type: common.PODNAME},
 	}
 
-	expected0 := []*Tuple{
+	expected0 := []*common.Tuple{
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "INGRESS",
@@ -108,7 +110,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		},
 	}
 
-	expected1 := []*Tuple{
+	expected1 := []*common.Tuple{
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "INGRESS",
@@ -138,7 +140,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		},
 	}
 
-	expected2 := []*Tuple{
+	expected2 := []*common.Tuple{
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "EGRESS",
@@ -168,7 +170,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		},
 	}
 
-	expected3 := []*Tuple{
+	expected3 := []*common.Tuple{
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "INGRESS",
@@ -197,7 +199,7 @@ func TestGetNetworkTuple(t *testing.T) {
 			Protocol:  "ANY",
 		},
 	}
-	expected4 := []*Tuple{
+	expected4 := []*common.Tuple{
 		{
 			RuleType:  "ALLOWED",
 			Direction: "INGRESS",

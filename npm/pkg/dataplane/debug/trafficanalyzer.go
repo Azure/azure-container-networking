@@ -7,13 +7,12 @@ import (
 	"strings"
 
 	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
-	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-var ipPodMap = make(map[string]*controllersv1.NpmPod)
+var ipPodMap = make(map[string]*common.NpmPod)
 
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
@@ -48,14 +47,10 @@ func GetNetworkTupleFile(
 
 // Common function.
 func getNetworkTupleCommon(
-	src, dst common.Input,
+	src, dst *common.Input,
 	npmCache common.Cache,
 	allRules []*pb.RuleResponse,
 ) ([][]byte, []*common.Tuple, error) {
-
-	for _, pod := range npmCache.PodMap {
-		ipPodMap[pod.PodIP] = pod
-	}
 
 	srcPod, err := npmCache.GetPod(src)
 	if err != nil {
@@ -67,7 +62,7 @@ func getNetworkTupleCommon(
 		return nil, nil, fmt.Errorf("error occurred during get destination pod : %w", err)
 	}
 
-	hitRules, err := npmCache.GetHitRules(srcPod, dstPod, allRules)
+	hitRules, err := getHitRules(srcPod, dstPod, allRules, npmCache)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w", err)
 	}
@@ -101,10 +96,6 @@ func getNetworkTupleCommon(
 	return ruleResListJSON, resTupleList, nil
 }
 
-func getNPMPod(input *common.Input, npmCache *controllersv1.Cache) (*controllersv1.NpmPod, error) {
-
-}
-
 // GetInputType returns the type of the input for GetNetworkTuple.
 func GetInputType(input string) common.InputType {
 	if input == "External" {
@@ -116,7 +107,7 @@ func GetInputType(input string) common.InputType {
 	}
 }
 
-func generateTuple(src, dst common.Pod, rule *pb.RuleResponse) *common.Tuple {
+func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *common.Tuple {
 	tuple := &common.Tuple{}
 	if rule.Allowed {
 		tuple.RuleType = "ALLOWED"
@@ -163,9 +154,9 @@ func generateTuple(src, dst common.Pod, rule *pb.RuleResponse) *common.Tuple {
 }
 
 func getHitRules(
-	src, dst *controllersv1.NpmPod,
+	src, dst *common.NpmPod,
 	rules []*pb.RuleResponse,
-	npmCache *controllersv1.Cache,
+	npmCache common.Cache,
 ) ([]*pb.RuleResponse, error) {
 
 	res := make([]*pb.RuleResponse, 0)
@@ -221,9 +212,9 @@ func getHitRules(
 func evaluateSetInfo(
 	origin string,
 	setInfo *pb.RuleResponse_SetInfo,
-	pod *controllersv1.NpmPod,
+	pod *common.NpmPod,
 	rule *pb.RuleResponse,
-	npmCache *controllersv1.Cache,
+	npmCache common.Cache,
 ) (bool, error) {
 
 	switch setInfo.Type {
@@ -248,10 +239,10 @@ func evaluateSetInfo(
 	}
 }
 
-func matchKEYVALUELABELOFNAMESPACE(pod *controllersv1.NpmPod, npmCache *controllersv1.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYVALUELABELOFNAMESPACE(pod *common.NpmPod, npmCache common.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	key, expectedValue := processKeyValueLabelOfNameSpace(setInfo.Name)
-	actualValue := npmCache.NsMap[srcNamespace].LabelsMap[key]
+	actualValue := npmCache.GetNamespaceLabel(srcNamespace, key)
 	if expectedValue != actualValue {
 		// if the value is required but does not match
 		if setInfo.Included {
@@ -265,7 +256,7 @@ func matchKEYVALUELABELOFNAMESPACE(pod *controllersv1.NpmPod, npmCache *controll
 	return true
 }
 
-func matchNESTEDLABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	// a function to split the key and the values and then combine the key with each value
 	// return list of key value pairs which are keyvaluelabel of pod
 	// one match then break
@@ -287,10 +278,11 @@ func matchNESTEDLABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_S
 	return true
 }
 
-func matchKEYLABELOFNAMESPACE(pod *controllersv1.NpmPod, npmCache *controllersv1.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	key := strings.TrimPrefix(setInfo.Name, util.NamespacePrefix)
-	if _, ok := npmCache.NsMap[srcNamespace].LabelsMap[key]; ok {
+	included := npmCache.GetNamespaceLabel(srcNamespace, key)
+	if included != "" {
 		return setInfo.Included
 	}
 	if setInfo.Included {
@@ -300,7 +292,7 @@ func matchKEYLABELOFNAMESPACE(pod *controllersv1.NpmPod, npmCache *controllersv1
 	return true
 }
 
-func matchNAMESPACE(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchNAMESPACE(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	if setInfo.Name != srcNamespace || (setInfo.Name == srcNamespace && !setInfo.Included) {
 		return false
@@ -308,7 +300,7 @@ func matchNAMESPACE(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 	return true
 }
 
-func matchKEYVALUELABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYVALUELABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	key, value := processKeyValueLabelOfPod(setInfo.Name)
 	if pod.Labels[key] != value || (pod.Labels[key] == value && !setInfo.Included) {
 		return false
@@ -316,7 +308,7 @@ func matchKEYVALUELABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse
 	return true
 }
 
-func matchKEYLABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	key := setInfo.Name
 	if _, ok := pod.Labels[key]; ok {
 		return setInfo.Included
@@ -328,7 +320,7 @@ func matchKEYLABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetI
 	return true
 }
 
-func matchNAMEDPORTS(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo, rule *pb.RuleResponse, origin string) bool {
+func matchNAMEDPORTS(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo, rule *pb.RuleResponse, origin string) bool {
 	portname := strings.TrimPrefix(setInfo.Name, util.NamedPortIPSetPrefix)
 	for _, namedPort := range pod.ContainerPorts {
 		if namedPort.Name == portname {
@@ -352,7 +344,7 @@ func matchNAMEDPORTS(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo
 	return false
 }
 
-func matchCIDRBLOCKS(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchCIDRBLOCKS(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	matched := false
 	for _, entry := range setInfo.Contents {
 		entrySplitted := strings.Split(entry, " ")

@@ -5,6 +5,7 @@ import (
 	"log"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
 	"github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/spf13/cobra"
@@ -28,8 +29,8 @@ func newGetTuples() *cobra.Command {
 			iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
 			srcType := dataplane.GetInputType(src)
 			dstType := dataplane.GetInputType(dst)
-			srcInput := &dataplane.Input{Content: src, Type: srcType}
-			dstInput := &dataplane.Input{Content: dst, Type: dstType}
+			srcInput := &common.Input{Content: src, Type: srcType}
+			dstInput := &common.Input{Content: dst, Type: dstType}
 
 			switch {
 			case npmCacheF == "" && iptableSaveF == "":

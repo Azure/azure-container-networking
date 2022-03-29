@@ -71,7 +71,7 @@ func (c *Converter) NpmCache() error {
 	if err != nil {
 		return fmt.Errorf("failed to read response's data : %w", err)
 	}
-	c.NPMCache = controllersv1.Cache{}
+	c.NPMCache = &controllersv1.Cache{}
 	err = json.Unmarshal(byteArray, c.NPMCache)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
@@ -110,17 +110,9 @@ func (c *Converter) initConverterMaps() {
 	for _, chain := range AzureNPMChains {
 		c.AzureNPMChains[chain] = true
 	}
-	c.ListMap = make(map[string]string)
-	c.SetMap = make(map[string]string)
 
-	for k := range c.NPMCache.ListMap {
-		hashedName := util.GetHashedName(k)
-		c.ListMap[hashedName] = k
-	}
-	for k := range c.NPMCache.SetMap {
-		hashedName := util.GetHashedName(k)
-		c.SetMap[hashedName] = k
-	}
+	c.ListMap = c.NPMCache.GetListMap()
+	c.SetMap = c.NPMCache.GetSetMap()
 }
 
 /*
@@ -336,7 +328,7 @@ func (c *Converter) populateSetInfo(
 			populateCIDRBlockSet(setInfo)
 		}
 	} else {
-		return fmt.Errorf("%w : %v", ErrSetNotExist, ipsetHashedName)
+		return fmt.Errorf("%w : %v", npmcommon.ErrSetNotExist, ipsetHashedName)
 	}
 
 	if len(ipsetOrigin) > MinUnsortedIPSetLength {

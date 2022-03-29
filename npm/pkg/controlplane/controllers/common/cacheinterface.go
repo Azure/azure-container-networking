@@ -2,8 +2,6 @@ package common
 
 import (
 	"errors"
-
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 )
 
 // Input struct
@@ -44,11 +42,8 @@ const (
 )
 
 type Cache interface {
-	GetPod(Input) (Pod, error)
-	GetHitRules(Pod, Pod, []*pb.RuleResponse) ([]*pb.RuleResponse, error)
-	GenerateTuple(Pod, Pod, *pb.RuleResponse) *Tuple
-}
-
-type Pod interface {
-	IP() string
+	GetPod(*Input) (*NpmPod, error)
+	GetNamespaceLabel(namespace string, key string) string
+	GetListMap() map[string]string
+	GetSetMap() map[string]string
 }
