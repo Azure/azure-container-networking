@@ -6,8 +6,8 @@
     },
     "orchestratorProfile": {
       "orchestratorType": "Kubernetes",
-      "orchestratorRelease": "1.23",
-      "orchestratorVersion": "1.23.4",
+      "orchestratorRelease": "1.22",
+      "orchestratorVersion": "1.22.2",
       "kubernetesConfig": {
         "loadBalancerSku": "Standard",
         "excludeMasterFromStandardLB": true,
