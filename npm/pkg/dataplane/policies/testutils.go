@@ -66,8 +66,7 @@ var (
 
 	testACLs = []*ACLPolicy{
 		{
-			PolicyID: "test1",
-			Comment:  "comment1",
+			Comment: "comment1",
 			SrcList: []SetInfo{
 				{
 					ipsets.TestCIDRSet.Metadata,
@@ -90,8 +89,7 @@ var (
 			Protocol: TCP,
 		},
 		{
-			PolicyID: "test1",
-			Comment:  "comment2",
+			Comment: "comment2",
 			SrcList: []SetInfo{
 				{
 					ipsets.TestCIDRSet.Metadata,
@@ -104,8 +102,7 @@ var (
 			Protocol:  UDP,
 		},
 		{
-			PolicyID: "test1",
-			Comment:  "comment3",
+			Comment: "comment3",
 			SrcList: []SetInfo{
 				{
 					ipsets.TestCIDRSet.Metadata,
@@ -121,8 +118,7 @@ var (
 			Protocol: UDP,
 		},
 		{
-			PolicyID: "test1",
-			Comment:  "comment4",
+			Comment: "comment4",
 			SrcList: []SetInfo{
 				{
 					ipsets.TestCIDRSet.Metadata,

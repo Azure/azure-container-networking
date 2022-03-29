@@ -16,7 +16,7 @@ import (
 var (
 	expectedACLs = []*hnswrapper.FakeEndpointPolicy{
 		{
-			ID:              TestNetworkPolicies[0].ACLs[0].PolicyID,
+			ID:              TestNetworkPolicies[0].ACLPolicyID,
 			Protocols:       "6",
 			Direction:       "In",
 			Action:          "Block",
@@ -27,7 +27,7 @@ var (
 			Priority:        blockRulePriotity,
 		},
 		{
-			ID:              TestNetworkPolicies[0].ACLs[0].PolicyID,
+			ID:              TestNetworkPolicies[0].ACLPolicyID,
 			Protocols:       "17",
 			Direction:       "In",
 			Action:          "Allow",
@@ -38,7 +38,7 @@ var (
 			Priority:        allowRulePriotity,
 		},
 		{
-			ID:              TestNetworkPolicies[0].ACLs[0].PolicyID,
+			ID:              TestNetworkPolicies[0].ACLPolicyID,
 			Protocols:       "17",
 			Direction:       "Out",
 			Action:          "Block",
@@ -49,7 +49,7 @@ var (
 			Priority:        blockRulePriotity,
 		},
 		{
-			ID:              TestNetworkPolicies[0].ACLs[0].PolicyID,
+			ID:              TestNetworkPolicies[0].ACLPolicyID,
 			Protocols:       "256",
 			Direction:       "Out",
 			Action:          "Allow",
@@ -93,7 +93,7 @@ func TestAddPolicies(t *testing.T) {
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], endPointIDList)
 	require.NoError(t, err)
 
-	aclID := TestNetworkPolicies[0].ACLs[0].PolicyID
+	aclID := TestNetworkPolicies[0].ACLPolicyID
 
 	aclPolicies, err := hns.Cache.ACLPolicies(endPointIDList, aclID)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestRemovePolicies(t *testing.T) {
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], endPointIDList)
 	require.NoError(t, err)
 
-	aclID := TestNetworkPolicies[0].ACLs[0].PolicyID
+	aclID := TestNetworkPolicies[0].ACLPolicyID
 
 	aclPolicies, err := hns.Cache.ACLPolicies(endPointIDList, aclID)
 	require.NoError(t, err)

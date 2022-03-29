@@ -77,7 +77,7 @@ func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[
 		delete(endpointList, epIP)
 	}
 
-	rulesToAdd, err := getSettingsFromACL(policy.ACLs)
+	rulesToAdd, err := getSettingsFromACL(policy)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 		endpointList = policy.PodEndpoints
 	}
 
-	rulesToRemove, err := getSettingsFromACL(policy.ACLs)
+	rulesToRemove, err := getSettingsFromACL(policy)
 	if err != nil {
 		return err
 	}
@@ -236,10 +236,10 @@ func getEPPolicyReqFromACLSettings(settings []*NPMACLPolSettings) (hcn.PolicyEnd
 	return policyToAdd, nil
 }
 
-func getSettingsFromACL(acls []*ACLPolicy) ([]*NPMACLPolSettings, error) {
-	hnsRules := make([]*NPMACLPolSettings, len(acls))
-	for i, acl := range acls {
-		rule, err := acl.convertToAclSettings()
+func getSettingsFromACL(policy *NPMNetworkPolicy) ([]*NPMACLPolSettings, error) {
+	hnsRules := make([]*NPMACLPolSettings, len(policy.ACLs))
+	for i, acl := range policy.ACLs {
+		rule, err := acl.convertToAclSettings(policy.ACLPolicyID)
 		if err != nil {
 			// TODO need some retry mechanism to check why the translations failed
 			return hnsRules, err

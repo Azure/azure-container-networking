@@ -934,7 +934,6 @@ func TestDefaultDropACL(t *testing.T) {
 			policyNS:   defaultNS,
 			direction:  direction,
 			dropACL: &policies.ACLPolicy{
-				PolicyID:  "azure-acl-default-test",
 				Target:    policies.Dropped,
 				Direction: direction,
 			},
@@ -945,7 +944,6 @@ func TestDefaultDropACL(t *testing.T) {
 			policyNS:   "testns",
 			direction:  direction,
 			dropACL: &policies.ACLPolicy{
-				PolicyID:  "azure-acl-testns-test",
 				Target:    policies.Dropped,
 				Direction: direction,
 			},
@@ -956,7 +954,7 @@ func TestDefaultDropACL(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			dropACL := defaultDropACL(tt.policyNS, tt.policyName, tt.direction)
+			dropACL := defaultDropACL(tt.direction)
 			require.Equal(t, tt.dropACL, dropACL)
 		})
 	}
@@ -1139,11 +1137,11 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: namedPortPolicyKey,
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList:   []policies.SetInfo{},
@@ -1165,14 +1163,14 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: namedPortPolicyKey,
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("serve-tcp", ipsets.NamedPorts),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList:   []policies.SetInfo{},
@@ -1193,14 +1191,14 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: namedPortPolicyKey,
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("serve-tcp", ipsets.NamedPorts),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
@@ -1223,14 +1221,14 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: namedPortPolicyKey,
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("serve-tcp", ipsets.NamedPorts),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList:   []policies.SetInfo{},
@@ -1251,14 +1249,14 @@ func TestPeerAndPortRule(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: namedPortPolicyKey,
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("serve-tcp", ipsets.NamedPorts),
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList:   []policies.SetInfo{},
@@ -1281,8 +1279,9 @@ func TestPeerAndPortRule(t *testing.T) {
 				acl.SrcList = setInfo
 			}
 			npmNetPol := &policies.NPMNetworkPolicy{
-				Namespace: tt.npmNetPol.Namespace,
-				PolicyKey: tt.npmNetPol.PolicyKey,
+				Namespace:   tt.npmNetPol.Namespace,
+				PolicyKey:   tt.npmNetPol.PolicyKey,
+				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			err := peerAndPortRule(npmNetPol, policies.Ingress, tt.ports, setInfo)
 			require.NoError(t, err)
@@ -1321,8 +1320,9 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, namedPortStr),
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
@@ -1333,7 +1333,6 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						DstPorts: policies.Ports{
@@ -1342,7 +1341,7 @@ func TestIngressPolicy(t *testing.T) {
 						},
 						Protocol: "TCP",
 					},
-					defaultDropACL(defaultNS, "serve-tcp", policies.Ingress),
+					defaultDropACL(policies.Ingress),
 				},
 			},
 		},
@@ -1366,8 +1365,9 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, "only-ipblock"),
+				Namespace:   defaultNS,
+				PolicyKey:   fmt.Sprintf("%s/%s", defaultNS, "only-ipblock"),
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, "only-ipblock"),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
@@ -1381,14 +1381,13 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-only-ipblock",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
 							policies.NewSetInfo("only-ipblock-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
-					defaultDropACL(defaultNS, "only-ipblock", policies.Ingress),
+					defaultDropACL(policies.Ingress),
 				},
 			},
 		},
@@ -1413,8 +1412,9 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, "only-peer-podSelector"),
+				Namespace:   defaultNS,
+				PolicyKey:   fmt.Sprintf("%s/%s", defaultNS, "only-peer-podSelector"),
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, "only-peer-podSelector"),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
@@ -1429,7 +1429,6 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-only-peer-podSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
@@ -1437,7 +1436,7 @@ func TestIngressPolicy(t *testing.T) {
 							policies.NewSetInfo(defaultNS, ipsets.Namespace, included, peerMatchType),
 						},
 					},
-					defaultDropACL(defaultNS, "only-peer-podSelector", policies.Ingress),
+					defaultDropACL(policies.Ingress),
 				},
 			},
 		},
@@ -1462,8 +1461,9 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, "only-peer-nsSelector"),
-				Namespace: defaultNS,
+				PolicyKey:   fmt.Sprintf("%s/%s", defaultNS, "only-peer-nsSelector"),
+				Namespace:   defaultNS,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, "only-peer-nsSelector"),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
@@ -1477,14 +1477,13 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-only-peer-nsSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
 							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
 						},
 					},
-					defaultDropACL(defaultNS, "only-peer-nsSelector", policies.Ingress),
+					defaultDropACL(policies.Ingress),
 				},
 			},
 		},
@@ -1520,8 +1519,9 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: defaultNS,
-				PolicyKey: fmt.Sprintf("%s/%s", defaultNS, "only-peer-nsSelector"),
+				Namespace:   defaultNS,
+				PolicyKey:   fmt.Sprintf("%s/%s", defaultNS, "only-peer-nsSelector"),
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, "only-peer-nsSelector"),
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
@@ -1537,7 +1537,6 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-only-peer-nsSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
@@ -1545,7 +1544,6 @@ func TestIngressPolicy(t *testing.T) {
 						},
 					},
 					{
-						PolicyID:  "azure-acl-default-only-peer-nsSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
@@ -1553,14 +1551,13 @@ func TestIngressPolicy(t *testing.T) {
 						},
 					},
 					{
-						PolicyID:  "azure-acl-default-only-peer-nsSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						SrcList: []policies.SetInfo{
 							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-2IN", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
-					defaultDropACL(defaultNS, "only-peer-nsSelector", policies.Ingress),
+					defaultDropACL(policies.Ingress),
 				},
 			},
 		},
@@ -1582,8 +1579,9 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/serve-tcp",
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1594,12 +1592,11 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 						Protocol:  "TCP",
 					},
-					defaultDropACL("default", "serve-tcp", policies.Ingress),
+					defaultDropACL(policies.Ingress),
 				},
 			},
 			wantErr: true,
@@ -1615,8 +1612,9 @@ func TestIngressPolicy(t *testing.T) {
 				{},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/serve-tcp",
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1627,7 +1625,6 @@ func TestIngressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Ingress,
 					},
@@ -1643,8 +1640,9 @@ func TestIngressPolicy(t *testing.T) {
 			},
 			rules: nil,
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/serve-tcp",
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1654,7 +1652,7 @@ func TestIngressPolicy(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				ACLs: []*policies.ACLPolicy{
-					defaultDropACL("default", "serve-tcp", policies.Ingress),
+					defaultDropACL(policies.Ingress),
 				},
 			},
 		},
@@ -1714,8 +1712,9 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/serve-tcp",
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1726,7 +1725,6 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstPorts: policies.Ports{
@@ -1735,7 +1733,7 @@ func TestEgressPolicy(t *testing.T) {
 						},
 						Protocol: "TCP",
 					},
-					defaultDropACL("default", "serve-tcp", policies.Egress),
+					defaultDropACL(policies.Egress),
 				},
 			},
 		},
@@ -1759,8 +1757,9 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/only-ipblock",
+				Namespace:   "default",
+				PolicyKey:   "default/only-ipblock",
+				ACLPolicyID: "azure-acl-default-only-ipblock",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1774,14 +1773,13 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-only-ipblock",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
 							policies.NewSetInfo("only-ipblock-in-ns-default-0-0OUT", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
-					defaultDropACL("default", "only-ipblock", policies.Egress),
+					defaultDropACL(policies.Egress),
 				},
 			},
 		},
@@ -1806,8 +1804,9 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/only-peer-podSelector",
+				Namespace:   "default",
+				PolicyKey:   "default/only-peer-podSelector",
+				ACLPolicyID: "azure-acl-default-only-peer-podSelector",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1822,7 +1821,6 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-only-peer-podSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
@@ -1830,7 +1828,7 @@ func TestEgressPolicy(t *testing.T) {
 							policies.NewSetInfo("default", ipsets.Namespace, included, peerMatchType),
 						},
 					},
-					defaultDropACL("default", "only-peer-podSelector", policies.Egress),
+					defaultDropACL(policies.Egress),
 				},
 			},
 		},
@@ -1855,8 +1853,9 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/only-peer-nsSelector",
+				Namespace:   "default",
+				PolicyKey:   "default/only-peer-nsSelector",
+				ACLPolicyID: "azure-acl-default-only-peer-nsSelector",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1870,14 +1869,13 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-only-peer-nsSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
 							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
 						},
 					},
-					defaultDropACL("default", "only-peer-nsSelector", policies.Egress),
+					defaultDropACL(policies.Egress),
 				},
 			},
 		},
@@ -1890,8 +1888,9 @@ func TestEgressPolicy(t *testing.T) {
 			},
 			rules: nil,
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/serve-tcp",
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1901,7 +1900,7 @@ func TestEgressPolicy(t *testing.T) {
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
 				ACLs: []*policies.ACLPolicy{
-					defaultDropACL("default", "serve-tcp", policies.Egress),
+					defaultDropACL(policies.Egress),
 				},
 			},
 		},
@@ -1916,8 +1915,9 @@ func TestEgressPolicy(t *testing.T) {
 				{},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/serve-tcp",
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1928,7 +1928,6 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 					},
@@ -1967,8 +1966,9 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/only-peer-nsSelector",
+				Namespace:   "default",
+				PolicyKey:   "default/only-peer-nsSelector",
+				ACLPolicyID: "azure-acl-default-only-peer-nsSelector",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -1984,7 +1984,6 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-only-peer-nsSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
@@ -1992,7 +1991,6 @@ func TestEgressPolicy(t *testing.T) {
 						},
 					},
 					{
-						PolicyID:  "azure-acl-default-only-peer-nsSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
@@ -2000,14 +1998,13 @@ func TestEgressPolicy(t *testing.T) {
 						},
 					},
 					{
-						PolicyID:  "azure-acl-default-only-peer-nsSelector",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						DstList: []policies.SetInfo{
 							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-2OUT", ipsets.CIDRBlocks, included, peerMatchType),
 						},
 					},
-					defaultDropACL("default", "only-peer-nsSelector", policies.Egress),
+					defaultDropACL(policies.Egress),
 				},
 			},
 		},
@@ -2029,8 +2026,9 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
-				Namespace: "default",
-				PolicyKey: "default/serve-tcp",
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
 				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
@@ -2041,12 +2039,11 @@ func TestEgressPolicy(t *testing.T) {
 				},
 				ACLs: []*policies.ACLPolicy{
 					{
-						PolicyID:  "azure-acl-default-serve-tcp",
 						Target:    policies.Allowed,
 						Direction: policies.Egress,
 						Protocol:  "TCP",
 					},
-					defaultDropACL("default", "serve-tcp", policies.Egress),
+					defaultDropACL(policies.Egress),
 				},
 			},
 			wantErr: true,

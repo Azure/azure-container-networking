@@ -15,7 +15,6 @@ import (
 )
 
 // ACLs
-// Don't care about PolicyID for Linux
 var (
 	ingressDeniedACL = &ACLPolicy{
 		SrcList: []SetInfo{
@@ -50,7 +49,6 @@ var (
 		Protocol:  UnspecifiedProtocol,
 	}
 	egressDeniedACL = &ACLPolicy{
-		PolicyID: "acl3",
 		DstList: []SetInfo{
 			{
 				ipsets.TestCIDRSet.Metadata,
@@ -64,7 +62,6 @@ var (
 		Protocol:  UDP,
 	}
 	egressAllowedACL = &ACLPolicy{
-		PolicyID: "acl4",
 		DstList: []SetInfo{
 			{
 				ipsets.TestNamedportSet.Metadata,
@@ -107,8 +104,9 @@ var (
 // NetworkPolicies
 var (
 	bothDirectionsNetPol = &NPMNetworkPolicy{
-		Namespace: "x",
-		PolicyKey: "x/test1",
+		Namespace:   "x",
+		PolicyKey:   "x/test1",
+		ACLPolicyID: "azure-acl-x-test1",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{Metadata: ipsets.TestKeyPodSet.Metadata},
 		},
@@ -127,8 +125,9 @@ var (
 		},
 	}
 	ingressNetPol = &NPMNetworkPolicy{
-		Namespace: "y",
-		PolicyKey: "y/test2",
+		Namespace:   "y",
+		PolicyKey:   "y/test2",
+		ACLPolicyID: "azure-acl-y-test2",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{Metadata: ipsets.TestKeyPodSet.Metadata},
 			{Metadata: ipsets.TestNSSet.Metadata},
@@ -150,8 +149,9 @@ var (
 		},
 	}
 	egressNetPol = &NPMNetworkPolicy{
-		Namespace: "z",
-		PolicyKey: "z/test3",
+		Namespace:   "z",
+		PolicyKey:   "z/test3",
+		ACLPolicyID: "azure-acl-z-test3",
 		ACLs: []*ACLPolicy{
 			egressAllowedACL,
 		},

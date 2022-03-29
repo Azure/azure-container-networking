@@ -304,7 +304,7 @@ func ruleExists(ports []networkingv1.NetworkPolicyPort, peer []networkingv1.Netw
 // (e.g., IPBlock, podSelector, namespaceSelector, or both podSelector and namespaceSelector).
 func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, setInfo []policies.SetInfo) error {
 	if len(ports) == 0 {
-		acl := policies.NewACLPolicy(npmNetPol.Namespace, npmNetPol.Name, policies.Allowed, direction)
+		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		acl.AddSetInfo(setInfo)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
 		return nil
@@ -316,7 +316,7 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 			return err
 		}
 
-		acl := policies.NewACLPolicy(npmNetPol.Namespace, npmNetPol.Name, policies.Allowed, direction)
+		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		acl.AddSetInfo(setInfo)
 		npmNetPol.RuleIPSets = portRule(npmNetPol.RuleIPSets, acl, &ports[i], portKind)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
@@ -335,7 +335,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 	// The code inside if condition is to handle allowing all internal traffic, but the case is handled in #2.4.
 	// So, this code may not execute. After confirming this, need to delete it.
 	if !portRuleExists && !peerRuleExists && !allowExternal {
-		acl := policies.NewACLPolicy(npmNetPol.Namespace, npmNetPol.Name, policies.Allowed, direction)
+		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		ruleIPSets, allowAllInternalSetInfo := allowAllInternal(matchType)
 		npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ruleIPSets)
 		acl.AddSetInfo([]policies.SetInfo{allowAllInternalSetInfo})
@@ -351,7 +351,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 				return err
 			}
 
-			portACL := policies.NewACLPolicy(npmNetPol.Namespace, npmNetPol.Name, policies.Allowed, direction)
+			portACL := policies.NewACLPolicy(policies.Allowed, direction)
 			npmNetPol.RuleIPSets = portRule(npmNetPol.RuleIPSets, portACL, &ports[i], portKind)
 			npmNetPol.ACLs = append(npmNetPol.ACLs, portACL)
 		}
@@ -441,14 +441,14 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 }
 
 // defaultDropACL returns ACLPolicy to drop traffic which is not allowed.
-func defaultDropACL(policyNS, policyName string, direction policies.Direction) *policies.ACLPolicy {
-	dropACL := policies.NewACLPolicy(policyNS, policyName, policies.Dropped, direction)
+func defaultDropACL(direction policies.Direction) *policies.ACLPolicy {
+	dropACL := policies.NewACLPolicy(policies.Dropped, direction)
 	return dropACL
 }
 
 // allowAllPolicy adds acl to allow all traffic including internal (i.e,. K8s cluster) and external (i.e., internet)
 func allowAllPolicy(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction) {
-	allowAllACL := policies.NewACLPolicy(npmNetPol.Namespace, npmNetPol.Name, policies.Allowed, direction)
+	allowAllACL := policies.NewACLPolicy(policies.Allowed, direction)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, allowAllACL)
 }
 
@@ -473,7 +473,7 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, ingr
 	// #2. If ingress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow receiving any traffic from others.
 	if ingress == nil {
 		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
-		dropACL := defaultDropACL(npmNetPol.Namespace, npmNetPol.Name, policies.Ingress)
+		dropACL := defaultDropACL(policies.Ingress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 		return nil
 	}
@@ -486,7 +486,7 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, ingr
 		}
 	}
 	// Except for allow all traffic case in #1, the rest of them should have default drop rules.
-	dropACL := defaultDropACL(npmNetPol.Namespace, npmNetPol.Name, policies.Ingress)
+	dropACL := defaultDropACL(policies.Ingress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 	return nil
 }
@@ -512,7 +512,7 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, egres
 	// #2. If egress is nil (in yaml file, it is specified with '[]'), it means "Deny all" - it does not allow sending traffic to others.
 	if egress == nil {
 		// Except for allow all traffic case in #1, the rest of them should have default drop rules.
-		dropACL := defaultDropACL(npmNetPol.Namespace, npmNetPol.Name, policies.Egress)
+		dropACL := defaultDropACL(policies.Egress)
 		npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 		return nil
 	}
@@ -528,7 +528,7 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, egres
 
 	// #3. Except for allow all traffic case in #1, the rest of them should have default drop rules.
 	// Add drop ACL to drop the rest of traffic which is not specified in Egress Spec.
-	dropACL := defaultDropACL(npmNetPol.Namespace, npmNetPol.Name, policies.Egress)
+	dropACL := defaultDropACL(policies.Egress)
 	npmNetPol.ACLs = append(npmNetPol.ACLs, dropACL)
 	return nil
 }

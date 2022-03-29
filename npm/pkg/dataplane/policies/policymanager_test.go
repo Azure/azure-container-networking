@@ -24,8 +24,9 @@ var (
 	testNSSet     = ipsets.NewIPSetMetadata("test-ns-set", ipsets.Namespace)
 	testKeyPodSet = ipsets.NewIPSetMetadata("test-keyPod-set", ipsets.KeyLabelOfPod)
 	testNetPol    = &NPMNetworkPolicy{
-		Namespace: "x",
-		PolicyKey: "x/test-netpol",
+		Namespace:   "x",
+		PolicyKey:   "x/test-netpol",
+		ACLPolicyID: "azure-acl-x-test-netpol",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
 				Metadata: testNSSet,
@@ -44,12 +45,10 @@ var (
 		},
 		ACLs: []*ACLPolicy{
 			{
-				PolicyID:  "azure-acl-123",
 				Target:    Dropped,
 				Direction: Ingress,
 			},
 			{
-				PolicyID:  "azure-acl-234",
 				Target:    Allowed,
 				Direction: Ingress,
 				SrcList: []SetInfo{
@@ -129,7 +128,11 @@ func TestAddEmptyPolicy(t *testing.T) {
 	metrics.ReinitializeAll()
 	ioshim := common.NewMockIOShim(nil)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	require.NoError(t, pMgr.AddPolicy(&NPMNetworkPolicy{PolicyKey: "test"}, nil))
+	require.NoError(t, pMgr.AddPolicy(&NPMNetworkPolicy{
+		Namespace:   "x",
+		PolicyKey:   "x/test-netpol",
+		ACLPolicyID: "azure-acl-x-test-netpol",
+	}, nil))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
 	require.False(t, ok)
 	promVals{0, 0}.testPrometheusMetrics(t)
@@ -137,11 +140,11 @@ func TestAddEmptyPolicy(t *testing.T) {
 
 func TestGetPolicy(t *testing.T) {
 	netpol := &NPMNetworkPolicy{
-		Namespace: "x",
-		PolicyKey: "x/test-netpol",
+		Namespace:   "x",
+		PolicyKey:   "x/test-netpol",
+		ACLPolicyID: "azure-acl-x-test-netpol",
 		ACLs: []*ACLPolicy{
 			{
-				PolicyID:  "azure-acl-123",
 				Target:    Dropped,
 				Direction: Ingress,
 			},
@@ -193,7 +196,6 @@ func TestNormalizeAndValidatePolicy(t *testing.T) {
 		{
 			name: "valid policy",
 			acl: &ACLPolicy{
-				PolicyID:  "valid-acl",
 				Target:    Dropped,
 				Direction: Ingress,
 			},
@@ -202,7 +204,6 @@ func TestNormalizeAndValidatePolicy(t *testing.T) {
 		{
 			name: "invalid protocol",
 			acl: &ACLPolicy{
-				PolicyID:  "bad-protocol-acl",
 				Target:    Dropped,
 				Direction: Ingress,
 				Protocol:  "invalid",
@@ -215,9 +216,10 @@ func TestNormalizeAndValidatePolicy(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			netPol := &NPMNetworkPolicy{
-				Namespace: "x",
-				PolicyKey: "x/test-netpol",
-				ACLs:      []*ACLPolicy{tt.acl},
+				Namespace:   "x",
+				PolicyKey:   "x/test-netpol",
+				ACLPolicyID: "azure-acl-x-test-netpol",
+				ACLs:        []*ACLPolicy{tt.acl},
 			}
 			NormalizePolicy(netPol)
 			err := ValidatePolicy(netPol)

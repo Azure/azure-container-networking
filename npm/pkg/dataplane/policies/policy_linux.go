@@ -20,6 +20,11 @@ const (
 	maxLengthForMatchSetSpecs = 6
 )
 
+// the NPMNetworkPolicy ACLPolicyID field is unnused in Linux
+func aclPolicyID(_, _ string) string {
+	return ""
+}
+
 // returns two booleans indicating whether the network policy has ingress and egress respectively
 func (networkPolicy *NPMNetworkPolicy) hasIngressAndEgress() (hasIngress, hasEgress bool) {
 	hasIngress = false
