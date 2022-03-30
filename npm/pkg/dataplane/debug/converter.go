@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	npmcommon "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
+	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
@@ -32,6 +33,7 @@ type Converter struct {
 	SetMap               map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
 	AzureNPMChains       map[string]bool
 	NPMCache             npmcommon.Cache
+	EnableV2NPM          bool
 }
 
 // NpmCacheFromFile initialize NPM cache from file.
@@ -71,11 +73,21 @@ func (c *Converter) NpmCache() error {
 	if err != nil {
 		return fmt.Errorf("failed to read response's data : %w", err)
 	}
-	c.NPMCache = &controllersv1.Cache{}
-	err = json.Unmarshal(byteArray, c.NPMCache)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
+
+	if c.EnableV2NPM {
+		c.NPMCache = &controllersv2.Cache{}
+		err = json.Unmarshal(byteArray, c.NPMCache)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
+		}
+	} else {
+		c.NPMCache = &controllersv1.Cache{}
+		err = json.Unmarshal(byteArray, c.NPMCache)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
+		}
 	}
+
 	return nil
 }
 

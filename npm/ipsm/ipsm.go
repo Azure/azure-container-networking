@@ -4,7 +4,6 @@
 package ipsm
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -15,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/pkg/errors"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -40,7 +38,7 @@ type IpsetManager struct {
 	exec    utilexec.Interface
 	listMap map[string]*Ipset // tracks all set lists.
 	setMap  map[string]*Ipset // label -> []ip
-	sync.Mutex
+	sync.RWMutex
 }
 
 // Ipset represents one ipset entry.
@@ -76,28 +74,16 @@ func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	}
 }
 
-func (ipsMgr *IpsetManager) MarshalListMapJSON() ([]byte, error) {
-	ipsMgr.Lock()
-	defer ipsMgr.Unlock()
-
-	listMapRaw, err := json.Marshal(ipsMgr.listMap)
-	if err != nil {
-		return nil, errors.Errorf("failed to marshal ListMap due to %v", err)
-	}
-
-	return listMapRaw, nil
+func (ipsMgr *IpsetManager) GetListMap() map[string]*Ipset {
+	ipsMgr.RLock()
+	defer ipsMgr.RUnlock()
+	return ipsMgr.listMap
 }
 
-func (ipsMgr *IpsetManager) MarshalSetMapJSON() ([]byte, error) {
-	ipsMgr.Lock()
-	defer ipsMgr.Unlock()
-
-	setMapRaw, err := json.Marshal(ipsMgr.setMap)
-	if err != nil {
-		return nil, errors.Errorf("failed to marshal SetMap due to %v", err)
-	}
-
-	return setMapRaw, nil
+func (ipsMgr *IpsetManager) GetSetMap() map[string]*Ipset {
+	ipsMgr.RLock()
+	defer ipsMgr.RUnlock()
+	return ipsMgr.setMap
 }
 
 // Exists checks if an element exists in setMap/listMap.

@@ -12,8 +12,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-var ipPodMap = make(map[string]*common.NpmPod)
-
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.

@@ -75,18 +75,3 @@ func (n *NPMRestServer) npmCacheHandler(npmCacheEncoder json.Marshaler) http.Han
 		}
 	})
 }
-
-func (n *NPMRestServer) npmCacheHandlerV2(npmCacheEncoder json.Marshaler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		b, err := json.Marshal(npmCacheEncoder)
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		_, err = w.Write(b)
-		if err != nil {
-			log.Errorf("failed to write resp: %w", err)
-		}
-	})
-}

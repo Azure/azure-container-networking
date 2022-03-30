@@ -3,7 +3,6 @@
 package controllers
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -14,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/util"
 
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -40,7 +38,7 @@ type PodController struct {
 	workqueue workqueue.RateLimitingInterface
 	ipsMgr    *ipsm.IpsetManager
 	podMap    map[string]*common.NpmPod // Key is <nsname>/<podname>
-	sync.Mutex
+	sync.RWMutex
 	npmNamespaceCache *NpmNamespaceCache
 }
 
@@ -63,16 +61,10 @@ func NewPodController(podInformer coreinformer.PodInformer, ipsMgr *ipsm.IpsetMa
 	return podController
 }
 
-func (c *PodController) MarshalJSON() ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
-
-	podMapRaw, err := json.Marshal(c.podMap)
-	if err != nil {
-		return nil, errors.Errorf("failed to marshal podMap due to %v", err)
-	}
-
-	return podMapRaw, nil
+func (p *PodController) PodMap() map[string]*common.NpmPod {
+	p.RLock()
+	defer p.RUnlock()
+	return p.podMap
 }
 
 func (c *PodController) LengthOfPodMap() int {

@@ -90,63 +90,38 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	return npMgr
 }
 
+// matmerr: todo: really not a fan of sniping the marshalljson and returing different marshalled type,
+// makes very difficult to predict marshalled type when used as a client
 func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
-	m := map[models.CacheKey]json.RawMessage{}
-
-	var npmNamespaceCacheRaw []byte
 	var err error
+	var cacheRaw []byte
+
 	if npMgr.config.Toggles.EnableV2NPM {
-		ncache := npMgr.NamespaceControllerV2.GetCache()
-		npmNamespaceCacheRaw, err = json.Marshal(ncache)
-	} else {
-		npmNamespaceCacheRaw, err = json.Marshal(npMgr.NpmNamespaceCacheV1)
-	}
+		cache := controllersv2.Cache{}
+		cache.NsMap = npMgr.NamespaceControllerV2.GetCache()
+		cache.PodMap = npMgr.PodControllerV2.GetCache()
+		cache.ListMap = npMgr.ipsMgr.GetListMap()
+		cache.SetMap = npMgr.ipsMgr.GetSetMap()
 
-	if err != nil {
-		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
-	}
-	m[models.NsMap] = npmNamespaceCacheRaw
-
-	var podControllerRaw []byte
-	if npMgr.config.Toggles.EnableV2NPM {
-		podControllerRaw, err = json.Marshal(npMgr.PodControllerV2.GetCache())
-	} else {
-		podControllerRaw, err = json.Marshal(npMgr.PodControllerV1)
-	}
-
-	if err != nil {
-		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
-	}
-	m[models.PodMap] = podControllerRaw
-
-	// TODO(jungukcho): NPM debug may be broken.
-	// Will fix it later after v2 controller and linux test if it is broken.
-	if !npMgr.config.Toggles.EnableV2NPM && npMgr.ipsMgr != nil {
-		listMapRaw, listMapMarshalErr := npMgr.ipsMgr.MarshalListMapJSON()
-		if listMapMarshalErr != nil {
-			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, listMapMarshalErr)
+		cacheRaw, err = json.Marshal(cache)
+		if err != nil {
+			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 		}
-		m[models.ListMap] = listMapRaw
-
-		setMapRaw, setMapMarshalErr := npMgr.ipsMgr.MarshalSetMapJSON()
-		if setMapMarshalErr != nil {
-			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, setMapMarshalErr)
+	} else {
+		cache := controllersv1.Cache{
+			NsMap:   npMgr.NpmNamespaceCacheV1.GetNsMap(),
+			PodMap:  npMgr.PodControllerV1.PodMap(),
+			ListMap: npMgr.ipsMgr.GetListMap(),
+			SetMap:  npMgr.ipsMgr.GetSetMap(),
 		}
-		m[models.SetMap] = setMapRaw
+
+		cacheRaw, err = json.Marshal(cache)
+		if err != nil {
+			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
+		}
 	}
 
-	nodeNameRaw, err := json.Marshal(npMgr.NodeName)
-	if err != nil {
-		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
-	}
-	m[models.NodeName] = nodeNameRaw
-
-	npmCacheRaw, err := json.Marshal(m)
-	if err != nil {
-		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
-	}
-
-	return npmCacheRaw, nil
+	return cacheRaw, nil
 }
 
 // GetAppVersion returns network policy manager app version

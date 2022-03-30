@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/exec"
@@ -59,7 +60,7 @@ func TestMarshalUnMarshalJSON(t *testing.T) {
 		ListMap:  make(map[string]*ipsm.Ipset),
 		NodeName: nodeName,
 		NsMap:    make(map[string]*controllersv1.Namespace),
-		PodMap:   make(map[string]*controllersv1.NpmPod),
+		PodMap:   make(map[string]*common.NpmPod),
 		SetMap:   make(map[string]*ipsm.Ipset),
 	}
 

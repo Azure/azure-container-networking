@@ -29,8 +29,14 @@ import (
 // Since this cache is shared between podController and NameSpaceController,
 // it has mutex for avoiding racing condition between them.
 type NpmNamespaceCache struct {
-	sync.Mutex
+	sync.RWMutex
 	NsMap map[string]*Namespace // Key is ns-<nsname>
+}
+
+func (n *NpmNamespaceCache) GetNsMap() map[string]*Namespace {
+	n.RLock()
+	defer n.RUnlock()
+	return n.NsMap
 }
 
 func (n *NpmNamespaceCache) MarshalJSON() ([]byte, error) {

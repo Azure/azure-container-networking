@@ -3,6 +3,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -717,7 +718,7 @@ func TestPodMapMarshalJSON(t *testing.T) {
 	npmPod := common.NewNpmPod(pod)
 	f.podController.podMap[podKey] = npmPod
 
-	npMapRaw, err := f.podController.MarshalJSON()
+	npMapRaw, err := json.Marshal(f.podController.PodMap())
 	assert.NoError(t, err)
 
 	expect := []byte(`{"test-namespace/test-pod":{"Name":"test-pod","Namespace":"test-namespace","PodIP":"1.2.3.4","Labels":{},"ContainerPorts":[],"Phase":"Running"}}`)
