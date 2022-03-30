@@ -60,6 +60,7 @@ const (
 	AddNetPolReference      = "AddNetPolReference"
 	DeleteNetPolReference   = "DeleteNetPolReference"
 	RunFileCreator          = "RunCommandWithFile"
+	AddPod                  = "AddPod"
 )
 
 // Error codes for ipsetmanager

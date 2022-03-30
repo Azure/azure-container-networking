@@ -5,6 +5,7 @@ package util
 import (
 	"fmt"
 	"hash/fnv"
+	"net"
 	"os"
 	"regexp"
 	"runtime"
@@ -351,4 +352,13 @@ func CompareSlices(list1, list2 []string) bool {
 
 func SliceToString(list []string) string {
 	return strings.Join(list, SetPolicyDelimiter)
+}
+
+func IsIPV4(ip string) bool {
+	if net.ParseIP(ip).To4() != nil {
+		return true
+	}
+
+	_, _, err := net.ParseCIDR(ip)
+	return err == nil
 }

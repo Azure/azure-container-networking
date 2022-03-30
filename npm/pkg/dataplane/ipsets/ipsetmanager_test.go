@@ -67,6 +67,7 @@ var (
 
 	namespaceSet     = NewIPSetMetadata("test-set1", Namespace)
 	keyLabelOfPodSet = NewIPSetMetadata("test-set2", KeyLabelOfPod)
+	portSet          = NewIPSetMetadata("test-set3", NamedPorts)
 	list             = NewIPSetMetadata("test-list1", KeyLabelOfNamespace)
 )
 
@@ -486,6 +487,40 @@ func TestAddToSets(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Apply On Need: cidr add to new set",
+			args: args{
+				cfg:               applyOnNeedCfg,
+				toCreateMetadatas: nil,
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "10.0.0.0/8",
+			},
+			expectedInfo: expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, members: []member{{"10.0.0.0/8", isHashMember}}},
+				},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Apply On Need: bad cidr add to new set",
+			args: args{
+				cfg:               applyOnNeedCfg,
+				toCreateMetadatas: nil,
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "310.0.0.0/8",
+			},
+			expectedInfo: expectedInfo{
+				mainCache:        []setMembers{},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: true,
+		},
+		{
 			name: "add IPv6",
 			args: args{
 				cfg:               applyAlwaysCfg,
@@ -495,13 +530,95 @@ func TestAddToSets(t *testing.T) {
 			},
 			expectedInfo: expectedInfo{
 				mainCache: []setMembers{
-					{metadata: namespaceSet, members: []member{{ipv6, isHashMember}}},
+					{metadata: namespaceSet, members: []member{}},
+				},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "add cidr",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{namespaceSet},
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "10.0.0.0/8",
+			},
+			expectedInfo: expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, members: []member{{"10.0.0.0/8", isHashMember}}},
 				},
 				toAddUpdateCache: []*IPSetMetadata{namespaceSet},
 				toDeleteCache:    nil,
 				setsForKernel:    []*IPSetMetadata{namespaceSet},
 			},
 			wantErr: false,
+		},
+		{
+			name: "add bad cidr",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{namespaceSet},
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "310.0.0.0/8",
+			},
+			expectedInfo: expectedInfo{
+				mainCache:        []setMembers{{metadata: namespaceSet, members: []member{}}},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "add bad cidr 2",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{namespaceSet},
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "x.x.x.x/8",
+			},
+			expectedInfo: expectedInfo{
+				mainCache:        []setMembers{{metadata: namespaceSet, members: []member{}}},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "add bad ip 1",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{namespaceSet},
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "x.x.x.x",
+			},
+			expectedInfo: expectedInfo{
+				mainCache:        []setMembers{{metadata: namespaceSet, members: []member{}}},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "add bad ip port 1",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{namespaceSet},
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "x.x.x.x,80",
+			},
+			expectedInfo: expectedInfo{
+				mainCache:        []setMembers{{metadata: namespaceSet, members: []member{}}},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: true,
 		},
 		{
 			name: "add existing IP to set (same pod key)",
@@ -589,6 +706,78 @@ func TestAddToSets(t *testing.T) {
 				setsForKernel:    nil,
 			},
 			wantErr: true,
+		},
+		{
+			name: "add empty ip",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{namespaceSet},
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            "",
+			},
+			expectedInfo: expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, members: []member{}},
+				},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "add empty ip with port",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{namespaceSet},
+				toAddMetadatas:    []*IPSetMetadata{namespaceSet},
+				member:            ",80",
+			},
+			expectedInfo: expectedInfo{
+				mainCache: []setMembers{
+					{metadata: namespaceSet, members: []member{}},
+				},
+				toAddUpdateCache: nil,
+				toDeleteCache:    nil,
+				setsForKernel:    nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "add ipv4 with port",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{portSet},
+				toAddMetadatas:    []*IPSetMetadata{portSet},
+				member:            "1.1.1.1,80",
+			},
+			expectedInfo: expectedInfo{
+				mainCache: []setMembers{
+					{metadata: portSet, members: []member{{"1.1.1.1,80", isHashMember}}},
+				},
+				toAddUpdateCache: []*IPSetMetadata{portSet},
+				toDeleteCache:    nil,
+				setsForKernel:    []*IPSetMetadata{portSet},
+			},
+			wantErr: false,
+		},
+		{
+			name: "add cidr with nomatch",
+			args: args{
+				cfg:               applyAlwaysCfg,
+				toCreateMetadatas: []*IPSetMetadata{portSet},
+				toAddMetadatas:    []*IPSetMetadata{portSet},
+				member:            "10.10.2.0/28 nomatch",
+			},
+			expectedInfo: expectedInfo{
+				mainCache: []setMembers{
+					{metadata: portSet, members: []member{{"10.10.2.0/28 nomatch", isHashMember}}},
+				},
+				toAddUpdateCache: []*IPSetMetadata{portSet},
+				toDeleteCache:    nil,
+				setsForKernel:    []*IPSetMetadata{portSet},
+			},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
