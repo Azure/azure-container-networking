@@ -579,6 +579,13 @@ func main() {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
 		}
+
+		// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
+		err = platform.SetSdnRemoteArpMacAddress()
+		if err != nil {
+			logger.Errorf("Failed to set remote ARP MAC address: %v", err)
+			return
+		}
 	}
 
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.
@@ -587,6 +594,13 @@ func main() {
 		err = InitializeMultiTenantController(rootCtx, httpRestService, *cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
+			return
+		}
+
+		// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
+		err = platform.SetSdnRemoteArpMacAddress()
+		if err != nil {
+			logger.Errorf("Failed to set remote ARP MAC address: %v", err)
 			return
 		}
 	}
