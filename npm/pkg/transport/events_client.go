@@ -6,7 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/pkg/protos"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"k8s.io/klog/v2"
 )
 
@@ -37,9 +37,18 @@ func NewEventsClient(ctx context.Context, pod, node, addr string) (*EventsClient
 	}
 
 	klog.Infof("Connecting to NPM controller gRPC server at address %s\n", addr)
-	// TODO Make this secure
-	// TODO Remove WithBlock option post testing
-	cc, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	config, err := clientTLSConfig()
+	if err != nil {
+		klog.Errorf("failed to load client tls config : %s", err)
+		return nil, fmt.Errorf("failed to load client tls config : %w", err)
+	}
+
+	cc, err := grpc.DialContext(
+		ctx,
+		addr,
+		grpc.WithTransportCredentials(credentials.NewTLS(config)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %s: %w", addr, err)
 	}
@@ -81,11 +90,12 @@ func (c *EventsClient) run(ctx context.Context, stopCh <-chan struct{}) error {
 		default:
 			if connectClient == nil {
 				klog.Info("Reconnecting to gRPC server controller")
-				opts := []grpc.CallOption{grpc.WaitForReady(true)}
+				opts := []grpc.CallOption{grpc.WaitForReady(false)}
 				connectClient, err = c.Connect(ctx, clientMetadata, opts...)
 				if err != nil {
 					return fmt.Errorf("failed to connect to dataplane events server: %w", err)
 				}
+				klog.Info("Successfully connected to gRPC server controller")
 			}
 			event, err := connectClient.Recv()
 			if err != nil {

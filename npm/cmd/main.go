@@ -3,9 +3,12 @@
 package main
 
 import (
+	"runtime/debug"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"k8s.io/klog"
 )
 
 const (
@@ -20,7 +23,17 @@ var flagDefaults = map[string]string{
 // Version is populated by make during build.
 var version string
 
+// panicRecoverAndExitWithStackTrace - recovery from panic, print a failure message and stack trace and exit the program
+func panicRecoverAndExitWithStackTrace() {
+	if r := recover(); r != nil {
+		klog.Errorf("%+v", r)
+		klog.Errorf("Stack trace: %s", string(debug.Stack()))
+	}
+}
+
 func main() {
+	defer panicRecoverAndExitWithStackTrace()
+
 	rootCmd := NewRootCmd()
 
 	if version != "" {

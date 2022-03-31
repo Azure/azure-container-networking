@@ -19,7 +19,7 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 		iptableSaveFile,
 	)
 	if err != nil {
-		t.Errorf("error during TestGetJSONRulesFromIptable : %v", err)
+		t.Errorf("failed to test GetJSONRulesFromIptable : %v", err)
 	}
 }
 
@@ -37,7 +37,7 @@ func TestNpmCacheFromFile(t *testing.T) {
 	c := &Converter{}
 	err := c.NpmCacheFromFile(npmCacheFile)
 	if err != nil {
-		t.Errorf("Failed to decode NPMCache from %v file : %v", npmCacheFile, err)
+		t.Errorf("Failed to decode NPMCache from %s file : %v", npmCacheFile, err)
 	}
 }
 

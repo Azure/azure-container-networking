@@ -368,6 +368,7 @@ func TestIpamAddFail(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 			for i, method := range tt.methods {
+				fmt.Println("method", method, "wanterr", tt.wantErr[i])
 				if tt.wantErr[i] {
 					plugin.ipamInvoker = NewMockIpamInvoker(false, true, false)
 				} else {

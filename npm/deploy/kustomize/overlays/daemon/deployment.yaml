@@ -36,7 +36,7 @@ spec:
             containerPort: 10091
           image: azure-npm:v1.4.1
           command: ["azure-npm"]
-          args: ["start", "daemon"]
+          args: ["daemon"]
           resources:
             limits:
               cpu: 250m

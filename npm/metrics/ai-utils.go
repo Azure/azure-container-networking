@@ -8,15 +8,22 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"k8s.io/klog"
 )
 
-var th aitelemetry.TelemetryHandle
+var (
+	th         aitelemetry.TelemetryHandle
+	npmVersion int
+	PrintLog   = true
+	DonotPrint = false
+)
 
 // CreateTelemetryHandle creates a handler to initialize AI telemetry
-func CreateTelemetryHandle(version, aiMetadata string) error {
+func CreateTelemetryHandle(npmVersionNum int, imageVersion, aiMetadata string) error {
+	npmVersion = npmVersionNum
 	aiConfig := aitelemetry.AIConfig{
 		AppName:                   util.AzureNpmFlag,
-		AppVersion:                version,
+		AppVersion:                imageVersion,
 		BatchSize:                 util.BatchSizeInBytes,
 		BatchInterval:             util.BatchIntervalInSecs,
 		RefreshTimeout:            util.RefreshTimeoutInSecs,
@@ -47,7 +54,7 @@ func CreateTelemetryHandle(version, aiMetadata string) error {
 	return nil
 }
 
-// SendErrorLogAndMetric is responsible for sending log and error metrics through AI telemetry
+// SendErrorLogAndMetric sends a metric through AI telemetry and sends a log to the Kusto Messages table
 func SendErrorLogAndMetric(operationID int, format string, args ...interface{}) {
 	// Send error metrics
 	customDimensions := map[string]string{
@@ -63,36 +70,42 @@ func SendErrorLogAndMetric(operationID int, format string, args ...interface{}) 
 	// Send error logs
 	msg := fmt.Sprintf(format, args...)
 	log.Errorf(msg)
-	SendLog(operationID, msg)
+	SendLog(operationID, msg, DonotPrint)
 }
 
 // SendMetric sends metrics
 func SendMetric(metric aitelemetry.Metric) {
 	if th == nil {
-		log.Logf("AppInsights didn't initialize")
 		return
 	}
 	th.TrackMetric(metric)
 }
 
 // SendLog sends log
-func SendLog(operationID int, msg string) {
+func SendLog(operationID int, msg string, printLog bool) {
+	msg = fmt.Sprintf("%s - (NPM v%d)", msg, npmVersion)
 	report := aitelemetry.Report{
 		Message:          msg,
 		Context:          strconv.Itoa(operationID),
 		CustomDimensions: make(map[string]string),
 	}
+	if printLog {
+		klog.Infof(msg)
+	}
 	if th == nil {
-		log.Logf("AppInsights didn't initialized.")
 		return
 	}
 	th.TrackLog(report)
 }
 
-func SendHeartbeatLog() {
+func SendHeartbeatWithNumPolicies() {
+	var message string
 	numPolicies, err := GetNumPolicies()
-	if err != nil {
-		message := fmt.Sprintf("Info: NPM currently has %d policies", numPolicies)
-		SendLog(util.NpmID, message)
+	if err == nil {
+		message = fmt.Sprintf("info: NPM heartbeat. Current num policies: %d", numPolicies)
+	} else {
+		message = fmt.Sprintf("warn: NPM hearbeat. Couldn't get number of policies for telemetry log: %v", err)
+		klog.Warning(message)
 	}
+	SendLog(util.NpmID, message, DonotPrint)
 }

@@ -91,7 +91,7 @@ func (dp *DataPlane) RunPeriodicTasks() {
 				return
 			case <-ticker.C:
 				// send the heartbeat log in another go routine in case it takes a while
-				go metrics.SendHeartbeatLog()
+				go metrics.SendHeartbeatWithNumPolicies()
 
 				// locks ipset manager
 				dp.ipsetMgr.Reconcile()
@@ -331,11 +331,7 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 			// ipblock can have either cidr (CIDR in IPBlock) or "cidr + " " (space) + nomatch" (Except in IPBlock)
 			// (TODO) need to revise it for windows
 			for _, ipblock := range set.Members {
-				err := ipsets.ValidateIPBlock(ipblock)
-				if err != nil {
-					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to parseCIDR in addIPSetReferences with err: %s", err.Error()))
-				}
-				err = dp.ipsetMgr.AddToSets([]*ipsets.IPSetMetadata{set.Metadata}, ipblock, "")
+				err := dp.ipsetMgr.AddToSets([]*ipsets.IPSetMetadata{set.Metadata}, ipblock, "")
 				if err != nil {
 					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to AddToSet in addIPSetReferences with err: %s", err.Error()))
 				}
@@ -378,11 +374,7 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 			// ipblock can have either cidr (CIDR in IPBlock) or "cidr + " " (space) + nomatch" (Except in IPBlock)
 			// (TODO) need to revise it for windows
 			for _, ipblock := range set.Members {
-				err := ipsets.ValidateIPBlock(ipblock)
-				if err != nil {
-					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to parseCIDR in deleteIPSetReferences with err: %s", err.Error()))
-				}
-				err = dp.ipsetMgr.RemoveFromSets([]*ipsets.IPSetMetadata{set.Metadata}, ipblock, "")
+				err := dp.ipsetMgr.RemoveFromSets([]*ipsets.IPSetMetadata{set.Metadata}, ipblock, "")
 				if err != nil {
 					return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to RemoveFromSet in deleteIPSetReferences with err: %s", err.Error()))
 				}

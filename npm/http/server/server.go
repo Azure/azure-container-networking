@@ -71,7 +71,7 @@ func (n *NPMRestServer) npmCacheHandler(npmCacheEncoder json.Marshaler) http.Han
 		}
 		_, err = w.Write(b)
 		if err != nil {
-			log.Errorf("failed to write resp: %w", err)
+			log.Errorf("failed to write resp: %v", err)
 		}
 	})
 }

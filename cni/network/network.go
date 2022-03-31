@@ -525,7 +525,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if nwInfoErr != nil {
 		// Network does not exist.
 		telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
-		if nwInfo, err = plugin.createNetworkInternal(networkID, policies, args, nwCfg, cnsNetworkConfig, subnetPrefix, result, resultV6); err != nil {
+		// opts map needs to get passed in here
+		if nwInfo, err = plugin.createNetworkInternal(networkID, policies, args, nwCfg, cnsNetworkConfig, subnetPrefix, result, resultV6, options); err != nil {
 			log.Errorf("Create network failed:%w", err)
 			return err
 		}
@@ -588,10 +589,9 @@ func (plugin *NetPlugin) createNetworkInternal(
 	cnsNetworkConfig *cns.GetNetworkContainerResponse,
 	subnetPrefix net.IPNet,
 	result *cniTypesCurr.Result,
-	resultV6 *cniTypesCurr.Result) (network.NetworkInfo, error) {
-
+	resultV6 *cniTypesCurr.Result,
+	options map[string]interface{}) (network.NetworkInfo, error) {
 	nwInfo := network.NetworkInfo{}
-	options := make(map[string]interface{})
 	gateway := result.IPs[0].Gateway
 	subnetPrefix.IP = subnetPrefix.IP.Mask(subnetPrefix.Mask)
 	nwCfg.Ipam.Subnet = subnetPrefix.String()
@@ -976,21 +976,14 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	// Query the network.
 	if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
-
 		if !nwCfg.MultiTenancy {
-			// attempt to release address associated with this Endpoint id
-			// This is to ensure clean up is done even in failure cases
-			log.Errorf("[cni-net] Failed to query network: %v", err)
-			telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Release ip by ContainerID (network not found):%v", args.ContainerID))
-			err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
-			if err != nil {
-				log.Printf("Attempted to release address by containerID failed with error: %v", err)
-			}
+			log.Printf("[cni-net] Failed to query network: %v", err)
+			// Log the error but return success if the network is not found.
+			// if cni hits this, mostly state file would be missing and it can be reboot scenario where
+			// container runtime tries to delete and create pods which existed before reboot.
+			err = nil
+			return err
 		}
-
-		// Log the error but return success if the endpoint being deleted is not found.
-		err = nil
-		return err
 	}
 
 	endpointID := GetEndpointID(args)
@@ -1003,7 +996,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			log.Printf("[cni-net] Failed to query endpoint: %v", err)
 			telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
-				log.Printf("Attempted to release address by containerID failed with error: %v", err)
+				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 			}
 		}
 
@@ -1030,8 +1023,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Release ip:%s", address.IP.String()))
 			err = plugin.ipamInvoker.Delete(&address, nwCfg, args, nwInfo.Options)
 			if err != nil {
-				err = plugin.Errorf("Failed to release address %v with error: %v", address, err)
-				return err
+				return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 			}
 		}
 	} else if epInfo.EnableInfraVnet {
@@ -1039,8 +1031,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		nwCfg.Ipam.Address = epInfo.InfraVnetIP.IP.String()
 		err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 		if err != nil {
-			log.Printf("Failed to release address: %v", err)
-			err = plugin.Errorf("Failed to release address %v with error: %v", nwCfg.Ipam.Address, err)
+			return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 		}
 	}
 
