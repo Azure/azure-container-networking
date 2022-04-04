@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -337,8 +338,8 @@ func sendRegisterNodeRequest(
 	httpc *http.Client,
 	httpRestService cns.HTTPService,
 	nodeRegisterRequest cns.NodeRegisterRequest,
-	registerURL string) error {
-
+	registerURL string,
+) error {
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
@@ -1015,27 +1016,26 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to setup reconciler with manager")
 	}
 
-	mux := http.NewServeMux()
+	// adding some routes to the root serve mux
+	mux := httpRestServiceImplementation.Listener.GetMux()
 
-	/*pprof endpoints
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	*/
+	if cnsconfig.Debug {
+		// add pprof endpoints
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
 
-	//to reduce
+	// add metrics endpoints
 	mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{
 		ErrorHandling: promhttp.HTTPErrorOnError,
 	}))
-	healthzhandler := healthz.Handler{}
-	healthzhandler.Checks["ping"] = healthz.Ping
-	mux.Handle("/heathz", &healthzhandler)
 
-	go func() {
-		http.ListenAndServe(cnsconfig.MetricsBindAddress, mux)
-	}()
+	// add healthz endpoints
+	healthzhandler := healthz.Handler{}
+	mux.Handle("/healthz", http.StripPrefix("/healthz", &healthzhandler))
 
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
