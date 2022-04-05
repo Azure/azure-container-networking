@@ -27,6 +27,8 @@ var aiMetadata string //nolint // aiMetadata is set in Makefile
 type NetworkPolicyManager struct {
 	config npmconfig.Config
 
+	Dataplane dataplane.GenericDataplane
+
 	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management
 	// and uses lock to avoid unintentional race condictions in IpsetManager.
 	ipsMgr *ipsm.IpsetManager
@@ -56,7 +58,8 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	klog.Infof("API server version: %+v AI metadata %+v", k8sServerVersion, aiMetadata)
 
 	npMgr := &NetworkPolicyManager{
-		config: config,
+		config:    config,
+		Dataplane: dp,
 		Informers: models.Informers{
 			InformerFactory: informerFactory,
 			PodInformer:     informerFactory.Core().V1().Pods(),
@@ -91,7 +94,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	return npMgr
 }
 
-// matmerr: todo: really not a fan of sniping the marshalljson and returing different marshalled type,
+// matmerr: todo: really not a fan of sniping the marshaljson and returing different marshalled type,
 // makes very difficult to predict marshalled type when used as a client
 func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 	var err error
@@ -101,6 +104,7 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 		cache := controllersv2.Cache{}
 		cache.NsMap = npMgr.NamespaceControllerV2.GetCache()
 		cache.PodMap = npMgr.PodControllerV2.GetCache()
+		cache.SetMap = npMgr.Dataplane.GetAllIPSets()
 		cacheRaw, err = json.Marshal(cache)
 		if err != nil {
 			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)

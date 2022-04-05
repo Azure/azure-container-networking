@@ -28,6 +28,8 @@ func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte
 	if err != nil {
 		return nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
 	}
+
+	// after we have all rules from the AZURE-NPM chains in the filter table, get the network tuples of src and dst
 	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules)
 }
 
@@ -66,6 +68,7 @@ func getNetworkTupleCommon(
 		return nil, nil, fmt.Errorf("error occurred during get destination pod : %w", err)
 	}
 
+	// find all rules where the source pod and dest pod exist
 	hitRules, err := getHitRules(srcPod, dstPod, allRules, npmCache)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w", err)
@@ -164,10 +167,12 @@ func getHitRules(
 ) ([]*pb.RuleResponse, error) {
 
 	res := make([]*pb.RuleResponse, 0)
+
 	for _, rule := range rules {
 		matched := true
+
+		// evalute all match set in src
 		for _, setInfo := range rule.SrcList {
-			// evalute all match set in src
 			if src.Namespace == "" {
 				// internet
 				matched = false
@@ -185,8 +190,9 @@ func getHitRules(
 		if !matched {
 			continue
 		}
+
+		// evaluate all match set in dst
 		for _, setInfo := range rule.DstList {
-			// evaluate all match set in dst
 			if dst.Namespace == "" {
 				// internet
 				matched = false

@@ -174,10 +174,18 @@ func (gsp *GoalStateProcessor) processHydrationEvent(payload map[string]*protos.
 	}
 
 	cachedIPSetNames := gsp.dp.GetAllIPSets()
+	hashedsetnames := make([]string, len(cachedIPSetNames))
+
 	toDeleteIPSets := make([]string, 0)
 
+	i := 0
+	for name := range cachedIPSetNames {
+		hashedsetnames[i] = name
+		i++
+	}
+
 	if appendedIPSets == nil {
-		toDeleteIPSets = cachedIPSetNames
+		toDeleteIPSets = hashedsetnames
 	} else {
 		for _, ipset := range cachedIPSetNames {
 			if _, ok := appendedIPSets[ipset]; !ok {

@@ -18,6 +18,7 @@ import (
 	npmcommon "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
@@ -181,7 +182,7 @@ func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleRes
 		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables without file: %w", err)
 	}
 
-	ipTable, err := c.Parser.Iptables(tableName)
+	ipTable, err := c.Parser.Iptables(tableName) // get iptables from "filter" table
 	if err != nil {
 		return nil, fmt.Errorf("error occurred during parsing iptables : %w", err)
 	}
@@ -197,6 +198,8 @@ func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleRes
 // Create a list of protobuf rules from iptable.
 func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) ([]*pb.RuleResponse, error) {
 	ruleResList := make([]*pb.RuleResponse, 0)
+
+	// iterate through all chains in the filter table
 	for _, v := range ipTable.Chains {
 		chainRules, err := c.getRulesFromChain(v)
 		if err != nil {
@@ -213,6 +216,7 @@ func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.Rul
 	for _, v := range iptableChain.Rules {
 		rule := &pb.RuleResponse{}
 		rule.Chain = iptableChain.Name
+
 		// filter other chains except for Azure NPM specific chains.
 		if _, ok := c.AzureNPMChains[rule.Chain]; !ok {
 			continue
@@ -273,10 +277,43 @@ func (c *Converter) getSetType(name string, m string) pb.SetType {
 	return pb.SetType_KEYLABELOFPOD
 }
 
+func (c *Converter) getSetTypeV2(name string) (pb.SetType, ipsets.SetKind) {
+	var settype pb.SetType
+	var setmetadata ipsets.IPSetMetadata
+
+	switch {
+	case strings.HasPrefix(util.CIDRPrefix, name):
+		settype = pb.SetType_CIDRBLOCKS
+		setmetadata.Type = ipsets.CIDRBlocks
+
+	case strings.HasPrefix(util.NamespacePrefix, name):
+		settype = pb.SetType_NAMESPACE
+		setmetadata.Type = ipsets.Namespace
+
+	case strings.HasPrefix(util.NamedPortIPSetPrefix, name):
+		settype = pb.SetType_NAMEDPORTS
+		setmetadata.Type = ipsets.NamedPorts
+
+	case strings.HasPrefix(util.PodLabelPrefix, name):
+		settype = pb.SetType_KEYLABELOFPOD // could also be KeyValueLabelOfPod
+		setmetadata.Type = ipsets.KeyLabelOfPod
+
+	case strings.HasPrefix(util.NamespaceLabelPrefix, name):
+		settype = pb.SetType_KEYLABELOFNAMESPACE
+		setmetadata.Type = ipsets.KeyLabelOfNamespace
+
+	// todo: missing pb.SetTypes from V2 to V1
+		
+	}
+
+	return settype, setmetadata.GetSetKind()
+}
+
 func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes *pb.RuleResponse) error {
 	ruleRes.SrcList = make([]*pb.RuleResponse_SetInfo, 0)
 	ruleRes.DstList = make([]*pb.RuleResponse_SetInfo, 0)
 	ruleRes.UnsortedIpset = make(map[string]string)
+
 	for _, module := range moduleList {
 		switch module.Verb {
 		case "set":
@@ -287,6 +324,7 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 				case "match-set":
 					setInfo := &pb.RuleResponse_SetInfo{}
 
+					// will populate the setinfo and add to ruleRes
 					err := c.populateSetInfo(setInfo, values, ruleRes)
 					if err != nil {
 						return fmt.Errorf("error occurred during getting modules from rules : %w", err)
@@ -295,6 +333,8 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 
 				case "not-match-set":
 					setInfo := &pb.RuleResponse_SetInfo{}
+
+					// will populate the setinfo and add to ruleRes
 					err := c.populateSetInfo(setInfo, values, ruleRes)
 					if err != nil {
 						return fmt.Errorf("error occurred during getting modules from rules : %w", err)
@@ -325,26 +365,28 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 	return nil
 }
 
-func (c *Converter) populateSetInfo(
-	setInfo *pb.RuleResponse_SetInfo,
-	values []string,
-	ruleRes *pb.RuleResponse,
-) error {
+func (c *Converter) populateSetInfo(setInfo *pb.RuleResponse_SetInfo, values []string, ruleRes *pb.RuleResponse) error {
 
 	ipsetHashedName := values[0]
 	ipsetOrigin := values[1]
 	setInfo.HashedSetName = ipsetHashedName
-	if v, ok := c.ListMap[ipsetHashedName]; ok {
-		setInfo.Name = v
-		setInfo.Type = c.getSetType(v, "ListMap")
-	} else if v, ok := c.SetMap[ipsetHashedName]; ok {
-		setInfo.Name = v
-		setInfo.Type = c.getSetType(v, "SetMap")
-		if setInfo.Type == pb.SetType_CIDRBLOCKS {
-			populateCIDRBlockSet(setInfo)
-		}
+
+	if c.EnableV2NPM {
+		setInfo.Name = c.SetMap[ipsetHashedName]
+		setInfo.Type, _ = c.getSetTypeV2(setInfo.Name)
 	} else {
-		return fmt.Errorf("%w : %v", npmcommon.ErrSetNotExist, ipsetHashedName)
+		if v, ok := c.ListMap[ipsetHashedName]; ok {
+			setInfo.Name = v
+			setInfo.Type = c.getSetType(v, "ListMap")
+		} else if v, ok := c.SetMap[ipsetHashedName]; ok {
+			setInfo.Name = v
+			setInfo.Type = c.getSetType(v, "SetMap")
+			if setInfo.Type == pb.SetType_CIDRBLOCKS {
+				populateCIDRBlockSet(setInfo)
+			}
+		} else {
+			return fmt.Errorf("%w : %v", npmcommon.ErrSetNotExist, ipsetHashedName)
+		}
 	}
 
 	if len(ipsetOrigin) > MinUnsortedIPSetLength {

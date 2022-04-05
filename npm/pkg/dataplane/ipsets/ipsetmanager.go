@@ -42,7 +42,7 @@ type IPSetManager struct {
 	// IPSets referred to in this cache may be in the setMap, but must be deleted from the kernel
 	toDeleteCache map[string]struct{}
 	ioShim        *common.IOShim
-	sync.Mutex
+	sync.RWMutex
 }
 
 type IPSetManagerCfg struct {
@@ -446,16 +446,14 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 	return nil
 }
 
-func (iMgr *IPSetManager) GetAllIPSets() []string {
-	iMgr.Lock()
-	defer iMgr.Unlock()
-	setNames := make([]string, len(iMgr.setMap))
-	i := 0
-	for setName := range iMgr.setMap {
-		setNames[i] = setName
-		i++
+func (iMgr *IPSetManager) GetAllIPSets() map[string]string {
+	iMgr.RLock()
+	defer iMgr.RUnlock()
+	setMap := make(map[string]string, len(iMgr.setMap))
+	for _, metadata := range iMgr.setMap {
+		setMap[metadata.HashedName] = metadata.Name
 	}
-	return setNames
+	return setMap
 }
 
 func (iMgr *IPSetManager) exists(name string) bool {

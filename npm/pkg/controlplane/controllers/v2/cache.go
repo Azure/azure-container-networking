@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"log"
+
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 )
 
@@ -8,6 +10,7 @@ type Cache struct {
 	NodeName string
 	NsMap    map[string]*Namespace
 	PodMap   map[string]*common.NpmPod
+	SetMap   map[string]string
 }
 
 func (c *Cache) GetPod(input *common.Input) (*common.NpmPod, error) {
@@ -36,13 +39,12 @@ func (c *Cache) GetNamespaceLabel(namespace, labelkey string) string {
 }
 
 func (c *Cache) GetListMap() map[string]string {
-	listMap := make(map[string]string)
+	listMap := make(map[string]string, 0)
 	// get all lists
+	log.Printf("info: NPMV2 doesn't make use of the listmap")
 	return listMap
 }
 
 func (c *Cache) GetSetMap() map[string]string {
-	setMap := make(map[string]string)
-	// get all sets
-	return setMap
+	return c.SetMap
 }

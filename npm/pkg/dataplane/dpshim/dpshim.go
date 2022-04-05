@@ -452,7 +452,7 @@ func (dp *DPShim) ApplyDataPlane() error {
 	return nil
 }
 
-func (dp *DPShim) GetAllIPSets() []string {
+func (dp *DPShim) GetAllIPSets() map[string]string {
 	return nil
 }
 
