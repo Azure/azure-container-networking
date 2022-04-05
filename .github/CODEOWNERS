@@ -1,1 +1,10 @@
-/npm/   @azure/acn-npm-reviewers
+# The intention of the CODEOWNERS is that a reviewer can be automatically assigned
+# to a PR when it is opened instead of needing to be manually assigned or being left 
+# unassigned. PRs without assigned Reviewers do not get the prompt attention that 
+# they should.
+# The CODEOWNERS are not Gatekeepers, just someone who has the domain knowledge to 
+# review a PR in an area. 
+/npm/       @azure/acn-npm-reviewers
+/cns/       @azure/acn-cns-reviewers
+/.github/   @rbtr @matmerr @vakalapa
+/go.mod     @rbtr @matmerr
