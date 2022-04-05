@@ -141,7 +141,7 @@ func (creator *FileCreator) RunCommandWithFile(cmd string, args ...string) error
 		if wasFileAltered {
 			sameNew = "updated"
 		}
-		msg := fmt.Sprintf("on try number %d, failed to run command [%s]. Rerunning with %s file. Had error [%s].\nUsed file:\n%s", creator.tryCount, commandString, sameNew, err.Error(), fileString)
+		msg := fmt.Sprintf("on try number %d, failed to run command [%s]. Rerunning with %s file. Had error [%s].Used file:%s", creator.tryCount, commandString, sameNew, err.Error(), fileString)
 		klog.Error(msg)
 		metrics.SendErrorLogAndMetric(util.UtilID, "error: %s", msg)
 

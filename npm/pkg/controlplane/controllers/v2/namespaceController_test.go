@@ -734,7 +734,7 @@ func TestNSMapMarshalJSON(t *testing.T) {
 	npmNSCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
 	nsName := "ns-test"
 	ns := &Namespace{
-		name: nsName,
+		Name: nsName,
 		LabelsMap: map[string]string{
 			"test-key": "test-value",
 		},

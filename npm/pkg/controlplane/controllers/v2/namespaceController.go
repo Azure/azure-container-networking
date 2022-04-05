@@ -61,14 +61,14 @@ func (n *NpmNamespaceCache) MarshalJSON() ([]byte, error) {
 }
 
 type Namespace struct {
-	name      string
+	Name      string
 	LabelsMap map[string]string // Namespace labels
 }
 
 // newNS constructs a new namespace object.
 func newNs(name string) *Namespace {
 	ns := &Namespace{
-		name:      name,
+		Name:      name,
 		LabelsMap: make(map[string]string),
 	}
 	return ns

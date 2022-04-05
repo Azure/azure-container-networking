@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/Azure/azure-container-networking/npm/http/api"
 	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -15,8 +17,12 @@ import (
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTuple(src, dst *common.Input) ([][]byte, []*common.Tuple, error) {
-	c := &Converter{}
+func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*common.Tuple, error) {
+	c := &Converter{
+		NPMDebugEndpointHost: "http://localhost",
+		NPMDebugEndpointPort: api.DefaultHttpPort,
+		EnableV2NPM:          config.Toggles.EnableV2NPM, // todo: pass this a different way than param to this
+	}
 
 	allRules, err := c.GetProtobufRulesFromIptable("filter")
 	if err != nil {

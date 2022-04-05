@@ -2,9 +2,9 @@ package npm
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -28,9 +28,7 @@ func TestNPMCache(t *testing.T) {
 			NodeName: "TestNode",
 		},
 		K8SControllersV2: models.K8SControllersV2{
-			NamespaceControllerV2: &controllersv2.NamespaceController{
-				
-			},
+			NamespaceControllerV2: &controllersv2.NamespaceController{},
 		},
 	}
 
@@ -51,11 +49,11 @@ func TestNPMCache(t *testing.T) {
 
 	host := strings.Split(server.URL[7:], ":")
 	hostip := host[0]
-	hostport, _ := strconv.Atoi(host[1])
 
 	c := &debug.Converter{
-		NPMDebugEndpointHost: hostip,
-		NPMDebugEndpointPort: hostport,
+		NPMDebugEndpointHost: fmt.Sprintf("http://%s", hostip),
+		NPMDebugEndpointPort: host[1],
+		EnableV2NPM:          true,
 	}
 	require.NoError(t, c.InitConverter())
 }

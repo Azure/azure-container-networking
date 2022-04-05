@@ -5,6 +5,7 @@ package npm
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
@@ -100,13 +101,11 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 		cache := controllersv2.Cache{}
 		cache.NsMap = npMgr.NamespaceControllerV2.GetCache()
 		cache.PodMap = npMgr.PodControllerV2.GetCache()
-		cache.ListMap = npMgr.ipsMgr.GetListMap()
-		cache.SetMap = npMgr.ipsMgr.GetSetMap()
-
 		cacheRaw, err = json.Marshal(cache)
 		if err != nil {
 			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 		}
+		log.Printf("sending cache v2 %+v", cache)
 	} else {
 		cache := controllersv1.Cache{
 			NsMap:   npMgr.NpmNamespaceCacheV1.GetNsMap(),
@@ -119,6 +118,7 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 		}
+		log.Printf("sending cache v1%+v", cache)
 	}
 
 	return cacheRaw, nil

@@ -1,17 +1,13 @@
 package controllers
 
 import (
-	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
-	"github.com/Azure/azure-container-networking/npm/util"
 )
 
 type Cache struct {
 	NodeName string
 	NsMap    map[string]*Namespace
 	PodMap   map[string]*common.NpmPod
-	ListMap  map[string]*ipsm.Ipset
-	SetMap   map[string]*ipsm.Ipset
 }
 
 func (c *Cache) GetPod(input *common.Input) (*common.NpmPod, error) {
@@ -41,19 +37,12 @@ func (c *Cache) GetNamespaceLabel(namespace, labelkey string) string {
 
 func (c *Cache) GetListMap() map[string]string {
 	listMap := make(map[string]string)
-	for k := range c.ListMap {
-		hashedName := util.GetHashedName(k)
-		listMap[hashedName] = k
-	}
+	// get all lists
 	return listMap
 }
 
 func (c *Cache) GetSetMap() map[string]string {
 	setMap := make(map[string]string)
-
-	for k := range c.SetMap {
-		hashedName := util.GetHashedName(k)
-		setMap[hashedName] = k
-	}
+	// get all sets
 	return setMap
 }

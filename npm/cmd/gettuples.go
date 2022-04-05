@@ -34,13 +34,23 @@ func newGetTuples() *cobra.Command {
 
 			switch {
 			case npmCacheF == "" && iptableSaveF == "":
-
-				if viper.GetBool(npmconfig.ConfigEnableV2String) == true {
+				config := &npmconfig.Config{}
+				err := viper.Unmarshal(config)
+				if err != nil {
+					log.Printf("failed to load config with err ")
+				}
+				log.Printf("is v2? %s", config.Toggles.EnableV2NPM)
+				if config.Toggles.EnableV2NPM {
 					log.Println("using v2 tuple")
-					dataplane.GetNetworkTuple(srcInput, dstInput)
+					_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput, config)
+					if err != nil {
+						return fmt.Errorf("%w", err)
+					}
+					for _, tuple := range tuples {
+						fmt.Printf("%+v\n", tuple)
+					}
 				} else {
-					log.Println("using v1 tuple")
-					_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput)
+					_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput, config)
 					if err != nil {
 						return fmt.Errorf("%w", err)
 					}

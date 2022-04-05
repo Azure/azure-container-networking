@@ -27,7 +27,7 @@ import (
 // Converter struct
 type Converter struct {
 	NPMDebugEndpointHost string
-	NPMDebugEndpointPort int
+	NPMDebugEndpointPort string
 	Parser               parse.IPTablesParser
 	ListMap              map[string]string // key: hash(value), value: one of namespace, label of namespace, multiple values
 	SetMap               map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
@@ -58,7 +58,7 @@ func (c *Converter) NpmCache() error {
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		fmt.Sprintf("http://%v:%v%v", c.NPMDebugEndpointHost, c.NPMDebugEndpointPort, api.NPMMgrPath),
+		fmt.Sprintf("%v:%v%v", c.NPMDebugEndpointHost, c.NPMDebugEndpointPort, api.NPMMgrPath),
 		nil,
 	)
 	if err != nil {
@@ -75,17 +75,21 @@ func (c *Converter) NpmCache() error {
 	}
 
 	if c.EnableV2NPM {
+		log.Printf("using v2 cache")
 		c.NPMCache = &controllersv2.Cache{}
 		err = json.Unmarshal(byteArray, c.NPMCache)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
 		}
+		log.Printf("received cache %+v", c.NPMCache)
 	} else {
+		log.Printf("using v1 cache")
 		c.NPMCache = &controllersv1.Cache{}
 		err = json.Unmarshal(byteArray, c.NPMCache)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
 		}
+		log.Printf("received cache %+v", c.NPMCache)
 	}
 
 	return nil
