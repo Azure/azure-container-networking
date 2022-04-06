@@ -4,10 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/restserver"
-	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -21,12 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-type cnsClient interface {
-	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
-}
-
-type ipamPoolMonitorClient interface {
-	Update(*v1alpha.NodeNetworkConfig)
+type nodeNetworkConfigListener interface {
+	Update(*v1alpha.NodeNetworkConfig) error
 }
 
 type nncGetter interface {
@@ -35,19 +28,21 @@ type nncGetter interface {
 
 // Reconciler watches for CRD status changes
 type Reconciler struct {
-	cnscli             cnsClient
-	ipampoolmonitorcli ipamPoolMonitorClient
-	nnccli             nncGetter
-	started            chan interface{}
-	once               sync.Once
+	nncListeners []nodeNetworkConfigListener
+	nnccli       nncGetter
+	once         sync.Once
+	started      chan interface{}
 }
 
-func NewReconciler(nnccli nncGetter, cnscli cnsClient, ipampipampoolmonitorcli ipamPoolMonitorClient) *Reconciler {
+// NewReconciler creates a NodeNetworkConfig Reconciler which will get updates from the Kubernetes
+// apiserver for NNC events.
+// Provided nncListeners are passed the NNC after the Reconcile preprocesses it. Note: order matters! The
+// passed Listeners are notified in the order provided.
+func NewReconciler(nnccli nncGetter, nncListeners ...nodeNetworkConfigListener) *Reconciler {
 	return &Reconciler{
-		cnscli:             cnscli,
-		ipampoolmonitorcli: ipampipampoolmonitorcli,
-		nnccli:             nnccli,
-		started:            make(chan interface{}),
+		nncListeners: nncListeners,
+		nnccli:       nnccli,
+		started:      make(chan interface{}),
 	}
 }
 
@@ -65,31 +60,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	logger.Printf("[cns-rc] CRD Spec: %v", nnc.Spec)
 
-	// If there are no network containers, don't hand it off to CNS
+	// If there are no network containers, don't continue to updating Listeners
 	if len(nnc.Status.NetworkContainers) == 0 {
 		logger.Errorf("[cns-rc] Empty NetworkContainers")
 		return reconcile.Result{}, nil
 	}
 
-	// Create NC request and hand it off to CNS
-	ncRequest, err := CRDStatusToNCRequest(&nnc.Status)
-	if err != nil {
-		logger.Errorf("[cns-rc] Error translating crd status to nc request %v", err)
-		// requeue
-		return reconcile.Result{}, errors.Wrap(err, "failed to convert NNC status to network container request")
+	// push the NNC to the registered NNC Sinks
+	for i := range r.nncListeners {
+		if err := r.nncListeners[i].Update(nnc); err != nil {
+			return reconcile.Result{}, errors.Wrap(err, "nnc listener return error during update")
+		}
 	}
-
-	responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(&ncRequest)
-	err = restserver.ResponseCodeToError(responseCode)
-	if err != nil {
-		logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
-		// requeue
-		return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
-	}
-
-	r.ipampoolmonitorcli.Update(nnc)
-	// record assigned IPs metric
-	allocatedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
 
 	// we have received and pushed an NNC update, we are "Started"
 	r.once.Do(func() { close(r.started) })
