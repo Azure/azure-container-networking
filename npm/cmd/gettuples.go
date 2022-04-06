@@ -39,7 +39,7 @@ func newGetTuples() *cobra.Command {
 				if err != nil {
 					log.Printf("failed to load config with err ")
 				}
-				log.Printf("is v2? %s", config.Toggles.EnableV2NPM)
+				log.Printf("is v2? %v", config.Toggles.EnableV2NPM)
 				if config.Toggles.EnableV2NPM {
 					log.Println("using v2 tuple")
 					_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput, config)

@@ -44,11 +44,20 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 		return fmt.Errorf("failed to read %s file : %w", npmCacheJSONFile, err)
 	}
 
-	c.NPMCache = &controllersv1.Cache{}
-	err = json.Unmarshal(byteArray, c.NPMCache)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
+	if c.EnableV2NPM {
+		c.NPMCache = &controllersv2.Cache{}
+		err = json.Unmarshal(byteArray, c.NPMCache)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
+		}
+	} else {
+		c.NPMCache = &controllersv1.Cache{}
+		err = json.Unmarshal(byteArray, c.NPMCache)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
+		}
 	}
+
 	return nil
 }
 
@@ -132,6 +141,17 @@ func (c *Converter) initConverterMaps() {
 	c.SetMap = c.NPMCache.GetSetMap()
 }
 
+func (c *Converter) isAzureNPMChain(chain string) bool {
+	if c.EnableV2NPM {
+		if strings.HasPrefix(chain, "AZURE-NPM") {
+			return true
+		}
+	} else {
+		return c.AzureNPMChains[chain]
+	}
+	return false
+}
+
 /*
 // Convert list of protobuf rules to list of JSON rules.
 func (c *Converter) jsonRuleList(pbRules []*pb.RuleResponse) ([][]byte, error) {
@@ -179,17 +199,17 @@ func (c *Converter) GetProtobufRulesFromIptableFile(
 func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleResponse, error) {
 	err := c.InitConverter()
 	if err != nil {
-		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables without file: %w", err)
+		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables : %w", err)
 	}
 
-	ipTable, err := c.Parser.Iptables(tableName) // get iptables from "filter" table
+	ipTable, err := parse.Iptables(tableName)
 	if err != nil {
 		return nil, fmt.Errorf("error occurred during parsing iptables : %w", err)
 	}
 
 	ruleResList, err := c.pbRuleList(ipTable)
 	if err != nil {
-		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables without: %w", err)
+		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables : %w", err)
 	}
 
 	return ruleResList, nil
@@ -197,40 +217,63 @@ func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleRes
 
 // Create a list of protobuf rules from iptable.
 func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) ([]*pb.RuleResponse, error) {
-	ruleResList := make([]*pb.RuleResponse, 0)
+	allRulesInNPMChains := make([]*pb.RuleResponse, 0)
 
+	log.Printf("iterating through rules iptable \n%+v", ipTable)
 	// iterate through all chains in the filter table
 	for _, v := range ipTable.Chains {
-		chainRules, err := c.getRulesFromChain(v)
-		if err != nil {
-			return nil, fmt.Errorf("error occurred during getting protobuf rule list : %w", err)
+		if c.isAzureNPMChain(v.Name) {
+			rulesFromChain, err := c.getRulesFromChain(v)
+			if err != nil {
+				return nil, fmt.Errorf("error occurred during getting protobuf rule list : %w", err)
+			}
+			allRulesInNPMChains = append(allRulesInNPMChains, rulesFromChain...)
 		}
-		ruleResList = append(ruleResList, chainRules...)
 	}
 
-	return ruleResList, nil
+	return allRulesInNPMChains, nil
 }
 
 func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.RuleResponse, error) {
 	rules := make([]*pb.RuleResponse, 0)
+
+	// ** for logging, remove **
+	chainrules := []string{}
+	for i := range iptableChain.Rules {
+		mods := []string{}
+
+		for _, modules := range iptableChain.Rules[i].Modules {
+			mods = append(mods, fmt.Sprintf("%v", *modules))
+		}
+		chainrules = append(chainrules, fmt.Sprintf("target: [%+v] mods: [%+v]", *iptableChain.Rules[i].Target, mods))
+	}
+	// \\ ** for logging, remove **
+	if c.isAzureNPMChain(iptableChain.Name) {
+		log.Printf("looping through iptable chain name: [%+v] data: [%+v] rules: [%+v]", iptableChain.Name, string(iptableChain.Data), chainrules)
+
+	}
+	// loop through each chain, if it has a jump, follow that jump
+	// loop through rules in that jumped chain
+
 	for _, v := range iptableChain.Rules {
 		rule := &pb.RuleResponse{}
 		rule.Chain = iptableChain.Name
 
-		// filter other chains except for Azure NPM specific chains.
-		if _, ok := c.AzureNPMChains[rule.Chain]; !ok {
-			continue
+		if c.EnableV2NPM {
+
+		} else {
+			rule.Protocol = v.Protocol
+			switch v.Target.Name {
+			case util.IptablesMark:
+				rule.Allowed = true
+			case util.IptablesDrop:
+				rule.Allowed = false
+			default:
+				// ignore other targets
+				continue
+			}
 		}
-		rule.Protocol = v.Protocol
-		switch v.Target.Name {
-		case util.IptablesMark:
-			rule.Allowed = true
-		case util.IptablesDrop:
-			rule.Allowed = false
-		default:
-			// ignore other targets
-			continue
-		}
+
 		rule.Direction = c.getRuleDirection(iptableChain.Name)
 
 		err := c.getModulesFromRule(v.Modules, rule)
@@ -239,6 +282,7 @@ func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.Rul
 		}
 		rules = append(rules, rule)
 	}
+
 	return rules, nil
 }
 
@@ -302,8 +346,8 @@ func (c *Converter) getSetTypeV2(name string) (pb.SetType, ipsets.SetKind) {
 		settype = pb.SetType_KEYLABELOFNAMESPACE
 		setmetadata.Type = ipsets.KeyLabelOfNamespace
 
-	// todo: missing pb.SetTypes from V2 to V1
-		
+		// todo: missing pb.SetTypes from V2 to V1
+
 	}
 
 	return settype, setmetadata.GetSetKind()
@@ -315,6 +359,9 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 	ruleRes.UnsortedIpset = make(map[string]string)
 
 	for _, module := range moduleList {
+
+		log.Printf("inside chain %+v, getting modules from rule, with module %+v", ruleRes.Chain, module)
+
 		switch module.Verb {
 		case "set":
 			// set module
@@ -324,6 +371,7 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 				case "match-set":
 					setInfo := &pb.RuleResponse_SetInfo{}
 
+					log.Printf("inside match-set, populating setInfo with %+v", values)
 					// will populate the setinfo and add to ruleRes
 					err := c.populateSetInfo(setInfo, values, ruleRes)
 					if err != nil {
@@ -358,6 +406,9 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 					ruleRes.SPort = int32(portNum)
 				}
 			}
+
+		case "comment":
+			log.Printf("skipping comment for %+v ruleres %+v", module, ruleRes.String())
 		default:
 			continue
 		}

@@ -1,0 +1,17 @@
+[Chain: "AZURE-NPM-INGRESS-3750705395" Direction:INGRESS Chain: "AZURE-NPM-ACCEPT" Chain: "AZURE-NPM-ACCEPT" Chain: "AZURE-NPM-EGRESS" SrcList: {Name: "podlabel-pod:a" HashedSetName: "azure-npm-3922407721" Included: true
+    } SrcList: {Name: "ns-y" HashedSetName: "azure-npm-2837910840" Included: true
+    } Direction:EGRESS Chain: "AZURE-NPM-EGRESS" SrcList: {Name: "podlabel-app:konnectivity-agent" HashedSetName: "azure-npm-4272224941" Included: true
+    } SrcList: {Name: "ns-kube-system" HashedSetName: "azure-npm-2064349730" Included: true
+    } Direction:EGRESS Chain: "AZURE-NPM-EGRESS" Direction:EGRESS Chain: "AZURE-NPM-EGRESS" Direction:EGRESS Chain: "AZURE-NPM-EGRESS-2697641196" DstList: {Name: "nslabel-ns:y" HashedSetName: "azure-npm-2146053937" Included: true
+    } DstList: {Name: "nestedlabel-pod:a:b" HashedSetName: "azure-npm-2682470511" Included: true
+    } DPort: 80 Direction:EGRESS Chain: "AZURE-NPM-EGRESS-2697641196" DstList: {Name: "nslabel-ns:z" HashedSetName: "azure-npm-2095721080" Included: true
+    } DstList: {Name: "nestedlabel-pod:a:b" HashedSetName: "azure-npm-2682470511" Included: true
+    } DPort: 80 Direction:EGRESS Chain: "AZURE-NPM-EGRESS-2697641196" DPort: 53 Direction:EGRESS Chain: "AZURE-NPM-EGRESS-2697641196" DPort: 53 Direction:EGRESS Chain: "AZURE-NPM-EGRESS-2697641196" Direction:EGRESS Chain: "AZURE-NPM-EGRESS-3618314628" Direction:EGRESS Chain: "AZURE-NPM-INGRESS" DstList: {Name: "ns-kube-system" HashedSetName: "azure-npm-2064349730" Included: true
+    } Direction:INGRESS Chain: "AZURE-NPM-INGRESS" DstList: {Name: "podlabel-pod:a" HashedSetName: "azure-npm-3922407721" Included: true
+    } DstList: {Name: "ns-y" HashedSetName: "azure-npm-2837910840" Included: true
+    } Direction:INGRESS Chain: "AZURE-NPM-INGRESS" Direction:INGRESS Chain: "AZURE-NPM-INGRESS-ALLOW-MARK" Direction:INGRESS Chain: "AZURE-NPM-INGRESS-ALLOW-MARK" Direction:INGRESS Chain: "AZURE-NPM" Chain: "AZURE-NPM" Chain: "AZURE-NPM" Chain: "AZURE-NPM-INGRESS-2697641196" SrcList: {Name: "nslabel-ns:x" HashedSetName: "azure-npm-2129276318" Included: true
+    } SrcList: {Name: "nestedlabel-pod:b:c" HashedSetName: "azure-npm-55798953" Included: true
+    } DPort: 80 Direction:INGRESS Chain: "AZURE-NPM-INGRESS-2697641196" SrcList: {Name: "nslabel-ns:y" HashedSetName: "azure-npm-2146053937" Included: true
+    } SrcList: {Name: "nestedlabel-pod:b:c" HashedSetName: "azure-npm-55798953" Included: true
+    } DPort: 80 Direction:INGRESS Chain: "AZURE-NPM-INGRESS-2697641196" Direction:INGRESS
+]

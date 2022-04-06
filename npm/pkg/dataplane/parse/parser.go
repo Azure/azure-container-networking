@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -64,6 +65,28 @@ func (i *IPTablesParser) Iptables(tableName string) (*NPMIPtable.Table, error) {
 	}
 
 	chains := parseIptablesChainObject(tableName, output)
+	return &NPMIPtable.Table{Name: tableName, Chains: chains}, nil
+}
+
+// Iptables creates a Go object from specified iptable by calling iptables-save within node.
+func Iptables(tableName string) (*NPMIPtable.Table, error) {
+	iptableBuffer := bytes.NewBuffer(nil)
+	// TODO: need to get iptable's lock
+	cmdArgs := []string{util.IptablesTableFlag, string(tableName)}
+	cmd := exec.Command(util.IptablesSave, cmdArgs...) //nolint:gosec
+
+	cmd.Stdout = iptableBuffer
+	stderrBuffer := bytes.NewBuffer(nil)
+	cmd.Stderr = stderrBuffer
+
+	err := cmd.Run()
+	if err != nil {
+		_, err = stderrBuffer.WriteTo(iptableBuffer)
+		if err != nil {
+			return nil, fmt.Errorf("%w", err)
+		}
+	}
+	chains := parseIptablesChainObject(tableName, iptableBuffer.Bytes())
 	return &NPMIPtable.Table{Name: tableName, Chains: chains}, nil
 }
 

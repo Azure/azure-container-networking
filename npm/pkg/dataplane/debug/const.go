@@ -32,7 +32,9 @@ var matcher = regexp.MustCompile(`(?i)[^ ]+-in-ns-[^ ]+-\d(out|in)\b`)
 
 // To test paser, converter, and trafficAnalyzer with stored files.
 const (
-	iptableSaveFile = "../testdata/iptablesave"
+	iptableSaveFile   = "../testdata/iptablesave"
+	iptableSaveFileV2 = "../testdata/iptablesave-v2"
 	// stored file with json compatible form (i.e., can call json.Unmarshal)
 	npmCacheFile = "../testdata/npmcache.json"
+	npmCacheFileV2 = "../testdata/npmcachev2.json"
 )

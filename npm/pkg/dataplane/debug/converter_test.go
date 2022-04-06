@@ -1,23 +1,109 @@
 package debug
 
 import (
+	"log"
 	"reflect"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 )
 
 func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
-	_, err := c.GetProtobufRulesFromIptableFile(
+	rules, err := c.GetProtobufRulesFromIptableFile(
 		util.IptablesFilterTable,
 		npmCacheFile,
 		iptableSaveFile,
 	)
+	log.Printf("rules %+v", rules)
+	if err != nil {
+		t.Errorf("failed to test GetJSONRulesFromIptable : %v", err)
+	}
+}
+
+func TestGetProtobufRulesFromIptableFileV2(t *testing.T) {
+	c := &Converter{
+		EnableV2NPM: true,
+	}
+	rules, err := c.GetProtobufRulesFromIptableFile(
+		util.IptablesFilterTable,
+		npmCacheFileV2,
+		iptableSaveFileV2,
+	)
+	log.Printf("rules %+v", rules)
+
+	srcPod := &common.NpmPod{
+		Name:      "a",
+		Namespace: "y",
+		PodIP:     "10.224.0.70",
+		Labels: map[string]string{
+			"pod": "a",
+		},
+		ContainerPorts: []v1.ContainerPort{
+			{
+				Name:          "serve-80-tcp",
+				ContainerPort: 80,
+				Protocol:      "TCP",
+			},
+			{
+				Name:          "serve-80-udp",
+				ContainerPort: 80,
+				Protocol:      "UDP",
+			},
+			{
+				Name:          "serve-81-tcp",
+				ContainerPort: 81,
+				Protocol:      "TCP",
+			},
+			{
+				Name:          "serve-81-UDP",
+				ContainerPort: 81,
+				Protocol:      "UDP",
+			},
+		},
+	}
+
+	dstPod := &common.NpmPod{
+		Name:      "b",
+		Namespace: "x",
+		PodIP:     "10.224.0.20",
+		Labels: map[string]string{
+			"pod": "b",
+		},
+		ContainerPorts: []v1.ContainerPort{
+			{
+				Name:          "serve-80-tcp",
+				ContainerPort: 80,
+				Protocol:      "TCP",
+			},
+			{
+				Name:          "serve-80-udp",
+				ContainerPort: 80,
+				Protocol:      "UDP",
+			},
+			{
+				Name:          "serve-81-tcp",
+				ContainerPort: 81,
+				Protocol:      "TCP",
+			},
+			{
+				Name:          "serve-81-UDP",
+				ContainerPort: 81,
+				Protocol:      "UDP",
+			},
+		},
+	}
+
+	hitrules, err := getHitRules(srcPod, dstPod, rules, c.NPMCache)
+	require.NoError(t, err)
+	log.Printf("hitrules %+v", hitrules)
 	if err != nil {
 		t.Errorf("failed to test GetJSONRulesFromIptable : %v", err)
 	}
