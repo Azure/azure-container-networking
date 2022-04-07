@@ -1576,3 +1576,393 @@ func TestIngressPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestEgressPolicy(t *testing.T) {
+	tcp := v1.ProtocolTCP
+	emptyString := intstr.FromString("")
+	targetPodMatchType := policies.EitherMatch
+	peerMatchType := policies.DstMatch
+	tests := []struct {
+		name           string
+		targetSelector *metav1.LabelSelector
+		rules          []networkingv1.NetworkPolicyEgressRule
+		npmNetPol      *policies.NPMNetworkPolicy
+		wantErr        bool
+	}{
+		{
+			name: "only port in egress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &tcp,
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "serve-tcp",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-serve-tcp",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstPorts: policies.Ports{
+							Port:    0,
+							EndPort: 0,
+						},
+						Protocol: "TCP",
+					},
+					defaultDropACL("default", "serve-tcp", policies.Egress),
+				},
+			},
+		},
+		{
+			name: "only ipBlock in egress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR:   "172.17.0.0/16",
+								Except: []string{"172.17.1.0/24"},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "only-ipblock",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0-0OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-only-ipblock",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstList: []policies.SetInfo{
+							policies.NewSetInfo("only-ipblock-in-ns-default-0-0OUT", ipsets.CIDRBlocks, included, peerMatchType),
+						},
+					},
+					defaultDropACL("default", "only-ipblock", policies.Egress),
+				},
+			},
+		},
+		{
+			name: "only peer podSelector in egress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"peer-podselector-kay": "peer-podselector-value",
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "only-peer-podSelector",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("peer-podselector-kay:peer-podselector-value", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-only-peer-podSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstList: []policies.SetInfo{
+							policies.NewSetInfo("peer-podselector-kay:peer-podselector-value", ipsets.KeyValueLabelOfPod, included, peerMatchType),
+							policies.NewSetInfo("default", ipsets.Namespace, included, peerMatchType),
+						},
+					},
+					defaultDropACL("default", "only-peer-podSelector", policies.Egress),
+				},
+			},
+		},
+		{
+			name: "only peer nameSpaceSelector in egress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"peer-nsselector-kay": "peer-nsselector-value",
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "only-peer-nsSelector",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstList: []policies.SetInfo{
+							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
+						},
+					},
+					defaultDropACL("default", "only-peer-nsSelector", policies.Egress),
+				},
+			},
+		},
+		{
+			name: "deny all in egress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: nil,
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "serve-tcp",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					defaultDropACL("default", "serve-tcp", policies.Egress),
+				},
+			},
+		},
+		{
+			name: "allow all egress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "serve-tcp",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-serve-tcp",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+					},
+				},
+			},
+		},
+		{
+			name: "peer nameSpaceSelector and ipblock in egress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"peer-nsselector-kay": "peer-nsselector-value",
+								},
+							},
+						},
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR:   "172.17.0.0/16",
+								Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+							},
+						},
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "172.17.0.0/16",
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "only-peer-nsSelector",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
+					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-1OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+					ipsets.NewTranslatedIPSet("only-peer-nsSelector-in-ns-default-0-2OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16"}...),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstList: []policies.SetInfo{
+							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
+						},
+					},
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstList: []policies.SetInfo{
+							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-1OUT", ipsets.CIDRBlocks, included, peerMatchType),
+						},
+					},
+					{
+						PolicyID:  "azure-acl-default-only-peer-nsSelector",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstList: []policies.SetInfo{
+							policies.NewSetInfo("only-peer-nsSelector-in-ns-default-0-2OUT", ipsets.CIDRBlocks, included, peerMatchType),
+						},
+					},
+					defaultDropACL("default", "only-peer-nsSelector", policies.Egress),
+				},
+			},
+		},
+		{
+			name: "error",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &tcp,
+							Port:     &emptyString,
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "serve-tcp",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-serve-tcp",
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						Protocol:  "TCP",
+					},
+					defaultDropACL("default", "serve-tcp", policies.Egress),
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			npmNetPol := &policies.NPMNetworkPolicy{
+				Name:      tt.npmNetPol.Name,
+				NameSpace: tt.npmNetPol.NameSpace,
+			}
+			var err error
+			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.NameSpace, policies.EitherMatch, tt.targetSelector)
+			require.NoError(t, err)
+			err = egressPolicy(npmNetPol, tt.rules)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.npmNetPol, npmNetPol)
+			}
+		})
+	}
+}

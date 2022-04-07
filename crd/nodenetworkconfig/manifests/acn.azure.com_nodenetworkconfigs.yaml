@@ -73,6 +73,13 @@ spec:
             properties:
               assignedIPCount:
                 type: integer
+              mode:
+                default: swift
+                description: Mode is the type of Pod Subnet we are operating in
+                enum:
+                - swift
+                - overlay
+                type: string
               networkContainers:
                 items:
                   description: NetworkContainer defines the structure of a Network
@@ -134,7 +141,7 @@ spec:
                 description: Status indicates the NNC reconcile status
                 enum:
                 - Updating
-                - Update
+                - Updated
                 - Error
                 type: string
             type: object

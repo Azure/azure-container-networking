@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	filePerm    = 0664
+	filePerm    = 0o664
 	httpTimeout = 5
 )
 
@@ -38,14 +38,11 @@ type MultitenancyClient interface {
 	DetermineSnatFeatureOnHost(
 		snatFile string,
 		nmAgentSupportedApisURL string) (bool, bool, error)
-
 	GetContainerNetworkConfiguration(
 		ctx context.Context,
 		nwCfg *cni.NetworkConfig,
 		podName string,
-		podNamespace string,
-		ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error)
-
+		podNamespace string) (*cns.GetNetworkContainerResponse, net.IPNet, error)
 	Init(cnsclient cnsclient, netioshim netioshim)
 }
 
@@ -161,7 +158,8 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 	cnsNetworkConfig *cns.GetNetworkContainerResponse,
 	azIpamResult *cniTypesCurr.Result,
 	epInfo *network.EndpointInfo,
-	result *cniTypesCurr.Result) {
+	result *cniTypesCurr.Result,
+) {
 	// Adding default gateway
 	// if snat enabled, add 169.254.128.1 as default gateway
 	if nwCfg.EnableSnatOnHost {
@@ -184,7 +182,8 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 }
 
 func (m *Multitenancy) GetContainerNetworkConfiguration(
-	ctx context.Context, nwCfg *cni.NetworkConfig, podName string, podNamespace string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
+	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace string,
+) (*cns.GetNetworkContainerResponse, net.IPNet, error) {
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
@@ -194,12 +193,20 @@ func (m *Multitenancy) GetContainerNetworkConfiguration(
 	}
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
-	return m.getContainerNetworkConfigurationInternal(ctx, nwCfg.CNSUrl, podNamespace, podNameWithoutSuffix, ifName)
+	ncResponse, hostSubnetPrefix, err := m.getContainerNetworkConfigurationInternal(ctx, podNamespace, podNameWithoutSuffix)
+	if nwCfg.EnableSnatOnHost {
+		if ncResponse.LocalIPConfiguration.IPSubnet.IPAddress == "" {
+			log.Printf("Snat IP is not populated. Got empty string")
+			return nil, net.IPNet{}, errSnatIP
+		}
+	}
+
+	return ncResponse, hostSubnetPrefix, err
 }
 
 func (m *Multitenancy) getContainerNetworkConfigurationInternal(
-	ctx context.Context, cnsURL string, namespace string, podName string, ifName string) (*cniTypesCurr.Result, *cns.GetNetworkContainerResponse, net.IPNet, error) {
-
+	ctx context.Context, namespace, podName string,
+) (*cns.GetNetworkContainerResponse, net.IPNet, error) {
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      podName,
 		PodNamespace: namespace,
@@ -208,25 +215,25 @@ func (m *Multitenancy) getContainerNetworkConfigurationInternal(
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
-		return nil, nil, net.IPNet{}, err
+		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
 	networkConfig, err := m.cnsclient.GetNetworkConfiguration(ctx, orchestratorContext)
 	if err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
-		return nil, nil, net.IPNet{}, err
+		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
 	log.Printf("Network config received from cns %+v", networkConfig)
 
 	subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(networkConfig.PrimaryInterfaceIdentifier)
 	if subnetPrefix == nil {
-		errBuf := fmt.Sprintf("Interface not found for this ip %v", networkConfig.PrimaryInterfaceIdentifier)
-		log.Printf(errBuf)
-		return nil, nil, net.IPNet{}, fmt.Errorf(errBuf)
+		errBuf := fmt.Errorf("%w %s", errIfaceNotFound, networkConfig.PrimaryInterfaceIdentifier)
+		log.Printf(errBuf.Error())
+		return nil, net.IPNet{}, errBuf
 	}
 
-	return convertToCniResult(networkConfig, ifName), networkConfig, *subnetPrefix, nil
+	return networkConfig, *subnetPrefix, nil
 }
 
 func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName string) *cniTypesCurr.Result {
@@ -278,42 +285,22 @@ func getInfraVnetIP(
 	nwCfg *cni.NetworkConfig,
 	plugin *NetPlugin,
 ) (*cniTypesCurr.Result, error) {
-
 	if enableInfraVnet {
 		_, ipNet, _ := net.ParseCIDR(infraSubnet)
 		nwCfg.Ipam.Subnet = ipNet.String()
 
 		log.Printf("call ipam to allocate ip from subnet %v", nwCfg.Ipam.Subnet)
-		subnetPrefix := &net.IPNet{}
-		options := make(map[string]interface{})
-		azIpamResult, _, err := plugin.ipamInvoker.Add(nwCfg, nil, subnetPrefix, options)
+		ipamAddOpt := IPAMAddConfig{nwCfg: nwCfg, options: make(map[string]interface{})}
+		ipamAddResult, err := plugin.ipamInvoker.Add(ipamAddOpt)
 		if err != nil {
 			err = plugin.Errorf("Failed to allocate address: %v", err)
 			return nil, err
 		}
 
-		return azIpamResult, nil
+		return ipamAddResult.ipv4Result, nil
 	}
 
 	return nil, nil
-}
-
-func cleanupInfraVnetIP(
-	enableInfraVnet bool,
-	infraIPNet *net.IPNet,
-	nwCfg *cni.NetworkConfig,
-	plugin *NetPlugin) {
-
-	log.Printf("Cleanup infravnet ip")
-
-	if enableInfraVnet {
-		_, ipNet, _ := net.ParseCIDR(infraIPNet.String())
-		nwCfg.Ipam.Subnet = ipNet.String()
-		nwCfg.Ipam.Address = infraIPNet.IP.String()
-		if err := plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg); err != nil {
-			log.Errorf("failed to cleanup infravnet ip with err %w", err)
-		}
-	}
 }
 
 func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNetworkConfig *cns.GetNetworkContainerResponse) bool {
@@ -338,56 +325,5 @@ var (
 	errSnatIP        = errors.New("Snat IP not populated")
 	errInfraVnet     = errors.New("infravnet not populated")
 	errSubnetOverlap = errors.New("subnet overlap error")
+	errIfaceNotFound = errors.New("Interface not found for this ip")
 )
-
-// GetMultiTenancyCNIResult retrieves network goal state of a container from CNS
-func (plugin *NetPlugin) GetMultiTenancyCNIResult(
-	ctx context.Context,
-	enableInfraVnet bool,
-	nwCfg *cni.NetworkConfig,
-	k8sPodName string,
-	k8sNamespace string,
-	ifName string) (res *cniTypesCurr.Result, resp *cns.GetNetworkContainerResponse, prefix net.IPNet, infraRes *cniTypesCurr.Result, err error) {
-
-	result, cnsNetworkConfig, subnetPrefix, err := plugin.multitenancyClient.GetContainerNetworkConfiguration(ctx, nwCfg, k8sPodName, k8sNamespace, ifName)
-	if err != nil {
-		log.Printf("GetContainerNetworkConfiguration failed for podname %v namespace %v with error %v", k8sPodName, k8sNamespace, err)
-		return nil, nil, net.IPNet{}, nil, fmt.Errorf("GetContainerNetworkConfiguration failed:%w", err)
-	}
-
-	log.Printf("PrimaryInterfaceIdentifier :%v", subnetPrefix.IP.String())
-
-	if checkIfSubnetOverlaps(enableInfraVnet, nwCfg, cnsNetworkConfig) {
-		buf := fmt.Sprintf("InfraVnet %v overlaps with customerVnet %+v", nwCfg.InfraVnetAddressSpace, cnsNetworkConfig.CnetAddressSpace)
-		log.Printf(buf)
-		return nil, nil, net.IPNet{}, nil, errSubnetOverlap
-	}
-
-	if nwCfg.EnableSnatOnHost {
-		if cnsNetworkConfig.LocalIPConfiguration.IPSubnet.IPAddress == "" {
-			log.Printf("Snat IP is not populated. Got empty string")
-			return nil, nil, net.IPNet{}, nil, errSnatIP
-		}
-	}
-
-	if enableInfraVnet {
-		if nwCfg.InfraVnetAddressSpace == "" {
-			log.Printf("InfraVnetAddressSpace is not populated. Got empty string")
-			return nil, nil, net.IPNet{}, nil, errInfraVnet
-		}
-	}
-
-	azIpamResult, err := getInfraVnetIP(enableInfraVnet, subnetPrefix.String(), nwCfg, plugin)
-	if err != nil {
-		log.Printf("GetInfraVnetIP failed with error %v", err)
-		return nil, nil, net.IPNet{}, nil, err
-	}
-
-	return result, cnsNetworkConfig, subnetPrefix, azIpamResult, nil
-}
-
-func CleanupMultitenancyResources(enableInfraVnet bool, nwCfg *cni.NetworkConfig, azIpamResult *cniTypesCurr.Result, plugin *NetPlugin) {
-	if azIpamResult != nil && azIpamResult.IPs != nil {
-		cleanupInfraVnetIP(enableInfraVnet, &azIpamResult.IPs[0].Address, nwCfg, plugin)
-	}
-}
