@@ -45,9 +45,20 @@ type NodeNetworkConfigSpec struct {
 	IPsNotInUse      []string `json:"ipsNotInUse,omitempty"`
 }
 
+// Mode is the type of Pod Subnet we are operating in
+// +kubebuilder:validation:Enum=swift;overlay
+type Mode string
+
+const (
+	Overlay Mode = "overlay"
+	Swift   Mode = "swift"
+)
+
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig
 type NodeNetworkConfigStatus struct {
-	AssignedIPCount   int                `json:"assignedIPCount,omitempty"`
+	AssignedIPCount int `json:"assignedIPCount,omitempty"`
+	// +kubebuilder:default=swift
+	Mode              Mode               `json:"mode,omitempty"`
 	Scaler            Scaler             `json:"scaler,omitempty"`
 	Status            Status             `json:"status,omitempty"`
 	NetworkContainers []NetworkContainer `json:"networkContainers,omitempty"`
@@ -62,7 +73,7 @@ type Scaler struct {
 }
 
 // Status indicates the NNC reconcile status
-// +kubebuilder:validation:Enum=Updating;Update;Error
+// +kubebuilder:validation:Enum=Updating;Updated;Error
 type Status string
 
 const (

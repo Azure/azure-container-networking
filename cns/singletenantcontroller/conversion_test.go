@@ -1,18 +1,18 @@
 package kubecontroller
 
 import (
-	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
 	uuid               = "539970a2-c2dd-11ea-b3de-0242ac130004"
 	defaultGateway     = "10.0.0.2"
-	ipInCIDR           = "10.0.0.1/32"
+	ipIsCIDR           = "10.0.0.1/32"
 	ipMalformed        = "10.0.0.0.0"
 	ncID               = "160005ba-cd02-11ea-87d0-0242ac130003"
 	primaryIP          = "10.0.0.1"
@@ -74,24 +74,30 @@ var validRequest = cns.CreateNetworkContainerRequest{
 func TestConvertNNCStatusToNCRequest(t *testing.T) {
 	tests := []struct {
 		name    string
-		status  v1alpha.NodeNetworkConfigStatus
-		ncreq   cns.CreateNetworkContainerRequest
+		input   v1alpha.NodeNetworkConfigStatus
+		want    cns.CreateNetworkContainerRequest
 		wantErr bool
 	}{
 		{
-			name:    "no nc",
-			status:  v1alpha.NodeNetworkConfigStatus{},
+			name:    "valid",
+			input:   validStatus,
 			wantErr: false,
-			ncreq:   cns.CreateNetworkContainerRequest{},
+			want:    validRequest,
+		},
+		{
+			name:    "no nc",
+			input:   v1alpha.NodeNetworkConfigStatus{},
+			wantErr: false,
+			want:    cns.CreateNetworkContainerRequest{},
 		},
 		{
 			name:    ">1 nc",
-			status:  invalidStatusMultiNC,
+			input:   invalidStatusMultiNC,
 			wantErr: true,
 		},
 		{
 			name: "malformed primary IP",
-			status: v1alpha.NodeNetworkConfigStatus{
+			input: v1alpha.NodeNetworkConfigStatus{
 				NetworkContainers: []v1alpha.NetworkContainer{
 					{
 						PrimaryIP: ipMalformed,
@@ -110,7 +116,7 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 		},
 		{
 			name: "malformed IP assignment",
-			status: v1alpha.NodeNetworkConfigStatus{
+			input: v1alpha.NodeNetworkConfigStatus{
 				NetworkContainers: []v1alpha.NetworkContainer{
 					{
 						PrimaryIP: primaryIP,
@@ -129,10 +135,10 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 		},
 		{
 			name: "IP is CIDR",
-			status: v1alpha.NodeNetworkConfigStatus{
+			input: v1alpha.NodeNetworkConfigStatus{
 				NetworkContainers: []v1alpha.NetworkContainer{
 					{
-						PrimaryIP: ipInCIDR,
+						PrimaryIP: ipIsCIDR,
 						ID:        ncID,
 						IPAssignments: []v1alpha.IPAssignment{
 							{
@@ -140,15 +146,22 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 								IP:   testSecIP,
 							},
 						},
+						SubnetName:         subnetName,
+						DefaultGateway:     defaultGateway,
 						SubnetAddressSpace: subnetAddressSpace,
+						Version:            version,
 					},
 				},
+				Scaler: v1alpha.Scaler{
+					BatchSize: 1,
+				},
 			},
-			wantErr: true,
+			wantErr: false,
+			want:    validRequest,
 		},
 		{
 			name: "IP assignment is CIDR",
-			status: v1alpha.NodeNetworkConfigStatus{
+			input: v1alpha.NodeNetworkConfigStatus{
 				NetworkContainers: []v1alpha.NetworkContainer{
 					{
 						PrimaryIP: primaryIP,
@@ -156,7 +169,7 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 						IPAssignments: []v1alpha.IPAssignment{
 							{
 								Name: uuid,
-								IP:   ipInCIDR,
+								IP:   ipIsCIDR,
 							},
 						},
 						SubnetAddressSpace: subnetAddressSpace,
@@ -167,7 +180,7 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 		},
 		{
 			name: "address space is not CIDR",
-			status: v1alpha.NodeNetworkConfigStatus{
+			input: v1alpha.NodeNetworkConfigStatus{
 				NetworkContainers: []v1alpha.NetworkContainer{
 					{
 						PrimaryIP: primaryIP,
@@ -184,24 +197,17 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name:    "valid",
-			status:  validStatus,
-			wantErr: false,
-			ncreq:   validRequest,
-		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CRDStatusToNCRequest(&tt.status)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ConvertNNCStatusToNCRequest() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := CRDStatusToNCRequest(&tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.ncreq) {
-				t.Errorf("ConvertNNCStatusToNCRequest()\nhave: %+v\n want: %+v", got, tt.ncreq)
-			}
+			assert.NoError(t, err)
+			assert.EqualValues(t, tt.want, got)
 		})
 	}
 }

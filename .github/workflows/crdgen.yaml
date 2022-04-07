@@ -6,7 +6,7 @@ jobs:
   crdgen:
     strategy:
       matrix:
-        go-version: ['1.17']
+        go-version: ['1.18']
         os: [ubuntu-latest]
     name: CRDs are Generated
     runs-on: ${{ matrix.os }}

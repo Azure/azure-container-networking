@@ -2,7 +2,9 @@ package kubecontroller
 
 import (
 	"net"
+	"net/netip" //nolint:gci // netip breaks gci??
 	"strconv"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -32,21 +34,25 @@ func CRDStatusToNCRequest(status *v1alpha.NodeNetworkConfigStatus) (cns.CreateNe
 
 	nc := status.NetworkContainers[0]
 
-	ip := net.ParseIP(nc.PrimaryIP)
-	if ip == nil {
-		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(ErrInvalidPrimaryIP, "IP: %s", nc.PrimaryIP)
+	primaryIP := nc.PrimaryIP
+	// if the PrimaryIP is not a CIDR, append a /32
+	if !strings.Contains(primaryIP, "/") {
+		primaryIP += "/32"
 	}
 
-	_, ipNet, err := net.ParseCIDR(nc.SubnetAddressSpace)
+	primaryPrefix, err := netip.ParsePrefix(primaryIP)
+	if err != nil {
+		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(err, "IP: %s", primaryIP)
+	}
+
+	secondaryPrefix, err := netip.ParsePrefix(nc.SubnetAddressSpace)
 	if err != nil {
 		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(err, "invalid SubnetAddressSpace %s", nc.SubnetAddressSpace)
 	}
 
-	size, _ := ipNet.Mask.Size()
-
 	subnet := cns.IPSubnet{
-		IPAddress:    ip.String(),
-		PrefixLength: uint8(size),
+		IPAddress:    primaryPrefix.Addr().String(),
+		PrefixLength: uint8(secondaryPrefix.Bits()),
 	}
 
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}

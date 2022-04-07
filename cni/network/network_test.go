@@ -1061,7 +1061,7 @@ func TestGetNetworkName(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			nwName, _ := plugin.getNetworkName("", "", "", "", nil, &tt.nwCfg)
+			nwName, _ := plugin.getNetworkName("", nil, &tt.nwCfg)
 			require.Equal(t, tt.nwCfg.Name, nwName)
 		})
 	}
