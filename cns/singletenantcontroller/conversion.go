@@ -37,12 +37,12 @@ func (f NodeNetworkConfigListenerFunc) Update(nnc *v1alpha.NodeNetworkConfig) er
 
 // SwiftNodeNetworkConfigListener return a function which satisfies the NodeNetworkConfigListener
 // interface. It accepts a CreateOrUpdateNetworkContainerInternal implementation, and when Update
-// is called, transforms the NNC in to an NC Request and calls the CNS Service implementation with
+// is called, transforms the dynamic NNC in to an NC Request and calls the CNS Service implementation with
 // that request.
 func SwiftNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListenerFunc {
 	return func(nnc *v1alpha.NodeNetworkConfig) error {
 		// Create NC request and hand it off to CNS
-		ncRequest, err := CRDStatusToNCRequest(&nnc.Status)
+		ncRequest, err := CreateNCRequestFromDynamicNNC(nnc)
 		if err != nil {
 			return errors.Wrap(err, "failed to convert NNC status to network container request")
 		}
@@ -59,19 +59,19 @@ func SwiftNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListenerF
 	}
 }
 
-// CRDStatusToNCRequest translates a crd status to createnetworkcontainer request
-func CRDStatusToNCRequest(status *v1alpha.NodeNetworkConfigStatus) (cns.CreateNetworkContainerRequest, error) {
+// CreateNCRequestFromDynamicNNC translates a crd status to createnetworkcontainer request for dynamic NNC (swift)
+func CreateNCRequestFromDynamicNNC(nnc *v1alpha.NodeNetworkConfig) (cns.CreateNetworkContainerRequest, error) {
 	// if NNC has no NC, return an empty request
-	if len(status.NetworkContainers) == 0 {
+	if len(nnc.Status.NetworkContainers) == 0 {
 		return cns.CreateNetworkContainerRequest{}, nil
 	}
 
 	// only support a single NC per node, error on more
-	if len(status.NetworkContainers) > 1 {
-		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(ErrUnsupportedNCQuantity, "count: %d", len(status.NetworkContainers))
+	if len(nnc.Status.NetworkContainers) > 1 {
+		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(ErrUnsupportedNCQuantity, "count: %d", len(nnc.Status.NetworkContainers))
 	}
 
-	nc := status.NetworkContainers[0]
+	nc := nnc.Status.NetworkContainers[0]
 
 	primaryIP := nc.PrimaryIP
 	// if the PrimaryIP is not a CIDR, append a /32
@@ -84,14 +84,14 @@ func CRDStatusToNCRequest(status *v1alpha.NodeNetworkConfigStatus) (cns.CreateNe
 		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(err, "IP: %s", primaryIP)
 	}
 
-	secondaryPrefix, err := netip.ParsePrefix(nc.SubnetAddressSpace)
+	subnetPrefix, err := netip.ParsePrefix(nc.SubnetAddressSpace)
 	if err != nil {
 		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(err, "invalid SubnetAddressSpace %s", nc.SubnetAddressSpace)
 	}
 
 	subnet := cns.IPSubnet{
 		IPAddress:    primaryPrefix.Addr().String(),
-		PrefixLength: uint8(secondaryPrefix.Bits()),
+		PrefixLength: uint8(subnetPrefix.Bits()),
 	}
 
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
@@ -109,7 +109,87 @@ func CRDStatusToNCRequest(status *v1alpha.NodeNetworkConfigStatus) (cns.CreateNe
 		SecondaryIPConfigs:   secondaryIPConfigs,
 		NetworkContainerid:   nc.ID,
 		NetworkContainerType: cns.Docker,
-		Version:              strconv.FormatInt(nc.Version, 10),
+		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet:         subnet,
+			GatewayIPAddress: nc.DefaultGateway,
+		},
+	}, nil
+}
+
+// OverlayNodeNetworkConfigListener returns a function which satisfies the NodeNetworkConfigListener
+// interface. It accepts a CreateOrUpdateNetworkContainerInternal implementation, and when Update
+// is called, transforms the static NNC in to an NC Request and calls the CNS Service implementation with
+// that request.
+func OverlayNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListenerFunc {
+	return func(nnc *v1alpha.NodeNetworkConfig) error {
+		// Create NC request and hand it off to CNS
+		ncRequest, err := CreateNCRequestFromDynamicNNC(nnc)
+		if err != nil {
+			return errors.Wrap(err, "failed to convert NNC status to network container request")
+		}
+		responseCode := cnscli.CreateOrUpdateNetworkContainerInternal(&ncRequest)
+		err = restserver.ResponseCodeToError(responseCode)
+		if err != nil {
+			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
+			return errors.Wrap(err, "failed to create or update network container")
+		}
+
+		// record assigned IPs metric
+		allocatedIPs.Set(float64(len(nnc.Status.NetworkContainers[0].IPAssignments)))
+		return nil
+	}
+}
+
+// CreateNCRequestFromStaticNNC translates a crd status to createnetworkcontainer request for static NNC (overlay)
+func CreateNCRequestFromStaticNNC(nnc *v1alpha.NodeNetworkConfig) (cns.CreateNetworkContainerRequest, error) {
+	// if NNC has no NC, return an empty request
+	if len(nnc.Status.NetworkContainers) == 0 {
+		return cns.CreateNetworkContainerRequest{}, nil
+	}
+
+	// only support a single NC per node, error on more
+	if len(nnc.Status.NetworkContainers) > 1 {
+		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(ErrUnsupportedNCQuantity, "count: %d", len(nnc.Status.NetworkContainers))
+	}
+
+	nc := nnc.Status.NetworkContainers[0]
+
+	primaryPrefix, err := netip.ParsePrefix(nc.PrimaryIP)
+	if err != nil {
+		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(err, "IP: %s", nc.PrimaryIP)
+	}
+
+	subnetPrefix, err := netip.ParsePrefix(nc.SubnetAddressSpace)
+	if err != nil {
+		return cns.CreateNetworkContainerRequest{}, errors.Wrapf(err, "invalid SubnetAddressSpace %s", nc.SubnetAddressSpace)
+	}
+
+	subnet := cns.IPSubnet{
+		IPAddress:    primaryPrefix.Addr().String(),
+		PrefixLength: uint8(subnetPrefix.Bits()),
+	}
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
+
+	// iterate through all IP addresses in the subnet described by primaryPrefix and
+	// add them to the request as secondary IPConfigs. Skip the specific IP of the
+	// primaryPrefix; that is the gateway.
+	zeroAddr := primaryPrefix.Masked().Addr() // the masked address is the 0th IP in the subnet
+	for addr := zeroAddr.Next(); primaryPrefix.Contains(addr); addr = addr.Next() {
+		if addr == primaryPrefix.Addr() {
+			continue
+		}
+		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
+			IPAddress: addr.String(),
+			NCVersion: int(nc.Version),
+		}
+	}
+	return cns.CreateNetworkContainerRequest{
+		SecondaryIPConfigs:   secondaryIPConfigs,
+		NetworkContainerid:   nc.ID,
+		NetworkContainerType: cns.Docker,
+		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet:         subnet,
 			GatewayIPAddress: nc.DefaultGateway,
