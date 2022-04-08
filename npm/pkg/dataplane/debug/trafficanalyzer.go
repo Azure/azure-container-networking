@@ -180,7 +180,7 @@ func getHitRules(
 	res := make([]*pb.RuleResponse, 0)
 
 	for _, rule := range rules {
-		matched := true
+		matched := false
 		log.Printf("evaluating rule if hit: %+v", rule)
 		// evalute all match set in src
 		for _, setInfo := range rule.SrcList {
@@ -195,13 +195,10 @@ func getHitRules(
 			if err != nil {
 				return nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
 			}
-			if !matchedSource {
-				matched = false
+			if matchedSource {
+				matched = true
 				break
 			}
-		}
-		if !matched {
-			continue
 		}
 
 		// evaluate all match set in dst
@@ -212,13 +209,13 @@ func getHitRules(
 				break
 			}
 
-			log.Printf("checking if set %+v in dst list rules %+v", setInfo, rule.Chain)
+			log.Printf("checking if set [%+v] in dst list rules [%+v]", setInfo, rule.Chain)
 			matchedDestination, err := evaluateSetInfo("dst", setInfo, dst, rule, npmCache)
 			if err != nil {
 				return nil, fmt.Errorf("error occurred during evaluating destination's set info : %w", err)
 			}
-			if !matchedDestination {
-				matched = false
+			if matchedDestination {
+				matched = true
 				break
 			}
 		}
@@ -309,7 +306,7 @@ func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 
 func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
-	key := strings.TrimPrefix(setInfo.Name, util.NamespacePrefix)
+	key := strings.TrimPrefix(setInfo.Name, util.NamespaceLabelPrefix)
 	included := npmCache.GetNamespaceLabel(srcNamespace, key)
 	if included != "" {
 		return setInfo.Included
@@ -329,7 +326,7 @@ func matchNAMESPACE(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	log.Printf("checking namespace %s with set name %s", srcNamespace, setInfo.Name)
 
 	if setInfo.Name != srcNamespace || (setInfo.Name == srcNamespace && !setInfo.Included) {
-		log.Printf("it did not match")
+		log.Printf("pod namespace %s did not match set %s", pod.Namespace, setInfo.Name)
 		return false
 	}
 	log.Printf("it matched namespace")

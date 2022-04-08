@@ -258,11 +258,12 @@ func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.Rul
 	for _, v := range iptableChain.Rules {
 		rule := &pb.RuleResponse{}
 		rule.Chain = iptableChain.Name
+		rule.Protocol = v.Protocol
 
 		if c.EnableV2NPM {
 
 		} else {
-			rule.Protocol = v.Protocol
+
 			switch v.Target.Name {
 			case util.IptablesMark:
 				rule.Allowed = true
@@ -325,29 +326,24 @@ func (c *Converter) getSetTypeV2(name string) (pb.SetType, ipsets.SetKind) {
 	var settype pb.SetType
 	var setmetadata ipsets.IPSetMetadata
 
-	switch {
-	case strings.HasPrefix(util.CIDRPrefix, name):
+	if strings.HasPrefix(name, util.CIDRPrefix) {
 		settype = pb.SetType_CIDRBLOCKS
 		setmetadata.Type = ipsets.CIDRBlocks
-
-	case strings.HasPrefix(util.NamespacePrefix, name):
+	} else if strings.HasPrefix(name, util.NamespacePrefix) {
 		settype = pb.SetType_NAMESPACE
 		setmetadata.Type = ipsets.Namespace
-
-	case strings.HasPrefix(util.NamedPortIPSetPrefix, name):
+	} else if strings.HasPrefix(name, util.NamedPortIPSetPrefix) {
 		settype = pb.SetType_NAMEDPORTS
 		setmetadata.Type = ipsets.NamedPorts
-
-	case strings.HasPrefix(util.PodLabelPrefix, name):
+	} else if strings.HasPrefix(name, util.PodLabelPrefix) {
 		settype = pb.SetType_KEYLABELOFPOD // could also be KeyValueLabelOfPod
 		setmetadata.Type = ipsets.KeyLabelOfPod
-
-	case strings.HasPrefix(util.NamespaceLabelPrefix, name):
+	} else if strings.HasPrefix(name, util.NamespaceLabelPrefix) {
 		settype = pb.SetType_KEYLABELOFNAMESPACE
 		setmetadata.Type = ipsets.KeyLabelOfNamespace
-
-		// todo: missing pb.SetTypes from V2 to V1
-
+	} else if strings.HasPrefix(name, util.NestedLabelPrefix) {
+		settype = pb.SetType_NESTEDLABELOFPOD
+		setmetadata.Type = ipsets.NestedLabelOfPod
 	}
 
 	return settype, setmetadata.GetSetKind()

@@ -38,7 +38,10 @@ func (c *Cache) GetPod(input *common.Input) (*common.NpmPod, error) {
 }
 
 func (c *Cache) GetNamespaceLabel(namespace, labelkey string) string {
-	return c.NsMap[namespace].LabelsMap[labelkey]
+	if _, ok := c.NsMap[namespace]; ok {
+		return c.NsMap[namespace].LabelsMap[labelkey]
+	}
+	return ""
 }
 
 func (c *Cache) GetListMap() map[string]string {
