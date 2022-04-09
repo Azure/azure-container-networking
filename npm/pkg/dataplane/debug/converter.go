@@ -85,21 +85,17 @@ func (c *Converter) NpmCache() error {
 	}
 
 	if c.EnableV2NPM {
-		log.Printf("using v2 cache")
 		c.NPMCache = &controllersv2.Cache{}
 		err = json.Unmarshal(byteArray, c.NPMCache)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
 		}
-		log.Printf("received cache %+v", c.NPMCache)
 	} else {
-		log.Printf("using v1 cache")
 		c.NPMCache = &controllersv1.Cache{}
 		err = json.Unmarshal(byteArray, c.NPMCache)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
 		}
-		log.Printf("received cache %+v", c.NPMCache)
 	}
 
 	return nil
@@ -219,7 +215,6 @@ func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleRes
 func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) ([]*pb.RuleResponse, error) {
 	allRulesInNPMChains := make([]*pb.RuleResponse, 0)
 
-	log.Printf("iterating through rules iptable \n%+v", ipTable)
 	// iterate through all chains in the filter table
 	for _, v := range ipTable.Chains {
 		if c.isAzureNPMChain(v.Name) {
@@ -236,22 +231,6 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) ([]*pb.RuleResponse, e
 
 func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.RuleResponse, error) {
 	rules := make([]*pb.RuleResponse, 0)
-
-	// ** for logging, remove **
-	chainrules := []string{}
-	for i := range iptableChain.Rules {
-		mods := []string{}
-
-		for _, modules := range iptableChain.Rules[i].Modules {
-			mods = append(mods, fmt.Sprintf("%v", *modules))
-		}
-		chainrules = append(chainrules, fmt.Sprintf("target: [%+v] mods: [%+v]", *iptableChain.Rules[i].Target, mods))
-	}
-	// \\ ** for logging, remove **
-	if c.isAzureNPMChain(iptableChain.Name) {
-		log.Printf("looping through iptable chain name: [%+v] data: [%+v] rules: [%+v]", iptableChain.Name, string(iptableChain.Data), chainrules)
-
-	}
 	// loop through each chain, if it has a jump, follow that jump
 	// loop through rules in that jumped chain
 
@@ -356,8 +335,6 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 
 	for _, module := range moduleList {
 
-		log.Printf("inside chain %+v, getting modules from rule, with module %+v", ruleRes.Chain, module)
-
 		switch module.Verb {
 		case "set":
 			// set module
@@ -367,7 +344,6 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 				case "match-set":
 					setInfo := &pb.RuleResponse_SetInfo{}
 
-					log.Printf("inside match-set, populating setInfo with %+v", values)
 					// will populate the setinfo and add to ruleRes
 					err := c.populateSetInfo(setInfo, values, ruleRes)
 					if err != nil {

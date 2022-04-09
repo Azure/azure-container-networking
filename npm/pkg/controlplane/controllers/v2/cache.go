@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"log"
-
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 )
 
@@ -44,7 +42,6 @@ func (c *Cache) GetNamespaceLabel(namespace, labelkey string) string {
 func (c *Cache) GetListMap() map[string]string {
 	listMap := make(map[string]string, 0)
 	// get all lists
-	log.Printf("info: NPMV2 doesn't make use of the listmap")
 	return listMap
 }
 

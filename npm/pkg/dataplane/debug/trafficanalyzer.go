@@ -32,8 +32,6 @@ func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte
 
 	// after we have all rules from the AZURE-NPM chains in the filter table, get the network tuples of src and dst
 
-	log.Printf("Cache: %+v", c.NPMCache)
-	log.Printf("allRules %+v", allRules)
 	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules)
 }
 
@@ -67,22 +65,16 @@ func getNetworkTupleCommon(
 		return nil, nil, fmt.Errorf("error occurred during get source pod : %w", err)
 	}
 
-	log.Printf("sourcepod: %+v", srcPod)
-
 	dstPod, err := npmCache.GetPod(dst)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error occurred during get destination pod : %w", err)
 	}
-
-	log.Printf("dstpod: %+v", dstPod)
 
 	// find all rules where the source pod and dest pod exist
 	hitRules, err := getHitRules(srcPod, dstPod, allRules, npmCache)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w", err)
 	}
-
-	log.Printf("hitrules %+v", hitRules)
 
 	ruleResListJSON := make([][]byte, 0)
 	m := protojson.MarshalOptions{
@@ -181,7 +173,6 @@ func getHitRules(
 
 	for _, rule := range rules {
 		matched := false
-		log.Printf("evaluating rule if hit: %+v", rule)
 		// evalute all match set in src
 		for _, setInfo := range rule.SrcList {
 			if src.Namespace == "" {
@@ -190,7 +181,6 @@ func getHitRules(
 				break
 			}
 
-			log.Printf("checking if set %+v in src list rules %+v", setInfo, rule.Chain)
 			matchedSource, err := evaluateSetInfo("src", setInfo, src, rule, npmCache)
 			if err != nil {
 				return nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
@@ -209,7 +199,6 @@ func getHitRules(
 				break
 			}
 
-			log.Printf("checking if set [%+v] in dst list rules [%+v]", setInfo, rule.Chain)
 			matchedDestination, err := evaluateSetInfo("dst", setInfo, dst, rule, npmCache)
 			if err != nil {
 				return nil, fmt.Errorf("error occurred during evaluating destination's set info : %w", err)
@@ -320,16 +309,10 @@ func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.Cache, setInfo
 }
 
 func matchNAMESPACE(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
-
 	srcNamespace := util.NamespacePrefix + pod.Namespace
-
-	log.Printf("checking namespace %s with set name %s", srcNamespace, setInfo.Name)
-
 	if setInfo.Name != srcNamespace || (setInfo.Name == srcNamespace && !setInfo.Included) {
-		log.Printf("pod namespace %s did not match set %s", pod.Namespace, setInfo.Name)
 		return false
 	}
-	log.Printf("it matched namespace")
 	return true
 }
 
