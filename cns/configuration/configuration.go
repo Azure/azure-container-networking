@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
 
@@ -20,9 +21,10 @@ const (
 
 type CNSConfig struct {
 	ChannelMode                 string
+	Debug                       bool
+	IPAMMode                    v1alpha.Mode
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
-	Debug                       bool
 	SyncHostNCTimeoutMs         int
 	SyncHostNCVersionIntervalMs int
 	TLSCertificatePath          string

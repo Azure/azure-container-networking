@@ -50,8 +50,8 @@ type NodeNetworkConfigSpec struct {
 type Mode string
 
 const (
-	Overlay Mode = "overlay"
-	Swift   Mode = "swift"
+	Static  Mode = "static"  // overlay IPAM
+	Dynamic Mode = "dynamic" // swift IPAM
 )
 
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig

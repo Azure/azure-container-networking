@@ -1010,7 +1010,16 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	reconciler := kubecontroller.NewReconciler(nnccli, kubecontroller.SwiftNodeNetworkConfigListener(httpRestServiceImplementation), poolMonitor)
+	// set up the reconciler for the IPAM mode that we are running in
+	var reconciler *kubecontroller.Reconciler
+	switch cnsconfig.IPAMMode {
+	case v1alpha.Static:
+		// don't run the pool monitor in Overlay mode
+		reconciler = kubecontroller.NewReconciler(nnccli, kubecontroller.OverlayNodeNetworkConfigListener(httpRestServiceImplementation))
+	case v1alpha.Dynamic:
+		// run the pool monitor to autoscale the IPs on the node NNC when in Swift mode
+		reconciler = kubecontroller.NewReconciler(nnccli, kubecontroller.SwiftNodeNetworkConfigListener(httpRestServiceImplementation), poolMonitor)
+	}
 	// pass Node to the Reconciler for Controller xref
 	if err := reconciler.SetupWithManager(manager, node); err != nil {
 		return errors.Wrapf(err, "failed to setup reconciler with manager")
@@ -1038,8 +1047,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	mux.Handle("/healthz", http.StripPrefix("/healthz", &healthzhandler))
 
 	// Start the Manager which starts the reconcile loop.
-	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
-	// Monitor's internal loop.
 	go func() {
 		logger.Printf("Starting NodeNetworkConfig reconciler.")
 		for {
