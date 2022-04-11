@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
@@ -25,9 +26,10 @@ var (
 )
 
 type CNSIPAMInvoker struct {
-	podName      string
-	podNamespace string
-	cnsClient    cnsclient
+	podName       string
+	podNamespace  string
+	cnsClient     cnsclient
+	executionMode util.ExecutionMode
 }
 
 type IPv4ResultInfo struct {
@@ -40,11 +42,12 @@ type IPv4ResultInfo struct {
 	hostGateway        string
 }
 
-func NewCNSInvoker(podName, namespace string, cnsClient cnsclient) *CNSIPAMInvoker {
+func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode util.ExecutionMode) *CNSIPAMInvoker {
 	return &CNSIPAMInvoker{
-		podName:      podName,
-		podNamespace: namespace,
-		cnsClient:    cnsClient,
+		podName:       podName,
+		podNamespace:  namespace,
+		cnsClient:     cnsClient,
+		executionMode: executionMode,
 	}
 }
 
@@ -126,6 +129,11 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				GW:  ncgw,
 			},
 		},
+	}
+
+	// ip-masq-agent handles snat in v4 overlay mode so just return here
+	if invoker.executionMode == util.V4OnlyOverlay {
+		return addResult, nil
 	}
 
 	// set subnet prefix for host vm
