@@ -20,7 +20,7 @@ func prettyPrintIPTables(iptableRules []*pb.RuleResponse) error {
 	}
 	s, err := json.MarshalIndent(iptresponse, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("err pretty printing iptables")
 	}
 	fmt.Printf("%v", string(s))
 	return nil

@@ -63,8 +63,6 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 
 // NpmCache initialize NPM cache from node.
 func (c *Converter) NpmCache() error {
-	//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	//defer cancel()
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
@@ -305,24 +303,29 @@ func (c *Converter) getSetTypeV2(name string) (pb.SetType, ipsets.SetKind) {
 	var settype pb.SetType
 	var setmetadata ipsets.IPSetMetadata
 
-	if strings.HasPrefix(name, util.CIDRPrefix) {
+	switch {
+	case strings.HasPrefix(name, util.CIDRPrefix):
 		settype = pb.SetType_CIDRBLOCKS
 		setmetadata.Type = ipsets.CIDRBlocks
-	} else if strings.HasPrefix(name, util.NamespacePrefix) {
+	case strings.HasPrefix(name, util.NamespacePrefix):
 		settype = pb.SetType_NAMESPACE
 		setmetadata.Type = ipsets.Namespace
-	} else if strings.HasPrefix(name, util.NamedPortIPSetPrefix) {
+	case strings.HasPrefix(name, util.NamedPortIPSetPrefix):
 		settype = pb.SetType_NAMEDPORTS
 		setmetadata.Type = ipsets.NamedPorts
-	} else if strings.HasPrefix(name, util.PodLabelPrefix) {
+	case strings.HasPrefix(name, util.PodLabelPrefix):
 		settype = pb.SetType_KEYLABELOFPOD // could also be KeyValueLabelOfPod
 		setmetadata.Type = ipsets.KeyLabelOfPod
-	} else if strings.HasPrefix(name, util.NamespaceLabelPrefix) {
+	case strings.HasPrefix(name, util.NamespaceLabelPrefix):
 		settype = pb.SetType_KEYLABELOFNAMESPACE
 		setmetadata.Type = ipsets.KeyLabelOfNamespace
-	} else if strings.HasPrefix(name, util.NestedLabelPrefix) {
+	case strings.HasPrefix(name, util.NestedLabelPrefix):
 		settype = pb.SetType_NESTEDLABELOFPOD
 		setmetadata.Type = ipsets.NestedLabelOfPod
+	default:
+		log.Printf("set [%s] unknown settype", name)
+		setmetadata.Type = ipsets.UnknownType
+
 	}
 
 	return settype, setmetadata.GetSetKind()

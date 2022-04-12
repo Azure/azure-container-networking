@@ -78,5 +78,5 @@ func TestPrettyPrint(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	prettyPrintIPTables(iptables)
+	require.NoError(t, prettyPrintIPTables(iptables))
 }
