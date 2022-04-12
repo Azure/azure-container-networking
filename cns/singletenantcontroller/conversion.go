@@ -47,8 +47,7 @@ func SwiftNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListenerF
 			return errors.Wrap(err, "failed to convert NNC status to network container request")
 		}
 		responseCode := cnscli.CreateOrUpdateNetworkContainerInternal(&ncRequest)
-		err = restserver.ResponseCodeToError(responseCode)
-		if err != nil {
+		if err := restserver.ResponseCodeToError(responseCode); err != nil {
 			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 			return errors.Wrap(err, "failed to create or update network container")
 		}
@@ -129,8 +128,7 @@ func OverlayNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListene
 			return errors.Wrap(err, "failed to convert NNC status to network container request")
 		}
 		responseCode := cnscli.CreateOrUpdateNetworkContainerInternal(&ncRequest)
-		err = restserver.ResponseCodeToError(responseCode)
-		if err != nil {
+		if err := restserver.ResponseCodeToError(responseCode); err != nil {
 			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
 			return errors.Wrap(err, "failed to create or update network container")
 		}
