@@ -1010,7 +1010,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	reconciler := kubecontroller.NewReconciler(nnccli, httpRestServiceImplementation, poolMonitor)
+	reconciler := kubecontroller.NewReconciler(nnccli, kubecontroller.SwiftNodeNetworkConfigListener(httpRestServiceImplementation), poolMonitor)
 	// pass Node to the Reconciler for Controller xref
 	if err := reconciler.SetupWithManager(manager, node); err != nil {
 		return errors.Wrapf(err, "failed to setup reconciler with manager")

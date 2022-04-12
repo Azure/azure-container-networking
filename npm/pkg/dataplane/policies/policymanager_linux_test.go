@@ -89,14 +89,19 @@ const (
 // iptables rule variables for ACLs
 var (
 	ingressDropRule = fmt.Sprintf(
-		"-j MARK --set-mark 0x4000 -p TCP --dport 222:333 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment %s",
+		"-j MARK --set-mark %s -p TCP --dport 222:333 -m set --match-set %s src -m set ! --match-set %s dst -m comment --comment %s",
+		util.IptablesAzureIngressDropMarkHex,
 		ipsets.TestCIDRSet.HashedName,
 		ipsets.TestKeyPodSet.HashedName,
 		ingressDropComment,
 	)
 	ingressAllowRule = fmt.Sprintf("-j AZURE-NPM-INGRESS-ALLOW-MARK -m set --match-set %s src -m comment --comment %s", ipsets.TestCIDRSet.HashedName, ingressAllowComment)
-	egressDropRule   = fmt.Sprintf("-j MARK --set-mark 0x5000 -p UDP --dport 144 -m set --match-set %s dst -m comment --comment %s", ipsets.TestCIDRSet.HashedName, egressDropComment)
-	egressAllowRule  = fmt.Sprintf("-j AZURE-NPM-ACCEPT -m set --match-set %s dst -m comment --comment %s", ipsets.TestNamedportSet.HashedName, egressAllowComment)
+	egressDropRule   = fmt.Sprintf("-j MARK --set-mark %s -p UDP --dport 144 -m set --match-set %s dst -m comment --comment %s",
+		util.IptablesAzureEgressDropMarkHex,
+		ipsets.TestCIDRSet.HashedName,
+		egressDropComment,
+	)
+	egressAllowRule = fmt.Sprintf("-j AZURE-NPM-ACCEPT -m set --match-set %s dst -m comment --comment %s", ipsets.TestNamedportSet.HashedName, egressAllowComment)
 )
 
 // NetworkPolicies

@@ -367,7 +367,7 @@ func GenerateARMID(nc *v1alpha.NetworkContainer) string {
 // the pool reconcile loop.
 // If the Monitor has not been Started, this will block until Start() is called, which will
 // immediately read this passed NNC and start the pool reconcile loop.
-func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
+func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) error {
 	pm.clampScaler(&nnc.Status.Scaler)
 
 	// if the nnc has converged, observe the pool scaling latency (if any).
@@ -377,6 +377,7 @@ func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) {
 		metric.ObserverPoolScaleLatency()
 	}
 	pm.nncSource <- *nnc
+	return nil
 }
 
 // clampScaler makes sure that the values stored in the scaler are sane.
