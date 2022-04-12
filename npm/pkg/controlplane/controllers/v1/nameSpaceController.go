@@ -74,11 +74,11 @@ func (nsObj *Namespace) getNamespaceObjFromNsObj() *corev1.Namespace {
 	}
 }
 
-func (nsObj *Namespace) appendLabels(new map[string]string, clear common.LabelAppendOperation) {
+func (nsObj *Namespace) appendLabels(labelsMap map[string]string, clear common.LabelAppendOperation) {
 	if clear {
 		nsObj.LabelsMap = make(map[string]string)
 	}
-	for k, v := range new {
+	for k, v := range labelsMap {
 		nsObj.LabelsMap[k] = v
 	}
 }

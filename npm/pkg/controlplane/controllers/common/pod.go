@@ -42,50 +42,50 @@ func NewNpmPod(podObj *corev1.Pod) *NpmPod {
 	}
 }
 
-func (nPod *NpmPod) AppendLabels(new map[string]string, clear LabelAppendOperation) {
+func (n *NpmPod) AppendLabels(newPod map[string]string, clear LabelAppendOperation) {
 	if clear {
-		nPod.Labels = make(map[string]string)
+		n.Labels = make(map[string]string)
 	}
-	for k, v := range new {
-		nPod.Labels[k] = v
+	for k, v := range newPod {
+		n.Labels[k] = v
 	}
 }
 
-func (nPod *NpmPod) RemoveLabelsWithKey(key string) {
-	delete(nPod.Labels, key)
+func (n *NpmPod) RemoveLabelsWithKey(key string) {
+	delete(n.Labels, key)
 }
 
-func (nPod *NpmPod) AppendContainerPorts(podObj *corev1.Pod) {
-	nPod.ContainerPorts = GetContainerPortList(podObj)
+func (n *NpmPod) AppendContainerPorts(podObj *corev1.Pod) {
+	n.ContainerPorts = GetContainerPortList(podObj)
 }
 
-func (nPod *NpmPod) RemoveContainerPorts() {
-	nPod.ContainerPorts = []corev1.ContainerPort{}
+func (n *NpmPod) RemoveContainerPorts() {
+	n.ContainerPorts = []corev1.ContainerPort{}
 }
 
 // This function can be expanded to other attribs if needed
-func (nPod *NpmPod) UpdateNpmPodAttributes(podObj *corev1.Pod) {
-	if nPod.Phase != podObj.Status.Phase {
-		nPod.Phase = podObj.Status.Phase
+func (n *NpmPod) UpdateNpmPodAttributes(podObj *corev1.Pod) {
+	if n.Phase != podObj.Status.Phase {
+		n.Phase = podObj.Status.Phase
 	}
 }
 
 // noUpdate evaluates whether NpmPod is required to be update given podObj.
-func (nPod *NpmPod) NoUpdate(podObj *corev1.Pod) bool {
-	return nPod.Namespace == podObj.ObjectMeta.Namespace &&
-		nPod.Name == podObj.ObjectMeta.Name &&
-		nPod.Phase == podObj.Status.Phase &&
-		nPod.PodIP == podObj.Status.PodIP &&
-		k8slabels.Equals(nPod.Labels, podObj.ObjectMeta.Labels) &&
+func (n *NpmPod) NoUpdate(podObj *corev1.Pod) bool {
+	return n.Namespace == podObj.ObjectMeta.Namespace &&
+		n.Name == podObj.ObjectMeta.Name &&
+		n.Phase == podObj.Status.Phase &&
+		n.PodIP == podObj.Status.PodIP &&
+		k8slabels.Equals(n.Labels, podObj.ObjectMeta.Labels) &&
 		// TODO(jungukcho) to avoid using DeepEqual for ContainerPorts,
 		// it needs a precise sorting. Will optimize it later if needed.
-		reflect.DeepEqual(nPod.ContainerPorts, GetContainerPortList(podObj))
+		reflect.DeepEqual(n.ContainerPorts, GetContainerPortList(podObj))
 }
 
 func GetContainerPortList(podObj *corev1.Pod) []corev1.ContainerPort {
 	portList := []corev1.ContainerPort{}
-	for _, container := range podObj.Spec.Containers {
-		portList = append(portList, container.Ports...)
+	for _, container := range podObj.Spec.Containers { //nolint:rangeValCopy // intentionally copying full struct :(
+		portList = append(portList, container.Ports...) //nolint:rangeValCopy // intentionally copying full struct :(
 	}
 	return portList
 }

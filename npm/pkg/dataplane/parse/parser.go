@@ -17,10 +17,6 @@ import (
 	utilexec "k8s.io/utils/exec"
 )
 
-const (
-	defaultlockWaitTimeInSeconds string = "60"
-)
-
 var (
 	// CommitBytes is the string "COMMIT" in bytes array
 	CommitBytes = []byte("COMMIT")
@@ -59,7 +55,7 @@ func (i *IPTablesParser) runCommand(command string, args ...string) ([]byte, err
 func (i *IPTablesParser) Iptables(tableName string) (*NPMIPtable.Table, error) {
 	cmdArgs := []string{util.IptablesTableFlag, string(tableName)}
 
-	output, err := i.runCommand(util.IptablesSave, cmdArgs...) //nolint:gosec
+	output, err := i.runCommand(util.IptablesSave, cmdArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +69,7 @@ func Iptables(tableName string) (*NPMIPtable.Table, error) {
 	iptableBuffer := bytes.NewBuffer(nil)
 	// TODO: need to get iptable's lock
 	cmdArgs := []string{util.IptablesTableFlag, string(tableName)}
-	cmd := exec.Command(util.IptablesSave, cmdArgs...) //nolint:gosec
+	cmd := exec.Command(util.IptablesSave, cmdArgs...) //nolint:gosec // client usage is filter table only
 
 	cmd.Stdout = iptableBuffer
 	stderrBuffer := bytes.NewBuffer(nil)
@@ -91,7 +87,7 @@ func Iptables(tableName string) (*NPMIPtable.Table, error) {
 }
 
 // IptablesFile creates a Go object from specified iptable by reading from an iptables-save file.
-func IptablesFile(tableName string, iptableSaveFile string) (*NPMIPtable.Table, error) {
+func IptablesFile(tableName, iptableSaveFile string) (*NPMIPtable.Table, error) {
 	iptableBuffer := bytes.NewBuffer(nil)
 	byteArray, err := os.ReadFile(iptableSaveFile)
 	if err != nil {

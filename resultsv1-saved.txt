@@ -1,4 +1,0 @@
-I0407 17:31:18.676740     454 root.go:31] Using config file: /etc/azure-npm/azure-npm.json
-&{RuleType:ALLOWED Direction:EGRESS SrcIP:10.224.0.70 SrcPort:ANY DstIP:ANY DstPort:53 Protocol:tcp}
-&{RuleType:ALLOWED Direction:EGRESS SrcIP:10.224.0.70 SrcPort:ANY DstIP:ANY DstPort:53 Protocol:udp}
-&{RuleType:NOT ALLOWED Direction:EGRESS SrcIP:10.224.0.70 SrcPort:ANY DstIP:ANY DstPort:ANY Protocol:ANY}

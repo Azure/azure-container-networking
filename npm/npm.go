@@ -101,28 +101,28 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 	var cacheRaw []byte
 
 	if npMgr.config.Toggles.EnableV2NPM {
-		cache := controllersv2.Cache{}
-		cache.NsMap = npMgr.NamespaceControllerV2.GetCache()
-		cache.PodMap = npMgr.PodControllerV2.GetCache()
-		cache.SetMap = npMgr.Dataplane.GetAllIPSets()
-		cacheRaw, err = json.Marshal(cache)
+		cachev2 := controllersv2.Cache{}
+		cachev2.NsMap = npMgr.NamespaceControllerV2.GetCache()
+		cachev2.PodMap = npMgr.PodControllerV2.GetCache()
+		cachev2.SetMap = npMgr.Dataplane.GetAllIPSets()
+		cacheRaw, err = json.Marshal(cachev2)
 		if err != nil {
 			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 		}
-		log.Printf("sending cache v2 %+v", cache)
+		log.Printf("sending cache v2 %+v", cachev2)
 	} else {
-		cache := controllersv1.Cache{
+		cachev1 := controllersv1.Cache{
 			NsMap:   npMgr.NpmNamespaceCacheV1.GetNsMap(),
 			PodMap:  npMgr.PodControllerV1.PodMap(),
 			ListMap: npMgr.ipsMgr.GetListMap(),
 			SetMap:  npMgr.ipsMgr.GetSetMap(),
 		}
 
-		cacheRaw, err = json.Marshal(cache)
+		cacheRaw, err = json.Marshal(cachev1)
 		if err != nil {
 			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 		}
-		log.Printf("sending cache v1%+v", cache)
+		log.Printf("sending cache v1%+v", cachev1)
 	}
 
 	return cacheRaw, nil

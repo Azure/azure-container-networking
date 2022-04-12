@@ -17,7 +17,6 @@ import (
 )
 
 func TestNPMCache(t *testing.T) {
-
 	npmMgr := NetworkPolicyManager{
 		config: npmconfig.Config{
 			Toggles: npmconfig.Toggles{
