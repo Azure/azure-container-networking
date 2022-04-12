@@ -150,14 +150,22 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            cni_manager_linux_amd64:
+            acncli_linux_amd64:
               arch: amd64
               os: linux
-              name: cni-manager
-            cni_manager_linux_arm64:
+              name: acncli
+            acncli_linux_arm64:
               arch: arm64
               os: linux
-              name: cni-manager
+              name: acncli
+            cni_dropgz_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cni-dropgz
+            cni_dropgz_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz
             cns_linux_amd64:
               arch: amd64
               os: linux
@@ -216,8 +224,11 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            cni-manager:
-              name: cni-manager
+            acncli:
+              name: acncli 
+              platforms: linux/amd64 linux/arm64
+            cni_dropgz:
+              name: cni-dropgz
               platforms: linux/amd64 linux/arm64
             cns:
               name: cns

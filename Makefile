@@ -81,15 +81,15 @@ CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSIO
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_IMAGE_INFO_FILE = azure-npm-$(VERSION).txt
-CNI_IMAGE_ARCHIVE_NAME = azure-cni-manager-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_IMAGE_INFO_FILE = azure-cni-manager-$(VERSION).txt
+CNIDROPGZ_IMAGE_ARCHIVE_NAME = cni-dropgz-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNIDROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(VERSION).txt
 CNS_IMAGE_INFO_FILE = azure-cns-$(VERSION).txt
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
 CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 
-VERSION ?= $(shell git describe --tags --always --dirty)
+VERSION ?= $(shell git describe --exclude "zapai*" --tags --always --dirty)
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
@@ -101,7 +101,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
+all-binaries: acncli azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images: npm-image cns-image cni-manager-image
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
@@ -156,9 +156,10 @@ azure-npm-binary:
 
 ##@ Containers
 
-CNI_IMAGE = azure-cni-manager
-CNS_IMAGE = azure-cns
-NPM_IMAGE = azure-npm
+ACNCLI_IMAGE    = acncli
+CNIDROPGZ_IMAGE = cni-dropgz
+CNS_IMAGE       = azure-cns
+NPM_IMAGE       = azure-npm
 
 TAG               ?= $(VERSION)
 IMAGE_REGISTRY    ?= acnpublic.azurecr.io
@@ -213,33 +214,60 @@ container-info: # util target to write container info file. do not invoke direct
 	sudo chown -R $$(whoami) $(IMAGE_DIR) 
 	sudo chmod -R 777 $(IMAGE_DIR)
 
-cni-manager-image-name: # util target to print the CNI manager image name.
-	@echo $(CNI_IMAGE)
+acncli-image-name: # util target to print the CNI manager image name.
+	@echo $(ACNCLI_IMAGE)
 
-cni-manager-image: ## build cni-manager container image.
+acncli-image: ## build cni-manager container image.
 	$(MAKE) containerize-$(CONTAINER_BUILDER) \
 		PLATFORM=$(PLATFORM) \
 		DOCKERFILE=tools/acncli/Dockerfile \
 		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNI_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg PLATFORM=$(OS)_$(ARCH)' \
+		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(TAG)
 
-cni-manager-image-info: # util target to write cni-manager container info file.
-	$(MAKE) container-info IMAGE=$(CNI_IMAGE) TAG=$(TAG) FILE=$(CNI_IMAGE_INFO_FILE)
+acncli-image-info: # util target to write cni-manager container info file.
+	$(MAKE) container-info IMAGE=$(ACNCLI_IMAGE) TAG=$(TAG) FILE=$(ACNCLI_IMAGE_INFO_FILE)
 
-cni-manager-image-push: ## push cni-manager container image.
+acncli-image-push: ## push cni-manager container image.
 	$(MAKE) container-push \
 		PLATFORM=$(PLATFORM) \
 		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNI_IMAGE) \
+		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(TAG)
 
-cni-manager-image-pull: ## pull cni-manager container image.
+acncli-image-pull: ## pull cni-manager container image.
 	$(MAKE) container-pull \
 		PLATFORM=$(PLATFORM) \
 		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNI_IMAGE) \
+		IMAGE=$(ACNCLI_IMAGE) \
+		TAG=$(TAG)
+
+cni-dropgz-image-name: # util target to print the CNI dropgz image name.
+	@echo $(CNIDROPGZ_IMAGE)
+
+cni-dropgz-image: ## build cni-dropgz container image.
+	$(MAKE) containerize-$(CONTAINER_BUILDER) \
+		PLATFORM=$(PLATFORM) \
+		DOCKERFILE=dropgz/build/cni.Dockerfile \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNIDROPGZ_IMAGE) \
+		TAG=$(TAG)
+
+cni-dropgz-image-info: # util target to write cni-dropgz container info file.
+	$(MAKE) container-info IMAGE=$(CNIDROPGZ_IMAGE) TAG=$(TAG) FILE=$(CNIDROPGZ_IMAGE_INFO_FILE)
+
+cni-dropgz-image-push: ## push cni-dropgz container image.
+	$(MAKE) container-push \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNIDROPGZ_IMAGE) \
+		TAG=$(TAG)
+
+cni-dropgz-image-pull: ## pull cni-dropgz container image.
+	$(MAKE) container-pull \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNIDROPGZ_IMAGE) \
 		TAG=$(TAG)
 
 cns-image-name: # util target to print the CNS image name
@@ -362,10 +390,16 @@ multiarch-manifest-create: # util target to compose multiarch container manifest
 multiarch-manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
-cni-manager-multiarch-manifest-create: ## build cni-manager multi-arch container manifest.
+acncli-multiarch-manifest-create: ## build acncli multi-arch container manifest.
 	$(MAKE) multiarch-manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(CNI_IMAGE) \
+		IMAGE=$(ACNCLI_IMAGE) \
+		TAG=$(TAG)
+
+cni-dropgz-multiarch-manifest-create: ## build cni-dropgz multi-arch container manifest.
+	$(MAKE) multiarch-manifest-create \
+		PLATFORMS="$(PLATFORMS)" \
+		IMAGE=$(CNIDROPGZ_IMAGE) \
 		TAG=$(TAG)
 
 cns-multiarch-manifest-create: ## build azure-cns multi-arch container manifest.

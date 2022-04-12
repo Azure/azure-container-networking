@@ -1,0 +1,4 @@
+This files in this directory intentionally left blank.
+At build time files are dropped here and embedded in to the dropgz binary.
+_README is excluded due to the _ prefix.
+sum.txt will contain pre-compression file SHAs.
