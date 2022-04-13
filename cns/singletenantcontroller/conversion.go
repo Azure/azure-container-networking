@@ -29,9 +29,10 @@ type cnsClient interface {
 
 var _ nodeNetworkConfigListener = (NodeNetworkConfigListenerFunc)(nil) //nolint:gocritic // clarity
 
-type NodeNetworkConfigListenerFunc func(*v1alpha.NodeNetworkConfig) error
+type NodeNetworkConfigListenerFunc func(v1alpha.NodeNetworkConfig) error
 
-func (f NodeNetworkConfigListenerFunc) Update(nnc *v1alpha.NodeNetworkConfig) error {
+//nolint:gocritic //ignore hugeparam
+func (f NodeNetworkConfigListenerFunc) Update(nnc v1alpha.NodeNetworkConfig) error {
 	return f(nnc)
 }
 
@@ -40,7 +41,7 @@ func (f NodeNetworkConfigListenerFunc) Update(nnc *v1alpha.NodeNetworkConfig) er
 // is called, transforms the dynamic NNC in to an NC Request and calls the CNS Service implementation with
 // that request.
 func SwiftNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListenerFunc {
-	return func(nnc *v1alpha.NodeNetworkConfig) error {
+	return func(nnc v1alpha.NodeNetworkConfig) error {
 		// Create NC request and hand it off to CNS
 		ncRequest, err := CreateNCRequestFromDynamicNNC(nnc)
 		if err != nil {
@@ -59,7 +60,8 @@ func SwiftNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListenerF
 }
 
 // CreateNCRequestFromDynamicNNC translates a crd status to createnetworkcontainer request for dynamic NNC (swift)
-func CreateNCRequestFromDynamicNNC(nnc *v1alpha.NodeNetworkConfig) (cns.CreateNetworkContainerRequest, error) {
+//nolint:gocritic //ignore hugeparam
+func CreateNCRequestFromDynamicNNC(nnc v1alpha.NodeNetworkConfig) (cns.CreateNetworkContainerRequest, error) {
 	// if NNC has no NC, return an empty request
 	if len(nnc.Status.NetworkContainers) == 0 {
 		return cns.CreateNetworkContainerRequest{}, nil
@@ -121,9 +123,9 @@ func CreateNCRequestFromDynamicNNC(nnc *v1alpha.NodeNetworkConfig) (cns.CreateNe
 // is called, transforms the static NNC in to an NC Request and calls the CNS Service implementation with
 // that request.
 func OverlayNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListenerFunc {
-	return func(nnc *v1alpha.NodeNetworkConfig) error {
+	return func(nnc v1alpha.NodeNetworkConfig) error {
 		// Create NC request and hand it off to CNS
-		ncRequest, err := CreateNCRequestFromDynamicNNC(nnc)
+		ncRequest, err := CreateNCRequestFromStaticNNC(nnc)
 		if err != nil {
 			return errors.Wrap(err, "failed to convert NNC status to network container request")
 		}
@@ -140,7 +142,8 @@ func OverlayNodeNetworkConfigListener(cnscli cnsClient) NodeNetworkConfigListene
 }
 
 // CreateNCRequestFromStaticNNC translates a crd status to createnetworkcontainer request for static NNC (overlay)
-func CreateNCRequestFromStaticNNC(nnc *v1alpha.NodeNetworkConfig) (cns.CreateNetworkContainerRequest, error) {
+//nolint:gocritic //ignore hugeparam
+func CreateNCRequestFromStaticNNC(nnc v1alpha.NodeNetworkConfig) (cns.CreateNetworkContainerRequest, error) {
 	// if NNC has no NC, return an empty request
 	if len(nnc.Status.NetworkContainers) == 0 {
 		return cns.CreateNetworkContainerRequest{}, nil
@@ -171,13 +174,9 @@ func CreateNCRequestFromStaticNNC(nnc *v1alpha.NodeNetworkConfig) (cns.CreateNet
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
-	// add them to the request as secondary IPConfigs. Skip the specific IP of the
-	// primaryPrefix; that is the gateway.
+	// add them to the request as secondary IPConfigs.
 	zeroAddr := primaryPrefix.Masked().Addr() // the masked address is the 0th IP in the subnet
 	for addr := zeroAddr.Next(); primaryPrefix.Contains(addr); addr = addr.Next() {
-		if addr == primaryPrefix.Addr() {
-			continue
-		}
 		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
 			IPAddress: addr.String(),
 			NCVersion: int(nc.Version),

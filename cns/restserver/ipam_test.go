@@ -598,7 +598,7 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
 	svc.IPAMPoolMonitor.Update(
-		&v1alpha.NodeNetworkConfig{
+		v1alpha.NodeNetworkConfig{
 			Status: v1alpha.NodeNetworkConfigStatus{
 				Scaler: v1alpha.Scaler{
 					BatchSize:               batchSize,

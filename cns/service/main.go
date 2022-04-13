@@ -865,7 +865,7 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 	}
 
 	// Convert to CreateNetworkContainerRequest
-	ncRequest, err := kubecontroller.CreateNCRequestFromDynamicNNC(nnc)
+	ncRequest, err := kubecontroller.CreateNCRequestFromDynamicNNC(*nnc)
 	if err != nil {
 		return errors.Wrap(err, "failed to convert NNC status to network container request")
 	}

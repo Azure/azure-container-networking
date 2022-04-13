@@ -19,13 +19,13 @@ import (
 
 type cnsClientState struct {
 	req *cns.CreateNetworkContainerRequest
-	nnc *v1alpha.NodeNetworkConfig
+	nnc v1alpha.NodeNetworkConfig
 }
 
 type mockCNSClient struct {
 	state            cnsClientState
 	createOrUpdateNC func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
-	update           func(*v1alpha.NodeNetworkConfig) error
+	update           func(v1alpha.NodeNetworkConfig) error
 }
 
 //nolint:gocritic // ignore hugeParam pls
@@ -34,7 +34,8 @@ func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNe
 	return m.createOrUpdateNC(req)
 }
 
-func (m *mockCNSClient) Update(nnc *v1alpha.NodeNetworkConfig) error {
+//nolint:gocritic //ignore hugeparam
+func (m *mockCNSClient) Update(nnc v1alpha.NodeNetworkConfig) error {
 	m.state.nnc = nnc
 	return m.update(nnc)
 }
@@ -131,14 +132,14 @@ func TestReconcile(t *testing.T) {
 				createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
 					return cnstypes.Success
 				},
-				update: func(*v1alpha.NodeNetworkConfig) error {
+				update: func(v1alpha.NodeNetworkConfig) error {
 					return nil
 				},
 			},
 			wantErr: false,
 			wantCNSClientState: cnsClientState{
 				req: &validRequest,
-				nnc: &v1alpha.NodeNetworkConfig{
+				nnc: v1alpha.NodeNetworkConfig{
 					Status: validStatus,
 					Spec: v1alpha.NodeNetworkConfigSpec{
 						RequestedIPCount: 1,

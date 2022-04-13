@@ -19,7 +19,7 @@ import (
 )
 
 type nodeNetworkConfigListener interface {
-	Update(*v1alpha.NodeNetworkConfig) error
+	Update(v1alpha.NodeNetworkConfig) error
 }
 
 type nncGetter interface {
@@ -68,7 +68,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	// push the NNC to the registered NNC Sinks
 	for i := range r.nncListeners {
-		if err := r.nncListeners[i].Update(nnc); err != nil {
+		if err := r.nncListeners[i].Update(*nnc); err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "nnc listener return error during update")
 		}
 	}

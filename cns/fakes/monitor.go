@@ -19,8 +19,9 @@ func (*MonitorFake) Start(ctx context.Context) error {
 	return nil
 }
 
-func (f *MonitorFake) Update(nnc *v1alpha.NodeNetworkConfig) error {
-	f.NodeNetworkConfig = nnc
+//nolint:gocritic //ignore hugeparam
+func (f *MonitorFake) Update(nnc v1alpha.NodeNetworkConfig) error {
+	f.NodeNetworkConfig = &nnc
 	return nil
 }
 
