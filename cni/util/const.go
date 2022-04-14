@@ -4,8 +4,14 @@ type ExecutionMode string
 
 // CNI execution modes
 const (
-	Default       ExecutionMode = "default"
-	Baremetal     ExecutionMode = "baremetal"
-	AKSSwift      ExecutionMode = "aksswift"
-	V4OnlyOverlay ExecutionMode = "v4OnlyOverlay"
+	Default   ExecutionMode = "default"
+	Baremetal ExecutionMode = "baremetal"
+	V4Swift   ExecutionMode = "v4swift"
+)
+
+type IpamMode string
+
+// IPAM modes
+const (
+	V4Overlay IpamMode = "v4overlay"
 )

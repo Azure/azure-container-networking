@@ -842,7 +842,7 @@ func TestPluginAKSSwiftAdd(t *testing.T) {
 	localNwCfg := cni.NetworkConfig{
 		CNIVersion:                 "0.3.0",
 		Name:                       "aksswift-net",
-		ExecutionMode:              string(util.AKSSwift),
+		ExecutionMode:              string(util.V4Swift),
 		EnableExactMatchForPodName: true,
 		Master:                     "eth0",
 	}
@@ -889,7 +889,7 @@ func TestPluginAKSSwiftDelete(t *testing.T) {
 	localNwCfg := cni.NetworkConfig{
 		CNIVersion:                 "0.3.0",
 		Name:                       "aksswift-net",
-		ExecutionMode:              string(util.AKSSwift),
+		ExecutionMode:              string(util.V4Swift),
 		EnableExactMatchForPodName: true,
 		Master:                     "eth0",
 	}
