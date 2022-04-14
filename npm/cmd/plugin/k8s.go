@@ -25,7 +25,7 @@ func ChoosePod(flags *genericclioptions.ConfigFlags, podName string, deployment 
 		return GetLabeledPod(flags, selector)
 	}
 
-	return GetDeploymentPod(flags, deployment)
+	return GetDaemonsetPod(flags, deployment)
 }
 
 // GetNamedPod finds a pod with the given name
@@ -44,9 +44,9 @@ func GetNamedPod(flags *genericclioptions.ConfigFlags, name string) (apiv1.Pod, 
 	return apiv1.Pod{}, fmt.Errorf("pod %v not found in namespace %v", name, GetNamespace(flags))
 }
 
-// GetDeploymentPod finds a pod from a given deployment
-func GetDeploymentPod(flags *genericclioptions.ConfigFlags, deployment string) (apiv1.Pod, error) {
-	ings, err := getDeploymentPods(flags, deployment)
+// GetDaemonsetPod finds a pod from a given deployment
+func GetDaemonsetPod(flags *genericclioptions.ConfigFlags, deployment string) (apiv1.Pod, error) {
+	ings, err := getDaemonsetPods(flags, deployment)
 	if err != nil {
 		return apiv1.Pod{}, err
 	}
@@ -272,7 +272,7 @@ func getLabeledPods(flags *genericclioptions.ConfigFlags, label string) ([]apiv1
 	return pods.Items, nil
 }
 
-func getDeploymentPods(flags *genericclioptions.ConfigFlags, deployment string) ([]apiv1.Pod, error) {
+func getDaemonsetPods(flags *genericclioptions.ConfigFlags, deployment string) ([]apiv1.Pod, error) {
 	pods, err := getPods(flags)
 	if err != nil {
 		return make([]apiv1.Pod, 0), err
@@ -280,7 +280,7 @@ func getDeploymentPods(flags *genericclioptions.ConfigFlags, deployment string) 
 
 	ingressPods := make([]apiv1.Pod, 0)
 	for _, pod := range pods {
-		if PodInDeployment(pod, deployment) {
+		if PodInDaemonset(pod, deployment) {
 			ingressPods = append(ingressPods, pod)
 		}
 	}
@@ -288,9 +288,9 @@ func getDeploymentPods(flags *genericclioptions.ConfigFlags, deployment string) 
 	return ingressPods, nil
 }
 
-// PodInDeployment returns whether a pod is part of a deployment with the given name
+// PodInDaemonset returns whether a pod is part of a deployment with the given name
 // a pod is considered to be in {deployment} if it is owned by a replicaset with a name of format {deployment}-otherchars
-func PodInDeployment(pod apiv1.Pod, deployment string) bool {
+func PodInDaemonset(pod apiv1.Pod, deployment string) bool {
 	for _, owner := range pod.OwnerReferences {
 		if owner.Controller == nil || !*owner.Controller || owner.Kind != "ReplicaSet" {
 			continue

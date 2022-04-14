@@ -50,8 +50,8 @@ func NewNPMOptions(streams genericclioptions.IOStreams) *NPMOptions {
 func main() {
 
 	rootCmd := &cobra.Command{
-		Use:   "azurenpm",
-		Short: "A kubectl plugin for inspecting your ingress-nginx deployments",
+		Use:   "azure-npm",
+		Short: "A kubectl plugin for inspecting Azure NPM",
 	}
 
 	// Respect some basic kubectl flags like --namespace
@@ -66,6 +66,9 @@ func main() {
 }
 
 func TuplesCmd(flags *genericclioptions.ConfigFlags) *cobra.Command {
+	opts := execFlags{}
+	var pod, deployment, selector *string
+
 	cmd := &cobra.Command{
 		Use:           "gettuples",
 		Short:         "",
@@ -76,17 +79,35 @@ func TuplesCmd(flags *genericclioptions.ConfigFlags) *cobra.Command {
 			viper.BindPFlags(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			pod, err := GetNamedPod(flags, "azure-npm-k9vdz")
-			if err != nil {
-				return fmt.Errorf("error getting pod %w", err)
+			src, err := cmd.Flags().GetString("src")
+			if src == "" {
+				return fmt.Errorf("failed to get source with err %w", err)
 			}
-			log.Printf("pod: %+v", pod)
+			dst, err := cmd.Flags().GetString("dst")
+			if dst == "" {
+				return fmt.Errorf("failed to get destination with err %w", err)
+			}
+
+			args = append(args, "/usr/bin/azure-npm", "debug", "gettuples", "-s", "x/a", "-d", "y/b")
+			log.Printf("args %+v", args)
+			err = exec(flags, *pod, *deployment, *selector, args, opts)
+			if err != nil {
+				log.Printf("exec failed with error %+v", err)
+			}
 			return nil
 		},
 	}
 
 	KubernetesConfigFlags = genericclioptions.NewConfigFlags(false)
-	KubernetesConfigFlags.AddFlags(cmd.Flags())
+
+	pod = AddPodFlag(cmd)
+	deployment = AddDeploymentFlag(cmd)
+	selector = AddSelectorFlag(cmd)
+	cmd.Flags().BoolVarP(&opts.TTY, "tty", "t", false, "Stdin is a TTY")
+	cmd.Flags().BoolVarP(&opts.Stdin, "stdin", "i", false, "Pass stdin to the container")
+	cmd.Flags().StringP("src", "s", "", "set the source")
+	cmd.Flags().StringP("dst", "d", "", "set the destination")
+	cmd.Flags().StringP("cache-file", "c", "", "Set the NPM cache file path (optional, but required when using an iptables save file)")
 
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	return cmd
@@ -153,30 +174,31 @@ func appendStringArrayFlag(out *[]string, in *[]string, flag string) {
 	}
 }
 
+// AddPodFlag adds a --pod flag to a cobra command
+func AddPodFlag(cmd *cobra.Command) *string {
+	v := ""
+	cmd.Flags().StringVar(&v, "pod", "", "Query a particular ingress-nginx pod")
+	return &v
+}
+
+// AddDeploymentFlag adds a --deployment flag to a cobra command
+func AddDeploymentFlag(cmd *cobra.Command) *string {
+	v := ""
+	cmd.Flags().StringVar(&v, "deployment", "azure-npm", "The name of the ingress-nginx deployment")
+	return &v
+}
+
+// AddSelectorFlag adds a --selector flag to a cobra command
+func AddSelectorFlag(cmd *cobra.Command) *string {
+	v := ""
+	cmd.Flags().StringVarP(&v, "selector", "l", "", "Selector (label query) of the ingress-nginx pod")
+	return &v
+}
+
 // getKubectlConfigFlags serializes the parsed flag struct back into a series of command line args
 // that can then be passed to kubectl. The mirror image of
 // https://github.com/kubernetes/cli-runtime/blob/master/pkg/genericclioptions/config_flags.go#L251
 func getKubectlConfigFlags(flags *genericclioptions.ConfigFlags) []string {
-	out := []string{}
-	o := &out
 
-	appendStringFlag(o, flags.KubeConfig, "kubeconfig")
-	appendStringFlag(o, flags.CacheDir, "cache-dir")
-	appendStringFlag(o, flags.CertFile, "client-certificate")
-	appendStringFlag(o, flags.KeyFile, "client-key")
-	appendStringFlag(o, flags.BearerToken, "token")
-	appendStringFlag(o, flags.Impersonate, "as")
-	appendStringArrayFlag(o, flags.ImpersonateGroup, "as-group")
-	appendStringFlag(o, flags.Username, "username")
-	appendStringFlag(o, flags.Password, "password")
-	appendStringFlag(o, flags.ClusterName, "cluster")
-	appendStringFlag(o, flags.AuthInfoName, "user")
-	//appendStringFlag(o, flags.Namespace, "namespace")
-	appendStringFlag(o, flags.Context, "context")
-	appendStringFlag(o, flags.APIServer, "server")
-	appendBoolFlag(o, flags.Insecure, "insecure-skip-tls-verify")
-	appendStringFlag(o, flags.CAFile, "certificate-authority")
-	appendStringFlag(o, flags.Timeout, "request-timeout")
-
-	return out
+	return []string{}
 }
