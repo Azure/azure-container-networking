@@ -383,7 +383,7 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 			}
 
 		case "comment":
-			log.Printf("skipping comment for %+v ruleres %+v", module, ruleRes.String())
+			//log.Printf("skipping comment for %+v ruleres %+v", module, ruleRes.String())
 		default:
 			continue
 		}
