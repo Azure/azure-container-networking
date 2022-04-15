@@ -375,7 +375,7 @@ func determineWinVer() {
 }
 
 func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
-	if executionMode == string(util.AKSSwift) {
+	if executionMode == string(util.V4Swift) {
 		ncPrimaryIP := ""
 		if ncPrimaryIPIface != nil {
 			ncPrimaryIP = ncPrimaryIPIface.(string)
