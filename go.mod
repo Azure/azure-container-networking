@@ -101,14 +101,11 @@ require (
 
 require (
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
-	github.com/jsternberg/zap-logfmt v1.2.0
-	go.uber.org/zap v1.21.0
+	go.uber.org/zap v1.21.0 // indirect
 )
 
 require (
 	github.com/pelletier/go-toml/v2 v2.0.0-beta.8 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 )
 
