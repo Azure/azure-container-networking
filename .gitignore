@@ -30,3 +30,7 @@ npm/debug/http
 *.crt
 *.pem
 *.srl
+
+# npm krew plugin artifacts
+./npm/cmd/plugin/deploy
+./npm/cmd/plugin/bin

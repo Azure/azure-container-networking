@@ -60,9 +60,7 @@ func main() {
 
 	rootCmd.AddCommand(TuplesCmd(flags))
 
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
+	cobra.CheckErr(rootCmd.Execute())
 }
 
 func TuplesCmd(flags *genericclioptions.ConfigFlags) *cobra.Command {
@@ -79,6 +77,7 @@ func TuplesCmd(flags *genericclioptions.ConfigFlags) *cobra.Command {
 			viper.BindPFlags(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+
 			src, err := cmd.Flags().GetString("src")
 			if src == "" {
 				return fmt.Errorf("failed to get source with err %w", err)
@@ -88,7 +87,7 @@ func TuplesCmd(flags *genericclioptions.ConfigFlags) *cobra.Command {
 				return fmt.Errorf("failed to get destination with err %w", err)
 			}
 
-			args = append(args, "/usr/bin/azure-npm", "debug", "gettuples", "-s", "x/a", "-d", "y/b")
+			args = append(args, "/usr/bin/azure-npm", "debug", "gettuples", "-s", src, "-d", dst)
 			log.Printf("args %+v", args)
 			err = exec(flags, *pod, *deployment, *selector, args, opts)
 			if err != nil {
@@ -105,8 +104,8 @@ func TuplesCmd(flags *genericclioptions.ConfigFlags) *cobra.Command {
 	selector = AddSelectorFlag(cmd)
 	cmd.Flags().BoolVarP(&opts.TTY, "tty", "t", false, "Stdin is a TTY")
 	cmd.Flags().BoolVarP(&opts.Stdin, "stdin", "i", false, "Pass stdin to the container")
-	cmd.Flags().StringP("src", "s", "", "set the source")
-	cmd.Flags().StringP("dst", "d", "", "set the destination")
+	cmd.Flags().StringP("src", "", "", "set the source")
+	cmd.Flags().StringP("dst", "", "", "set the destination")
 	cmd.Flags().StringP("cache-file", "c", "", "Set the NPM cache file path (optional, but required when using an iptables save file)")
 
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
