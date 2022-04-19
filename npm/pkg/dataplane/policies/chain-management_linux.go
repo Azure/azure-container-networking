@@ -321,10 +321,6 @@ func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *
 	creator.AddLine("", nil, jumpOnIngressMatchSpecs...)
 
 	// add AZURE-NPM-ACCEPT chain rules
-	clearSpecs := []string{util.IptablesAppendFlag, util.IptablesAzureAcceptChain}
-	clearSpecs = append(clearSpecs, setMarkSpecs(util.IptablesAzureClearMarkHex)...)
-	clearSpecs = append(clearSpecs, commentSpecs("CLEAR-AZURE-NPM-MARKS")...)
-	creator.AddLine("", nil, clearSpecs...)
 	creator.AddLine("", nil, util.IptablesAppendFlag, util.IptablesAzureAcceptChain, util.IptablesJumpFlag, util.IptablesAccept)
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
 	return creator

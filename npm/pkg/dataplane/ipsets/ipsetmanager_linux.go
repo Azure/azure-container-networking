@@ -244,18 +244,59 @@ example where every set in add/update cache should have ip 1.2.3.4 and 2.3.4.5:
 		-X set-to-delete2
 		-X set-to-delete3
 		-X set-to-delete1
-
 */
-func (iMgr *IPSetManager) applyIPSets() error {
+// unused currently, but may be used later for reconciling with the kernel
+func (iMgr *IPSetManager) applyIPSetsWithSaveFile() error {
 	var saveFile []byte
 	var saveError error
-	if len(iMgr.toAddOrUpdateCache) > 0 {
+	if iMgr.dirtyCache.numSetsToAddOrUpdate() > 0 {
 		saveFile, saveError = iMgr.ipsetSave()
 		if saveError != nil {
 			return npmerrors.SimpleErrorWrapper("ipset save failed when applying ipsets", saveError)
 		}
 	}
-	creator := iMgr.fileCreatorForApply(maxTryCount, saveFile)
+	creator := iMgr.fileCreatorForApplyWithSaveFile(maxTryCount, saveFile)
+	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
+	if restoreError != nil {
+		return npmerrors.SimpleErrorWrapper("ipset restore failed when applying ipsets with save file", restoreError)
+	}
+	return nil
+}
+
+/*
+See error handling in applyIPSetsWithSaveFile().
+
+overall format for ipset restore file:
+	[creates]  (random order)
+	[deletes and adds] (sets in random order, where each set has deletes first (random order), then adds (random order))
+	[flushes]  (random order)
+	[destroys] (random order)
+
+example where:
+- set1 and set2 will delete 1.2.3.4 and 2.3.4.5 and add 7.7.7.7 and 8.8.8.8
+- set3 will be created with 1.0.0.1
+- set4 and set5 will be destroyed
+
+	restore file: [flag meanings: -F (flush), -X (destroy), -N (create), -D (delete), -A (add)]
+		-N set2
+		-N set3
+		-N set1
+		-D set2 2.3.4.5
+		-D set2 1.2.3.4
+		-A set2 8.8.8.8
+		-A set2 7.7.7.7
+		-A set3 1.0.0.1
+		-D set1 1.2.3.4
+		-D set1 2.3.4.5
+		-A set1 7.7.7.7
+		-A set1 8.8.8.8
+		-F set5
+		-F set4
+		-X set5
+		-X set4
+*/
+func (iMgr *IPSetManager) applyIPSets() error {
+	creator := iMgr.fileCreatorForApply(maxTryCount)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
 		return npmerrors.SimpleErrorWrapper("ipset restore failed when applying ipsets", restoreError)
@@ -276,11 +317,13 @@ func (iMgr *IPSetManager) ipsetSave() ([]byte, error) {
 	return saveFile, nil
 }
 
-func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) *ioutil.FileCreator {
+// NOTE: duplicate code in the first step of this function and fileCreatorForApply
+func (iMgr *IPSetManager) fileCreatorForApplyWithSaveFile(maxTryCount int, saveFile []byte) *ioutil.FileCreator {
 	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern) // TODO make the line failure pattern into a definition constant eventually
 
 	// 1. create all sets first so we don't try to add a member set to a list if it hasn't been created yet
-	for prefixedName := range iMgr.toAddOrUpdateCache {
+	setsToAddOrUpdate := iMgr.dirtyCache.setsToAddOrUpdate()
+	for prefixedName := range setsToAddOrUpdate {
 		set := iMgr.setMap[prefixedName]
 		iMgr.createSetForApply(creator, set)
 		// NOTE: currently no logic to handle this scenario:
@@ -288,10 +331,10 @@ func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) 
 	}
 
 	// 2. for dirty sets already in the kernel, update members (add members not in the kernel, and delete undesired members in the kernel)
-	iMgr.updateDirtyKernelSets(saveFile, creator)
+	iMgr.updateDirtyKernelSets(setsToAddOrUpdate, saveFile, creator)
 
 	// 3. for the remaining dirty sets, add their members to the kernel
-	for prefixedName := range iMgr.toAddOrUpdateCache {
+	for prefixedName := range setsToAddOrUpdate {
 		set := iMgr.setMap[prefixedName]
 		sectionID := sectionID(addOrUpdateSectionPrefix, prefixedName)
 		if set.Kind == HashSet {
@@ -307,6 +350,50 @@ func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) 
 
 	/*
 		4. flush and destroy sets in the original delete cache
+		We must perform this step after member deletions because of the following scenario:
+		Suppose we want to destroy set A, which is referenced by list L. For set A to be in the toDeleteCache,
+		we must have deleted the reference in list L, so list L is in the toAddOrUpdateCache. In step 2, we will delete this reference,
+		but until then, set A is in use by a kernel component and can't be destroyed.
+	*/
+	// flush all sets first in case a set we're destroying is referenced by a list we're destroying
+	setsToDelete := iMgr.dirtyCache.setsToDelete()
+	for prefixedName := range setsToDelete {
+		iMgr.flushSetForApply(creator, prefixedName)
+	}
+	for prefixedName := range setsToDelete {
+		iMgr.destroySetForApply(creator, prefixedName)
+	}
+	return creator
+}
+
+// NOTE: duplicate code in the first step in this function and fileCreatorForApplyWithSaveFile
+func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int) *ioutil.FileCreator {
+	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern) // TODO make the line failure pattern into a definition constant eventually
+
+	// 1. create all sets first so we don't try to add a member set to a list if it hasn't been created yet
+	setsToAddOrUpdate := iMgr.dirtyCache.setsToAddOrUpdate()
+	for prefixedName := range setsToAddOrUpdate {
+		set := iMgr.setMap[prefixedName]
+		iMgr.createSetForApply(creator, set)
+		// NOTE: currently no logic to handle this scenario:
+		// if a set in the toAddOrUpdateCache is in the kernel with the wrong type, then we'll try to create it, which will fail in the first restore call, but then be skipped in a retry
+	}
+
+	// 2. delete/add members from dirty sets to add or update
+	for prefixedName := range setsToAddOrUpdate {
+		sectionID := sectionID(addOrUpdateSectionPrefix, prefixedName)
+		set := iMgr.setMap[prefixedName]
+		diff := iMgr.dirtyCache.memberDiff(prefixedName)
+		for member := range diff.membersToDelete {
+			iMgr.deleteMemberForApply(creator, set, sectionID, member)
+		}
+		for member := range diff.membersToAdd {
+			iMgr.addMemberForApply(creator, set, sectionID, member)
+		}
+	}
+
+	/*
+		3. flush and destroy sets in the original delete cache
 
 		We must perform this step after member deletions because of the following scenario:
 		Suppose we want to destroy set A, which is referenced by list L. For set A to be in the toDeleteCache,
@@ -314,24 +401,25 @@ func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int, saveFile []byte) 
 		but until then, set A is in use by a kernel component and can't be destroyed.
 	*/
 	// flush all sets first in case a set we're destroying is referenced by a list we're destroying
-	for prefixedName := range iMgr.toDeleteCache {
+	setsToDelete := iMgr.dirtyCache.setsToDelete()
+	for prefixedName := range setsToDelete {
 		iMgr.flushSetForApply(creator, prefixedName)
 	}
-	for prefixedName := range iMgr.toDeleteCache {
+	for prefixedName := range setsToDelete {
 		iMgr.destroySetForApply(creator, prefixedName)
 	}
 	return creator
 }
 
 // updates the creator (adds/deletes members) for dirty sets already in the kernel
-// updates the toAddOrUpdateCache: after calling this function, the cache will only consist of sets to create
+// updates the setsToAddOrUpdate: after calling this function, the map will only consist of sets to create
 // error handling principal:
 // - if contract with ipset save (or grep) is breaking, salvage what we can, take a snapshot (TODO), and log the failure
 // - have a background process for sending/removing snapshots intermittently
-func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil.FileCreator) {
+func (iMgr *IPSetManager) updateDirtyKernelSets(setsToAddOrUpdate map[string]struct{}, saveFile []byte, creator *ioutil.FileCreator) {
 	// map hashed names to prefixed names
 	toAddOrUpdateHashedNames := make(map[string]string)
-	for prefixedName := range iMgr.toAddOrUpdateCache {
+	for prefixedName := range setsToAddOrUpdate {
 		hashedName := iMgr.setMap[prefixedName].HashedName
 		toAddOrUpdateHashedNames[hashedName] = prefixedName
 	}
@@ -363,7 +451,7 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(saveFile []byte, creator *ioutil
 		// 3. update the set from the kernel
 		set := iMgr.setMap[prefixedName]
 		// remove from the dirty cache so we don't add it later
-		delete(iMgr.toAddOrUpdateCache, prefixedName)
+		delete(setsToAddOrUpdate, prefixedName)
 		// mark the set as in the kernel
 		delete(toAddOrUpdateHashedNames, hashedName)
 

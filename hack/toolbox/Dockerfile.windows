@@ -1,5 +1,5 @@
 # Build cns
-FROM docker.io/golang:1.17 AS builder
+FROM docker.io/golang:1.18 AS builder
 # Build args
 ARG VERSION
 ARG CNS_AI_PATH
@@ -14,7 +14,7 @@ RUN $Env:CGO_ENABLED=0; go build -v -o /usr/local/bin/toolbox.exe -gcflags="-dwa
 FROM mcr.microsoft.com/windows/servercore:ltsc2022
 COPY --from=builder /usr/local/bin/toolbox.exe \
     /usr/local/bin/toolbox.exe
-    
+
 RUN powershell.exe Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 RUN choco install -y vim wget
 

@@ -34,14 +34,10 @@ const (
 )
 
 type IPSetManager struct {
-	iMgrCfg *IPSetManagerCfg
-	setMap  map[string]*IPSet
-	// Map with Key as IPSet name to to emulate set
-	// and value as struct{} for minimal memory consumption.
-	toAddOrUpdateCache map[string]struct{}
-	// IPSets referred to in this cache may be in the setMap, but must be deleted from the kernel
-	toDeleteCache map[string]struct{}
-	ioShim        *common.IOShim
+	iMgrCfg    *IPSetManagerCfg
+	setMap     map[string]*IPSet
+	dirtyCache dirtyCacheInterface
+	ioShim     *common.IOShim
 	sync.Mutex
 }
 
@@ -52,11 +48,10 @@ type IPSetManagerCfg struct {
 
 func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetManager {
 	return &IPSetManager{
-		iMgrCfg:            iMgrCfg,
-		setMap:             make(map[string]*IPSet),
-		toAddOrUpdateCache: make(map[string]struct{}),
-		toDeleteCache:      make(map[string]struct{}),
-		ioShim:             ioShim,
+		iMgrCfg:    iMgrCfg,
+		setMap:     make(map[string]*IPSet),
+		dirtyCache: newDirtyCache(),
+		ioShim:     ioShim,
 	}
 }
 
@@ -79,7 +74,7 @@ func (iMgr *IPSetManager) Reconcile() {
 	}
 	numRemovedSets := originalNumSets - len(iMgr.setMap)
 	if numRemovedSets > 0 {
-		klog.Infof("[IPSetManager] removed %d empty/unreferenced ipsets, updating toDeleteCache to: %+v", numRemovedSets, iMgr.toDeleteCache)
+		klog.Infof("[IPSetManager] removed %d empty/unreferenced ipsets, updating toDeleteCache to: %+v", numRemovedSets, iMgr.dirtyCache.printDeleteCache())
 	}
 }
 
@@ -117,7 +112,7 @@ func (iMgr *IPSetManager) createAndGetIPSet(setMetadata *IPSetMetadata) *IPSet {
 	iMgr.setMap[prefixedName] = set
 	metrics.IncNumIPSets()
 	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
-		iMgr.modifyCacheForKernelCreation(prefixedName)
+		iMgr.modifyCacheForKernelCreation(set)
 	}
 	return set
 }
@@ -160,7 +155,7 @@ func (iMgr *IPSetManager) AddReference(setMetadata *IPSetMetadata, referenceName
 	if !wasInKernel {
 		// the set should be in the kernel, so add it to the kernel if it wasn't beforehand
 		// this branch can only be taken for ApplyOnNeed mode
-		iMgr.modifyCacheForKernelCreation(set.Name)
+		iMgr.modifyCacheForKernelCreation(set)
 
 		// for ApplyAllIPSets mode, the set either:
 		// a) existed already and doesn't need to be added to toAddOrUpdateCache
@@ -195,7 +190,7 @@ func (iMgr *IPSetManager) DeleteReference(setName, referenceName string, referen
 	if wasInKernel && !iMgr.shouldBeInKernel(set) {
 		// remove from kernel if it was in the kernel before and shouldn't be now
 		// this branch can only be taken for ApplyOnNeed mode
-		iMgr.modifyCacheForKernelRemoval(set.Name)
+		iMgr.modifyCacheForKernelRemoval(set)
 
 		// for ApplyAllIPSets mode, we don't want to make the set dirty
 
@@ -235,13 +230,11 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 
 		// 2. add ip to the set, and update the pod key
 		_, ok := set.IPPodKey[ip]
-		set.IPPodKey[ip] = podKey
-		if ok {
-			continue
+		if !ok {
+			iMgr.modifyCacheForKernelMemberAdd(set, ip)
+			metrics.AddEntryToIPSet(prefixedName)
 		}
-
-		iMgr.modifyCacheForKernelMemberUpdate(set)
-		metrics.AddEntryToIPSet(prefixedName)
+		set.IPPodKey[ip] = podKey
 	}
 	return nil
 }
@@ -288,8 +281,8 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 		}
 
 		// update the IP ownership with podkey
+		iMgr.modifyCacheForKernelMemberDelete(set, ip)
 		delete(set.IPPodKey, ip)
-		iMgr.modifyCacheForKernelMemberUpdate(set)
 		metrics.RemoveEntryFromIPSet(prefixedName)
 	}
 	return nil
@@ -327,7 +320,6 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 			return npmerrors.Errorf(npmerrors.AppendIPSet, false, msg)
 		}
 
-		modified := false
 		// 3. add all members to the list
 		for _, memberMetadata := range setMetadatas {
 			memberName := memberMetadata.GetPrefixName()
@@ -341,6 +333,7 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 			}
 			member := iMgr.setMap[memberName]
 
+			iMgr.modifyCacheForKernelMemberAdd(list, member.HashedName)
 			list.MemberIPSets[memberName] = member
 			member.incIPSetReferCount()
 			metrics.AddEntryToIPSet(list.Name)
@@ -348,10 +341,6 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 			if listIsInKernel {
 				iMgr.incKernelReferCountAndModifyCache(member)
 			}
-			modified = true
-		}
-		if modified {
-			iMgr.modifyCacheForKernelMemberUpdate(list)
 		}
 	}
 	return nil
@@ -377,7 +366,6 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 		return npmerrors.Errorf(npmerrors.DeleteIPSet, false, msg)
 	}
 
-	modified := false
 	for _, setMetadata := range setMetadatas {
 		memberName := setMetadata.GetPrefixName()
 		if memberName == "" {
@@ -392,9 +380,6 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 		// Nested IPSets are only supported for windows
 		// Check if we want to actually use that support
 		if member.Kind != HashSet {
-			if modified {
-				iMgr.modifyCacheForKernelMemberUpdate(list)
-			}
 			msg := fmt.Sprintf("ipset %s is not a hash set and nested list sets are not supported", memberName)
 			metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to remove from list: %s", msg)
 			return npmerrors.Errorf(npmerrors.DeleteIPSet, false, msg)
@@ -405,6 +390,7 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 			continue
 		}
 
+		iMgr.modifyCacheForKernelMemberDelete(list, member.HashedName)
 		delete(list.MemberIPSets, memberName)
 		member.decIPSetReferCount()
 		metrics.RemoveEntryFromIPSet(list.Name)
@@ -412,10 +398,6 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 		if listIsInKernel {
 			iMgr.decKernelReferCountAndModifyCache(member)
 		}
-		modified = true
-	}
-	if modified {
-		iMgr.modifyCacheForKernelMemberUpdate(list)
 	}
 	return nil
 }
@@ -424,12 +406,15 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
-	if len(iMgr.toAddOrUpdateCache) == 0 && len(iMgr.toDeleteCache) == 0 {
+	if iMgr.dirtyCache.numSetsToAddOrUpdate() == 0 && iMgr.dirtyCache.numSetsToDelete() == 0 {
 		klog.Info("[IPSetManager] No IPSets to apply")
 		return nil
 	}
 
-	klog.Infof("[IPSetManager] toAddUpdateCache: %+v \ntoDeleteCache: %+v", iMgr.toAddOrUpdateCache, iMgr.toDeleteCache)
+	klog.Infof(
+		"[IPSetManager] dirty caches. toAddUpdateCache: %s, toDeleteCache: %s",
+		iMgr.dirtyCache.printAddOrUpdateCache(), iMgr.dirtyCache.printDeleteCache(),
+	)
 	iMgr.sanitizeDirtyCache()
 
 	// Call the appropriate apply ipsets
@@ -476,18 +461,17 @@ func (iMgr *IPSetManager) modifyCacheForCacheDeletion(set *IPSet, deleteOption u
 	}
 
 	delete(iMgr.setMap, set.Name)
-	metrics.DecNumIPSets()
+	metrics.DeleteIPSet(set.Name)
 	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
 		// NOTE: in ApplyAllIPSets mode, if this ipset has never been created in the kernel,
 		// it would be added to the deleteCache, and then the OS would fail to delete it
-		iMgr.modifyCacheForKernelRemoval(set.Name)
+		iMgr.modifyCacheForKernelRemoval(set)
 	}
 	// if mode is ApplyOnNeed, the set will not be in the kernel (or will be in the delete cache already) since there are no references
 }
 
-func (iMgr *IPSetManager) modifyCacheForKernelCreation(setName string) {
-	iMgr.toAddOrUpdateCache[setName] = struct{}{}
-	delete(iMgr.toDeleteCache, setName)
+func (iMgr *IPSetManager) modifyCacheForKernelCreation(set *IPSet) {
+	iMgr.dirtyCache.create(set)
 	/*
 		TODO kernel-based prometheus metrics
 
@@ -501,7 +485,7 @@ func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
 	wasInKernel := iMgr.shouldBeInKernel(member)
 	member.incKernelReferCount()
 	if !wasInKernel {
-		iMgr.modifyCacheForKernelCreation(member.Name)
+		iMgr.modifyCacheForKernelCreation(member)
 	}
 }
 
@@ -509,9 +493,8 @@ func (iMgr *IPSetManager) shouldBeInKernel(set *IPSet) bool {
 	return set.shouldBeInKernel() || iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets
 }
 
-func (iMgr *IPSetManager) modifyCacheForKernelRemoval(setName string) {
-	iMgr.toDeleteCache[setName] = struct{}{}
-	delete(iMgr.toAddOrUpdateCache, setName)
+func (iMgr *IPSetManager) modifyCacheForKernelRemoval(set *IPSet) {
+	iMgr.dirtyCache.destroy(set)
 	/*
 		TODO kernel-based prometheus metrics
 
@@ -524,13 +507,19 @@ func (iMgr *IPSetManager) modifyCacheForKernelRemoval(setName string) {
 func (iMgr *IPSetManager) decKernelReferCountAndModifyCache(member *IPSet) {
 	member.decKernelReferCount()
 	if !iMgr.shouldBeInKernel(member) {
-		iMgr.modifyCacheForKernelRemoval(member.Name)
+		iMgr.modifyCacheForKernelRemoval(member)
 	}
 }
 
-func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(set *IPSet) {
+func (iMgr *IPSetManager) modifyCacheForKernelMemberAdd(set *IPSet, member string) {
 	if iMgr.shouldBeInKernel(set) {
-		iMgr.toAddOrUpdateCache[set.Name] = struct{}{}
+		iMgr.dirtyCache.addMember(set, member)
+	}
+}
+
+func (iMgr *IPSetManager) modifyCacheForKernelMemberDelete(set *IPSet, member string) {
+	if iMgr.shouldBeInKernel(set) {
+		iMgr.dirtyCache.deleteMember(set, member)
 	}
 }
 
@@ -538,9 +527,8 @@ func (iMgr *IPSetManager) modifyCacheForKernelMemberUpdate(set *IPSet) {
 // if so will not delete it
 func (iMgr *IPSetManager) sanitizeDirtyCache() {
 	anyProblems := false
-	for setName := range iMgr.toDeleteCache {
-		_, ok := iMgr.toAddOrUpdateCache[setName]
-		if ok {
+	for setName := range iMgr.dirtyCache.setsToDelete() {
+		if iMgr.dirtyCache.isSetToAddOrUpdate(setName) {
 			klog.Errorf("[IPSetManager] Unexpected state in dirty cache %s set is part of both update and delete caches", setName)
 			anyProblems = true
 		}
@@ -551,8 +539,7 @@ func (iMgr *IPSetManager) sanitizeDirtyCache() {
 }
 
 func (iMgr *IPSetManager) clearDirtyCache() {
-	iMgr.toAddOrUpdateCache = make(map[string]struct{})
-	iMgr.toDeleteCache = make(map[string]struct{})
+	iMgr.dirtyCache.reset()
 }
 
 // validateIPSetMemberIP helps valid if a member added to an HashSet has valid IP or CIDR

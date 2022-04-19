@@ -38,14 +38,12 @@ func NewMockIpamInvoker(ipv6, v4Fail, v6Fail bool) *MockIpamInvoker {
 	}
 }
 
-func (invoker *MockIpamInvoker) Add(nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, subnetPrefix *net.IPNet, options map[string]interface{}) (v4, v6 *current.Result, err error) {
-	var resultV6 *current.Result
-
+func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddResult, err error) {
 	if invoker.v4Fail {
-		return nil, nil, errV4
+		return ipamAddResult, errV4
 	}
 
-	result := &current.Result{}
+	ipamAddResult.hostSubnetPrefix = net.IPNet{}
 
 	ipv4Str := "10.240.0.5"
 	if _, ok := invoker.ipMap["10.240.0.5/24"]; ok {
@@ -56,14 +54,14 @@ func (invoker *MockIpamInvoker) Add(nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, s
 	ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetBits, ipv4Bits)}
 	gwIP := net.ParseIP("10.240.0.1")
 	ipConfig := &current.IPConfig{Address: ipnet, Gateway: gwIP, Version: "4"}
-	result.IPs = append(result.IPs, ipConfig)
+	ipamAddResult.ipv4Result = &current.Result{}
+	ipamAddResult.ipv4Result.IPs = append(ipamAddResult.ipv4Result.IPs, ipConfig)
 	invoker.ipMap[ipnet.String()] = true
 	if invoker.v6Fail {
-		return result, nil, errV6
+		return ipamAddResult, errV6
 	}
 
 	if invoker.isIPv6 {
-		resultV6 = &current.Result{}
 		ipv6Str := "fc00::2"
 		if _, ok := invoker.ipMap["fc00::2/128"]; ok {
 			ipv6Str = "fc00::3"
@@ -73,11 +71,12 @@ func (invoker *MockIpamInvoker) Add(nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, s
 		ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetv6Bits, ipv6Bits)}
 		gwIP := net.ParseIP("fc00::1")
 		ipConfig := &current.IPConfig{Address: ipnet, Gateway: gwIP, Version: "6"}
-		resultV6.IPs = append(resultV6.IPs, ipConfig)
+		ipamAddResult.ipv6Result = &current.Result{}
+		ipamAddResult.ipv6Result.IPs = append(ipamAddResult.ipv6Result.IPs, ipConfig)
 		invoker.ipMap[ipnet.String()] = true
 	}
 
-	return result, resultV6, nil
+	return ipamAddResult, nil
 }
 
 func (invoker *MockIpamInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, options map[string]interface{}) error {

@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cns"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
 )
@@ -14,8 +15,21 @@ import (
 type IPAMInvoker interface {
 
 	// Add returns two results, one IPv4, the other IPv6.
-	Add(nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, subnetPrefix *net.IPNet, options map[string]interface{}) (*cniTypesCurr.Result, *cniTypesCurr.Result, error)
+	Add(IPAMAddConfig) (IPAMAddResult, error)
 
 	// Delete calls to the invoker source, and returns error. Returning an error here will fail the CNI Delete call.
 	Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, options map[string]interface{}) error
+}
+
+type IPAMAddConfig struct {
+	nwCfg   *cni.NetworkConfig
+	args    *cniSkel.CmdArgs
+	options map[string]interface{}
+}
+
+type IPAMAddResult struct {
+	ipv4Result       *cniTypesCurr.Result
+	ipv6Result       *cniTypesCurr.Result
+	ncResponse       *cns.GetNetworkContainerResponse
+	hostSubnetPrefix net.IPNet
 }

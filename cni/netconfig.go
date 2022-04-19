@@ -65,6 +65,7 @@ type NetworkConfig struct {
 	CNSUrl                        string   `json:"cnsurl,omitempty"`
 	ExecutionMode                 string   `json:"executionMode,omitempty"`
 	Ipam                          struct {
+		Mode          string `json:"mode,omitempty"`
 		Type          string `json:"type"`
 		Environment   string `json:"environment,omitempty"`
 		AddrSpace     string `json:"addressSpace,omitempty"`

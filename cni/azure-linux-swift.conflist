@@ -5,6 +5,7 @@
       {
          "type":"azure-vnet",
          "mode":"transparent",
+         "executionMode": "v4swift",
          "ipsToRouteViaHost":["169.254.20.10"],
          "ipam":{
             "type":"azure-cns"

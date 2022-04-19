@@ -26,10 +26,11 @@ type directUpdatePoolMonitor struct {
 	cns.IPAMPoolMonitor
 }
 
-func (d *directUpdatePoolMonitor) Update(nnc *v1alpha.NodeNetworkConfig) {
+func (d *directUpdatePoolMonitor) Update(nnc *v1alpha.NodeNetworkConfig) error {
 	scaler := nnc.Status.Scaler
 	d.m.spec = nnc.Spec
 	d.m.metastate.minFreeCount, d.m.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
+	return nil
 }
 
 type testState struct {

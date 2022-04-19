@@ -6,5 +6,12 @@ type ExecutionMode string
 const (
 	Default   ExecutionMode = "default"
 	Baremetal ExecutionMode = "baremetal"
-	AKSSwift  ExecutionMode = "aksswift"
+	V4Swift   ExecutionMode = "v4swift"
+)
+
+type IpamMode string
+
+// IPAM modes
+const (
+	V4Overlay IpamMode = "v4overlay"
 )

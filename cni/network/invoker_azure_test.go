@@ -95,6 +95,7 @@ func getResult(ip string) []*cniTypesCurr.Result {
 
 // used in the tests below, unused ignores tags
 type ipamStruct struct { //nolint:unused
+	Mode          string `json:"mode,omitempty"`
 	Type          string `json:"type"`
 	Environment   string `json:"environment,omitempty"`
 	AddrSpace     string `json:"addressSpace,omitempty"`
@@ -223,15 +224,16 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				plugin: tt.fields.plugin,
 				nwInfo: tt.fields.nwInfo,
 			}
-			got, got1, err := invoker.Add(tt.args.nwCfg, tt.args.in1, tt.args.subnetPrefix, tt.args.options)
+
+			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.in1, options: tt.args.options})
 			if tt.wantErr {
 				require.NotNil(err) // use NotNil since *cniTypes.Error is not of type Error
 			} else {
 				require.Nil(err)
 			}
 
-			require.Exactly(tt.want, got)
-			require.Exactly(tt.want1, got1)
+			require.Exactly(tt.want, ipamAddResult.ipv4Result)
+			require.Exactly(tt.want1, ipamAddResult.ipv6Result)
 		})
 	}
 }

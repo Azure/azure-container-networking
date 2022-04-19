@@ -25,18 +25,17 @@ type cnsClientState struct {
 type mockCNSClient struct {
 	state            cnsClientState
 	createOrUpdateNC func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
-	update           func(*v1alpha.NodeNetworkConfig)
+	update           func(*v1alpha.NodeNetworkConfig) error
 }
 
-//nolint:gocritic // ignore hugeParam pls
 func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
 	m.state.req = req
 	return m.createOrUpdateNC(req)
 }
 
-func (m *mockCNSClient) Update(nnc *v1alpha.NodeNetworkConfig) {
+func (m *mockCNSClient) Update(nnc *v1alpha.NodeNetworkConfig) error {
 	m.state.nnc = nnc
-	m.update(nnc)
+	return m.update(nnc)
 }
 
 type mockNCGetter struct {
@@ -101,7 +100,7 @@ func TestReconcile(t *testing.T) {
 			ncGetter: mockNCGetter{
 				get: func(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
 					return &v1alpha.NodeNetworkConfig{
-						Status: validStatus,
+						Status: validSwiftStatus,
 					}, nil
 				},
 			},
@@ -112,7 +111,7 @@ func TestReconcile(t *testing.T) {
 			},
 			wantErr: true,
 			wantCNSClientState: cnsClientState{
-				req: &validRequest,
+				req: validSwiftRequest,
 			},
 		},
 		{
@@ -120,7 +119,7 @@ func TestReconcile(t *testing.T) {
 			ncGetter: mockNCGetter{
 				get: func(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
 					return &v1alpha.NodeNetworkConfig{
-						Status: validStatus,
+						Status: validSwiftStatus,
 						Spec: v1alpha.NodeNetworkConfigSpec{
 							RequestedIPCount: 1,
 						},
@@ -131,13 +130,15 @@ func TestReconcile(t *testing.T) {
 				createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
 					return cnstypes.Success
 				},
-				update: func(*v1alpha.NodeNetworkConfig) {},
+				update: func(*v1alpha.NodeNetworkConfig) error {
+					return nil
+				},
 			},
 			wantErr: false,
 			wantCNSClientState: cnsClientState{
-				req: &validRequest,
+				req: validSwiftRequest,
 				nnc: &v1alpha.NodeNetworkConfig{
-					Status: validStatus,
+					Status: validSwiftStatus,
 					Spec: v1alpha.NodeNetworkConfigSpec{
 						RequestedIPCount: 1,
 					},
@@ -148,13 +149,13 @@ func TestReconcile(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewReconciler(&tt.ncGetter, &tt.cnsClient, &tt.cnsClient)
+			r := NewReconciler(&tt.cnsClient, &tt.ncGetter, &tt.cnsClient)
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantCNSClientState, tt.cnsClient.state)
 		})

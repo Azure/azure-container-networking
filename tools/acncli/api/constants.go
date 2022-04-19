@@ -33,6 +33,10 @@ const (
 	Singletenancy = "singletenancy"
 	Multitenancy  = "multitenancy"
 
+	// Multitenant Config flags
+	FlagCNSUrl                     = "cnsurl"
+	FlagEnableExactMatchForPodName = "enableexactmatchforpodname"
+
 	// os flags
 	Linux   = "linux"
 	Windows = "windows"
@@ -66,35 +70,43 @@ const (
 	Transparent             = "transparent"
 	Bridge                  = "bridge"
 	Azure0                  = "azure0"
+
+	// Multitenancy defaults
+	DefaultCNSUrl                     = "http://localhost:10090"
+	DefaultEnableExactMatchForPodName = "false"
 )
 
 var (
 	// Concatenating flags to the env ensures consistency between flags and env's for viper and cobra
-	EnvCNIOS                     = EnvPrefix + "_" + strings.ToUpper(FlagOS)
-	EnvCNIType                   = EnvPrefix + "_" + strings.ToUpper(FlagTenancy)
-	EnvCNISourceDir              = EnvPrefix + "_" + "SRC_DIR"
-	EnvCNIDestinationBinDir      = EnvPrefix + "_" + "BIN_DIR"
-	EnvCNIDestinationConflistDir = EnvPrefix + "_" + "CONFLIST_DIR"
-	EnvCNIIPAMType               = EnvPrefix + "_" + strings.ToUpper(FlagIPAM)
-	EnvCNIMode                   = EnvPrefix + "_" + strings.ToUpper(FlagMode)
-	EnvCNIExemptBins             = EnvPrefix + "_" + strings.ToUpper(FlagExempt)
-	EnvCNILogFile                = EnvPrefix + "_" + "LOG_FILE"
+	EnvCNIOS                         = EnvPrefix + "_" + strings.ToUpper(FlagOS)
+	EnvCNIType                       = EnvPrefix + "_" + strings.ToUpper(FlagTenancy)
+	EnvCNISourceDir                  = EnvPrefix + "_" + "SRC_DIR"
+	EnvCNIDestinationBinDir          = EnvPrefix + "_" + "BIN_DIR"
+	EnvCNIDestinationConflistDir     = EnvPrefix + "_" + "CONFLIST_DIR"
+	EnvCNIIPAMType                   = EnvPrefix + "_" + strings.ToUpper(FlagIPAM)
+	EnvCNIMode                       = EnvPrefix + "_" + strings.ToUpper(FlagMode)
+	EnvCNIExemptBins                 = EnvPrefix + "_" + strings.ToUpper(FlagExempt)
+	EnvCNILogFile                    = EnvPrefix + "_" + "LOG_FILE"
+	EnvCNICNSUrl                     = EnvPrefix + "_" + strings.ToUpper(FlagCNSUrl)
+	EnvCNIEnableExactMatchForPodName = EnvPrefix + "_" + strings.ToUpper(FlagEnableExactMatchForPodName)
 
 	Defaults = map[string]string{
-		FlagOS:                       Linux,
-		FlagTenancy:                  Singletenancy,
-		FlagIPAM:                     AzureVNETIPAM,
-		FlagExempt:                   AzureTelemetryBin + "," + AzureTelemetryConfig,
-		FlagMode:                     Transparent,
-		FlagTarget:                   Local,
-		FlagBinDirectory:             DefaultBinDirLinux,
-		FlagConflistDirectory:        DefaultConflistDirLinux,
-		FlagVersion:                  Packaged,
-		FlagLogFilePath:              DefaultLogFile,
-		EnvCNILogFile:                EnvCNILogFile,
-		EnvCNISourceDir:              DefaultSrcDirLinux,
-		EnvCNIDestinationBinDir:      DefaultBinDirLinux,
-		EnvCNIDestinationConflistDir: DefaultConflistDirLinux,
+		FlagOS:                         Linux,
+		FlagTenancy:                    Singletenancy,
+		FlagIPAM:                       AzureVNETIPAM,
+		FlagExempt:                     AzureTelemetryBin + "," + AzureTelemetryConfig,
+		FlagMode:                       Transparent,
+		FlagTarget:                     Local,
+		FlagBinDirectory:               DefaultBinDirLinux,
+		FlagConflistDirectory:          DefaultConflistDirLinux,
+		FlagVersion:                    Packaged,
+		FlagLogFilePath:                DefaultLogFile,
+		FlagCNSUrl:                     DefaultCNSUrl,
+		FlagEnableExactMatchForPodName: DefaultEnableExactMatchForPodName,
+		EnvCNILogFile:                  EnvCNILogFile,
+		EnvCNISourceDir:                DefaultSrcDirLinux,
+		EnvCNIDestinationBinDir:        DefaultBinDirLinux,
+		EnvCNIDestinationConflistDir:   DefaultConflistDirLinux,
 	}
 
 	DefaultToggles = map[string]bool{
