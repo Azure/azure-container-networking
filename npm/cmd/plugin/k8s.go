@@ -5,230 +5,77 @@ import (
 	"fmt"
 	"strings"
 
-	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	appsv1client "k8s.io/client-go/kubernetes/typed/apps/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	typednetworking "k8s.io/client-go/kubernetes/typed/networking/v1"
 )
 
-// ChoosePod finds a pod either by deployment or by name
-func ChoosePod(flags *genericclioptions.ConfigFlags, podName string, deployment string, selector string) (apiv1.Pod, error) {
+var (
+	errPodNotFoundInNamespace           = fmt.Errorf("pod not found in namespace")
+	errDaemonsetNotFoundInNamespace     = fmt.Errorf("daemonset not found in namespace")
+	errLabelSelectorNotFoundInNamespace = fmt.Errorf("label selector not found in namespace")
+)
+
+// choosePod finds a pod either by daemonset or by name
+func choosePod(flags *genericclioptions.ConfigFlags, podName, daemonset, selector string) (apiv1.Pod, error) {
 	if podName != "" {
-		return GetNamedPod(flags, podName)
+		return getNamedPod(flags, podName)
 	}
 
 	if selector != "" {
-		return GetLabeledPod(flags, selector)
+		return getLabeledPod(flags, selector)
 	}
 
-	return GetDaemonsetPod(flags, deployment)
+	return getDaemonsetPod(flags, daemonset)
 }
 
-// GetNamedPod finds a pod with the given name
-func GetNamedPod(flags *genericclioptions.ConfigFlags, name string) (apiv1.Pod, error) {
+// getNamedPod finds a pod with the given name
+func getNamedPod(flags *genericclioptions.ConfigFlags, name string) (apiv1.Pod, error) {
 	allPods, err := getPods(flags)
 	if err != nil {
 		return apiv1.Pod{}, err
 	}
 
-	for _, pod := range allPods {
-		if pod.Name == name {
-			return pod, nil
+	for i := range allPods {
+		if allPods[i].Name == name {
+			return allPods[i], nil
 		}
 	}
 
-	return apiv1.Pod{}, fmt.Errorf("pod %v not found in namespace %v", name, GetNamespace(flags))
+	return apiv1.Pod{}, fmt.Errorf("failed to get pod %v in namespace %v with err: %w", name, getNamespace(flags), errPodNotFoundInNamespace)
 }
 
-// GetDaemonsetPod finds a pod from a given deployment
-func GetDaemonsetPod(flags *genericclioptions.ConfigFlags, deployment string) (apiv1.Pod, error) {
-	ings, err := getDaemonsetPods(flags, deployment)
+// getDaemonsetPod finds a pod from a given daemonset
+func getDaemonsetPod(flags *genericclioptions.ConfigFlags, daemonset string) (apiv1.Pod, error) {
+	ings, err := getDaemonsetPods(flags, daemonset)
 	if err != nil {
 		return apiv1.Pod{}, err
 	}
 
 	if len(ings) == 0 {
-		return apiv1.Pod{}, fmt.Errorf("no pods for deployment %v found in namespace %v", deployment, GetNamespace(flags))
+		return apiv1.Pod{}, fmt.Errorf("failed to get daemonset %v in namespace %v with err: %w", daemonset, getNamespace(flags), errDaemonsetNotFoundInNamespace)
 	}
 
 	return ings[0], nil
 }
 
-// GetLabeledPod finds a pod from a given label
-func GetLabeledPod(flags *genericclioptions.ConfigFlags, label string) (apiv1.Pod, error) {
+// getLabeledPod finds a pod from a given label
+func getLabeledPod(flags *genericclioptions.ConfigFlags, label string) (apiv1.Pod, error) {
 	ings, err := getLabeledPods(flags, label)
 	if err != nil {
 		return apiv1.Pod{}, err
 	}
 
 	if len(ings) == 0 {
-		return apiv1.Pod{}, fmt.Errorf("no pods for label selector %v found in namespace %v", label, GetNamespace(flags))
+		return apiv1.Pod{}, fmt.Errorf("failed to get pods for label selector %v in namespace %v with err: %w", label, getNamespace(flags), errLabelSelectorNotFoundInNamespace)
 	}
 
 	return ings[0], nil
 }
 
-// GetDeployments returns an array of Deployments
-func GetDeployments(flags *genericclioptions.ConfigFlags, namespace string) ([]appsv1.Deployment, error) {
-	rawConfig, err := flags.ToRESTConfig()
-	if err != nil {
-		return make([]appsv1.Deployment, 0), err
-	}
-
-	api, err := appsv1client.NewForConfig(rawConfig)
-	if err != nil {
-		return make([]appsv1.Deployment, 0), err
-	}
-
-	deployments, err := api.Deployments(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return make([]appsv1.Deployment, 0), err
-	}
-
-	return deployments.Items, nil
-}
-
-// GetIngressDefinitions returns an array of Ingress resource definitions
-func GetIngressDefinitions(flags *genericclioptions.ConfigFlags, namespace string) ([]networking.Ingress, error) {
-	rawConfig, err := flags.ToRESTConfig()
-	if err != nil {
-		return make([]networking.Ingress, 0), err
-	}
-
-	api, err := typednetworking.NewForConfig(rawConfig)
-	if err != nil {
-		return make([]networking.Ingress, 0), err
-	}
-
-	pods, err := api.Ingresses(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return make([]networking.Ingress, 0), err
-	}
-
-	return pods.Items, nil
-}
-
-// GetNumEndpoints counts the number of endpoints for the service with the given name
-func GetNumEndpoints(flags *genericclioptions.ConfigFlags, namespace string, serviceName string) (*int, error) {
-	endpoints, err := GetEndpointsByName(flags, namespace, serviceName)
-	if err != nil {
-		return nil, err
-	}
-
-	if endpoints == nil {
-		return nil, nil
-	}
-
-	ret := 0
-	for _, subset := range endpoints.Subsets {
-		ret += len(subset.Addresses)
-	}
-	return &ret, nil
-}
-
-// GetEndpointsByName returns the endpoints for the service with the given name
-func GetEndpointsByName(flags *genericclioptions.ConfigFlags, namespace string, name string) (*apiv1.Endpoints, error) {
-	allEndpoints, err := getEndpoints(flags, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, endpoints := range allEndpoints {
-		if endpoints.Name == name {
-			return &endpoints, nil
-		}
-	}
-
-	return nil, nil
-}
-
-var endpointsCache = make(map[string]*[]apiv1.Endpoints)
-
-func getEndpoints(flags *genericclioptions.ConfigFlags, namespace string) ([]apiv1.Endpoints, error) {
-	cachedEndpoints, ok := endpointsCache[namespace]
-	if ok {
-		return *cachedEndpoints, nil
-	}
-
-	if namespace != "" {
-		tryAllNamespacesEndpointsCache(flags)
-	}
-
-	cachedEndpoints = tryFilteringEndpointsFromAllNamespacesCache(flags, namespace)
-	if cachedEndpoints != nil {
-		return *cachedEndpoints, nil
-	}
-
-	rawConfig, err := flags.ToRESTConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	api, err := corev1.NewForConfig(rawConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	endpointsList, err := api.Endpoints(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-	endpoints := endpointsList.Items
-
-	endpointsCache[namespace] = &endpoints
-	return endpoints, nil
-}
-
-func tryAllNamespacesEndpointsCache(flags *genericclioptions.ConfigFlags) {
-	_, ok := endpointsCache[""]
-	if !ok {
-		_, err := getEndpoints(flags, "")
-		if err != nil {
-			endpointsCache[""] = nil
-		}
-	}
-}
-
-func tryFilteringEndpointsFromAllNamespacesCache(flags *genericclioptions.ConfigFlags, namespace string) *[]apiv1.Endpoints {
-	allEndpoints := endpointsCache[""]
-	if allEndpoints != nil {
-		endpoints := make([]apiv1.Endpoints, 0)
-		for _, thisEndpoints := range *allEndpoints {
-			if thisEndpoints.Namespace == namespace {
-				endpoints = append(endpoints, thisEndpoints)
-			}
-		}
-		endpointsCache[namespace] = &endpoints
-		return &endpoints
-	}
-	return nil
-}
-
-// GetServiceByName finds and returns the service definition with the given name
-func GetServiceByName(flags *genericclioptions.ConfigFlags, name string, services *[]apiv1.Service) (apiv1.Service, error) {
-	if services == nil {
-		servicesArray, err := getServices(flags)
-		if err != nil {
-			return apiv1.Service{}, err
-		}
-		services = &servicesArray
-	}
-
-	for _, svc := range *services {
-		if svc.Name == name {
-			return svc, nil
-		}
-	}
-
-	return apiv1.Service{}, fmt.Errorf("could not find service %v in namespace %v", name, GetNamespace(flags))
-}
-
 func getPods(flags *genericclioptions.ConfigFlags) ([]apiv1.Pod, error) {
-	namespace := GetNamespace(flags)
+	namespace := getNamespace(flags)
 
 	rawConfig, err := flags.ToRESTConfig()
 	if err != nil {
@@ -249,7 +96,7 @@ func getPods(flags *genericclioptions.ConfigFlags) ([]apiv1.Pod, error) {
 }
 
 func getLabeledPods(flags *genericclioptions.ConfigFlags, label string) ([]apiv1.Pod, error) {
-	namespace := GetNamespace(flags)
+	namespace := getNamespace(flags)
 
 	rawConfig, err := flags.ToRESTConfig()
 	if err != nil {
@@ -272,66 +119,44 @@ func getLabeledPods(flags *genericclioptions.ConfigFlags, label string) ([]apiv1
 	return pods.Items, nil
 }
 
-func getDaemonsetPods(flags *genericclioptions.ConfigFlags, deployment string) ([]apiv1.Pod, error) {
+func getDaemonsetPods(flags *genericclioptions.ConfigFlags, daemonset string) ([]apiv1.Pod, error) {
 	pods, err := getPods(flags)
 	if err != nil {
 		return make([]apiv1.Pod, 0), err
 	}
 
-	ingressPods := make([]apiv1.Pod, 0)
-	for _, pod := range pods {
-		if PodInDaemonset(pod, deployment) {
-			ingressPods = append(ingressPods, pod)
+	dsPods := make([]apiv1.Pod, 0)
+	for i := range pods {
+		if podInDaemonset(&pods[i], daemonset) {
+			dsPods = append(dsPods, pods[i])
 		}
 	}
 
-	return ingressPods, nil
+	return dsPods, nil
 }
 
-// PodInDaemonset returns whether a pod is part of a deployment with the given name
-// a pod is considered to be in {deployment} if it is owned by a replicaset with a name of format {deployment}-otherchars
-func PodInDaemonset(pod apiv1.Pod, deployment string) bool {
+// podInDaemonset returns whether a pod is part of a daemonset with the given name
+// a pod is considered to be in {daemonset} if it is owned by a replicaset with a name of format {daemonset}-otherchars
+func podInDaemonset(pod *apiv1.Pod, daemonset string) bool {
 	for _, owner := range pod.OwnerReferences {
 		if owner.Controller == nil || !*owner.Controller || owner.Kind != "ReplicaSet" {
 			continue
 		}
 
-		if strings.Count(owner.Name, "-") != strings.Count(deployment, "-")+1 {
+		if strings.Count(owner.Name, "-") != strings.Count(daemonset, "-")+1 {
 			continue
 		}
 
-		if strings.HasPrefix(owner.Name, deployment+"-") {
+		if strings.HasPrefix(owner.Name, daemonset+"-") {
 			return true
 		}
 	}
 	return false
 }
 
-func getServices(flags *genericclioptions.ConfigFlags) ([]apiv1.Service, error) {
-	namespace := GetNamespace(flags)
-
-	rawConfig, err := flags.ToRESTConfig()
-	if err != nil {
-		return make([]apiv1.Service, 0), err
-	}
-
-	api, err := corev1.NewForConfig(rawConfig)
-	if err != nil {
-		return make([]apiv1.Service, 0), err
-	}
-
-	services, err := api.Services(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return make([]apiv1.Service, 0), err
-	}
-
-	return services.Items, nil
-
-}
-
-func GetNamespace(flags *genericclioptions.ConfigFlags) string {
+func getNamespace(flags *genericclioptions.ConfigFlags) string {
 	namespace, _, err := flags.ToRawKubeConfigLoader().Namespace()
-	if err != nil || len(namespace) == 0 {
+	if err != nil || namespace == "" {
 		namespace = apiv1.NamespaceDefault
 	}
 	return namespace
