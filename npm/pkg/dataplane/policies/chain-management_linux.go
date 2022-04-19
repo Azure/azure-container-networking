@@ -183,10 +183,10 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 		switch deprecatedErrCode {
 		case couldntLoadTargetErrorCode:
 			// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
-			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist. Exit code %d and error: %s", deprecatedErrCode, deprecatedErr)
+			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist. Exit code %d and output: %s", deprecatedErrCode, deprecatedErr)
 		case doesNotExistErrorCode:
 			// doesNotExistErrorCode happens when AZURE-NPM chain exists, but this jump rule doesn't exist
-			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because NPM v1 was not used prior. Exit code %d and error: %s", deprecatedErrCode, deprecatedErr)
+			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because NPM v1 was not used prior. Exit code %d and output: %s", deprecatedErrCode, deprecatedErr)
 		default:
 			klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
 		}
