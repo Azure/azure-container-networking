@@ -50,11 +50,11 @@
             "windowsPauseImageURL": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
             "alwaysPullWindowsPauseImage": true,
             "imageReference": {
-                "subscriptionId": "8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8",
+                "subscriptionId": "a15c116e-99e3-4c59-aebc-8f864929b4a0",
                 "resourceGroup": "akswinvhdbuilderrg",
                 "gallery": "AKSWindows",
                 "name": "windows-2022-containerd",
-                "version": "20348.524.220218"
+                "version": "20348.643.220413"
             }
         },
         "linuxProfile": {
