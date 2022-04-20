@@ -73,18 +73,19 @@ spec:
             properties:
               assignedIPCount:
                 type: integer
-              mode:
-                default: swift
-                description: Mode is the type of Pod Subnet we are operating in
-                enum:
-                - swift
-                - overlay
-                type: string
               networkContainers:
                 items:
                   description: NetworkContainer defines the structure of a Network
                     Container as found in NetworkConfigStatus
                   properties:
+                    assignmentMode:
+                      default: dynamic
+                      description: AssignmentMode is whether we are allocated an entire
+                        block or IP by IP.
+                      enum:
+                      - dynamic
+                      - static
+                      type: string
                     defaultGateway:
                       type: string
                     id:
@@ -113,6 +114,10 @@ spec:
                     subnetID:
                       type: string
                     subnetName:
+                      type: string
+                    type:
+                      description: NCType is the specific type of network this NC
+                        represents.
                       type: string
                     version:
                       format: int64

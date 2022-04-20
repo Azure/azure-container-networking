@@ -865,19 +865,23 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 	}
 
 	// Convert to CreateNetworkContainerRequest
-	ncRequest, err := kubecontroller.CRDStatusToNCRequest(&nnc.Status)
-	if err != nil {
-		return errors.Wrap(err, "failed to convert NNC status to network container request")
-	}
-	// rebuild CNS state
-	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
-	if err != nil {
-		return errors.Wrap(err, "provider failed to provide PodInfoByIP")
-	}
+	for i := range nnc.Status.NetworkContainers {
+		ncRequest, err := kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
+		if err != nil {
+			return errors.Wrap(err, "failed to convert NNC status to network container request")
+		}
+		// rebuild CNS state
+		podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
+		if err != nil {
+			return errors.Wrap(err, "provider failed to provide PodInfoByIP")
+		}
 
-	// Call cnsclient init cns passing those two things.
-	err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc))
-	return errors.Wrap(err, "failed to reconcile NC state")
+		// Call cnsclient init cns passing those two things.
+		if err := restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(ncRequest, podInfoByIP, nnc)); err != nil {
+			return errors.Wrap(err, "failed to reconcile NC state")
+		}
+	}
+	return nil
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
@@ -1010,7 +1014,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	reconciler := kubecontroller.NewReconciler(nnccli, kubecontroller.SwiftNodeNetworkConfigListener(httpRestServiceImplementation), poolMonitor)
+	reconciler := kubecontroller.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
 	// pass Node to the Reconciler for Controller xref
 	if err := reconciler.SetupWithManager(manager, node); err != nil {
 		return errors.Wrapf(err, "failed to setup reconciler with manager")

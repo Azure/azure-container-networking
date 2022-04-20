@@ -4,7 +4,10 @@ import (
 	"context"
 	"sync"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/restserver"
+	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -18,6 +21,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+type cnsClient interface {
+	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
+}
+
 type nodeNetworkConfigListener interface {
 	Update(*v1alpha.NodeNetworkConfig) error
 }
@@ -28,26 +35,29 @@ type nncGetter interface {
 
 // Reconciler watches for CRD status changes
 type Reconciler struct {
-	nncListeners []nodeNetworkConfigListener
-	nnccli       nncGetter
-	once         sync.Once
-	started      chan interface{}
+	cnscli             cnsClient
+	ipampoolmonitorcli nodeNetworkConfigListener
+	nnccli             nncGetter
+	once               sync.Once
+	started            chan interface{}
 }
 
 // NewReconciler creates a NodeNetworkConfig Reconciler which will get updates from the Kubernetes
 // apiserver for NNC events.
 // Provided nncListeners are passed the NNC after the Reconcile preprocesses it. Note: order matters! The
 // passed Listeners are notified in the order provided.
-func NewReconciler(nnccli nncGetter, nncListeners ...nodeNetworkConfigListener) *Reconciler {
+func NewReconciler(cnscli cnsClient, nnccli nncGetter, ipampoolmonitorcli nodeNetworkConfigListener) *Reconciler {
 	return &Reconciler{
-		nncListeners: nncListeners,
-		nnccli:       nnccli,
-		started:      make(chan interface{}),
+		cnscli:             cnscli,
+		ipampoolmonitorcli: ipampoolmonitorcli,
+		nnccli:             nnccli,
+		started:            make(chan interface{}),
 	}
 }
 
 // Reconcile is called on CRD status changes
 func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	listenersToNotify := []nodeNetworkConfigListener{}
 	nnc, err := r.nnccli.Get(ctx, req.NamespacedName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -60,15 +70,44 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	logger.Printf("[cns-rc] CRD Spec: %v", nnc.Spec)
 
-	// If there are no network containers, don't continue to updating Listeners
+	// if there are no network containers, don't continue to updating Listeners
 	if len(nnc.Status.NetworkContainers) == 0 {
 		logger.Errorf("[cns-rc] Empty NetworkContainers")
 		return reconcile.Result{}, nil
 	}
 
-	// push the NNC to the registered NNC Sinks
-	for i := range r.nncListeners {
-		if err := r.nncListeners[i].Update(nnc); err != nil {
+	ipAssignments := 0
+	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
+	for i := range nnc.Status.NetworkContainers {
+		var req *cns.CreateNetworkContainerRequest
+		var err error
+		switch nnc.Status.NetworkContainers[i].AssignmentMode {
+		case v1alpha.Dynamic:
+			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
+			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
+			listenersToNotify = append(listenersToNotify, r.ipampoolmonitorcli)
+		case v1alpha.Static:
+			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
+		default:
+			// unrecognized mode, fail out
+			err = errors.Errorf("unknown NetworkContainer AssignmentMode %s", string(nnc.Status.NetworkContainers[i].AssignmentMode))
+		}
+		if err != nil {
+			return reconcile.Result{}, errors.Wrap(err, "failed to generate CreateNCRequest from NC")
+		}
+		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(req)
+		if err := restserver.ResponseCodeToError(responseCode); err != nil {
+			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
+			return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
+		}
+		ipAssignments += len(req.SecondaryIPConfigs)
+	}
+	// record assigned IPs metric
+	allocatedIPs.Set(float64(ipAssignments))
+
+	// push the NNC to the registered NNC listeners.
+	for _, l := range listenersToNotify {
+		if err := l.Update(nnc); err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "nnc listener return error during update")
 		}
 	}

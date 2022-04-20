@@ -1290,12 +1290,14 @@ func TestIngressPolicy(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	targetPodMatchType := policies.EitherMatch
 	peerMatchType := policies.SrcMatch
+	emptyString := intstr.FromString("")
 	// TODO(jungukcho): add test cases with more complex rules
 	tests := []struct {
 		name           string
 		targetSelector *metav1.LabelSelector
 		rules          []networkingv1.NetworkPolicyIngressRule
 		npmNetPol      *policies.NPMNetworkPolicy
+		wantErr        bool
 	}{
 		{
 			name: "only port in ingress rules",
@@ -1557,6 +1559,100 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "error",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &tcp,
+							Port:     &emptyString,
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "serve-tcp",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-serve-tcp",
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						Protocol:  "TCP",
+					},
+					defaultDropACL("default", "serve-tcp", policies.Ingress),
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "allow all ingress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "serve-tcp",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						PolicyID:  "azure-acl-default-serve-tcp",
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+					},
+				},
+			},
+		},
+		{
+			name: "deny all in ingress rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+			},
+			rules: nil,
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Name:      "serve-tcp",
+				NameSpace: "default",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					defaultDropACL("default", "serve-tcp", policies.Ingress),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1571,8 +1667,12 @@ func TestIngressPolicy(t *testing.T) {
 			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.NameSpace, policies.EitherMatch, tt.targetSelector)
 			require.NoError(t, err)
 			err = ingressPolicy(npmNetPol, tt.rules)
-			require.NoError(t, err)
-			require.Equal(t, tt.npmNetPol, npmNetPol)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.npmNetPol, npmNetPol)
+			}
 		})
 	}
 }

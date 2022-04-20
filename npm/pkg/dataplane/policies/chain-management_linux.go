@@ -21,7 +21,7 @@ const (
 	// TODO replace all util constants with local constants
 	defaultlockWaitTimeInSeconds string = "60"
 
-	doesNotExistErrorCode      int = 1 // Bad rule (does a matching rule exist in that chain?)
+	doesNotExistErrorCode      int = 1 // stderr possibility: Bad rule (does a matching rule exist in that chain?)
 	couldntLoadTargetErrorCode int = 2 // Couldn't load target `AZURE-NPM-EGRESS':No such file or directory
 
 	// transferred from iptm.go and not sure why this length is important
@@ -50,6 +50,21 @@ var (
 	}
 	jumpFromForwardToAzureChainArgs = append([]string{util.IptablesForwardChain}, jumpToAzureChainArgs...)
 
+	removeDeprecatedJumpIgnoredErrors = []*exitErrorInfo{
+		{
+			// doesNotExistErrorCode happens when AZURE-NPM chain exists, but this jump rule doesn't exist
+			exitCode:     doesNotExistErrorCode,
+			stdErr:       "No chain/target/match by that name",
+			messageToLog: "didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because NPM v1 was not used prior",
+		},
+		{
+			// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
+			exitCode:     couldntLoadTargetErrorCode,
+			stdErr:       "Couldn't load target `AZURE-NPM':No such file or directory",
+			messageToLog: "didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist",
+		},
+	}
+
 	listForwardEntriesArgs = []string{
 		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
 		util.IptablesNumericFlag, util.IptablesListFlag, util.IptablesForwardChain, util.IptablesLineNumbersFlag,
@@ -63,6 +78,12 @@ var (
 		util.IptablesAzureChain,
 	}
 )
+
+type exitErrorInfo struct {
+	exitCode     int
+	stdErr       string
+	messageToLog string
+}
 
 type staleChains struct {
 	chainsToCleanup map[string]struct{}
@@ -156,20 +177,11 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	defer pMgr.reconcileManager.forceUnlock()
 
 	// 1. delete the deprecated jump to AZURE-NPM
-	deprecatedErrCode, deprecatedErr := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
-	if deprecatedErr == nil {
+	deprecatedErrCode, deprecatedErr := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
+	if deprecatedErrCode == 0 {
 		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
-	} else {
-		switch deprecatedErrCode {
-		case couldntLoadTargetErrorCode:
-			// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
-			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist. Exit code %d and error: %s", deprecatedErrCode, deprecatedErr)
-		case doesNotExistErrorCode:
-			// doesNotExistErrorCode happens when AZURE-NPM chain exists, but this jump rule doesn't exist
-			klog.Infof("didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because NPM v1 was not used prior. Exit code %d and error: %s", deprecatedErrCode, deprecatedErr)
-		default:
-			klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
-		}
+	} else if deprecatedErr != nil {
+		klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
 	}
 
 	currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, defaultlockWaitTimeInSeconds)
@@ -254,6 +266,10 @@ deleteLoop:
 
 // this function has a direct comparison in NPM v1 iptables manager (iptm.go)
 func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...string) (int, error) {
+	return pMgr.ignoreErrorsAndRunIPTablesCommand(nil, operationFlag, args...)
+}
+
+func (pMgr *PolicyManager) ignoreErrorsAndRunIPTablesCommand(ignored []*exitErrorInfo, operationFlag string, args ...string) (int, error) {
 	allArgs := []string{util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, operationFlag}
 	allArgs = append(allArgs, args...)
 
@@ -266,11 +282,17 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 	if ok := errors.As(err, &exitError); ok {
 		errCode := exitError.ExitStatus()
 		allArgsString := strings.Join(allArgs, " ")
-		msgStr := strings.TrimSuffix(string(output), "\n")
-		if errCode > 0 {
-			metrics.SendErrorLogAndMetric(util.IptmID, "error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, msgStr)
+		outputString := strings.TrimSuffix(string(output), "\n")
+		for _, info := range ignored {
+			if errCode == info.exitCode && strings.Contains(outputString, info.stdErr) {
+				klog.Infof("%s. not able to run iptables command [%s %s]. exit code: %d, output: %s", info.messageToLog, util.Iptables, allArgsString, errCode, outputString)
+				return errCode, nil
+			}
 		}
-		return errCode, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to run iptables command [%s %s] Stderr: [%s]", util.Iptables, allArgsString, msgStr), exitError)
+		if errCode > 0 {
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, outputString)
+		}
+		return errCode, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to run iptables command [%s %s] Stderr: [%s]", util.Iptables, allArgsString, outputString), exitError)
 	}
 	return 0, nil
 }

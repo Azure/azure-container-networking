@@ -37,12 +37,12 @@ func InstallCNICmd() *cobra.Command {
 				return err
 			}
 
-			// only allow windows and linux binaries
+			// only allow singletenancy and multitenancy
 			if err := envs.SetCNIType(viper.GetString(c.FlagTenancy)); err != nil {
 				return err
 			}
 
-			// only allow windows and linux binaries
+			// only allow bridge and transparent modes
 			if err := envs.SetCNIDatapathMode(viper.GetString(c.FlagMode)); err != nil {
 				return err
 			}
@@ -53,6 +53,8 @@ func InstallCNICmd() *cobra.Command {
 			envs.DstBinDir = viper.GetString(c.FlagBinDirectory)
 			envs.DstConflistDir = viper.GetString(c.FlagConflistDirectory)
 			envs.IPAMType = viper.GetString(c.FlagIPAM)
+			envs.CNSURL = viper.GetString(c.FlagCNSUrl)
+			envs.EnableExactMatchForPodName = viper.GetBool(c.FlagEnableExactMatchForPodName)
 
 			return i.InstallLocal(envs)
 		},
@@ -66,6 +68,8 @@ func InstallCNICmd() *cobra.Command {
 	cmd.Flags().String(c.FlagBinDirectory, c.Defaults[c.FlagBinDirectory], "Destination where Azure CNI binaries will be installed")
 	cmd.Flags().String(c.FlagConflistDirectory, c.Defaults[c.FlagConflistDirectory], "Destination where Azure CNI conflists will be installed")
 	cmd.Flags().String(c.FlagExempt, c.Defaults[c.FlagExempt], "Exempt files that won't be installed")
+	cmd.Flags().String(c.FlagCNSUrl, c.Defaults[c.FlagCNSUrl], "CNS URL if multitenancy")
+	cmd.Flags().String(c.FlagEnableExactMatchForPodName, c.Defaults[c.FlagEnableExactMatchForPodName], "Enable exact match for pod name if multitenancy")
 
 	return cmd
 }

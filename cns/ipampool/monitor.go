@@ -94,7 +94,6 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				continue
 			}
 		case nnc := <-pm.nncSource: // received a new NodeNetworkConfig, extract the data from it and re-reconcile.
-			pm.spec = nnc.Spec
 			scaler := nnc.Status.Scaler
 
 			// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
@@ -105,7 +104,11 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			pm.metastate.batch = scaler.BatchSize
 			pm.metastate.max = scaler.MaxIPCount
 			pm.metastate.minFreeCount, pm.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
-			pm.once.Do(func() { close(pm.started) }) // close the init channel the first time we receive a NodeNetworkConfig.
+			pm.once.Do(func() {
+				pm.spec = nnc.Spec // set the spec from the NNC initially (afterwards we write the Spec so we know target state).
+				logger.Printf("[ipam-pool-monitor] set initial pool spec %+v", pm.spec)
+				close(pm.started) // close the init channel the first time we fully receive a NodeNetworkConfig.
+			})
 		}
 		// if control has flowed through the select(s) to this point, we can now reconcile.
 		err := pm.reconcile(ctx)
@@ -376,6 +379,7 @@ func (pm *Monitor) Update(nnc *v1alpha.NodeNetworkConfig) error {
 		// observe elapsed duration for IP pool scaling
 		metric.ObserverPoolScaleLatency()
 	}
+	logger.Printf("[ipam-pool-monitor] pushing NodeNetworkConfig update, allocatedIPs = %d", allocatedIPs)
 	pm.nncSource <- *nnc
 	return nil
 }

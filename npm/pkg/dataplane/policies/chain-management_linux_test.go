@@ -371,7 +371,11 @@ func TestBootupLinux(t *testing.T) {
 		{
 			name: "success after restore failure (no NPM prior)",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 2,
+					Stdout:   "iptables v1.8.4 (legacy): Couldn't load target `AZURE-NPM':No such file or directory",
+				}, // AZURE-NPM chain didn't exist
 				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
 				fakeIPTablesRestoreFailureCommand, // e.g. xtables lock held by another app. Currently the stdout doesn't matter for retrying
@@ -385,7 +389,11 @@ func TestBootupLinux(t *testing.T) {
 		{
 			name: "success: v2 existed prior",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 1,
+					Stdout:   "No chain/target/match by that name",
+				}, // deprecated rule did not exist
 				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
