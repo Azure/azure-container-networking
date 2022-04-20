@@ -74,12 +74,12 @@ steps:
       cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
       cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage $IMAGE_REGISTRY/azure-npm:$(Tag) '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
       if [ "${{ parameters.Name }}" == "windows_20_22_e2e" ]; then
-        if [[ -z '$(WS2022_IMG_SUBSCRIPTION)' && -z '$(WS2022_IMG_VERSION)' ]]; then
-          echo Using WS2022 Gallery/Image Subscription: '$(WS2022_IMG_SUBSCRIPTION)' and Version: '$(WS2022_IMG_VERSION)'
-          cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg subscription $WS2022_IMG_SUBSCRIPTION '.properties.windowsProfile.imageReference.subscriptionId = $subscription' > '${{ parameters.clusterDefinition }}'
-          cat '${{ parameters.clusterDefinition }}' | jq --arg version $WS2022_IMG_VERSION '.properties.windowsProfile.imageReference.version = $version' > '${{ parameters.clusterDefinition }}'.tmp
-        else
+        if [[ -z $(WS2022_IMG_SUBSCRIPTION) || -z $(WS2022_IMG_VERSION) ]]; then
           echo WS2022 Gallery/Image Subscription and Version not set, using defaults in cniWindows2022.json
+        else
+          echo Using WS2022 Gallery/Image Subscription: $(WS2022_IMG_SUBSCRIPTION) and Version: $(WS2022_IMG_VERSION)
+          cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg subscription $(WS2022_IMG_SUBSCRIPTION) '.properties.windowsProfile.imageReference.subscriptionId = $subscription' > '${{ parameters.clusterDefinition }}'
+          cat '${{ parameters.clusterDefinition }}' | jq --arg version $(WS2022_IMG_VERSION) '.properties.windowsProfile.imageReference.version = $version' > '${{ parameters.clusterDefinition }}'.tmp
         fi
       fi
       mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
