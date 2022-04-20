@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
@@ -37,24 +36,15 @@ func newGetTuples() *cobra.Command {
 				config := &npmconfig.Config{}
 				err := viper.Unmarshal(config)
 				if err != nil {
-					log.Printf("failed to load config with err ")
+					return fmt.Errorf("failed to load config with err %w", err)
 				}
-				if config.Toggles.EnableV2NPM {
-					_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput, config)
-					if err != nil {
-						return fmt.Errorf("%w", err)
-					}
-					for _, tuple := range tuples {
-						fmt.Printf("%+v\n", tuple)
-					}
-				} else {
-					_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput, config)
-					if err != nil {
-						return fmt.Errorf("%w", err)
-					}
-					for _, tuple := range tuples {
-						fmt.Printf("%+v\n", tuple)
-					}
+
+				_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput, config)
+				if err != nil {
+					return fmt.Errorf("%w", err)
+				}
+				for _, tuple := range tuples {
+					fmt.Printf("%+v\n", tuple)
 				}
 
 			case npmCacheF != "" && iptableSaveF != "":

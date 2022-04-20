@@ -41,7 +41,7 @@ func (c *Cache) GetNamespaceLabel(namespace, labelkey string) string {
 
 func (c *Cache) GetListMap() map[string]string {
 	listMap := make(map[string]string, 0)
-	// get all lists
+	// no list map is not used in v2 caching
 	return listMap
 }
 

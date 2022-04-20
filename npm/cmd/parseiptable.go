@@ -15,7 +15,6 @@ func newParseIPTableCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
 			if iptableSaveF == "" {
-
 				parser := parse.IPTablesParser{
 					IOShim: common.NewIOShim(),
 				}
