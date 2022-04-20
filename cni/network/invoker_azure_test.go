@@ -95,6 +95,7 @@ func getResult(ip string) []*cniTypesCurr.Result {
 
 // used in the tests below, unused ignores tags
 type ipamStruct struct { //nolint:unused
+	Mode          string `json:"mode,omitempty"`
 	Type          string `json:"type"`
 	Environment   string `json:"environment,omitempty"`
 	AddrSpace     string `json:"addressSpace,omitempty"`

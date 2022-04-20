@@ -45,20 +45,19 @@ type NodeNetworkConfigSpec struct {
 	IPsNotInUse      []string `json:"ipsNotInUse,omitempty"`
 }
 
-// Mode is the type of Pod Subnet we are operating in
-// +kubebuilder:validation:Enum=swift;overlay
-type Mode string
+// Status indicates the NNC reconcile status
+// +kubebuilder:validation:Enum=Updating;Updated;Error
+type Status string
 
 const (
-	Overlay Mode = "overlay"
-	Swift   Mode = "swift"
+	Updating Status = "Updating"
+	Updated  Status = "Updated"
+	Error    Status = "Error"
 )
 
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig
 type NodeNetworkConfigStatus struct {
-	AssignedIPCount int `json:"assignedIPCount,omitempty"`
-	// +kubebuilder:default=swift
-	Mode              Mode               `json:"mode,omitempty"`
+	AssignedIPCount   int                `json:"assignedIPCount,omitempty"`
 	Scaler            Scaler             `json:"scaler,omitempty"`
 	Status            Status             `json:"status,omitempty"`
 	NetworkContainers []NetworkContainer `json:"networkContainers,omitempty"`
@@ -72,19 +71,29 @@ type Scaler struct {
 	MaxIPCount              int64 `json:"maxIPCount,omitempty"`
 }
 
-// Status indicates the NNC reconcile status
-// +kubebuilder:validation:Enum=Updating;Updated;Error
-type Status string
+// AssignmentMode is whether we are allocated an entire block or IP by IP.
+// +kubebuilder:validation:Enum=dynamic;static
+type AssignmentMode string
 
 const (
-	Updating Status = "Updating"
-	Updated  Status = "Updated"
-	Error    Status = "Error"
+	Dynamic AssignmentMode = "dynamic"
+	Static  AssignmentMode = "static"
+)
+
+// NCType is the specific type of network this NC represents.
+type NCType string
+
+const (
+	VNET    NCType = "vnet"
+	Overlay NCType = "overlay"
 )
 
 // NetworkContainer defines the structure of a Network Container as found in NetworkConfigStatus
 type NetworkContainer struct {
-	ID                 string         `json:"id,omitempty"`
+	ID string `json:"id,omitempty"`
+	// +kubebuilder:default=dynamic
+	AssignmentMode     AssignmentMode `json:"assignmentMode,omitempty"`
+	Type               NCType         `json:"type,omitempty"`
 	PrimaryIP          string         `json:"primaryIP,omitempty"`
 	SubnetName         string         `json:"subnetName,omitempty"`
 	IPAssignments      []IPAssignment `json:"ipAssignments,omitempty"`

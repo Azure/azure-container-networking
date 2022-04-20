@@ -88,6 +88,12 @@ func ModifyConflists(conflistpath string, installerConf InstallerConfig, perm os
 		netconfig.Bridge = c.Azure0
 	}
 
+	// if multitenant, update multitenant configs
+	if netconfig.MultiTenancy {
+		netconfig.CNSUrl = installerConf.CNSURL
+		netconfig.EnableExactMatchForPodName = installerConf.EnableExactMatchForPodName
+	}
+
 	// set conf back in conflist
 	conflist.Plugins[confindex] = netconfig
 

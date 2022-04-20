@@ -271,7 +271,7 @@ type NodeConfiguration struct {
 
 type IPAMPoolMonitor interface {
 	Start(ctx context.Context) error
-	Update(nnc *v1alpha.NodeNetworkConfig)
+	Update(nnc *v1alpha.NodeNetworkConfig) error
 	GetStateSnapshot() IpamPoolMonitorStateSnapshot
 }
 

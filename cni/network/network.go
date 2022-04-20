@@ -490,7 +490,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if plugin.ipamInvoker == nil {
 		switch nwCfg.Ipam.Type {
 		case network.AzureCNS:
-			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
+			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.Ipam.Mode))
 
 		default:
 			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
@@ -925,7 +925,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				log.Printf("[cni-net] failed to create cns client:%v", cnsErr)
 				return errors.Wrap(cnsErr, "failed to create cns client")
 			}
-			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient)
+			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.Ipam.Mode))
 
 		default:
 			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)

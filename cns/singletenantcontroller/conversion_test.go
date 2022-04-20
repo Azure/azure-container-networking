@@ -16,6 +16,7 @@ const (
 	ipMalformed        = "10.0.0.0.0"
 	ncID               = "160005ba-cd02-11ea-87d0-0242ac130003"
 	primaryIP          = "10.0.0.1"
+	overlayPrimaryIP   = "10.0.0.1/30"
 	subnetAddressSpace = "10.0.0.0/24"
 	subnetName         = "subnet1"
 	subnetPrefixLen    = 24
@@ -30,29 +31,30 @@ var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
 	},
 }
 
-var validStatus = v1alpha.NodeNetworkConfigStatus{
-	NetworkContainers: []v1alpha.NetworkContainer{
+var validSwiftNC = v1alpha.NetworkContainer{
+	ID:             ncID,
+	AssignmentMode: v1alpha.Dynamic,
+	Type:           v1alpha.VNET,
+	PrimaryIP:      primaryIP,
+	IPAssignments: []v1alpha.IPAssignment{
 		{
-			PrimaryIP: primaryIP,
-			ID:        ncID,
-			IPAssignments: []v1alpha.IPAssignment{
-				{
-					Name: uuid,
-					IP:   testSecIP,
-				},
-			},
-			SubnetName:         subnetName,
-			DefaultGateway:     defaultGateway,
-			SubnetAddressSpace: subnetAddressSpace,
-			Version:            version,
+			Name: uuid,
+			IP:   testSecIP,
 		},
 	},
-	Scaler: v1alpha.Scaler{
-		BatchSize: 1,
+	SubnetName:         subnetName,
+	DefaultGateway:     defaultGateway,
+	SubnetAddressSpace: subnetAddressSpace,
+	Version:            version,
+}
+
+var validSwiftStatus = v1alpha.NodeNetworkConfigStatus{
+	NetworkContainers: []v1alpha.NetworkContainer{
+		validSwiftNC,
 	},
 }
 
-var validRequest = cns.CreateNetworkContainerRequest{
+var validSwiftRequest = &cns.CreateNetworkContainerRequest{
 	Version: strconv.FormatInt(version, 10),
 	IPConfiguration: cns.IPConfiguration{
 		GatewayIPAddress: defaultGateway,
@@ -71,129 +73,132 @@ var validRequest = cns.CreateNetworkContainerRequest{
 	},
 }
 
-func TestConvertNNCStatusToNCRequest(t *testing.T) {
+var validOverlayNC = v1alpha.NetworkContainer{
+	ID:                 ncID,
+	AssignmentMode:     v1alpha.Static,
+	Type:               v1alpha.Overlay,
+	PrimaryIP:          overlayPrimaryIP,
+	SubnetName:         subnetName,
+	SubnetAddressSpace: subnetAddressSpace,
+	Version:            version,
+}
+
+var validOverlayRequest = &cns.CreateNetworkContainerRequest{
+	Version: strconv.FormatInt(version, 10),
+	IPConfiguration: cns.IPConfiguration{
+		IPSubnet: cns.IPSubnet{
+			PrefixLength: uint8(subnetPrefixLen),
+			IPAddress:    primaryIP,
+		},
+	},
+	NetworkContainerid:   ncID,
+	NetworkContainerType: cns.Docker,
+	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+		"10.0.0.1": {
+			IPAddress: "10.0.0.1",
+			NCVersion: version,
+		},
+		"10.0.0.2": {
+			IPAddress: "10.0.0.2",
+			NCVersion: version,
+		},
+		"10.0.0.3": {
+			IPAddress: "10.0.0.3",
+			NCVersion: version,
+		},
+	},
+}
+
+func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   v1alpha.NodeNetworkConfigStatus
-		want    cns.CreateNetworkContainerRequest
+		input   v1alpha.NetworkContainer
+		want    *cns.CreateNetworkContainerRequest
 		wantErr bool
 	}{
 		{
-			name:    "valid",
-			input:   validStatus,
+			name:    "valid swift",
+			input:   validSwiftNC,
 			wantErr: false,
-			want:    validRequest,
-		},
-		{
-			name:    "no nc",
-			input:   v1alpha.NodeNetworkConfigStatus{},
-			wantErr: false,
-			want:    cns.CreateNetworkContainerRequest{},
-		},
-		{
-			name:    ">1 nc",
-			input:   invalidStatusMultiNC,
-			wantErr: true,
+			want:    validSwiftRequest,
 		},
 		{
 			name: "malformed primary IP",
-			input: v1alpha.NodeNetworkConfigStatus{
-				NetworkContainers: []v1alpha.NetworkContainer{
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: ipMalformed,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
 					{
-						PrimaryIP: ipMalformed,
-						ID:        ncID,
-						IPAssignments: []v1alpha.IPAssignment{
-							{
-								Name: uuid,
-								IP:   testSecIP,
-							},
-						},
-						SubnetAddressSpace: subnetAddressSpace,
+						Name: uuid,
+						IP:   testSecIP,
 					},
 				},
+				SubnetAddressSpace: subnetAddressSpace,
 			},
+
 			wantErr: true,
 		},
 		{
 			name: "malformed IP assignment",
-			input: v1alpha.NodeNetworkConfigStatus{
-				NetworkContainers: []v1alpha.NetworkContainer{
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: primaryIP,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
 					{
-						PrimaryIP: primaryIP,
-						ID:        ncID,
-						IPAssignments: []v1alpha.IPAssignment{
-							{
-								Name: uuid,
-								IP:   ipMalformed,
-							},
-						},
-						SubnetAddressSpace: subnetAddressSpace,
+						Name: uuid,
+						IP:   ipMalformed,
 					},
 				},
+				SubnetAddressSpace: subnetAddressSpace,
 			},
 			wantErr: true,
 		},
 		{
 			name: "IP is CIDR",
-			input: v1alpha.NodeNetworkConfigStatus{
-				NetworkContainers: []v1alpha.NetworkContainer{
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: ipIsCIDR,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
 					{
-						PrimaryIP: ipIsCIDR,
-						ID:        ncID,
-						IPAssignments: []v1alpha.IPAssignment{
-							{
-								Name: uuid,
-								IP:   testSecIP,
-							},
-						},
-						SubnetName:         subnetName,
-						DefaultGateway:     defaultGateway,
-						SubnetAddressSpace: subnetAddressSpace,
-						Version:            version,
+						Name: uuid,
+						IP:   testSecIP,
 					},
 				},
-				Scaler: v1alpha.Scaler{
-					BatchSize: 1,
-				},
+				SubnetName:         subnetName,
+				DefaultGateway:     defaultGateway,
+				SubnetAddressSpace: subnetAddressSpace,
+				Version:            version,
 			},
 			wantErr: false,
-			want:    validRequest,
+			want:    validSwiftRequest,
 		},
 		{
 			name: "IP assignment is CIDR",
-			input: v1alpha.NodeNetworkConfigStatus{
-				NetworkContainers: []v1alpha.NetworkContainer{
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: primaryIP,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
 					{
-						PrimaryIP: primaryIP,
-						ID:        ncID,
-						IPAssignments: []v1alpha.IPAssignment{
-							{
-								Name: uuid,
-								IP:   ipIsCIDR,
-							},
-						},
-						SubnetAddressSpace: subnetAddressSpace,
+						Name: uuid,
+						IP:   ipIsCIDR,
 					},
 				},
+				SubnetAddressSpace: subnetAddressSpace,
 			},
 			wantErr: true,
 		},
 		{
 			name: "address space is not CIDR",
-			input: v1alpha.NodeNetworkConfigStatus{
-				NetworkContainers: []v1alpha.NetworkContainer{
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: primaryIP,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
 					{
-						PrimaryIP: primaryIP,
-						ID:        ncID,
-						IPAssignments: []v1alpha.IPAssignment{
-							{
-								Name: uuid,
-								IP:   testSecIP,
-							},
-						},
-						SubnetAddressSpace: "10.0.0.0", // not a cidr range
+						Name: uuid,
+						IP:   testSecIP,
 					},
 				},
+				SubnetAddressSpace: "10.0.0.0", // not a cidr range
 			},
 			wantErr: true,
 		},
@@ -201,7 +206,96 @@ func TestConvertNNCStatusToNCRequest(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CRDStatusToNCRequest(&tt.input)
+			got, err := CreateNCRequestFromDynamicNC(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.EqualValues(t, tt.want, got)
+		})
+	}
+}
+
+func TestCreateNCRequestFromStaticNC(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   v1alpha.NetworkContainer
+		want    *cns.CreateNetworkContainerRequest
+		wantErr bool
+	}{
+		{
+			name:    "valid overlay",
+			input:   validOverlayNC,
+			wantErr: false,
+			want:    validOverlayRequest,
+		},
+		{
+			name: "malformed primary IP",
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: ipMalformed,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
+					{
+						Name: uuid,
+						IP:   testSecIP,
+					},
+				},
+				SubnetAddressSpace: subnetAddressSpace,
+			},
+
+			wantErr: true,
+		},
+		{
+			name: "malformed IP assignment",
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: primaryIP,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
+					{
+						Name: uuid,
+						IP:   ipMalformed,
+					},
+				},
+				SubnetAddressSpace: subnetAddressSpace,
+			},
+			wantErr: true,
+		},
+		{
+			name: "IP assignment is CIDR",
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: primaryIP,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
+					{
+						Name: uuid,
+						IP:   ipIsCIDR,
+					},
+				},
+				SubnetAddressSpace: subnetAddressSpace,
+			},
+			wantErr: true,
+		},
+		{
+			name: "address space is not CIDR",
+			input: v1alpha.NetworkContainer{
+				PrimaryIP: primaryIP,
+				ID:        ncID,
+				IPAssignments: []v1alpha.IPAssignment{
+					{
+						Name: uuid,
+						IP:   testSecIP,
+					},
+				},
+				SubnetAddressSpace: "10.0.0.0", // not a cidr range
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := CreateNCRequestFromStaticNC(tt.input)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
@@ -25,9 +26,11 @@ var (
 )
 
 type CNSIPAMInvoker struct {
-	podName      string
-	podNamespace string
-	cnsClient    cnsclient
+	podName       string
+	podNamespace  string
+	cnsClient     cnsclient
+	executionMode util.ExecutionMode
+	ipamMode      util.IpamMode
 }
 
 type IPv4ResultInfo struct {
@@ -40,11 +43,13 @@ type IPv4ResultInfo struct {
 	hostGateway        string
 }
 
-func NewCNSInvoker(podName, namespace string, cnsClient cnsclient) *CNSIPAMInvoker {
+func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode util.ExecutionMode, ipamMode util.IpamMode) *CNSIPAMInvoker {
 	return &CNSIPAMInvoker{
-		podName:      podName,
-		podNamespace: namespace,
-		cnsClient:    cnsClient,
+		podName:       podName,
+		podNamespace:  namespace,
+		cnsClient:     cnsClient,
+		executionMode: executionMode,
+		ipamMode:      ipamMode,
 	}
 }
 
@@ -129,9 +134,11 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	// set subnet prefix for host vm
-	err = setHostOptions(&addResult.hostSubnetPrefix, ncipnet, addConfig.options, &info)
-	if err != nil {
-		return IPAMAddResult{}, err
+	// setHostOptions will execute if IPAM mode is not v4 overlay
+	if invoker.ipamMode != util.V4Overlay {
+		if err := setHostOptions(&addResult.hostSubnetPrefix, ncipnet, addConfig.options, &info); err != nil {
+			return IPAMAddResult{}, err
+		}
 	}
 
 	return addResult, nil

@@ -5,6 +5,7 @@ package network
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -310,14 +311,27 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		return nil, err
 	}
 
-	// Create the HNS network.
-	log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
-	hnsResponse, err := hnsv2.CreateNetwork(hcnNetwork)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
-	}
+	// check if network exists, only create the network does not exist
+	hnsResponse, err := hnsv2.GetNetworkByName(hcnNetwork.Name)
 
-	log.Printf("[net] Successfully created hcn network with response: %+v", hnsResponse)
+	if err != nil {
+		// if network not found, create the HNS network.
+		if errors.As(err, &hcn.NetworkNotFoundError{}) {
+			log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
+			hnsResponse, err = hnsv2.CreateNetwork(hcnNetwork)
+
+			if err != nil {
+				return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
+			}
+
+			log.Printf("[net] Successfully created hcn network with response: %+v", hnsResponse)
+		} else {
+			// we can't validate if the network already exists, don't continue
+			return nil, fmt.Errorf("Failed to create hcn network: %s, failed to query for existing network with error: %v", hcnNetwork.Name, err)
+		}
+	} else {
+		log.Printf("[net] Network with name %s already exists", hcnNetwork.Name)
+	}
 
 	var vlanid int
 	opt, _ := nwInfo.Options[genericData].(map[string]interface{})
