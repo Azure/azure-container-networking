@@ -108,8 +108,8 @@ func TestGetProtobufRulesFromIptableFileV2(t *testing.T) {
 
 	srcPod := &common.NpmPod{
 		Name:      "a",
-		Namespace: "y",
-		PodIP:     "10.224.0.70",
+		Namespace: "x",
+		PodIP:     "10.224.0.87",
 		Labels: map[string]string{
 			"pod": "a",
 		},
@@ -138,11 +138,11 @@ func TestGetProtobufRulesFromIptableFileV2(t *testing.T) {
 	}
 
 	dstPod := &common.NpmPod{
-		Name:      "b",
+		Name:      "a",
 		Namespace: "y",
-		PodIP:     "10.224.0.17",
+		PodIP:     "10.224.0.70",
 		Labels: map[string]string{
-			"pod": "b",
+			"pod": "a",
 		},
 		ContainerPorts: []v1.ContainerPort{
 			{

@@ -217,6 +217,12 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 	// iterate through all chains in the filter table
 	for _, v := range ipTable.Chains {
 		if c.isAzureNPMChain(v.Name) {
+
+			// can skip this chain in V2 since it's an accept
+			if c.EnableV2NPM && (strings.HasPrefix(v.Name, "AZURE-NPM-INGRESS-ALLOW-MARK") || (strings.HasPrefix(v.Name, "AZURE-NPM-ACCEPT"))) {
+				continue
+			}
+
 			rulesFromChain, err := c.getRulesFromChain(v)
 			if err != nil {
 				return nil, fmt.Errorf("error occurred during getting protobuf rule list : %w", err)
@@ -235,6 +241,7 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 	}
 
 	if c.EnableV2NPM {
+		parentRules := make([]*pb.RuleResponse, 0)
 		for childRule, _ := range allRulesInNPMChains {
 
 			// if rule is a string-int, we need to find the parent jump
@@ -243,7 +250,7 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 				for parentRule, _ := range allRulesInNPMChains {
 					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-EGRESS") && parentRule.JumpTo == childRule.Chain {
 						childRule.SrcList = append(childRule.SrcList, parentRule.SrcList...)
-						delete(allRulesInNPMChains, parentRule)
+						parentRules = append(parentRules, parentRule)
 					}
 				}
 			}
@@ -251,10 +258,13 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 				for parentRule, _ := range allRulesInNPMChains {
 					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-INGRESS") && parentRule.JumpTo == childRule.Chain {
 						childRule.DstList = append(childRule.DstList, parentRule.DstList...)
-						delete(allRulesInNPMChains, parentRule)
+						parentRules = append(parentRules, parentRule)
 					}
 				}
 			}
+		}
+		for _, parentRule := range parentRules {
+			delete(allRulesInNPMChains, parentRule)
 		}
 	}
 
