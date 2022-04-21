@@ -10,13 +10,17 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/pkcs12"
+)
+
+const (
+	pemContentType    = "application/x-pem-file"
+	pkcs12ContentType = "application/x-pkcs12"
 )
 
 type secretFetcher interface {
@@ -28,27 +32,27 @@ type Shim struct {
 	sf secretFetcher
 }
 
-// NewShim constructs a Shim for a KeyVault instance, pointed to by the provided url. The azcore.TokenCredential will
+// NewShim constructs a Shim for a KeyVault instance located at the provided url. The azcore.TokenCredential will
 // only be used during method calls, it is not verified at initialization.
 func NewShim(vaultURL string, cred azcore.TokenCredential) (*Shim, error) {
 	c, err := azsecrets.NewClient(vaultURL, cred, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "could not create new azsecrets.Client")
 	}
 
 	return &Shim{sf: c}, nil
 }
 
-// GetLatestTLSCertificate fetches the latest version of a certificate and transforms it into a usable tls.Certificate.
+// GetLatestTLSCertificate fetches the latest version of a keyvault certificate and transforms it into a usable tls.Certificate.
 func (s *Shim) GetLatestTLSCertificate(ctx context.Context, certName string) (tls.Certificate, error) {
-	sb, err := s.sf.GetSecret(ctx, certName, nil)
+	resp, err := s.sf.GetSecret(ctx, certName, nil)
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("could not get secret: %w", err)
+		return tls.Certificate{}, errors.Wrap(err, "could not get secret")
 	}
 
-	pemBlocks, err := getPEMBlocks(*sb.Properties.ContentType, *sb.Value)
+	pemBlocks, err := getPEMBlocks(*resp.Properties.ContentType, *resp.Value)
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("could not get pem blocks: %w", err)
+		return tls.Certificate{}, errors.Wrap(err, "could not get pem blocks")
 	}
 
 	var (
@@ -63,12 +67,12 @@ func (s *Shim) GetLatestTLSCertificate(ctx context.Context, certName string) (tl
 		case strings.Contains(v.Type, "PRIVATE KEY"):
 			key, err = parsePrivateKey(v.Bytes)
 			if err != nil {
-				return tls.Certificate{}, fmt.Errorf("could not parse private key: %w", err)
+				return tls.Certificate{}, errors.Wrap(err, "could not parse private key")
 			}
 		case strings.Contains(v.Type, "CERTIFICATE"):
 			c, err := x509.ParseCertificate(v.Bytes)
 			if err != nil {
-				return tls.Certificate{}, fmt.Errorf("could not parse certificate: %w", err)
+				return tls.Certificate{}, errors.Wrap(err, "could not parse certificate")
 			}
 			if !c.IsCA {
 				leaf = c
@@ -92,18 +96,18 @@ func (s *Shim) GetLatestTLSCertificate(ctx context.Context, certName string) (tl
 
 func getPEMBlocks(contentType, payload string) ([]*pem.Block, error) {
 	switch contentType {
-	case "application/x-pkcs12":
+	case pkcs12ContentType:
 		return handlePFXBytes(payload)
-	case "application/x-pem-file":
+	case pemContentType:
 		return handlePEMBytes(payload)
 	}
-	return nil, fmt.Errorf("unsupported content type: %s", contentType)
+	return nil, errors.Errorf("unsupported content type %s", contentType)
 }
 
 func handlePFXBytes(v string) ([]*pem.Block, error) {
 	pfxBytes, err := base64.StdEncoding.DecodeString(v)
 	if err != nil {
-		return nil, fmt.Errorf("could not base64 decode keyvault.SecretBundle.Value: %w", err)
+		return nil, errors.Wrap(err, "could not base64 decode keyvault.SecretBundle.Value")
 	}
 
 	return pkcs12.ToPEM(pfxBytes, "")
