@@ -110,7 +110,12 @@ func handlePFXBytes(v string) ([]*pem.Block, error) {
 		return nil, errors.Wrap(err, "could not base64 decode keyvault.SecretBundle.Value")
 	}
 
-	return pkcs12.ToPEM(pfxBytes, "")
+	bl, err := pkcs12.ToPEM(pfxBytes, "")
+	if err != nil {
+		return nil, errors.Wrap(err, "could not convert pfx to pem")
+	}
+
+	return bl, nil
 }
 
 func handlePEMBytes(v string) ([]*pem.Block, error) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets"
-
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +53,7 @@ func newFakeSecretFetcher(certPath, contentType string) *fakeSecretFetcher {
 func (f *fakeSecretFetcher) GetSecret(_ context.Context, _ string, _ *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error) {
 	bs, err := os.ReadFile(f.certPath)
 	if err != nil {
-		return azsecrets.GetSecretResponse{}, err
+		return azsecrets.GetSecretResponse{}, errors.Wrap(err, "could not read file")
 	}
 
 	v := string(bs)
