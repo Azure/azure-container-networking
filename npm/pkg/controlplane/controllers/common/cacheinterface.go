@@ -2,6 +2,8 @@ package common
 
 import (
 	"errors"
+
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 )
 
 // Input struct
@@ -17,6 +19,11 @@ var (
 	ErrInvalidInput     = errors.New("invalid input")
 	ErrSetType          = errors.New("invalid set type")
 )
+
+type TupleAndRule struct {
+	Tuple *Tuple
+	Rule *pb.RuleResponse
+}
 
 // Tuple struct
 type Tuple struct {

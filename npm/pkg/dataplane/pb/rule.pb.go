@@ -153,6 +153,7 @@ type RuleResponse struct {
 	Allowed       bool                    `protobuf:"varint,7,opt,name=Allowed,proto3" json:"Allowed,omitempty"`
 	Direction     Direction               `protobuf:"varint,8,opt,name=Direction,proto3,enum=pb.Direction" json:"Direction,omitempty"`
 	UnsortedIpset map[string]string       `protobuf:"bytes,9,rep,name=UnsortedIpset,proto3" json:"UnsortedIpset,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	JumpTo 	      string
 }
 
 func (x *RuleResponse) Reset() {

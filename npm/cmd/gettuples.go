@@ -44,7 +44,25 @@ func newGetTuples() *cobra.Command {
 					return fmt.Errorf("%w", err)
 				}
 				for _, tuple := range tuples {
-					fmt.Printf("%+v\n", tuple)
+					fmt.Printf("%s for %s\n", tuple.Tuple.RuleType, tuple.Tuple.Direction)
+					fmt.Printf("\tSource IP: %s, Port %s\n", tuple.Tuple.SrcIP, tuple.Tuple.SrcPort)
+					fmt.Printf("\tDestination IP: %s, Port %s\n", tuple.Tuple.DstIP, tuple.Tuple.DstPort)
+					fmt.Printf("\tProtocol: %s\n", tuple.Rule.Protocol)
+					fmt.Printf("\tChain: %+v\n", tuple.Rule.Chain)
+					fmt.Printf("\tSource Sets:\n")
+					for _, src := range tuple.Rule.SrcList {
+						fmt.Printf("\t\tName: %s\n", src.Name)
+						fmt.Printf("\t\t\tHashedName: %s\n", src.HashedSetName)
+						fmt.Printf("\t\t\tType: %s\n", src.Type)
+						fmt.Printf("\t\t\tIncluded: %v\n", src.Included)
+					}
+					fmt.Printf("\tDestination Sets:\n")
+					for _, dst := range tuple.Rule.DstList {
+						fmt.Printf("\t\tName: %s\n", dst.Name)
+						fmt.Printf("\t\t\tHashedName: %s\n", dst.HashedSetName)
+						fmt.Printf("\t\t\tType: %s\n", dst.Type)
+						fmt.Printf("\t\t\tIncluded: %v\n", dst.Included)
+					}
 				}
 
 			case npmCacheF != "" && iptableSaveF != "":
@@ -53,7 +71,10 @@ func newGetTuples() *cobra.Command {
 					return fmt.Errorf("%w", err)
 				}
 				for _, tuple := range tuples {
-					fmt.Printf("%+v\n", tuple)
+					fmt.Printf("%s for %s\n", tuple.Tuple.RuleType, tuple.Tuple.Direction)
+					fmt.Printf("\t Source IP: %s, Port %s", tuple.Tuple.SrcIP, tuple.Tuple.SrcPort)
+					fmt.Printf("\t Destination IP: %s, Port %s", tuple.Tuple.DstIP, tuple.Tuple.DstIP)
+					fmt.Printf("\t Rule: %+v", tuple.Rule)
 				}
 			default:
 				return errSpecifyBothFiles

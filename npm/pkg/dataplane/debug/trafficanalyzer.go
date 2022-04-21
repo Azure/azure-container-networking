@@ -18,7 +18,7 @@ import (
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*common.Tuple, error) {
+func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*common.TupleAndRule, error) {
 	c := &Converter{
 		NPMDebugEndpointHost: "http://localhost",
 		NPMDebugEndpointPort: api.DefaultHttpPort,
@@ -42,7 +42,7 @@ func GetNetworkTupleFile(
 	src, dst *common.Input,
 	npmCacheFile string,
 	iptableSaveFile string,
-) ([][]byte, []*common.Tuple, error) {
+) ([][]byte, []*common.TupleAndRule, error) {
 
 	c := &Converter{}
 	allRules, err := c.GetProtobufRulesFromIptableFile(util.IptablesFilterTable, npmCacheFile, iptableSaveFile)
@@ -58,7 +58,7 @@ func getNetworkTupleCommon(
 	src, dst *common.Input,
 	npmCache common.Cache,
 	allRules []*pb.RuleResponse,
-) ([][]byte, []*common.Tuple, error) {
+) ([][]byte, []*common.TupleAndRule, error) {
 
 	srcPod, err := npmCache.GetPod(src)
 	if err != nil {
@@ -89,9 +89,8 @@ func getNetworkTupleCommon(
 		ruleResListJSON = append(ruleResListJSON, ruleJSON)
 	}
 
-	resTupleList := make([]*common.Tuple, 0)
+	resTupleList := make([]*common.TupleAndRule, 0)
 	for _, rule := range hitRules {
-		log.Printf("generating tuples for rule %+v", rule)
 		tuple := generateTuple(srcPod, dstPod, rule)
 		resTupleList = append(resTupleList, tuple)
 	}
@@ -117,7 +116,7 @@ func GetInputType(input string) common.InputType {
 	}
 }
 
-func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *common.Tuple {
+func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *common.TupleAndRule {
 	tuple := &common.Tuple{}
 	if rule.Allowed {
 		tuple.RuleType = "ALLOWED"
@@ -160,7 +159,10 @@ func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *common.Tuple
 	} else {
 		tuple.Protocol = ANY
 	}
-	return tuple
+	return &common.TupleAndRule{
+		Tuple: tuple,
+		Rule:  rule,
+	}
 }
 
 func getHitRules(

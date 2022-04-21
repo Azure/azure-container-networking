@@ -211,6 +211,7 @@ func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleRes
 
 // Create a list of protobuf rules from iptable.
 func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) ([]*pb.RuleResponse, error) {
+	//rules := make(map[string]*pb.RuleResponse)
 	allRulesInNPMChains := make([]*pb.RuleResponse, 0)
 
 	// iterate through all chains in the filter table
@@ -220,7 +221,36 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) ([]*pb.RuleResponse, e
 			if err != nil {
 				return nil, fmt.Errorf("error occurred during getting protobuf rule list : %w", err)
 			}
+			/*
+				if strings.HasPrefix("AZURE-NPM-EGRESS") {
+					for i := range rulesFromChain {
+						rulesFromChain[i].SrcList =
+					}
+				}
+			*/
 			allRulesInNPMChains = append(allRulesInNPMChains, rulesFromChain...)
+		}
+	}
+
+	if c.EnableV2NPM {
+		for _, childRule := range allRulesInNPMChains {
+
+			// if rule is a string-int, we need to find the parent jump
+			// to add the src for egress and dst for ingress
+			if strings.HasPrefix(childRule.Chain, "AZURE-NPM-EGRESS-") {
+				for _, parentRule := range allRulesInNPMChains {
+					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-EGRESS") && parentRule.JumpTo == childRule.Chain {
+						childRule.SrcList = append(childRule.SrcList, parentRule.SrcList...)
+					}
+				}
+			}
+			if strings.HasPrefix(childRule.Chain, "AZURE-NPM-INGRESS-") {
+				for _, parentRule := range allRulesInNPMChains {
+					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-INGRESS") && parentRule.JumpTo == childRule.Chain {
+						childRule.DstList = append(childRule.DstList, parentRule.DstList...)
+					}
+				}
+			}
 		}
 	}
 
@@ -258,6 +288,11 @@ func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.Rul
 		if err != nil {
 			return nil, fmt.Errorf("error occurred during getting rules from chain : %w", err)
 		}
+
+		if v.Target != nil {
+			rule.JumpTo = v.Target.Name
+		}
+
 		rules = append(rules, rule)
 	}
 
