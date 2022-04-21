@@ -189,6 +189,7 @@ stages:
     dependsOn:
       - setup
       - containerize
+      - build_windows_images
     jobs:
       - job: manifest
         displayName: Compile Manifests
@@ -200,16 +201,18 @@ stages:
           matrix:
             cni-manager:
               name: cni-manager
+              platforms: linux/amd64 linux/arm64
             cns:
               name: cns
+              platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
+              platforms: linux/amd64 linux/arm64
         steps:
           - template: containers/manifest-template.yaml
             parameters:
               name: $(name)
-              oses: linux
-              arches: amd64 arm64
+              platforms: $(platforms)
               tag: $(TAG)
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
