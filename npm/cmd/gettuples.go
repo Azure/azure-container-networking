@@ -39,10 +39,22 @@ func newGetTuples() *cobra.Command {
 					return fmt.Errorf("failed to load config with err %w", err)
 				}
 
-				_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput, config)
+				_, tuples, srcList, dstList, err := dataplane.GetNetworkTuple(srcInput, dstInput, config)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
+
+				fmt.Printf("Source IPSets:\n")
+				for i := range srcList {
+					fmt.Printf("\tName: %s, HashedName: %s,\n", srcList[i].Name, srcList[i].HashedSetName)
+				}
+
+				fmt.Printf("Destination IPSets:\n")
+				for i := range dstList {
+					fmt.Printf("\tName: %s, HashedName: %s,\n", dstList[i].Name, dstList[i].HashedSetName)
+				}
+
+				fmt.Printf("Rules:\n")
 				for _, tuple := range tuples {
 					fmt.Printf("%s for %s\n", tuple.Tuple.RuleType, tuple.Tuple.Direction)
 					fmt.Printf("\tSource IP: %s, Port %s\n", tuple.Tuple.SrcIP, tuple.Tuple.SrcPort)
@@ -66,7 +78,7 @@ func newGetTuples() *cobra.Command {
 				}
 
 			case npmCacheF != "" && iptableSaveF != "":
-				_, tuples, err := dataplane.GetNetworkTupleFile(srcInput, dstInput, npmCacheF, iptableSaveF)
+				_, tuples, _, _, err := dataplane.GetNetworkTupleFile(srcInput, dstInput, npmCacheF, iptableSaveF)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}

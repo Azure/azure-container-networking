@@ -170,7 +170,7 @@ func (c *Converter) GetProtobufRulesFromIptableFile(
 	tableName string,
 	npmCacheFile string,
 	iptableSaveFile string,
-) ([]*pb.RuleResponse, error) {
+) (map[*pb.RuleResponse]struct{}, error) {
 
 	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
@@ -190,7 +190,7 @@ func (c *Converter) GetProtobufRulesFromIptableFile(
 }
 
 // GetProtobufRulesFromIptable returns a list of protobuf rules from node.
-func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleResponse, error) {
+func (c *Converter) GetProtobufRulesFromIptable(tableName string) (map[*pb.RuleResponse]struct{}, error) {
 	err := c.InitConverter()
 	if err != nil {
 		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables : %w", err)
@@ -210,9 +210,9 @@ func (c *Converter) GetProtobufRulesFromIptable(tableName string) ([]*pb.RuleRes
 }
 
 // Create a list of protobuf rules from iptable.
-func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) ([]*pb.RuleResponse, error) {
+func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]struct{}, error) {
 	//rules := make(map[string]*pb.RuleResponse)
-	allRulesInNPMChains := make([]*pb.RuleResponse, 0)
+	allRulesInNPMChains := make(map[*pb.RuleResponse]struct{}, 0)
 
 	// iterate through all chains in the filter table
 	for _, v := range ipTable.Chains {
@@ -228,26 +228,30 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) ([]*pb.RuleResponse, e
 					}
 				}
 			*/
-			allRulesInNPMChains = append(allRulesInNPMChains, rulesFromChain...)
+			for _, rule := range rulesFromChain {
+				allRulesInNPMChains[rule] = struct{}{}
+			}
 		}
 	}
 
 	if c.EnableV2NPM {
-		for _, childRule := range allRulesInNPMChains {
+		for childRule, _ := range allRulesInNPMChains {
 
 			// if rule is a string-int, we need to find the parent jump
 			// to add the src for egress and dst for ingress
 			if strings.HasPrefix(childRule.Chain, "AZURE-NPM-EGRESS-") {
-				for _, parentRule := range allRulesInNPMChains {
+				for parentRule, _ := range allRulesInNPMChains {
 					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-EGRESS") && parentRule.JumpTo == childRule.Chain {
 						childRule.SrcList = append(childRule.SrcList, parentRule.SrcList...)
+						delete(allRulesInNPMChains, parentRule)
 					}
 				}
 			}
 			if strings.HasPrefix(childRule.Chain, "AZURE-NPM-INGRESS-") {
-				for _, parentRule := range allRulesInNPMChains {
+				for parentRule, _ := range allRulesInNPMChains {
 					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-INGRESS") && parentRule.JumpTo == childRule.Chain {
 						childRule.DstList = append(childRule.DstList, parentRule.DstList...)
+						delete(allRulesInNPMChains, parentRule)
 					}
 				}
 			}
@@ -268,9 +272,19 @@ func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.Rul
 		rule.Protocol = v.Protocol
 
 		if c.EnableV2NPM {
+			// chain name has to end in hash np for it to determine if allow or drop
+			// ignore jumps from parent AZURE-NPM
+			switch v.Target.Name {
+			case util.IptablesAzureIngressAllowMarkChain:
+				rule.Allowed = true
 
+			case util.IptablesAzureAcceptChain:
+				rule.Allowed = true
+			default:
+				// ignore other targets
+				rule.Allowed = false
+			}
 		} else {
-
 			switch v.Target.Name {
 			case util.IptablesMark:
 				rule.Allowed = true

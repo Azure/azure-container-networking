@@ -11,10 +11,10 @@ import (
 var errSpecifyBothFiles = fmt.Errorf("must specify either no files or both a cache file and an iptables save file")
 
 type IPTablesResponse struct {
-	Rules []*pb.RuleResponse `json:"rules,omitempty"`
+	Rules map[*pb.RuleResponse]struct{} `json:"rules,omitempty"`
 }
 
-func prettyPrintIPTables(iptableRules []*pb.RuleResponse) error {
+func prettyPrintIPTables(iptableRules map[*pb.RuleResponse]struct{}) error {
 	iptresponse := IPTablesResponse{
 		Rules: iptableRules,
 	}

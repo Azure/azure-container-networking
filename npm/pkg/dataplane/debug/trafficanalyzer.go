@@ -18,7 +18,7 @@ import (
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*common.TupleAndRule, error) {
+func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*common.TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 	c := &Converter{
 		NPMDebugEndpointHost: "http://localhost",
 		NPMDebugEndpointPort: api.DefaultHttpPort,
@@ -27,7 +27,7 @@ func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte
 
 	allRules, err := c.GetProtobufRulesFromIptable("filter")
 	if err != nil {
-		return nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
 	}
 
 	// after we have all rules from the AZURE-NPM chains in the filter table, get the network tuples of src and dst
@@ -42,12 +42,12 @@ func GetNetworkTupleFile(
 	src, dst *common.Input,
 	npmCacheFile string,
 	iptableSaveFile string,
-) ([][]byte, []*common.TupleAndRule, error) {
+) ([][]byte, []*common.TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	c := &Converter{}
 	allRules, err := c.GetProtobufRulesFromIptableFile(util.IptablesFilterTable, npmCacheFile, iptableSaveFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
 	}
 
 	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules)
@@ -57,23 +57,23 @@ func GetNetworkTupleFile(
 func getNetworkTupleCommon(
 	src, dst *common.Input,
 	npmCache common.Cache,
-	allRules []*pb.RuleResponse,
-) ([][]byte, []*common.TupleAndRule, error) {
+	allRules map[*pb.RuleResponse]struct{},
+) ([][]byte, []*common.TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	srcPod, err := npmCache.GetPod(src)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error occurred during get source pod : %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("error occurred during get source pod : %w", err)
 	}
 
 	dstPod, err := npmCache.GetPod(dst)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error occurred during get destination pod : %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("error occurred during get destination pod : %w", err)
 	}
 
 	// find all rules where the source pod and dest pod exist
-	hitRules, err := getHitRules(srcPod, dstPod, allRules, npmCache)
+	hitRules, srcSets, dstSets, err := getHitRules(srcPod, dstPod, allRules, npmCache)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w", err)
+		return nil, nil, srcSets, dstSets, fmt.Errorf("%w", err)
 	}
 
 	ruleResListJSON := make([][]byte, 0)
@@ -84,7 +84,7 @@ func getNetworkTupleCommon(
 	for _, rule := range hitRules {
 		ruleJSON, err := m.Marshal(rule) // pretty print
 		if err != nil {
-			return nil, nil, fmt.Errorf("error occurred during marshalling : %w", err)
+			return nil, nil, srcSets, dstSets, fmt.Errorf("error occurred during marshalling : %w", err)
 		}
 		ruleResListJSON = append(ruleResListJSON, ruleJSON)
 	}
@@ -102,7 +102,7 @@ func getNetworkTupleCommon(
 	// 	}
 	// 	tupleResListJson = append(tupleResListJson, ruleJson)
 	// }
-	return ruleResListJSON, resTupleList, nil
+	return ruleResListJSON, resTupleList, srcSets, dstSets, nil
 }
 
 // GetInputType returns the type of the input for GetNetworkTuple.
@@ -167,28 +167,31 @@ func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *common.Tuple
 
 func getHitRules(
 	src, dst *common.NpmPod,
-	rules []*pb.RuleResponse,
+	rules map[*pb.RuleResponse]struct{},
 	npmCache common.Cache,
-) ([]*pb.RuleResponse, error) {
+) ([]*pb.RuleResponse, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	res := make([]*pb.RuleResponse, 0)
+	srcSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
+	dstSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
 
-	for _, rule := range rules {
-		matched := false
+	for rule, _ := range rules {
+		matchedSrc := false
+		matchedDst := false
 		// evalute all match set in src
 		for _, setInfo := range rule.SrcList {
 			if src.Namespace == "" {
 				// internet
-				matched = false
 				break
 			}
 
 			matchedSource, err := evaluateSetInfo("src", setInfo, src, rule, npmCache)
 			if err != nil {
-				return nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
+				return nil, nil, nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
 			}
 			if matchedSource {
-				matched = true
+				matchedSrc = true
+				srcSets[setInfo.HashedSetName] = setInfo
 				break
 			}
 		}
@@ -197,20 +200,21 @@ func getHitRules(
 		for _, setInfo := range rule.DstList {
 			if dst.Namespace == "" {
 				// internet
-				matched = false
 				break
 			}
 
 			matchedDestination, err := evaluateSetInfo("dst", setInfo, dst, rule, npmCache)
 			if err != nil {
-				return nil, fmt.Errorf("error occurred during evaluating destination's set info : %w", err)
+				return nil, nil, nil, fmt.Errorf("error occurred during evaluating destination's set info : %w", err)
 			}
 			if matchedDestination {
-				matched = true
+
+				dstSets[setInfo.HashedSetName] = setInfo
+				matchedDst = true
 				break
 			}
 		}
-		if matched {
+		if matchedSrc || matchedDst {
 			res = append(res, rule)
 		}
 	}
@@ -218,7 +222,7 @@ func getHitRules(
 		// either no hit rules or no rules at all. Both cases allow all traffic
 		res = append(res, &pb.RuleResponse{Allowed: true})
 	}
-	return res, nil
+	return res, srcSets, dstSets, nil
 }
 
 // evalute an ipset to find out whether the pod's attributes match with the set
