@@ -1,7 +1,7 @@
-FROM docker.io/alpine:latest as certs
-RUN apk --update add ca-certificates
+FROM mcr.microsoft.com/cbl-mariner/base/core:1.0 as certs
+RUN tdnf upgrade -y && tdnf install -y ca-certificates
 
-FROM docker.io/golang:1.18 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS builder
 ARG VERSION
 ARG CNS_AI_PATH
 ARG CNS_AI_ID

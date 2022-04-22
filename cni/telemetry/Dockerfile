@@ -1,5 +1,4 @@
-# Use a minimal image as a parent image
-FROM docker.io/ubuntu:19.10
+FROM mcr.microsoft.com/oss/mirror/docker.io/library/ubuntu:20.04
 ARG TELEMETRY_BUILD_DIR
 ARG TELEMETRY_CONF_DIR
 

@@ -1,4 +1,4 @@
-FROM docker.io/golang:1.18 as build
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 as build
 WORKDIR /go/src/github.com/Azure/azure-container-networking/
 ARG VERSION
 ARG PLATFORM

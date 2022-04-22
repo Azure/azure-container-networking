@@ -1,4 +1,4 @@
-FROM docker.io/ubuntu:16.04
+FROM mcr.microsoft.com/oss/mirror/docker.io/library/ubuntu:18.04
 RUN apt-get update && apt-get install -y software-properties-common sudo wget apt-utils apt-transport-https curl lsb-release gnupg jq
 RUN wget -q https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 RUN dpkg -i packages-microsoft-prod.deb

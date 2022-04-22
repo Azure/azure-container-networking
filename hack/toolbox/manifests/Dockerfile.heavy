@@ -1,4 +1,4 @@
-FROM docker.io/ubuntu:20.04
+FROM mcr.microsoft.com/oss/mirror/docker.io/library/ubuntu:20.04
 RUN apt-get update
 RUN apt-get install -y \
     python3 \

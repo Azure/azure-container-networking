@@ -1,4 +1,4 @@
-FROM docker.io/golang:alpine as build
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 as build
 ADD ./ /
 WORKDIR /
 RUN CGO_ENABLED=0 GOOS=linux go build -o server .
