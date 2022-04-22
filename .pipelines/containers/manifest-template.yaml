@@ -13,7 +13,7 @@ steps:
 
 - script: |
     set -e
-    make ${{ parameters.name }}-multiarch-manifest-create PLATFORMS="${{ parameters.platforms }}" TAG=${{ parameters.tag }}
+    make ${{ parameters.name }}-multiarch-manifest-create REGISTRY=$IMAGE_REGISTRY PLATFORMS="${{ parameters.platforms }}" TAG=${{ parameters.tag }}
     make ${{ parameters.name }}-image-info TAG=${{ parameters.tag }}
   name: manifest_build
   displayName: Manifest Build

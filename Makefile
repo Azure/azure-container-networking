@@ -350,12 +350,12 @@ azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container
 ## This section is for building multi-arch/os container image manifests.
 
 multiarch-image-pull-docker: # util target to pull all variants of a multi-arch/os image
-	$(foreach PLATFORM,$(PLATFORMS),docker pull $(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG))
+	$(foreach PLATFORM,$(PLATFORMS),docker pull $(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG);)
 
 multiarch-manifest-create-docker: # util target to compose multiarch container manifests from os/arch images.
 	docker manifest create \
 		$(REGISTRY)/$(IMAGE):$(TAG) \
-		$(foreach PLATFORM,$(PLATFORMS),docker pull $(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG))
+		$(foreach PLATFORM,$(PLATFORMS),$(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG))
 
 multiarch-manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push $(REGISTRY)/$(IMAGE):$(TAG) docker://$(REGISTRY)/$(IMAGE):$(TAG)

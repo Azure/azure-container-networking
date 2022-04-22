@@ -183,13 +183,29 @@ stages:
               os: $(os)
               arch: $(arch)
               tag: $(TAG)
+      - job: containerize_windows
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+        strategy:
+          matrix:
+            cns_windows_amd64:
+              arch: amd64
+              name: cns
+        steps:
+          - template: containers/container-template-windows.yaml
+            parameters:
+              name: $(name)
+              arch: $(arch)
+              tag: $(TAG)
 
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
       - setup
       - containerize
-      - build_windows_images
     jobs:
       - job: manifest
         displayName: Compile Manifests
