@@ -475,6 +475,7 @@ publish-azure-cnm-plugin-image:
 clean: ## Clean build artifacts.
 	$(RMDIR) $(OUTPUT_DIR)
 	$(RMDIR) $(TOOLS_BIN_DIR)
+	$(RMDIR) go.work*
 
 
 LINT_PKG ?= .
@@ -491,6 +492,13 @@ FMT_PKG ?= cni cns npm
 fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm").
 	$(GOFUMPT) -s -w $(FMT_PKG)
 
+
+workspace: ## Set up the Go workspace.
+	go work init
+	go work use .
+	go work use ./build/tools
+	go work use ./zapai
+	go work sync
 
 ##@ Test 
 
