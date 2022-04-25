@@ -2,21 +2,12 @@
 
 version: 2
 updates:
-- package-ecosystem: "gomod"
-  directory: "/"
-  schedule:
-    interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
-  commit-message:
-    prefix: "vendor"
-- package-ecosystem: "gomod"
-  directory: "/zapai"
-  schedule:
-    interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
-  commit-message:
-    prefix: "vendor"
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    assignees:
+      - "matmerr"
+      - "rbtr"
+    commit-message:
+      prefix: "vendor"

@@ -4,8 +4,7 @@
 # they should.
 # The CODEOWNERS are not Gatekeepers, just someone who has the domain knowledge to 
 # review a PR in an area. 
-/**/go.mod  @rbtr @matmerr
-/.github/   @rbtr @matmerr @vakalapa
-/cns/       @azure/acn-cns-reviewers
 /npm/       @azure/acn-npm-reviewers
-/zapai/     @rbtr 
+/cns/       @azure/acn-cns-reviewers
+/.github/   @rbtr @matmerr @vakalapa
+/go.mod     @rbtr @matmerr
