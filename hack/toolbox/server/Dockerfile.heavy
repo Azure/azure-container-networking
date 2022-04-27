@@ -3,35 +3,32 @@ ADD ./ /
 WORKDIR /
 RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 
-FROM docker.io/alpine:latest
-RUN apk update 
-RUN apk add \
+FROM mcr.microsoft.com/oss/mirror/docker.io/library/ubuntu:20.04
+RUN apt-get update
+RUN apt-get install -y \
     axel \
     bridge-utils \
-    bash \
     curl \
-    bind-tools \
+    dnsutils \
     ebtables \
-    htop \
-    iptables \
-    ipset \
+    emacs \
     iproute2 \
-    iperf3 \
-    iftop \
+    iptables \
+    iputils-ping \
     jq \
-    lsof \
     nano \
+    ncat \
     net-tools \
-    netcat-openbsd \
+    netcat \
     nmap \
-    nethogs \
+    python \
+    python3 \
+    ssh \
     sudo \
-    openssh \
     tcpdump \
-    tcptraceroute \
-    unzip \
+    traceroute \
     vim \
-    wget 
+    wget
 
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 RUN curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
