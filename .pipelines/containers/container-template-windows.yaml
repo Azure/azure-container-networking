@@ -15,7 +15,7 @@ steps:
     powershell.exe -command "& { . .\windows.ps1; Retry({${{ parameters.name }}-image windows-${{ parameters.arch }}-${{ parameters.tag }}}) }"
   name: image_build
   displayName: Image Build
-  
+
 - powershell: |
     $registry = "acnpublic.azurecr.io"
     docker push $registry/azure-${{ parameters.name }}:windows-${{ parameters.arch }}-${{ parameters.tag }}

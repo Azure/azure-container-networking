@@ -349,8 +349,8 @@ azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container
 
 ## This section is for building multi-arch/os container image manifests.
 
-multiarch-image-pull-docker: # util target to pull all variants of a multi-arch/os image
-	$(foreach PLATFORM,$(PLATFORMS),docker pull $(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG);)
+multiarch-image-pull: # util target to pull all variants of a multi-arch/os image
+	$(foreach PLATFORM,$(PLATFORMS),$(CONTAINER_BUILDER) pull $(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG);)
 
 multiarch-manifest-create-docker: # util target to compose multiarch container manifests from os/arch images.
 	docker manifest create \
@@ -362,24 +362,21 @@ multiarch-manifest-push: # util target to push multiarch container manifest.
 
 cni-manager-multiarch-manifest-create: ## build cni-manager multi-arch container manifest.
 	$(MAKE) multiarch-manifest-create \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
+		PLATFORMS="$(PLATFORMS)" \
 		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(CNI_IMAGE) \
 		TAG=$(TAG)
 
 cns-multiarch-manifest-create: ## build azure-cns multi-arch container manifest.
 	$(MAKE) multiarch-manifest-create \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
+		PLATFORMS="$(PLATFORMS)" \
 		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(CNS_IMAGE) \
 		TAG=$(TAG)
 
 npm-multiarch-manifest-create: ## build azure-npm multi-arch container manifest.
 	$(MAKE) multiarch-manifest-create \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
+		PLATFORMS="$(PLATFORMS)" \
 		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(TAG)
