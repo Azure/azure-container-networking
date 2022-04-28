@@ -23,6 +23,8 @@ stages:
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
+              cat /etc/os-release
+              uname -a
               sudo chown -R $(whoami):$(whoami) .
               go version
               go env
@@ -32,10 +34,58 @@ stages:
             displayName: "Set environmental variables"
             condition: always()
 
-  - stage: build_and_test
-    displayName: Build ACN and Test
+  - stage: test
+    displayName: Test
     dependsOn:
       - setup
+    jobs:
+      - job: test
+        displayName: Run Tests
+        variables:
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              make tools
+              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
+              { { { {
+                    sudo -E env "PATH=$PATH" make test-all;
+                    echo $? >&3;
+                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
+                  } 3>&1;
+                } | { read xs; exit $xs; }
+              } 4>&1
+            retryCountOnTaskFailure: 3
+            name: "Test"
+            displayName: "Run Tests"
+
+          - bash: |
+              build/tools/bin/gocov convert coverage.out > coverage.json
+              build/tools/bin/gocov-xml < coverage.json > coverage.xml
+            name: "Coverage"
+            displayName: "Generate Coverage Reports"
+            condition: always()
+
+          - task: PublishTestResults@2
+            inputs:
+              testRunner: JUnit
+              testResultsFiles: report.xml
+            displayName: "Publish Test Results"
+            condition: always()
+
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: Cobertura
+              summaryFileLocation: coverage.xml
+            displayName: "Publish Code Coverage Results"
+            condition: always()
+
+  - stage: binaries
+    displayName: Build Binaries
+    dependsOn:
+      - setup
+      - test
     jobs:
       - job: build
         displayName: Build Binaries
@@ -86,55 +136,13 @@ stages:
           - publish: ./test/apimodels/
             artifact: clusterdefinitions
 
-      - job: test
-        displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - script: |
-              make tools
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
-              { { { {
-                    sudo -E env "PATH=$PATH" make test-all;
-                    echo $? >&3;
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
-                  } 3>&1;
-                } | { read xs; exit $xs; }
-              } 4>&1
-            retryCountOnTaskFailure: 3
-            name: "Test"
-            displayName: "Run Tests"
-
-          - bash: |
-              build/tools/bin/gocov convert coverage.out > coverage.json
-              build/tools/bin/gocov-xml < coverage.json > coverage.xml
-            name: "Coverage"
-            displayName: "Generate Coverage Reports"
-            condition: always()
-
-          - task: PublishTestResults@2
-            inputs:
-              testRunner: JUnit
-              testResultsFiles: report.xml
-            displayName: "Publish Test Results"
-            condition: always()
-
-          - task: PublishCodeCoverageResults@1
-            inputs:
-              codeCoverageTool: Cobertura
-              summaryFileLocation: coverage.xml
-            displayName: "Publish Code Coverage Results"
-            condition: always()
-
   - template: windows-image.yaml
 
   - stage: containerize
     displayName: Build Images
     dependsOn:
       - setup
-      - build_and_test
+      - test
     jobs:
       - job: containerize
         displayName: Build Images
@@ -296,6 +304,4 @@ stages:
                 BUILD_NUMBER=${BUILD_NUMBER//./-}
                 echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
                 az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
-                echo Pruning old docker images...
-                sudo docker system prune -f
             displayName: Cleanup remote Azure storage container

@@ -3,7 +3,7 @@ stages:
   displayName: Build Windows Images
   dependsOn:
     - setup
-    - build_and_test
+    - test
   jobs:
     - job: NPM
       displayName: Build NPM
