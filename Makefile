@@ -20,6 +20,7 @@ GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GOOSES ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
 GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
+WINVER ?= "10.0.20348.643"
 
 # Windows specific extensions
 ifeq ($(GOOS),windows)
@@ -349,16 +350,16 @@ azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container
 
 ## This section is for building multi-arch/os container image manifests.
 
-multiarch-image-pull: # util target to pull all variants of a multi-arch/os image
-	$(foreach PLATFORM,$(PLATFORMS),$(CONTAINER_BUILDER) pull $(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG);)
-
 multiarch-manifest-create: # util target to compose multiarch container manifests from os/arch images.
-	$(CONTAINER_BUILDER) manifest create \
-		$(REGISTRY)/$(IMAGE):$(TAG) \
-		$(foreach PLATFORM,$(PLATFORMS),$(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG))
+	$(CONTAINER_BUILDER) manifest create $(REGISTRY)/$(IMAGE):$(TAG)
+	$(foreach PLATFORM,$(PLATFORMS),                                                                                                                            \
+		$(if $(filter $(PLATFORM),windows/amd64),                                                                                                               \
+			$(CONTAINER_BUILDER) manifest add --os-version=$(WINVER) $(REGISTRY)/$(IMAGE):$(TAG) docker://$(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG); \
+		,                                                                                                                                                       \
+			$(CONTAINER_BUILDER) manifest add $(REGISTRY)/$(IMAGE):$(TAG) docker://$(REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG);))
 
 multiarch-manifest-push: # util target to push multiarch container manifest.
-	$(CONTAINER_BUILDER) manifest push $(REGISTRY)/$(IMAGE):$(TAG) docker://$(REGISTRY)/$(IMAGE):$(TAG)
+	$(CONTAINER_BUILDER) manifest push --all $(REGISTRY)/$(IMAGE):$(TAG) docker://$(REGISTRY)/$(IMAGE):$(TAG)
 
 cni-manager-multiarch-manifest-create: ## build cni-manager multi-arch container manifest.
 	$(MAKE) multiarch-manifest-create \

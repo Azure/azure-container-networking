@@ -35,7 +35,7 @@ stages:
             condition: always()
 
   - stage: test
-    displayName: Test
+    displayName: Test ACN
     dependsOn:
       - setup
     jobs:
@@ -136,8 +136,6 @@ stages:
           - publish: ./test/apimodels/
             artifact: clusterdefinitions
 
-  - template: windows-image.yaml
-
   - stage: containerize
     displayName: Build Images
     dependsOn:
@@ -194,6 +192,9 @@ stages:
             cns_windows_amd64:
               arch: amd64
               name: cns
+            npm_windows_amd64:
+              arch: amd64
+              name: npm
         steps:
           - template: containers/container-template-windows.yaml
             parameters:
@@ -223,7 +224,7 @@ stages:
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
-              platforms: linux/amd64 linux/arm64
+              platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: containers/manifest-template.yaml
             parameters:
