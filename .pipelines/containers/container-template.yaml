@@ -13,11 +13,6 @@ steps:
     addPipelineData: false
 
 - script: |
-    . /etc/os-release
-    echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
-    curl -L "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key" | sudo apt-key add -
-    sudo apt update -y
-    sudo apt install -y podman buildah skopeo qemu-user-static binfmt-support
     sudo podman run --rm --privileged multiarch/qemu-user-static --reset -p yes
   name: container_env
   displayName: Prepare Environment
@@ -29,14 +24,16 @@ steps:
   displayName: Image Build
   retryCountOnTaskFailure: 3
 
-# - script: |
-#     wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
-#     tar -zxvf trivy*.tar.gz
-#     mkdir -p ./trivy-cache
-#     export PLATFORM_TAG=$(make container-platform-tag TAG=${{ parameters.tag }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
-#     sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $(IMAGE_REGISTRY)/$(make ${{ parameters.name }}-image-name):$PLATFORM_TAG
-#   name: trivy
-#   displayName: Vulnerability Scan
+- script: |
+    export PLATFORM_TAG=$(make container-platform-tag TAG=${{ parameters.tag }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
+    export REF=$(IMAGE_REGISTRY)/$(make ${{ parameters.name }}-image-name):$PLATFORM_TAG
+    skopeo copy containers-storage:$REF docker-daemon:$REF
+    wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
+    tar -zxvf trivy*.tar.gz
+    mkdir -p ./trivy-cache
+    sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $REF
+  name: trivy
+  displayName: Vulnerability Scan
 
 - script: |
     function auto-retry()
