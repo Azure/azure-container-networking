@@ -22,7 +22,7 @@ type CNSConfig struct {
 	ChannelMode                 string
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
-	Debug                       bool
+	MetricsBindAddress          string
 	SyncHostNCTimeoutMs         int
 	SyncHostNCVersionIntervalMs int
 	TLSCertificatePath          string
@@ -149,6 +149,9 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	setManagedSettingDefaults(&config.ManagedSettings)
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
+	}
+	if config.MetricsBindAddress == "" {
+		config.MetricsBindAddress = ":9090"
 	}
 	if config.SyncHostNCVersionIntervalMs == 0 {
 		config.SyncHostNCVersionIntervalMs = 1000 //nolint:gomnd // default times

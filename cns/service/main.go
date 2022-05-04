@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -47,7 +46,6 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
@@ -55,8 +53,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
 const (
@@ -334,12 +330,7 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 }
 
 // sendRegisterNodeRequest func helps in registering the node until there is an error.
-func sendRegisterNodeRequest(
-	httpc *http.Client,
-	httpRestService cns.HTTPService,
-	nodeRegisterRequest cns.NodeRegisterRequest,
-	registerURL string,
-) error {
+func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService, nodeRegisterRequest cns.NodeRegisterRequest, registerURL string) error {
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
@@ -999,9 +990,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	})
 
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
-		Scheme:    nodenetworkconfig.Scheme,
-		Namespace: "kube-system", // TODO(rbtr): namespace should be in the cns config
-		NewCache:  nodeScopedCache,
+		Scheme:             nodenetworkconfig.Scheme,
+		MetricsBindAddress: cnsconfig.MetricsBindAddress,
+		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
+		NewCache:           nodeScopedCache,
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to create manager")
@@ -1019,27 +1011,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err := reconciler.SetupWithManager(manager, node); err != nil {
 		return errors.Wrapf(err, "failed to setup reconciler with manager")
 	}
-
-	// adding some routes to the root serve mux
-	mux := httpRestServiceImplementation.Listener.GetMux()
-
-	if cnsconfig.Debug {
-		// add pprof endpoints
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	}
-
-	// add metrics endpoints
-	mux.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{
-		ErrorHandling: promhttp.HTTPErrorOnError,
-	}))
-
-	// add healthz endpoints
-	healthzhandler := healthz.Handler{}
-	mux.Handle("/healthz", http.StripPrefix("/healthz", &healthzhandler))
 
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
@@ -1085,7 +1056,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			}
 		}
 	}()
-
 	logger.Printf("initialized and started SyncHostNCVersion loop")
 
 	return nil

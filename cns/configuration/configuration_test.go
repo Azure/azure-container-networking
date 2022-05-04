@@ -61,6 +61,7 @@ func TestReadConfigFromFile(t *testing.T) {
 					NodeID:                    "abc",
 					NodeSyncIntervalInSeconds: 30,
 				},
+				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 5,
 				TLSCertificatePath:          "/test",
@@ -190,7 +191,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 30,
 				},
-				Debug:                       false,
+				MetricsBindAddress:          ":9090",
 				SyncHostNCTimeoutMs:         500,
 				SyncHostNCVersionIntervalMs: 1000,
 				TelemetrySettings: TelemetrySettings{
@@ -209,6 +210,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 1,
 				},
+				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 1,
 				TelemetrySettings: TelemetrySettings{
@@ -224,6 +226,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				ManagedSettings: ManagedSettings{
 					NodeSyncIntervalInSeconds: 1,
 				},
+				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 1,
 				TelemetrySettings: TelemetrySettings{
