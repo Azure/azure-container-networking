@@ -3,7 +3,14 @@
 set -eo pipefail
 set -xv
 
-cyclonusProfile="./install-cyclonus.yaml"
+if [ -z "$1" == "windows"]
+  then
+    cyclonusProfile="./install-cyclonus.yaml"
+  else
+    cyclonusProfile="./install-cyclonus-windows.yaml"
+fi
+
+
 if [ -z "$1" ]
   then
     echo "Running with default profile: $cyclonusProfile"
