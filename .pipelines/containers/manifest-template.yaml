@@ -13,15 +13,15 @@ steps:
 
 - script: |
     set -e
-    make ${{ parameters.name }}-multiarch-manifest-create REGISTRY=$IMAGE_REGISTRY PLATFORMS="${{ parameters.platforms }}" TAG=${{ parameters.tag }}
+    make ${{ parameters.name }}-multiarch-manifest-create PLATFORMS="${{ parameters.platforms }}" TAG=${{ parameters.tag }}
     make ${{ parameters.name }}-image-info TAG=${{ parameters.tag }}
   name: manifest_build
   displayName: Manifest Build
 
 - script: |
     set -e
-    make multiarch-manifest-push REGISTRY=$IMAGE_REGISTRY IMAGE=$(make ${{ parameters.name }}-image-name) TAG=${{ parameters.tag }}
-    make container-pull REGISTRY=$IMAGE_REGISTRY IMAGE=$(make ${{ parameters.name }}-image-name) TAG=${{ parameters.tag }}
+    make multiarch-manifest-push IMAGE=$(make ${{ parameters.name }}-image-name) TAG=${{ parameters.tag }}
+    make container-pull IMAGE=$(make ${{ parameters.name }}-image-name) TAG=${{ parameters.tag }}
   name: manifest_push
   displayName: Manifest Push
 
