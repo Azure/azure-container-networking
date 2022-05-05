@@ -25,5 +25,5 @@ spec:
               "--verbosity=debug",
             ]
           imagePullPolicy: IfNotPresent
-          image: acnpublic.azurecr.io/cyclonus-windows:v0.4.7
+          image: acnpublic.azurecr.io/cyclonus-windows:v0.4.6.8
       serviceAccount: cyclonus
