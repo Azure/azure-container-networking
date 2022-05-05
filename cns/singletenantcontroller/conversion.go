@@ -88,8 +88,7 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
 	// add them to the request as secondary IPConfigs.
-	zeroAddr := primaryPrefix.Masked().Addr() // the masked address is the 0th IP in the subnet
-	for addr := zeroAddr.Next(); primaryPrefix.Contains(addr); addr = addr.Next() {
+	for addr := primaryPrefix.Masked().Addr(); primaryPrefix.Contains(addr); addr = addr.Next() {
 		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
 			IPAddress: addr.String(),
 			NCVersion: int(nc.Version),

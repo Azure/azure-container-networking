@@ -94,6 +94,10 @@ var validOverlayRequest = &cns.CreateNetworkContainerRequest{
 	NetworkContainerid:   ncID,
 	NetworkContainerType: cns.Docker,
 	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+		"10.0.0.0": {
+			IPAddress: "10.0.0.0",
+			NCVersion: version,
+		},
 		"10.0.0.1": {
 			IPAddress: "10.0.0.1",
 			NCVersion: version,
