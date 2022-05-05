@@ -1,0 +1,29 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-scaler
+spec:
+  selector:
+    matchLabels:
+      app: node-scaler
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: node-scaler
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - node-scaler
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: anti-affinity
+        image: k8s.gcr.io/pause:2.0
+      hostNetwork: true
