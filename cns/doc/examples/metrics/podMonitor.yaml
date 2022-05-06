@@ -1,0 +1,14 @@
+## This example podMonitor config can be used with a Prometheus-Operator 
+## managed Prometheus to automatically discover and collect azure-cns metrics.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: azure-cns
+  namespace: kube-system
+spec:
+  podMetricsEndpoints:
+  - port: metrics
+  selector:
+    matchLabels:
+      k8s-app: azure-cns
