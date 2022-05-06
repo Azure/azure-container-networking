@@ -126,4 +126,8 @@ const (
 	// CNS config path
 	OptCNSConfigPath      = "config-path"
 	OptCNSConfigPathAlias = "cp"
+
+	// Kube config path
+	OptKubeConfigPath      = "kubeconfig-path"
+	OptKubeConfigPathAlias = "kp"
 )

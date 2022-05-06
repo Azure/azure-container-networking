@@ -86,15 +86,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
 			listenersToNotify = append(listenersToNotify, r.ipampoolmonitorcli)
-		case v1alpha.Static:
-			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
 		default:
-			// unrecognized mode, fail out
-			err = errors.Errorf("unknown NetworkContainer AssignmentMode %s", string(nnc.Status.NetworkContainers[i].AssignmentMode))
+			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
 		}
 		if err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "failed to generate CreateNCRequest from NC")
 		}
+		logger.Printf("[TEST] before CreateOrUpdateNetworkContainerInternal")
 		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(req)
 		if err := restserver.ResponseCodeToError(responseCode); err != nil {
 			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
@@ -106,6 +104,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	allocatedIPs.Set(float64(ipAssignments))
 
 	// push the NNC to the registered NNC listeners.
+	logger.Printf("[TEST] before pushing NNC to listeners")
 	for _, l := range listenersToNotify {
 		if err := l.Update(nnc); err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "nnc listener return error during update")
@@ -113,6 +112,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	// we have received and pushed an NNC update, we are "Started"
+	logger.Printf("[TEST] about set NNC to started")
 	r.once.Do(func() { close(r.started) })
 	return reconcile.Result{}, nil
 }

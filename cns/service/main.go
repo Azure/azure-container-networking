@@ -50,6 +50,8 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -262,6 +264,13 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: "",
 	},
+	{
+		Name:         acn.OptKubeConfigPath,
+		Shorthand:    acn.OptKubeConfigPathAlias,
+		Description:  "Path to kube config file",
+		Type:         "string",
+		DefaultValue: "",
+	},
 }
 
 // init() is executed before main() whenever this package is imported
@@ -392,6 +401,7 @@ func main() {
 	clientDebugCmd := acn.GetArg(acn.OptDebugCmd).(string)
 	clientDebugArg := acn.GetArg(acn.OptDebugArg).(string)
 	cmdLineConfigPath := acn.GetArg(acn.OptCNSConfigPath).(string)
+	kubeconfigPath := acn.GetArg(acn.OptKubeConfigPath).(string)
 
 	if vers {
 		printVersion()
@@ -569,7 +579,7 @@ func main() {
 		}
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
-		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
+		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig, kubeconfigPath)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -876,7 +886,7 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
-func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
+func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig, kubeconfigPath string) error {
 	// convert interface type to implementation type
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
@@ -891,13 +901,24 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	httpRestServiceImplementation.SetNodeOrchestrator(&orchestrator)
 
-	// build default clientset.
-	kubeConfig, err := ctrl.GetConfig()
-	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
-	if err != nil {
-		logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
-		return err
+	// Create the kubernetes client
+	var kubeConfig *rest.Config
+	var err error
+	if kubeconfigPath == "" {
+		// build default clientset.
+		kubeConfig, err = ctrl.GetConfig()
+		if err != nil {
+			logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
+			return errors.Wrap(err, "failed to get kubeconfig")
+		}
+	} else {
+		kubeConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+		if err != nil {
+			return errors.Wrapf(err, "failed to load kubeconfig [%s]", kubeconfigPath)
+		}
 	}
+	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
+
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return errors.Wrap(err, "failed to build clientset")
