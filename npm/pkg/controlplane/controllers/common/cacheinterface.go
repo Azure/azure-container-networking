@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"net"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 )
@@ -22,7 +23,7 @@ var (
 
 type TupleAndRule struct {
 	Tuple *Tuple
-	Rule *pb.RuleResponse
+	Rule  *pb.RuleResponse
 }
 
 // Tuple struct
@@ -38,6 +39,17 @@ type Tuple struct {
 
 // InputType indicates allowed typle for source and destination input
 type InputType int32
+
+// GetInputType returns the type of the input for GetNetworkTuple.
+func GetInputType(input string) InputType {
+	if input == "External" {
+		return EXTERNAL
+	} else if ip := net.ParseIP(input); ip != nil {
+		return IPADDRS
+	} else {
+		return PODNAME
+	}
+}
 
 const (
 	// IPADDRS indicates the IP Address input type

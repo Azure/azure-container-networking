@@ -105,17 +105,6 @@ func getNetworkTupleCommon(
 	return ruleResListJSON, resTupleList, srcSets, dstSets, nil
 }
 
-// GetInputType returns the type of the input for GetNetworkTuple.
-func GetInputType(input string) common.InputType {
-	if input == "External" {
-		return common.EXTERNAL
-	} else if ip := net.ParseIP(input); ip != nil {
-		return common.IPADDRS
-	} else {
-		return common.PODNAME
-	}
-}
-
 func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *common.TupleAndRule {
 	tuple := &common.Tuple{}
 	if rule.Allowed {
@@ -176,8 +165,7 @@ func getHitRules(
 	dstSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
 
 	for rule, _ := range rules {
-		matchedSrc := false
-		matchedDst := false
+		matched := false
 		// evalute all match set in src
 		for _, setInfo := range rule.SrcList {
 			if src.Namespace == "" {
@@ -190,7 +178,7 @@ func getHitRules(
 				return nil, nil, nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
 			}
 			if matchedSource {
-				matchedSrc = true
+				matched = true
 				srcSets[setInfo.HashedSetName] = setInfo
 				break
 			}
@@ -210,14 +198,15 @@ func getHitRules(
 			if matchedDestination {
 
 				dstSets[setInfo.HashedSetName] = setInfo
-				matchedDst = true
+				matched = true
 				break
 			}
 		}
-		if matchedSrc || matchedDst {
+		if matched  {
 			res = append(res, rule)
 		}
 	}
+
 	if len(res) == 0 {
 		// either no hit rules or no rules at all. Both cases allow all traffic
 		res = append(res, &pb.RuleResponse{Allowed: true})

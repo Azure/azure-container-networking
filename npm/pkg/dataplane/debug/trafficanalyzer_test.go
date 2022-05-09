@@ -39,7 +39,7 @@ func TestGetInputType(t *testing.T) {
 	for name, test := range tests {
 		test := test
 		t.Run(name, func(t *testing.T) {
-			actualInputType := GetInputType(test.input)
+			actualInputType := common.GetInputType(test.input)
 			if actualInputType != test.expected {
 				t.Errorf("got '%+v', expected '%+v'", actualInputType, test.expected)
 			}

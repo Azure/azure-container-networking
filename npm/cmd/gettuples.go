@@ -26,8 +26,8 @@ func newGetTuples() *cobra.Command {
 			}
 			npmCacheF, _ := cmd.Flags().GetString("cache-file")
 			iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
-			srcType := dataplane.GetInputType(src)
-			dstType := dataplane.GetInputType(dst)
+			srcType := common.GetInputType(src)
+			dstType := common.GetInputType(dst)
 			srcInput := &common.Input{Content: src, Type: srcType}
 			dstInput := &common.Input{Content: dst, Type: dstType}
 
