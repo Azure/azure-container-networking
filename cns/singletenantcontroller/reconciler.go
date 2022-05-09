@@ -87,14 +87,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
 			listenersToNotify = append(listenersToNotify, r.ipampoolmonitorcli)
 		case v1alpha.Static:
+		default: // For backward compatibility, default will be treated as Static too.
 			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
-		default:
-			// unrecognized mode, fail out
-			err = errors.Errorf("unknown NetworkContainer AssignmentMode %s", string(nnc.Status.NetworkContainers[i].AssignmentMode))
 		}
+
 		if err != nil {
-			return reconcile.Result{}, errors.Wrap(err, "failed to generate CreateNCRequest from NC")
+			logger.Errorf("[cns-rc] failed to generate CreateNCRequest from NC: %v, assignmentMode %s", err,
+				nnc.Status.NetworkContainers[i].AssignmentMode)
+			return reconcile.Result{}, errors.Wrapf(err, "failed to generate CreateNCRequest from NC " +
+				"assignmentMode %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
+
 		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(req)
 		if err := restserver.ResponseCodeToError(responseCode); err != nil {
 			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
@@ -113,6 +116,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	// we have received and pushed an NNC update, we are "Started"
+	logger.Printf("[cns-rc] CNS NNC Reconciler Started")
 	r.once.Do(func() { close(r.started) })
 	return reconcile.Result{}, nil
 }
