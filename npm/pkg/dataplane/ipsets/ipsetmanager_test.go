@@ -404,6 +404,53 @@ func TestDeleteIPSet(t *testing.T) {
 	}
 }
 
+func TestDeleteAfterCreate(t *testing.T) {
+	metrics.ReinitializeAll()
+	calls := []testutils.TestCmd{}
+	ioShim := common.NewMockIOShim(calls)
+	defer ioShim.VerifyCalls(t, calls)
+	iMgr := NewIPSetManager(applyOnNeedCfg, ioShim)
+
+	setMetadata := NewIPSetMetadata(testSetName, Namespace)
+	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
+	iMgr.DeleteIPSet(setMetadata.GetPrefixName(), util.SoftDelete)
+	assertExpectedInfo(t, iMgr, &expectedInfo{})
+}
+
+func TestCreateAfterHardDelete(t *testing.T) {
+	metrics.ReinitializeAll()
+	calls := []testutils.TestCmd{}
+	ioShim := common.NewMockIOShim(calls)
+	defer ioShim.VerifyCalls(t, calls)
+	iMgr := NewIPSetManager(applyAlwaysCfg, ioShim)
+
+	setMetadata := NewIPSetMetadata(testSetName, Namespace)
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{setMetadata}, "1.2.3.4", "pod-a"))
+	// clear dirty cache, otherwise a set deletion will be a no-op
+	iMgr.clearDirtyCache()
+
+	numIPSetsInCache, _ := metrics.GetNumIPSets()
+	fmt.Println(numIPSetsInCache)
+
+	iMgr.DeleteIPSet(setMetadata.GetPrefixName(), util.ForceDelete)
+	numIPSetsInCache, _ = metrics.GetNumIPSets()
+	fmt.Println(numIPSetsInCache)
+
+	assertExpectedInfo(t, iMgr, &expectedInfo{
+		toDeleteCache: []string{setMetadata.GetPrefixName()},
+	})
+
+	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
+	assertExpectedInfo(t, iMgr, &expectedInfo{
+		mainCache: []setMembers{
+			{
+				metadata: setMetadata,
+			},
+		},
+		toAddUpdateCache: []*IPSetMetadata{setMetadata},
+	})
+}
+
 func TestDeleteIPSetNotAllowed(t *testing.T) {
 	// try to delete a list with a member and a set referenced in kernel (by a list)
 	// must use applyAlwaysCfg for set to be in kernel
@@ -1392,26 +1439,23 @@ func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info *expectedInfo) {
 	}
 
 	// 1.2. make sure the toAddOrUpdateCache is equal
-	require.Equal(t, len(info.toAddUpdateCache), len(iMgr.toAddOrUpdateCache), "toAddUpdateCache size mismatch")
+	require.Equal(t, len(info.toAddUpdateCache), iMgr.dirtyCache.numSetsToAddOrUpdate(), "toAddUpdateCache size mismatch")
 	for _, setMetadata := range info.toAddUpdateCache {
 		setName := setMetadata.GetPrefixName()
-		_, ok := iMgr.toAddOrUpdateCache[setName]
-		require.True(t, ok, "set %s not in the toAddUpdateCache")
+		require.True(t, iMgr.dirtyCache.isSetToAddOrUpdate(setName), "set %s not in the toAddUpdateCache")
 		require.True(t, iMgr.exists(setName), "set %s not in the main cache but is in the toAddUpdateCache", setName)
 	}
 
 	// 1.3. make sure the toDeleteCache is equal
-	require.Equal(t, len(info.toDeleteCache), len(iMgr.toDeleteCache), "toDeleteCache size mismatch")
+	require.Equal(t, len(info.toDeleteCache), iMgr.dirtyCache.numSetsToDelete(), "toDeleteCache size mismatch")
 	for _, setName := range info.toDeleteCache {
-		_, ok := iMgr.toDeleteCache[setName]
-		require.True(t, ok, "set %s not found in toDeleteCache", setName)
+		require.True(t, iMgr.dirtyCache.isSetToDelete(setName), "set %s not found in toDeleteCache", setName)
 	}
 
 	// 1.4. assert kernel status of sets in the toAddOrUpdateCache
 	for _, setMetadata := range info.setsForKernel {
 		// check semantics
-		_, ok := iMgr.toAddOrUpdateCache[setMetadata.GetPrefixName()]
-		require.True(t, ok, "setsForKernel should be a subset of toAddUpdateCache")
+		require.True(t, iMgr.dirtyCache.isSetToAddOrUpdate(setMetadata.GetPrefixName()), "setsForKernel should be a subset of toAddUpdateCache")
 
 		setName := setMetadata.GetPrefixName()
 		require.True(t, iMgr.exists(setName), "kernel set %s not found", setName)
@@ -1430,7 +1474,7 @@ func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info *expectedInfo) {
 	// TODO update get function when we have prometheus metric for in kernel
 	numIPSetsInCache, err := metrics.GetNumIPSets()
 	promutil.NotifyIfErrors(t, err)
-	require.Equal(t, len(iMgr.setMap), numIPSetsInCache, "numIPSetsInCache mismatch")
+	require.Equal(t, len(iMgr.setMap), numIPSetsInCache, "num ipsets mismatch")
 
 	// the setMap is equal
 	expectedNumEntriesInCache := 0
@@ -1452,7 +1496,7 @@ func assertExpectedInfo(t *testing.T, iMgr *IPSetManager, info *expectedInfo) {
 	// TODO update get func when we have prometheus metric for in kernel
 	numEntriesInCache, err := metrics.GetNumIPSetEntries()
 	promutil.NotifyIfErrors(t, err)
-	require.Equal(t, expectedNumEntriesInCache, numEntriesInCache)
+	require.Equal(t, expectedNumEntriesInCache, numEntriesInCache, "incorrect num ipset entries")
 	for _, set := range iMgr.setMap {
 		expectedNumEntries := 0
 		// TODO replace bool with iMgr.shouldBeInKernel(set) when we have prometheus metric for in kernel

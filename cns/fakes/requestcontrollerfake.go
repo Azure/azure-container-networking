@@ -115,7 +115,7 @@ func (rc *RequestControllerFake) Reconcile(removePendingReleaseIPs bool) error {
 	}
 
 	// update
-	rc.cnscli.PoolMonitor.Update(rc.NNC)
+	_ = rc.cnscli.PoolMonitor.Update(rc.NNC)
 	return nil
 }
 

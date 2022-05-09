@@ -1,6 +1,16 @@
 package platform
 
-type execClient struct{}
+import (
+	"time"
+)
+
+const (
+	defaultExecTimeout = 10
+)
+
+type execClient struct {
+	Timeout time.Duration
+}
 
 //nolint:revive // ExecClient make sense
 type ExecClient interface {
@@ -8,5 +18,13 @@ type ExecClient interface {
 }
 
 func NewExecClient() ExecClient {
-	return &execClient{}
+	return &execClient{
+		Timeout: defaultExecTimeout * time.Second,
+	}
+}
+
+func NewExecClientTimeout(timeout time.Duration) ExecClient {
+	return &execClient{
+		Timeout: timeout,
+	}
 }

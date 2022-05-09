@@ -1,0 +1,74 @@
+{
+    "apiVersion": "vlabs",
+    "properties": {
+        "orchestratorProfile": {
+            "orchestratorType": "Kubernetes",
+            "orchestratorRelease": "1.22",
+            "orchestratorVersion": "1.22.7",
+            "kubernetesConfig": {
+                "networkPlugin": "azure",
+                "networkPolicy": "azure",
+                "containerRuntime": "containerd",
+                "windowsContainerdURL": "https://github.com/containerd/containerd/releases/download/v1.6.2/containerd-1.6.2-windows-amd64.tar.gz",
+                "apiServerConfig": {
+                    "--tls-min-version": "VersionTLS12",
+                    "--tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+                    "--feature-gates": "WindowsHostProcessContainers=true"
+                },
+                "kubeletConfig": {
+                    "--feature-gates": "WindowsHostProcessContainers=true"
+                },
+                "addons": [
+                    {
+                        "name": "azure-npm-daemonset",
+                        "enabled": true,
+                        "containers": [
+                            {
+                                "name": "azure-npm-daemonset",
+                                "image": ""
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        "masterProfile": {
+            "count": 1,
+            "vmSize": "Standard_D2_v2"
+        },
+        "agentPoolProfiles": [{
+                "name": "windowspool2",
+                "count": 2,
+                "vmSize": "Standard_D2_v2",
+                "availabilityProfile": "VirtualMachineScaleSets",
+                "osType": "Windows"
+        }],
+        "windowsProfile": {
+            "adminUsername": "azureuser",
+            "adminPassword": "azureTest@!",
+            "enableAutomaticUpdates": false,
+            "sshEnabled": false,
+            "windowsPauseImageURL": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
+            "alwaysPullWindowsPauseImage": true,
+            "imageReference": {
+                "subscriptionId": "a15c116e-99e3-4c59-aebc-8f864929b4a0",
+                "resourceGroup": "akswinvhdbuilderrg",
+                "gallery": "AKSWindows",
+                "name": "windows-2022-containerd",
+                "version": "20348.643.220413"
+            }
+        },
+        "linuxProfile": {
+            "adminUsername": "azureuser",
+            "ssh": {
+                "publicKeys": [{
+                        "keyData": ""
+                    }]
+            }
+        },
+        "servicePrincipalProfile": {
+           "clientId": "",
+           "secret": ""
+        }
+    }
+}

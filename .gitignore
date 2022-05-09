@@ -30,3 +30,5 @@ npm/debug/http
 *.crt
 *.pem
 *.srl
+
+go.work*

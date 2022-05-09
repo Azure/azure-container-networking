@@ -1,0 +1,22 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubectl
+spec:
+  containers:
+  - name: kubectl
+    image: docker.io/bitnami/kubectl:latest
+    command: ["/bin/bash", "-c", "--"]
+    args: ["sleep 3600"]
+    env:
+    - name: KUBECONFIG
+      value: "/etc/kubeconf/kubeconfig.yaml"
+    volumeMounts:
+    - name: kubeconf
+      mountPath: "/etc/kubeconf"
+      readOnly: true
+  volumes:
+  - name: kubeconf
+    secret:
+      secretName: kubeconfig-file

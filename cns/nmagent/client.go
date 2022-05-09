@@ -255,7 +255,7 @@ func (c *Client) GetNCVersionList(ctx context.Context) (*NetworkContainerListRes
 	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %s, latency is %d", string(b), time.Since(now).Milliseconds())
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Wrap(err, "failed to GetNCVersionList")
+		return nil, errors.Errorf("failed to GetNCVersionList with status %d", resp.StatusCode)
 	}
 
 	var response NetworkContainerListResponse

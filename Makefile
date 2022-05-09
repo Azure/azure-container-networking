@@ -20,6 +20,7 @@ GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GOOSES ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
 GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
+WINVER ?= "10.0.20348.643"
 
 # Windows specific extensions
 ifeq ($(GOOS),windows)
@@ -46,6 +47,7 @@ CNI_BUILD_DIR = $(BUILD_DIR)/cni
 ACNCLI_BUILD_DIR = $(BUILD_DIR)/acncli
 CNI_MULTITENANCY_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
+CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
@@ -74,6 +76,7 @@ CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
@@ -180,7 +183,7 @@ containerize-buildah: # util target to build container images using buildah. do 
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \
 		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
-		-t $(REGISTRY)/$(IMAGE):$(TAG) \
+		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 
 containerize-docker: # util target to build container images using docker buildx. do not invoke directly.
@@ -188,21 +191,21 @@ containerize-docker: # util target to build container images using docker buildx
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \
 		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
-		-t $(REGISTRY)/$(IMAGE):$(TAG) \
+		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 
 container-tag-test: # util target to retag an image with -test suffix. do not invoke directly.
 	$(CONTAINER_BUILDER) tag \
-		$(REGISTRY)/$(IMAGE):$(TAG) \
-		$(REGISTRY)/$(IMAGE):$(TAG)-test
+		$(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
+		$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)-test
 
 container-push: # util target to publish container image. do not invoke directly.
 	$(CONTAINER_BUILDER) push \
-		$(REGISTRY)/$(IMAGE):$(TAG)
+		$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 container-pull: # util target to pull container image. do not invoke directly.
 	$(CONTAINER_BUILDER) pull \
-		$(REGISTRY)/$(IMAGE):$(TAG)
+		$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 container-info: # util target to write container info file. do not invoke directly.
 	# these commands need to be root due to some ongoing perms issues in the pipeline.
@@ -349,56 +352,32 @@ azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container
 
 ## This section is for building multi-arch/os container image manifests.
 
-multiarch-image-pull-docker: # util target to pull all variants of a multi-arch/os image
-	$(foreach OS,$(OSES),$(foreach ARCH,$(ARCHES),docker pull $(REGISTRY)/$(IMAGE):$(OS)-$(ARCH)-$(TAG);))
+multiarch-manifest-create: # util target to compose multiarch container manifests from os/arch images.
+	$(CONTAINER_BUILDER) manifest create $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
+	$(foreach PLATFORM,$(PLATFORMS),                                                                                                                                        \
+		$(if $(filter $(PLATFORM),windows/amd64),                                                                                                                           \
+			$(CONTAINER_BUILDER) manifest add --os-version=$(WINVER) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG); \
+		,                                                                                                                                                                   \
+			$(CONTAINER_BUILDER) manifest add $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG);))
 
-multiarch-manifest-create-docker: # util target to compose multiarch container manifests from os/arch images.
-	docker manifest create \
-		$(REGISTRY)/$(IMAGE):$(TAG) \
-		$(foreach OS,$(OSES),$(foreach ARCH,$(ARCHES),$(REGISTRY)/$(IMAGE):$(OS)-$(ARCH)-$(TAG)))
-
-multiarch-manifest-push-docker: # util target to push multiarch container manifest.
-	docker manifest push --purge $(REGISTRY)/$(IMAGE):$(TAG)
+multiarch-manifest-push: # util target to push multiarch container manifest.
+	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 cni-manager-multiarch-manifest-create: ## build cni-manager multi-arch container manifest.
-	$(MAKE) multiarch-image-pull-docker \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNI_IMAGE) \
-		TAG=$(TAG)
-	$(MAKE) multiarch-manifest-create-docker \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
-		REGISTRY=$(IMAGE_REGISTRY) \
+	$(MAKE) multiarch-manifest-create \
+		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_IMAGE) \
 		TAG=$(TAG)
 
 cns-multiarch-manifest-create: ## build azure-cns multi-arch container manifest.
-	$(MAKE) multiarch-image-pull-docker \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNS_IMAGE) \
-		TAG=$(TAG)
-	$(MAKE) multiarch-manifest-create-docker \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
-		REGISTRY=$(IMAGE_REGISTRY) \
+	$(MAKE) multiarch-manifest-create \
+		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNS_IMAGE) \
 		TAG=$(TAG)
 
 npm-multiarch-manifest-create: ## build azure-npm multi-arch container manifest.
-	$(MAKE) multiarch-image-pull-docker \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(NPM_IMAGE) \
-		TAG=$(TAG)
-	$(MAKE) multiarch-manifest-create-docker \
-		OSES="$(OSES)" \
-		ARCHES="$(ARCHES)" \
-		REGISTRY=$(IMAGE_REGISTRY) \
+	$(MAKE) multiarch-manifest-create \
+		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(TAG)
 
@@ -418,21 +397,24 @@ cni-archive: azure-vnet-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary a
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_MULTITENANCY_BUILD_DIR)
 	cd $(CNI_MULTITENANCY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
+	$(MKDIR) $(CNI_SWIFT_BUILD_DIR)
+	cp cni/azure-$(GOOS)-swift.conflist $(CNI_SWIFT_BUILD_DIR)/10-azure.conflist
+	cp telemetry/azure-vnet-telemetry.config $(CNI_SWIFT_BUILD_DIR)/azure-vnet-telemetry.config
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
+	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+
+	$(MKDIR) $(CNI_OVERLAY_BUILD_DIR)
+	cp cni/azure-$(GOOS)-swift-overlay.conflist $(CNI_OVERLAY_BUILD_DIR)/10-azure.conflist
+	cp telemetry/azure-vnet-telemetry.config $(CNI_OVERLAY_BUILD_DIR)/azure-vnet-telemetry.config
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
+	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+
 #baremetal mode is windows only (at least for now)
 ifeq ($(GOOS),windows)
 	$(MKDIR) $(CNI_BAREMETAL_BUILD_DIR)
 	cp cni/azure-$(GOOS)-baremetal.conflist $(CNI_BAREMETAL_BUILD_DIR)/10-azure.conflist
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BAREMETAL_BUILD_DIR)
 	cd $(CNI_BAREMETAL_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_BAREMETAL_ARCHIVE_NAME) azure-vnet$(EXE_EXT) 10-azure.conflist
-endif
-
-#swift mode is linux only
-ifeq ($(GOOS),linux)
-	$(MKDIR) $(CNI_SWIFT_BUILD_DIR)
-	cp cni/azure-$(GOOS)-swift.conflist $(CNI_SWIFT_BUILD_DIR)/10-azure.conflist
-	cp telemetry/azure-vnet-telemetry.config $(CNI_SWIFT_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
-	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 endif
 
 # Create a CNM archive for the target platform.
@@ -478,6 +460,7 @@ publish-azure-cnm-plugin-image:
 clean: ## Clean build artifacts.
 	$(RMDIR) $(OUTPUT_DIR)
 	$(RMDIR) $(TOOLS_BIN_DIR)
+	$(RMDIR) go.work*
 
 
 LINT_PKG ?= .
@@ -495,6 +478,13 @@ fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm").
 	$(GOFUMPT) -s -w $(FMT_PKG)
 
 
+workspace: ## Set up the Go workspace.
+	go work init
+	go work use .
+	go work use ./build/tools
+	go work use ./zapai
+	go work sync
+
 ##@ Test 
 
 COVER_PKG ?= .
@@ -503,11 +493,11 @@ COVER_PKG ?= .
 test-all: ## run all unit tests.
 	@$(eval COVER_FILTER=`go list --tags ignore_uncovered,ignore_autogenerated $(COVER_PKG)/... | tr '\n' ','`)
 	@echo Test coverpkg: $(COVER_FILTER)
-	go test -tags "unit" -coverpkg=$(COVER_FILTER) -v -race -covermode atomic -failfast -coverprofile=coverage.out $(COVER_PKG)/...
+	go test -buildvcs=false -tags "unit" -coverpkg=$(COVER_FILTER) -race -covermode atomic -failfast -coverprofile=coverage.out $(COVER_PKG)/...
 
 
 test-integration: ## run all integration tests.
-	go test -timeout 1h -coverpkg=./... -v -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
+	go test -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
 test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh

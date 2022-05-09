@@ -1,4 +1,4 @@
-FROM docker.io/ubuntu:16.04
+FROM mcr.microsoft.com/oss/mirror/docker.io/library/ubuntu:18.04
 RUN apt-get update && apt-get install -y software-properties-common sudo wget apt-utils apt-transport-https curl lsb-release gnupg jq
 RUN wget -q https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 RUN dpkg -i packages-microsoft-prod.deb
@@ -11,7 +11,7 @@ RUN echo "deb http://archive.ubuntu.com/ubuntu/ bionic multiverse" | sudo tee -a
 RUN echo "deb http://archive.ubuntu.com/ubuntu/ bionic universe" | sudo tee -a /etc/apt/sources.list
 RUN echo "deb http://archive.ubuntu.com/ubuntu/ bionic main" | sudo tee -a /etc/apt/sources.list
 RUN apt-get update && apt-get install -y iptables ipset iproute2 ebtables 
-RUN wget -qO- https://golang.org/dl/go1.17.linux-amd64.tar.gz | tar zxf - -C /usr/lib/
+RUN wget -qO- https://golang.org/dl/go1.18.linux-amd64.tar.gz | tar zxf - -C /usr/lib/
 ENV PATH="/usr/lib/go/bin/:${PATH}"
 ENV GOROOT="/usr/lib/go"
 ENV GOPATH="/root/go"

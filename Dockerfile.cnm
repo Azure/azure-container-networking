@@ -1,4 +1,4 @@
-FROM docker.io/ubuntu:16.04
+FROM mcr.microsoft.com/oss/mirror/docker.io/library/ubuntu:18.04
 ARG CNM_BUILD_DIR
 
 # Install dependencies.

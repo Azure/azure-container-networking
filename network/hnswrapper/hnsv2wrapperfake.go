@@ -167,7 +167,7 @@ func (f Hnsv2wrapperFake) GetNetworkByName(networkName string) (*hcn.HostCompute
 	if network, ok := f.Cache.networks[networkName]; ok {
 		return network.GetHCNObj(), nil
 	}
-	return &hcn.HostComputeNetwork{}, nil
+	return nil, hcn.NetworkNotFoundError{}
 }
 
 func (f Hnsv2wrapperFake) GetNetworkByID(networkID string) (*hcn.HostComputeNetwork, error) {

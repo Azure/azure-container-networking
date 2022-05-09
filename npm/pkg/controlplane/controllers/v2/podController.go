@@ -421,7 +421,7 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 		targetSetKeyValue := ipsets.NewIPSetMetadata(labelKeyValue, ipsets.KeyValueLabelOfPod)
 		allSets := []*ipsets.IPSetMetadata{targetSetKey, targetSetKeyValue}
 
-		klog.Infof("Creating ipsets %v if it does not already exist", allSets)
+		klog.Infof("Creating ipsets %+v and %+v if they do not exist", targetSetKey, targetSetKeyValue)
 		klog.Infof("Adding pod %s (ip : %s) to ipset %s and %s", podKey, npmPodObj.PodIP, labelKey, labelKeyValue)
 		if err = c.dp.AddToSets(allSets, podMetadata); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %w", err)

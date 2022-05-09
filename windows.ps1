@@ -27,10 +27,25 @@ function npm-image {
 
     if ($null -eq $env:VERSION) { $env:VERSION = $args[0] } 
     docker build `
-        -f npm/Dockerfile.windows `
+        -f npm/windows.Dockerfile `
         -t acnpublic.azurecr.io/azure-npm:$env:VERSION `
         --build-arg VERSION=$env:VERSION `
         --build-arg NPM_AI_PATH=$env:NPM_AI_PATH `
         --build-arg NPM_AI_ID=$env:NPM_AI_ID `
+        .
+}
+
+function cns-image {
+    $env:ACN_PACKAGE_PATH = "github.com/Azure/azure-container-networking"
+    $env:CNS_AI_ID = "ce672799-8f08-4235-8c12-08563dc2acef"
+    $env:CNS_AI_PATH = "$env:ACN_PACKAGE_PATH/cns/logger.aiMetadata"
+
+    if ($null -eq $env:VERSION) { $env:VERSION = $args[0] } 
+    docker build `
+        -f cns/windows.Dockerfile `
+        -t acnpublic.azurecr.io/azure-cns:$env:VERSION `
+        --build-arg VERSION=$env:VERSION `
+        --build-arg CNS_AI_PATH=$env:CNS_AI_PATH `
+        --build-arg CNS_AI_ID=$env:CNS_AI_ID `
         .
 }

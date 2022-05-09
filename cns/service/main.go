@@ -330,12 +330,7 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 }
 
 // sendRegisterNodeRequest func helps in registering the node until there is an error.
-func sendRegisterNodeRequest(
-	httpc *http.Client,
-	httpRestService cns.HTTPService,
-	nodeRegisterRequest cns.NodeRegisterRequest,
-	registerURL string) error {
-
+func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService, nodeRegisterRequest cns.NodeRegisterRequest, registerURL string) error {
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
@@ -579,6 +574,13 @@ func main() {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
 		}
+
+		// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
+		err = platform.SetSdnRemoteArpMacAddress()
+		if err != nil {
+			logger.Errorf("Failed to set remote ARP MAC address: %v", err)
+			return
+		}
 	}
 
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.
@@ -587,6 +589,13 @@ func main() {
 		err = InitializeMultiTenantController(rootCtx, httpRestService, *cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
+			return
+		}
+
+		// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
+		err = platform.SetSdnRemoteArpMacAddress()
+		if err != nil {
+			logger.Errorf("Failed to set remote ARP MAC address: %v", err)
 			return
 		}
 	}
@@ -847,19 +856,23 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 	}
 
 	// Convert to CreateNetworkContainerRequest
-	ncRequest, err := kubecontroller.CRDStatusToNCRequest(&nnc.Status)
-	if err != nil {
-		return errors.Wrap(err, "failed to convert NNC status to network container request")
-	}
-	// rebuild CNS state
-	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
-	if err != nil {
-		return errors.Wrap(err, "provider failed to provide PodInfoByIP")
-	}
+	for i := range nnc.Status.NetworkContainers {
+		ncRequest, err := kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
+		if err != nil {
+			return errors.Wrap(err, "failed to convert NNC status to network container request")
+		}
+		// rebuild CNS state
+		podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
+		if err != nil {
+			return errors.Wrap(err, "provider failed to provide PodInfoByIP")
+		}
 
-	// Call cnsclient init cns passing those two things.
-	err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(&ncRequest, podInfoByIP, nnc))
-	return errors.Wrap(err, "failed to reconcile NC state")
+		// Call cnsclient init cns passing those two things.
+		if err := restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(ncRequest, podInfoByIP, nnc)); err != nil {
+			return errors.Wrap(err, "failed to reconcile NC state")
+		}
+	}
+	return nil
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
@@ -993,7 +1006,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	reconciler := kubecontroller.NewReconciler(nnccli, httpRestServiceImplementation, poolMonitor)
+	reconciler := kubecontroller.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
 	// pass Node to the Reconciler for Controller xref
 	if err := reconciler.SetupWithManager(manager, node); err != nil {
 		return errors.Wrapf(err, "failed to setup reconciler with manager")

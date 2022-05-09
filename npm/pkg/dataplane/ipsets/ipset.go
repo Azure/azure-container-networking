@@ -71,7 +71,11 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 }
 
 func (setMetadata *IPSetMetadata) GetSetKind() SetKind {
-	switch setMetadata.Type {
+	return setMetadata.Type.getSetKind()
+}
+
+func (setType SetType) getSetKind() SetKind {
+	switch setType {
 	case CIDRBlocks:
 		return HashSet
 	case Namespace:

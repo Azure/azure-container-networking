@@ -124,7 +124,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 		}
 	}
 
-	iMgr.toAddOrUpdateCache = make(map[string]struct{})
+	iMgr.dirtyCache.resetAddOrUpdateCache()
 
 	if len(setPolicyBuilder.toDeleteSets) > 0 {
 		err = iMgr.modifySetPolicies(network, hcn.RequestTypeRemove, setPolicyBuilder.toDeleteSets)
@@ -157,7 +157,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 	}
 	existingSets, toDeleteSets := iMgr.segregateSetPolicies(networkPolicies, donotResetIPSets)
 	// some of this below logic can be abstracted a step above
-	toAddUpdateSetNames := iMgr.toAddOrUpdateCache
+	toAddUpdateSetNames := iMgr.dirtyCache.setsToAddOrUpdate()
 	setPolicyBuilder.toDeleteSets = toDeleteSets
 
 	// for faster look up changing a slice to map
@@ -276,7 +276,7 @@ func (iMgr *IPSetManager) segregateSetPolicies(networkPolicies []hcn.NetworkPoli
 		if !strings.HasPrefix(set.Id, util.AzureNpmPrefix) {
 			continue
 		}
-		_, ok := iMgr.toDeleteCache[set.Name]
+		ok := iMgr.dirtyCache.isSetToDelete(set.Name)
 		if !ok && !reset {
 			// if the set is not in delete cache, go ahead and add it to update cache
 			toUpdateSets = append(toUpdateSets, set.Name)
