@@ -790,7 +790,15 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 
 	var req cns.CreateNetworkContainerRequest
 	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
+
+	buf := fmt.Sprintf("[Azure CNS] cns.CreateNetworkContainerRequest "+
+		"{Version: %s, NetworkContainerType: %s, NetworkContainerid: %s, PrimaryInterfaceIdentifier: %s, "+
+		"LocalIPConfiguration: %+v, IPConfiguration: %+v, SecondaryIPConfigs: %+v, MultitenancyInfo: %+v, "+
+		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t}",
+		req.Version, req.NetworkContainerType, req.NetworkContainerid, req.PrimaryInterfaceIdentifier, req.LocalIPConfiguration,
+		req.IPConfiguration, req.SecondaryIPConfigs, req.MultiTenancyInfo, req.AllowHostToNCCommunication, req.AllowNCToHostCommunication)
+
+	logger.Request(service.Name, buf, err)
 	if err != nil {
 		return
 	}
