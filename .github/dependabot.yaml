@@ -1,22 +1,23 @@
 # https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
     interval: "daily"
-  assignees:
+  reviewers:
+    - "azure/azure-sdn-members"
     - "matmerr"
     - "rbtr"
   commit-message:
-    prefix: "vendor"
+    prefix: "deps"
 - package-ecosystem: "gomod"
   directory: "/zapai"
   schedule:
     interval: "daily"
-  assignees:
+  reviewers:
+    - "azure/azure-sdn-members"
     - "matmerr"
     - "rbtr"
   commit-message:
-    prefix: "vendor"
+    prefix: "deps"
