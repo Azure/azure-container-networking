@@ -37,8 +37,8 @@ var (
  * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
  */
 func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, networkId string,
-	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
-
+	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig,
+) (*cniTypesCurr.Result, error) {
 	epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
 	if epInfo == nil {
 		return nil, nil
@@ -141,13 +141,13 @@ func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 }
 
 func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
+	determineWinVer()
 	// For singletenancy, the network name is simply the nwCfg.Name
 	if !nwCfg.MultiTenancy {
 		return nwCfg.Name, nil
 	}
 
 	// in multitenancy case, the network name will be in the state file or can be built from cnsResponse
-	determineWinVer()
 	if len(strings.TrimSpace(netNs)) == 0 {
 		return "", fmt.Errorf("NetNs cannot be empty")
 	}
