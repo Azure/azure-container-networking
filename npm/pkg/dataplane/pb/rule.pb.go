@@ -37,6 +37,7 @@ const (
 	SetType_NAMEDPORTS               SetType = 5
 	SetType_NESTEDLABELOFPOD         SetType = 6
 	SetType_CIDRBLOCKS               SetType = 7
+	SetType_UNKNOWN                  SetType = 8
 )
 
 // Enum value maps for SetType.

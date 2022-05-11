@@ -16,7 +16,7 @@ func AsSha256(o interface{}) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func hashTheSortTupleList(tupleList []*common.Tuple) []string {
+func hashTheSortTupleList(tupleList []*Tuple) []string {
 	ret := make([]string, 0)
 	for _, tuple := range tupleList {
 		hashedTuple := AsSha256(tuple)

@@ -3,15 +3,7 @@ package common
 import (
 	"errors"
 	"net"
-
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 )
-
-// Input struct
-type Input struct {
-	Content string
-	Type    InputType
-}
 
 // error type
 var (
@@ -21,20 +13,9 @@ var (
 	ErrSetType          = errors.New("invalid set type")
 )
 
-type TupleAndRule struct {
-	Tuple *Tuple
-	Rule  *pb.RuleResponse
-}
-
-// Tuple struct
-type Tuple struct {
-	RuleType  string `json:"ruleType"`
-	Direction string `json:"direction"`
-	SrcIP     string `json:"srcIP"`
-	SrcPort   string `json:"srcPort"`
-	DstIP     string `json:"dstIP"`
-	DstPort   string `json:"dstPort"`
-	Protocol  string `json:"protocol"`
+type Input struct {
+	Content string
+	Type    InputType
 }
 
 // InputType indicates allowed typle for source and destination input

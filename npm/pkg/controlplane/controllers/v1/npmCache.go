@@ -10,7 +10,7 @@ import (
 
 type Cache struct {
 	NodeName string
-	NsMap    map[string]*Namespace
+	NsMap    map[string]*common.Namespace
 	PodMap   map[string]*common.NpmPod
 	ListMap  map[string]*ipsm.Ipset
 	SetMap   map[string]*ipsm.Ipset

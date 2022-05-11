@@ -74,7 +74,7 @@ func (f *podFixture) newPodController(_ chan struct{}) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
+	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.dp, npmNamespaceCache)
 
 	for _, pod := range f.podLister {

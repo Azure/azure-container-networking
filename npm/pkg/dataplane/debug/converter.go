@@ -27,6 +27,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var ErrUnknownSetType = fmt.Errorf("unknown set type")
+
 // Converter struct
 type Converter struct {
 	NPMDebugEndpointHost string
@@ -417,8 +419,8 @@ func (c *Converter) getSetTypeV2(name string) (pb.SetType, ipsets.SetKind) {
 		setmetadata.Type = ipsets.NestedLabelOfPod
 	default:
 		log.Printf("set [%s] unknown settype", name)
+		settype = pb.SetType_UNKNOWN
 		setmetadata.Type = ipsets.UnknownType
-
 	}
 
 	return settype, setmetadata.GetSetKind()
@@ -492,7 +494,12 @@ func (c *Converter) populateSetInfo(setInfo *pb.RuleResponse_SetInfo, values []s
 
 	if c.EnableV2NPM {
 		setInfo.Name = c.SetMap[ipsetHashedName]
-		setInfo.Type, _ = c.getSetTypeV2(setInfo.Name)
+		settype, _ := c.getSetTypeV2(setInfo.Name)
+		if settype == pb.SetType_UNKNOWN {
+			return errors.Wrapf(ErrUnknownSetType, "unknown set type for set: %s", setInfo.Name)
+		}
+
+		setInfo.Type = settype
 	} else {
 		if v, ok := c.ListMap[ipsetHashedName]; ok {
 			setInfo.Name = v

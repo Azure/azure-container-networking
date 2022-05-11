@@ -59,7 +59,7 @@ func TestMarshalUnMarshalJSON(t *testing.T) {
 	expected := controllersv1.Cache{
 		ListMap:  make(map[string]*ipsm.Ipset),
 		NodeName: nodeName,
-		NsMap:    make(map[string]*controllersv1.Namespace),
+		NsMap:    make(map[string]*common.Namespace),
 		PodMap:   make(map[string]*common.NpmPod),
 		SetMap:   make(map[string]*ipsm.Ipset),
 	}

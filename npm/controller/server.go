@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/models"
@@ -87,7 +88,7 @@ func NewNetworkPolicyServer(
 		},
 	}
 
-	n.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)}
+	n.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	n.PodControllerV2 = controllersv2.NewPodController(n.PodInformer, dp, n.NpmNamespaceCacheV2)
 	n.NamespaceControllerV2 = controllersv2.NewNamespaceController(n.NsInformer, dp, n.NpmNamespaceCacheV2)
 	n.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(n.NpInformer, dp)

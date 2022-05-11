@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dpmocks "github.com/Azure/azure-container-networking/npm/pkg/dataplane/mocks"
@@ -90,7 +91,7 @@ func (f *nameSpaceFixture) newNsController(_ chan struct{}) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
+	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	f.nsController = NewNamespaceController(
 		f.kubeInformer.Core().V1().Namespaces(), f.dp, npmNamespaceCache)
 
@@ -731,9 +732,9 @@ func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expecte
 }
 
 func TestNSMapMarshalJSON(t *testing.T) {
-	npmNSCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
+	npmNSCache := &NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	nsName := "ns-test"
-	ns := &Namespace{
+	ns := &common.Namespace{
 		Name: nsName,
 		LabelsMap: map[string]string{
 			"test-key": "test-value",

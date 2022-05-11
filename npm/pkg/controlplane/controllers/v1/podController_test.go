@@ -79,7 +79,7 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
+	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.ipsMgr, npmNamespaceCache)
 
 	for _, pod := range f.podLister {
@@ -718,7 +718,7 @@ func TestPodMapMarshalJSON(t *testing.T) {
 	npmPod := common.NewNpmPod(pod)
 	f.podController.podMap[podKey] = npmPod
 
-	npMapRaw, err := json.Marshal(f.podController.PodMap())
+	npMapRaw, err := json.Marshal(f.podController)
 	assert.NoError(t, err)
 
 	expect := []byte(`{"test-namespace/test-pod":{"Name":"test-pod","Namespace":"test-namespace","PodIP":"1.2.3.4","Labels":{},"ContainerPorts":[],"Phase":"Running"}}`)

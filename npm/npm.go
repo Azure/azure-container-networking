@@ -8,6 +8,7 @@ import (
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
@@ -75,7 +76,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 
 	// create v2 NPM specific components.
 	if npMgr.config.Toggles.EnableV2NPM {
-		npMgr.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)}
+		npMgr.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 		npMgr.PodControllerV2 = controllersv2.NewPodController(npMgr.PodInformer, dp, npMgr.NpmNamespaceCacheV2)
 		npMgr.NamespaceControllerV2 = controllersv2.NewNamespaceController(npMgr.NsInformer, dp, npMgr.NpmNamespaceCacheV2)
 		// Question(jungukcho): Is config.Toggles.PlaceAzureChainFirst needed for v2?
@@ -86,7 +87,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	// create v1 NPM specific components.
 	npMgr.ipsMgr = ipsm.NewIpsetManager(exec)
 
-	npMgr.NpmNamespaceCacheV1 = &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*controllersv1.Namespace)}
+	npMgr.NpmNamespaceCacheV1 = &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	npMgr.PodControllerV1 = controllersv1.NewPodController(npMgr.PodInformer, npMgr.ipsMgr, npMgr.NpmNamespaceCacheV1)
 	npMgr.NamespaceControllerV1 = controllersv1.NewNameSpaceController(npMgr.NsInformer, npMgr.ipsMgr, npMgr.NpmNamespaceCacheV1)
 	npMgr.NetPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.NpInformer, npMgr.ipsMgr, config.Toggles.PlaceAzureChainFirst)
@@ -94,10 +95,10 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 }
 
 // Dear Time Traveler:
-// This is the server end of the debug dragons den. Several of these properties of the 
-// npMgr struct have overridden methods which override the MarshalJson, just as this one 
+// This is the server end of the debug dragons den. Several of these properties of the
+// npMgr struct have overridden methods which override the MarshalJson, just as this one
 // is doing for npMgr. For example, npMgr.NamespaceCacheV2 does not marshal the whole struct,
-// but rather the NsMap of type map[string]*Namespace. When unmarshaling, expect this type, 
+// but rather the NsMap of type map[string]*Namespace. When unmarshaling, expect this type,
 // and pay very close attention. Many hours have been wasted here when unmarshaling mismatched types.
 func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 	m := map[models.CacheKey]json.RawMessage{}

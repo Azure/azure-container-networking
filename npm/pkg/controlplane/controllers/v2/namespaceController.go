@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -39,10 +40,10 @@ var errWorkqueueFormatting = errors.New("error in formatting")
 // it has mutex for avoiding racing condition between them.
 type NpmNamespaceCache struct {
 	sync.RWMutex
-	NsMap map[string]*Namespace // Key is ns-<nsname>
+	NsMap map[string]*common.Namespace // Key is ns-<nsname>
 }
 
-func (c *NpmNamespaceCache) GetCache() map[string]*Namespace {
+func (c *NpmNamespaceCache) GetCache() map[string]*common.Namespace {
 	c.RLock()
 	defer c.RUnlock()
 	return c.NsMap
@@ -58,33 +59,6 @@ func (n *NpmNamespaceCache) MarshalJSON() ([]byte, error) {
 	}
 
 	return nsMapRaw, nil
-}
-
-type Namespace struct {
-	Name      string
-	LabelsMap map[string]string // Namespace labels
-}
-
-// newNS constructs a new namespace object.
-func newNs(name string) *Namespace {
-	ns := &Namespace{
-		Name:      name,
-		LabelsMap: make(map[string]string),
-	}
-	return ns
-}
-
-func (nsObj *Namespace) appendLabels(newm map[string]string, clear LabelAppendOperation) {
-	if clear {
-		nsObj.LabelsMap = make(map[string]string)
-	}
-	for k, v := range newm {
-		nsObj.LabelsMap[k] = v
-	}
-}
-
-func (nsObj *Namespace) removeLabelsWithKey(key string) {
-	delete(nsObj.LabelsMap, key)
 }
 
 type NamespaceController struct {
@@ -112,7 +86,7 @@ func NewNamespaceController(nameSpaceInformer coreinformer.NamespaceInformer, dp
 	return nameSpaceController
 }
 
-func (n *NamespaceController) GetCache() map[string]*Namespace {
+func (n *NamespaceController) GetCache() map[string]*common.Namespace {
 	return n.npmNamespaceCache.GetCache()
 }
 
@@ -332,7 +306,7 @@ func (nsc *NamespaceController) syncAddNamespace(nsObj *corev1.Namespace) error 
 	namespaceSets := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(nsObj.ObjectMeta.Name, ipsets.Namespace)}
 	setsToAddNamespaceTo := []*ipsets.IPSetMetadata{kubeAllNamespaces}
 
-	npmNs := newNs(nsObj.ObjectMeta.Name)
+	npmNs := common.NewNs(nsObj.ObjectMeta.Name)
 	nsc.npmNamespaceCache.NsMap[nsObj.ObjectMeta.Name] = npmNs
 
 	// Add the namespace to its label's ipset list.
@@ -347,7 +321,7 @@ func (nsc *NamespaceController) syncAddNamespace(nsObj *corev1.Namespace) error 
 		setsToAddNamespaceTo = append(setsToAddNamespaceTo, labelIPSets...)
 
 		// Append succeeded labels to the cache NS obj
-		npmNs.appendLabels(map[string]string{nsLabelKey: nsLabelVal}, appendToExistingLabels)
+		npmNs.AppendLabels(map[string]string{nsLabelKey: nsLabelVal}, common.AppendToExistingLabels)
 	}
 
 	if err := nsc.dp.AddToLists(setsToAddNamespaceTo, namespaceSets); err != nil {
@@ -400,7 +374,7 @@ func (nsc *NamespaceController) syncUpdateNamespace(newNsObj *corev1.Namespace) 
 		// (TODO) need to remove this ordering dependency
 		removedLabelKey, removedLabelValue := util.GetLabelKVFromSet(nsLabelVal)
 		if removedLabelValue != "" {
-			curNsObj.removeLabelsWithKey(removedLabelKey)
+			curNsObj.RemoveLabelsWithKey(removedLabelKey)
 		}
 	}
 
@@ -424,14 +398,14 @@ func (nsc *NamespaceController) syncUpdateNamespace(newNsObj *corev1.Namespace) 
 		// only after both ipsets for a given label's key value pair are added successfully
 		addedLabelKey, addedLabelValue := util.GetLabelKVFromSet(nsLabelVal)
 		if addedLabelValue != "" {
-			curNsObj.appendLabels(map[string]string{addedLabelKey: addedLabelValue}, appendToExistingLabels)
+			curNsObj.AppendLabels(map[string]string{addedLabelKey: addedLabelValue}, common.AppendToExistingLabels)
 		}
 	}
 
 	// Append all labels to the cache NS obj
 	// If due to ordering issue the above deleted and added labels are not correct,
 	// this below appendLabels will help ensure correct state in cache for all successful ops.
-	curNsObj.appendLabels(newNsLabel, clearExistingLabels)
+	curNsObj.AppendLabels(newNsLabel, common.ClearExistingLabels)
 	nsc.npmNamespaceCache.NsMap[newNsName] = curNsObj
 
 	return metrics.UpdateOp, nil
@@ -468,7 +442,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 		}
 
 		// remove labels from the cache NS obj
-		cachedNsObj.removeLabelsWithKey(nsLabelKey)
+		cachedNsObj.RemoveLabelsWithKey(nsLabelKey)
 	}
 
 	allNamespacesSet := ipsets.NewIPSetMetadata(util.KubeAllNamespacesFlag, ipsets.KeyLabelOfNamespace)

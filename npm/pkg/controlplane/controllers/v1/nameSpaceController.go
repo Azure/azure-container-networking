@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -30,10 +29,10 @@ import (
 // it has mutex for avoiding racing condition between them.
 type NpmNamespaceCache struct {
 	sync.RWMutex
-	NsMap map[string]*Namespace // Key is ns-<nsname>
+	NsMap map[string]*common.Namespace // Key is ns-<nsname>
 }
 
-func (n *NpmNamespaceCache) GetNsMap() map[string]*Namespace {
+func (n *NpmNamespaceCache) GetNsMap() map[string]*common.Namespace {
 	n.RLock()
 	defer n.RUnlock()
 	return n.NsMap
@@ -49,46 +48,6 @@ func (n *NpmNamespaceCache) MarshalJSON() ([]byte, error) {
 	}
 
 	return nsMapRaw, nil
-}
-
-type Namespace struct {
-	name      string
-	LabelsMap map[string]string // NameSpace labels
-}
-
-// newNS constructs a new namespace object.
-func newNs(name string) *Namespace {
-	ns := &Namespace{
-		name:      name,
-		LabelsMap: make(map[string]string),
-	}
-	return ns
-}
-
-func (nsObj *Namespace) getNamespaceObjFromNsObj() *corev1.Namespace {
-	return &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   nsObj.name,
-			Labels: nsObj.LabelsMap,
-		},
-	}
-}
-
-func (nsObj *Namespace) appendLabels(labelsMap map[string]string, clear common.LabelAppendOperation) {
-	if clear {
-		nsObj.LabelsMap = make(map[string]string)
-	}
-	for k, v := range labelsMap {
-		nsObj.LabelsMap[k] = v
-	}
-}
-
-func (nsObj *Namespace) removeLabelsWithKey(key string) {
-	delete(nsObj.LabelsMap, key)
-}
-
-func isSystemNs(nsObj *corev1.Namespace) bool {
-	return nsObj.ObjectMeta.Name == util.KubeSystemFlag
 }
 
 type NamespaceController struct {
@@ -343,7 +302,7 @@ func (nsc *NamespaceController) syncAddNameSpace(nsObj *corev1.Namespace) error 
 		return err
 	}
 
-	npmNs := newNs(corev1NsName)
+	npmNs := common.NewNs(corev1NsName)
 	nsc.npmNamespaceCache.NsMap[corev1NsName] = npmNs
 
 	// Add the namespace to its label's ipset list.
@@ -363,7 +322,7 @@ func (nsc *NamespaceController) syncAddNameSpace(nsObj *corev1.Namespace) error 
 		}
 
 		// Append succeeded labels to the cache NS obj
-		npmNs.appendLabels(map[string]string{nsLabelKey: nsLabelVal}, common.AppendToExistingLabels)
+		npmNs.AppendLabels(map[string]string{nsLabelKey: nsLabelVal}, common.AppendToExistingLabels)
 	}
 
 	return nil
@@ -405,7 +364,7 @@ func (nsc *NamespaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 		// (TODO) need to remove this ordering dependency
 		removedLabelKey, removedLabelValue := util.GetLabelKVFromSet(nsLabelVal)
 		if removedLabelValue != "" {
-			curNsObj.removeLabelsWithKey(removedLabelKey)
+			curNsObj.RemoveLabelsWithKey(removedLabelKey)
 		}
 	}
 
@@ -421,14 +380,14 @@ func (nsc *NamespaceController) syncUpdateNameSpace(newNsObj *corev1.Namespace) 
 		// only after both ipsets for a given label's key value pair are added successfully
 		addedLabelKey, addedLabelValue := util.GetLabelKVFromSet(nsLabelVal)
 		if addedLabelValue != "" {
-			curNsObj.appendLabels(map[string]string{addedLabelKey: addedLabelValue}, common.AppendToExistingLabels)
+			curNsObj.AppendLabels(map[string]string{addedLabelKey: addedLabelValue}, common.AppendToExistingLabels)
 		}
 	}
 
 	// Append all labels to the cache NS obj
 	// If due to ordering issue the above deleted and added labels are not correct,
 	// this below appendLabels will help ensure correct state in cache for all successful ops.
-	curNsObj.appendLabels(newNsLabel, common.ClearExistingLabels)
+	curNsObj.AppendLabels(newNsLabel, common.ClearExistingLabels)
 	nsc.npmNamespaceCache.NsMap[newNsName] = curNsObj
 
 	return metrics.UpdateOp, nil
@@ -462,7 +421,7 @@ func (nsc *NamespaceController) cleanDeletedNamespace(cachedNsKey string) error 
 		}
 
 		// remove labels from the cache NS obj
-		cachedNsObj.removeLabelsWithKey(nsLabelKey)
+		cachedNsObj.RemoveLabelsWithKey(nsLabelKey)
 	}
 
 	// Delete the namespace from all-namespace ipset list.

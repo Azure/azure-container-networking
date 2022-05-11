@@ -15,10 +15,26 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+type TupleAndRule struct {
+	Tuple *Tuple
+	Rule  *pb.RuleResponse
+}
+
+// Tuple struct
+type Tuple struct {
+	RuleType  string `json:"ruleType"`
+	Direction string `json:"direction"`
+	SrcIP     string `json:"srcIP"`
+	SrcPort   string `json:"srcPort"`
+	DstIP     string `json:"dstIP"`
+	DstPort   string `json:"dstPort"`
+	Protocol  string `json:"protocol"`
+}
+
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*common.TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
+func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 	c := &Converter{
 		NPMDebugEndpointHost: "http://localhost",
 		NPMDebugEndpointPort: api.DefaultHttpPort,
@@ -42,7 +58,7 @@ func GetNetworkTupleFile(
 	src, dst *common.Input,
 	npmCacheFile string,
 	iptableSaveFile string,
-) ([][]byte, []*common.TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
+) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	c := &Converter{}
 	allRules, err := c.GetProtobufRulesFromIptableFile(util.IptablesFilterTable, npmCacheFile, iptableSaveFile)
@@ -58,7 +74,7 @@ func getNetworkTupleCommon(
 	src, dst *common.Input,
 	npmCache common.Cache,
 	allRules map[*pb.RuleResponse]struct{},
-) ([][]byte, []*common.TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
+) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	srcPod, err := npmCache.GetPod(src)
 	if err != nil {
@@ -89,7 +105,7 @@ func getNetworkTupleCommon(
 		ruleResListJSON = append(ruleResListJSON, ruleJSON)
 	}
 
-	resTupleList := make([]*common.TupleAndRule, 0)
+	resTupleList := make([]*TupleAndRule, 0)
 	for _, rule := range hitRules {
 		tuple := generateTuple(srcPod, dstPod, rule)
 		resTupleList = append(resTupleList, tuple)
@@ -105,8 +121,8 @@ func getNetworkTupleCommon(
 	return ruleResListJSON, resTupleList, srcSets, dstSets, nil
 }
 
-func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *common.TupleAndRule {
-	tuple := &common.Tuple{}
+func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *TupleAndRule {
+	tuple := &Tuple{}
 	if rule.Allowed {
 		tuple.RuleType = "ALLOWED"
 	} else {
@@ -148,7 +164,7 @@ func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *common.Tuple
 	} else {
 		tuple.Protocol = ANY
 	}
-	return &common.TupleAndRule{
+	return &TupleAndRule{
 		Tuple: tuple,
 		Rule:  rule,
 	}
@@ -202,7 +218,7 @@ func getHitRules(
 				break
 			}
 		}
-		if matched  {
+		if matched {
 			res = append(res, rule)
 		}
 	}
@@ -260,7 +276,6 @@ func matchKEYVALUELABELOFNAMESPACE(pod *common.NpmPod, npmCache common.Cache, se
 		}
 	}
 
-	log.Printf("matched key value setname %s,  label of namespace %s, expected, %s, actual %s", setInfo.HashedSetName, srcNamespace, expectedValue, actualValue)
 	return true
 }
 
@@ -284,7 +299,6 @@ func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 		return false
 	}
 
-	log.Printf("matched nested label of pod on setinfo %s", setInfo.Name)
 	return true
 }
 
@@ -299,7 +313,6 @@ func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.Cache, setInfo
 		// if key does not exist but required in rule
 		return false
 	}
-	log.Printf("matched key label of namespace, setname %s, namespace %s, key %s", setInfo.HashedSetName, srcNamespace, key)
 	return true
 }
 
@@ -329,7 +342,7 @@ func matchKEYLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bo
 		// if key does not exist but required in rule
 		return false
 	}
-	log.Printf("matched key label of pod")
+
 	return true
 }
 
@@ -352,7 +365,6 @@ func matchNAMEDPORTS(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo, rule 
 				rule.DPort = namedPort.ContainerPort
 			}
 
-			log.Printf("matched named ports")
 			return true
 		}
 	}
@@ -379,7 +391,6 @@ func matchCIDRBLOCKS(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool 
 		}
 	}
 
-	log.Printf("matched cidr")
 	return matched
 }
 
