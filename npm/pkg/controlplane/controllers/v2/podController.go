@@ -65,12 +65,6 @@ func NewPodController(podInformer coreinformer.PodInformer, dp dataplane.Generic
 	return podController
 }
 
-func (c *PodController) GetCache() map[string]*common.NpmPod {
-	c.RLock()
-	defer c.RUnlock()
-	return c.podMap
-}
-
 func (c *PodController) MarshalJSON() ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()

@@ -3,6 +3,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -61,10 +63,16 @@ func NewPodController(podInformer coreinformer.PodInformer, ipsMgr *ipsm.IpsetMa
 	return podController
 }
 
-func (p *PodController) PodMap() map[string]*common.NpmPod {
-	p.RLock()
-	defer p.RUnlock()
-	return p.podMap
+func (c *PodController) MarshalJSON() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	podMapRaw, err := json.Marshal(c.podMap)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshal podMap")
+	}
+
+	return podMapRaw, nil
 }
 
 func (c *PodController) LengthOfPodMap() int {

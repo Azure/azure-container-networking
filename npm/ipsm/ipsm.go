@@ -4,6 +4,7 @@
 package ipsm
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"github.com/pkg/errors"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -74,16 +76,28 @@ func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	}
 }
 
-func (ipsMgr *IpsetManager) GetListMap() map[string]*Ipset {
+func (ipsMgr *IpsetManager) GetListMapRaw() ([]byte, error) {
 	ipsMgr.RLock()
 	defer ipsMgr.RUnlock()
-	return ipsMgr.listMap
+
+	b, err := json.Marshal(ipsMgr.listMap)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshall list map")
+	}
+
+	return b, nil
 }
 
-func (ipsMgr *IpsetManager) GetSetMap() map[string]*Ipset {
+func (ipsMgr *IpsetManager) GetSetMapRaw() ([]byte, error) {
 	ipsMgr.RLock()
 	defer ipsMgr.RUnlock()
-	return ipsMgr.setMap
+
+	b, err := json.Marshal(ipsMgr.setMap)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshall list map")
+	}
+
+	return b, nil
 }
 
 // Exists checks if an element exists in setMap/listMap.

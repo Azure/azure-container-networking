@@ -5,7 +5,6 @@ package npm
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
@@ -94,38 +93,67 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	return npMgr
 }
 
-// matmerr: todo: really not a fan of sniping the marshaljson and returing different marshalled type,
-// makes very difficult to predict marshalled type when used as a client
+// Dear Time Traveler:
+// This is the server end of the debug dragons den. Several of these properties of the 
+// npMgr struct have overridden methods which override the MarshalJson, just as this one 
+// is doing for npMgr. For example, npMgr.NamespaceCacheV2 does not marshal the whole struct,
+// but rather the NsMap of type map[string]*Namespace. When unmarshaling, expect this type, 
+// and pay very close attention. Many hours have been wasted here when unmarshaling mismatched types.
 func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
-	var err error
-	var cacheRaw []byte
+	m := map[models.CacheKey]json.RawMessage{}
 
 	if npMgr.config.Toggles.EnableV2NPM {
-		cachev2 := controllersv2.Cache{}
-		cachev2.NsMap = npMgr.NamespaceControllerV2.GetCache()
-		cachev2.PodMap = npMgr.PodControllerV2.GetCache()
-		cachev2.SetMap = npMgr.Dataplane.GetAllIPSets()
-		cacheRaw, err = json.Marshal(cachev2)
+		npmNamespaceCacheRaw, err := json.Marshal(npMgr.NpmNamespaceCacheV2)
 		if err != nil {
-			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
+			return nil, errors.Wrapf(err, "failed to marshal v2 ns cache")
 		}
-		log.Printf("sending cache v2 %+v", cachev2)
-	} else {
-		cachev1 := controllersv1.Cache{
-			NsMap:   npMgr.NpmNamespaceCacheV1.GetNsMap(),
-			PodMap:  npMgr.PodControllerV1.PodMap(),
-			ListMap: npMgr.ipsMgr.GetListMap(),
-			SetMap:  npMgr.ipsMgr.GetSetMap(),
-		}
+		m[models.NsMap] = npmNamespaceCacheRaw
 
-		cacheRaw, err = json.Marshal(cachev1)
+		podControllerRaw, err := json.Marshal(npMgr.PodControllerV2)
 		if err != nil {
-			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
+			return nil, errors.Wrapf(err, "failed to marshal v2 pod controller")
 		}
-		log.Printf("sending cache v1%+v", cachev1)
+		m[models.PodMap] = podControllerRaw
+
+		setMapRaw, err := json.Marshal(npMgr.Dataplane.GetAllIPSets())
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v2 set map")
+		}
+		m[models.SetMap] = setMapRaw
+
+	} else {
+		npmNamespaceCacheRaw, err := json.Marshal(npMgr.NpmNamespaceCacheV1)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v1 ns cache")
+		}
+		m[models.NsMap] = npmNamespaceCacheRaw
+
+		podControllerRaw, err := json.Marshal(npMgr.PodControllerV1)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v1 pod controller")
+		}
+		m[models.PodMap] = podControllerRaw
+
+		listMapRaw, err := npMgr.ipsMgr.GetListMapRaw()
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v1 list map")
+		}
+		m[models.ListMap] = listMapRaw
+
+		setMapRaw, err := npMgr.ipsMgr.GetSetMapRaw()
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v1 set map")
+		}
+		m[models.SetMap] = setMapRaw
+
 	}
 
-	return cacheRaw, nil
+	npmCacheRaw, err := json.Marshal(m)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshall the cache map")
+	}
+
+	return npmCacheRaw, nil
 }
 
 // GetAppVersion returns network policy manager app version
