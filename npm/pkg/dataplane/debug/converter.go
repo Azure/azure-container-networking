@@ -16,8 +16,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	npmcommon "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
-	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
-	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
@@ -37,7 +35,7 @@ type Converter struct {
 	ListMap              map[string]string // key: hash(value), value: one of namespace, label of namespace, multiple values
 	SetMap               map[string]string // key: hash(value), value: one of label of pods, cidr, namedport
 	AzureNPMChains       map[string]bool
-	NPMCache             npmcommon.Cache
+	NPMCache             npmcommon.GenericCache
 	EnableV2NPM          bool
 }
 
@@ -49,13 +47,13 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 	}
 
 	if c.EnableV2NPM {
-		c.NPMCache = &controllersv2.Cache{}
+		c.NPMCache = &npmcommon.Cache{}
 		err = json.Unmarshal(byteArray, c.NPMCache)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
 		}
 	} else {
-		c.NPMCache = &controllersv1.Cache{}
+		c.NPMCache = &npmcommon.Cache{}
 		err = json.Unmarshal(byteArray, c.NPMCache)
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
@@ -92,7 +90,7 @@ func (c *Converter) NpmCache() error {
 	// best of luck
 	m := map[models.CacheKey]json.RawMessage{}
 	if c.EnableV2NPM {
-		cache := &controllersv2.Cache{}
+		cache := &npmcommon.Cache{}
 		if err = json.Unmarshal(byteArray, &m); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal into v2 cache map")
 		}
@@ -112,7 +110,7 @@ func (c *Converter) NpmCache() error {
 		c.NPMCache = cache
 
 	} else {
-		cache := &controllersv1.Cache{}
+		cache := &npmcommon.Cache{}
 		if err = json.Unmarshal(m[models.NsMap], &cache.NsMap); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal into v1 cache map")
 		}
@@ -167,8 +165,14 @@ func (c *Converter) initConverterMaps() {
 		c.AzureNPMChains[chain] = true
 	}
 
-	c.ListMap = c.NPMCache.GetListMap()
-	c.SetMap = c.NPMCache.GetSetMap()
+	if c.EnableV2NPM {
+		c.ListMap = c.NPMCache.GetListMapV2()
+		c.SetMap = c.NPMCache.GetSetMapV2()
+	} else {
+		c.ListMap = c.NPMCache.GetListMapV1()
+		c.SetMap = c.NPMCache.GetSetMapV1()
+	}
+
 }
 
 func (c *Converter) isAzureNPMChain(chain string) bool {

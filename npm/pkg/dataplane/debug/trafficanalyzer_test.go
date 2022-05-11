@@ -33,7 +33,7 @@ func TestGetInputType(t *testing.T) {
 	}
 	tests := map[string]*testInput{
 		"external":  {input: "External", expected: common.EXTERNAL},
-		"podname":   {input: "test/server", expected: common.PODNAME},
+		"podname":   {input: "test/server", expected: common.NSPODNAME},
 		"ipaddress": {input: "10.240.0.38", expected: common.IPADDRS},
 	}
 	for name, test := range tests {

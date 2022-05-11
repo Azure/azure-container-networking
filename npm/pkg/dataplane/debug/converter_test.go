@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
-	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -674,7 +673,7 @@ func TestConverter_GetProtobufRulesFromIptable(t *testing.T) {
 		ListMap        map[string]string
 		SetMap         map[string]string
 		AzureNPMChains map[string]bool
-		NPMCache       *controllersv1.Cache
+		NPMCache       *common.Cache
 	}
 	type args struct {
 		tableName string

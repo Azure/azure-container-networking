@@ -72,7 +72,7 @@ func GetNetworkTupleFile(
 // Common function.
 func getNetworkTupleCommon(
 	src, dst *common.Input,
-	npmCache common.Cache,
+	npmCache common.GenericCache,
 	allRules map[*pb.RuleResponse]struct{},
 ) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
@@ -173,7 +173,7 @@ func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *TupleAndRule
 func getHitRules(
 	src, dst *common.NpmPod,
 	rules map[*pb.RuleResponse]struct{},
-	npmCache common.Cache,
+	npmCache common.GenericCache,
 ) ([]*pb.RuleResponse, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	res := make([]*pb.RuleResponse, 0)
@@ -236,7 +236,7 @@ func evaluateSetInfo(
 	setInfo *pb.RuleResponse_SetInfo,
 	pod *common.NpmPod,
 	rule *pb.RuleResponse,
-	npmCache common.Cache,
+	npmCache common.GenericCache,
 ) (bool, error) {
 
 	switch setInfo.Type {
@@ -261,7 +261,7 @@ func evaluateSetInfo(
 	}
 }
 
-func matchKEYVALUELABELOFNAMESPACE(pod *common.NpmPod, npmCache common.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYVALUELABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	key, expectedValue := processKeyValueLabelOfNameSpace(setInfo.Name)
 	actualValue := npmCache.GetNamespaceLabel(srcNamespace, key)
@@ -302,7 +302,7 @@ func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 	return true
 }
 
-func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	key := strings.TrimPrefix(setInfo.Name, util.NamespaceLabelPrefix)
 	included := npmCache.GetNamespaceLabel(srcNamespace, key)
