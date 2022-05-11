@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -19,11 +17,8 @@ func prettyPrintIPTables(iptableRules map[*pb.RuleResponse]struct{}) error {
 	iptresponse := IPTablesResponse{
 		Rules: iptableRules,
 	}
-	s, err := json.MarshalIndent(iptresponse, "", "  ")
-	if err != nil {
-		return errors.Wrapf(err, "err pretty printing iptables")
-	}
-	fmt.Printf("%v", string(s))
+
+	fmt.Printf("%+v", iptresponse)
 	return nil
 }
 

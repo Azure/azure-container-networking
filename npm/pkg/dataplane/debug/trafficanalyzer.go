@@ -216,7 +216,8 @@ func getHitRules(
 	dstSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
 
 	for rule := range rules {
-		matched := false
+		matchedSrc := false
+		matchedDst := false
 		// evalute all match set in src
 		for _, setInfo := range rule.SrcList {
 			if src.Namespace == "" {
@@ -229,7 +230,7 @@ func getHitRules(
 				return nil, nil, nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
 			}
 			if matchedSource {
-				matched = true
+				matchedSrc = true
 				srcSets[setInfo.HashedSetName] = setInfo
 				break
 			}
@@ -249,11 +250,19 @@ func getHitRules(
 			if matchedDestination {
 
 				dstSets[setInfo.HashedSetName] = setInfo
-				matched = true
+				matchedDst = true
 				break
 			}
 		}
-		if matched {
+
+		// conditions:
+		// add if src matches and there's no dst
+		// add if dst matches and there's no src
+		// add if src and dst match with both src and dst specified
+
+		if (matchedSrc && len(rule.DstList) == 0) ||
+			(matchedDst && len(rule.SrcList) == 0) ||
+			(matchedSrc && matchedDst) {
 			res = append(res, rule)
 		}
 	}
