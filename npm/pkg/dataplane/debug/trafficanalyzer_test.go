@@ -3,6 +3,7 @@ package debug
 import (
 	"crypto/sha256"
 	"fmt"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -47,7 +48,6 @@ func TestGetInputType(t *testing.T) {
 	}
 }
 
-/*
 func TestGetNetworkTuple(t *testing.T) {
 	type srcDstPair struct {
 		src *common.Input
@@ -56,19 +56,19 @@ func TestGetNetworkTuple(t *testing.T) {
 
 	type testInput struct {
 		input    *srcDstPair
-		expected []*common.Tuple
+		expected []*Tuple
 	}
 
 	i0 := &srcDstPair{
-		src: &common.Input{Content: "z/b", Type: common.PODNAME},
-		dst: &common.Input{Content: "netpol-4537-x/a", Type: common.PODNAME},
+		src: &common.Input{Content: "z/b", Type: common.NSPODNAME},
+		dst: &common.Input{Content: "netpol-4537-x/a", Type: common.NSPODNAME},
 	}
 	i1 := &srcDstPair{
 		src: &common.Input{Content: "", Type: common.EXTERNAL},
-		dst: &common.Input{Content: "testnamespace/a", Type: common.PODNAME},
+		dst: &common.Input{Content: "testnamespace/a", Type: common.NSPODNAME},
 	}
 	i2 := &srcDstPair{
-		src: &common.Input{Content: "testnamespace/a", Type: common.PODNAME},
+		src: &common.Input{Content: "testnamespace/a", Type: common.NSPODNAME},
 		dst: &common.Input{Content: "", Type: common.EXTERNAL},
 	}
 	i3 := &srcDstPair{
@@ -77,10 +77,10 @@ func TestGetNetworkTuple(t *testing.T) {
 	}
 	i4 := &srcDstPair{
 		src: &common.Input{Content: "", Type: common.EXTERNAL},
-		dst: &common.Input{Content: "test/server", Type: common.PODNAME},
+		dst: &common.Input{Content: "test/server", Type: common.NSPODNAME},
 	}
 
-	expected0 := []*common.Tuple{
+	expected0 := []*Tuple{
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "INGRESS",
@@ -110,7 +110,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		},
 	}
 
-	expected1 := []*common.Tuple{
+	expected1 := []*Tuple{
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "INGRESS",
@@ -140,7 +140,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		},
 	}
 
-	expected2 := []*common.Tuple{
+	expected2 := []*Tuple{
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "EGRESS",
@@ -170,7 +170,7 @@ func TestGetNetworkTuple(t *testing.T) {
 		},
 	}
 
-	expected3 := []*common.Tuple{
+	expected3 := []*Tuple{
 		{
 			RuleType:  "NOT ALLOWED",
 			Direction: "INGRESS",
@@ -199,7 +199,7 @@ func TestGetNetworkTuple(t *testing.T) {
 			Protocol:  "ANY",
 		},
 	}
-	expected4 := []*common.Tuple{
+	expected4 := []*Tuple{
 		{
 			RuleType:  "ALLOWED",
 			Direction: "INGRESS",
@@ -234,21 +234,25 @@ func TestGetNetworkTuple(t *testing.T) {
 
 			sortedExpectedTupleList := hashTheSortTupleList(test.expected)
 
-				_, actualTupleList, _, _, err := GetNetworkTupleFile(
-					test.input.src,
-					test.input.dst,
-					npmCacheFile,
-					iptableSaveFile,
-				)
-				if err != nil {
-					t.Errorf("error during get network tuple : %v", err)
-				}
-				sortedActualTupleList := hashTheSortTupleList(actualTupleList)
-				if !reflect.DeepEqual(sortedExpectedTupleList, sortedActualTupleList) {
-					t.Errorf("got '%+v', expected '%+v'", sortedActualTupleList, sortedExpectedTupleList)
-				}
+			_, actualTupleList, _, _, err := GetNetworkTupleFile(
+				test.input.src,
+				test.input.dst,
+				npmCacheFile,
+				iptableSaveFile,
+			)
+			if err != nil {
+				t.Errorf("error during get network tuple : %v", err)
+			}
+			tuplelist := []*Tuple{}
+			for i, _ := range actualTupleList {
+				tuplelist = append(tuplelist, actualTupleList[i].Tuple)
+			}
+
+			sortedActualTupleList := hashTheSortTupleList(tuplelist)
+			if !reflect.DeepEqual(sortedExpectedTupleList, sortedActualTupleList) {
+				t.Errorf("got '%+v', expected '%+v'", sortedActualTupleList, sortedExpectedTupleList)
+			}
 
 		})
 	}
 }
-*/

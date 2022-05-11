@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/iptm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
-	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/exec"
 )
@@ -51,17 +50,17 @@ func TestMarshalUnMarshalJSON(t *testing.T) {
 	npmCacheRaw, err := npmCacheEncoder.MarshalJSON()
 	assert.NoError(t, err)
 
-	decodedNPMCache := controllersv1.Cache{}
+	decodedNPMCache := common.Cache{}
 	if err := json.Unmarshal(npmCacheRaw, &decodedNPMCache); err != nil {
 		t.Errorf("failed to decode %s to NPMCache", npmCacheRaw)
 	}
 
-	expected := controllersv1.Cache{
-		ListMap:  make(map[string]*ipsm.Ipset),
+	expected := common.Cache{
 		NodeName: nodeName,
 		NsMap:    make(map[string]*common.Namespace),
 		PodMap:   make(map[string]*common.NpmPod),
-		SetMap:   make(map[string]*ipsm.Ipset),
+		SetMap:   make(map[string]string),
+		ListMap:  make(map[string]string),
 	}
 
 	if !reflect.DeepEqual(decodedNPMCache, expected) {
