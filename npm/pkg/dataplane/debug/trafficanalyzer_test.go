@@ -244,7 +244,7 @@ func TestGetNetworkTuple(t *testing.T) {
 				t.Errorf("error during get network tuple : %v", err)
 			}
 			tuplelist := []*Tuple{}
-			for i, _ := range actualTupleList {
+			for i := range actualTupleList {
 				tuplelist = append(tuplelist, actualTupleList[i].Tuple)
 			}
 

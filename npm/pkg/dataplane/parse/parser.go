@@ -32,7 +32,6 @@ type IPTablesParser struct {
 
 // runCommand returns (stdout, stderr, error)
 func (i *IPTablesParser) runCommand(command string, args ...string) ([]byte, error) {
-
 	klog.Infof("Executing iptables command %v %v", command, args)
 
 	commandExec := i.IOShim.Exec.Command(command, args...)

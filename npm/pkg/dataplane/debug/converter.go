@@ -46,18 +46,10 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 		return fmt.Errorf("failed to read %s file : %w", npmCacheJSONFile, err)
 	}
 
-	if c.EnableV2NPM {
-		c.NPMCache = &npmcommon.Cache{}
-		err = json.Unmarshal(byteArray, c.NPMCache)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
-		}
-	} else {
-		c.NPMCache = &npmcommon.Cache{}
-		err = json.Unmarshal(byteArray, c.NPMCache)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
-		}
+	c.NPMCache = &npmcommon.Cache{}
+	err = json.Unmarshal(byteArray, c.NPMCache)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
 	}
 
 	return nil
@@ -251,7 +243,6 @@ func (c *Converter) GetProtobufRulesFromIptable(tableName string) (map[*pb.RuleR
 
 // Create a list of protobuf rules from iptable.
 func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]struct{}, error) {
-	//rules := make(map[string]*pb.RuleResponse)
 	allRulesInNPMChains := make(map[*pb.RuleResponse]struct{}, 0)
 
 	// iterate through all chains in the filter table

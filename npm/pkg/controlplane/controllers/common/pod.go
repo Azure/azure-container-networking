@@ -84,8 +84,8 @@ func (n *NpmPod) NoUpdate(podObj *corev1.Pod) bool {
 
 func GetContainerPortList(podObj *corev1.Pod) []corev1.ContainerPort {
 	portList := []corev1.ContainerPort{}
-	for _, container := range podObj.Spec.Containers { //nolint:rangeValCopy // intentionally copying full struct :(
-		portList = append(portList, container.Ports...) //nolint:rangeValCopy // intentionally copying full struct :(
+	for _, container := range podObj.Spec.Containers { //nolint:gocritic // intentionally copying full struct :(
+		portList = append(portList, container.Ports...) //nolint:gocritic // intentionally copying full struct :(
 	}
 	return portList
 }

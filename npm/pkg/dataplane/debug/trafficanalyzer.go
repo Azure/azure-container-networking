@@ -34,7 +34,7 @@ type Tuple struct {
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
+func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) { //nolint: gocritic
 	c := &Converter{
 		NPMDebugEndpointHost: "http://localhost",
 		NPMDebugEndpointPort: api.DefaultHttpPort,
@@ -180,7 +180,7 @@ func getHitRules(
 	srcSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
 	dstSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
 
-	for rule, _ := range rules {
+	for rule := range rules {
 		matched := false
 		// evalute all match set in src
 		for _, setInfo := range rule.SrcList {
