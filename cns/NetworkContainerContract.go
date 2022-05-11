@@ -91,7 +91,7 @@ type CreateNetworkContainerRequest struct {
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging
-func (req CreateNetworkContainerRequest) String() string {
+func (req *CreateNetworkContainerRequest) String() string {
 	return fmt.Sprintf("[Azure CNS] cns.CreateNetworkContainerRequest "+
 		"{Version: %s, NetworkContainerType: %s, NetworkContainerid: %s, PrimaryInterfaceIdentifier: %s, "+
 		"LocalIPConfiguration: %+v, IPConfiguration: %+v, SecondaryIPConfigs: %+v, MultitenancyInfo: %+v, "+
