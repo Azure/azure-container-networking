@@ -131,11 +131,7 @@ func addIPV6EndpointPolicy(nwInfo network.NetworkInfo) (policy.Policy, error) {
 	return policy.Policy{}, nil
 }
 
-func updateSubnetPrefix(cnsNetworkConfig *cns.GetNetworkContainerResponse, subnetPrefix *net.IPNet) error {
-	return nil
-}
-
-func (plugin *NetPlugin) getNetworkName(_, _, _, _ string, _ *cns.GetNetworkContainerResponse, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(_ string, _ *IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
 	return nwCfg.Name, nil
 }
 

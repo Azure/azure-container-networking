@@ -213,12 +213,11 @@ func TestCreatorForBootup(t *testing.T) {
 				":AZURE-NPM-INGRESS-ALLOW-MARK - -",
 				":AZURE-NPM-EGRESS - -",
 				":AZURE-NPM-ACCEPT - -",
-				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
-				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x400/0x400 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x400/0x400",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x200/0x200 -m comment --comment SET-INGRESS-ALLOW-MARK-0x200/0x200",
 				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
-				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
-				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
-				"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment CLEAR-AZURE-NPM-MARKS",
+				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x800/0x800 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x800/0x800",
+				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x200/0x200 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x200/0x200",
 				"-A AZURE-NPM-ACCEPT -j ACCEPT",
 				"COMMIT",
 				"",
@@ -246,12 +245,11 @@ func TestCreatorForBootup(t *testing.T) {
 				"-F AZURE-NPM-ACCEPT",
 				"-F AZURE-NPM-INGRESS-123456",
 				"-F AZURE-NPM-EGRESS-123456",
-				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
-				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x400/0x400 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x400/0x400",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x200/0x200 -m comment --comment SET-INGRESS-ALLOW-MARK-0x200/0x200",
 				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
-				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
-				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
-				"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment CLEAR-AZURE-NPM-MARKS",
+				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x800/0x800 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x800/0x800",
+				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x200/0x200 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x200/0x200",
 				"-A AZURE-NPM-ACCEPT -j ACCEPT",
 				"COMMIT",
 				"",
@@ -276,12 +274,11 @@ func TestCreatorForBootup(t *testing.T) {
 				"-F AZURE-NPM-ACCEPT",
 				"-F AZURE-NPM-INGRESS",
 				"-F AZURE-NPM-INGRESS-ALLOW-MARK",
-				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
-				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x400/0x400 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x400/0x400",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x200/0x200 -m comment --comment SET-INGRESS-ALLOW-MARK-0x200/0x200",
 				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
-				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
-				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
-				"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment CLEAR-AZURE-NPM-MARKS",
+				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x800/0x800 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x800/0x800",
+				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x200/0x200 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x200/0x200",
 				"-A AZURE-NPM-ACCEPT -j ACCEPT",
 				"COMMIT",
 				"",
@@ -305,12 +302,11 @@ func TestCreatorForBootup(t *testing.T) {
 				"-F AZURE-NPM-EGRESS-DROPS",
 				"-F AZURE-NPM-EGRESS-FROM",
 				"-F AZURE-NPM-EGRESS-PORTS",
-				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x4000 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x4000",
-				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x2000 -m comment --comment SET-INGRESS-ALLOW-MARK-0x2000",
+				"-A AZURE-NPM-INGRESS -j DROP -m mark --mark 0x400/0x400 -m comment --comment DROP-ON-INGRESS-DROP-MARK-0x400/0x400",
+				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j MARK --set-mark 0x200/0x200 -m comment --comment SET-INGRESS-ALLOW-MARK-0x200/0x200",
 				"-A AZURE-NPM-INGRESS-ALLOW-MARK -j AZURE-NPM-EGRESS",
-				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x5000 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x5000",
-				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x2000 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x2000",
-				"-A AZURE-NPM-ACCEPT -j MARK --set-mark 0x0 -m comment --comment CLEAR-AZURE-NPM-MARKS",
+				"-A AZURE-NPM-EGRESS -j DROP -m mark --mark 0x800/0x800 -m comment --comment DROP-ON-EGRESS-DROP-MARK-0x800/0x800",
+				"-A AZURE-NPM-EGRESS -j AZURE-NPM-ACCEPT -m mark --mark 0x200/0x200 -m comment --comment ACCEPT-ON-INGRESS-ALLOW-MARK-0x200/0x200",
 				"-A AZURE-NPM-ACCEPT -j ACCEPT",
 				"COMMIT",
 				"",
@@ -375,7 +371,11 @@ func TestBootupLinux(t *testing.T) {
 		{
 			name: "success after restore failure (no NPM prior)",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 2,
+					Stdout:   "iptables v1.8.4 (legacy): Couldn't load target `AZURE-NPM':No such file or directory",
+				}, // AZURE-NPM chain didn't exist
 				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
 				fakeIPTablesRestoreFailureCommand, // e.g. xtables lock held by another app. Currently the stdout doesn't matter for retrying
@@ -389,7 +389,11 @@ func TestBootupLinux(t *testing.T) {
 		{
 			name: "success: v2 existed prior",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 1}, // deprecated rule did not exist
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 1,
+					Stdout:   "No chain/target/match by that name",
+				}, // deprecated rule did not exist
 				{Cmd: listAllCommandStrings, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},

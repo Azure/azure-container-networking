@@ -12,14 +12,16 @@ import (
 )
 
 type InstallerConfig struct {
-	SrcDir         string
-	DstBinDir      string
-	DstConflistDir string
-	IPAMType       string
-	ExemptBins     map[string]bool
-	OSType         string
-	CNITenancy     string
-	CNIMode        string
+	SrcDir                     string
+	DstBinDir                  string
+	DstConflistDir             string
+	IPAMType                   string
+	ExemptBins                 map[string]bool
+	OSType                     string
+	CNITenancy                 string
+	CNIMode                    string
+	CNSURL                     string
+	EnableExactMatchForPodName bool
 }
 
 func (i *InstallerConfig) SetExempt(exempt []string) {
@@ -53,7 +55,7 @@ func (i *InstallerConfig) SetCNIType(cniType string) error {
 }
 
 func (i *InstallerConfig) SetCNIDatapathMode(cniMode string) error {
-	// get paths for singletenancy and multitenancy
+	// check transparent or bridge mode only
 	if cniMode != "" {
 		if strings.EqualFold(cniMode, c.Transparent) || strings.EqualFold(cniMode, c.Bridge) {
 			i.CNIMode = cniMode

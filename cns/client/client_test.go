@@ -97,7 +97,7 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
 
-	svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
+	_ = svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
 		Spec: v1alpha.NodeNetworkConfigSpec{
 			RequestedIPCount: 16,
 			IPsNotInUse:      []string{"abc"},

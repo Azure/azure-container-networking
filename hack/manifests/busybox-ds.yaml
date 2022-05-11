@@ -1,0 +1,79 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: busybox
+  labels:
+    app: busybox
+spec:
+  selector:
+    matchLabels:
+      k8s-app: busybox
+  template:
+    metadata:
+      labels:
+        k8s-app: busybox
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      containers:
+        - name: busybox
+          image: docker.io/busybox:latest
+          command: ["sleep","3600"]
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: log
+              mountPath: /var/log
+            - name: cns-state
+              mountPath: /var/lib/azure-network
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: azure-vnet
+              mountPath: /var/run/azure-vnet
+            - name: legacy-cni-state
+              mountPath: /var/run/azure-vnet.json
+      hostNetwork: false
+      volumes:
+        - name: log
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: cns-state
+          hostPath:
+            path: /var/lib/azure-network
+            type: DirectoryOrCreate
+        - name: cni-bin
+          hostPath:
+            path: /opt/cni/bin
+            type: Directory
+        - name: azure-vnet
+          hostPath:
+            path: /var/run/azure-vnet
+            type: DirectoryOrCreate
+        - name: legacy-cni-state
+          hostPath:
+            path: /var/run/azure-vnet.json
+            type: FileOrCreate

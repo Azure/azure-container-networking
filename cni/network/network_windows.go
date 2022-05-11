@@ -140,26 +140,7 @@ func setEndpointOptions(cnsNwConfig *cns.GetNetworkContainerResponse, epInfo *ne
 func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 }
 
-func updateSubnetPrefix(cnsNwConfig *cns.GetNetworkContainerResponse, subnetPrefix *net.IPNet) error {
-	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
-		ipconfig := cnsNwConfig.IPConfiguration
-		ipAddr := net.ParseIP(ipconfig.IPSubnet.IPAddress)
-		if ipAddr.To4() != nil {
-			*subnetPrefix = net.IPNet{Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 32)}
-		} else if ipAddr.To16() != nil {
-			*subnetPrefix = net.IPNet{Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 128)}
-		} else {
-			return fmt.Errorf("[cni-net] Failed to get mask from CNS network configuration")
-		}
-
-		subnetPrefix.IP = ipAddr.Mask(subnetPrefix.Mask)
-		log.Printf("Updated subnetPrefix: %s", subnetPrefix.String())
-	}
-
-	return nil
-}
-
-func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cnsResponse *cns.GetNetworkContainerResponse, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
 	// For singletenancy, the network name is simply the nwCfg.Name
 	if !nwCfg.MultiTenancy {
 		return nwCfg.Name, nil
@@ -167,24 +148,18 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cn
 
 	// in multitenancy case, the network name will be in the state file or can be built from cnsResponse
 	determineWinVer()
-	if len(strings.TrimSpace(netNs)) == 0 || len(strings.TrimSpace(podName)) == 0 || len(strings.TrimSpace(podNs)) == 0 {
-		return "", fmt.Errorf("POD info cannot be empty. PodName: %s, PodNamespace: %s, NetNs: %s", podName, podNs, netNs)
+	if len(strings.TrimSpace(netNs)) == 0 {
+		return "", fmt.Errorf("NetNs cannot be empty")
 	}
 
 	// First try to build the network name from the cnsResponse if present
 	// This will happen during ADD call
-	if cnsResponse != nil {
-		var subnet net.IPNet
-		if err := updateSubnetPrefix(cnsResponse, &subnet); err != nil {
-			log.Printf("Error updating subnet prefix: %v", err)
-			return "", err
-		}
-
+	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
-		networkSuffix := strings.Replace(subnet.String(), ".", "-", -1)
-		networkSuffix = strings.Replace(networkSuffix, "/", "_", -1)
-		networkName := fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, cnsResponse.MultiTenancyInfo.ID, networkSuffix)
-
+		subnet := ipamAddResult.ipv4Result.IPs[0].Address
+		networkName := strings.Replace(subnet.String(), ".", "-", -1)
+		networkName = strings.Replace(networkName, "/", "_", -1)
+		networkName = fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, ipamAddResult.ncResponse.MultiTenancyInfo.ID, networkName)
 		return networkName, nil
 	}
 
@@ -194,7 +169,6 @@ func (plugin *NetPlugin) getNetworkName(podName, podNs, ifName, netNs string, cn
 	if err != nil {
 		log.Printf("Error getting network name from state: %v.", err)
 		return "", fmt.Errorf("error getting network name from state: %w", err)
-
 	}
 
 	return networkName, nil
@@ -401,7 +375,7 @@ func determineWinVer() {
 }
 
 func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
-	if executionMode == string(util.AKSSwift) {
+	if executionMode == string(util.V4Swift) {
 		ncPrimaryIP := ""
 		if ncPrimaryIPIface != nil {
 			ncPrimaryIP = ncPrimaryIPIface.(string)
