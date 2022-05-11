@@ -862,14 +862,13 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 		switch nnc.Status.NetworkContainers[i].AssignmentMode {
 		case v1alpha.Static:
 			ncRequest, err = kubecontroller.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
-		case v1alpha.Dynamic:
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			ncRequest, err = kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 
 		}
 
 		if err != nil {
-			return errors.Wrapf(err, "failed to convert NNC status to network container request, " +
+			return errors.Wrapf(err, "failed to convert NNC status to network container request, "+
 				"assignmentMode: %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
 
@@ -988,7 +987,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 		logger.Printf("reconciled initial CNS state after %d attempts", attempt)
 	}
-
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
 	// NodeNetworkConfig update by the time the Reconciler tries to send it.

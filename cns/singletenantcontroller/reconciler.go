@@ -84,7 +84,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		switch nnc.Status.NetworkContainers[i].AssignmentMode {
 		case v1alpha.Static:
 			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
-		case v1alpha.Dynamic:
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
@@ -95,7 +94,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if err != nil {
 			logger.Errorf("[cns-rc] failed to generate CreateNCRequest from NC: %v, assignmentMode %s", err,
 				nnc.Status.NetworkContainers[i].AssignmentMode)
-			return reconcile.Result{}, errors.Wrapf(err, "failed to generate CreateNCRequest from NC " +
+			return reconcile.Result{}, errors.Wrapf(err, "failed to generate CreateNCRequest from NC "+
 				"assignmentMode %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
 
