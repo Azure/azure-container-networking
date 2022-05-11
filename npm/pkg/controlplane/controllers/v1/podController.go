@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/pkg/errors"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"

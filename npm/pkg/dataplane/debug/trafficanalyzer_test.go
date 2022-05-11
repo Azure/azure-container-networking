@@ -231,7 +231,6 @@ func TestGetNetworkTuple(t *testing.T) {
 	for name, test := range tests {
 		test := test
 		t.Run(name, func(t *testing.T) {
-
 			sortedExpectedTupleList := hashTheSortTupleList(test.expected)
 
 			_, actualTupleList, _, _, err := GetNetworkTupleFile(
@@ -252,7 +251,6 @@ func TestGetNetworkTuple(t *testing.T) {
 			if !reflect.DeepEqual(sortedExpectedTupleList, sortedActualTupleList) {
 				t.Errorf("got '%+v', expected '%+v'", sortedActualTupleList, sortedExpectedTupleList)
 			}
-
 		})
 	}
 }

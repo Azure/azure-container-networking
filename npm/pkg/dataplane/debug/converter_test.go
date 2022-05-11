@@ -21,6 +21,7 @@ func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 		npmCacheFile,
 		iptableSaveFile,
 	)
+	require.NoError(t, err)
 
 	srcPod := &common.NpmPod{
 		Name:      "a",
@@ -103,6 +104,7 @@ func TestGetProtobufRulesFromIptableFileV2(t *testing.T) {
 		npmCacheFileV2,
 		iptableSaveFileV2,
 	)
+	require.NoError(t, err)
 	log.Printf("rules %+v", rules)
 
 	srcPod := &common.NpmPod{

@@ -273,12 +273,12 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 
 	if c.EnableV2NPM {
 		parentRules := make([]*pb.RuleResponse, 0)
-		for childRule, _ := range allRulesInNPMChains {
+		for childRule := range allRulesInNPMChains {
 
 			// if rule is a string-int, we need to find the parent jump
 			// to add the src for egress and dst for ingress
 			if strings.HasPrefix(childRule.Chain, "AZURE-NPM-EGRESS-") {
-				for parentRule, _ := range allRulesInNPMChains {
+				for parentRule := range allRulesInNPMChains {
 					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-EGRESS") && parentRule.JumpTo == childRule.Chain {
 						childRule.SrcList = append(childRule.SrcList, parentRule.SrcList...)
 						parentRules = append(parentRules, parentRule)
@@ -286,7 +286,7 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 				}
 			}
 			if strings.HasPrefix(childRule.Chain, "AZURE-NPM-INGRESS-") {
-				for parentRule, _ := range allRulesInNPMChains {
+				for parentRule := range allRulesInNPMChains {
 					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-INGRESS") && parentRule.JumpTo == childRule.Chain {
 						childRule.DstList = append(childRule.DstList, parentRule.DstList...)
 						parentRules = append(parentRules, parentRule)
@@ -427,7 +427,6 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 	ruleRes.UnsortedIpset = make(map[string]string)
 
 	for _, module := range moduleList {
-
 		switch module.Verb {
 		case "set":
 			// set module
@@ -471,9 +470,6 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 					ruleRes.SPort = int32(portNum)
 				}
 			}
-
-		case "comment":
-			//log.Printf("skipping comment for %+v ruleres %+v", module, ruleRes.String())
 		default:
 			continue
 		}

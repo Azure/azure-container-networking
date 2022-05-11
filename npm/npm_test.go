@@ -37,8 +37,7 @@ func TestNPMCache(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		var encoder json.Marshaler
-		encoder = &npmMgr
+		encoder := &npmMgr
 		b, err := json.Marshal(encoder)
 		require.NoError(t, err)
 		_, err = w.Write(b)
