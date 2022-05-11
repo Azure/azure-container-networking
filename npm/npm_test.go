@@ -12,11 +12,19 @@ import (
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
+	dpmocks "github.com/Azure/azure-container-networking/npm/pkg/dataplane/mocks"
 	"github.com/Azure/azure-container-networking/npm/pkg/models"
+	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNPMCache(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	dp.EXPECT().GetAllIPSets()
+
 	npmMgr := NetworkPolicyManager{
 		config: npmconfig.Config{
 			Toggles: npmconfig.Toggles{
@@ -29,6 +37,7 @@ func TestNPMCache(t *testing.T) {
 		K8SControllersV2: models.K8SControllersV2{
 			NamespaceControllerV2: &controllersv2.NamespaceController{},
 		},
+		Dataplane: dp,
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

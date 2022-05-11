@@ -247,7 +247,7 @@ func checkNpmPodWithInput(testName string, f *podFixture, inputPodObj *corev1.Po
 		f.t.Errorf("%s failed @ Labels check got = %v, want %v", testName, cachedNpmPodObj.Labels, inputPodObj.Labels)
 	}
 
-	inputPortList := getContainerPortList(inputPodObj)
+	inputPortList := common.GetContainerPortList(inputPodObj)
 	if !reflect.DeepEqual(cachedNpmPodObj.ContainerPorts, inputPortList) {
 		f.t.Errorf("%s failed @ Container port check got = %v, want %v", testName, cachedNpmPodObj.PodIP, inputPortList)
 	}

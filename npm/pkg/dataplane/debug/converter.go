@@ -25,7 +25,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-var ErrUnknownSetType = fmt.Errorf("unknown set type")
+var (
+	ErrUnknownSetType = fmt.Errorf("unknown set type")
+	EgressChain       = "AZURE-NPM-EGRESS"
+	EgressChainPrefix = EgressChain + "-"
+
+	IngressChain       = "AZURE-NPM-INGRESS"
+	IngressChainPrefix = IngressChain + "-"
+)
 
 // Converter struct
 type Converter struct {
@@ -66,7 +73,8 @@ func (c *Converter) NpmCache() error {
 	if err != nil {
 		return fmt.Errorf("failed to create http request : %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to request NPM Cache : %w", err)
 	}
@@ -277,17 +285,17 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 
 			// if rule is a string-int, we need to find the parent jump
 			// to add the src for egress and dst for ingress
-			if strings.HasPrefix(childRule.Chain, "AZURE-NPM-EGRESS-") {
+			if strings.HasPrefix(childRule.Chain, EgressChainPrefix) {
 				for parentRule := range allRulesInNPMChains {
-					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-EGRESS") && parentRule.JumpTo == childRule.Chain {
+					if strings.HasPrefix(parentRule.Chain, EgressChain) && parentRule.JumpTo == childRule.Chain {
 						childRule.SrcList = append(childRule.SrcList, parentRule.SrcList...)
 						parentRules = append(parentRules, parentRule)
 					}
 				}
 			}
-			if strings.HasPrefix(childRule.Chain, "AZURE-NPM-INGRESS-") {
+			if strings.HasPrefix(childRule.Chain, IngressChainPrefix) {
 				for parentRule := range allRulesInNPMChains {
-					if strings.HasPrefix(parentRule.Chain, "AZURE-NPM-INGRESS") && parentRule.JumpTo == childRule.Chain {
+					if strings.HasPrefix(parentRule.Chain, IngressChain) && parentRule.JumpTo == childRule.Chain {
 						childRule.DstList = append(childRule.DstList, parentRule.DstList...)
 						parentRules = append(parentRules, parentRule)
 					}

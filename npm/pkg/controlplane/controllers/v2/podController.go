@@ -371,7 +371,7 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 
 	// Add pod's named ports from its ipset.
 	klog.Infof("Adding named port ipsets")
-	containerPorts := getContainerPortList(podObj)
+	containerPorts := common.GetContainerPortList(podObj)
 	if err = c.manageNamedPortIpsets(containerPorts, podKey, npmPodObj.PodIP, podObj.Spec.NodeName, addNamedPort); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to named port ipset with err: %w", err)
 	}
@@ -494,7 +494,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	// (TODO): optimize named port addition and deletions.
 	// named ports are mostly static once configured in todays usage pattern
 	// so keeping this simple by deleting all and re-adding
-	newPodPorts := getContainerPortList(newPodObj)
+	newPodPorts := common.GetContainerPortList(newPodObj)
 	if !reflect.DeepEqual(cachedNpmPod.ContainerPorts, newPodPorts) {
 		// Delete cached pod's named ports from its ipset.
 		if err = c.manageNamedPortIpsets(
@@ -624,12 +624,4 @@ func hasValidPodIP(podObj *corev1.Pod) bool {
 
 func isHostNetworkPod(podObj *corev1.Pod) bool {
 	return podObj.Spec.HostNetwork
-}
-
-func getContainerPortList(podObj *corev1.Pod) []corev1.ContainerPort {
-	portList := []corev1.ContainerPort{}
-	for i := range podObj.Spec.Containers {
-		portList = append(portList, podObj.Spec.Containers[i].Ports...)
-	}
-	return portList
 }
