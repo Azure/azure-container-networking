@@ -45,6 +45,8 @@ func NewJsonFileStore(fileName string, lockclient processlock.Interface) (KeyVal
 		fileName = defaultFileName
 	}
 
+	log.Printf("Set state file to %v", fileName)
+
 	kvs := &jsonFileStore{
 		fileName:    fileName,
 		processLock: lockclient,
