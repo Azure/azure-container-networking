@@ -108,16 +108,6 @@ func TestGetProtobufRulesFromIptableFileV2(t *testing.T) {
 	}
 }
 
-func TestGetProtobufRulesFromIptable(t *testing.T) {
-	c := &Converter{}
-	_, err := c.GetProtobufRulesFromIptable(
-		util.IptablesFilterTable,
-	)
-	if err != nil {
-		t.Errorf("error during TestGetJSONRulesFromIptable : %v", err)
-	}
-}
-
 func TestNpmCacheFromFile(t *testing.T) {
 	c := &Converter{}
 	err := c.NpmCacheFromFile(npmCacheFileOld)
