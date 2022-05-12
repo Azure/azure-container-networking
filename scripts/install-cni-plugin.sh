@@ -20,7 +20,7 @@ if [ "$PLUGIN_VERSION" = "" ]; then
 fi
 
 if [ "$CNI_VERSION" = "" ]; then
-    CNI_VERSION=v0.4.0
+    CNI_VERSION=v1.1.1
 fi
 
 # Create CNI directories.
