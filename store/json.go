@@ -20,7 +20,7 @@ import (
 
 const (
 	// Default file name for backing persistent store.
-	defaultFileName = "azure-container-networking.json"
+	defaultFileName = platform.CNIIpamStatePath
 
 	// LockExtension - Extension added to the file name for lock.
 	LockExtension = ".lock"
@@ -136,6 +136,7 @@ func (kvs *jsonFileStore) flush() error {
 	}
 
 	dir, file := filepath.Split(kvs.fileName)
+
 	if dir == "" {
 		dir = "."
 	}
