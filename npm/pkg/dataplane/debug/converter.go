@@ -177,14 +177,8 @@ func (c *Converter) initConverterMaps() {
 		c.AzureNPMChains[chain] = true
 	}
 
-	if c.EnableV2NPM {
-		c.ListMap = c.NPMCache.GetListMapV2()
-		c.SetMap = c.NPMCache.GetSetMapV2()
-	} else {
-		c.ListMap = c.NPMCache.GetListMapV1()
-		c.SetMap = c.NPMCache.GetSetMapV1()
-	}
-
+	c.ListMap = c.NPMCache.GetListMap()
+	c.SetMap = c.NPMCache.GetSetMap()
 }
 
 func (c *Converter) isAzureNPMChain(chain string) bool {

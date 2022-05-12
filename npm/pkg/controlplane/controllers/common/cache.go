@@ -46,10 +46,8 @@ const (
 type GenericCache interface {
 	GetPod(*Input) (*NpmPod, error)
 	GetNamespaceLabel(namespace string, key string) string
-	GetListMapV1() map[string]string
-	GetSetMapV1() map[string]string
-	GetListMapV2() map[string]string
-	GetSetMapV2() map[string]string
+	GetListMap() map[string]string
+	GetSetMap() map[string]string
 }
 
 type Cache struct {
@@ -88,31 +86,15 @@ func (c *Cache) GetNamespaceLabel(namespace, labelkey string) string {
 	return ""
 }
 
-func (c *Cache) GetListMapV2() map[string]string {
-	listMap := make(map[string]string, 0)
-	// no list map is not used in v2 caching
-	return listMap
-}
-
-func (c *Cache) GetSetMapV2() map[string]string {
+func (c *Cache) GetSetMap() map[string]string {
 	return c.SetMap
 }
 
-func (c *Cache) GetListMapV1() map[string]string {
+func (c *Cache) GetListMap() map[string]string {
 	listMap := make(map[string]string)
 	for k := range c.ListMap {
 		hashedName := util.GetHashedName(k)
 		listMap[hashedName] = k
 	}
 	return listMap
-}
-
-func (c *Cache) GetSetMapV1() map[string]string {
-	setMap := make(map[string]string)
-
-	for k := range c.SetMap {
-		hashedName := util.GetHashedName(k)
-		setMap[hashedName] = k
-	}
-	return setMap
 }
