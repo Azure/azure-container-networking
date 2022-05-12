@@ -213,6 +213,8 @@ func (dp *DataPlane) getSelectorIPsByPolicy(policy *policies.NPMNetworkPolicy) (
 		selectorIpSets[ipset.Metadata.GetPrefixName()] = struct{}{}
 	}
 
+	klog.Infof("policy %s has policy selector: %+v", policy.PolicyKey, selectorIpSets) // FIXME remove after debugging
+
 	return dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIpSets)
 }
 
@@ -238,9 +240,9 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 			continue
 		}
 		endpointList[ip] = endpoint.ID
-		// TODO make sure this is netpol key and not name
 		endpoint.NetPolReference[policy.PolicyKey] = struct{}{}
 	}
+	klog.Infof("[DataPlane] Endpoints to apply policy %s: %+v", policy.PolicyKey, endpointList) // FIXME remove after debugging
 	return endpointList, nil
 }
 
@@ -278,7 +280,9 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 		}
 
 		dp.endpointCache[ep.IP] = ep
+		klog.Infof("updating endpoint cache to include %s: %+v", ep.IP, ep) // FIXME remove after debugging
 	}
+	klog.Infof("endpoint cache after refreshing all pod endpoints: %+v", dp.endpointCache) // FIXME remove after debugging
 	return nil
 }
 

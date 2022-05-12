@@ -56,6 +56,7 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 			return nil, err
 		}
 	}
+	klog.Infof("setintersection for getIPsFromSelectorIPSets %+v", setintersections) // FIXME remove after debugging
 	return setintersections, err
 }
 
