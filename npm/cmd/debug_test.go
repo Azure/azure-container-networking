@@ -21,8 +21,8 @@ const (
 	srcFlag              = "-s"
 	unknownShorthandFlag = "-z"
 
-	testIP1 = "10.240.0.17" // from npmCacheWithCustomFormat.json
-	testIP2 = "10.240.0.68" // ditto
+	testIP1 = "10.224.0.87" // from npmCacheWithCustomFormat.json
+	testIP2 = "10.224.0.20" // ditto
 
 	debugCmdString          = "debug"
 	convertIPTableCmdString = "convertiptable"

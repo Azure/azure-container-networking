@@ -745,7 +745,7 @@ func TestNSMapMarshalJSON(t *testing.T) {
 	nsMapRaw, err := npmNSCache.MarshalJSON()
 	require.NoError(t, err)
 
-	expect := []byte(`{"ns-test":{"LabelsMap":{"test-key":"test-value"}}}`)
+	expect := []byte(`{"ns-test":{"Name":"ns-test","LabelsMap":{"test-key":"test-value"}}}`)
 	assert.ElementsMatch(t, expect, nsMapRaw)
 }
 
