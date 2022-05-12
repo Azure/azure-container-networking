@@ -16,82 +16,13 @@ import (
 
 func TestGetProtobufRulesFromIptableFile(t *testing.T) {
 	c := &Converter{}
-	rules, err := c.GetProtobufRulesFromIptableFile(
+	_, err := c.GetProtobufRulesFromIptableFile(
 		util.IptablesFilterTable,
-		npmCacheFile,
-		iptableSaveFile,
+		npmCacheFileV1,
+		iptableSaveFileV1,
 	)
-	require.NoError(t, err)
-
-	srcPod := &common.NpmPod{
-		Name:      "a",
-		Namespace: "y",
-		PodIP:     "10.224.0.70",
-		Labels: map[string]string{
-			"pod": "a",
-		},
-		ContainerPorts: []v1.ContainerPort{
-			{
-				Name:          "serve-80-tcp",
-				ContainerPort: 80,
-				Protocol:      "TCP",
-			},
-			{
-				Name:          "serve-80-udp",
-				ContainerPort: 80,
-				Protocol:      "UDP",
-			},
-			{
-				Name:          "serve-81-tcp",
-				ContainerPort: 81,
-				Protocol:      "TCP",
-			},
-			{
-				Name:          "serve-81-UDP",
-				ContainerPort: 81,
-				Protocol:      "UDP",
-			},
-		},
-	}
-
-	dstPod := &common.NpmPod{
-		Name:      "b",
-		Namespace: "x",
-		PodIP:     "10.224.0.20",
-		Labels: map[string]string{
-			"pod": "b",
-		},
-		ContainerPorts: []v1.ContainerPort{
-			{
-				Name:          "serve-80-tcp",
-				ContainerPort: 80,
-				Protocol:      "TCP",
-			},
-			{
-				Name:          "serve-80-udp",
-				ContainerPort: 80,
-				Protocol:      "UDP",
-			},
-			{
-				Name:          "serve-81-tcp",
-				ContainerPort: 81,
-				Protocol:      "TCP",
-			},
-			{
-				Name:          "serve-81-UDP",
-				ContainerPort: 81,
-				Protocol:      "UDP",
-			},
-		},
-	}
-
-	hitrules, _, _, err := getHitRules(srcPod, dstPod, rules, c.NPMCache)
-	require.NoError(t, err)
-	log.Printf("hitrules %+v", hitrules)
-
-	log.Printf("rules %+v", rules)
 	if err != nil {
-		t.Errorf("failed to test GetJSONRulesFromIptable : %v", err)
+		t.Errorf("error during TestGetJSONRulesFromIptable : %v", err)
 	}
 }
 
@@ -189,9 +120,9 @@ func TestGetProtobufRulesFromIptable(t *testing.T) {
 
 func TestNpmCacheFromFile(t *testing.T) {
 	c := &Converter{}
-	err := c.NpmCacheFromFile(npmCacheFile)
+	err := c.NpmCacheFromFile(npmCacheFileOld)
 	if err != nil {
-		t.Errorf("Failed to decode NPMCache from %s file : %v", npmCacheFile, err)
+		t.Errorf("Failed to decode NPMCache from %s file : %v", npmCacheFileOld, err)
 	}
 }
 
@@ -244,7 +175,7 @@ func TestGetSetType(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheFile)
+	err := c.initConverterFile(npmCacheFileOld)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %v", err)
 	}
@@ -466,7 +397,7 @@ func TestGetRulesFromChain(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheFile)
+	err := c.initConverterFile(npmCacheFileOld)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %v", err)
 	}
@@ -655,7 +586,7 @@ func TestGetModulesFromRule(t *testing.T) {
 	}
 
 	c := &Converter{}
-	err := c.initConverterFile(npmCacheFile)
+	err := c.initConverterFile(npmCacheFileOld)
 	if err != nil {
 		t.Errorf("error during initilizing converter : %v", err)
 	}

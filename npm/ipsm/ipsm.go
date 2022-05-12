@@ -80,9 +80,16 @@ func (ipsMgr *IpsetManager) GetListMapRaw() ([]byte, error) {
 	ipsMgr.RLock()
 	defer ipsMgr.RUnlock()
 
-	b, err := json.Marshal(ipsMgr.listMap)
+	listMap := make(map[string]string, len(ipsMgr.listMap))
+
+	for k := range ipsMgr.setMap {
+		hashedName := util.GetHashedName(k)
+		listMap[hashedName] = k
+	}
+
+	b, err := json.Marshal(listMap)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to marshall list map")
+		return nil, errors.Wrapf(err, "failed to marshal list map")
 	}
 
 	return b, nil
@@ -92,9 +99,16 @@ func (ipsMgr *IpsetManager) GetSetMapRaw() ([]byte, error) {
 	ipsMgr.RLock()
 	defer ipsMgr.RUnlock()
 
-	b, err := json.Marshal(ipsMgr.setMap)
+	setMap := make(map[string]string, len(ipsMgr.setMap))
+
+	for k := range ipsMgr.setMap {
+		hashedName := util.GetHashedName(k)
+		setMap[hashedName] = k
+	}
+
+	b, err := json.Marshal(setMap)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to marshall list map")
+		return nil, errors.Wrapf(err, "failed to marshal list map")
 	}
 
 	return b, nil

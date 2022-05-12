@@ -236,7 +236,7 @@ func TestGetNetworkTuple(t *testing.T) {
 			_, actualTupleList, _, _, err := GetNetworkTupleFile(
 				test.input.src,
 				test.input.dst,
-				npmCacheFile,
+				npmCacheFileOld,
 				iptableSaveFile,
 			)
 			if err != nil {

@@ -53,10 +53,9 @@ func (c *Converter) NpmCacheFromFile(npmCacheJSONFile string) error {
 		return fmt.Errorf("failed to read %s file : %w", npmCacheJSONFile, err)
 	}
 
-	c.NPMCache = &npmcommon.Cache{}
-	err = json.Unmarshal(byteArray, c.NPMCache)
+	err = c.getCacheFromBytes(byteArray)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal %s due to %w", string(byteArray), err)
+		return errors.Wrap(err, "failed to get cache from file")
 	}
 
 	return nil
@@ -84,26 +83,35 @@ func (c *Converter) NpmCache() error {
 		return fmt.Errorf("failed to read response's data : %w", err)
 	}
 
-	// Hello Time Traveler:
-	// This is the client end of the debug dragons den. For issues related to marshaling,
-	// please refer to the custom marshaling that happens in npm/npm.go
-	// best of luck
+	err = c.getCacheFromBytes(byteArray)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get cache from debug http endpoint")
+	}
+
+	return nil
+}
+
+// Hello Time Traveler:
+// This is the client end of the debug dragons den. For issues related to marshaling,
+// please refer to the custom marshaling that happens in npm/npm.go
+// best of luck
+func (c *Converter) getCacheFromBytes(byteArray []byte) error {
 	m := map[models.CacheKey]json.RawMessage{}
 	if c.EnableV2NPM {
 		cache := &npmcommon.Cache{}
-		if err = json.Unmarshal(byteArray, &m); err != nil {
+		if err := json.Unmarshal(byteArray, &m); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal into v2 cache map")
 		}
 
-		if err = json.Unmarshal(m[models.NsMap], &cache.NsMap); err != nil {
+		if err := json.Unmarshal(m[models.NsMap], &cache.NsMap); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal nsmap into v2 cache")
 		}
 
-		if err = json.Unmarshal(m[models.PodMap], &cache.PodMap); err != nil {
+		if err := json.Unmarshal(m[models.PodMap], &cache.PodMap); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal podmap into v2 cache")
 		}
 
-		if err = json.Unmarshal(m[models.SetMap], &cache.SetMap); err != nil {
+		if err := json.Unmarshal(m[models.SetMap], &cache.SetMap); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal setmap into v2 cache")
 		}
 
@@ -111,19 +119,23 @@ func (c *Converter) NpmCache() error {
 
 	} else {
 		cache := &npmcommon.Cache{}
-		if err = json.Unmarshal(m[models.NsMap], &cache.NsMap); err != nil {
+		if err := json.Unmarshal(byteArray, &m); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal into v1 cache map")
 		}
 
-		if err = json.Unmarshal(m[models.PodMap], &cache.PodMap); err != nil {
+		if err := json.Unmarshal(m[models.NsMap], &cache.NsMap); err != nil {
+			return errors.Wrapf(err, "failed to unmarshal nsmap into v1 cache map")
+		}
+
+		if err := json.Unmarshal(m[models.PodMap], &cache.PodMap); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal podmap into v1 cache")
 		}
 
-		if err = json.Unmarshal(m[models.SetMap], &cache.SetMap); err != nil {
+		if err := json.Unmarshal(m[models.SetMap], &cache.SetMap); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal setmap into v1 cache")
 		}
 
-		if err = json.Unmarshal(m[models.ListMap], &cache.ListMap); err != nil {
+		if err := json.Unmarshal(m[models.ListMap], &cache.ListMap); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal listmap into v1 cache")
 		}
 
