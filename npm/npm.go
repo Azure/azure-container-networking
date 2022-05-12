@@ -149,6 +149,12 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 
 	}
 
+	nodenameRaw, err := json.Marshal(npMgr.NodeName)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshal node name")
+	}
+	m[models.NodeName] = nodenameRaw
+
 	npmCacheRaw, err := json.Marshal(m)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to marshall the cache map")

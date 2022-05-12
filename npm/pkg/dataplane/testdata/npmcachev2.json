@@ -1,5 +1,5 @@
 {
-    "NodeName": "",
+    "NodeName": "aks-nodepool1-74283791-vmss000001",
     "NsMap": {
         "default": {
             "Name": "default",
@@ -51,14 +51,14 @@
         }
     },
     "PodMap": {
-        "kube-system/coredns-845757d86-fh9q5": {
-            "Name": "coredns-845757d86-fh9q5",
+        "kube-system/coredns-69c47794-9vtmc": {
+            "Name": "coredns-69c47794-9vtmc",
             "Namespace": "kube-system",
-            "PodIP": "10.224.0.69",
+            "PodIP": "10.224.0.41",
             "Labels": {
                 "k8s-app": "kube-dns",
                 "kubernetes.io/cluster-service": "true",
-                "pod-template-hash": "845757d86",
+                "pod-template-hash": "69c47794",
                 "version": "v20"
             },
             "ContainerPorts": [
@@ -80,14 +80,14 @@
             ],
             "Phase": "Running"
         },
-        "kube-system/coredns-845757d86-fl49g": {
-            "Name": "coredns-845757d86-fl49g",
+        "kube-system/coredns-69c47794-c2987": {
+            "Name": "coredns-69c47794-c2987",
             "Namespace": "kube-system",
-            "PodIP": "10.224.0.23",
+            "PodIP": "10.224.0.15",
             "Labels": {
                 "k8s-app": "kube-dns",
                 "kubernetes.io/cluster-service": "true",
-                "pod-template-hash": "845757d86",
+                "pod-template-hash": "69c47794",
                 "version": "v20"
             },
             "ContainerPorts": [
@@ -120,26 +120,26 @@
             "ContainerPorts": [],
             "Phase": "Running"
         },
-        "kube-system/konnectivity-agent-8658d4bc95-2mw4b": {
-            "Name": "konnectivity-agent-8658d4bc95-2mw4b",
+        "kube-system/konnectivity-agent-7bf5785fc7-dljxt": {
+            "Name": "konnectivity-agent-7bf5785fc7-dljxt",
             "Namespace": "kube-system",
-            "PodIP": "10.224.0.95",
+            "PodIP": "10.224.0.39",
             "Labels": {
                 "app": "konnectivity-agent",
                 "component": "tunnel",
-                "pod-template-hash": "8658d4bc95"
+                "pod-template-hash": "7bf5785fc7"
             },
             "ContainerPorts": [],
             "Phase": "Running"
         },
-        "kube-system/konnectivity-agent-8658d4bc95-zsjbs": {
-            "Name": "konnectivity-agent-8658d4bc95-zsjbs",
+        "kube-system/konnectivity-agent-7bf5785fc7-khlww": {
+            "Name": "konnectivity-agent-7bf5785fc7-khlww",
             "Namespace": "kube-system",
-            "PodIP": "10.224.0.14",
+            "PodIP": "10.224.0.92",
             "Labels": {
                 "app": "konnectivity-agent",
                 "component": "tunnel",
-                "pod-template-hash": "8658d4bc95"
+                "pod-template-hash": "7bf5785fc7"
             },
             "ContainerPorts": [],
             "Phase": "Running"
@@ -438,13 +438,14 @@
     "SetMap": {
         "azure-npm-107991907": "podlabel-k8s-app:coredns-autoscaler",
         "azure-npm-1213884878": "namedport:serve-81-tcp",
-        "azure-npm-1247849756": "podlabel-pod-template-hash:845757d86",
+        "azure-npm-1228747572": "podlabel-pod-template-hash:7bf5785fc7",
         "azure-npm-1343132199": "podlabel-version",
         "azure-npm-1385180724": "podlabel-pod-template-hash",
         "azure-npm-1529935048": "podlabel-component:tunnel",
         "azure-npm-1639206293": "nslabel-all-namespaces",
         "azure-npm-1802501696": "nslabel-kubernetes.io/cluster-service",
         "azure-npm-1883894896": "ns-kube-node-lease",
+        "azure-npm-1889013859": "podlabel-pod-template-hash:69c47794",
         "azure-npm-1923986458": "podlabel-kubernetes.io/cluster-service",
         "azure-npm-1977654781": "nslabel-kubernetes.io/metadata.name:kube-system",
         "azure-npm-2064349730": "ns-kube-system",
@@ -482,7 +483,6 @@
         "azure-npm-4150775300": "nslabel-kubernetes.io/metadata.name:x",
         "azure-npm-4167552919": "nslabel-kubernetes.io/metadata.name:y",
         "azure-npm-4184330538": "nslabel-kubernetes.io/metadata.name:z",
-        "azure-npm-4269567100": "podlabel-pod-template-hash:8658d4bc95",
         "azure-npm-4272224941": "podlabel-app:konnectivity-agent",
         "azure-npm-4284971813": "namedport:serve-80-tcp",
         "azure-npm-483924252": "nslabel-ns",

@@ -25,10 +25,11 @@ const (
 
 func TestMarshalJSONForNilValues(t *testing.T) {
 	npMgr := &NetworkPolicyManager{}
+	npMgr.ipsMgr = ipsm.NewIpsetManager(exec.New())
 	npmCacheRaw, err := npMgr.MarshalJSON()
 	assert.NoError(t, err)
 
-	expect := []byte(`{"NodeName":"","NsMap":null,"PodMap":null}`)
+	expect := []byte(`{"ListMap":{},"NodeName":"","NsMap":null,"PodMap":null,"SetMap":{}}`)
 	assert.ElementsMatch(t, expect, npmCacheRaw)
 }
 
