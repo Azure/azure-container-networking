@@ -51,6 +51,7 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 			}
 			firstLoop = false
 		}
+		klog.Infof("set [%s] has ippodkey: %+v", set.Name, set.IPPodKey) // FIXME remove after debugging
 		setintersections, err = set.getSetIntersection(setintersections)
 		if err != nil {
 			return nil, err
