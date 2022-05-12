@@ -48,7 +48,7 @@ func (pMgr *PolicyManager) reconcile() {
 
 func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
 	klog.Infof("[DataPlane Windows] adding policy %s on %+v", policy.PolicyKey, endpointList)
-	if endpointList == nil {
+	if len(endpointList) == 0 {
 		klog.Infof("[DataPlane Windows] No Endpoints to apply policy %s on", policy.PolicyKey)
 		return nil
 	}

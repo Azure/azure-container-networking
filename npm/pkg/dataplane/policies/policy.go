@@ -145,7 +145,8 @@ func ValidatePolicy(networkPolicy *NPMNetworkPolicy) error {
 		}
 
 		if !aclPolicy.DstPorts.isValidRange() {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has invalid port range in DstPorts (start: %d, end: %d)", networkPolicy.PolicyKey, aclPolicy.DstPorts.Port, aclPolicy.DstPorts.EndPort))
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has invalid port range in DstPorts (start: %d, end: %d)",
+				networkPolicy.PolicyKey, aclPolicy.DstPorts.Port, aclPolicy.DstPorts.EndPort))
 		}
 
 		for _, setInfo := range aclPolicy.SrcList {
