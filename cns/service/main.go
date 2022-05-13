@@ -860,7 +860,7 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 		var ncRequest *cns.CreateNetworkContainerRequest
 		var err error
 
-		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint: exhaustive // skipping dynamic case
+		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
 			ncRequest, err = kubecontroller.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
 		default: // For backward compatibility, default will be treated as Dynamic too.

@@ -81,7 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	for i := range nnc.Status.NetworkContainers {
 		var req *cns.CreateNetworkContainerRequest
 		var err error
-		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint: exhaustive // skipping dynamic case
+		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
 			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
 		default: // For backward compatibility, default will be treated as Dynamic too.
