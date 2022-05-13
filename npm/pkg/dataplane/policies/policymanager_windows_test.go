@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	// TODO fix these expected ACLs (e.g. local/remote addresses and ports are off)
 	expectedACLs = []*hnswrapper.FakeEndpointPolicy{
 		{
 			ID:              TestNetworkPolicies[0].ACLPolicyID,
@@ -123,7 +124,7 @@ func TestRemovePolicies(t *testing.T) {
 		verifyFakeHNSCacheACLs(t, expectedACLs, acls)
 	}
 
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].Name, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
 	require.NoError(t, err)
 	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
 }
