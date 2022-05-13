@@ -859,12 +859,12 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 	for i := range nnc.Status.NetworkContainers {
 		var ncRequest *cns.CreateNetworkContainerRequest
 		var err error
-		switch nnc.Status.NetworkContainers[i].AssignmentMode {
+
+		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint: exhaustive // skipping dynamic case
 		case v1alpha.Static:
 			ncRequest, err = kubecontroller.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			ncRequest, err = kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
-
 		}
 
 		if err != nil {
