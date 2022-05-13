@@ -68,7 +68,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, errors.Wrapf(err, "failed to get NodeNetworkConfig %v", req.NamespacedName)
 	}
 
-	logger.Printf("[cns-rc] CRD Spec: %v", nnc.Spec)
+	logger.Printf("[cns-rc] CRD Spec: %+v", nnc.Spec)
 
 	// if there are no network containers, don't continue to updating Listeners
 	if len(nnc.Status.NetworkContainers) == 0 {

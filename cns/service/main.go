@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -46,6 +47,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
@@ -433,6 +435,10 @@ func main() {
 
 	configuration.SetCNSConfigDefaults(cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
+
+	// start the health server
+	z, _ := zap.NewProduction()
+	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
 
 	if cnsconfig.WireserverIP != "" {
 		nmagent.WireserverIP = cnsconfig.WireserverIP
@@ -1012,7 +1018,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme:             nodenetworkconfig.Scheme,
-		MetricsBindAddress: cnsconfig.MetricsBindAddress,
+		MetricsBindAddress: "0",
 		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
 		NewCache:           nodeScopedCache,
 	})
