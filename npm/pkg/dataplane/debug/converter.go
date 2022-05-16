@@ -295,6 +295,7 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 				for parentRule := range allRulesInNPMChains {
 					if strings.HasPrefix(parentRule.Chain, EgressChain) && parentRule.JumpTo == childRule.Chain {
 						childRule.SrcList = append(childRule.SrcList, parentRule.SrcList...)
+						childRule.Comment = parentRule.Comment
 						parentRules = append(parentRules, parentRule)
 					}
 				}
@@ -303,6 +304,7 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 				for parentRule := range allRulesInNPMChains {
 					if strings.HasPrefix(parentRule.Chain, IngressChain) && parentRule.JumpTo == childRule.Chain {
 						childRule.DstList = append(childRule.DstList, parentRule.DstList...)
+						childRule.Comment = parentRule.Comment
 						parentRules = append(parentRules, parentRule)
 					}
 				}
@@ -361,6 +363,12 @@ func (c *Converter) getRulesFromChain(iptableChain *NPMIPtable.Chain) ([]*pb.Rul
 		if v.Target != nil {
 			rule.JumpTo = v.Target.Name
 		}
+
+		/*
+			for _, module := range v.Modules {
+				if module.Verb
+			}
+		*/
 
 		rules = append(rules, rule)
 	}
@@ -484,6 +492,8 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 					ruleRes.SPort = int32(portNum)
 				}
 			}
+		case util.IptablesCommentModuleFlag:
+			ruleRes.Comment = fmt.Sprintf("%+v", module.OptionValueMap[util.IptablesCommentModuleFlag])
 		default:
 			continue
 		}

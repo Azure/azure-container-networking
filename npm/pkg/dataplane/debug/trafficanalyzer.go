@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -32,38 +33,78 @@ type Tuple struct {
 }
 
 func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleResponse_SetInfo, dstList map[string]*pb.RuleResponse_SetInfo) { //nolint: gocritic
-	fmt.Printf("Source IPSets:\n")
-	for i := range srcList {
-		fmt.Printf("\tName: %s, HashedName: %s,\n", srcList[i].Name, srcList[i].HashedSetName)
-	}
-
-	fmt.Printf("Destination IPSets:\n")
-	for i := range dstList {
-		fmt.Printf("\tName: %s, HashedName: %s,\n", dstList[i].Name, dstList[i].HashedSetName)
-	}
-
-	fmt.Printf("Rules:\n")
+	allowedrules := []*TupleAndRule{}
+	blockedrules := []*TupleAndRule{}
 	for _, tuple := range tuples {
-		fmt.Printf("%s for %s\n", tuple.Tuple.RuleType, tuple.Tuple.Direction)
-		fmt.Printf("\tSource IP: %s, Port %s\n", tuple.Tuple.SrcIP, tuple.Tuple.SrcPort)
-		fmt.Printf("\tDestination IP: %s, Port %s\n", tuple.Tuple.DstIP, tuple.Tuple.DstPort)
-		fmt.Printf("\tProtocol: %s\n", tuple.Rule.Protocol)
-		fmt.Printf("\tChain: %+v\n", tuple.Rule.Chain)
-		fmt.Printf("\tSource Sets:\n")
-		for _, src := range tuple.Rule.SrcList {
-			fmt.Printf("\t\tName: %s\n", src.Name)
-			fmt.Printf("\t\t\tHashedName: %s\n", src.HashedSetName)
-			fmt.Printf("\t\t\tType: %s\n", src.Type)
-			fmt.Printf("\t\t\tIncluded: %v\n", src.Included)
+		if tuple.Tuple.RuleType == "ALLOWED" {
+			allowedrules = append(allowedrules, tuple)
+			continue
 		}
-		fmt.Printf("\tDestination Sets:\n")
-		for _, dst := range tuple.Rule.DstList {
-			fmt.Printf("\t\tName: %s\n", dst.Name)
-			fmt.Printf("\t\t\tHashedName: %s\n", dst.HashedSetName)
-			fmt.Printf("\t\t\tType: %s\n", dst.Type)
-			fmt.Printf("\t\t\tIncluded: %v\n", dst.Included)
-		}
+
+		blockedrules = append(blockedrules, tuple)
+		/*tuple.Tuple.Direction == "EGRESS" {
+			fmt.Printf("\tProtocol: %s, Port: %s\n, Chain: %v", tuple.Tuple.Protocol, tuple.Tuple.SrcPort, tuple.Rule.Chain)
+		}*/
 	}
+
+	sort.Slice(allowedrules, func(i, j int) bool {
+		return allowedrules[i].Tuple.Direction == "EGRESS"
+	})
+
+	sort.Slice(blockedrules, func(i, j int) bool {
+		return blockedrules[i].Tuple.Direction == "EGRESS"
+	})
+
+	fmt.Printf("Allowed:\n")
+	section := ""
+	for _, tuple := range allowedrules {
+		if tuple.Tuple.Direction != section {
+			fmt.Printf("\t%s:\n", tuple.Tuple.Direction)
+			section = tuple.Tuple.Direction
+		}
+		fmt.Printf("\t\tProtocol: %s, Port: %s, Chain: %v, Comment: %v\n", tuple.Tuple.Protocol, tuple.Tuple.SrcPort, tuple.Rule.Chain, tuple.Rule.Comment)
+	}
+
+	fmt.Printf("Blocked:\n")
+	for _, tuple := range blockedrules {
+		fmt.Printf("\t%s: %s,  Comment: %v\n", tuple.Tuple.Direction, tuple.Rule.Chain, tuple.Rule.Comment)
+	}
+
+	fmt.Printf("Key:\n")
+	fmt.Printf("IPSets:")
+	fmt.Printf("\tSource IPSets:\n")
+	for i := range srcList {
+		fmt.Printf("\t\tName: %s, HashedName: %s,\n", srcList[i].Name, srcList[i].HashedSetName)
+	}
+	fmt.Printf("\tDestination IPSets:\n")
+	for i := range dstList {
+		fmt.Printf("\t\tName: %s, HashedName: %s,\n", dstList[i].Name, dstList[i].HashedSetName)
+	}
+
+	/*
+		fmt.Printf("Rules:\n")
+		for _, tuple := range tuples {
+			fmt.Printf("%s for %s\n", tuple.Tuple.RuleType, tuple.Tuple.Direction)
+			fmt.Printf("\tSource IP: %s, Port %s\n", tuple.Tuple.SrcIP, tuple.Tuple.SrcPort)
+			fmt.Printf("\tDestination IP: %s, Port %s\n", tuple.Tuple.DstIP, tuple.Tuple.DstPort)
+			fmt.Printf("\tProtocol: %s\n", tuple.Rule.Protocol)
+			fmt.Printf("\tChain: %+v\n", tuple.Rule.Chain)
+			fmt.Printf("\tSource Sets:\n")
+			for _, src := range tuple.Rule.SrcList {
+				fmt.Printf("\t\tName: %s\n", src.Name)
+				fmt.Printf("\t\t\tHashedName: %s\n", src.HashedSetName)
+				fmt.Printf("\t\t\tType: %s\n", src.Type)
+				fmt.Printf("\t\t\tIncluded: %v\n", src.Included)
+			}
+			fmt.Printf("\tDestination Sets:\n")
+			for _, dst := range tuple.Rule.DstList {
+				fmt.Printf("\t\tName: %s\n", dst.Name)
+				fmt.Printf("\t\t\tHashedName: %s\n", dst.HashedSetName)
+				fmt.Printf("\t\t\tType: %s\n", dst.Type)
+				fmt.Printf("\t\t\tIncluded: %v\n", dst.Included)
+			}
+		}
+	*/
 }
 
 // GetNetworkTuple read from node's NPM cache and iptables-save and
