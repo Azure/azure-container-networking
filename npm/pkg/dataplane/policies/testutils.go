@@ -7,9 +7,9 @@ var (
 	// TestNetworkPolicies for testing
 	TestNetworkPolicies = []*NPMNetworkPolicy{
 		{
-			Name:      "test1",
-			NameSpace: "x",
-			PolicyKey: "x/test1",
+			Namespace:   "x",
+			PolicyKey:   "x/test1",
+			ACLPolicyID: "azure-acl-x-test1",
 			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 				{Metadata: ipsets.TestKeyPodSet.Metadata},
 			},
@@ -28,9 +28,9 @@ var (
 			ACLs: testACLs,
 		},
 		{
-			Name:      "test2",
-			NameSpace: "y",
-			PolicyKey: "y/test2",
+			Namespace:   "y",
+			PolicyKey:   "y/test2",
+			ACLPolicyID: "azure-acl-y-test2",
 			PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 				{Metadata: ipsets.TestKeyPodSet.Metadata},
 				{Metadata: ipsets.TestKVPodSet.Metadata},
@@ -55,9 +55,9 @@ var (
 			},
 		},
 		{
-			Name:      "test3",
-			NameSpace: "z",
-			PolicyKey: "z/test3",
+			Namespace:   "z",
+			PolicyKey:   "z/test3",
+			ACLPolicyID: "azure-acl-z-test3",
 			RuleIPSets: []*ipsets.TranslatedIPSet{
 				{Metadata: ipsets.TestCIDRSet.Metadata, Members: nil},
 			},
@@ -69,8 +69,7 @@ var (
 
 	testACLs = []*ACLPolicy{
 		{
-			PolicyID: "test1",
-			Comment:  "comment1",
+			Comment: "comment1",
 			SrcList: []SetInfo{
 				{
 					ipsets.TestCIDRSet.Metadata,
@@ -93,8 +92,7 @@ var (
 			Protocol: TCP,
 		},
 		{
-			PolicyID: "test1",
-			Comment:  "comment2",
+			Comment: "comment2",
 			SrcList: []SetInfo{
 				{
 					ipsets.TestCIDRSet.Metadata,
@@ -107,8 +105,7 @@ var (
 			Protocol:  UDP,
 		},
 		{
-			PolicyID: "test1",
-			Comment:  "comment3",
+			Comment: "comment3",
 			SrcList: []SetInfo{
 				{
 					ipsets.TestCIDRSet.Metadata,
@@ -124,8 +121,7 @@ var (
 			Protocol: UDP,
 		},
 		{
-			PolicyID: "test1",
-			Comment:  "comment4",
+			Comment: "comment4",
 			SrcList: []SetInfo{
 				{
 					ipsets.TestCIDRSet.Metadata,

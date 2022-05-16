@@ -90,6 +90,16 @@ type CreateNetworkContainerRequest struct {
 	EndpointPolicies           []NetworkContainerRequestPolicies
 }
 
+// CreateNetworkContainerRequest implements fmt.Stringer for logging
+func (req *CreateNetworkContainerRequest) String() string {
+	return fmt.Sprintf("CreateNetworkContainerRequest"+
+		"{Version: %s, NetworkContainerType: %s, NetworkContainerid: %s, PrimaryInterfaceIdentifier: %s, "+
+		"LocalIPConfiguration: %+v, IPConfiguration: %+v, SecondaryIPConfigs: %+v, MultitenancyInfo: %+v, "+
+		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t}",
+		req.Version, req.NetworkContainerType, req.NetworkContainerid, req.PrimaryInterfaceIdentifier, req.LocalIPConfiguration,
+		req.IPConfiguration, req.SecondaryIPConfigs, req.MultiTenancyInfo, req.AllowHostToNCCommunication, req.AllowNCToHostCommunication)
+}
+
 // NetworkContainerRequestPolicies - specifies policies associated with create network request
 type NetworkContainerRequestPolicies struct {
 	Type         string

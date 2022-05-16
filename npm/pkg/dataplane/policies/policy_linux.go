@@ -20,6 +20,11 @@ const (
 	maxLengthForMatchSetSpecs = 6
 )
 
+// the NPMNetworkPolicy ACLPolicyID field is unnused in Linux
+func aclPolicyID(_, _ string) string {
+	return ""
+}
+
 // returns two booleans indicating whether the network policy has ingress and egress respectively
 func (networkPolicy *NPMNetworkPolicy) hasIngressAndEgress() (hasIngress, hasEgress bool) {
 	hasIngress = false
@@ -67,7 +72,7 @@ func (networkPolicy *NPMNetworkPolicy) commentForJump(direction UniqueDirection)
 	if len(networkPolicy.PodSelectorList) > 0 {
 		podSelectorComment = commentForInfos(networkPolicy.PodSelectorList)
 	}
-	return fmt.Sprintf("%s-POLICY-%s-%s-%s-IN-ns-%s", prefix, networkPolicy.PolicyKey, toFrom, podSelectorComment, networkPolicy.NameSpace)
+	return fmt.Sprintf("%s-POLICY-%s-%s-%s-IN-ns-%s", prefix, networkPolicy.PolicyKey, toFrom, podSelectorComment, networkPolicy.Namespace)
 }
 
 func commentForInfos(infos []SetInfo) string {

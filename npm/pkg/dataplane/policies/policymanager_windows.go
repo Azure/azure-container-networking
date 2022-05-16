@@ -47,9 +47,9 @@ func (pMgr *PolicyManager) reconcile() {
 }
 
 func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
-	klog.Infof("[DataPlane Windows] adding policy %s on %+v", policy.Name, endpointList)
-	if endpointList == nil {
-		klog.Infof("[DataPlane Windows] No Endpoints to apply policy %s on", policy.Name)
+	klog.Infof("[DataPlane Windows] adding policy %s on %+v", policy.PolicyKey, endpointList)
+	if len(endpointList) == 0 {
+		klog.Infof("[DataPlane Windows] No Endpoints to apply policy %s on", policy.PolicyKey)
 		return nil
 	}
 
@@ -67,17 +67,17 @@ func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[
 			// If the expected ID is not same as epID, there is a chance that old pod got deleted
 			// and same IP is used by new pod with new endpoint.
 			// so we should delete the non-existent endpoint from policy reference
-			klog.Infof("[DataPlane Windows] PolicyName : %s Endpoint IP: %s's ID %s does not match expected %s", policy.Name, epIP, epID, expectedEpID)
+			klog.Infof("[DataPlane Windows] PolicyName : %s Endpoint IP: %s's ID %s does not match expected %s", policy.PolicyKey, epIP, epID, expectedEpID)
 			delete(policy.PodEndpoints, epIP)
 			continue
 		}
 
-		klog.Infof("[DataPlane Windows]  PolicyName : %s Endpoint IP: %s's ID %s is already in cache", policy.Name, epIP, epID)
+		klog.Infof("[DataPlane Windows]  PolicyName : %s Endpoint IP: %s's ID %s is already in cache", policy.PolicyKey, epIP, epID)
 		// Deleting the endpoint from EPList so that the policy is not added to this endpoint again
 		delete(endpointList, epIP)
 	}
 
-	rulesToAdd, err := getSettingsFromACL(policy.ACLs)
+	rulesToAdd, err := getSettingsFromACL(policy)
 	if err != nil {
 		return err
 	}
@@ -107,17 +107,17 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 
 	if endpointList == nil {
 		if policy.PodEndpoints == nil {
-			klog.Infof("[DataPlane Windows] No Endpoints to remove policy %s on", policy.Name)
+			klog.Infof("[DataPlane Windows] No Endpoints to remove policy %s on", policy.PolicyKey)
 			return nil
 		}
 		endpointList = policy.PodEndpoints
 	}
 
-	rulesToRemove, err := getSettingsFromACL(policy.ACLs)
+	rulesToRemove, err := getSettingsFromACL(policy)
 	if err != nil {
 		return err
 	}
-	klog.Infof("[DataPlane Windows] To Remove Policy: %s \n To Delete ACLs: %+v \n To Remove From %+v endpoints", policy.Name, rulesToRemove, endpointList)
+	klog.Infof("[DataPlane Windows] To Remove Policy: %s \n To Delete ACLs: %+v \n To Remove From %+v endpoints", policy.PolicyKey, rulesToRemove, endpointList)
 	// If remove bug is solved we can directly remove the exact policy from the endpoint
 	// but if the bug is not solved then get all existing policies and remove relevant policies from list
 	// then apply remaining policies onto the endpoint
@@ -236,10 +236,10 @@ func getEPPolicyReqFromACLSettings(settings []*NPMACLPolSettings) (hcn.PolicyEnd
 	return policyToAdd, nil
 }
 
-func getSettingsFromACL(acls []*ACLPolicy) ([]*NPMACLPolSettings, error) {
-	hnsRules := make([]*NPMACLPolSettings, len(acls))
-	for i, acl := range acls {
-		rule, err := acl.convertToAclSettings()
+func getSettingsFromACL(policy *NPMNetworkPolicy) ([]*NPMACLPolSettings, error) {
+	hnsRules := make([]*NPMACLPolSettings, len(policy.ACLs))
+	for i, acl := range policy.ACLs {
+		rule, err := acl.convertToAclSettings(policy.ACLPolicyID)
 		if err != nil {
 			// TODO need some retry mechanism to check why the translations failed
 			return hnsRules, err
