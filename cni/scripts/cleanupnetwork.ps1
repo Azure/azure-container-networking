@@ -16,26 +16,15 @@ if ($global:NetworkPlugin -eq "azure") {
     $networkname = "azure"
 }
 
-$hnsNetwork = Get-HnsNetwork | ? Name -EQ $networkname
-if ($hnsNetwork) {   
-    Write-Host "Cleaning up persisted HNS policy lists"
-    # Initially a workaround for https://github.com/kubernetes/kubernetes/pull/68923 in < 1.14,
-    # and https://github.com/kubernetes/kubernetes/pull/78612 for <= 1.15
-    #
-    # October patch 10.0.17763.1554 introduced a breaking change 
-    # which requires the hns policy list to be removed before network if it gets into a bad state
-    # See https://github.com/Azure/aks-engine/pull/3956#issuecomment-720797433 for more info
-    # Kubeproxy doesn't fail becuase errors are not handled: 
-    # https://github.com/delulu/kubernetes/blob/524de768bb64b7adff76792ca3bf0f0ece1e849f/pkg/proxy/winkernel/proxier.go#L532
+
+foreach($net in Get-HnsNetwork) { 
     Get-HnsPolicyList | Remove-HnsPolicyList
-
-    Write-Host "Cleaning up old HNS network found"
-    Remove-HnsNetwork $hnsNetwork
-    Start-Sleep 10
-} else {
-    Write-Host "no hns network found with name" $networkname
+    if ($net.Name.StartsWith("azure")) { 
+        Write-Host "Cleaning up old HNS network:" $net.Name
+        Remove-HnsNetwork $net
+        Start-Sleep 10
+    }
 }
-
 
 if ($global:NetworkPlugin -eq "azure") {
     Write-Host "NetworkPlugin azure, starting kubelet."
