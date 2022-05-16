@@ -1,6 +1,7 @@
- # ./cleanupnetwork.ps1 -CniName azure
+ # ./cleanupnetwork.ps1 -CniDirectory c:\k -NetworkName azure
  param (
-    [Parameter(Mandatory=$true)][string]$CniName
+    [string]$CniDirectory = "c:\k",
+    [Parameter(Mandatory=$true)][string]$NetworkName
  )
 
 Invoke-WebRequest -Uri https://raw.githubusercontent.com/microsoft/SDN/master/Kubernetes/windows/hns.psm1 -OutFile "c:\hns.psm1" -UseBasicParsing
@@ -48,18 +49,12 @@ if ($global:NetworkPlugin -eq "azure") {
     # azure-cni logs currently end up in c:\windows\system32 when machines are configured with containerd.
     # https://github.com/containerd/containerd/issues/4928
     $filesToRemove = @(
-        "c:\k\azure-vnet.json",
-        "c:\k\azure-vnet.json.lock",
-        "c:\k\azure-vnet-ipam.json",
-        "c:\k\azure-vnet-ipam.json.lock"
-        "c:\k\azure-vnet-ipamv6.json",
-        "c:\k\azure-vnet-ipamv6.json.lock"
-        "c:\windows\system32\azure-vnet.json",
-        "c:\windows\system32\azure-vnet.json.lock",
-        "c:\windows\system32\azure-vnet-ipam.json",
-        "c:\windows\system32\azure-vnet-ipam.json.lock"
-        "c:\windows\system32\azure-vnet-ipamv6.json",
-        "c:\windows\system32\azure-vnet-ipamv6.json.lock"
+        $CniDirectory+"\azure-vnet.json",
+        $CniDirectory+"\azure-vnet.json.lock",
+        $CniDirectory+"\azure-vnet-ipam.json",
+        $CniDirectory+"\azure-vnet-ipam.json.lock"
+        $CniDirectory+"\azure-vnet-ipamv6.json",
+        $CniDirectory+"\azure-vnet-ipamv6.json.lock"
     )
 
     foreach ($file in $filesToRemove) {
