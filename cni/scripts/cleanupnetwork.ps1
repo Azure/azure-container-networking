@@ -1,9 +1,12 @@
-$Global:ClusterConfiguration = ConvertFrom-Json ((Get-Content "c:\k\kubeclusterconfig.json" -ErrorAction Stop) | out-string)
+ # ./cleanupnetwork.ps1 -CniName azure
+ param (
+    [Parameter(Mandatory=$true)][string]$CniName
+ )
+
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/microsoft/SDN/master/Kubernetes/windows/hns.psm1 -OutFile "c:\hns.psm1" -UseBasicParsing
 
 $global:NetworkMode = "L2Bridge"
-$global:ContainerRuntime = $Global:ClusterConfiguration.Cri.Name
-$global:NetworkPlugin = $Global:ClusterConfiguration.Cni.Name
-$global:HNSModule = "c:\k\hns.psm1"
+$global:HNSModule = "c:\hns.psm1"
 
 ipmo $global:HNSModule
 
@@ -13,17 +16,7 @@ if ($global:NetworkPlugin -eq "azure") {
 }
 
 $hnsNetwork = Get-HnsNetwork | ? Name -EQ $networkname
-if ($hnsNetwork) {
-    # Cleanup all containers
-    Write-Host "Cleaning up containers"
-    if ($global:ContainerRuntime -eq "containerd") {
-        ctr.exe -n k8s.io c ls -q | ForEach-Object { ctr -n k8s.io tasks kill $_ }
-        ctr.exe -n k8s.io c ls -q | ForEach-Object { ctr -n k8s.io c rm $_ }
-    }
-    else {
-        docker.exe ps -q | ForEach-Object { docker rm $_ -f }
-    }
-    
+if ($hnsNetwork) {   
     Write-Host "Cleaning up persisted HNS policy lists"
     # Initially a workaround for https://github.com/kubernetes/kubernetes/pull/68923 in < 1.14,
     # and https://github.com/kubernetes/kubernetes/pull/78612 for <= 1.15
@@ -38,6 +31,8 @@ if ($hnsNetwork) {
     Write-Host "Cleaning up old HNS network found"
     Remove-HnsNetwork $hnsNetwork
     Start-Sleep 10
+} else {
+    Write-Host "no hns network found with name" $networkname
 }
 
 
@@ -73,4 +68,6 @@ if ($global:NetworkPlugin -eq "azure") {
             Remove-Item $file
         }
     }
+} else {
+    Write-Host "network plugin name not recognized, default is \azure" $networkname
 }
