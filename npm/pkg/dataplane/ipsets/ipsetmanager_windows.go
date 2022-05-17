@@ -58,7 +58,7 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 			ips = set.affiliatedIPs()
 			firstLoop = false
 		} else {
-			set.intersectAffiliatedIPs()
+			set.intersectAffiliatedIPs(ips)
 		}
 	}
 
@@ -177,7 +177,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 	for setName := range toAddUpdateSetNames {
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
-			return nil, errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
+			return nil, npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
 		}
 
 		setPol, err := convertToSetPolicy(set)
