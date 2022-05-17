@@ -31,6 +31,10 @@ type Tuple struct {
 	Protocol  string `json:"protocol"`
 }
 
+func printTuple(*TupleAndRule) {
+
+}
+
 func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleResponse_SetInfo, dstList map[string]*pb.RuleResponse_SetInfo) { //nolint: gocritic
 	allowedrules := []*TupleAndRule{}
 	blockedrules := []*TupleAndRule{}
@@ -50,17 +54,32 @@ func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleRespon
 		return allowedrules[i].Tuple.Direction == "EGRESS"
 	})
 
+	tuplechains := make(map[Tuple]string)
+
 	fmt.Printf("Allowed:\n")
 	section := ""
 	for _, tuple := range allowedrules {
+
 		if tuple.Tuple.Direction != section {
 			fmt.Printf("\t%s:\n", tuple.Tuple.Direction)
 			section = tuple.Tuple.Direction
 		}
-		fmt.Printf("\t\tProtocol: %s, Port: %s, Chain: %v, Comment: %v\n", tuple.Tuple.Protocol, tuple.Tuple.DstPort, tuple.Rule.Chain, tuple.Rule.Comment)
-		fmt.Printf("\t\ttuple: %+v\n", tuple)
-	}
 
+		t := *tuple
+		if chain, ok := tuplechains[*t.Tuple]; ok {
+			// doesn't exist in map
+			if chain != t.Rule.Chain {
+				// we've seen this tuple before with a different chain, need to print
+				fmt.Printf("\t\tProtocol: %s, Port: %s, Chain: %v, Comment: %v\n", tuple.Tuple.Protocol, tuple.Tuple.DstPort, tuple.Rule.Chain, tuple.Rule.Comment)
+			}
+		} else {
+			// we haven't seen this tuple before, print everything
+			tuplechains[*t.Tuple] = t.Rule.Chain
+			fmt.Printf("\t\tProtocol: %s, Port: %s, Chain: %v, Comment: %v\n", tuple.Tuple.Protocol, tuple.Tuple.DstPort, tuple.Rule.Chain, tuple.Rule.Comment)
+
+		}
+
+	}
 	fmt.Printf("Key:\n")
 	fmt.Printf("IPSets:")
 	fmt.Printf("\tSource IPSets:\n")
