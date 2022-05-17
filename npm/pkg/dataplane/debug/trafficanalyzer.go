@@ -50,10 +50,6 @@ func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleRespon
 		return allowedrules[i].Tuple.Direction == "EGRESS"
 	})
 
-	sort.Slice(blockedrules, func(i, j int) bool {
-		return blockedrules[i].Tuple.Direction == "EGRESS"
-	})
-
 	fmt.Printf("Allowed:\n")
 	section := ""
 	for _, tuple := range allowedrules {
@@ -61,12 +57,8 @@ func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleRespon
 			fmt.Printf("\t%s:\n", tuple.Tuple.Direction)
 			section = tuple.Tuple.Direction
 		}
-		fmt.Printf("\t\tProtocol: %s, Port: %s, Chain: %v, Comment: %v\n", tuple.Tuple.Protocol, tuple.Tuple.SrcPort, tuple.Rule.Chain, tuple.Rule.Comment)
-	}
-
-	fmt.Printf("Blocked:\n")
-	for _, tuple := range blockedrules {
-		fmt.Printf("\t%s: %s,  Comment: %v\n", tuple.Tuple.Direction, tuple.Rule.Chain, tuple.Rule.Comment)
+		fmt.Printf("\t\tProtocol: %s, Port: %s, Chain: %v, Comment: %v\n", tuple.Tuple.Protocol, tuple.Tuple.DstPort, tuple.Rule.Chain, tuple.Rule.Comment)
+		fmt.Printf("\t\ttuple: %+v\n", tuple)
 	}
 
 	fmt.Printf("Key:\n")
@@ -379,10 +371,10 @@ func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 }
 
 func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) bool {
-	srcNamespace := util.NamespacePrefix + pod.Namespace
-	key := strings.TrimPrefix(setInfo.Name, util.NamespaceLabelPrefix)
-	included := npmCache.GetNamespaceLabel(srcNamespace, key)
-	if included != "" {
+	srcNamespace := pod.Namespace
+	key := strings.Split(strings.TrimPrefix(setInfo.Name, util.NamespaceLabelPrefix), ":")
+	included := npmCache.GetNamespaceLabel(srcNamespace, key[0])
+	if included != "" && included == key[1] {
 		return setInfo.Included
 	}
 	if setInfo.Included {
