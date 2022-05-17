@@ -13,12 +13,7 @@ import (
 	"k8s.io/klog"
 )
 
-const (
-	// AzureNetworkName is default network Azure CNI creates
-	AzureNetworkName = "azure"
-
-	reconcileTimeInMinutes = 5
-)
+const reconcileTimeInMinutes = 5
 
 type PolicyMode string
 

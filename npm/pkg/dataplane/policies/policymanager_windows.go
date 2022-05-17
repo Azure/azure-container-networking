@@ -43,7 +43,7 @@ func (pMgr *PolicyManager) bootup(epIDs []string) error {
 }
 
 func (pMgr *PolicyManager) reconcile() {
-	// TODO
+	// not implemented
 }
 
 func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {

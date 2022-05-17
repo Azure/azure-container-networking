@@ -42,7 +42,8 @@ type IPSetManager struct {
 }
 
 type IPSetManagerCfg struct {
-	IPSetMode   IPSetMode
+	IPSetMode IPSetMode
+	// NetworkName can be left empty or set to 'azure' (the only supported network)
 	NetworkName string
 }
 

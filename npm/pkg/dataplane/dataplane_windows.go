@@ -1,11 +1,13 @@
 package dataplane
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Microsoft/hcsshim/hcn"
 	"k8s.io/klog"
@@ -14,21 +16,23 @@ import (
 const (
 	maxNoNetRetryCount int = 240 // max wait time 240*5 == 20 mins
 	maxNoNetSleepTime  int = 5   // in seconds
+	unspecifiedPodKey      = ""
 )
 
-func (dp *DataPlane) setPolicyMode() {
-	dp.PolicyMode = policies.IPSetPolicyMode
-	err := hcn.SetPolicySupported()
-	if err != nil {
-		dp.PolicyMode = policies.IPPolicyMode
-	}
-}
+var errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
 
 // initializeDataPlane will help gather network and endpoint details
 func (dp *DataPlane) initializeDataPlane() error {
 	klog.Infof("[DataPlane] Initializing dataplane for windows")
+
 	if dp.PolicyMode == "" {
-		dp.setPolicyMode()
+		dp.PolicyMode = policies.IPSetPolicyMode
+	}
+	if dp.PolicyMode != policies.IPSetPolicyMode {
+		return errPolicyModeUnsupported
+	}
+	if err := hcn.SetPolicySupported(); err != nil {
+		return npmerrors.SimpleErrorWrapper("[DataPlane] kernel does not support SetPolicies", err)
 	}
 
 	err := dp.getNetworkInfo()
@@ -51,7 +55,7 @@ func (dp *DataPlane) getNetworkInfo() error {
 
 	var err error
 	for ; true; <-ticker.C {
-		err = dp.setNetworkIDByName(AzureNetworkName)
+		err = dp.setNetworkIDByName(util.AzureNetworkName)
 		if err == nil || !isNetworkNotFoundErr(err) {
 			return err
 		}
@@ -60,7 +64,7 @@ func (dp *DataPlane) getNetworkInfo() error {
 			break
 		}
 		klog.Infof("[DataPlane Windows] Network with name %s not found. Retrying in %d seconds, Current retry number %d, max retries: %d",
-			AzureNetworkName,
+			util.AzureNetworkName,
 			maxNoNetSleepTime,
 			retryNumber,
 			maxNoNetRetryCount,
@@ -169,7 +173,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			continue
 		}
 		// TODO Also check if the endpoint reference in policy for this Ip is right
-		netpolSelectorIPs, err := dp.getSelectorIPsByPolicyName(policyKey)
+		netpolSelectorIPs, err := dp.getSelectorIPsByPolicyKey(policyKey)
 		if err != nil {
 			return err
 		}
@@ -198,7 +202,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	return nil
 }
 
-func (dp *DataPlane) getSelectorIPsByPolicyName(policyKey string) (map[string]struct{}, error) {
+func (dp *DataPlane) getSelectorIPsByPolicyKey(policyKey string) (map[string]struct{}, error) {
 	policy, ok := dp.policyMgr.GetPolicy(policyKey)
 	if !ok {
 		return nil, fmt.Errorf("policy with name %s does not exist", policyKey)
@@ -328,5 +332,5 @@ func (dp *DataPlane) getAllEndpointIDs() []string {
 }
 
 func isNetworkNotFoundErr(err error) bool {
-	return strings.Contains(err.Error(), fmt.Sprintf("Network name \"%s\" not found", AzureNetworkName))
+	return strings.Contains(err.Error(), fmt.Sprintf("Network name \"%s\" not found", util.AzureNetworkName))
 }

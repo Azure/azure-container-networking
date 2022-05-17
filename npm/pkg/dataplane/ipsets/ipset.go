@@ -372,21 +372,50 @@ func (set *IPSet) hasMember(memberName string) bool {
 	return isMember
 }
 
-func (set *IPSet) getSetIntersection(existingIntersection map[string]struct{}) (map[string]struct{}, error) {
-	if !set.canSetBeSelectorIPSet() {
-		return nil, npmerrors.Errorf(
-			npmerrors.IPSetIntersection,
-			false,
-			fmt.Sprintf("[IPSet] Selector IPSet cannot be of type %s", set.Type.String()))
-	}
-	newIntersectionMap := make(map[string]struct{})
-	for ip := range set.IPPodKey {
-		if _, ok := existingIntersection[ip]; ok {
-			newIntersectionMap[ip] = struct{}{}
+// affiliatedIPs returns the IPs for a hash set or the IPs of the member sets for a list set
+// This method, intersectAffiliatedIPs, and GetSetContents are good examples of how the
+// ipset struct may have been better designed as an interface with hash and list implementations.
+// Not worth it to redesign though.
+func (set *IPSet) affiliatedIPs() map[string]struct{} {
+	if set.Kind == HashSet {
+		result := make(map[string]struct{}, len(set.IPPodKey))
+		for ip := range set.IPPodKey {
+			result[ip] = struct{}{}
 		}
+		return result
 	}
 
-	return newIntersectionMap, nil
+	// number of member ipsets usually underestimates the final map size
+	result := make(map[string]struct{}, len(set.MemberIPSets))
+	for _, memberSet := range set.MemberIPSets {
+		for ip := range memberSet.IPPodKey {
+			result[ip] = struct{}{}
+		}
+	}
+	return result
+}
+
+// intersectAffiliatedIPs removes IPs that aren't affiliated with this set
+func (set *IPSet) intersectAffiliatedIPs(existingIPs map[string]struct{}) {
+	for ip := range existingIPs {
+		isAffiliated := false
+		if set.Kind == HashSet {
+			_, ok := set.IPPodKey[ip]
+			isAffiliated = ok
+		} else {
+			for _, memberSet := range set.MemberIPSets {
+				_, ok := memberSet.IPPodKey[ip]
+				if ok {
+					isAffiliated = true
+					break
+				}
+			}
+		}
+
+		if !isAffiliated {
+			delete(existingIPs, ip)
+		}
+	}
 }
 
 func (set *IPSet) canSetBeSelectorIPSet() bool {

@@ -2,11 +2,12 @@ package ipsets
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/Azure/azure-container-networking/npm/util/errors"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Microsoft/hcsshim/hcn"
 	"k8s.io/klog"
 )
@@ -18,6 +19,8 @@ const (
 	resetIPSetsTrue                            = true
 	donotResetIPSets                           = false
 )
+
+var errUnsupportedNetwork = errors.New("only 'azure' network is supported")
 
 type networkPolicyBuilder struct {
 	toAddSets    map[string]*hcn.SetPolicySetting
@@ -33,40 +36,42 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
-	setintersections := make(map[string]struct{})
-	var err error
+	ips := make(map[string]struct{})
 	firstLoop := true
 	for setName := range setList {
 		if !iMgr.exists(setName) {
-			return nil, errors.Errorf(
-				errors.GetSelectorReference,
+			return nil, npmerrors.Errorf(
+				npmerrors.GetSelectorReference,
 				false,
 				fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
 		}
+
 		set := iMgr.setMap[setName]
-		if firstLoop {
-			intialSetIPs := set.IPPodKey
-			for k := range intialSetIPs {
-				setintersections[k] = struct{}{}
-			}
-			firstLoop = false
+		if !set.canSetBeSelectorIPSet() {
+			return nil, npmerrors.Errorf(
+				npmerrors.IPSetIntersection,
+				false,
+				fmt.Sprintf("[IPSet] Selector IPSet cannot be of type %s", set.Type.String()))
 		}
-		klog.Infof("set [%s] has ippodkey: %+v", set.Name, set.IPPodKey) // FIXME remove after debugging
-		setintersections, err = set.getSetIntersection(setintersections)
-		if err != nil {
-			return nil, err
+
+		if firstLoop {
+			ips = set.affiliatedIPs()
+			firstLoop = false
+		} else {
+			set.intersectAffiliatedIPs()
 		}
 	}
-	klog.Infof("setintersection for getIPsFromSelectorIPSets %+v", setintersections) // FIXME remove after debugging
-	return setintersections, err
+
+	klog.Infof("IPs in selector IPSets: %+v", ips) // FIXME remove after debugging
+	return ips, nil
 }
 
 func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string]struct{}, error) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(setName) {
-		return nil, errors.Errorf(
-			errors.GetSelectorReference,
+		return nil, npmerrors.Errorf(
+			npmerrors.GetSelectorReference,
 			false,
 			fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
 	}
@@ -81,7 +86,6 @@ func (iMgr *IPSetManager) resetIPSets() error {
 		return err
 	}
 
-	// TODO delete 2nd level sets first and then 1st level sets
 	_, toDeleteSets := iMgr.segregateSetPolicies(network.Policies, resetIPSetsTrue)
 
 	if len(toDeleteSets) == 0 {
@@ -143,7 +147,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 
 // calculateNewSetPolicies will take in existing setPolicies on network in HNS and the dirty cache, will return back
 // networkPolicyBuild which contains the new setPolicies to be added, updated and deleted
-// TODO: This function is not thread safe.
+// Assumes that the dirty cache is locked (or equivalently, the ipsetmanager itself).
 // toAddSets:
 //      this function will loop through the dirty cache and adds non-existing sets to toAddSets
 // toUpdateSets:
@@ -210,9 +214,12 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 
 func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
 	if iMgr.iMgrCfg.NetworkName == "" {
-		iMgr.iMgrCfg.NetworkName = "azure"
+		iMgr.iMgrCfg.NetworkName = util.AzureNetworkName
 	}
-	network, err := iMgr.ioShim.Hns.GetNetworkByName("azure")
+	if iMgr.iMgrCfg.NetworkName != util.AzureNetworkName {
+		return nil, errUnsupportedNetwork
+	}
+	network, err := iMgr.ioShim.Hns.GetNetworkByName(iMgr.iMgrCfg.NetworkName)
 	if err != nil {
 		return nil, err
 	}
@@ -243,8 +250,7 @@ func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, ope
 		}
 
 		if policyRequest == nil {
-			klog.Infof("[IPSetManager Windows] No Policies to apply")
-			return nil
+			continue
 		}
 
 		requestMessage := &hcn.ModifyNetworkSettingRequest{
@@ -300,10 +306,6 @@ func (setPolicyBuilder *networkPolicyBuilder) setNameExists(setName string) bool
 }
 
 func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicySetting, policyType hcn.SetPolicyType) ([]byte, error) {
-	if len(setPolicySettings) == 0 {
-		klog.Info("[Dataplane Windows] no set policies to apply on network")
-		return nil, nil
-	}
 	klog.Infof("[Dataplane Windows] marshalling %s type of sets", policyType)
 	policyNetworkRequest := &hcn.PolicyNetworkRequest{
 		Policies: make([]hcn.NetworkPolicy, 0),
@@ -325,6 +327,11 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 				Settings: rawSettings,
 			},
 		)
+	}
+
+	if len(policyNetworkRequest.Policies) == 0 {
+		klog.Info("[Dataplane Windows] no %s type of sets to apply", policyType)
+		return nil, nil
 	}
 
 	policyReqSettings, err := json.Marshal(policyNetworkRequest)
