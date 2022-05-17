@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
-	"github.com/Azure/azure-container-networking/npm/http/api"
 	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -110,13 +109,7 @@ func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleRespon
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) { //nolint: gocritic
-	c := &Converter{
-		NPMDebugEndpointHost: "http://localhost",
-		NPMDebugEndpointPort: api.DefaultHttpPort,
-		EnableV2NPM:          config.Toggles.EnableV2NPM, // todo: pass this a different way than param to this
-	}
-
+func (c *Converter) GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) { //nolint: gocritic
 	allRules, err := c.GetProtobufRulesFromIptable("filter")
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
@@ -130,13 +123,11 @@ func GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte
 // GetNetworkTupleFile read from NPM cache and iptables-save files and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTupleFile(
+func (c *Converter) GetNetworkTupleFile(
 	src, dst *common.Input,
 	npmCacheFile string,
 	iptableSaveFile string,
 ) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
-
-	c := &Converter{}
 	allRules, err := c.GetProtobufRulesFromIptableFile(util.IptablesFilterTable, npmCacheFile, iptableSaveFile)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
@@ -491,7 +482,8 @@ func processKeyValueLabelOfPod(kv string) (string, string) {
 }
 
 func processNestedLabelOfPod(kv string) []string {
-	kvList := strings.Split(kv, ":")
+	str := strings.TrimPrefix(kv, util.NestedLabelPrefix)
+	kvList := strings.Split(str, ":")
 	key := kvList[0]
 	ret := make([]string, 0)
 	for _, value := range kvList[1:] {

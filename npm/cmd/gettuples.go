@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
 	"github.com/Azure/azure-container-networking/npm/util/errors"
@@ -31,15 +32,23 @@ func newGetTuples() *cobra.Command {
 			srcInput := &common.Input{Content: src, Type: srcType}
 			dstInput := &common.Input{Content: dst, Type: dstType}
 
-			switch {
-			case npmCacheF == "" && iptableSaveF == "":
-				config := &npmconfig.Config{}
+			config := &npmconfig.Config{}
 				err := viper.Unmarshal(config)
 				if err != nil {
 					return fmt.Errorf("failed to load config with err %w", err)
 				}
 
-				_, tuples, srcList, dstList, err := debug.GetNetworkTuple(srcInput, dstInput, config)
+			switch {
+			case npmCacheF == "" && iptableSaveF == "":
+
+
+				c := &debug.Converter{
+					NPMDebugEndpointHost: "http://localhost",
+					NPMDebugEndpointPort: api.DefaultHttpPort,
+					EnableV2NPM:          config.Toggles.EnableV2NPM, // todo: pass this a different way than param to this
+				}
+
+				_, tuples, srcList, dstList, err := c.GetNetworkTuple(srcInput, dstInput, config)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
@@ -47,7 +56,13 @@ func newGetTuples() *cobra.Command {
 				debug.PrettyPrintTuples(tuples, srcList, dstList)
 
 			case npmCacheF != "" && iptableSaveF != "":
-				_, tuples, srcList, dstList, err := debug.GetNetworkTupleFile(srcInput, dstInput, npmCacheF, iptableSaveF)
+	
+
+				c := &debug.Converter{
+					EnableV2NPM: config.Toggles.EnableV2NPM,
+				}
+
+				_, tuples, srcList, dstList, err := c.GetNetworkTupleFile(srcInput, dstInput, npmCacheF, iptableSaveF)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
