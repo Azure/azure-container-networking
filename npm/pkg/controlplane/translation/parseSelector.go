@@ -1,6 +1,8 @@
 package translation
 
 import (
+	"fmt"
+
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -230,7 +232,7 @@ func parseNSSelector(selector *metav1.LabelSelector) []labelSelector {
 // parsePodSelector parses podSelector and returns slice of labelSelector object
 // which includes operator, setType, ipset name and its members slice.
 // Members slice exists only if setType is only NestedLabelOfPod.
-func parsePodSelector(selector *metav1.LabelSelector) ([]labelSelector, error) {
+func parsePodSelector(policyKey string, selector *metav1.LabelSelector) ([]labelSelector, error) {
 	parsedSelectors := newParsedSelectors()
 
 	// #1. MatchLabels
@@ -257,7 +259,8 @@ func parsePodSelector(selector *metav1.LabelSelector) ([]labelSelector, error) {
 				setType = ipsets.KeyValueLabelOfPod
 			} else {
 				// "(!) + matchKey + : + multiple matchVals" case
-				setName = req.Key
+				// see caveat in definition of TranslatedIPSet for why the policy key must be included in the set name
+				setName = fmt.Sprintf("%s-%s", policyKey, req.Key)
 				for _, val := range req.Values {
 					setName = util.GetIpSetFromLabelKV(setName, val)
 					members = append(members, util.GetIpSetFromLabelKV(req.Key, val))

@@ -536,6 +536,8 @@ func TestIPBlockRule(t *testing.T) {
 
 func TestPodSelector(t *testing.T) {
 	matchType := policies.DstMatch
+	policyKey := "test-ns/test-policy"
+	policyKeyWithDash := policyKey + "-"
 	tests := []struct {
 		name              string
 		namespace         string
@@ -687,14 +689,14 @@ func TestPodSelector(t *testing.T) {
 			},
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
 				ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
-				ipsets.NewTranslatedIPSet("k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
+				ipsets.NewTranslatedIPSet(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
 				ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
 				ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
 				ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, matchType),
-				policies.NewSetInfo("k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
+				policies.NewSetInfo(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
 				policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, matchType),
 			},
 		},
@@ -708,9 +710,10 @@ func TestPodSelector(t *testing.T) {
 			var podSelectorList []policies.SetInfo
 			var err error
 			if tt.namespace == "" {
-				podSelectorIPSets, podSelectorList, err = podSelector(tt.matchType, tt.labelSelector)
+				podSelectorIPSets, podSelectorList, err = podSelector(policyKey, tt.matchType, tt.labelSelector)
 			} else {
-				podSelectorIPSets, podSelectorList, err = podSelectorWithNS(tt.namespace, tt.matchType, tt.labelSelector)
+				// technically, the policyKey prefix would contain the namespace, but it might not for these tests
+				podSelectorIPSets, podSelectorList, err = podSelectorWithNS(policyKey, tt.namespace, tt.matchType, tt.labelSelector)
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
@@ -1668,7 +1671,7 @@ func TestIngressPolicy(t *testing.T) {
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			var err error
-			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
 			require.NoError(t, err)
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
@@ -2060,7 +2063,7 @@ func TestEgressPolicy(t *testing.T) {
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			var err error
-			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
 			require.NoError(t, err)
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")

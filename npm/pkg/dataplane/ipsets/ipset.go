@@ -105,6 +105,10 @@ func (setType SetType) getSetKind() SetKind {
 // 2. NestedLabelOfPod IPSet from multi value labels
 // Members field holds member ipset names for NestedLabelOfPod and ip address ranges
 // for CIDRBlocks IPSet
+// Caveat: if a list set with translated members is referenced in multiple policies,
+// then it must have a different ipset name for each policy. Otherwise, deleting the policy
+// will result in removing the translated members from the set even if another policy requires
+// those members. See dataplane.go for more details.
 type TranslatedIPSet struct {
 	Metadata *IPSetMetadata
 	// Members holds member ipset names for NestedLabelOfPod and ip address ranges

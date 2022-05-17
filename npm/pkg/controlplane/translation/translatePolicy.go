@@ -216,8 +216,8 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 
 // PodSelector translates podSelector of NetworkPolicyPeer field in networkpolicy object to translatedIPSet and SetInfo.
 // This function is called only when the NetworkPolicyPeer has namespaceSelector field.
-func podSelector(matchType policies.MatchType, selector *metav1.LabelSelector) ([]*ipsets.TranslatedIPSet, []policies.SetInfo, error) {
-	podSelectors, err := parsePodSelector(selector)
+func podSelector(policyKey string, matchType policies.MatchType, selector *metav1.LabelSelector) ([]*ipsets.TranslatedIPSet, []policies.SetInfo, error) {
+	podSelectors, err := parsePodSelector(policyKey, selector)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -241,8 +241,8 @@ func podSelector(matchType policies.MatchType, selector *metav1.LabelSelector) (
 
 // podSelectorWithNS translates podSelector of spec and NetworkPolicyPeer in networkpolicy object to translatedIPSet and SetInfo.
 // This function is called only when the NetworkPolicyPeer does not have namespaceSelector field.
-func podSelectorWithNS(ns string, matchType policies.MatchType, selector *metav1.LabelSelector) ([]*ipsets.TranslatedIPSet, []policies.SetInfo, error) {
-	podSelectorIPSets, podSelectorList, err := podSelector(matchType, selector)
+func podSelectorWithNS(policyKey, ns string, matchType policies.MatchType, selector *metav1.LabelSelector) ([]*ipsets.TranslatedIPSet, []policies.SetInfo, error) {
+	podSelectorIPSets, podSelectorList, err := podSelector(policyKey, matchType, selector)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -397,7 +397,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 
 		// #2.3 handle podSelector and port if exist
 		if peer.PodSelector != nil && peer.NamespaceSelector == nil {
-			podSelectorIPSets, podSelectorList, err := podSelectorWithNS(npmNetPol.Namespace, matchType, peer.PodSelector)
+			podSelectorIPSets, podSelectorList, err := podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, matchType, peer.PodSelector)
 			if err != nil {
 				return err
 			}
@@ -418,7 +418,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 		}
 
 		// #2.4 handle namespaceSelector and podSelector and port if exist
-		podSelectorIPSets, podSelectorList, err := podSelector(matchType, peer.PodSelector)
+		podSelectorIPSets, podSelectorList, err := podSelector(npmNetPol.PolicyKey, matchType, peer.PodSelector)
 		if err != nil {
 			return err
 		}
@@ -542,7 +542,7 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy) (*policies.NPMNetworkPol
 	// podSelector in spec.PodSelector is common for ingress and egress.
 	// Process this podSelector first.
 	var err error
-	npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.Namespace, policies.EitherMatch, &npObj.Spec.PodSelector)
+	npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, &npObj.Spec.PodSelector)
 	if err != nil {
 		return nil, err
 	}
