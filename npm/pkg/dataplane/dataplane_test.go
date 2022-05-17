@@ -32,9 +32,9 @@ var (
 		Metadata: ipsets.NewIPSetMetadata("setpodkey1", ipsets.KeyLabelOfPod),
 	}
 	testPolicyobj = policies.NPMNetworkPolicy{
-		Name:      "testpolicy",
-		NameSpace: "ns1",
-		PolicyKey: "ns1/testpolicy",
+		Namespace:   "ns1",
+		PolicyKey:   "ns1/testpolicy",
+		ACLPolicyID: "azure-acl-ns1-testpolicy",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
 				Metadata: ipsets.NewIPSetMetadata("setns1", ipsets.Namespace),
@@ -66,7 +66,6 @@ var (
 		},
 		ACLs: []*policies.ACLPolicy{
 			{
-				PolicyID:  "testpol1",
 				Target:    policies.Dropped,
 				Direction: policies.Egress,
 			},
@@ -227,7 +226,6 @@ func TestUpdatePolicy(t *testing.T) {
 	updatedTestPolicyobj := testPolicyobj
 	updatedTestPolicyobj.ACLs = []*policies.ACLPolicy{
 		{
-			PolicyID:  "testpol1",
 			Target:    policies.Dropped,
 			Direction: policies.Ingress,
 		},

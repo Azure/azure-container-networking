@@ -11,11 +11,12 @@ import (
 )
 
 type NPMNetworkPolicy struct {
-	Name      string
-	NameSpace string
-	// TODO remove Name and Namespace field
+	// Namespace is only used by Linux to construct an iptables comment
+	Namespace string
 	// PolicyKey is a unique combination of "namespace/name" of network policy
 	PolicyKey string
+	// ACLPolicyID is only used in Windows. See aclPolicyID() in policy_windows.go for more info
+	ACLPolicyID string
 	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
 	// TODO change to slice of pointers
@@ -32,9 +33,9 @@ type NPMNetworkPolicy struct {
 
 func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {
 	return &NPMNetworkPolicy{
-		Name:      netPolName,
-		NameSpace: netPolNamespace,
-		PolicyKey: fmt.Sprintf("%s/%s", netPolNamespace, netPolName),
+		Namespace:   netPolNamespace,
+		PolicyKey:   fmt.Sprintf("%s/%s", netPolNamespace, netPolName),
+		ACLPolicyID: aclPolicyID(netPolName, netPolNamespace),
 	}
 }
 
@@ -76,21 +77,17 @@ func (netPol *NPMNetworkPolicy) PrettyString() string {
 
 	podSelectorIPSetString := translatedIPSetsToString(netPol.PodSelectorIPSets)
 	podSelectorListString := infoArrayToString(netPol.PodSelectorList)
-	format := `Name:%s  Namespace:%s
+	format := `Namespace/Name: %s
 PodSelectorIPSets: %s
 PodSelectorList: %s
 ACLs:
 %s`
-	return fmt.Sprintf(format, netPol.Name, netPol.NameSpace, podSelectorIPSetString, podSelectorListString, aclArrayString)
+	return fmt.Sprintf(format, netPol.PolicyKey, podSelectorIPSetString, podSelectorListString, aclArrayString)
 }
 
 // ACLPolicy equivalent to a single iptable rule in linux
 // or a single HNS rule in windows
 type ACLPolicy struct {
-	// PolicyID is the rules name with a given network policy
-	// PolicyID will be same for all ACLs in a Network Policy
-	// it will be "azure-acl-NetPolNS-netPolName"
-	PolicyID string
 	// Comment is the string attached to rule to identity its representation
 	Comment string
 	// TODO(jungukcho): now I think we do not need to manage SrcList and DstList
@@ -114,16 +111,6 @@ type ACLPolicy struct {
 	Protocol Protocol
 }
 
-const policyIDPrefix = "azure-acl"
-
-// FIXME this impacts windows DP if it isn't equivalent to netPol.PolicyKey
-// aclPolicyID returns azure-acl-<network policy namespace>-<network policy name> format
-// to differentiate ACLs among different network policies,
-// but aclPolicy in the same network policy has the same aclPolicyID.
-func aclPolicyID(policyNS, policyName string) string {
-	return fmt.Sprintf("%s-%s-%s", policyIDPrefix, policyNS, policyName)
-}
-
 // NormalizePolicy helps fill in missed fields in aclPolicy
 func NormalizePolicy(networkPolicy *NPMNetworkPolicy) {
 	for _, aclPolicy := range networkPolicy.ACLs {
@@ -141,44 +128,43 @@ func NormalizePolicy(networkPolicy *NPMNetworkPolicy) {
 func ValidatePolicy(networkPolicy *NPMNetworkPolicy) error {
 	for _, aclPolicy := range networkPolicy.ACLs {
 		if !aclPolicy.hasKnownTarget() {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown target [%s]", aclPolicy.PolicyID, aclPolicy.Target))
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has unknown target [%s]", networkPolicy.PolicyKey, aclPolicy.Target))
 		}
 		if !aclPolicy.hasKnownDirection() {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown direction [%s]", aclPolicy.PolicyID, aclPolicy.Direction))
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has unknown direction [%s]", networkPolicy.PolicyKey, aclPolicy.Direction))
 		}
 		if !aclPolicy.hasKnownProtocol() {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has unknown protocol [%s]", aclPolicy.PolicyID, aclPolicy.Protocol))
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has unknown protocol [%s]", networkPolicy.PolicyKey, aclPolicy.Protocol))
 		}
 		if !aclPolicy.satisifiesPortAndProtocolConstraints() {
 			return npmerrors.SimpleError(fmt.Sprintf(
-				"ACL policy %s has dst port(s) (Port or Port and EndPort), so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s",
-				aclPolicy.PolicyID,
+				"ACL policy for NetPol %s has dst port(s) (Port or Port and EndPort), so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s",
+				networkPolicy.PolicyKey,
 				string(aclPolicy.Protocol),
 			))
 		}
 
 		if !aclPolicy.DstPorts.isValidRange() {
-			return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has invalid port range in DstPorts (start: %d, end: %d)", aclPolicy.PolicyID, aclPolicy.DstPorts.Port, aclPolicy.DstPorts.EndPort))
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has invalid port range in DstPorts (start: %d, end: %d)",
+				networkPolicy.PolicyKey, aclPolicy.DstPorts.Port, aclPolicy.DstPorts.EndPort))
 		}
 
 		for _, setInfo := range aclPolicy.SrcList {
 			if !setInfo.hasKnownMatchType() {
-				return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has set %s in SrcList with unknown Match Type", aclPolicy.PolicyID, setInfo.IPSet.Name))
+				return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has set %s in SrcList with unknown Match Type", networkPolicy.PolicyKey, setInfo.IPSet.Name))
 			}
 		}
 		for _, setInfo := range aclPolicy.DstList {
 			if !setInfo.hasKnownMatchType() {
-				return npmerrors.SimpleError(fmt.Sprintf("ACL policy %s has set %s in DstList with unknown Match Type", aclPolicy.PolicyID, setInfo.IPSet.Name))
+				return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has set %s in DstList with unknown Match Type", networkPolicy.PolicyKey, setInfo.IPSet.Name))
 			}
 		}
 	}
 	return nil
 }
 
-// TODO make this a method of NPMNetworkPolicy, and just use netPol.PolicyKey as the PolicyID
-func NewACLPolicy(policyNS, policyName string, target Verdict, direction Direction) *ACLPolicy {
+func NewACLPolicy(target Verdict, direction Direction) *ACLPolicy {
 	acl := &ACLPolicy{
-		PolicyID:  aclPolicyID(policyNS, policyName),
 		Target:    target,
 		Direction: direction,
 	}

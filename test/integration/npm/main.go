@@ -33,7 +33,9 @@ var (
 
 	nodeName   = "testNode"
 	testNetPol = &policies.NPMNetworkPolicy{
-		PolicyKey: "test/test-netpol",
+		PolicyKey:   "test/test-netpol",
+		Namespace:   "test",
+		ACLPolicyID: "azure-acl-test-netpol",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
 				Metadata: ipsets.TestNSSet.Metadata,
@@ -52,12 +54,10 @@ var (
 		},
 		ACLs: []*policies.ACLPolicy{
 			{
-				PolicyID:  "azure-acl-123",
 				Target:    policies.Dropped,
 				Direction: policies.Ingress,
 			},
 			{
-				PolicyID:  "azure-acl-123",
 				Target:    policies.Allowed,
 				Direction: policies.Ingress,
 				SrcList: []policies.SetInfo{
