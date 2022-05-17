@@ -5,7 +5,6 @@ package network
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -41,34 +40,6 @@ const (
 	hostNCApipaEndpointNamePrefix = "HostNCApipaEndpoint"
 )
 
-type AzureHNSEndpointClient interface {
-	GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error)
-	GetHNSEndpointByID(endpointID string) (*hcsshim.HNSEndpoint, error)
-	HotAttachEndpoint(containerID string, endpointID string) error
-	IsAttached(hnsep *hcsshim.HNSEndpoint, containerID string) (bool, error)
-}
-
-func (az AzureHNSEndpoint) GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error) {
-	return hcsshim.GetHNSEndpointByName(endpointName)
-}
-
-func (az AzureHNSEndpoint) GetHNSEndpointByID(id string) (*hcsshim.HNSEndpoint, error) {
-	return hcsshim.GetHNSEndpointByID(id)
-}
-
-func (az AzureHNSEndpoint) HotAttachEndpoint(containerID, endpointID string) error {
-	return hcsshim.HotAttachEndpoint(containerID, endpointID)
-}
-
-func (az AzureHNSEndpoint) IsAttached(hnsep *hcsshim.HNSEndpoint, containerID string) (bool, error) {
-	return hnsep.IsAttached(containerID)
-}
-
-// HotAttachEndpoint is a wrapper of hcsshim's HotAttachEndpoint.
-func (endpoint *EndpointInfo) HotAttachEndpoint(containerID string) error {
-	return hcsshim.HotAttachEndpoint(containerID, endpoint.Id)
-}
-
 // ConstructEndpointID constructs endpoint name from netNsPath.
 func ConstructEndpointID(containerID string, netNsPath string, ifName string) (string, string) {
 	if len(containerID) > 8 {
@@ -102,10 +73,14 @@ func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, 
 		}
 
 		if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-			enableHnsTimeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+			enableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 		}
 
 		return nw.newEndpointImplHnsV2(cli, epInfo)
+	}
+
+	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
+		enableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 
 	return nw.newEndpointImplHnsV1(epInfo)
@@ -149,17 +124,8 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error)
 		}
 	}
 
-	// Marshal the request.
-	buffer, err := json.Marshal(hnsEndpoint)
-	if err != nil {
-		return nil, err
-	}
-	hnsRequest := string(buffer)
+	hnsResponse, err := Hnsv1.CreateEndpoint(hnsEndpoint, "")
 
-	// Create the HNS endpoint.
-	log.Printf("[net] HNSEndpointRequest POST request:%+v", hnsRequest)
-	hnsResponse, err := hcsshim.HNSEndpointRequest("POST", "", hnsRequest)
-	log.Printf("[net] HNSEndpointRequest POST response:%+v err:%v.", hnsResponse, err)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +133,7 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error)
 	defer func() {
 		if err != nil {
 			log.Printf("[net] HNSEndpointRequest DELETE id:%v", hnsResponse.Id)
-			hnsResponse, err := hcsshim.HNSEndpointRequest("DELETE", hnsResponse.Id, "")
+			hnsResponse, err := Hnsv1.DeleteEndpoint(hnsResponse.Id)
 			log.Printf("[net] HNSEndpointRequest DELETE response:%+v err:%v.", hnsResponse, err)
 		}
 	}()
@@ -178,7 +144,7 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error)
 	} else {
 		// Attach the endpoint.
 		log.Printf("[net] Attaching endpoint %v to container %v.", hnsResponse.Id, epInfo.ContainerID)
-		err = hcsshim.HotAttachEndpoint(epInfo.ContainerID, hnsResponse.Id)
+		err = Hnsv1.HotAttachEndpoint(epInfo.ContainerID, hnsResponse.Id)
 		if err != nil {
 			log.Printf("[net] Failed to attach endpoint: %v.", err)
 			return nil, err
@@ -450,11 +416,14 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 		}
 
 		if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-			enableHnsTimeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+			enableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 		}
 		return nw.deleteEndpointImplHnsV2(ep)
 	}
 
+	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
+		enableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+	}
 	return nw.deleteEndpointImplHnsV1(ep)
 }
 

@@ -160,3 +160,77 @@ func TestDeleteNetworkImplHnsV2WithTimeout(t *testing.T) {
 	}
 }
 
+func TestNewNetworkImplHnsV1WithTimeout(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	hnsFake := hnswrapper.Hnsv1wrapperfake{}
+
+	hnsFake.Delay = 10 * time.Second
+
+	Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{
+		Hnsv1: hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	nwInfo := &NetworkInfo{
+		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	_, err := nm.newNetworkImplHnsV1(nwInfo, extInterface)
+
+	if err == nil {
+		t.Fatal("Failed to timeout HNS calls for creating network")
+	}
+}
+
+func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+
+	nwInfo := &NetworkInfo{
+		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	Hnsv1 = hnswrapper.Hnsv1wrapperfake{}
+
+	network, err := nm.newNetworkImplHnsV1(nwInfo, extInterface)
+
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+
+	hnsFake := hnswrapper.Hnsv1wrapperfake{}
+
+	hnsFake.Delay = 10 * time.Second
+
+	Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{
+		Hnsv1: hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	err = nm.deleteNetworkImplHnsV1(network)
+
+	if err == nil {
+		t.Fatal("Failed to timeout HNS calls for deleting network")
+	}
+}
+
