@@ -12,7 +12,7 @@
          "enableExactMatchForPodName": false,
          "enableSnatOnHost":true,
          "ipam":{
-            "type":"azure-vnet-ipam"
+            "type":"azure-cns"
          },
          "dns":{
             "nameservers":[]
