@@ -300,7 +300,7 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 		// Note sharing of pools is allowed when specifically requested.
 		ap = as.Pools[poolId]
 		if ap == nil {
-			err = errAddressPoolNotFound
+			err = ErrAddressPoolNotFound
 		}
 	} else {
 		// Return any available address pool.
@@ -354,7 +354,7 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 		}
 
 		if ap == nil {
-			err = errNoAvailableAddressPools
+			err = ErrNoAvailableAddressPools
 		}
 	}
 
@@ -373,7 +373,7 @@ func (as *addressSpace) releasePool(poolId string) error {
 
 	ap, ok := as.Pools[poolId]
 	if !ok {
-		return errAddressPoolNotFound
+		return ErrAddressPoolNotFound
 	}
 
 	if addressesInUse = ap.IsAnyRecordInUse(); addressesInUse {

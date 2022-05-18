@@ -5,7 +5,9 @@ package ipam
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
+	"os"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -168,6 +170,21 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 		// Allocate an address pool.
 		poolID, subnet, err = plugin.am.RequestPool(nwCfg.Ipam.AddrSpace, "", "", options, isIpv6)
 		if err != nil {
+
+			if errors.Is(err, ipam.ErrNoAvailableAddressPools) || errors.Is(err, ipam.ErrAddressPoolNotFound) {
+				var exists, err = platform.CheckIfFileExists(platform.CNIStateFilePath)
+
+				if err != nil {
+					log.Printf("[ipam] Error checking CNI state exist: %v", err)
+					return err
+				}
+				if !exists {
+					err := os.Remove(platform.CNIIpamStatePath)
+					if err != nil {
+						log.Printf("[ipam] error clearing state %v", err)
+					}
+				}
+			}
 			err = plugin.Errorf("Failed to allocate pool: %v", err)
 			return err
 		}
