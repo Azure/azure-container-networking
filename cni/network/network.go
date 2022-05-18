@@ -751,7 +751,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	// Create the endpoint.
-	telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("[cni-net] Creating endpoint %s.", epInfo.String()))
+	telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("[cni-net] Creating endpoint %s.", epInfo.PrettyString()))
 	err = plugin.nm.CreateEndpoint(cnsclient, opt.nwInfo.Id, &epInfo)
 	if err != nil {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)

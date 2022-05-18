@@ -100,7 +100,7 @@ type apipaClient interface {
 	CreateHostNCApipaEndpoint(ctx context.Context, networkContainerID string) (string, error)
 }
 
-func (epInfo *EndpointInfo) String() string {
+func (epInfo *EndpointInfo) PrettyString() string {
 	return fmt.Sprintf("Id:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v",
 		epInfo.Id, epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName, epInfo.IfIndex, epInfo.MacAddress.String(), epInfo.IPAddresses,
 		epInfo.Gateways)
