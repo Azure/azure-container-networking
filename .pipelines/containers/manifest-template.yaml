@@ -24,7 +24,8 @@ steps:
       export TAG=${{ parameters.tag }}
       make multiarch-manifest-push IMAGE=$IMAGE TAG=$TAG
       make container-pull IMAGE=$IMAGE TAG=$TAG
-      skopeo copy --all docker://$IMAGE_REGISTRY/$IMAGE:$TAG oci-archive:$(Build.ArtifactStagingDirectory)/$IMAGE-$TAG.tar
+      mkdir -p $(Build.ArtifactStagingDirectory)/images
+      skopeo copy --all docker://$IMAGE_REGISTRY/$IMAGE:$TAG oci-archive:$(Build.ArtifactStagingDirectory)/images/$IMAGE-$TAG.tar
     name: manifest_push
     displayName: Manifest Push
 
