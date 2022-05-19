@@ -6,16 +6,8 @@
 
 Invoke-WebRequest -Uri https://raw.githubusercontent.com/microsoft/SDN/master/Kubernetes/windows/hns.psm1 -OutFile "c:\hns.psm1" -UseBasicParsing
 
-$global:NetworkMode = "L2Bridge"
 $global:HNSModule = "c:\hns.psm1"
-
 ipmo $global:HNSModule
-
-$networkname = $global:NetworkMode.ToLower()
-if ($global:NetworkPlugin -eq "azure") {
-    $networkname = "azure"
-}
-
 
 foreach($net in Get-HnsNetwork) { 
     Get-HnsPolicyList | Remove-HnsPolicyList
@@ -26,32 +18,26 @@ foreach($net in Get-HnsNetwork) {
     }
 }
 
-if ($global:NetworkPlugin -eq "azure") {
-    Write-Host "NetworkPlugin azure, starting kubelet."
+Write-Host "Cleaning stale CNI data"
+# Kill all cni instances & stale data left by cni
+# Cleanup all files related to cni
+taskkill /IM azure-vnet.exe /f
+taskkill /IM azure-vnet-ipam.exe /f
 
-    Write-Host "Cleaning stale CNI data"
-    # Kill all cni instances & stale data left by cni
-    # Cleanup all files related to cni
-    taskkill /IM azure-vnet.exe /f
-    taskkill /IM azure-vnet-ipam.exe /f
+# azure-cni logs currently end up in c:\windows\system32 when machines are configured with containerd.
+# https://github.com/containerd/containerd/issues/4928
+$filesToRemove = @(
+    $CniDirectory+"\azure-vnet.json",
+    $CniDirectory+"\azure-vnet.json.lock",
+    $CniDirectory+"\azure-vnet-ipam.json",
+    $CniDirectory+"\azure-vnet-ipam.json.lock"
+    $CniDirectory+"\azure-vnet-ipamv6.json",
+    $CniDirectory+"\azure-vnet-ipamv6.json.lock"
+)
 
-    # azure-cni logs currently end up in c:\windows\system32 when machines are configured with containerd.
-    # https://github.com/containerd/containerd/issues/4928
-    $filesToRemove = @(
-        $CniDirectory+"\azure-vnet.json",
-        $CniDirectory+"\azure-vnet.json.lock",
-        $CniDirectory+"\azure-vnet-ipam.json",
-        $CniDirectory+"\azure-vnet-ipam.json.lock"
-        $CniDirectory+"\azure-vnet-ipamv6.json",
-        $CniDirectory+"\azure-vnet-ipamv6.json.lock"
-    )
-
-    foreach ($file in $filesToRemove) {
-        if (Test-Path $file) {
-            Write-Host "Deleting stale file at $file"
-            Remove-Item $file
-        }
+foreach ($file in $filesToRemove) {
+    if (Test-Path $file) {
+        Write-Host "Deleting stale file at $file"
+        Remove-Item $file
     }
-} else {
-    Write-Host "network plugin name not recognized, default is \azure" $networkname
 }
