@@ -58,12 +58,12 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 
 		if errors.Is(err, ipam.ErrNoAvailableAddressPools) {
 			cniStateExists, er := platform.CheckIfFileExists(platform.CNIStateFilePath)
-			if err != nil {
+			if er != nil {
 				log.Printf("[cni] Error checking CNI state exist: %v", er)
 			}
 
 			ipamStateExists, er := platform.CheckIfFileExists(platform.CNIIpamStatePath)
-			if err != nil {
+			if er != nil {
 				log.Printf("[cni] Error checking IPAM state exist: %v", er)
 			}
 
@@ -124,7 +124,7 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 		if err := invoker.plugin.DelegateDel(nwCfg.Ipam.Type, nwCfg); err != nil {
 			if errors.Is(err, ipam.ErrNoAvailableAddressPools) {
 				cniStateExists, er := platform.CheckIfFileExists(platform.CNIStateFilePath)
-				if err != nil {
+				if er != nil {
 					log.Printf("[cni] Error checking CNI state exist: %v", er)
 				}
 
