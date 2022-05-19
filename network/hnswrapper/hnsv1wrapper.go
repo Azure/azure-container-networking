@@ -1,19 +1,45 @@
-// go:build windows
-// +build windows
+//go:build windows
+//+build windows
 
 package hnswrapper
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Microsoft/hcsshim"
+	"io/fs"
+	"os"
+	"time"
 )
 
 type Hnsv1wrapper struct {
 }
 
+func Exists(name string) bool {
+	_, err := os.Stat(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	return true
+}
+
+func blockHnsCallsIfFileExists(){
+	path, _ := os.Getwd()
+
+	log.Printf(fmt.Sprintf("Current working directry is %s - debug alegal", path))
+	if Exists("blockhns.txt"){
+		log.Printf("Blocking HNS calls - debug alegal")
+		time.Sleep(10 * time.Minute)
+	} else {
+		log.Printf("Not blocking HNS calls - debug alegal")
+	}
+}
+
 func (Hnsv1wrapper) CreateEndpoint(endpoint *hcsshim.HNSEndpoint, path string) (*hcsshim.HNSEndpoint, error) {
 
+	blockHnsCallsIfFileExists()
 	// Marshal the request.
 	buffer, err := json.Marshal(endpoint)
 	if err != nil {
@@ -34,7 +60,6 @@ func (Hnsv1wrapper) CreateEndpoint(endpoint *hcsshim.HNSEndpoint, path string) (
 }
 
 func (Hnsv1wrapper) DeleteEndpoint(endpointId string)  (*hcsshim.HNSEndpoint, error) {
-
 	hnsResponse, err := hcsshim.HNSEndpointRequest("DELETE", endpointId, "")
 
 	if err != nil{
@@ -66,7 +91,6 @@ func (Hnsv1wrapper) CreateNetwork(network *hcsshim.HNSNetwork, path string) (*hc
 }
 
 func (Hnsv1wrapper) DeleteNetwork(networkId string)  (*hcsshim.HNSNetwork, error) {
-
 	hnsResponse, err := hcsshim.HNSNetworkRequest("DELETE", networkId, "")
 
 	if err != nil{

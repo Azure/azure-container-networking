@@ -49,6 +49,10 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 		return nil, err
 	}
 
+	if nwCfg.WindowsSettings.HnsTimeoutDurationInSeconds > 0 && strings.Contains( epInfo.PODName, "iis-2019"){
+		network.EnableHnsV1Timeout(nwCfg.WindowsSettings.HnsTimeoutDurationInSeconds)
+	}
+
 	hnsEndpoint, err := network.Hnsv1.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)

@@ -79,8 +79,8 @@ func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, 
 		return nw.newEndpointImplHnsV2(cli, epInfo)
 	}
 
-	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		enableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 && strings.Contains( epInfo.PODName, "iis-2019")  {
+		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 
 	return nw.newEndpointImplHnsV1(epInfo)
@@ -422,7 +422,7 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 	}
 
 	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		enableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 	return nw.deleteEndpointImplHnsV1(ep)
 }

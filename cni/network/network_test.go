@@ -69,7 +69,7 @@ func GetTestResources() *NetPlugin {
 	pluginName := "testplugin"
 	config := &common.PluginConfig{}
 	grpcClient := &nns.MockGrpcClient{}
-	plugin, _ := NewPlugin(pluginName, config, grpcClient, &Multitenancy{}, nil)
+	plugin, _ := NewPlugin(pluginName, config, grpcClient, &Multitenancy{})
 	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 	plugin.nm = mockNetworkManager
@@ -957,7 +957,7 @@ func TestNewPlugin(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			plugin, err := NewPlugin("test", &tt.config, nil, nil, nil)
+			plugin, err := NewPlugin("test", &tt.config, nil, nil)
 			if tt.wantErr {
 				require.NoError(t, err)
 				require.NotNil(t, plugin)

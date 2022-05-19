@@ -71,7 +71,7 @@ func enableHnsV2Timeout(timeoutValue int) {
 	}
 }
 
-func enableHnsV1Timeout(timeoutValue int) {
+func EnableHnsV1Timeout(timeoutValue int) {
 	if _, ok := Hnsv1.(hnswrapper.Hnsv1wrapperwithtimeout); !ok {
 		var timeoutDuration = time.Duration(timeoutValue) * time.Second
 		Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{Hnsv1: hnswrapper.Hnsv1wrapper{}, HnsCallTimeout: timeoutDuration}
@@ -380,7 +380,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		return nm.newNetworkImplHnsV2(nwInfo, extIf)
 	}
 	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		enableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 	return nm.newNetworkImplHnsV1(nwInfo, extIf)
 }
@@ -398,7 +398,7 @@ func (nm *networkManager) deleteNetworkImpl(nw *network, cniConfig *cni.NetworkC
 		return nm.deleteNetworkImplHnsV2(nw)
 	}
 	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		enableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 	return nm.deleteNetworkImplHnsV1(nw)
 }

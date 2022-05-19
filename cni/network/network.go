@@ -72,7 +72,6 @@ type NetPlugin struct {
 	report             *telemetry.CNIReport
 	tb                 *telemetry.TelemetryBuffer
 	nnsClient          NnsClient
-	hnsEndpointClient  network.AzureHNSEndpointClient
 	multitenancyClient MultitenancyClient
 }
 
@@ -106,7 +105,6 @@ func NewPlugin(name string,
 	config *common.PluginConfig,
 	client NnsClient,
 	multitenancyClient MultitenancyClient,
-	azHnsClient network.AzureHNSEndpointClient,
 ) (*NetPlugin, error) {
 	// Setup base plugin.
 	plugin, err := cni.NewPlugin(name, config.Version)
@@ -128,7 +126,6 @@ func NewPlugin(name string,
 		nm:                 nm,
 		nnsClient:          client,
 		multitenancyClient: multitenancyClient,
-		hnsEndpointClient:  azHnsClient,
 	}, nil
 }
 
